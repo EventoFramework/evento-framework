@@ -23,6 +23,7 @@ dependencies {
     implementation 'org.reflections:reflections:0.10.2'
 
     implementation project(":event-rails-modeling")
+    implementation project(":event-rails-parser")
 
 
 

@@ -3,6 +3,7 @@ package org.eventrails.demo;
 import org.eventrails.demo.parser.AppClassVisitor;
 import org.eventrails.demo.parser.Callee;
 import org.eventrails.modeling.annotations.component.*;
+import org.eventrails.modeling.annotations.handler.EventSourcingHandler;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.messaging.payload.Command;
 import org.objectweb.asm.commons.Method;
@@ -10,6 +11,8 @@ import org.reflections.Reflections;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 import org.objectweb.asm.ClassReader;
 
@@ -17,12 +20,27 @@ import static org.reflections.vfs.Vfs.DefaultUrlTypes.jarFile;
 
 public class Parser {
 	public static void main(String[] args) throws IOException, NoSuchMethodException {
+
+
 		String pkg = "org.eventrails.demo";
 		Reflections reflections = new Reflections(pkg);
+		List<org.eventrails.parser.model.component.Aggregate> aggregates = new ArrayList<>();
+
+		var a = reflections.getTypesAnnotatedWith(Aggregate.class);
+
+
+		System.out.println(a);
+
+
+
+
+
+
+
 
 		String targetClass = CommandGateway.class.getName().replace('.', '/');
-
 		Method targetMethod = Method.getMethod(CommandGateway.class.getDeclaredMethod("send", Command.class));
+
 		AppClassVisitor cv = new AppClassVisitor(targetClass, targetMethod);
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Saga.class))
 		{

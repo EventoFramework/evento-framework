@@ -45,5 +45,6 @@ class ApplicationParserTest {
 			}
 		});*/
 		System.out.println(new JsonSerializer().serialize(components));
+
 	}
 }
