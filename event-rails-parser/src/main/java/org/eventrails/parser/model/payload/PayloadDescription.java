@@ -1,11 +1,13 @@
 package org.eventrails.parser.model.payload;
 
+import com.google.gson.JsonObject;
+
 public class PayloadDescription {
 	private String name;
 	private String type;
-	private String schema;
+	private JsonObject schema;
 
-	public PayloadDescription(String name, String type, String schema) {
+	public PayloadDescription(String name, String type, JsonObject schema) {
 		this.name = name;
 		this.type = type;
 		this.schema = schema;
@@ -27,11 +29,11 @@ public class PayloadDescription {
 		this.type = type;
 	}
 
-	public String getSchema() {
+	public JsonObject getSchema() {
 		return schema;
 	}
 
-	public void setSchema(String schema) {
+	public void setSchema(JsonObject schema) {
 		this.schema = schema;
 	}
 }

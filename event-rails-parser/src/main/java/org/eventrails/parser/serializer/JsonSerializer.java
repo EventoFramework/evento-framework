@@ -1,9 +1,11 @@
 package org.eventrails.parser.serializer;
 
 import com.google.gson.*;
+import org.eventrails.parser.model.Application;
 import org.eventrails.parser.model.component.*;
 import org.eventrails.parser.model.handler.*;
 import org.eventrails.parser.model.payload.Payload;
+import org.eventrails.parser.model.payload.PayloadDescription;
 import org.eventrails.parser.model.payload.Query;
 
 import java.util.ArrayList;
@@ -20,9 +22,9 @@ public class JsonSerializer {
 		gson = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().serializeNulls().create();
 	}
 
-	public String serialize(List<Component> components) {
-		JsonArray jsonArray = new JsonArray();
-		for (Component component : components)
+	public String serialize(Application application) {
+		JsonArray components = new JsonArray();
+		for (Component component : application.getComponents())
 		{
 			JsonObject jComponent = new JsonObject();
 			jComponent.addProperty("type", component.getClass().getSimpleName());
@@ -43,10 +45,24 @@ public class JsonSerializer {
 			}
 
 
-			jsonArray.add(jComponent);
+			components.add(jComponent);
 		}
 
-		return gson.toJson(jsonArray);
+		JsonArray payloads = new JsonArray();
+		for (PayloadDescription payloadDescription : application.getPayloadDescriptions())
+		{
+			JsonObject payload = new JsonObject();
+			payload.addProperty("name", payloadDescription.getName());
+			payload.addProperty("type", payloadDescription.getType());
+			payload.add("schema", payloadDescription.getSchema());
+			payloads.add(payload);
+
+		}
+
+		var appDesc = new JsonObject();
+		appDesc.add("components", components);
+		appDesc.add("payloads", payloads);
+		return gson.toJson(appDesc);
 	}
 
 	private JsonElement serializeHandlers(List<? extends Handler<?>> handlers) {
