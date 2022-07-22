@@ -16,34 +16,15 @@ class ApplicationParserTest {
 	void parseDirectory() throws IOException {
 		JavaApplicationParser applicationParser = new JavaApplicationParser();
 		var components = applicationParser.parseDirectory(
-				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo\\src\\main\\java\\org\\eventrails\\demo"));
-		/*components.forEach(c -> {
-			if(c instanceof Saga s){
-				s.getSagaEventHandlers().forEach(h -> {
-					System.out.printf("%30s | %30s | %30s | %30s | %s - %s \n", c.getClass().getSimpleName(), c.getComponentName(), h.getPayload().getName(), null, h.getQueryInvocations().stream().map(Object::toString).collect(Collectors.joining(",")),  h.getCommandInvocations().stream().map(Payload::getName).collect(Collectors.joining(",")));
-				});
-			}
-			else if(c instanceof Aggregate a){
-				a.getAggregateCommandHandlers().forEach(h -> {
-					System.out.printf("%30s | %30s | %30s | %30s \n", c.getClass().getSimpleName(), c.getComponentName(), h.getPayload().getName(), h.getProducedEvent().getName());
-				});
-				a.getEventSourcingHandlers().forEach(h -> {
-					System.out.printf("%30s | %30s | %30s | %30s \n", c.getClass().getSimpleName(), c.getComponentName(), h.getPayload().getName(), null);
-				});
-			}else if(c instanceof Projector p){
-				p.getEventHandlers().forEach(h -> {
-					System.out.printf("%30s | %30s | %30s | %30s | %s \n", c.getClass().getSimpleName(), c.getComponentName(), h.getPayload().getName(), null, h.getQueryInvocations().stream().map(Object::toString).collect(Collectors.joining(",")));
-				});
-			}else if(c instanceof Projection p){
-				p.getQueryHandlers().forEach(h -> {
-					System.out.printf("%30s | %30s | %30s | %30s \n", c.getClass().getSimpleName(), c.getComponentName(), h.getPayload().getName(), h.getPayload().getReturnType());
-				});
-			}else if(c instanceof Service s){
-				s.getCommandHandlers().forEach(h -> {
-					System.out.printf("%30s | %30s | %30s | %30s| %s - %s \n", c.getClass().getSimpleName(), c.getComponentName(), h.getPayload().getName(), h.getProducedEvent(), h.getQueryInvocations().stream().map(Object::toString).collect(Collectors.joining(",")),  h.getCommandInvocations().stream().map(Payload::getName).collect(Collectors.joining(",")));
-				});
-			}
-		});*/
+				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo-command\\src\\main\\java\\org\\eventrails\\demo"));
+		System.out.println(new JsonSerializer().serialize(components));
+
+		components = applicationParser.parseDirectory(
+				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo-query\\src\\main\\java\\org\\eventrails\\demo"));
+		System.out.println(new JsonSerializer().serialize(components));
+
+		components = applicationParser.parseDirectory(
+				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo-saga\\src\\main\\java\\org\\eventrails\\demo"));
 		System.out.println(new JsonSerializer().serialize(components));
 
 	}

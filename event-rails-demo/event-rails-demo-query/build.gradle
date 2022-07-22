@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-group 'org.eventrails.cli'
+group 'org.eventrails'
 version '1.0-SNAPSHOT'
 
 repositories {
@@ -12,7 +12,10 @@ repositories {
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
-    implementation 'info.picocli:picocli:4.6.3'
+
+
+    implementation project(":event-rails-modeling")
+    implementation project(":event-rails-parser")
 }
 
 test {

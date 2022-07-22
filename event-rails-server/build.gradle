@@ -28,6 +28,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	implementation project(':event-rails-modeling')
+	implementation project(':event-rails-parser')
 }
 
 task prepareKotlinBuildScriptModel {
