@@ -4,6 +4,13 @@ import org.eventrails.modeling.messaging.payload.DomainCommand;
 
 public class DemoDeleteCommand extends DomainCommand {
 
+	public DemoDeleteCommand(String demoId) {
+		this.demoId = demoId;
+	}
+
+	public DemoDeleteCommand() {
+	}
+
 	private String demoId;
 
 	public String getDemoId() {

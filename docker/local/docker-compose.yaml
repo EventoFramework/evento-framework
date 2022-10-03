@@ -1,0 +1,14 @@
+version: '3.3'
+services:
+  db:
+    image: mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: 'db'
+      MYSQL_ROOT_PASSWORD: 'secret'
+    ports:
+      - '3309:3306'
+    expose:
+      - '3309'
+    volumes:
+      - ./data/mysql:/var/lib/mysql

@@ -1,17 +1,15 @@
 package org.eventrails.parser.serializer;
 
 import com.google.gson.*;
-import org.eventrails.parser.model.Application;
-import org.eventrails.parser.model.component.*;
+import org.eventrails.parser.model.RanchApplicationDescription;
+import org.eventrails.parser.model.node.*;
 import org.eventrails.parser.model.handler.*;
 import org.eventrails.parser.model.payload.Payload;
 import org.eventrails.parser.model.payload.PayloadDescription;
 import org.eventrails.parser.model.payload.Query;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Queue;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -22,25 +20,25 @@ public class JsonSerializer {
 		gson = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().serializeNulls().create();
 	}
 
-	public String serialize(Application application) {
+	public String serialize(RanchApplicationDescription ranchApplicationDescription) {
 		JsonArray components = new JsonArray();
-		for (Component component : application.getComponents())
+		for (Node node : ranchApplicationDescription.getNodes())
 		{
 			JsonObject jComponent = new JsonObject();
-			jComponent.addProperty("type", component.getClass().getSimpleName());
-			jComponent.addProperty("name", component.getComponentName());
+			jComponent.addProperty("type", node.getClass().getSimpleName());
+			jComponent.addProperty("name", node.getComponentName());
 
-			if (component instanceof Saga c)
+			if (node instanceof Saga c)
 			{
 				jComponent.add("handlers", serializeHandlers(c.getSagaEventHandlers()));
-			}else if(component instanceof Aggregate c){
+			}else if(node instanceof Aggregate c){
 				jComponent.add("handlers", serializeHandlers(
 						Stream.concat(c.getAggregateCommandHandlers().stream(), c.getEventSourcingHandlers().stream()).collect(Collectors.toList())));
-			}else if(component instanceof Projector c){
+			}else if(node instanceof Projector c){
 				jComponent.add("handlers", serializeHandlers(c.getEventHandlers()));
-			}else if(component instanceof Projection c){
+			}else if(node instanceof Projection c){
 				jComponent.add("handlers", serializeHandlers(c.getQueryHandlers()));
-			}else if(component instanceof Service c){
+			}else if(node instanceof Service c){
 				jComponent.add("handlers", serializeHandlers(c.getCommandHandlers()));
 			}
 
@@ -49,7 +47,7 @@ public class JsonSerializer {
 		}
 
 		JsonArray payloads = new JsonArray();
-		for (PayloadDescription payloadDescription : application.getPayloadDescriptions())
+		for (PayloadDescription payloadDescription : ranchApplicationDescription.getPayloadDescriptions())
 		{
 			JsonObject payload = new JsonObject();
 			payload.addProperty("name", payloadDescription.getName());

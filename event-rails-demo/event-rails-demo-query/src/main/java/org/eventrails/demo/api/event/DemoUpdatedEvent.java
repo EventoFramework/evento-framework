@@ -6,7 +6,7 @@ public class DemoUpdatedEvent extends DomainEvent {
 
 	private String demoId;
 	private String name;
-	private long value;
+	private Long value;
 
 	public DemoUpdatedEvent(String demoId, String name, long value) {
 		this.demoId = demoId;

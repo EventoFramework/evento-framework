@@ -29,8 +29,17 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	implementation project(':event-rails-modeling')
 	implementation project(':event-rails-parser')
+	// https://mvnrepository.com/artifact/com.google.code.gson/gson
+	implementation 'com.google.code.gson:gson:2.9.0'
+
+	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'mysql:mysql-connector-java'
 }
 
 task prepareKotlinBuildScriptModel {
 
+}
+
+test {
+	useJUnitPlatform()
 }

@@ -9,6 +9,9 @@ public class NotificationSendCommand extends ServiceCommand {
 		this.body = body;
 	}
 
+	public NotificationSendCommand() {
+	}
+
 	public String getBody() {
 		return body;
 	}

@@ -11,8 +11,8 @@ import org.eventrails.modeling.annotations.handler.AggregateCommandHandler;
 import org.eventrails.modeling.annotations.handler.EventSourcingHandler;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.CommandMessage;
-import org.eventrails.modeling.messaging.EventMessage;
+import org.eventrails.modeling.messaging.message.CommandMessage;
+import org.eventrails.modeling.messaging.message.EventMessage;
 
 @Aggregate(snapshotFrequency=1000)
 public class DemoAggregate {
@@ -30,7 +30,7 @@ public class DemoAggregate {
 	}
 
 	@EventSourcingHandler
-	DemoAggregateState on(DemoCreatedEvent event, DemoAggregateState state, EventMessage eventMessage){
+	DemoAggregateState on(DemoCreatedEvent event, DemoAggregateState state, EventMessage<DemoCreatedEvent> eventMessage){
 		return new DemoAggregateState(event.getValue());
 	}
 

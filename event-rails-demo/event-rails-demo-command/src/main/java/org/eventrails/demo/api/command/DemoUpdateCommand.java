@@ -6,12 +6,15 @@ public class DemoUpdateCommand extends DomainCommand {
 
 	private String demoId;
 	private String name;
-	private long value;
+	private Long value;
 
 	public DemoUpdateCommand(String demoId, String name, long value) {
 		this.demoId = demoId;
 		this.name = name;
 		this.value = value;
+	}
+
+	public DemoUpdateCommand() {
 	}
 
 	public String getDemoId() {

@@ -6,12 +6,15 @@ public class DemoCreateCommand extends DomainCommand {
 
 	private String demoId;
 	private String name;
-	private long value;
+	private Long value;
 
 	public DemoCreateCommand(String demoId, String name, long value) {
 		this.demoId = demoId;
 		this.name = name;
 		this.value = value;
+	}
+
+	public DemoCreateCommand() {
 	}
 
 	public String getDemoId() {

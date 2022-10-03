@@ -1,9 +1,8 @@
 package org.eventrails.parser.java;
 
 import net.sourceforge.pmd.lang.ast.AbstractNode;
-import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
-import org.eventrails.parser.model.component.Component;
+import org.eventrails.parser.model.node.Node;
 import org.eventrails.parser.model.handler.Handler;
 import org.eventrails.parser.model.handler.HasCommandInvocations;
 import org.eventrails.parser.model.handler.HasQueryInvocations;
@@ -13,12 +12,12 @@ import org.jaxen.JaxenException;
 import java.util.List;
 import java.util.Stack;
 
-public abstract class JavaComponentParser<T extends Component> {
+public abstract class JavaComponentParser<T extends Node> {
 
 
-	protected Node node;
+	protected net.sourceforge.pmd.lang.ast.Node node;
 
-	public JavaComponentParser(Node node) {
+	public JavaComponentParser(net.sourceforge.pmd.lang.ast.Node node) {
 		this.node = node;
 	}
 
@@ -30,7 +29,7 @@ public abstract class JavaComponentParser<T extends Component> {
 	}
 
 	public static boolean isAggregate(ASTTypeDeclaration classDef) throws JaxenException {
-		return !classDef.findChildNodesWithXPath("//MarkerAnnotation/Name[@Image = \"Aggregate\"]").isEmpty();
+		return !classDef.findChildNodesWithXPath("//Name[@Image = \"Aggregate\"]").isEmpty();
 	}
 
 	public static boolean isProjection(ASTTypeDeclaration classDef) throws JaxenException {
@@ -55,14 +54,14 @@ public abstract class JavaComponentParser<T extends Component> {
 
 	protected void findCommandInvocations(List<? extends Handler<?>> ehs) throws JaxenException {
 		var query = "//PrimaryExpression[PrimaryPrefix/Name[ends-with(@Image,\"send\") or ends-with(@Image,\"sendAndWait\")]]";
-		for (Node n : node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query))
+		for (net.sourceforge.pmd.lang.ast.Node n : node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query))
 		{
 			var expr = ((ASTPrimaryExpression) n);
 			var msgArg = expr.getFirstDescendantOfType(ASTClassOrInterfaceType.class);
 			if (msgArg == null) return;
 			var cmdName = msgArg.getImage();
 			var cmd = new Command(cmdName);
-			Node methodOrConstructor = expr.getFirstParentOfType(ASTMethodDeclaration.class);
+			net.sourceforge.pmd.lang.ast.Node methodOrConstructor = expr.getFirstParentOfType(ASTMethodDeclaration.class);
 			if (methodOrConstructor == null)
 			{
 				methodOrConstructor = expr.getFirstParentOfType(ASTConstructorDeclaration.class);
@@ -73,7 +72,7 @@ public abstract class JavaComponentParser<T extends Component> {
 
 	protected void findQueryInvocations(List<? extends Handler<?>> ehs) throws JaxenException {
 		var query = "//PrimaryExpression[PrimaryPrefix/Name[ends-with(@Image,\"query\")]]";
-		for (Node n : node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query))
+		for (net.sourceforge.pmd.lang.ast.Node n : node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query))
 		{
 			var expr = ((ASTPrimaryExpression) n);
 			var types = expr.findDescendantsOfType(ASTClassOrInterfaceType.class);
@@ -84,7 +83,7 @@ public abstract class JavaComponentParser<T extends Component> {
 			var type = isMultiple ? new MultipleResultQueryReturnType(msgRetType.getImage()) : new MonoResultQueryReturnType(msgRetType.getImage());
 			var qName = msgArg.getImage();
 			var q = new Query(qName, type);
-			Node methodOrConstructor = expr.getFirstParentOfType(ASTMethodDeclaration.class);
+			net.sourceforge.pmd.lang.ast.Node methodOrConstructor = expr.getFirstParentOfType(ASTMethodDeclaration.class);
 			if (methodOrConstructor == null)
 			{
 				methodOrConstructor = expr.getFirstParentOfType(ASTConstructorDeclaration.class);
@@ -101,7 +100,7 @@ public abstract class JavaComponentParser<T extends Component> {
 	}
 
 
-	private void manageMessageInvocation(Node methodOrConstructor, Payload m, List<? extends Handler<?>> ehs,
+	private void manageMessageInvocation(net.sourceforge.pmd.lang.ast.Node methodOrConstructor, Payload m, List<? extends Handler<?>> ehs,
 										 Stack<ASTPrimaryExpression> expr
 	) throws JaxenException {
 		var annot = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceBodyDeclaration.class).findChildNodesWithXPath("Annotation//Name[ends-with(@Image,\"Handler\") and not(starts-with(@Image,'Deadline'))]");
@@ -123,7 +122,7 @@ public abstract class JavaComponentParser<T extends Component> {
 
 		var mName = methodOrConstructor instanceof ASTMethodDeclaration ? ((ASTMethodDeclaration) methodOrConstructor).getName() : methodOrConstructor.getImage();
 		var invoks = node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath("//PrimaryPrefix/Name[@Image = \"%s\"]".formatted(mName));
-		for (Node i : invoks)
+		for (net.sourceforge.pmd.lang.ast.Node i : invoks)
 		{
 			var mt = i.getFirstParentOfType(ASTMethodDeclaration.class);
 			if (mt == null) return;

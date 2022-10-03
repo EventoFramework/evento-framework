@@ -10,6 +10,9 @@ public class DemoAggregateState extends AggregateState {
 		this.value = value;
 	}
 
+	public DemoAggregateState() {
+	}
+
 	public long getValue() {
 		return value;
 	}
