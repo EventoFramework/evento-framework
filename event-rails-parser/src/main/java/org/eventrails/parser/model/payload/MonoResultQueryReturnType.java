@@ -6,6 +6,11 @@ public class MonoResultQueryReturnType extends QueryReturnType {
 	}
 
 	@Override
+	public boolean isMultiple() {
+		return false;
+	}
+
+	@Override
 	public String toString() {
 		return getViewName();
 	}

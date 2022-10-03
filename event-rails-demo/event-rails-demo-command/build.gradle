@@ -14,9 +14,12 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
 
 
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0-rc1'
+
     implementation project(":event-rails-modeling")
     implementation project(":event-rails-parser")
     implementation project(":event-rails-application")
+
 }
 
 test {

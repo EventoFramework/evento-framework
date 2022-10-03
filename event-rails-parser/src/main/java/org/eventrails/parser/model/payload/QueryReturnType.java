@@ -11,4 +11,6 @@ public abstract class QueryReturnType {
 		return viewName;
 	}
 
+	public abstract boolean isMultiple();
+
 }

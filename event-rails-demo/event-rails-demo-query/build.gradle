@@ -16,6 +16,7 @@ dependencies {
 
     implementation project(":event-rails-modeling")
     implementation project(":event-rails-parser")
+    implementation project(":event-rails-application")
 }
 
 test {

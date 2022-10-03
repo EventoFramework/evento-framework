@@ -7,12 +7,13 @@ import org.eventrails.demo.api.event.DemoDeletedEvent;
 import org.eventrails.demo.api.event.DemoUpdatedEvent;
 import org.eventrails.demo.api.event.NotificationSentEvent;
 import org.eventrails.demo.api.query.DemoFindByIdQuery;
+import org.eventrails.demo.api.view.DemoRichView;
 import org.eventrails.demo.api.view.DemoView;
 import org.eventrails.modeling.annotations.component.Saga;
 import org.eventrails.modeling.annotations.handler.SagaEventHandler;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.EventMessage;
+import org.eventrails.modeling.messaging.message.EventMessage;
 
 import java.util.concurrent.ExecutionException;
 
@@ -21,10 +22,10 @@ public class DemoSaga {
 
 	@SagaEventHandler(init = true)
 	public DemoSagaState on(DemoCreatedEvent event,
-							DemoSagaState demoSagaState,
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							EventMessage message) {
+		DemoSagaState demoSagaState = new DemoSagaState();
 		demoSagaState.setAssociation("demoId", event.getDemoId());
 		demoSagaState.setLastValue(event.getValue());
 		return demoSagaState;
@@ -38,7 +39,7 @@ public class DemoSaga {
 							EventMessage message) throws ExecutionException, InterruptedException {
 		if (event.getValue() - demoSagaState.getLastValue() > 10)
 		{
-			var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId()), DemoView.class).get();
+			var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId()), DemoRichView.class).get();
 
 			System.out.println(jump(commandGateway, demo.toString()));
 		}

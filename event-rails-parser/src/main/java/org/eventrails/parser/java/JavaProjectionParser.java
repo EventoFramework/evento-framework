@@ -2,7 +2,7 @@ package org.eventrails.parser.java;
 
 import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
-import org.eventrails.parser.model.component.Projection;
+import org.eventrails.parser.model.node.Projection;
 import org.eventrails.parser.model.handler.QueryHandler;
 import org.eventrails.parser.model.payload.MultipleResultQueryReturnType;
 import org.eventrails.parser.model.payload.MonoResultQueryReturnType;

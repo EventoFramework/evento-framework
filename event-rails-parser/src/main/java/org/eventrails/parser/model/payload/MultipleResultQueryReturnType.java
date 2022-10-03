@@ -6,6 +6,11 @@ public class MultipleResultQueryReturnType extends QueryReturnType {
 	}
 
 	@Override
+	public boolean isMultiple() {
+		return true;
+	}
+
+	@Override
 	public String toString() {
 		return "Multiple<" + getViewName() + ">";
 	}

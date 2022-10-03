@@ -2,7 +2,7 @@ package org.eventrails.parser.java;
 
 import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
-import org.eventrails.parser.model.component.Saga;
+import org.eventrails.parser.model.node.Saga;
 import org.eventrails.parser.model.handler.SagaEventHandler;
 import org.eventrails.parser.model.payload.Event;
 import org.jaxen.JaxenException;

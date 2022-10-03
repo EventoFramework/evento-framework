@@ -9,6 +9,9 @@ public class NotificationSendSilentCommand extends ServiceCommand {
 		this.body = body;
 	}
 
+	public NotificationSendSilentCommand() {
+	}
+
 	public String getBody() {
 		return body;
 	}

@@ -8,7 +8,7 @@ public class DemoRichView extends View {
 
 	private String demoId;
 	private String name;
-	private long value;
+	private Long value;
 	private Instant createdAt;
 	private Instant updatedAt;
 

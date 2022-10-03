@@ -4,9 +4,8 @@ import lombok.*;
 import org.eventrails.server.domain.model.types.PayloadType;
 import org.hibernate.Hibernate;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
+import javax.persistence.*;
+import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
@@ -14,12 +13,20 @@ import java.util.Objects;
 @Setter
 @ToString
 @RequiredArgsConstructor
-public class Payload {
+@Embeddable
+public class Payload implements Serializable {
 	@Id
+	@Column(name = "name")
 	private String name;
+
+	@OneToOne(cascade = CascadeType.ALL)
+	@PrimaryKeyJoinColumn
+	private Handler handler;
+
+	@Enumerated(EnumType.STRING)
 	private PayloadType type;
 	@Column(columnDefinition = "JSON")
-	private String schema;
+	private String jsonSchema;
 
 	@Override
 	public boolean equals(Object o) {

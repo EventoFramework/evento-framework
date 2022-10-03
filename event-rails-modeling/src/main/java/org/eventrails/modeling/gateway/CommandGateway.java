@@ -7,8 +7,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public interface CommandGateway {
-	public <R> void send(Command command,
-						 Function<? super Command, R> callback);
 
 	public <R> CompletableFuture<R> send(Command command);
 

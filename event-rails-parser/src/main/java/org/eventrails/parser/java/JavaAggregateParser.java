@@ -4,7 +4,7 @@ import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.ASTClassOrInterfaceType;
 import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTTypeDeclaration;
-import org.eventrails.parser.model.component.Aggregate;
+import org.eventrails.parser.model.node.Aggregate;
 import org.eventrails.parser.model.handler.AggregateCommandHandler;
 import org.eventrails.parser.model.handler.EventSourcingHandler;
 import org.eventrails.parser.model.payload.DomainCommand;

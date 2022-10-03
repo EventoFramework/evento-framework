@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@Component
+@Node
 public @interface Aggregate {
 	int snapshotFrequency() default -1;
 }

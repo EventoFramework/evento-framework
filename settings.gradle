@@ -8,4 +8,5 @@ include 'event-rails-demo:event-rails-demo-query'
 include 'event-rails-demo:event-rails-demo-saga'
 include 'event-rails-application'
 include 'event-rails-demo'
+include 'event-rails-shared'
 

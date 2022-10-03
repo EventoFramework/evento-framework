@@ -5,7 +5,7 @@ import org.eventrails.modeling.messaging.payload.View;
 public class DemoView extends View {
 	private String demoId;
 	private String name;
-	private long value;
+	private Long value;
 
 	public DemoView(String demoId, String name, long value) {
 		this.demoId = demoId;

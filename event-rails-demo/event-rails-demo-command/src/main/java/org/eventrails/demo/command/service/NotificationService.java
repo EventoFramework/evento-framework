@@ -7,7 +7,7 @@ import org.eventrails.modeling.annotations.component.Service;
 import org.eventrails.modeling.annotations.handler.CommandHandler;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.CommandMessage;
+import org.eventrails.modeling.messaging.message.CommandMessage;
 
 import java.util.UUID;
 

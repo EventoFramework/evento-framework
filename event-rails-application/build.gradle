@@ -9,15 +9,29 @@ repositories {
     mavenCentral()
 }
 
+
+
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
 
-    // https://mvnrepository.com/artifact/com.google.code.gson/gson
-    implementation 'com.google.code.gson:gson:2.9.0'
+    implementation 'org.reflections:reflections:0.10.2'
+    implementation 'io.github.classgraph:classgraph:4.8.149'
 
 
     implementation project(":event-rails-modeling")
+    implementation project(":event-rails-shared")
+    implementation 'org.jgroups:jgroups:5.2.5.Final'
+
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.4'
+
+    implementation 'org.apache.logging.log4j:log4j-core:2.19.0'
+    implementation 'org.apache.logging.log4j:log4j-api:2.19.0'
+
+    implementation 'com.squareup.okhttp3:okhttp:4.10.0'
+
+
+
 }
 
 test {

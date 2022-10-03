@@ -3,8 +3,8 @@ package org.eventrails.demo.api.query;
 import org.eventrails.modeling.messaging.payload.Query;
 
 public class NotificationFindAllQuery extends Query {
-	private int limit;
-	private int offset;
+	private Integer limit;
+	private Integer offset;
 
 	public NotificationFindAllQuery(int limit, int offset) {
 		this.limit = limit;
