@@ -2,15 +2,20 @@ package org.eventrails.application.server;
 
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eventrails.application.EventRailsApplication;
 import org.eventrails.modeling.messaging.invocation.*;
+import org.eventrails.modeling.messaging.message.DomainCommandMessage;
+import org.eventrails.modeling.messaging.message.DomainEventMessage;
 import org.eventrails.shared.ObjectMapperUtils;
+import org.eventrails.shared.exceptions.ExceptionWrapper;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -67,7 +72,7 @@ public class ApplicationServer {
 						application.getCommandGateway(),
 						application.getQueryGateway()
 						);
-				String resp = payloadMapper.writeValueAsString(event);
+				String resp = payloadMapper.writeValueAsString(new DomainEventMessage(event));
 				ex.getResponseHeaders().set("Content-Type", "application/json");
 				ex.sendResponseHeaders(200, resp.getBytes().length);
 				OutputStream output = ex.getResponseBody();
@@ -75,7 +80,13 @@ public class ApplicationServer {
 				output.flush();
 			}catch (Exception e){
 				e.printStackTrace();
-				ex.sendResponseHeaders(500, -1);
+				var ew = new ExceptionWrapper(e.getClass(), e.getMessage(), e.getStackTrace());
+				String resp = payloadMapper.writeValueAsString(ew);
+				ex.getResponseHeaders().set("Content-Type", "application/json");
+				ex.sendResponseHeaders(500, resp.getBytes().length);
+				OutputStream output = ex.getResponseBody();
+				output.write(resp.getBytes());
+				output.flush();
 			}
 			ex.close();
 		});

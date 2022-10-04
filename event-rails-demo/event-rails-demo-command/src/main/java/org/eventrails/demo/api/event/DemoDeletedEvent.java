@@ -10,6 +10,9 @@ public class DemoDeletedEvent extends DomainEvent {
 		this.demoId = demoId;
 	}
 
+	public DemoDeletedEvent() {
+	}
+
 	public String getDemoId() {
 		return demoId;
 	}

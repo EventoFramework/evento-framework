@@ -11,6 +11,9 @@ public class NotificationSentEvent extends ServiceEvent {
 		this.body = body;
 	}
 
+	public NotificationSentEvent() {
+	}
+
 	public String getBody() {
 		return body;
 	}

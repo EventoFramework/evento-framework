@@ -14,6 +14,9 @@ public class DemoUpdatedEvent extends DomainEvent {
 		this.value = value;
 	}
 
+	public DemoUpdatedEvent() {
+	}
+
 	public String getDemoId() {
 		return demoId;
 	}
