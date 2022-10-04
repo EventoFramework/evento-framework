@@ -4,5 +4,4 @@ GET http://localhost:8081/er/info
 
 POST http://localhost:8081/er/invoke/domain-command/DemoUpdateCommand
 
-["org.eventrails.modeling.messaging.invocation.AggregateCommandHandlerInvocation",{"commandMessage":["org.eventrails.modeling.messaging.message.DomainCommandMessage",{"payload":["org.eventrails.demo.api.command.DemoUpdateCommand",{"demoId":"a","name":"a","value":3}]}],"aggregateState":["org.eventrails.demo.command.aggregate.DemoAggregateState",{"deleted":false,"value":2}],"eventStream":["java.util.ImmutableCollections$List12",[["org.eventrails.modeling.messaging.message.DomainEventMessage",{"payload":["org.eventrails.demo.api.event.DemoCreatedEvent",{"demoId":"a","name":"b","value":1}]}]]]}]
-
+["org.eventrails.modeling.messaging.message.DomainCommandMessage",{"payload":["org.eventrails.demo.api.command.DemoCreateCommand",{"demoId":"5cf5a9d0-4f1e-4166-8ad3-8ecaf2956692","name":"demo1","value":0}],"aggregateId":"5cf5a9d0-4f1e-4166-8ad3-8ecaf2956692"}]

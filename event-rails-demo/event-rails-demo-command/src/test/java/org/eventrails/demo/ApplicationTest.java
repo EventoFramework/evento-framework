@@ -8,9 +8,11 @@ import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import org.eventrails.application.CommandGatewayImpl;
 import org.eventrails.application.EventRailsApplication;
 import org.eventrails.demo.api.command.DemoCreateCommand;
+import org.eventrails.demo.api.command.DemoDeleteCommand;
 import org.eventrails.demo.api.command.DemoUpdateCommand;
 import org.eventrails.demo.api.event.DemoCreatedEvent;
 import org.eventrails.demo.command.aggregate.DemoAggregateState;
+import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.messaging.invocation.AggregateCommandHandlerInvocation;
 import org.eventrails.modeling.messaging.message.DomainCommandMessage;
 import org.eventrails.modeling.messaging.message.DomainEventMessage;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,5 +67,30 @@ class ApplicationTest {
 		System.out.println(json);
 		var b = mapper.readValue(json, Object.class);
 		System.out.println(b);
+	}
+
+	@Test
+	public void serverTest(){
+		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		var resp = commandGateway.sendAndWait(new DemoCreateCommand("demo_1", "demo1", 0));
+		System.out.println(resp);
+	}
+
+	@Test
+	public void serverTest3(){
+		String id = UUID.randomUUID().toString();
+		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
+		resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, 1));
+		resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
+		resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
+		System.out.println(resp);
+	}
+
+	@Test
+	public void serverTest2(){
+		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		var resp = commandGateway.sendAndWait(new DemoUpdateCommand("demo_2", "demo2", 0));
+		System.out.println(resp);
 	}
 }

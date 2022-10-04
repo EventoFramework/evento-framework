@@ -26,6 +26,7 @@ public class ReflectionUtils {
 		{
 			var param = method.getParameters()[i];
 			for(var input : availableParams){
+				if(input == null) continue;
 				if (param.getType().isPrimitive() && param.getType() == WRAPPER_TYPE_MAP.get(input.getClass())){
 					args[i] = input;
 				}else if(param.getType().isAssignableFrom(input.getClass())){

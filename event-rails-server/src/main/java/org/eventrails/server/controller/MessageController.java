@@ -1,25 +1,40 @@
 package org.eventrails.server.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eventrails.server.service.MessageGateway;
+import org.eventrails.shared.ObjectMapperUtils;
+import org.eventrails.shared.exceptions.ExceptionWrapper;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@Controller("/api/message")
+@Controller()
 public class MessageController {
 
 	private final MessageGateway messageGateway;
+
+	private final ObjectMapper payloadMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
 	public MessageController(MessageGateway messageGateway) {
 		this.messageGateway = messageGateway;
 	}
 
 
-	@PostMapping("/handle")
-	public void handle(@RequestBody String commandPayload, ObjectMapper objectMapper) throws JsonProcessingException {
-
-		messageGateway.handle(commandPayload);
+	@PostMapping(value = "/handle", produces = "application/json")
+	public ResponseEntity<String> handle(@RequestBody String message) throws JsonProcessingException {
+		try
+		{
+			var resp = messageGateway.handle(message);
+			return ResponseEntity.ok(resp);
+		}catch (Throwable e){
+			return ResponseEntity.status(500).body(payloadMapper.writeValueAsString(new ExceptionWrapper(
+					e.getClass(),
+					e.getMessage(),
+					e.getStackTrace()
+			)));
+		}
 	}
 }
