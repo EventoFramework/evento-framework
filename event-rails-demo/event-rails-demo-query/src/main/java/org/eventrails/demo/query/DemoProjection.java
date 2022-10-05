@@ -10,19 +10,20 @@ import org.eventrails.modeling.annotations.component.Projection;
 import org.eventrails.modeling.annotations.handler.QueryHandler;
 import org.eventrails.modeling.messaging.message.QueryMessage;
 import org.eventrails.modeling.messaging.query.Multiple;
+import org.eventrails.modeling.messaging.query.Single;
 
 @Projection
 public class DemoProjection {
 
 	@QueryHandler
-	DemoView query(DemoViewFindByIdQuery query, QueryMessage queryMessage) {
-		return new DemoView(null,
-				null, 0);
+	Single<DemoView> query(DemoViewFindByIdQuery query, QueryMessage<DemoViewFindByIdQuery> queryMessage) {
+		return Single.of(new DemoView(null,
+				null, 0));
 	}
 
 	@QueryHandler
-	DemoRichView queryRich(DemoRichViewFindByIdQuery query) {
-		return new DemoRichView(null, null, 0, null, null);
+	Single<DemoRichView> queryRich(DemoRichViewFindByIdQuery query) {
+		return Single.of(new DemoRichView(null, null, 0, null, null));
 	}
 
 	@QueryHandler
@@ -32,6 +33,6 @@ public class DemoProjection {
 
 	@QueryHandler
 	Multiple<DemoRichView> queryRich(DemoRichViewFindAllQuery query) {
-		return Multiple.of(new DemoRichView(null, null, 0, null, null));
+		return Multiple.of(new DemoRichView("demo1", null, 0, null, null),new DemoRichView("demo2", null, 0, null, null));
 	}
 }

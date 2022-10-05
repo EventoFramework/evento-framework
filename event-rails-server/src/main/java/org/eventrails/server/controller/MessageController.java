@@ -1,15 +1,15 @@
 package org.eventrails.server.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eventrails.server.service.MessageGateway;
 import org.eventrails.shared.ObjectMapperUtils;
-import org.eventrails.shared.exceptions.ExceptionWrapper;
+import org.eventrails.shared.exceptions.ThrowableWrapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import reactor.core.publisher.Mono;
 
 @Controller()
 public class MessageController {
@@ -24,17 +24,17 @@ public class MessageController {
 
 
 	@PostMapping(value = "/handle", produces = "application/json")
-	public ResponseEntity<String> handle(@RequestBody String message) throws JsonProcessingException {
+	public Mono<ResponseEntity<String>> handle(@RequestBody String message) throws JsonProcessingException {
 		try
 		{
 			var resp = messageGateway.handle(message);
-			return ResponseEntity.ok(resp);
+			return resp.map(ResponseEntity::ok);
 		}catch (Throwable e){
-			return ResponseEntity.status(500).body(payloadMapper.writeValueAsString(new ExceptionWrapper(
+			return Mono.just(ResponseEntity.status(500).body(payloadMapper.writeValueAsString(new ThrowableWrapper(
 					e.getClass(),
 					e.getMessage(),
 					e.getStackTrace()
-			)));
+			))));
 		}
 	}
 }

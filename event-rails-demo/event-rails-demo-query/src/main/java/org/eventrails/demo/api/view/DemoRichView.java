@@ -20,6 +20,9 @@ public class DemoRichView extends View {
 		this.updatedAt = updatedAt;
 	}
 
+	public DemoRichView() {
+	}
+
 	public String getDemoId() {
 		return demoId;
 	}
