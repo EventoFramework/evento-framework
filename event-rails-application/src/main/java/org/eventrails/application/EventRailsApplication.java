@@ -4,18 +4,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eventrails.application.reference.*;
 import org.eventrails.application.server.ApplicationServer;
+import org.eventrails.application.server.http.HttpApplicationServer;
+import org.eventrails.application.server.http.HttpCommandGateway;
+import org.eventrails.application.server.jgroups.JGroupsApplicationServer;
+import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
 import org.eventrails.modeling.annotations.component.*;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
-import org.jgroups.*;
-import org.jgroups.stack.IpAddress;
+import org.jgroups.JChannel;
 import org.reflections.Reflections;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Set;
 
 public class EventRailsApplication {
@@ -43,8 +44,24 @@ public class EventRailsApplication {
 	) throws IOException {
 		this.basePackage = basePackage;
 		this.ranchName = ranchName;
-		commandGateway = new CommandGatewayImpl(clusterUrls);
-		this.applicationServer = new ApplicationServer(serverPort, this);
+		commandGateway = new HttpCommandGateway(clusterUrls);
+		this.applicationServer = new HttpApplicationServer(serverPort, this);
+	}
+
+	private EventRailsApplication(
+			String basePackage,
+			String ranchName,
+			String channelName
+	) throws Exception {
+		this.basePackage = basePackage;
+		this.ranchName = ranchName;
+
+		JChannel jChannel = new JChannel();
+		jChannel.setName(ranchName);
+		jChannel.connect(channelName);
+
+		commandGateway = new JGroupsCommandGateway(jChannel);
+		this.applicationServer = new JGroupsApplicationServer(jChannel, this);
 	}
 
 	public static EventRailsApplication start(String basePackage, String ranchName, String clusterUrls, int serverPort, String[] args) {
@@ -66,6 +83,11 @@ public class EventRailsApplication {
 
 	private void startServer() throws Exception {
 		applicationServer.start();
+
+	}
+
+	private void stopServer() throws Exception {
+		applicationServer.stop();
 
 	}
 	private void parsePackage() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {

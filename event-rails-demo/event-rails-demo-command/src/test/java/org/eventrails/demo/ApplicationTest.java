@@ -5,7 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
-import org.eventrails.application.CommandGatewayImpl;
+import org.eventrails.application.server.http.HttpCommandGateway;
 import org.eventrails.application.EventRailsApplication;
 import org.eventrails.demo.api.command.*;
 import org.eventrails.demo.api.event.DemoCreatedEvent;
@@ -16,12 +16,9 @@ import org.eventrails.modeling.messaging.message.DomainCommandMessage;
 import org.eventrails.modeling.messaging.message.DomainEventMessage;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class ApplicationTest {
 
@@ -36,7 +33,7 @@ class ApplicationTest {
 
 	@Test
 	void cg() throws ExecutionException, InterruptedException {
-		var cg = new CommandGatewayImpl("http://localhost:3000");
+		var cg = new HttpCommandGateway("http://localhost:3000");
 		DemoCreatedEvent ev = cg.sendAndWait(new DemoCreateCommand("a","b",2));
 		System.out.println(ev);
 	}
@@ -70,7 +67,7 @@ class ApplicationTest {
 
 	@Test
 	public void serverTest(){
-		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand("demo_1", "demo1", 0));
 		System.out.println(resp);
 	}
@@ -79,7 +76,7 @@ class ApplicationTest {
 	@Test
 	public void serverTestOK(){
 		String id = UUID.randomUUID().toString();
-		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
 		resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, 1));
 		resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
@@ -89,7 +86,7 @@ class ApplicationTest {
 	@Test
 	public void serverTest3(){
 		String id = UUID.randomUUID().toString();
-		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
 		resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, 1));
 		resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
@@ -100,7 +97,7 @@ class ApplicationTest {
 	@Test
 	public void serverTest4(){
 		String id = UUID.randomUUID().toString();
-		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 1));
 		resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, 0));
 		System.out.println(resp);
@@ -108,7 +105,7 @@ class ApplicationTest {
 
 	@Test
 	public void serverTest2(){
-		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		var resp = commandGateway.sendAndWait(new DemoUpdateCommand("demo_2", "demo2", 0));
 		System.out.println(resp);
 	}
@@ -116,14 +113,14 @@ class ApplicationTest {
 
 	@Test
 	public void testServiceCommand(){
-		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		var resp = commandGateway.sendAndWait(new NotificationSendCommand("ciao_mondo"));
 		System.out.println(resp);
 	}
 
 	@Test
 	public void testServiceCommand2(){
-		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
+		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		commandGateway.sendAndWait(new NotificationSendSilentCommand("hola_cicos2"));
 		System.out.println("end");
 	}
