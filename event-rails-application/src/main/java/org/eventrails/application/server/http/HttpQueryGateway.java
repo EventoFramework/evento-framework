@@ -1,12 +1,11 @@
-package org.eventrails.application;
+package org.eventrails.application.server.http;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.*;
+import org.eventrails.application.utils.ClusterUrls;
 import org.eventrails.modeling.gateway.QueryGateway;
 import org.eventrails.modeling.messaging.message.QueryMessage;
 import org.eventrails.modeling.messaging.payload.Query;
-import org.eventrails.modeling.messaging.payload.View;
 import org.eventrails.modeling.messaging.query.QueryResponse;
 import org.eventrails.shared.ObjectMapperUtils;
 import org.eventrails.shared.exceptions.ThrowableWrapper;
@@ -16,13 +15,13 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
-public class QueryGatewayImpl implements QueryGateway {
+public class HttpQueryGateway implements QueryGateway {
 
 	private final ClusterUrls clusterUrls;
 	private OkHttpClient client = new OkHttpClient();
 	private ObjectMapper payloadMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
-	public QueryGatewayImpl(String serverUrls) {
+	public HttpQueryGateway(String serverUrls) {
 		this.clusterUrls = new ClusterUrls(serverUrls);
 	}
 

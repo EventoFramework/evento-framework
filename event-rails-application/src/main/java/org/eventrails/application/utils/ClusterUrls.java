@@ -1,4 +1,4 @@
-package org.eventrails.application;
+package org.eventrails.application.utils;
 
 import java.util.Arrays;
 

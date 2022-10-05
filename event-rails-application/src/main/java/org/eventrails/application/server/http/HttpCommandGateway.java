@@ -1,8 +1,8 @@
-package org.eventrails.application;
+package org.eventrails.application.server.http;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.*;
+import org.eventrails.application.utils.ClusterUrls;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.messaging.message.DomainCommandMessage;
 import org.eventrails.modeling.messaging.message.ServiceCommandMessage;
@@ -21,13 +21,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 @SuppressWarnings("unchecked")
-public class CommandGatewayImpl implements CommandGateway {
+public class HttpCommandGateway implements CommandGateway {
 
 	private final ClusterUrls clusterUrls;
 	private OkHttpClient client = new OkHttpClient();
 	private ObjectMapper payloadMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
-	public CommandGatewayImpl(String serverUrls) {
+	public HttpCommandGateway(String serverUrls) {
 		this.clusterUrls = new ClusterUrls(serverUrls);
 	}
 
