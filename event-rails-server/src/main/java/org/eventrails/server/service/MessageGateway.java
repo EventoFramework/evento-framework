@@ -52,10 +52,10 @@ public class MessageGateway {
 
 						var invocation = buildAggregateCommandHandlerInvocation(aggregateId, jMessage);
 						var eventMessage = ranchService.invokeDomainCommand(handler.getRanch(), payloadName, invocation);
-						eventMessage.thenAcceptAsync(message -> {
+						return Mono.fromFuture(eventMessage.thenApplyAsync(message -> {
 							eventStore.publishEvent(message, aggregateId);
-						});
-						return Mono.fromFuture(eventMessage);
+							return message;
+						}));
 
 					} finally
 					{
@@ -66,10 +66,11 @@ public class MessageGateway {
 			{
 				var invocation = buildServiceCommandHandlerInvocation(jMessage);
 				var eventMessage = ranchService.invokeServiceCommand(handler.getRanch(), payloadName, invocation);
-				eventMessage.thenAcceptAsync(message -> {
-					eventStore.publishEvent(message);
-				});
-				return Mono.fromFuture(eventMessage);
+				return Mono.fromFuture(eventMessage.thenApplyAsync(message -> {
+					if(!message.equals("null"))
+						eventStore.publishEvent(message);
+					return message;
+				}));
 			}
 			case QueryHandler ->
 			{

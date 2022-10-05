@@ -43,7 +43,7 @@ public class ServiceReference extends Reference {
 		return serviceCommandHandlerReferences.keySet();
 	}
 
-	public Object invoke(
+	public Event invoke(
 			CommandMessage<? extends ServiceCommand> cm,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
@@ -51,7 +51,7 @@ public class ServiceReference extends Reference {
 
 		var commandHandler = serviceCommandHandlerReferences.get(cm.getPayloadClass().getSimpleName());
 
-		return ReflectionUtils.invoke(getRef(), commandHandler,
+		return (Event) ReflectionUtils.invoke(getRef(), commandHandler,
 						cm.getPayload(),
 						commandGateway,
 						queryGateway,

@@ -48,20 +48,25 @@ public class CommandGatewayImpl implements CommandGateway {
 				}
 
 				@Override
-				public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-					var body = Objects.requireNonNull(response.body()).bytes();
-					if (response.code() == 200)
-						completableFuture.complete((R) payloadMapper.readValue(body, Object.class));
-					else
-						completableFuture.completeExceptionally(payloadMapper.readValue(body, ThrowableWrapper.class).toThrowable());
+				public void onResponse(@NotNull Call call, @NotNull Response response){
+					try
+					{
+						var body = Objects.requireNonNull(response.body()).bytes();
+						if (response.code() == 200)
+							completableFuture.complete((R) payloadMapper.readValue(body, Object.class));
+						else
+							completableFuture.completeExceptionally(payloadMapper.readValue(body, ThrowableWrapper.class).toThrowable());
+					}catch (Exception e){
+						completableFuture.completeExceptionally(e);
+					}
 
 				}
 			});
-		} catch (JsonProcessingException e)
+		} catch (Exception e)
 		{
 			completableFuture.completeExceptionally(e);
 		}
-		return completableFuture;
+		return completableFuture.thenApply(m -> m);
 	}
 
 	@Override
