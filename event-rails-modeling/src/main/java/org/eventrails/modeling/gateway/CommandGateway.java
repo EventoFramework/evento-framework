@@ -3,6 +3,7 @@ package org.eventrails.modeling.gateway;
 import org.eventrails.modeling.messaging.payload.Command;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 

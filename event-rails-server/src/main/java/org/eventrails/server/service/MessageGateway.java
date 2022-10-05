@@ -10,6 +10,7 @@ import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 
@@ -32,11 +33,10 @@ public class MessageGateway {
 		this.eventStore = eventStore;
 	}
 
-	public String handle(String messagePayload) throws Throwable {
+	public Mono<String> handle(String messagePayload) throws Throwable {
 
-		var domainCommandMessage = objectMapper.readTree(messagePayload);
-		var parts = domainCommandMessage.get(1).get("payload").get(0).toString().split("\\.");
-		var aggregateId = domainCommandMessage.get(1).get("aggregateId").toString().replace("\"","");
+		var jMessage = objectMapper.readTree(messagePayload);
+		var parts = jMessage.get(1).get("payload").get(0).toString().split("\\.");
 		String payloadName = parts[parts.length - 1].replace("\"", "");
 
 		var handler = handlerService.findByPayloadName(payloadName);
@@ -44,15 +44,18 @@ public class MessageGateway {
 		{
 			case AggregateCommandHandler ->
 			{
+				var aggregateId = jMessage.get(1).get("aggregateId").toString().replace("\"","");
 				var lock = lockRegistry.obtain(aggregateId);
 					try
 					{
 						lock.lock();
 
-						var invocation = buildAggregateCommandHandlerInvocation(aggregateId, domainCommandMessage);
+						var invocation = buildAggregateCommandHandlerInvocation(aggregateId, jMessage);
 						var eventMessage = ranchService.invokeDomainCommand(handler.getRanch(), payloadName, invocation);
-						eventStore.publishEvent(eventMessage, aggregateId);
-						return eventMessage;
+						eventMessage.thenAcceptAsync(message -> {
+							eventStore.publishEvent(message, aggregateId);
+						});
+						return Mono.fromFuture(eventMessage);
 
 					} finally
 					{
@@ -61,13 +64,39 @@ public class MessageGateway {
 			}
 			case CommandHandler ->
 			{
+				var invocation = buildServiceCommandHandlerInvocation(jMessage);
+				var eventMessage = ranchService.invokeServiceCommand(handler.getRanch(), payloadName, invocation);
+				eventMessage.thenAcceptAsync(message -> {
+					eventStore.publishEvent(message);
+				});
+				return Mono.fromFuture(eventMessage);
 			}
 			case QueryHandler ->
 			{
+				var invocation = buildQueryHandlerInvocation(jMessage);
+				return Mono.fromFuture(ranchService.invokeQuery(handler.getRanch(), payloadName, invocation));
 			}
 		}
 
-		return null;
+		return Mono.just(null);
+	}
+
+	private String buildServiceCommandHandlerInvocation(JsonNode serviceCommandMessage) {
+		var invocation = JsonNodeFactory.instance.arrayNode();
+		invocation.add("org.eventrails.modeling.messaging.invocation.ServiceCommandHandlerInvocation");
+		var invocationBody = JsonNodeFactory.instance.objectNode();
+		invocationBody.set("commandMessage", serviceCommandMessage);
+		invocation.add(invocationBody);
+		return invocation.toString();
+	}
+
+	private String buildQueryHandlerInvocation(JsonNode queryMessage) {
+		var invocation = JsonNodeFactory.instance.arrayNode();
+		invocation.add("org.eventrails.modeling.messaging.invocation.QueryHandlerInvocation");
+		var invocationBody = JsonNodeFactory.instance.objectNode();
+		invocationBody.set("queryMessage", queryMessage);
+		invocation.add(invocationBody);
+		return invocation.toString();
 	}
 
 	private String buildAggregateCommandHandlerInvocation(String aggregateId, JsonNode domainCommandMessage) throws JsonProcessingException {

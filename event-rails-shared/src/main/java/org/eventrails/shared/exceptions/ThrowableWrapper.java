@@ -1,29 +1,27 @@
 package org.eventrails.shared.exceptions;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 
-public class ExceptionWrapper{
-	public String exception;
+public class ThrowableWrapper {
+	public String throwable;
 	public String message;
 	public StackTraceElement[] stackTrace;
 
-	public ExceptionWrapper(Class<? extends Throwable> exception, String message, StackTraceElement[] stackTrace) {
-		this.exception = exception.getName();
+	public ThrowableWrapper(Class<? extends Throwable> throwable, String message, StackTraceElement[] stackTrace) {
+		this.throwable = throwable.getName();
 		this.message = message;
 		this.stackTrace = stackTrace;
 	}
 
-	public ExceptionWrapper() {
+	public ThrowableWrapper() {
 	}
 
-	public String getException() {
-		return exception;
+	public String getThrowable() {
+		return throwable;
 	}
 
-	public void setException(String exception) {
-		this.exception = exception;
+	public void setThrowable(String throwable) {
+		this.throwable = throwable;
 	}
 
 	public String getMessage() {
@@ -53,12 +51,12 @@ public class ExceptionWrapper{
 	public Throwable toThrowable() {
 		try
 		{
-			Throwable ex  = (Throwable) ClassLoader.getSystemClassLoader().loadClass(exception).getConstructor(String.class).newInstance(getMessage());
+			Throwable ex  = (Throwable) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
 			ex.setStackTrace(stackTrace);
 			return ex;
 		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e)
 		{
-			Throwable ex = new RuntimeException(exception + ": " + getMessage());
+			Throwable ex = new RuntimeException(throwable + ": " + getMessage());
 			ex.setStackTrace(stackTrace);
 			return ex;
 		}

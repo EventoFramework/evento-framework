@@ -1,23 +1,17 @@
 package org.eventrails.server.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.bytebuddy.implementation.bytecode.Throw;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import org.eventrails.modeling.messaging.message.DomainCommandMessage;
-import org.eventrails.modeling.messaging.message.ServiceCommandMessage;
-import org.eventrails.modeling.messaging.payload.DomainCommand;
-import org.eventrails.modeling.messaging.payload.ServiceCommand;
+import okhttp3.*;
 import org.eventrails.server.domain.model.BucketType;
 import org.eventrails.server.domain.model.Ranch;
 import org.eventrails.shared.ObjectMapperUtils;
-import org.eventrails.shared.exceptions.ExceptionWrapper;
+import org.eventrails.shared.exceptions.ThrowableWrapper;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class RanchService {
@@ -26,23 +20,70 @@ public class RanchService {
 
 	private final ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
-	public String invokeDomainCommand(Ranch ranch, String commandName, String invocation) throws Throwable {
-		String ranchUrl = null;
-		if(ranch.getBucketType() == BucketType.LiveServer){
-			ranchUrl = ranch.getArtifactCoordinates();
-		}
-		if(ranchUrl == null) throw new RuntimeException("Missing Ranch Deployment");
+	public CompletableFuture<String> invokeDomainCommand(Ranch ranch, String commandName, String invocation) throws Throwable {
+		String ranchUrl = fetchRanchUrl(ranch);
 
 		Request request = new Request.Builder()
 				.url(ranchUrl + "/er/invoke/domain-command/" + commandName)
 				.post(RequestBody.create(invocation.getBytes()))
 				.build();
 
-		var resp = client.newCall(request).execute();
-		if(resp.code() != 200){
-			var body = Objects.requireNonNull(resp.body()).bytes();
-			throw objectMapper.readValue(body, ExceptionWrapper.class).toThrowable();
-		}
-		return Objects.requireNonNull(resp.body()).string();
+		return getStringCompletableFuture(request);
+
 	}
+
+	public CompletableFuture<String> invokeQuery(Ranch ranch, String queryName, String invocation) {
+		String ranchUrl = fetchRanchUrl(ranch);
+
+
+		Request request = new Request.Builder()
+				.url(ranchUrl + "/er/invoke/query/" + queryName)
+				.post(RequestBody.create(invocation.getBytes()))
+				.build();
+
+		return getStringCompletableFuture(request);
+	}
+
+	public CompletableFuture<String> invokeServiceCommand(Ranch ranch, String commandName, String invocation) {
+		String ranchUrl = fetchRanchUrl(ranch);
+
+		Request request = new Request.Builder()
+				.url(ranchUrl + "/er/invoke/service-command/" + commandName)
+				.post(RequestBody.create(invocation.getBytes()))
+				.build();
+
+		return getStringCompletableFuture(request);
+	}
+
+	@NotNull
+	private CompletableFuture<String> getStringCompletableFuture(Request request) {
+		CompletableFuture<String> resp = new CompletableFuture<>();
+
+		client.newCall(request).enqueue(new Callback() {
+			@Override
+			public void onFailure(@NotNull Call call, @NotNull IOException e) {
+				resp.completeExceptionally(e);
+			}
+
+			@Override
+			public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+				if(response.code() != 200){
+					var body = Objects.requireNonNull(response.body()).bytes();
+					resp.completeExceptionally(objectMapper.readValue(body, ThrowableWrapper.class).toThrowable());
+				}
+				resp.complete(Objects.requireNonNull(response.body()).string());
+			}
+		});
+
+		return resp;
+	}
+
+	private String fetchRanchUrl(Ranch ranch) {
+		if(ranch.getBucketType() == BucketType.LiveServer){
+			return ranch.getArtifactCoordinates();
+		}
+		throw new RuntimeException("Missing Ranch Deployment");
+	}
+
+
 }

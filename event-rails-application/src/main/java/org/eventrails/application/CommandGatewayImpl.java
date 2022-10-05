@@ -10,7 +10,7 @@ import org.eventrails.modeling.messaging.payload.Command;
 import org.eventrails.modeling.messaging.payload.DomainCommand;
 import org.eventrails.modeling.messaging.payload.ServiceCommand;
 import org.eventrails.shared.ObjectMapperUtils;
-import org.eventrails.shared.exceptions.ExceptionWrapper;
+import org.eventrails.shared.exceptions.ThrowableWrapper;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.concurrent.TimeoutException;
 
 @SuppressWarnings("unchecked")
 public class CommandGatewayImpl implements CommandGateway {
@@ -53,23 +53,23 @@ public class CommandGatewayImpl implements CommandGateway {
 					if (response.code() == 200)
 						completableFuture.complete((R) payloadMapper.readValue(body, Object.class));
 					else
-						completableFuture.completeExceptionally(payloadMapper.readValue(body, ExceptionWrapper.class).toThrowable());
+						completableFuture.completeExceptionally(payloadMapper.readValue(body, ThrowableWrapper.class).toThrowable());
 
 				}
 			});
 		} catch (JsonProcessingException e)
 		{
-			throw new RuntimeException(e);
+			completableFuture.completeExceptionally(e);
 		}
 		return completableFuture;
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command) {
+	public <R> R sendAndWait(Command command){
 		try
 		{
 			return (R) send(command).get();
-		} catch (Exception e)
+		} catch (InterruptedException | ExecutionException e)
 		{
 			throw new RuntimeException(e);
 		}
@@ -80,7 +80,7 @@ public class CommandGatewayImpl implements CommandGateway {
 		try
 		{
 			return (R) send(command).get(timeout, unit);
-		} catch (Exception e)
+		} catch (ExecutionException | InterruptedException | TimeoutException e)
 		{
 			throw new RuntimeException(e);
 		}

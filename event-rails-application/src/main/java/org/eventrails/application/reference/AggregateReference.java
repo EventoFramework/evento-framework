@@ -75,7 +75,7 @@ public class AggregateReference extends Reference {
 			Collection<DomainEventMessage> eventStream,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
-			throws InvocationTargetException, IllegalAccessException {
+			throws Throwable {
 
 		var commandHandler = aggregateCommandHandlerReferences.get(cm.getPayloadClass().getSimpleName());
 
@@ -85,21 +85,26 @@ public class AggregateReference extends Reference {
 			throw AggregateInitializedError.build(cm.getAggregateId());
 
 		AggregateState currentAggregateState = aggregateState;
-		for (var em : eventStream)
+		try
 		{
-			var eh = getEventSourcingHandler(em.getPayloadClass().getSimpleName());
-			currentAggregateState = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), currentAggregateState);
-			if (currentAggregateState.isDeleted())
-				throw AggregateDeletedError.build(cm.getAggregateId());
-		}
+			for (var em : eventStream)
+			{
+				var eh = getEventSourcingHandler(em.getPayloadClass().getSimpleName());
+				currentAggregateState = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), currentAggregateState);
+				if (currentAggregateState.isDeleted())
+					throw AggregateDeletedError.build(cm.getAggregateId());
+			}
 
-		return (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
-				cm.getPayload(),
-				currentAggregateState,
-				commandGateway,
-				queryGateway,
-				cm
-		);
+			return (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+					cm.getPayload(),
+					currentAggregateState,
+					commandGateway,
+					queryGateway,
+					cm
+			);
+		}catch (InvocationTargetException e){
+			throw e.getCause();
+		}
 	}
 
 	private boolean isAggregateInitializer(Method commandHandler) {
