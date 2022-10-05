@@ -124,7 +124,7 @@ class ApplicationTest {
 	@Test
 	public void testServiceCommand2(){
 		CommandGateway commandGateway = new CommandGatewayImpl("http://localhost:3000");
-		var resp = commandGateway.sendAndWait(new NotificationSendSilentCommand("ciao_mondo"));
-		System.out.println(resp);
+		commandGateway.sendAndWait(new NotificationSendSilentCommand("hola_cicos2"));
+		System.out.println("end");
 	}
 }

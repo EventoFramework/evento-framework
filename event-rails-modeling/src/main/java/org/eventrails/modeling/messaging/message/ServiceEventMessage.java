@@ -6,4 +6,7 @@ public class ServiceEventMessage extends EventMessage<ServiceEvent> {
 	public ServiceEventMessage(ServiceEvent payload) {
 		super(payload);
 	}
+
+	public ServiceEventMessage() {
+	}
 }
