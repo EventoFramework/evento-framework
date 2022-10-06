@@ -61,4 +61,18 @@ public class ThrowableWrapper {
 			return ex;
 		}
 	}
+
+	public Exception toException() {
+		try
+		{
+			Exception ex  = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
+			ex.setStackTrace(stackTrace);
+			return ex;
+		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e)
+		{
+			Exception ex = new RuntimeException(throwable + ": " + getMessage());
+			ex.setStackTrace(stackTrace);
+			return ex;
+		}
+	}
 }

@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+@Deprecated
 public class HttpQueryGateway implements QueryGateway {
 
 	private final ClusterUrls clusterUrls;

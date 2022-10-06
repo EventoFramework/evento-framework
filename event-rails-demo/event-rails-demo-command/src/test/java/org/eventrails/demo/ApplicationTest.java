@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import org.eventrails.application.server.http.HttpCommandGateway;
 import org.eventrails.application.EventRailsApplication;
+import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
 import org.eventrails.demo.api.command.*;
 import org.eventrails.demo.api.event.DemoCreatedEvent;
 import org.eventrails.demo.command.aggregate.DemoAggregateState;
@@ -122,6 +123,26 @@ class ApplicationTest {
 	public void testServiceCommand2(){
 		CommandGateway commandGateway = new HttpCommandGateway("http://localhost:3000");
 		commandGateway.sendAndWait(new NotificationSendSilentCommand("hola_cicos2"));
+		System.out.println("end");
+	}
+	@Test
+	public void testServiceCommandJGroup() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+		commandGateway.sendAndWait(new NotificationSendSilentCommand("hola_cicos2"));
+		System.out.println("end");
+	}
+
+	@Test
+	public void testServiceCommandJGroup2() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+		var resp = commandGateway.sendAndWait(new NotificationSendCommand("hola_cicos3"));
+		System.out.println(resp);
 		System.out.println("end");
 	}
 }

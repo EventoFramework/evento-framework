@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 @SuppressWarnings("unchecked")
+@Deprecated
 public class HttpCommandGateway implements CommandGateway {
 
 	private final ClusterUrls clusterUrls;
@@ -69,25 +70,4 @@ public class HttpCommandGateway implements CommandGateway {
 		return completableFuture.thenApply(m -> m);
 	}
 
-	@Override
-	public <R> R sendAndWait(Command command){
-		try
-		{
-			return (R) send(command).get();
-		} catch (InterruptedException | ExecutionException e)
-		{
-			throw new RuntimeException(e);
-		}
-	}
-
-	@Override
-	public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
-		try
-		{
-			return (R) send(command).get(timeout, unit);
-		} catch (ExecutionException | InterruptedException | TimeoutException e)
-		{
-			throw new RuntimeException(e);
-		}
-	}
 }

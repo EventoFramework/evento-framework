@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 
+@Deprecated
 public class HttpApplicationServer implements ApplicationServer {
 
 	private static final Logger logger = LogManager.getLogger(HttpApplicationServer.class);
