@@ -1,5 +1,7 @@
 package org.eventrails.server.es.eventstore;
 
+import org.eventrails.modeling.gateway.PublishedEvent;
+
 import javax.persistence.*;
 import java.time.Instant;
 
@@ -80,4 +82,18 @@ public class EventStoreEntry {
 	public void setAggregateSequenceNumber(Long aggregateSequenceNumber) {
 		this.aggregateSequenceNumber = aggregateSequenceNumber;
 	}
+
+
+	public PublishedEvent toPublishedEvent(){
+		var event = new PublishedEvent();
+		event.setAggregateId(getAggregateId());
+		event.setAggregateSequenceNumber(getAggregateSequenceNumber());
+		event.setCreatedAt(getCreatedAt());
+		event.setEventMessage(getEventMessage());
+		event.setEventSequenceNumber(getEventSequenceNumber());
+		event.setEventId(getEventId());
+		return event;
+	}
+
+
 }

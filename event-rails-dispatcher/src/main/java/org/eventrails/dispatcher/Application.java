@@ -8,7 +8,7 @@ import java.util.Scanner;
 public class Application {
 	public static void main(String[] args) throws Exception {
 		var channel = new JChannel();
-		channel.setName("dispatcher");
+		channel.setName("event-rails-node-dispatcher");
 		channel.setReceiver(new Receiver() {
 			@Override
 			public void receive(Message msg) {
@@ -36,15 +36,7 @@ public class Application {
 				lastView = newView;
 			}
 		});
-		channel.connect("dispatcher_cluster");
-
-		var scanner = new Scanner(System.in);
-		while (true){
-			System.out.println(">");
-			var input = scanner.nextLine();
-			if(input.equals("q")) break;
-			channel.send(new ObjectMessage().setObject(input));
-		}
+		channel.connect("event-rails-channel-message");
 
 	}
 }

@@ -12,11 +12,13 @@ import org.eventrails.shared.exceptions.NodeNotFoundException;
 import org.eventrails.shared.exceptions.ThrowableWrapper;
 import org.jgroups.Address;
 import org.jgroups.Message;
+import org.jgroups.ObjectMessage;
 import org.jgroups.blocks.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.CompletableFuture;
+import java.util.Collection;
 
 @Service
 public class MessageGateway implements RequestHandler {
@@ -29,6 +31,9 @@ public class MessageGateway implements RequestHandler {
 	private final EventStore eventStore;
 
 	private final RpcDispatcher rpcDispatcher;
+
+	@Value("${eventrails.cluster.node.dispatcher.name}")
+	private String dispatcherName;
 
 	public MessageGateway(HandlerService handlerService, LockRegistry lockRegistry, ObjectMapper objectMapper, EventStore eventStore, RpcDispatcher rpcDispatcher) {
 		this.handlerService = handlerService;
@@ -61,7 +66,12 @@ public class MessageGateway implements RequestHandler {
 
 						var invocation = buildAggregateCommandHandlerInvocation(aggregateId, jMessage);
 						var eventMessage = invokeDomainCommand(handler.getRanch(), payloadName, invocation);
-						eventStore.publishEvent(eventMessage, aggregateId);
+						var eventEntry = eventStore.publishEvent(eventMessage, aggregateId);
+						rpcDispatcher.castMessage(
+								fetchDispatcherAddresses(),
+								new ObjectMessage(null, eventEntry.toPublishedEvent()),
+								RequestOptions.ASYNC()
+						);
 						return eventMessage;
 
 					} finally
@@ -73,7 +83,12 @@ public class MessageGateway implements RequestHandler {
 				{
 					var invocation = buildServiceCommandHandlerInvocation(jMessage);
 					var eventMessage = invokeServiceCommand(handler.getRanch(), payloadName, invocation);
-					eventStore.publishEvent(eventMessage);
+					var eventEntry = eventStore.publishEvent(eventMessage);
+					rpcDispatcher.castMessage(
+							fetchDispatcherAddresses(),
+							new ObjectMessage(null, eventEntry.toPublishedEvent()),
+							RequestOptions.ASYNC()
+					);
 					return eventMessage;
 				}
 				case QueryHandler ->
@@ -88,6 +103,7 @@ public class MessageGateway implements RequestHandler {
 		}
 		throw new RuntimeException("Missing Handler");
 	}
+
 
 	private String buildServiceCommandHandlerInvocation(JsonNode serviceCommandMessage) {
 		var invocation = JsonNodeFactory.instance.arrayNode();
@@ -177,6 +193,13 @@ public class MessageGateway implements RequestHandler {
 				.filter(address -> ranch.getName().equals(address.toString()))
 				.findAny()
 				.orElseThrow(() ->  new NodeNotFoundException("Node %s not found".formatted(ranch.getName())));
+	}
+
+	private Collection<Address> fetchDispatcherAddresses() {
+		return this.rpcDispatcher.getChannel()
+				.getView().getMembers().stream()
+				.filter(address -> dispatcherName.equals(address.toString()))
+				.toList();
 	}
 
 

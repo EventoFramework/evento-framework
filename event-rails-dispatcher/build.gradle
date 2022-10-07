@@ -15,6 +15,9 @@ dependencies {
 
 
     implementation 'org.jgroups:jgroups:5.2.6.Final'
+
+
+    implementation project(':event-rails-modeling')
 }
 
 test {
