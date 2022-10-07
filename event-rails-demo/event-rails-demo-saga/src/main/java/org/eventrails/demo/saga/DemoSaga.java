@@ -39,7 +39,7 @@ public class DemoSaga {
 							EventMessage message) throws ExecutionException, InterruptedException {
 		if (event.getValue() - demoSagaState.getLastValue() > 10)
 		{
-			var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId()), DemoRichView.class).get();
+			var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId())).get();
 
 			System.out.println(jump(commandGateway, demo.toString()));
 		}
@@ -63,7 +63,7 @@ public class DemoSaga {
 							QueryGateway queryGateway,
 							EventMessage message) throws ExecutionException, InterruptedException {
 
-		var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId()), DemoView.class).get();
+		var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId())).get();
 		commandGateway.send(new NotificationSendSilentCommand(demo.toString()));
 
 		demoSagaState.setEnded(true);

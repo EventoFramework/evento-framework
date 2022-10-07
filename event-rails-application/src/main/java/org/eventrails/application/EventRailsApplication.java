@@ -36,6 +36,7 @@ public class EventRailsApplication {
 	private transient CommandGateway commandGateway;
 	private transient QueryGateway queryGateway;
 
+	@Deprecated
 	private EventRailsApplication(
 			String basePackage,
 			String ranchName,
@@ -51,19 +52,21 @@ public class EventRailsApplication {
 	private EventRailsApplication(
 			String basePackage,
 			String ranchName,
-			String channelName
+			String clusterName,
+			String serverName
 	) throws Exception {
 		this.basePackage = basePackage;
 		this.ranchName = ranchName;
 
 		JChannel jChannel = new JChannel();
 		jChannel.setName(ranchName);
-		jChannel.connect(channelName);
+		jChannel.connect(clusterName);
 
-		commandGateway = new JGroupsCommandGateway(jChannel);
+		commandGateway = new JGroupsCommandGateway(jChannel, serverName);
 		this.applicationServer = new JGroupsApplicationServer(jChannel, this);
 	}
 
+	@Deprecated
 	public static EventRailsApplication start(String basePackage, String ranchName, String clusterUrls, int serverPort, String[] args) {
 		try
 		{
@@ -71,6 +74,21 @@ public class EventRailsApplication {
 			logger.info("Parsing package");
 			eventRailsApplication.parsePackage();
 			logger.info("Server starting on port {}", serverPort);
+			eventRailsApplication.startServer();
+			logger.info("Server Started");
+			return eventRailsApplication;
+		} catch (Exception e)
+		{
+			throw new RuntimeException(e);
+		}
+
+	}
+	public static EventRailsApplication start(String basePackage, String ranchName, String messageChannelName, String serverName, String[] args) {
+		try
+		{
+			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, ranchName, messageChannelName, serverName);
+			logger.info("Parsing package");
+			eventRailsApplication.parsePackage();
 			eventRailsApplication.startServer();
 			logger.info("Server Started");
 			return eventRailsApplication;

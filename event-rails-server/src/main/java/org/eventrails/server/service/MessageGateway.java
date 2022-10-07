@@ -3,21 +3,24 @@ package org.eventrails.server.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.eventrails.modeling.ranch.RanchMessageHandler;
+import org.eventrails.server.domain.model.Ranch;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
+import org.eventrails.shared.exceptions.NodeNotFoundException;
+import org.eventrails.shared.exceptions.ThrowableWrapper;
+import org.jgroups.Address;
+import org.jgroups.Message;
+import org.jgroups.blocks.*;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Mono;
 
-import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 @Service
-public class MessageGateway {
+public class MessageGateway implements RequestHandler {
 	private final HandlerService handlerService;
-	private final RanchService ranchService;
 
 	private final LockRegistry lockRegistry;
 
@@ -25,61 +28,65 @@ public class MessageGateway {
 
 	private final EventStore eventStore;
 
-	public MessageGateway(HandlerService handlerService, RanchService ranchService, LockRegistry lockRegistry, ObjectMapper objectMapper, EventStore eventStore) {
+	private final RpcDispatcher rpcDispatcher;
+
+	public MessageGateway(HandlerService handlerService, LockRegistry lockRegistry, ObjectMapper objectMapper, EventStore eventStore, RpcDispatcher rpcDispatcher) {
 		this.handlerService = handlerService;
-		this.ranchService = ranchService;
 		this.lockRegistry = lockRegistry;
 		this.objectMapper = objectMapper;
 		this.eventStore = eventStore;
+		this.rpcDispatcher = rpcDispatcher;
+		rpcDispatcher.setRequestHandler(this);
+
 	}
 
-	public Mono<String> handle(String messagePayload) throws Throwable {
-
-		var jMessage = objectMapper.readTree(messagePayload);
-		var parts = jMessage.get(1).get("payload").get(0).toString().split("\\.");
-		String payloadName = parts[parts.length - 1].replace("\"", "");
-
-		var handler = handlerService.findByPayloadName(payloadName);
-		switch (handler.getHandlerType())
+	@Override
+	public Object handle(Message msg) throws Exception {
+		try
 		{
-			case AggregateCommandHandler ->
+			var jMessage = objectMapper.readTree(msg.getObject().toString());
+			var parts = jMessage.get(1).get("payload").get(0).toString().split("\\.");
+			String payloadName = parts[parts.length - 1].replace("\"", "");
+
+			var handler = handlerService.findByPayloadName(payloadName);
+			switch (handler.getHandlerType())
 			{
-				var aggregateId = jMessage.get(1).get("aggregateId").toString().replace("\"","");
-				var lock = lockRegistry.obtain(aggregateId);
+				case AggregateCommandHandler ->
+				{
+					var aggregateId = jMessage.get(1).get("aggregateId").toString().replace("\"","");
+					var lock = lockRegistry.obtain(aggregateId);
 					try
 					{
 						lock.lock();
 
 						var invocation = buildAggregateCommandHandlerInvocation(aggregateId, jMessage);
-						var eventMessage = ranchService.invokeDomainCommand(handler.getRanch(), payloadName, invocation);
-						return Mono.fromFuture(eventMessage.thenApplyAsync(message -> {
-							eventStore.publishEvent(message, aggregateId);
-							return message;
-						}));
+						var eventMessage = invokeDomainCommand(handler.getRanch(), payloadName, invocation);
+						eventStore.publishEvent(eventMessage, aggregateId);
+						return eventMessage;
 
 					} finally
 					{
 						lock.unlock();
 					}
+				}
+				case CommandHandler ->
+				{
+					var invocation = buildServiceCommandHandlerInvocation(jMessage);
+					var eventMessage = invokeServiceCommand(handler.getRanch(), payloadName, invocation);
+					eventStore.publishEvent(eventMessage);
+					return eventMessage;
+				}
+				case QueryHandler ->
+				{
+					var invocation = buildQueryHandlerInvocation(jMessage);
+					return invokeQuery(handler.getRanch(), payloadName, invocation);
+				}
 			}
-			case CommandHandler ->
-			{
-				var invocation = buildServiceCommandHandlerInvocation(jMessage);
-				var eventMessage = ranchService.invokeServiceCommand(handler.getRanch(), payloadName, invocation);
-				return Mono.fromFuture(eventMessage.thenApplyAsync(message -> {
-					if(!message.equals("null"))
-						eventStore.publishEvent(message);
-					return message;
-				}));
-			}
-			case QueryHandler ->
-			{
-				var invocation = buildQueryHandlerInvocation(jMessage);
-				return Mono.fromFuture(ranchService.invokeQuery(handler.getRanch(), payloadName, invocation));
-			}
+		}catch (Exception e){
+			e.printStackTrace();
+			throw new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()).toException();
 		}
-
-		return Mono.just(null);
+		throw new RuntimeException("Missing Handler");
 	}
 
 	private String buildServiceCommandHandlerInvocation(JsonNode serviceCommandMessage) {
@@ -129,4 +136,48 @@ public class MessageGateway {
 
 		return invocation.toString();
 	}
+
+	private String invokeDomainCommand(Ranch ranch, String commandName, String invocation) throws Exception {
+
+		return rpcDispatcher.callRemoteMethod(
+				fetchRanchAddress(ranch),
+				new MethodCall(
+						RanchMessageHandler.class.getMethod("handleDomainCommand",String.class, String.class),
+						commandName,
+						invocation),
+				RequestOptions.SYNC()
+		);
+
+	}
+
+	private String invokeQuery(Ranch ranch, String queryName, String invocation) throws Exception {
+		return rpcDispatcher.callRemoteMethod(
+				fetchRanchAddress(ranch),
+				new MethodCall(
+						RanchMessageHandler.class.getMethod("handleQuery",String.class, String.class),
+						queryName,
+						invocation),
+				RequestOptions.SYNC()
+		);
+	}
+
+	private String invokeServiceCommand(Ranch ranch, String commandName, String invocation) throws Exception {
+		return rpcDispatcher.callRemoteMethod(
+				fetchRanchAddress(ranch),
+				new MethodCall(
+						RanchMessageHandler.class.getMethod("handleServiceCommand",String.class, String.class),
+						commandName,
+						invocation),
+				RequestOptions.SYNC()
+		);
+	}
+	private Address fetchRanchAddress(Ranch ranch) {
+		return this.rpcDispatcher.getChannel()
+				.getView().getMembers().stream()
+				.filter(address -> ranch.getName().equals(address.toString()))
+				.findAny()
+				.orElseThrow(() ->  new NodeNotFoundException("Node %s not found".formatted(ranch.getName())));
+	}
+
+
 }
