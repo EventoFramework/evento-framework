@@ -6,6 +6,10 @@ public class NotificationSentEvent extends ServiceEvent {
 	private String notificationId;
 	private String body;
 
+
+	public NotificationSentEvent() {
+	}
+
 	public NotificationSentEvent(String notificationId, String body) {
 		this.notificationId = notificationId;
 		this.body = body;

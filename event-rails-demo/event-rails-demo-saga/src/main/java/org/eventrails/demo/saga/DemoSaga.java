@@ -25,6 +25,7 @@ public class DemoSaga {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							EventMessage message) {
+		System.out.println(this.getClass() + " - on(DemoCreatedEvent)");
 		DemoSagaState demoSagaState = new DemoSagaState();
 		demoSagaState.setAssociation("demoId", event.getDemoId());
 		demoSagaState.setLastValue(event.getValue());
@@ -37,6 +38,7 @@ public class DemoSaga {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							EventMessage message) throws ExecutionException, InterruptedException {
+		System.out.println(this.getClass() + " - on(DemoUpdatedEvent)");
 		if (event.getValue() - demoSagaState.getLastValue() > 10)
 		{
 			var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId())).get();
@@ -62,6 +64,7 @@ public class DemoSaga {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							EventMessage message) throws ExecutionException, InterruptedException {
+		System.out.println(this.getClass() + " - on(DemoDeletedEvent)");
 
 		var demo = queryGateway.query(new DemoFindByIdQuery(event.getDemoId())).get();
 		commandGateway.send(new NotificationSendSilentCommand(demo.toString()));

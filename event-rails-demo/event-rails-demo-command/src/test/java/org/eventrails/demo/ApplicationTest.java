@@ -141,7 +141,22 @@ class ApplicationTest {
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
 				"event-rails-node-server");
-		var resp = commandGateway.sendAndWait(new NotificationSendCommand("hola_cicos3"));
+		var resp = commandGateway.sendAndWait(new NotificationSendCommand("hola_cicos_4"));
+		System.out.println(resp);
+		System.out.println("end");
+	}
+	@Test
+	public void testServiceCommandJGroup3() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+		String id = UUID.randomUUID().toString();
+		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
+		System.out.println(resp);
+		resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, 1));
+		System.out.println(resp);
+		resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
 		System.out.println(resp);
 		System.out.println("end");
 	}

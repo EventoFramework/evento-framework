@@ -30,12 +30,13 @@ public class JGroupsApplicationServer implements ApplicationServer {
 	private static final Logger logger = LogManager.getLogger(HttpApplicationServer.class);
 
 
-	private final MessageDispatcher server;
+	private final RpcDispatcher server;
 
 
-	public JGroupsApplicationServer(JChannel channel, EventRailsApplication application) throws Exception {
+	public JGroupsApplicationServer(RpcDispatcher dispatcher, EventRailsApplication application) throws Exception {
 		var ranchMessageHandler = new RanchMessageHandlerImpl(application);
-		server = new RpcDispatcher(channel, ranchMessageHandler);
+		server = dispatcher;
+		dispatcher.setServerObject(ranchMessageHandler);
 	}
 
 	public void start() throws Exception {

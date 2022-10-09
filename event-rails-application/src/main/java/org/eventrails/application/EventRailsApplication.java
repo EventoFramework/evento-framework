@@ -12,6 +12,7 @@ import org.eventrails.modeling.annotations.component.*;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
 import org.jgroups.JChannel;
+import org.jgroups.blocks.RpcDispatcher;
 import org.reflections.Reflections;
 
 import java.io.IOException;
@@ -62,8 +63,12 @@ public class EventRailsApplication {
 		jChannel.setName(ranchName);
 		jChannel.connect(clusterName);
 
-		commandGateway = new JGroupsCommandGateway(jChannel, serverName);
-		this.applicationServer = new JGroupsApplicationServer(jChannel, this);
+		RpcDispatcher dispatcher = new RpcDispatcher();
+		dispatcher.setChannel(jChannel);
+
+		commandGateway = new JGroupsCommandGateway(dispatcher, serverName);
+		this.applicationServer = new JGroupsApplicationServer(dispatcher, this);
+
 	}
 
 	@Deprecated

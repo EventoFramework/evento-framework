@@ -7,22 +7,42 @@ import org.eventrails.modeling.annotations.handler.EventHandler;
 import org.eventrails.modeling.messaging.message.EventMessage;
 import org.eventrails.modeling.annotations.component.Projector;
 import org.eventrails.modeling.gateway.QueryGateway;
+import org.eventrails.modeling.ranch.TransactionalProjector;
 
 @Projector
-public class DemoProjector {
+public class DemoProjector implements TransactionalProjector {
 
 	@EventHandler
 	void on(DemoCreatedEvent event, QueryGateway queryGateway, EventMessage eventMessage){
+		System.out.println(this.getClass() + " - on(DemoCreatedEvent)");
+
 
 	}
 
 	@EventHandler
 	void on(DemoUpdatedEvent event){
+		System.out.println(this.getClass() + " - on(DemoUpdatedEvent)");
 
 	}
 
 	@EventHandler
 	void on(DemoDeletedEvent event){
+		System.out.println(this.getClass() + " - on(DemoUpdatedEvent)");
+
+	}
+
+	@Override
+	public void begin() throws Exception {
+
+	}
+
+	@Override
+	public void commit() throws Exception {
+
+	}
+
+	@Override
+	public void rollback() throws Exception {
 
 	}
 }

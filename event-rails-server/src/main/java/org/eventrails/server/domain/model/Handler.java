@@ -17,6 +17,7 @@ import java.util.Set;
 @ToString
 @RequiredArgsConstructor
 @Entity
+@Table(name = "core__handler")
 public class Handler {
 
 	@Id
@@ -45,6 +46,7 @@ public class Handler {
 
 	@ManyToMany
 	@ToString.Exclude
+	@JoinTable(name = "core__handler_invocation")
 	private Set<Payload> invocations;
 
 	@Override

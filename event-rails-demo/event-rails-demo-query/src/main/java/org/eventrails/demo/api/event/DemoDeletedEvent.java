@@ -6,6 +6,9 @@ public class DemoDeletedEvent extends DomainEvent {
 
 	private String demoId;
 
+	public DemoDeletedEvent() {
+	}
+
 	public DemoDeletedEvent(String demoId) {
 		this.demoId = demoId;
 	}

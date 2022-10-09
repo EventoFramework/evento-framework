@@ -13,11 +13,13 @@ public class NotificationProjection {
 
 	@QueryHandler
 	NotificationView query(NotificationFindByIdQuery query){
+		System.out.println(this.getClass() + " - query(NotificationFindByIdQuery)");
 		return new NotificationView(null, null);
 	}
 
 	@QueryHandler
 	List<NotificationView> query(NotificationFindAllQuery query){
+		System.out.println(this.getClass() + " - query(NotificationFindAllQuery)");
 		return List.of(new NotificationView(null, null));
 	}
 }

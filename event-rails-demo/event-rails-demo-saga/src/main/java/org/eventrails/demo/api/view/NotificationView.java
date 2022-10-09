@@ -12,6 +12,9 @@ public class NotificationView extends View {
 		this.body = body;
 	}
 
+	public NotificationView() {
+	}
+
 	public String getNotificationId() {
 		return notificationId;
 	}

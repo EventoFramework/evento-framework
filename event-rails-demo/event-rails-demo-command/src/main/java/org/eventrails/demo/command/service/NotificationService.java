@@ -19,6 +19,7 @@ public class NotificationService {
 								 CommandGateway commandGateway,
 								 QueryGateway queryGateway,
 								 CommandMessage commandMessage){
+		System.out.println(this.getClass() + " - handle(NotificationSendCommand)");
 
 		//Simulating external service sending notification and generating id
 		String notificationId = UUID.randomUUID().toString();
@@ -30,6 +31,7 @@ public class NotificationService {
 	@CommandHandler
 	void handle(NotificationSendSilentCommand command){
 
+		System.out.println(this.getClass() + " - handle(NotificationSendSilentCommand)");
 		//Simulating external service sending notification and generating id
 		System.out.println(command.getBody());
 	}

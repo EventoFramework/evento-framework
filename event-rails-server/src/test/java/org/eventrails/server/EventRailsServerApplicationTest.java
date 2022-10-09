@@ -25,9 +25,9 @@ class EventRailsServerApplicationTest {
 
 
 		ranchApplicationService.register(
-				"event-rails-demo-command",
+				"event-rails-node-demo-command",
 				BucketType.LiveServer,
-				"http://localhost:9001",
+				null,
 				components
 		);
 
@@ -36,9 +36,9 @@ class EventRailsServerApplicationTest {
 
 
 		ranchApplicationService.register(
-				"event-rails-demo-query",
+				"event-rails-node-demo-query",
 				BucketType.LiveServer,
-				"http://localhost:9002",
+				null,
 				components
 		);
 
@@ -47,9 +47,9 @@ class EventRailsServerApplicationTest {
 
 
 		ranchApplicationService.register(
-				"event-rails-demo-saga",
+				"event-rails-node-demo-saga",
 				BucketType.LiveServer,
-				"http://localhost:9003",
+				null,
 				components
 		);
 

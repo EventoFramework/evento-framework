@@ -8,6 +8,8 @@ public class DemoRichViewFindAllQuery extends Query<Multiple<DemoRichView>> {
 	private Integer limit;
 	private Integer offset;
 
+
+
 	public DemoRichViewFindAllQuery(int limit, int offset) {
 		this.limit = limit;
 		this.offset = offset;

@@ -11,6 +11,7 @@ public class ObjectMapperUtils {
 		PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
 				.allowIfSubType("org.eventrails")
 				.allowIfSubType("java.util.ArrayList")
+				.allowIfSubType("java.util.HashMap")
 				.allowIfSubType("java.util.ImmutableCollections")
 				.build();
 
