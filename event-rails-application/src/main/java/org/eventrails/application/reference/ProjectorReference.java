@@ -6,6 +6,7 @@ import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
 import org.eventrails.modeling.messaging.message.EventMessage;
 import org.eventrails.modeling.messaging.payload.Event;
+import org.eventrails.modeling.ranch.TransactionalProjector;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -13,7 +14,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
-public class ProjectorReference extends Reference {
+public class ProjectorReference extends Reference implements TransactionalProjector {
 
 	private HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 
@@ -51,5 +52,20 @@ public class ProjectorReference extends Reference {
 				queryGateway,
 				em
 		);
+	}
+
+	@Override
+	public void begin() throws Exception {
+
+	}
+
+	@Override
+	public void commit() throws Exception {
+
+	}
+
+	@Override
+	public void rollback() throws Exception {
+
 	}
 }

@@ -8,6 +8,9 @@ public class DemoUpdatedEvent extends DomainEvent {
 	private String name;
 	private Long value;
 
+	public DemoUpdatedEvent() {
+	}
+
 	public DemoUpdatedEvent(String demoId, String name, long value) {
 		this.demoId = demoId;
 		this.name = name;

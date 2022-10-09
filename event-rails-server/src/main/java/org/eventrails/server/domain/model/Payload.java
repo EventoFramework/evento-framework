@@ -14,6 +14,7 @@ import java.util.Objects;
 @ToString
 @RequiredArgsConstructor
 @Embeddable
+@Table(name = "core__payload")
 public class Payload implements Serializable {
 	@Id
 	@Column(name = "name")

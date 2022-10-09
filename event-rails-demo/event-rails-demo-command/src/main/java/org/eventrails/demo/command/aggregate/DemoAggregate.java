@@ -23,6 +23,7 @@ public class DemoAggregate {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							CommandMessage commandMessage){
+		System.out.println(this.getClass() + " - handle(DemoCreateCommand)");
 		return new DemoCreatedEvent(
 				command.getDemoId(),
 				command.getName(),
@@ -31,12 +32,15 @@ public class DemoAggregate {
 
 	@EventSourcingHandler
 	DemoAggregateState on(DemoCreatedEvent event, DemoAggregateState state, EventMessage<DemoCreatedEvent> eventMessage){
+		System.out.println(this.getClass() + " - on(DemoCreatedEvent)");
 		return new DemoAggregateState(event.getValue());
 	}
 
 	@AggregateCommandHandler
 	DemoUpdatedEvent handle(DemoUpdateCommand command,
 							DemoAggregateState state){
+
+		System.out.println(this.getClass() + " - handle(DemoUpdateCommand)");
 		if(state.getValue() >= command.getValue()) throw new RuntimeException("error.invalid.value");
 		return new DemoUpdatedEvent(
 				command.getDemoId(),
@@ -46,6 +50,7 @@ public class DemoAggregate {
 
 	@EventSourcingHandler
 	DemoAggregateState on(DemoUpdatedEvent event, DemoAggregateState state){
+		System.out.println(this.getClass() + " - on(DemoUpdatedEvent)");
 		state.setValue(event.getValue());
 		return state;
 	}
@@ -53,12 +58,15 @@ public class DemoAggregate {
 	@AggregateCommandHandler
 	DemoDeletedEvent handle(DemoDeleteCommand command,
 							DemoAggregateState state){
+
+		System.out.println(this.getClass() + " - handle(DemoDeleteCommand)");
 		return new DemoDeletedEvent(
 				command.getDemoId());
 	}
 
 	@EventSourcingHandler
 	DemoAggregateState on(DemoDeletedEvent event, DemoAggregateState state){
+		System.out.println(this.getClass() + " - on(DemoDeletedEvent)");
 		state.setDeleted(true);
 		return state;
 	}

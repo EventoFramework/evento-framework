@@ -8,6 +8,8 @@ import org.eventrails.modeling.messaging.query.Single;
 public class DemoRichViewFindByIdQuery extends Query<Single<DemoRichView>> {
 	private String demoId;
 
+
+
 	public DemoRichViewFindByIdQuery(String demoId) {
 		this.demoId = demoId;
 	}

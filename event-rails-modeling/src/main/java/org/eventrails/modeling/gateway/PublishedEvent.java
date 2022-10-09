@@ -12,6 +12,7 @@ public class PublishedEvent implements Serializable {
 	private Long aggregateSequenceNumber;
 	private String aggregateId;
 	private String eventMessage;
+	private String eventName;
 	private Instant createdAt;
 
 	public String getEventId() {
@@ -60,5 +61,13 @@ public class PublishedEvent implements Serializable {
 
 	public void setCreatedAt(Instant createdAt) {
 		this.createdAt = createdAt;
+	}
+
+	public String getEventName() {
+		return eventName;
+	}
+
+	public void setEventName(String eventName) {
+		this.eventName = eventName;
 	}
 }

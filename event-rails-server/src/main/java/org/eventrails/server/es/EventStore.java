@@ -1,9 +1,13 @@
 package org.eventrails.server.es;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.es.eventstore.EventStoreRepository;
 import org.eventrails.server.es.snapshot.Snapshot;
 import org.eventrails.server.es.snapshot.SnapshotRepository;
+import org.eventrails.shared.ObjectMapperUtils;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +22,8 @@ public class EventStore {
 	private final EventStoreRepository eventStoreRepository;
 	private final SnapshotRepository snapshotRepository;
 	private final LockRegistry lockRegistry;
+
+	private final ObjectMapper payloadMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
 
 	public EventStore(EventStoreRepository repository, SnapshotRepository snapshotRepository, LockRegistry lockRegistry) {
@@ -73,6 +79,17 @@ public class EventStore {
 			entry.setAggregateId(aggregateId);
 
 			entry.setCreatedAt(Instant.now());
+
+			try
+			{
+				var jMessage = payloadMapper.readTree(eventMessage);
+				var parts = jMessage.get(1).get("payload").get(0).toString().split("\\.");
+				entry.setEventName(parts[parts.length - 1].replace("\"", ""));
+			} catch (JsonProcessingException e)
+			{
+				throw new RuntimeException(e);
+			}
+
 
 			return eventStoreRepository.save(entry);
 		}finally

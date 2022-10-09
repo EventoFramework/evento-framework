@@ -1,11 +1,8 @@
 package org.eventrails.server.cluster;
 
-import org.eventrails.server.service.MessageGateway;
-import org.eventrails.shared.exceptions.ThrowableWrapper;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
 import org.jgroups.Receiver;
-import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.RpcDispatcher;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,7 +14,7 @@ public class JGroupConfiguration {
 	@Value("${eventrails.cluster.message.channel.name}")
 	private String handlerClusterName;
 
-	@Value("${eventrails.cluster.node.name}")
+	@Value("${eventrails.cluster.node.server.name}")
 	private String serverNodeName;
 
 	@Bean

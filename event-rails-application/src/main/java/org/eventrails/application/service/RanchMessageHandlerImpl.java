@@ -94,12 +94,15 @@ public class RanchMessageHandlerImpl implements RanchMessageHandler {
 		try
 		{
 			var hi = payloadMapper.readValue(eventPayload, ProjectorEventHandlerInvocation.class);
+			handler.begin();
 			handler.invoke(hi.getEventMessage(),
 					application.getCommandGateway(),
 					application.getQueryGateway()
 			);
+			handler.commit();
 		} catch (Throwable e)
 		{
+			handler.rollback();
 			e.printStackTrace();
 			throw new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()).toException();
 		}

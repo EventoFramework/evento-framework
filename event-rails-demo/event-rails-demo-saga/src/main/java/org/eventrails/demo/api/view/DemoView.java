@@ -13,6 +13,9 @@ public class DemoView extends View {
 		this.value = value;
 	}
 
+	public DemoView() {
+	}
+
 	public String getDemoId() {
 		return demoId;
 	}
