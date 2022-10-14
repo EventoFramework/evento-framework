@@ -12,8 +12,11 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 	private ArrayList<Command> invokedCommands = new ArrayList<>();
 	private ArrayList<Query> invokedQueries = new ArrayList<>();
 
-	public SagaEventHandler(Event payload) {
+	private String associationProperty;
+
+	public SagaEventHandler(Event payload, String associationProperty) {
 		super(payload);
+		this.associationProperty = associationProperty;
 	}
 
 	@Override
@@ -35,5 +38,9 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 	@Override
 	public Collection<Query> getQueryInvocations() {
 		return invokedQueries;
+	}
+
+	public String getAssociationProperty() {
+		return associationProperty;
 	}
 }

@@ -58,6 +58,10 @@ public class EventStore {
 		return snapshotRepository.save(snapshot);
 	}
 
+	public Long getLastEventSequenceNumber(){
+		return eventStoreRepository.getLastEventSequenceNumber();
+	}
+
 	public EventStoreEntry publishEvent(String eventMessage, String aggregateId){
 		var lock = lockRegistry.obtain(ES_LOCK);
 		try{

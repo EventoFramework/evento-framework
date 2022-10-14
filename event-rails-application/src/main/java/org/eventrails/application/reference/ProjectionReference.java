@@ -40,15 +40,20 @@ public class ProjectionReference extends Reference{
 			QueryMessage<? extends Query> qm,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
-			throws InvocationTargetException, IllegalAccessException {
+			throws Throwable {
 
 		var handler = queryHandlerReferences.get(qm.getPayloadClass().getSimpleName());
 
-		return ReflectionUtils.invoke(getRef(), handler,
-				qm.getPayload(),
-				commandGateway,
-				queryGateway,
-				qm
-		);
+		try
+		{
+			return ReflectionUtils.invoke(getRef(), handler,
+					qm.getPayload(),
+					commandGateway,
+					queryGateway,
+					qm
+			);
+		}catch (InvocationTargetException e){
+			throw e.getCause();
+		}
 	}
 }

@@ -96,6 +96,7 @@ public class RanchApplicationService {
 					handler.setHandledPayload(payloadRepository.getById(sagaEventHandler.getPayload().getName()));
 					handler.setReturnIsMultiple(false);
 					handler.setReturnType(null);
+					handler.setAssociationProperty(sagaEventHandler.getAssociationProperty());
 					var invocations = new HashSet<Payload>();
 					for (Command command : sagaEventHandler.getCommandInvocations())
 					{

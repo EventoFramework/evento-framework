@@ -19,6 +19,7 @@ dependencies {
     implementation project(":event-rails-modeling")
     implementation project(":event-rails-parser")
     implementation project(":event-rails-application")
+    implementation project(":event-rails-demo:event-rails-demo-api")
 
 }
 

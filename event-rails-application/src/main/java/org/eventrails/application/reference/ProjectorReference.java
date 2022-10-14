@@ -42,16 +42,21 @@ public class ProjectorReference extends Reference implements TransactionalProjec
 			EventMessage<? extends Event> em,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
-			throws InvocationTargetException, IllegalAccessException {
+			throws Throwable {
 
 		var handler = eventHandlerReferences.get(em.getPayloadClass().getSimpleName());
 
-		ReflectionUtils.invoke(getRef(), handler,
-				em.getPayload(),
-				commandGateway,
-				queryGateway,
-				em
-		);
+		try
+		{
+			ReflectionUtils.invoke(getRef(), handler,
+					em.getPayload(),
+					commandGateway,
+					queryGateway,
+					em
+			);
+		}catch (InvocationTargetException e){
+			throw e.getCause();
+		}
 	}
 
 	@Override

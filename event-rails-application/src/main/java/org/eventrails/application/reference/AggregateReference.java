@@ -1,11 +1,9 @@
 package org.eventrails.application.reference;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import org.eventrails.shared.ObjectMapperUtils;
-import org.eventrails.shared.exceptions.AggregateDeletedError;
-import org.eventrails.shared.exceptions.AggregateInitializedError;
-import org.eventrails.shared.exceptions.AggregateNotInitializedError;
+import org.eventrails.modeling.exceptions.AggregateDeletedError;
+import org.eventrails.modeling.exceptions.AggregateInitializedError;
+import org.eventrails.modeling.exceptions.AggregateNotInitializedError;
 import org.eventrails.application.utils.ReflectionUtils;
 import org.eventrails.modeling.annotations.handler.AggregateCommandHandler;
 import org.eventrails.modeling.annotations.handler.EventSourcingHandler;
@@ -26,9 +24,9 @@ import java.util.Set;
 
 public class AggregateReference extends Reference {
 
-	private HashMap<String, Method> eventSourcingReferences = new HashMap<>();
+	private final HashMap<String, Method> eventSourcingReferences = new HashMap<>();
 
-	private HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
+	private final HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
 
 	public AggregateReference(Object ref) {
 		super(ref);

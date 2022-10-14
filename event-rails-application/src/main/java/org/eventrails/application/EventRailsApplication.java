@@ -3,19 +3,19 @@ package org.eventrails.application;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eventrails.application.reference.*;
-import org.eventrails.application.server.ApplicationServer;
-import org.eventrails.application.server.http.HttpApplicationServer;
-import org.eventrails.application.server.http.HttpCommandGateway;
-import org.eventrails.application.server.jgroups.JGroupsApplicationServer;
 import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
+import org.eventrails.application.server.jgroups.JGroupsQueryGateway;
+import org.eventrails.application.service.RanchMessageHandlerImpl;
 import org.eventrails.modeling.annotations.component.*;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
+import org.eventrails.modeling.messaging.message.bus.*;
+import org.eventrails.shared.messaging.JGroupsMessageBus;
+import org.jgroups.Event;
 import org.jgroups.JChannel;
-import org.jgroups.blocks.RpcDispatcher;
+import org.jgroups.Message;
 import org.reflections.Reflections;
 
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Set;
@@ -26,7 +26,6 @@ public class EventRailsApplication {
 	private static final Logger logger = LogManager.getLogger(EventRailsApplication.class);
 	private final String basePackage;
 	private final String ranchName;
-	private final ApplicationServer applicationServer;
 
 	private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
 	private HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
@@ -37,19 +36,6 @@ public class EventRailsApplication {
 	private transient CommandGateway commandGateway;
 	private transient QueryGateway queryGateway;
 
-	@Deprecated
-	private EventRailsApplication(
-			String basePackage,
-			String ranchName,
-			String clusterUrls,
-			int serverPort
-	) throws IOException {
-		this.basePackage = basePackage;
-		this.ranchName = ranchName;
-		commandGateway = new HttpCommandGateway(clusterUrls);
-		this.applicationServer = new HttpApplicationServer(serverPort, this);
-	}
-
 	private EventRailsApplication(
 			String basePackage,
 			String ranchName,
@@ -59,42 +45,81 @@ public class EventRailsApplication {
 		this.basePackage = basePackage;
 		this.ranchName = ranchName;
 
-		JChannel jChannel = new JChannel();
+		JChannel jChannel = new JChannel() {
+			@Override
+			public Object up(Message msg) {
+				System.out.println("UP MSG - " + msg);
+				return super.up(msg);
+			}
+
+			@Override
+			public Object up(Event evt) {
+				System.out.println("UP EVT - " + evt);
+				return super.up(evt);
+			}
+
+			@Override
+			public Object down(Event evt) {
+				System.out.println("DOWN EVT - " + evt);
+				return super.down(evt);
+			}
+
+			@Override
+			public Object down(Message evt) {
+				System.out.println("DOWN MSG - " + evt);
+				return super.down(evt);
+			}
+		};
+
+
+		var ranchMessageHandler = new RanchMessageHandlerImpl(this);
+
+		var messageBus = new JGroupsMessageBus(jChannel,
+				message -> {
+
+				},
+
+				(request, response) -> {
+					try
+					{
+						if (request instanceof ServiceHandleDomainCommandMessage m)
+						{
+							response.sendResponse(ranchMessageHandler.handleDomainCommand(m.getCommandName(), m.getPayload()));
+						} else if(request instanceof ServiceHandleServiceCommandMessage m)
+						{
+							response.sendResponse(ranchMessageHandler.handleServiceCommand(m.getCommandName(), m.getPayload()));
+						} else if(request instanceof ServiceHandleQueryMessage m)
+						{
+							response.sendResponse(ranchMessageHandler.handleQuery(m.getQueryName(), m.getPayload()));
+						}else if(request instanceof ServiceHandleProjectorEventMessage m)
+						{
+							ranchMessageHandler.handleProjectorEvent(m.getEventName(), m.getProjectorName(), m.getPayload());
+							response.sendResponse(null);
+						}else if(request instanceof ServiceHandleSagaEventMessage m)
+						{
+							response.sendResponse(ranchMessageHandler.handleSagaEvent(m.getEventName(),m.getSagaName(), m.getPayload()));
+						}else{
+							response.sendError(new IllegalArgumentException("Request not found"));
+						}
+					} catch (Throwable e)
+					{
+						response.sendError(e);
+					}
+				});
 		jChannel.setName(ranchName);
 		jChannel.connect(clusterName);
 
-		RpcDispatcher dispatcher = new RpcDispatcher();
-		dispatcher.setChannel(jChannel);
-
-		commandGateway = new JGroupsCommandGateway(dispatcher, serverName);
-		this.applicationServer = new JGroupsApplicationServer(dispatcher, this);
+		commandGateway = new JGroupsCommandGateway(messageBus, serverName);
+		queryGateway = new JGroupsQueryGateway(messageBus, serverName);
 
 	}
 
-	@Deprecated
-	public static EventRailsApplication start(String basePackage, String ranchName, String clusterUrls, int serverPort, String[] args) {
-		try
-		{
-			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, ranchName, clusterUrls, serverPort);
-			logger.info("Parsing package");
-			eventRailsApplication.parsePackage();
-			logger.info("Server starting on port {}", serverPort);
-			eventRailsApplication.startServer();
-			logger.info("Server Started");
-			return eventRailsApplication;
-		} catch (Exception e)
-		{
-			throw new RuntimeException(e);
-		}
-
-	}
 	public static EventRailsApplication start(String basePackage, String ranchName, String messageChannelName, String serverName, String[] args) {
 		try
 		{
 			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, ranchName, messageChannelName, serverName);
 			logger.info("Parsing package");
 			eventRailsApplication.parsePackage();
-			eventRailsApplication.startServer();
 			logger.info("Server Started");
 			return eventRailsApplication;
 		} catch (Exception e)
@@ -104,15 +129,6 @@ public class EventRailsApplication {
 
 	}
 
-	private void startServer() throws Exception {
-		applicationServer.start();
-
-	}
-
-	private void stopServer() throws Exception {
-		applicationServer.stop();
-
-	}
 	private void parsePackage() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
 
 		Reflections reflections = new Reflections(basePackage);
@@ -192,7 +208,7 @@ public class EventRailsApplication {
 		return ranchName;
 	}
 
-	public static class ApplicationInfo{
+	public static class ApplicationInfo {
 		public String basePackage;
 		public String ranchName;
 		public String clusterName;
@@ -204,7 +220,7 @@ public class EventRailsApplication {
 		public Set<String> sagaMessageHandlers;
 	}
 
-	public ApplicationInfo getAppInfo(){
+	public ApplicationInfo getAppInfo() {
 		var info = new ApplicationInfo();
 		info.basePackage = basePackage;
 		info.ranchName = ranchName;
