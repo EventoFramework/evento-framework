@@ -1,9 +1,10 @@
 package org.eventrails.server.cluster;
 
+import org.eventrails.shared.messaging.JGroupsMessageBus;
+import org.eventrails.modeling.messaging.message.bus.MessageBus;
+import org.jgroups.Event;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
-import org.jgroups.Receiver;
-import org.jgroups.blocks.RpcDispatcher;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,26 +19,39 @@ public class JGroupConfiguration {
 	private String serverNodeName;
 
 	@Bean
-	JChannel messageChannel() throws Exception {
-		var jChannel = new JChannel();
-		jChannel.setName(serverNodeName);
-		jChannel.setReceiver(new Receiver() {
+	MessageBus messageBus() throws Exception {
+		var jChannel = new JChannel(){
 			@Override
-			public void receive(Message msg) {
-				System.out.println(msg);
+			public Object up(Message msg) {
+				System.out.println("UP MSG - " + msg);
+				return super.up(msg);
 			}
-		});
-		jChannel.connect(handlerClusterName);
-		return jChannel;
-	}
 
-	@Bean
-	RpcDispatcher dispatcher(JChannel messageChannel){
-		var rpcDispatcher = new RpcDispatcher();
-		rpcDispatcher.setChannel(messageChannel);
-		rpcDispatcher.start();
-		rpcDispatcher.wrapExceptions(true);
-		return rpcDispatcher;
+			@Override
+			public Object up(Event evt) {
+				System.out.println("UP EVT - " + evt);
+				return super.up(evt);
+			}
+
+
+
+			@Override
+			public Object down(Event evt) {
+				System.out.println("DOWN EVT - " + evt);
+				return super.down(evt);
+			}
+
+			@Override
+			public Object down(Message evt) {
+				System.out.println("DOWN MSG - " + evt);
+				return super.down(evt);
+			}
+		};
+		var messageBus = new JGroupsMessageBus(jChannel);
+		jChannel.setName(serverNodeName);
+		jChannel.setDiscardOwnMessages(false);
+		jChannel.connect(handlerClusterName);
+		return messageBus;
 	}
 	
 }

@@ -18,9 +18,8 @@ public class ComponentEventConsumingState {
 	@Id
 	private String componentName;
 
-	private Long lastEventSequenceNumber;
+	private String ranchName;
 
-	@Column(columnDefinition = "JSON")
-	private String currentState;
+	private Long lastEventSequenceNumber;
 
 }

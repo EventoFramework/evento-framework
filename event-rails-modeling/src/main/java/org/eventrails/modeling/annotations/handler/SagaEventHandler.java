@@ -10,4 +10,6 @@ import java.lang.annotation.Target;
 @Handler
 public @interface SagaEventHandler {
 	boolean init() default false;
+
+	String associationProperty();
 }

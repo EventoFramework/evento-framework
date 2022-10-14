@@ -11,4 +11,6 @@ include 'event-rails-demo'
 include 'event-rails-shared'
 include 'ecent-rails-dispatcher'
 include 'event-rails-dispatcher'
+include 'event-rails-demo:event-rails-demo-api'
+findProject(':event-rails-demo:event-rails-demo-api')?.name = 'event-rails-demo-api'
 

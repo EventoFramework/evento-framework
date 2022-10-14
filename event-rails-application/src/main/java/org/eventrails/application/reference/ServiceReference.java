@@ -47,15 +47,20 @@ public class ServiceReference extends Reference {
 			CommandMessage<? extends ServiceCommand> cm,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
-			throws InvocationTargetException, IllegalAccessException {
+			throws Throwable {
 
 		var commandHandler = serviceCommandHandlerReferences.get(cm.getPayloadClass().getSimpleName());
 
-		return (ServiceEvent) ReflectionUtils.invoke(getRef(), commandHandler,
-						cm.getPayload(),
-						commandGateway,
-						queryGateway,
-						cm
-						);
+		try
+		{
+			return (ServiceEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+					cm.getPayload(),
+					commandGateway,
+					queryGateway,
+					cm
+			);
+		}catch (InvocationTargetException e){
+			throw  e.getCause();
+		}
 	}
 }

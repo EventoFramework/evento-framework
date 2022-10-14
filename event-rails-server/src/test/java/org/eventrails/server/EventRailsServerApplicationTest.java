@@ -20,6 +20,11 @@ class EventRailsServerApplicationTest {
 	@Test
 	void test() throws IOException {
 		JavaRanchApplicationParser applicationParser = new JavaRanchApplicationParser();
+
+		ranchApplicationService.unregister("event-rails-node-demo-command");
+		ranchApplicationService.unregister("event-rails-node-demo-query");
+		ranchApplicationService.unregister("event-rails-node-demo-saga");
+		
 		var components = applicationParser.parseDirectory(
 				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo\\event-rails-demo-command\\src\\main\\java\\org\\eventrails\\demo"));
 

@@ -27,7 +27,7 @@ public class DemoProjector implements TransactionalProjector {
 
 	@EventHandler
 	void on(DemoDeletedEvent event){
-		System.out.println(this.getClass() + " - on(DemoUpdatedEvent)");
+		System.out.println(this.getClass() + " - on(DemoDeletedEvent)");
 
 	}
 

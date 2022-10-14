@@ -48,16 +48,21 @@ public class SagaReference extends Reference{
 			SagaState sagaState,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
-			throws InvocationTargetException, IllegalAccessException {
+			throws Throwable {
 
 		var handler = sagaEventHandlerReferences.get(em.getPayloadClass().getSimpleName());
 
-		return (SagaState) ReflectionUtils.invoke(getRef(), handler,
-						em.getPayload(),
-						sagaState,
-						commandGateway,
-						queryGateway,
-						em
-						);
+		try
+		{
+			return (SagaState) ReflectionUtils.invoke(getRef(), handler,
+					em.getPayload(),
+					sagaState,
+					commandGateway,
+					queryGateway,
+					em
+			);
+		}catch (InvocationTargetException e){
+			throw e.getCause();
+		}
 	}
 }

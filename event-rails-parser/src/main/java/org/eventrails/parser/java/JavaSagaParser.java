@@ -23,7 +23,14 @@ public class JavaSagaParser extends JavaComponentParser<Saga> {
 				n -> {
 					var md = (ASTMethodDeclaration) n;
 					var eventName = md.getFormalParameters().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-					return new SagaEventHandler(new Event(eventName));
+					var associationProperty = n.getParent().getChild(0)
+							.findDescendantsOfType(ASTMemberValuePair.class)
+							.stream()
+							.filter(m -> m.getImage().equals("associationProperty"))
+							.findFirst()
+							.map(m -> m.getFirstDescendantOfType(ASTLiteral.class).getImage().replace("\"",""))
+							.orElseThrow();
+					return new SagaEventHandler(new Event(eventName), associationProperty);
 				}
 		).collect(Collectors.toList());
 	}

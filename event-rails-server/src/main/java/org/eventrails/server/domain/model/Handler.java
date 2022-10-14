@@ -31,8 +31,6 @@ public class Handler {
 
 	private String componentName;
 
-
-
 	@ManyToOne(fetch = FetchType.EAGER)
 	private Payload returnType;
 
@@ -48,6 +46,8 @@ public class Handler {
 	@ToString.Exclude
 	@JoinTable(name = "core__handler_invocation")
 	private Set<Payload> invocations;
+
+	private String associationProperty;
 
 	@Override
 	public boolean equals(Object o) {
