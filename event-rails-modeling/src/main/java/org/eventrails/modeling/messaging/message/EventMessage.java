@@ -8,4 +8,12 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 	}
 
 	public EventMessage(){}
+
+	public String getEventName() {
+		return getPayloadName();
+	}
+
+	public String getAssociationValue(String associationProperty) {
+		return getSerializedPayload().getTree().get(1).get(associationProperty).textValue();
+	}
 }

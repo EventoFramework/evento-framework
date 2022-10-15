@@ -5,7 +5,8 @@ import org.eventrails.modeling.gateway.QueryGateway;
 import org.eventrails.modeling.messaging.message.QueryMessage;
 import org.eventrails.modeling.messaging.payload.Query;
 import org.eventrails.modeling.messaging.query.QueryResponse;
-import org.eventrails.shared.ObjectMapperUtils;
+import org.eventrails.modeling.messaging.query.SerializedQueryResponse;
+import org.eventrails.modeling.utils.ObjectMapperUtils;
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.modeling.messaging.message.bus.ServerHandleInvocationMessage;
 
@@ -24,17 +25,18 @@ public class JGroupsQueryGateway implements QueryGateway {
 
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
 		var future = new CompletableFuture<T>();
 		try
 		{
 			messageBus.cast(
 					messageBus.findNodeAddress(serverName),
-					new ServerHandleInvocationMessage(payloadMapper.writeValueAsString(new QueryMessage<>((query)))),
+					new QueryMessage<>((query)),
 					response -> {
 						try
 						{
-							future.complete((T) response);
+							future.complete((T) ((SerializedQueryResponse<?>) response).getObject());
 						}catch (Exception e){
 							future.completeExceptionally(e);
 						}

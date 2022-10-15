@@ -1,24 +1,12 @@
 package org.eventrails.demo;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
-import org.eventrails.application.EventRailsApplication;
 import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
 import org.eventrails.demo.api.command.*;
-import org.eventrails.demo.api.event.DemoCreatedEvent;
-import org.eventrails.demo.command.aggregate.DemoAggregateState;
 import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.messaging.invocation.AggregateCommandHandlerInvocation;
-import org.eventrails.modeling.messaging.message.DomainCommandMessage;
-import org.eventrails.modeling.messaging.message.DomainEventMessage;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 
 class ApplicationTest {
 
@@ -58,5 +46,53 @@ class ApplicationTest {
 		resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
 		System.out.println(resp);
 		System.out.println("end");
+	}
+
+	@Test
+	public void testServiceCommandJGroup4() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+		String id = UUID.randomUUID().toString();
+		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
+		System.out.println(resp);
+		System.out.println("end");
+	}
+
+
+	@Test
+	public void benchmark() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+		var start = System.currentTimeMillis();
+		for(int i = 0; i<1000; i++)
+		{
+			String id = UUID.randomUUID().toString();
+			commandGateway.sendAndWait(new DemoCreateCommand("test_" + id, id, 0));
+		}
+		var time = System.currentTimeMillis() - start;
+		System.out.println(time+ " msc");
+	}
+
+	@Test
+	public void benchmarkAsync() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+		var start = System.currentTimeMillis();
+		System.out.println(start);
+		for(int i = 0; i<1000; i++)
+		{
+			String id = UUID.randomUUID().toString();
+			commandGateway.send(new DemoCreateCommand("test_" + id, id, 0));
+		}
+		var end = System.currentTimeMillis();
+		System.out.println(end);
+		var time = end - start;
+		System.out.println(time+ " msc");
 	}
 }

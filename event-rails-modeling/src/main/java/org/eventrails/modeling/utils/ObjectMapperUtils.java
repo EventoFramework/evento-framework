@@ -1,4 +1,4 @@
-package org.eventrails.shared;
+package org.eventrails.modeling.utils;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.databind.ObjectMapper;

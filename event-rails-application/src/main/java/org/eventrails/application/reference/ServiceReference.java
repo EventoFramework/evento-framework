@@ -49,7 +49,7 @@ public class ServiceReference extends Reference {
 			QueryGateway queryGateway)
 			throws Throwable {
 
-		var commandHandler = serviceCommandHandlerReferences.get(cm.getPayloadClass().getSimpleName());
+		var commandHandler = serviceCommandHandlerReferences.get(cm.getCommandName());
 
 		try
 		{

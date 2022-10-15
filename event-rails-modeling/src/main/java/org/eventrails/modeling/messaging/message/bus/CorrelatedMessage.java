@@ -3,7 +3,7 @@ package org.eventrails.modeling.messaging.message.bus;
 import java.io.Serializable;
 
 public class CorrelatedMessage implements Serializable {
-		private Object payload;
+		private Serializable body;
 		private String correlationId;
 
 		private boolean isResponse;
@@ -11,18 +11,18 @@ public class CorrelatedMessage implements Serializable {
 		public CorrelatedMessage() {
 		}
 
-		public CorrelatedMessage(String correlationId, Object payload, boolean isResponse) {
-			this.payload = payload;
+		public CorrelatedMessage(String correlationId, Serializable body, boolean isResponse) {
+			this.body = body;
 			this.correlationId = correlationId;
 			this.isResponse = isResponse;
 		}
 
-		public Object getPayload() {
-			return payload;
+		public Serializable getBody() {
+			return body;
 		}
 
-		public void setPayload(Object payload) {
-			this.payload = payload;
+		public void setBody(Serializable body) {
+			this.body = body;
 		}
 
 		public String getCorrelationId() {

@@ -2,30 +2,36 @@ package org.eventrails.modeling.messaging.message;
 
 import org.eventrails.modeling.messaging.payload.Payload;
 
+import java.io.Serializable;
 import java.util.HashMap;
 
-public abstract class Message<T extends Payload> {
+public abstract class Message<T extends Payload> implements Serializable {
 
-
-	private T payload;
+	private SerializedPayload<T> serializedPayload;
 
 	private HashMap<String, String> metadata;
+
 	public Message(T payload) {
-		this.payload = payload;
+		this.serializedPayload = new SerializedPayload<>(payload);
 	}
 
-	public Message(){}
+	public Message() {
+	}
 
 	public T getPayload() {
-		return payload;
+		return serializedPayload.getObject();
 	}
 
 	public void setPayload(T payload) {
-		this.payload = payload;
+		this.serializedPayload = new SerializedPayload<>(payload);
 	}
 
-	public Class<? extends Payload> getPayloadClass(){
-		return payload.getClass();
+	public SerializedPayload<T> getSerializedPayload() {
+		return serializedPayload;
+	}
+
+	public void setSerializedPayload(SerializedPayload<T> serializedPayload) {
+		this.serializedPayload = serializedPayload;
 	}
 
 	public HashMap<String, String> getMetadata() {
@@ -36,8 +42,13 @@ public abstract class Message<T extends Payload> {
 		this.metadata = metadata;
 	}
 
-	public String getType(){
-		return getPayloadClass().getSimpleName();
+	public String getType() {
+		return serializedPayload.getObjectClass();
+	}
+
+	public String getPayloadName() {
+		var parts = getType().split("\\.");
+		return parts[parts.length - 1];
 	}
 
 }

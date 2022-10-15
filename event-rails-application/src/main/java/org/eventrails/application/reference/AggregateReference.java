@@ -75,7 +75,7 @@ public class AggregateReference extends Reference {
 			QueryGateway queryGateway)
 			throws Throwable {
 
-		var commandHandler = aggregateCommandHandlerReferences.get(cm.getPayloadClass().getSimpleName());
+		var commandHandler = aggregateCommandHandlerReferences.get(cm.getCommandName());
 
 		if (eventStream.isEmpty() && !isAggregateInitializer(commandHandler))
 			throw AggregateNotInitializedError.build(cm.getAggregateId());
@@ -87,7 +87,7 @@ public class AggregateReference extends Reference {
 		{
 			for (var em : eventStream)
 			{
-				var eh = getEventSourcingHandler(em.getPayloadClass().getSimpleName());
+				var eh = getEventSourcingHandler(em.getEventName());
 				currentAggregateState = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), currentAggregateState);
 				if (currentAggregateState.isDeleted())
 					throw AggregateDeletedError.build(cm.getAggregateId());

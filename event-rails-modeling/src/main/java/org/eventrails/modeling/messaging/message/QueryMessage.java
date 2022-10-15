@@ -11,4 +11,7 @@ public class QueryMessage<T extends Query<?>> extends Message<T>  {
 	}
 
 
+	public String getQueryName() {
+		return super.getPayloadName();
+	}
 }

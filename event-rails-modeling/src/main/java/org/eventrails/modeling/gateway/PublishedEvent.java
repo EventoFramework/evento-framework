@@ -1,9 +1,10 @@
 package org.eventrails.modeling.gateway;
 
 
+import org.eventrails.modeling.messaging.message.EventMessage;
+
 import java.io.Serializable;
 import java.time.Instant;
-
 
 
 public class PublishedEvent implements Serializable {
@@ -11,7 +12,7 @@ public class PublishedEvent implements Serializable {
 	private Long eventSequenceNumber;
 	private Long aggregateSequenceNumber;
 	private String aggregateId;
-	private String eventMessage;
+	private EventMessage<?> eventMessage;
 	private String eventName;
 	private Instant createdAt;
 
@@ -47,11 +48,11 @@ public class PublishedEvent implements Serializable {
 		this.aggregateId = aggregateId;
 	}
 
-	public String getEventMessage() {
+	public EventMessage<?> getEventMessage() {
 		return eventMessage;
 	}
 
-	public void setEventMessage(String eventMessage) {
+	public void setEventMessage(EventMessage<?> eventMessage) {
 		this.eventMessage = eventMessage;
 	}
 
