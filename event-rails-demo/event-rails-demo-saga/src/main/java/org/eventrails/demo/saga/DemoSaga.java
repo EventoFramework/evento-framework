@@ -61,7 +61,8 @@ public class DemoSaga {
 
 
 		var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
-		commandGateway.send(new NotificationSendSilentCommand(demo.toString()));
+		var resp = commandGateway.send(new NotificationSendSilentCommand("lol" + demo.getData().getDemoId())).get();
+		System.out.println(resp);
 		 
 
 		demoSagaState.setEnded(true);

@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.eventrails.modeling.gateway.PublishedEvent;
+import org.eventrails.modeling.messaging.message.EventMessage;
+import org.eventrails.server.config.JsonConverter;
 
 import javax.persistence.*;
 import java.time.Instant;
@@ -28,7 +30,8 @@ public class EventStoreEntry {
 	private Long aggregateSequenceNumber;
 	private String aggregateId;
 	@Column(columnDefinition = "JSON")
-	private String eventMessage;
+	@Convert( converter = JsonConverter.class)
+	private EventMessage<?> eventMessage;
 	private String eventName;
 	private Instant createdAt;
 

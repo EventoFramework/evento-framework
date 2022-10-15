@@ -5,15 +5,16 @@ import org.apache.logging.log4j.Logger;
 import org.eventrails.application.reference.*;
 import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
 import org.eventrails.application.server.jgroups.JGroupsQueryGateway;
-import org.eventrails.application.service.RanchMessageHandlerImpl;
 import org.eventrails.modeling.annotations.component.*;
+import org.eventrails.modeling.exceptions.HandlerNotFoundException;
 import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.bus.*;
+import org.eventrails.modeling.messaging.message.DecoratedDomainCommandMessage;
+import org.eventrails.modeling.messaging.message.*;
+import org.eventrails.modeling.messaging.query.SerializedQueryResponse;
+import org.eventrails.modeling.state.SerializedSagaState;
 import org.eventrails.shared.messaging.JGroupsMessageBus;
-import org.jgroups.Event;
 import org.jgroups.JChannel;
-import org.jgroups.Message;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
@@ -45,66 +46,110 @@ public class EventRailsApplication {
 		this.basePackage = basePackage;
 		this.ranchName = ranchName;
 
-		JChannel jChannel = new JChannel() {
-			@Override
-			public Object up(Message msg) {
-				System.out.println("UP MSG - " + msg);
-				return super.up(msg);
-			}
+		JChannel jChannel = new JChannel();
 
-			@Override
-			public Object up(Event evt) {
-				System.out.println("UP EVT - " + evt);
-				return super.up(evt);
-			}
-
-			@Override
-			public Object down(Event evt) {
-				System.out.println("DOWN EVT - " + evt);
-				return super.down(evt);
-			}
-
-			@Override
-			public Object down(Message evt) {
-				System.out.println("DOWN MSG - " + evt);
-				return super.down(evt);
-			}
-		};
-
-
-		var ranchMessageHandler = new RanchMessageHandlerImpl(this);
 
 		var messageBus = new JGroupsMessageBus(jChannel,
 				message -> {
 
 				},
-
 				(request, response) -> {
-					try
-					{
-						if (request instanceof ServiceHandleDomainCommandMessage m)
+					new Thread(() -> {
+						try
 						{
-							response.sendResponse(ranchMessageHandler.handleDomainCommand(m.getCommandName(), m.getPayload()));
-						} else if(request instanceof ServiceHandleServiceCommandMessage m)
+							if (request instanceof DecoratedDomainCommandMessage c)
+							{
+								var handler = getAggregateMessageHandlers()
+										.get(c.getCommandMessage().getCommandName());
+								if (handler == null)
+									throw new HandlerNotFoundException("No handler found for %s in %s"
+											.formatted(c.getCommandMessage().getCommandName(), getRanchName()));
+								var event = handler.invoke(
+										c.getCommandMessage(),
+										c.getSerializedAggregateState().getAggregateState(),
+										c.getEventStream(),
+										commandGateway,
+										queryGateway
+								);
+								response.sendResponse(
+										new DomainEventMessage(event)
+								);
+							} else if (request instanceof ServiceCommandMessage c)
+							{
+								var handler = getServiceMessageHandlers().get(c.getCommandName());
+								if (handler == null)
+									throw new HandlerNotFoundException("No handler found for %s in %s"
+											.formatted(c.getCommandName(), getRanchName()));
+								var event = handler.invoke(
+										c,
+										commandGateway,
+										queryGateway
+								);
+								response.sendResponse(event);
+							} else if (request instanceof QueryMessage<?> q)
+							{
+								var handler = getProjectionMessageHandlers().get(q.getQueryName());
+								if (handler == null)
+									throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getRanchName()));
+								var result = handler.invoke(
+										q,
+										commandGateway,
+										queryGateway
+								);
+								response.sendResponse(new SerializedQueryResponse<>(result));
+							} else if (request instanceof EventToProjectorMessage m)
+							{
+								var handlers = getProjectorMessageHandlers()
+										.get(m.getEventMessage().getEventName());
+								if (handlers == null)
+									throw new HandlerNotFoundException("No handler found for %s in %s"
+											.formatted(m.getEventMessage().getEventName(), getRanchName()));
+
+
+								var handler = handlers.getOrDefault(m.getProjectorName(), null);
+								if (handler == null)
+									throw new HandlerNotFoundException("No handler found for %s in %s"
+											.formatted(m.getEventMessage().getEventName(), getRanchName()));
+
+								handler.begin();
+								handler.invoke(
+										m.getEventMessage(),
+										commandGateway,
+										queryGateway
+								);
+								handler.commit();
+								response.sendResponse(null);
+							} else if (request instanceof EventToSagaMessage m)
+							{
+								var handlers = getSagaMessageHandlers()
+										.get(m.getEventMessage().getEventName());
+								if (handlers == null)
+									throw new HandlerNotFoundException("No handler found for %s in %s"
+											.formatted(m.getEventMessage().getEventName(), getRanchName()));
+
+
+								var handler = handlers.getOrDefault(m.getSagaName(), null);
+								if (handler == null)
+									throw new HandlerNotFoundException("No handler found for %s in %s"
+											.formatted(m.getEventMessage().getEventName(), getRanchName()));
+
+
+								var state = handler.invoke(
+										m.getEventMessage(),
+										m.getSerializedSagaState().getSagaState(),
+										commandGateway,
+										queryGateway
+								);
+								response.sendResponse(new SerializedSagaState<>(state));
+							} else
+							{
+								throw new IllegalArgumentException("Request not found");
+							}
+						} catch (Throwable e)
 						{
-							response.sendResponse(ranchMessageHandler.handleServiceCommand(m.getCommandName(), m.getPayload()));
-						} else if(request instanceof ServiceHandleQueryMessage m)
-						{
-							response.sendResponse(ranchMessageHandler.handleQuery(m.getQueryName(), m.getPayload()));
-						}else if(request instanceof ServiceHandleProjectorEventMessage m)
-						{
-							ranchMessageHandler.handleProjectorEvent(m.getEventName(), m.getProjectorName(), m.getPayload());
-							response.sendResponse(null);
-						}else if(request instanceof ServiceHandleSagaEventMessage m)
-						{
-							response.sendResponse(ranchMessageHandler.handleSagaEvent(m.getEventName(),m.getSagaName(), m.getPayload()));
-						}else{
-							response.sendError(new IllegalArgumentException("Request not found"));
+							response.sendError(e);
 						}
-					} catch (Throwable e)
-					{
-						response.sendError(e);
-					}
+					}).start();
 				});
 		jChannel.setName(ranchName);
 		jChannel.connect(clusterName);

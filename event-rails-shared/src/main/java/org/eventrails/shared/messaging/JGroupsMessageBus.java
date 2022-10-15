@@ -7,8 +7,12 @@ import org.eventrails.modeling.messaging.message.bus.CorrelatedMessage;
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.modeling.messaging.message.bus.ResponseSender;
 import org.jgroups.*;
+import org.jgroups.util.ConcurrentLinkedBlockingQueue;
+import org.jgroups.util.ConcurrentLinkedBlockingQueue2;
 
+import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -16,14 +20,16 @@ import java.util.stream.Collectors;
 public class JGroupsMessageBus implements MessageBus, Receiver {
 
 	private final JChannel channel;
-	private Consumer<Object> messageReceiver;
-	private BiConsumer<Object, ResponseSender> requestReceiver;
+	private Consumer<Serializable> messageReceiver;
+	private BiConsumer<Serializable, ResponseSender> requestReceiver;
 
 	private final HashMap<String, Handlers> messageCorrelationMap = new HashMap<>();
 
+	private final Queue<Message> messageQueue = new LinkedBlockingQueue<>();
+
 	public JGroupsMessageBus(JChannel jChannel,
-							 Consumer<Object> messageReceiver,
-							 BiConsumer<Object, ResponseSender> requestReceiver) {
+							 Consumer<Serializable> messageReceiver,
+							 BiConsumer<Serializable, ResponseSender> requestReceiver) {
 		jChannel.setReceiver(this);
 		this.channel = jChannel;
 		this.messageReceiver = messageReceiver;
@@ -33,48 +39,51 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	public JGroupsMessageBus(JChannel jChannel) {
 		jChannel.setReceiver(this);
 		this.channel = jChannel;
-		this.messageReceiver = object -> {};
-		this.requestReceiver = (request, response) -> {};
+		this.messageReceiver = object -> {
+		};
+		this.requestReceiver = (request, response) -> {
+		};
 	}
 
-	public void setMessageReceiver(Consumer<Object> messageReceiver) {
+	public void setMessageReceiver(Consumer<Serializable> messageReceiver) {
 		this.messageReceiver = messageReceiver;
 	}
 
-	public void setRequestReceiver(BiConsumer<Object, ResponseSender> requestReceiver) {
+	public void setRequestReceiver(BiConsumer<Serializable, ResponseSender> requestReceiver) {
 		this.requestReceiver = requestReceiver;
 	}
 
 	@Override
-	public void broadcast(Object message) throws Exception {
+	public void broadcast(Serializable message) throws Exception {
 		channel.send(new BytesMessage(null, message));
 
 	}
 
 	@Override
-	public void cast(NodeAddress address, Object message) throws Exception {
+	public void cast(NodeAddress address, Serializable message) throws Exception {
 		channel.send(new BytesMessage(address.getAddress(), message));
 	}
 
-	public void cast(Address address, Object message) throws Exception {
+	public void cast(Address address, Serializable message) throws Exception {
 		cast(new JGroupNodeAddress(address), message);
 	}
 
 
 	@Override
-	public void multicast(Collection<NodeAddress> addresses, Object message) throws Exception {
+	public void multicast(Collection<NodeAddress> addresses, Serializable message) throws Exception {
 		for (NodeAddress address : addresses)
 		{
 			cast(address, message);
 		}
 	}
-	public void multicast(List<Address> addresses, Object message) throws Exception {
+
+	public void multicast(List<Address> addresses, Serializable message) throws Exception {
 		multicast(addresses.stream().map(JGroupNodeAddress::new).collect(Collectors.toList()), message);
 	}
 
 
 	@Override
-	public void cast(NodeAddress address, Object message, Consumer<Object> response, Consumer<ThrowableWrapper> error) throws Exception {
+	public void cast(NodeAddress address, Serializable message, Consumer<Serializable> response, Consumer<ThrowableWrapper> error) throws Exception {
 		var correlationId = UUID.randomUUID().toString();
 		messageCorrelationMap.put(correlationId, new Handlers(response, error));
 		var cm = new CorrelatedMessage(correlationId, message, false);
@@ -89,15 +98,15 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 		}
 	}
 
-	public void cast(Address address, Object message, Consumer<Object> response, Consumer<ThrowableWrapper> error) throws Exception{
+	public void cast(Address address, Serializable message, Consumer<Serializable> response, Consumer<ThrowableWrapper> error) throws Exception {
 		cast(new JGroupNodeAddress(address), message, response, error);
 	}
 
-	public void cast(Address address, Object message, Consumer<Object> response) throws Exception{
+	public void cast(Address address, Serializable message, Consumer<Serializable> response) throws Exception {
 		cast(new JGroupNodeAddress(address), message, response);
 	}
 
-	private void castResponse(NodeAddress address, Object message, String correlationId) throws Exception {
+	private void castResponse(NodeAddress address, Serializable message, String correlationId) throws Exception {
 		var cm = new CorrelatedMessage(correlationId, message, true);
 		var jMessage = new BytesMessage(address.getAddress(), cm);
 		channel.send(jMessage);
@@ -125,43 +134,54 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	}
 
 
-
 	@Override
 	public void receive(Message msg) {
-		Object message = ((BytesMessage) msg).getObject(this.getClass().getClassLoader());
+		Serializable message = ((BytesMessage) msg).getObject(this.getClass().getClassLoader());
 		if (message instanceof CorrelatedMessage cm)
 		{
 			if (cm.isResponse())
 			{
-				if(cm.getPayload() instanceof ThrowableWrapper tw){
-					messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(tw);
-				}else
+				if (cm.getBody() instanceof ThrowableWrapper tw)
 				{
-					messageCorrelationMap.get(cm.getCorrelationId()).success.accept(cm.getPayload());
+					messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(tw);
+				} else
+				{
+					try
+					{
+						messageCorrelationMap.get(cm.getCorrelationId()).success.accept(cm.getBody());
+					} catch (Exception e)
+					{
+						e.printStackTrace();
+						messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()));
+					}
 				}
 			} else
-			{	var resp = new JGroupsResponseSender(
-					this,
-					new JGroupNodeAddress(msg.getSrc()),
-					cm.getCorrelationId());
+			{
+				var resp = new JGroupsResponseSender(
+						this,
+						new JGroupNodeAddress(msg.getSrc()),
+						cm.getCorrelationId());
 				try
 				{
-					requestReceiver.accept(cm.getPayload(), resp);
-				}catch (Exception e){
+					requestReceiver.accept(cm.getBody(), resp);
+				} catch (Exception e)
+				{
+					e.printStackTrace();
 					resp.sendError(e);
 				}
 			}
-		}else
+		} else
 		{
 			messageReceiver.accept(message);
 		}
+
 	}
 
-	private static class Handlers{
-		private Consumer<Object> success;
+	private static class Handlers {
+		private Consumer<Serializable> success;
 		private Consumer<ThrowableWrapper> fail;
 
-		public Handlers(Consumer<Object> success, Consumer<ThrowableWrapper> fail) {
+		public Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {
 			this.success = success;
 			this.fail = fail;
 		}
@@ -183,8 +203,8 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 			this.correlationId = correlationId;
 		}
 
-		public void sendResponse(Object response){
-			if(responseSent) return;
+		public void sendResponse(Serializable response) {
+			if (responseSent) return;
 			try
 			{
 				messageBus.castResponse(responseAddress, response, correlationId);
@@ -195,11 +215,11 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 			}
 		}
 
-		public void sendError(Throwable e){
-			if(responseSent) return;
+		public void sendError(Throwable e) {
+			if (responseSent) return;
 			try
 			{
-				messageBus.castResponse(responseAddress,  new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()), correlationId);
+				messageBus.castResponse(responseAddress, new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()), correlationId);
 				responseSent = true;
 			} catch (Exception err)
 			{

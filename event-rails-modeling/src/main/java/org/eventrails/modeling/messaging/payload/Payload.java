@@ -1,4 +1,6 @@
 package org.eventrails.modeling.messaging.payload;
 
-public abstract class Payload {
+import java.io.Serializable;
+
+public abstract class Payload implements Serializable {
 }

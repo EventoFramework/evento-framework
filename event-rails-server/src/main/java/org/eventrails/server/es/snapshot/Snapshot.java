@@ -1,6 +1,6 @@
 package org.eventrails.server.es.snapshot;
 
-import lombok.Getter;
+import org.eventrails.modeling.state.SerializedAggregateState;
 
 import javax.persistence.*;
 import java.time.Instant;
@@ -15,7 +15,7 @@ public class Snapshot {
 	public String aggregateId;
 	public Long aggregateSequenceNumber;
 	@Column(columnDefinition = "JSON")
-	public String aggregateState;
+	public SerializedAggregateState<?> aggregateState;
 
 	public Instant updatedAt;
 
@@ -35,11 +35,11 @@ public class Snapshot {
 		this.aggregateSequenceNumber = aggregateSequenceNumber;
 	}
 
-	public String getAggregateState() {
+	public SerializedAggregateState<?> getAggregateState() {
 		return aggregateState;
 	}
 
-	public void setAggregateState(String aggregateState) {
+	public void setAggregateState(SerializedAggregateState<?> aggregateState) {
 		this.aggregateState = aggregateState;
 	}
 

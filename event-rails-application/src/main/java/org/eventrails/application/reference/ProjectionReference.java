@@ -6,7 +6,9 @@ import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
 import org.eventrails.modeling.messaging.message.QueryMessage;
 import org.eventrails.modeling.messaging.payload.Query;
+import org.eventrails.modeling.messaging.query.QueryResponse;
 
+import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -36,17 +38,17 @@ public class ProjectionReference extends Reference{
 		return queryHandlerReferences.keySet();
 	}
 
-	public Object invoke(
-			QueryMessage<? extends Query> qm,
+	public QueryResponse<?> invoke(
+			QueryMessage<?> qm,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
 			throws Throwable {
 
-		var handler = queryHandlerReferences.get(qm.getPayloadClass().getSimpleName());
+		var handler = queryHandlerReferences.get(qm.getQueryName());
 
 		try
 		{
-			return ReflectionUtils.invoke(getRef(), handler,
+			return (QueryResponse<?>) ReflectionUtils.invoke(getRef(), handler,
 					qm.getPayload(),
 					commandGateway,
 					queryGateway,

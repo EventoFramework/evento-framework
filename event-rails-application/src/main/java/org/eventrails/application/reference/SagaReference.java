@@ -50,7 +50,7 @@ public class SagaReference extends Reference{
 			QueryGateway queryGateway)
 			throws Throwable {
 
-		var handler = sagaEventHandlerReferences.get(em.getPayloadClass().getSimpleName());
+		var handler = sagaEventHandlerReferences.get(em.getEventName());
 
 		try
 		{

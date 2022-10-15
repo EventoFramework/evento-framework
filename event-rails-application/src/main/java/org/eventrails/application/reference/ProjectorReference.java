@@ -44,7 +44,7 @@ public class ProjectorReference extends Reference implements TransactionalProjec
 			QueryGateway queryGateway)
 			throws Throwable {
 
-		var handler = eventHandlerReferences.get(em.getPayloadClass().getSimpleName());
+		var handler = eventHandlerReferences.get(em.getEventName());
 
 		try
 		{
