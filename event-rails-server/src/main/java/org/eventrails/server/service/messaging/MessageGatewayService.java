@@ -12,6 +12,8 @@ import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -51,7 +53,8 @@ public class MessageGatewayService {
 			{
 
 				var lock = lockRegistry.obtain("AGGREGATE:" + c.getAggregateId());
-				//lock.lock();
+				lock.lock();
+				var semaphore = new Semaphore(0);
 				try
 				{
 
@@ -79,19 +82,19 @@ public class MessageGatewayService {
 							invocation,
 							resp -> {
 								eventStore.publishEvent((EventMessage<?>) resp, c.getAggregateId());
-								//lock.unlock();
 								response.sendResponse(resp);
-
+								semaphore.release();
 							},
 							error -> {
-								//lock.unlock();
 								response.sendError(error.toThrowable());
+								semaphore.release();
 							}
 
 					);
-				}catch (Exception e){
-					//lock.unlock();
-					throw e;
+				} finally
+				{
+					semaphore.acquire();
+					lock.unlock();
 				}
 
 			} else if (request instanceof ServiceCommandMessage c)
@@ -123,7 +126,8 @@ public class MessageGatewayService {
 						}
 				);
 
-			}else{
+			} else
+			{
 				throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
 			}
 		} catch (Exception e)

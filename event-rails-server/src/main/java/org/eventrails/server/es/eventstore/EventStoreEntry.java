@@ -1,9 +1,6 @@
 package org.eventrails.server.es.eventstore;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.eventrails.modeling.gateway.PublishedEvent;
 import org.eventrails.modeling.messaging.message.EventMessage;
 import org.eventrails.server.config.JsonConverter;
@@ -22,18 +19,20 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 public class EventStoreEntry {
-	@Id
-	private String eventId;
 
+
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long eventSequenceNumber;
 
+	private String eventId;
 	private Long aggregateSequenceNumber;
 	private String aggregateId;
 	@Column(columnDefinition = "JSON")
 	@Convert( converter = JsonConverter.class)
 	private EventMessage<?> eventMessage;
 	private String eventName;
-	private Instant createdAt;
+	private Long createdAt;
 
 
 

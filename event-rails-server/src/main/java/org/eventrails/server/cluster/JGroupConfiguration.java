@@ -5,6 +5,7 @@ import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.jgroups.Event;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
+import org.jgroups.blocks.locking.LockService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,33 +21,7 @@ public class JGroupConfiguration {
 
 	@Bean
 	MessageBus messageBus() throws Exception {
-		var jChannel = new JChannel(){
-			@Override
-			public Object up(Message msg) {
-				System.out.println("UP MSG - " + msg);
-				return super.up(msg);
-			}
-
-			@Override
-			public Object up(Event evt) {
-				System.out.println("UP EVT - " + evt);
-				return super.up(evt);
-			}
-
-
-
-			@Override
-			public Object down(Event evt) {
-				System.out.println("DOWN EVT - " + evt);
-				return super.down(evt);
-			}
-
-			@Override
-			public Object down(Message evt) {
-				System.out.println("DOWN MSG - " + evt);
-				return super.down(evt);
-			}
-		};
+		var jChannel = new JChannel();
 		var messageBus = new JGroupsMessageBus(jChannel);
 		jChannel.setName(serverNodeName);
 		jChannel.setDiscardOwnMessages(false);

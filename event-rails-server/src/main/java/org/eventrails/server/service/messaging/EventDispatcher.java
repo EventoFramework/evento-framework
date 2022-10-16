@@ -43,9 +43,6 @@ public class EventDispatcher {
 
 	private final MessageBus messageBus;
 
-
-	private final ObjectMapper objectMapper;
-
 	private final HandlerService handlerService;
 
 	private final EventStore eventStore;
@@ -55,7 +52,7 @@ public class EventDispatcher {
 			RanchRepository ranchRepository,
 			SagaStateRepository sagaStateRepository,
 			ComponentEventConsumingStateRepository componentEventConsumingStateRepository,
-			MessageBus messageBus, ObjectMapper objectMapper,
+			MessageBus messageBus,
 			HandlerService handlerService,
 			EventStore eventStore,
 			@Value("${eventrails.cluster.node.server.name}") String serverNodeName) {
@@ -63,11 +60,10 @@ public class EventDispatcher {
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
 		this.messageBus = messageBus;
-		this.objectMapper = objectMapper;
 		this.handlerService = handlerService;
 		this.eventStore = eventStore;
 		this.serverNodeName = serverNodeName;
-		eventConsumer();
+		//eventConsumer();
 	}
 
 	private void eventConsumer() {

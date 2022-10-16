@@ -4,14 +4,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eventrails.modeling.messaging.message.EventMessage;
 import org.eventrails.modeling.state.SerializedAggregateState;
+import org.eventrails.modeling.utils.ObjectMapperUtils;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.es.eventstore.EventStoreRepository;
 import org.eventrails.server.es.snapshot.Snapshot;
 import org.eventrails.server.es.snapshot.SnapshotRepository;
-import org.eventrails.modeling.utils.ObjectMapperUtils;
 import org.springframework.integration.support.locks.LockRegistry;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -24,13 +28,16 @@ public class EventStore {
 	private final SnapshotRepository snapshotRepository;
 	private final LockRegistry lockRegistry;
 
-	private final ObjectMapper payloadMapper = ObjectMapperUtils.getPayloadObjectMapper();
+	private final JdbcTemplate jdbcTemplate;
+
+	private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
 
 
-	public EventStore(EventStoreRepository repository, SnapshotRepository snapshotRepository, LockRegistry lockRegistry) {
+	public EventStore(EventStoreRepository repository, SnapshotRepository snapshotRepository, LockRegistry lockRegistry, JdbcTemplate jdbcTemplate) {
 		this.eventStoreRepository = repository;
 		this.snapshotRepository = snapshotRepository;
 		this.lockRegistry = lockRegistry;
+		this.jdbcTemplate = jdbcTemplate;
 	}
 
 	public List<EventStoreEntry> fetchAggregateStory(String aggregateId) {
@@ -63,38 +70,33 @@ public class EventStore {
 		return eventStoreRepository.getLastEventSequenceNumber();
 	}
 
-	public EventStoreEntry publishEvent(EventMessage<?> eventMessage, String aggregateId) {
-		var lock = lockRegistry.obtain(ES_LOCK);
+	public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
+
 		try
 		{
-			lock.lock();
-			var entry = new EventStoreEntry();
-
-			entry.setEventId(UUID.randomUUID().toString());
-
-			if (aggregateId != null)
-			{
-				var aggregateSequenceNumber = eventStoreRepository.getLastAggregateSequenceNumber(aggregateId);
-				entry.setAggregateSequenceNumber(aggregateSequenceNumber != null ? aggregateSequenceNumber + 1 : 1);
+			Long aggregateSequenceNumber = null;
+			if(aggregateId != null){
+				aggregateSequenceNumber = (Long) jdbcTemplate.queryForMap("select ifnull(max(aggregate_sequence_number) + 1,1) as a from es__events where aggregate_id = ?", aggregateId)
+						.get("a");
 			}
-
-			var eventSequenceNumber = eventStoreRepository.getLastEventSequenceNumber();
-			entry.setEventSequenceNumber(eventSequenceNumber != null ? eventSequenceNumber + 1 : 1);
-
-			entry.setEventMessage(eventMessage);
-			entry.setAggregateId(aggregateId);
-			entry.setCreatedAt(Instant.now());
-			entry.setEventName(eventMessage.getEventName());
-
-
-			return eventStoreRepository.save(entry);
-		} finally
+			jdbcTemplate.update(
+					"INSERT INTO es__events " +
+							"(event_id, aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
+							"select  ?, ?, ?, " +
+							"ROUND(UNIX_TIMESTAMP(CURTIME(4)) * 1000),?,?",
+					UUID.randomUUID().toString(),
+					aggregateId,
+					aggregateSequenceNumber,
+					mapper.writeValueAsString(eventMessage),
+					eventMessage.getEventName()
+					);
+		} catch (JsonProcessingException e)
 		{
-			lock.unlock();
+			throw new RuntimeException(e);
 		}
 	}
 
-	public EventStoreEntry publishEvent(EventMessage<?> eventMessage) {
-		return publishEvent(eventMessage, null);
+	public void publishEvent(EventMessage<?> eventMessage) {
+		publishEvent(eventMessage, null);
 	}
 }
