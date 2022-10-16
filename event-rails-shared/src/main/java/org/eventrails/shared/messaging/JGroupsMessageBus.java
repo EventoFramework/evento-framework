@@ -137,44 +137,46 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	@Override
 	public void receive(Message msg) {
 		Serializable message = ((BytesMessage) msg).getObject(this.getClass().getClassLoader());
-		if (message instanceof CorrelatedMessage cm)
-		{
-			if (cm.isResponse())
+		new Thread(() -> {
+			if (message instanceof CorrelatedMessage cm)
 			{
-				if (cm.getBody() instanceof ThrowableWrapper tw)
+				if (cm.isResponse())
 				{
-					messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(tw);
+					if (cm.getBody() instanceof ThrowableWrapper tw)
+					{
+						messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(tw);
+					} else
+					{
+						try
+						{
+							messageCorrelationMap.get(cm.getCorrelationId()).success.accept(cm.getBody());
+						} catch (Exception e)
+						{
+							e.printStackTrace();
+							messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()));
+						}
+					}
+					messageCorrelationMap.remove(cm.getCorrelationId());
 				} else
 				{
+					var resp = new JGroupsResponseSender(
+							this,
+							new JGroupNodeAddress(msg.getSrc()),
+							cm.getCorrelationId());
 					try
 					{
-						messageCorrelationMap.get(cm.getCorrelationId()).success.accept(cm.getBody());
+						requestReceiver.accept(cm.getBody(), resp);
 					} catch (Exception e)
 					{
 						e.printStackTrace();
-						messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()));
+						resp.sendError(e);
 					}
 				}
 			} else
 			{
-				var resp = new JGroupsResponseSender(
-						this,
-						new JGroupNodeAddress(msg.getSrc()),
-						cm.getCorrelationId());
-				try
-				{
-					requestReceiver.accept(cm.getBody(), resp);
-				} catch (Exception e)
-				{
-					e.printStackTrace();
-					resp.sendError(e);
-				}
+				messageReceiver.accept(message);
 			}
-		} else
-		{
-			messageReceiver.accept(message);
-		}
-
+		}).start();
 	}
 
 	private static class Handlers {

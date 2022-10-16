@@ -85,7 +85,7 @@ class ApplicationTest {
 				"event-rails-node-server");
 		var start = System.currentTimeMillis();
 		System.out.println(start);
-		for(int i = 0; i<1000; i++)
+		for(int i = 0; i<3000; i++)
 		{
 			String id = UUID.randomUUID().toString();
 			commandGateway.send(new DemoCreateCommand("test_" + id, id, 0));
