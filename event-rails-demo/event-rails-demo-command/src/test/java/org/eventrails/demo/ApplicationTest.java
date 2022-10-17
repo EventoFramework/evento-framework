@@ -78,6 +78,44 @@ class ApplicationTest {
 	}
 
 	@Test
+	public void benchmarkAggregate() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+
+		String id = UUID.randomUUID().toString();
+		var start = System.currentTimeMillis();
+		commandGateway.sendAndWait(new DemoCreateCommand("test_" + id, id, -1));
+		for(int i = 0; i<198; i++)
+		{
+			commandGateway.sendAndWait(new DemoUpdateCommand("test_" + id, id, i));
+		}
+		commandGateway.sendAndWait(new DemoDeleteCommand("test_" + id));
+		var time = System.currentTimeMillis() - start;
+		System.out.println(time+ " msc");
+	}
+
+
+	@Test
+	public void benchmarkAggregateAsync() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-node-server");
+
+		String id = UUID.randomUUID().toString();
+		var start = System.currentTimeMillis();
+		commandGateway.sendAndWait(new DemoCreateCommand("test_" + id, id, -1));
+		for(int i = 0; i<198; i++)
+		{
+			commandGateway.send(new DemoUpdateCommand("test_" + id, id, i));
+		}
+		var time = System.currentTimeMillis() - start;
+		System.out.println(time+ " msc");
+	}
+
+	@Test
 	public void benchmarkAsync() throws Exception {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
