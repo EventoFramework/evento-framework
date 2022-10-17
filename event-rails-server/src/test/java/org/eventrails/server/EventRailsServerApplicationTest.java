@@ -21,12 +21,24 @@ class EventRailsServerApplicationTest {
 	void test() throws IOException {
 		JavaRanchApplicationParser applicationParser = new JavaRanchApplicationParser();
 
+		ranchApplicationService.unregister("event-rails-node-demo-api");
 		ranchApplicationService.unregister("event-rails-node-demo-command");
 		ranchApplicationService.unregister("event-rails-node-demo-query");
 		ranchApplicationService.unregister("event-rails-node-demo-saga");
-		
+
 		var components = applicationParser.parseDirectory(
-				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo\\event-rails-demo-command\\src\\main\\java\\org\\eventrails\\demo"));
+				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-api\\src\\main\\java\\org\\eventrails\\demo"));
+
+
+		ranchApplicationService.register(
+				"event-rails-node-demo-api",
+				BucketType.LibraryOnly,
+				null,
+				components
+		);
+		
+		components = applicationParser.parseDirectory(
+				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-command\\src\\main\\java\\org\\eventrails\\demo"));
 
 
 		ranchApplicationService.register(
@@ -37,7 +49,7 @@ class EventRailsServerApplicationTest {
 		);
 
 		components = applicationParser.parseDirectory(
-				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo\\event-rails-demo-query\\src\\main\\java\\org\\eventrails\\demo"));
+				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-query\\src\\main\\java\\org\\eventrails\\demo"));
 
 
 		ranchApplicationService.register(
@@ -48,7 +60,7 @@ class EventRailsServerApplicationTest {
 		);
 
 		components = applicationParser.parseDirectory(
-				new File("D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\event-rails\\event-rails-demo\\event-rails-demo-saga\\src\\main\\java\\org\\eventrails\\demo"));
+				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-saga\\src\\main\\java\\org\\eventrails\\demo"));
 
 
 		ranchApplicationService.register(
