@@ -81,7 +81,15 @@ public class MessageGatewayService {
 							messageBus.findNodeAddress(handler.getRanch().getName()),
 							invocation,
 							resp -> {
-								eventStore.publishEvent((EventMessage<?>) resp, c.getAggregateId());
+								var cr = (DomainCommandResponseMessage) resp;
+								var aggregateSequenceNumber = eventStore.publishEvent(cr.getDomainEventMessage(), c.getAggregateId());
+								if(cr.getSerializedAggregateState() != null){
+									eventStore.saveSnapshot(
+											c.getAggregateId(),
+											aggregateSequenceNumber,
+											cr.getSerializedAggregateState()
+									);
+								}
 								response.sendResponse(resp);
 								semaphore.release();
 							},

@@ -1,6 +1,7 @@
 package org.eventrails.server.es.snapshot;
 
 import org.eventrails.modeling.state.SerializedAggregateState;
+import org.eventrails.server.config.JsonConverter;
 
 import javax.persistence.*;
 import java.time.Instant;
@@ -15,6 +16,7 @@ public class Snapshot {
 	public String aggregateId;
 	public Long aggregateSequenceNumber;
 	@Column(columnDefinition = "JSON")
+	@Convert( converter = JsonConverter.class)
 	public SerializedAggregateState<?> aggregateState;
 
 	public Instant updatedAt;

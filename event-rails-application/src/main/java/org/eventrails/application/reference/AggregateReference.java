@@ -27,9 +27,11 @@ public class AggregateReference extends Reference {
 	private final HashMap<String, Method> eventSourcingReferences = new HashMap<>();
 
 	private final HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
+	private final int snapshotFrequency;
 
-	public AggregateReference(Object ref) {
+	public AggregateReference(Object ref, int snapshotFrequency) {
 		super(ref);
+		this.snapshotFrequency = snapshotFrequency;
 		for (Method declaredMethod : ref.getClass().getDeclaredMethods())
 		{
 			var esh = declaredMethod.getAnnotation(EventSourcingHandler.class);
@@ -55,6 +57,10 @@ public class AggregateReference extends Reference {
 		}
 	}
 
+	public int getSnapshotFrequency() {
+		return snapshotFrequency;
+	}
+
 	public Method getEventSourcingHandler(String eventName) {
 		return eventSourcingReferences.get(eventName);
 	}
@@ -69,7 +75,7 @@ public class AggregateReference extends Reference {
 
 	public DomainEvent invoke(
 			DomainCommandMessage cm,
-			AggregateState aggregateState,
+			AggregateStateEnvelope envelope,
 			Collection<DomainEventMessage> eventStream,
 			CommandGateway commandGateway,
 			QueryGateway queryGateway)
@@ -77,25 +83,24 @@ public class AggregateReference extends Reference {
 
 		var commandHandler = aggregateCommandHandlerReferences.get(cm.getCommandName());
 
-		if (eventStream.isEmpty() && !isAggregateInitializer(commandHandler))
+		if (eventStream.isEmpty() && envelope.getAggregateState() == null && !isAggregateInitializer(commandHandler))
 			throw AggregateNotInitializedError.build(cm.getAggregateId());
-		if (!eventStream.isEmpty() && isAggregateInitializer(commandHandler))
+		if ((!eventStream.isEmpty() || envelope.getAggregateState() != null ) && isAggregateInitializer(commandHandler))
 			throw AggregateInitializedError.build(cm.getAggregateId());
 
-		AggregateState currentAggregateState = aggregateState;
 		try
 		{
 			for (var em : eventStream)
 			{
 				var eh = getEventSourcingHandler(em.getEventName());
-				currentAggregateState = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), currentAggregateState);
-				if (currentAggregateState.isDeleted())
+				envelope.setAggregateState((AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState()));
+				if (envelope.getAggregateState().isDeleted())
 					throw AggregateDeletedError.build(cm.getAggregateId());
 			}
 
 			return (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
 					cm.getPayload(),
-					currentAggregateState,
+					envelope.getAggregateState(),
 					commandGateway,
 					queryGateway,
 					cm
