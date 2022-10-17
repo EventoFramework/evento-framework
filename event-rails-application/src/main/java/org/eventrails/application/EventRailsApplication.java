@@ -12,6 +12,7 @@ import org.eventrails.modeling.gateway.QueryGateway;
 import org.eventrails.modeling.messaging.message.DecoratedDomainCommandMessage;
 import org.eventrails.modeling.messaging.message.*;
 import org.eventrails.modeling.messaging.query.SerializedQueryResponse;
+import org.eventrails.modeling.state.SerializedAggregateState;
 import org.eventrails.modeling.state.SerializedSagaState;
 import org.eventrails.shared.messaging.JGroupsMessageBus;
 import org.jgroups.JChannel;
@@ -63,15 +64,20 @@ public class EventRailsApplication {
 							if (handler == null)
 								throw new HandlerNotFoundException("No handler found for %s in %s"
 										.formatted(c.getCommandMessage().getCommandName(), getRanchName()));
+							var envelope = new AggregateStateEnvelope(c.getSerializedAggregateState().getAggregateState());
 							var event = handler.invoke(
 									c.getCommandMessage(),
-									c.getSerializedAggregateState().getAggregateState(),
+									envelope,
 									c.getEventStream(),
 									commandGateway,
 									queryGateway
 							);
 							response.sendResponse(
-									new DomainEventMessage(event)
+									new DomainCommandResponseMessage(
+											new DomainEventMessage(event),
+											handler.getSnapshotFrequency() <= c.getEventStream().size() ?
+													new SerializedAggregateState<>(envelope.getAggregateState()): null
+									)
 							);
 						} else if (request instanceof ServiceCommandMessage c)
 						{
@@ -178,7 +184,7 @@ public class EventRailsApplication {
 		Reflections reflections = new Reflections(basePackage);
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Aggregate.class))
 		{
-			var aggregateReference = new AggregateReference(aClass.getConstructor().newInstance());
+			var aggregateReference = new AggregateReference(aClass.getConstructor().newInstance(), aClass.getAnnotation(Aggregate.class).snapshotFrequency());
 			for (String command : aggregateReference.getRegisteredCommands())
 			{
 				aggregateMessageHandlers.put(command, aggregateReference);
