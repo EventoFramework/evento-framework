@@ -57,7 +57,7 @@ public class EventStore {
 		return snapshotRepository.findById(aggregateId).orElse(null);
 	}
 
-	public Snapshot saveSnapshot(String aggregateId, Long aggregateSequenceNumber, SerializedAggregateState aggregateState) {
+	public Snapshot saveSnapshot(String aggregateId, Long aggregateSequenceNumber, SerializedAggregateState<?> aggregateState) {
 		var snapshot = new Snapshot();
 		snapshot.setAggregateId(aggregateId);
 		snapshot.setAggregateSequenceNumber(aggregateSequenceNumber);
@@ -70,15 +70,12 @@ public class EventStore {
 		return eventStoreRepository.getLastEventSequenceNumber();
 	}
 
-	public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
+	public Long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
 		try
 		{
-			Long aggregateSequenceNumber = null;
-			if(aggregateId != null){
-				aggregateSequenceNumber = (Long) jdbcTemplate.queryForMap("select ifnull(max(aggregate_sequence_number) + 1,1) as a from es__events where aggregate_id = ?", aggregateId)
+			Long aggregateSequenceNumber = (Long) jdbcTemplate.queryForMap("select ifnull(max(aggregate_sequence_number) + 1,1) as a from es__events where aggregate_id = ?", aggregateId)
 						.get("a");
-			}
 			jdbcTemplate.update(
 					"INSERT INTO es__events " +
 							"(event_id, aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
@@ -90,6 +87,7 @@ public class EventStore {
 					mapper.writeValueAsString(eventMessage),
 					eventMessage.getEventName()
 					);
+			return aggregateSequenceNumber;
 		} catch (JsonProcessingException e)
 		{
 			throw new RuntimeException(e);
@@ -97,6 +95,22 @@ public class EventStore {
 	}
 
 	public void publishEvent(EventMessage<?> eventMessage) {
-		publishEvent(eventMessage, null);
+		try
+		{
+			jdbcTemplate.update(
+					"INSERT INTO es__events " +
+							"(event_id, aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
+							"select  ?, ?, ?, " +
+							"ROUND(UNIX_TIMESTAMP(CURTIME(4)) * 1000),?,?",
+					UUID.randomUUID().toString(),
+					null,
+					null,
+					mapper.writeValueAsString(eventMessage),
+					eventMessage.getEventName()
+			);
+		} catch (JsonProcessingException e)
+		{
+			throw new RuntimeException(e);
+		}
 	}
 }

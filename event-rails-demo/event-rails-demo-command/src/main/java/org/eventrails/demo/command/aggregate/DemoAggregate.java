@@ -14,7 +14,7 @@ import org.eventrails.modeling.gateway.QueryGateway;
 import org.eventrails.modeling.messaging.message.CommandMessage;
 import org.eventrails.modeling.messaging.message.EventMessage;
 
-@Aggregate(snapshotFrequency=1000)
+@Aggregate(snapshotFrequency=10)
 public class DemoAggregate {
 
 	@AggregateCommandHandler(init = true)
