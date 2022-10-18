@@ -6,6 +6,7 @@ import org.hibernate.Hibernate;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Objects;
 
 @Entity
@@ -20,9 +21,8 @@ public class Payload implements Serializable {
 	@Column(name = "name")
 	private String name;
 
-	@OneToOne(cascade = CascadeType.ALL)
-	@PrimaryKeyJoinColumn
-	private Handler handler;
+	@OneToMany(mappedBy = "handledPayload")
+	private List<Handler> handlers;
 
 	@Enumerated(EnumType.STRING)
 	private PayloadType type;
