@@ -1,6 +1,6 @@
 package org.eventrails.modeling.messaging.message.bus;
 
-public abstract class NodeAddress {
+public abstract class NodeAddress implements Comparable<NodeAddress> {
 
 	private final Object address;
 

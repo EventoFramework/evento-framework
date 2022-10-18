@@ -6,6 +6,7 @@ import org.eventrails.modeling.messaging.message.QueryMessage;
 import org.eventrails.modeling.messaging.payload.Query;
 import org.eventrails.modeling.messaging.query.QueryResponse;
 import org.eventrails.modeling.messaging.query.SerializedQueryResponse;
+import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.utils.ObjectMapperUtils;
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.modeling.messaging.message.bus.ServerHandleInvocationMessage;
@@ -16,11 +17,12 @@ public class JGroupsQueryGateway implements QueryGateway {
 	private final MessageBus messageBus;
 	private final String serverName;
 
-	private final ObjectMapper payloadMapper = ObjectMapperUtils.getPayloadObjectMapper();
+	private final RoundRobinAddressPicker roundRobinAddressPicker;
 
 	public JGroupsQueryGateway(MessageBus messageBus, String serverName) {
 		this.serverName = serverName;
 		this.messageBus = messageBus;
+		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 	}
 
 
@@ -31,7 +33,7 @@ public class JGroupsQueryGateway implements QueryGateway {
 		try
 		{
 			messageBus.cast(
-					messageBus.findNodeAddress(serverName),
+					roundRobinAddressPicker.pickNodeAddress(serverName),
 					new QueryMessage<>((query)),
 					response -> {
 						try

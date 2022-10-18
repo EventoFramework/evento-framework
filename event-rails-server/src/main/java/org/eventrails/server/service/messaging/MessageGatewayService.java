@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eventrails.modeling.messaging.message.DecoratedDomainCommandMessage;
 import org.eventrails.modeling.messaging.message.*;
 import org.eventrails.modeling.messaging.message.bus.*;
+import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
@@ -30,6 +31,8 @@ public class MessageGatewayService {
 
 	private final MessageBus messageBus;
 
+	private final RoundRobinAddressPicker roundRobinAddressPicker;
+
 
 	public MessageGatewayService(
 			HandlerService handlerService,
@@ -42,6 +45,7 @@ public class MessageGatewayService {
 		this.objectMapper = objectMapper;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
+		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 		messageBus.setRequestReceiver(this::messageHandler);
 	}
 
@@ -78,7 +82,7 @@ public class MessageGatewayService {
 						invocation.setSerializedAggregateState(snapshot.getAggregateState());
 					}
 					messageBus.cast(
-							messageBus.findNodeAddress(handler.getRanch().getName()),
+							roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
 							invocation,
 							resp -> {
 								var cr = (DomainCommandResponseMessage) resp;
@@ -99,7 +103,10 @@ public class MessageGatewayService {
 							}
 
 					);
-				} finally
+				}catch (Exception e){
+					semaphore.release();
+					throw e;
+				}finally
 				{
 					semaphore.acquire();
 					lock.unlock();
@@ -109,7 +116,7 @@ public class MessageGatewayService {
 			{
 				var handler = handlerService.findByPayloadName(c.getCommandName());
 				messageBus.cast(
-						messageBus.findNodeAddress(handler.getRanch().getName()),
+						roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
 						c,
 						resp -> {
 							if (resp != null)
@@ -126,7 +133,7 @@ public class MessageGatewayService {
 			{
 				var handler = handlerService.findByPayloadName(q.getQueryName());
 				messageBus.cast(
-						messageBus.findNodeAddress(handler.getRanch().getName()),
+						roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
 						q,
 						response::sendResponse,
 						error -> {

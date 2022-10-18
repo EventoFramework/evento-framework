@@ -26,6 +26,7 @@ public class JGroupConfiguration {
 		jChannel.setName(serverNodeName);
 		jChannel.setDiscardOwnMessages(false);
 		jChannel.connect(handlerClusterName);
+		messageBus.enableBus();
 		return messageBus;
 	}
 	
