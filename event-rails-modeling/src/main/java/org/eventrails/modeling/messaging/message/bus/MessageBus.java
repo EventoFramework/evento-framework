@@ -1,7 +1,6 @@
 package org.eventrails.modeling.messaging.message.bus;
 
 import org.eventrails.modeling.exceptions.ThrowableWrapper;
-import org.eventrails.modeling.messaging.message.Message;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -52,5 +51,16 @@ public interface MessageBus {
 
 	NodeAddress getAddress();
 
-	List<NodeAddress> getAddresses(String serverNodeName);
+	List<NodeAddress> findAllNodeAddresses(String serverNodeName);
+
+	void enableBus() throws Exception;
+	void disableBus() throws Exception;
+
+	void graceFullShutdown() throws Exception;
+
+	boolean isEnabled();
+
+
+
+
 }

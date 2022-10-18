@@ -7,6 +7,7 @@ import org.eventrails.modeling.messaging.message.ServiceCommandMessage;
 import org.eventrails.modeling.messaging.payload.Command;
 import org.eventrails.modeling.messaging.payload.DomainCommand;
 import org.eventrails.modeling.messaging.payload.ServiceCommand;
+import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.utils.ObjectMapperUtils;
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.shared.messaging.JGroupsMessageBus;
@@ -19,19 +20,25 @@ public class JGroupsCommandGateway implements CommandGateway {
 	private final MessageBus messageBus;
 	private final String serverName;
 
+	private final RoundRobinAddressPicker roundRobinAddressPicker;
+
 	public JGroupsCommandGateway(MessageBus messageBus, String serverName) {
 		this.serverName = serverName;
 		this.messageBus = messageBus;
+		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 	}
 
 	public JGroupsCommandGateway(String messageChannelName, String nodeName, String serverName) throws Exception {
 		JChannel jChannel = new JChannel();
 
 		this.messageBus = new JGroupsMessageBus(jChannel);
+		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 
 		jChannel.setName(nodeName);
 		jChannel.connect(messageChannelName);
 		this.serverName = serverName;
+
+		messageBus.enableBus();
 
 	}
 
@@ -42,7 +49,7 @@ public class JGroupsCommandGateway implements CommandGateway {
 		try
 		{
 			messageBus.cast(
-					messageBus.findNodeAddress(serverName),
+					roundRobinAddressPicker.pickNodeAddress(serverName),
 					command instanceof DomainCommand ?
 							new DomainCommandMessage((DomainCommand) command) :
 							new ServiceCommandMessage((ServiceCommand) command),

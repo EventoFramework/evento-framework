@@ -1,15 +1,11 @@
 package org.eventrails.server.service.messaging;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.eventrails.modeling.gateway.PublishedEvent;
 import org.eventrails.modeling.messaging.message.EventToProjectorMessage;
 import org.eventrails.modeling.messaging.message.EventToSagaMessage;
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.modeling.messaging.message.bus.NodeAddress;
-import org.eventrails.modeling.messaging.message.bus.ServiceHandleProjectorEventMessage;
-import org.eventrails.modeling.messaging.message.bus.ServiceHandleSagaEventMessage;
+import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.state.SerializedSagaState;
 import org.eventrails.server.domain.model.ComponentEventConsumingState;
 import org.eventrails.server.domain.model.Handler;
@@ -24,7 +20,6 @@ import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +43,8 @@ public class EventDispatcher {
 	private final EventStore eventStore;
 	private final String serverNodeName;
 
+	private final RoundRobinAddressPicker roundRobinAddressPicker;
+
 	public EventDispatcher(
 			RanchRepository ranchRepository,
 			SagaStateRepository sagaStateRepository,
@@ -63,6 +60,7 @@ public class EventDispatcher {
 		this.handlerService = handlerService;
 		this.eventStore = eventStore;
 		this.serverNodeName = serverNodeName;
+		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 		//eventConsumer();
 	}
 
@@ -191,7 +189,7 @@ public class EventDispatcher {
 								associationValue)
 						.orElse(new SagaState(sagaName, new SerializedSagaState<>(null)));
 
-				messageBus.cast(messageBus.findNodeAddress(ranchName),
+				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(ranchName),
 						new EventToSagaMessage(event.getEventMessage(),
 								sagaState.getSerializedSagaState(),
 								sagaName
@@ -258,7 +256,7 @@ public class EventDispatcher {
 				processNextProjectorEvent(ranchName, projectorName, events, handlers, eventStore, repository, event);
 			} else
 			{
-				messageBus.cast(messageBus.findNodeAddress(ranchName),
+				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(ranchName),
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {
 							processNextProjectorEvent(ranchName, projectorName, events, handlers, eventStore, repository, event);
@@ -296,7 +294,7 @@ public class EventDispatcher {
 
 
 	private List<NodeAddress> fetchDispatcherAddresses() {
-		return this.messageBus.getAddresses(serverNodeName);
+		return this.messageBus.findAllNodeAddresses(serverNodeName);
 	}
 
 

@@ -1,7 +1,10 @@
 package org.eventrails.application.test;
 
+import org.eventrails.shared.messaging.JGroupNodeAddress;
 import org.eventrails.shared.messaging.JGroupsMessageBus;
 import org.jgroups.JChannel;
+
+import java.util.Scanner;
 
 public class Client1 {
 	public static void main(String[] args) throws Exception {
@@ -16,15 +19,25 @@ public class Client1 {
 				}));
 		channel.setName("client1");
 		channel.connect("cluster");
+		messageBus.enableBus();
 
-		messageBus.broadcast("Ciao Mondo!");
-		messageBus.multicast(channel.getView().getMembers(), "Multicast Ciao Mondo");
-		var channel2 = channel.getView().getMembers().stream().filter(a -> a.toString().equals("client2")).findFirst().orElseThrow();
-		messageBus.cast(channel2,
-				"Single Cast");
-		messageBus.cast(channel2, "Concat this", resp -> {
-			System.out.println("Response: " + resp);
-		});
+		var scanner = new Scanner(System.in);
+		JGroupNodeAddress oldAddress = new JGroupNodeAddress(null);
+		while (true){
+			var command = scanner.next();
+			if(command.equals("q")) break;
+			try
+			{
+				var address = messageBus.findNodeAddress("client2");
+				oldAddress = address;
+				System.out.println("ADDRESS: " + address.getAddress());
+				messageBus.cast(address, command);
+			}catch (Exception e){
+				e.printStackTrace();
+				System.out.println("ADDRESS: " + oldAddress.getAddress());
+				messageBus.cast(oldAddress, command);
+			}
+		}
 
 
 	}

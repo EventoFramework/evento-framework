@@ -13,4 +13,9 @@ public class JGroupNodeAddress extends NodeAddress {
 	public Address getAddress() {
 		return super.getAddress();
 	}
+
+	@Override
+	public int compareTo(NodeAddress o) {
+		return getAddress().compareTo(o.getAddress());
+	}
 }

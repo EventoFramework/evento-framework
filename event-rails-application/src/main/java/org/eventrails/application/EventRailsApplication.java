@@ -28,6 +28,7 @@ public class EventRailsApplication {
 	private static final Logger logger = LogManager.getLogger(EventRailsApplication.class);
 	private final String basePackage;
 	private final String ranchName;
+	private final JGroupsMessageBus messageBus;
 
 	private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
 	private HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
@@ -50,7 +51,9 @@ public class EventRailsApplication {
 		JChannel jChannel = new JChannel();
 
 
-		var messageBus = new JGroupsMessageBus(jChannel,
+
+
+		messageBus = new JGroupsMessageBus(jChannel,
 				message -> {
 
 				},
@@ -164,6 +167,14 @@ public class EventRailsApplication {
 
 	}
 
+	public void startBus() throws Exception {
+	messageBus.enableBus();
+	}
+
+	public void stopBus() throws Exception {
+		messageBus.disableBus();
+	}
+
 	public static EventRailsApplication start(String basePackage, String ranchName, String messageChannelName, String serverName, String[] args) {
 		try
 		{
@@ -171,6 +182,7 @@ public class EventRailsApplication {
 			logger.info("Parsing package");
 			eventRailsApplication.parsePackage();
 			logger.info("Server Started");
+			eventRailsApplication.startBus();
 			return eventRailsApplication;
 		} catch (Exception e)
 		{
