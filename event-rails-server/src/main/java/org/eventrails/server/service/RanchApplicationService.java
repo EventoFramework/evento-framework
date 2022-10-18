@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
 import java.util.HashSet;
+import java.util.List;
 
 @Service
 public class RanchApplicationService {
@@ -183,5 +184,9 @@ public class RanchApplicationService {
 			String ranchDeploymentName) {
 		handlerRepository.deleteAllByRanch_Name(ranchDeploymentName);
 		ranchRepository.deleteByName(ranchDeploymentName);
+	}
+
+	public List<Ranch> findAllRanches() {
+		return ranchRepository.findAll();
 	}
 }
