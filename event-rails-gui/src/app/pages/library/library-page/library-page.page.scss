@@ -1,0 +1,31 @@
+.selected  {
+  font-weight: bold;
+}
+
+
+.payload-type-DomainCommand{
+  --background: #3399fe;
+  --color: white;
+}
+
+.payload-type-ServiceCommand{
+  --background: #ff68b9;
+  --color: black;
+}
+
+
+.payload-type-DomainEvent{
+  --background: #ff992a;
+  --color: black;
+}
+
+.payload-type-View{
+  --background: #5fc08b;
+  --color: white;
+}
+
+.payload-type-Query{
+  --background: gold;
+  --color: black;
+}
+
