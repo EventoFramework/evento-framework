@@ -2,13 +2,8 @@ package org.eventrails.shared.messaging;
 
 import org.eventrails.modeling.exceptions.NodeNotFoundException;
 import org.eventrails.modeling.exceptions.ThrowableWrapper;
-import org.eventrails.modeling.messaging.message.bus.NodeAddress;
-import org.eventrails.modeling.messaging.message.bus.CorrelatedMessage;
-import org.eventrails.modeling.messaging.message.bus.MessageBus;
-import org.eventrails.modeling.messaging.message.bus.ResponseSender;
+import org.eventrails.modeling.messaging.message.bus.*;
 import org.jgroups.*;
-import org.jgroups.util.ConcurrentLinkedBlockingQueue;
-import org.jgroups.util.ConcurrentLinkedBlockingQueue2;
 
 import java.io.Serializable;
 import java.util.*;
@@ -24,8 +19,11 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	private BiConsumer<Serializable, ResponseSender> requestReceiver;
 
 	private final HashMap<String, Handlers> messageCorrelationMap = new HashMap<>();
+	private final HashSet<Address> availableNodes = new HashSet<>();
 
-	private final Queue<Message> messageQueue = new LinkedBlockingQueue<>();
+
+	private boolean enabled = false;
+	private boolean isShuttingDown = false;
 
 	public JGroupsMessageBus(JChannel jChannel,
 							 Consumer<Serializable> messageReceiver,
@@ -35,6 +33,38 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 		this.messageReceiver = messageReceiver;
 		this.requestReceiver = requestReceiver;
 	}
+
+	public void enableBus() throws Exception {
+		this.broadcast(new ClusterNodeStatusUpdateMessage(true));
+		this.enabled = true;
+	}
+
+	public void disableBus() throws Exception {
+		this.broadcast(new ClusterNodeStatusUpdateMessage(false));
+		this.enabled = false;
+	}
+
+	@Override
+	public synchronized void graceFullShutdown() throws Exception {
+		this.isShuttingDown = true;
+		disableBus();
+		var retry = 0;
+		while (true){
+			var keys = messageCorrelationMap.keySet();
+			Thread.sleep(1000);
+			if(messageCorrelationMap.isEmpty()){
+				System.exit(0);
+			}else if(keys.containsAll(messageCorrelationMap.keySet()) && retry > 5){
+				System.exit(0);
+			}
+			retry++;
+		}
+	}
+
+	public boolean isEnabled() {
+		return enabled;
+	}
+
 
 	public JGroupsMessageBus(JChannel jChannel) {
 		jChannel.setReceiver(this);
@@ -113,26 +143,9 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	}
 
 	@Override
-	public JGroupNodeAddress findNodeAddress(String serverName) {
-		return channel.getView().getMembers().stream()
-				.filter(address -> serverName.equals(address.toString()))
-				.findAny().map(JGroupNodeAddress::new).orElseThrow(() -> new NodeNotFoundException("Node %s not found".formatted(serverName)));
-	}
-
-	@Override
 	public NodeAddress getAddress() {
 		return new JGroupNodeAddress(channel.getAddress());
 	}
-
-	@Override
-	public List<NodeAddress> getAddresses(String serverNodeName) {
-		return new ArrayList<>(channel.getView().getMembers().stream()
-				.filter(address -> serverNodeName.equals(address.toString()))
-				.map(JGroupNodeAddress::new)
-				.sorted()
-				.toList());
-	}
-
 
 	@Override
 	public void receive(Message msg) {
@@ -172,12 +185,55 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 						resp.sendError(e);
 					}
 				}
+			} else if (message instanceof ClusterNodeStatusUpdateMessage u)
+			{
+				if(u.getNewStatus()){
+					if(!this.availableNodes.contains(msg.getSrc()))
+					{
+						this.availableNodes.add(msg.getSrc());
+						try
+						{
+							cast(msg.src(), new ClusterNodeStatusUpdateMessage(this.enabled));
+						} catch (Exception e)
+						{
+							e.printStackTrace();
+						}
+					}
+				}else{
+					this.availableNodes.remove(msg.getSrc());
+				}
+
 			} else
 			{
 				messageReceiver.accept(message);
 			}
 		}).start();
 	}
+
+	@Override
+	public void viewAccepted(View newView) {
+		this.availableNodes.removeIf(a -> !newView.getMembers().contains(a));
+	}
+
+	@Override
+	public JGroupNodeAddress findNodeAddress(String nodeName) {
+		return channel.getView().getMembers().stream()
+				.filter(address -> nodeName.equals(address.toString()))
+				.filter(this.availableNodes::contains)
+				.findAny().map(JGroupNodeAddress::new).orElseThrow(() -> new NodeNotFoundException("Node %s not found".formatted(nodeName)));
+	}
+
+	@Override
+	public List<NodeAddress> findAllNodeAddresses(String nodeName) {
+		return new ArrayList<>(channel.getView().getMembers().stream()
+				.filter(address -> nodeName.equals(address.toString()))
+				.filter(this.availableNodes::contains)
+				.map(JGroupNodeAddress::new)
+				.sorted()
+				.toList());
+	}
+
+
 
 	private static class Handlers {
 		private Consumer<Serializable> success;

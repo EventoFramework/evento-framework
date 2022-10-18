@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 class ApplicationTest {
 
@@ -67,8 +68,9 @@ class ApplicationTest {
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
 				"event-rails-node-server");
+		Thread.sleep(1000);
 		var start = System.currentTimeMillis();
-		for(int i = 0; i<1000; i++)
+		for(int i = 0; i<300; i++)
 		{
 			String id = UUID.randomUUID().toString();
 			commandGateway.sendAndWait(new DemoCreateCommand("test_" + id, id, 0));
@@ -123,7 +125,7 @@ class ApplicationTest {
 				"event-rails-node-server");
 		var start = System.currentTimeMillis();
 		System.out.println(start);
-		for(int i = 0; i<3000; i++)
+		for(int i = 0; i<1200; i++)
 		{
 			String id = UUID.randomUUID().toString();
 			commandGateway.send(new DemoCreateCommand("test_" + id, id, 0));
