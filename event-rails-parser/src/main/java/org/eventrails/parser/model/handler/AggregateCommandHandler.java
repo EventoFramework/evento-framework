@@ -5,13 +5,20 @@ import org.eventrails.parser.model.payload.DomainEvent;
 
 public class AggregateCommandHandler extends Handler<DomainCommand> {
 
-	private final DomainEvent producedEvent;
+	private DomainEvent producedEvent;
 	public AggregateCommandHandler(DomainCommand payload, DomainEvent producedEvent) {
 		super(payload);
 		this.producedEvent = producedEvent;
 	}
 
+	public AggregateCommandHandler() {
+	}
+
 	public DomainEvent getProducedEvent() {
 		return producedEvent;
+	}
+
+	public void setProducedEvent(DomainEvent producedEvent) {
+		this.producedEvent = producedEvent;
 	}
 }

@@ -13,6 +13,9 @@ public class EventHandler extends Handler<Event> implements HasQueryInvocations{
 		super(payload);
 	}
 
+	public EventHandler() {
+	}
+
 	private ArrayList<Query> invokedQueries = new ArrayList<>();
 
 	@Override

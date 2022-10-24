@@ -5,10 +5,10 @@ public class MultipleResultQueryReturnType extends QueryReturnType {
 		super(viewName);
 	}
 
-	@Override
-	public boolean isMultiple() {
-		return true;
+	public MultipleResultQueryReturnType() {
+		super();
 	}
+
 
 	@Override
 	public String toString() {
