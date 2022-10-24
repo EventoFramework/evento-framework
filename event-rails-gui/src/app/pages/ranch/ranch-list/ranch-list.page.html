@@ -32,4 +32,17 @@
     </ion-item>
   </ion-list>
 
+
 </ion-content>
+<ion-footer>
+  <ion-toolbar>
+    <ion-item>
+      <ion-input type="file"
+                 (change)="onChange($event)"></ion-input>
+      <ion-button slot="end" (click)="onUpload()">
+        Upload
+      </ion-button>
+    </ion-item>
+  </ion-toolbar>
+
+</ion-footer>

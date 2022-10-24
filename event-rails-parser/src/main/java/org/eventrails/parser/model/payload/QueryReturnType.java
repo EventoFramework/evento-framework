@@ -1,16 +1,24 @@
 package org.eventrails.parser.model.payload;
 
-public abstract class QueryReturnType {
+import java.io.Serializable;
 
-	private final String viewName;
+public abstract class QueryReturnType implements Serializable {
+
+	private String viewName;
 	public QueryReturnType(String viewName) {
 		this.viewName = viewName;
+	}
+
+	public QueryReturnType() {
 	}
 
 	public String getViewName() {
 		return viewName;
 	}
 
-	public abstract boolean isMultiple();
+	public void setViewName(String viewName) {
+		this.viewName = viewName;
+	}
+
 
 }

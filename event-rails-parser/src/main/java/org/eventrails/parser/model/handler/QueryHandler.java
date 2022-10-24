@@ -6,4 +6,7 @@ public class QueryHandler extends Handler<Query> {
 	public QueryHandler(Query payload) {
 		super(payload);
 	}
+
+	public QueryHandler() {
+	}
 }

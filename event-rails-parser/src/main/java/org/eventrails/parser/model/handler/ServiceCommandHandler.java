@@ -6,10 +6,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 public class ServiceCommandHandler extends Handler<ServiceCommand> implements HasCommandInvocations, HasQueryInvocations {
-	private final ServiceEvent producedEvent;
+	private ServiceEvent producedEvent;
 	public ServiceCommandHandler(ServiceCommand payload, ServiceEvent producedEvent) {
 		super(payload);
 		this.producedEvent = producedEvent;
+	}
+
+	public ServiceCommandHandler() {
 	}
 
 	public ServiceEvent getProducedEvent() {
@@ -39,5 +42,25 @@ public class ServiceCommandHandler extends Handler<ServiceCommand> implements Ha
 	@Override
 	public Collection<Query> getQueryInvocations() {
 		return invokedQueries;
+	}
+
+	public void setProducedEvent(ServiceEvent producedEvent) {
+		this.producedEvent = producedEvent;
+	}
+
+	public ArrayList<Command> getInvokedCommands() {
+		return invokedCommands;
+	}
+
+	public void setInvokedCommands(ArrayList<Command> invokedCommands) {
+		this.invokedCommands = invokedCommands;
+	}
+
+	public ArrayList<Query> getInvokedQueries() {
+		return invokedQueries;
+	}
+
+	public void setInvokedQueries(ArrayList<Query> invokedQueries) {
+		this.invokedQueries = invokedQueries;
 	}
 }

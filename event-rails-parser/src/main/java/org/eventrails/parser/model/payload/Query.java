@@ -1,10 +1,18 @@
 package org.eventrails.parser.model.payload;
 
 public class Query extends Payload {
-	private final QueryReturnType returnType;
+	private QueryReturnType returnType;
 
 	public Query(String name, QueryReturnType returnType) {
 		super(name);
+		this.returnType = returnType;
+	}
+
+	public Query() {
+		super();
+	}
+
+	public void setReturnType(QueryReturnType returnType) {
 		this.returnType = returnType;
 	}
 

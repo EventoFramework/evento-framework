@@ -1,3 +1,14 @@
+pluginManagement {
+	repositories {
+		maven { url 'https://repo.spring.io/release' }
+		mavenCentral()
+		gradlePluginPortal()
+		maven {
+			url = uri("event-rails-maven-repo")
+		}
+	}
+}
+
 rootProject.name = 'event-rails'
 include 'event-rails-modeling'
 include 'event-rails-parser'
@@ -13,4 +24,5 @@ include 'ecent-rails-dispatcher'
 include 'event-rails-dispatcher'
 include 'event-rails-demo:event-rails-demo-api'
 findProject(':event-rails-demo:event-rails-demo-api')?.name = 'event-rails-demo-api'
+include 'event-rails-plugin-gradle'
 

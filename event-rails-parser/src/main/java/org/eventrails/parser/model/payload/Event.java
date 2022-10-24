@@ -4,4 +4,8 @@ public class Event extends Payload{
 	public Event(String name) {
 		super(name);
 	}
+
+	public Event() {
+		super();
+	}
 }

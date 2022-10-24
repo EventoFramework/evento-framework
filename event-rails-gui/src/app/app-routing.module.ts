@@ -12,10 +12,6 @@ const routes: Routes = [
     loadChildren: () => import('./pages/ranch/ranch-list/ranch-list.module').then(m => m.RanchListPageModule)
   },
   {
-    path: 'ranch-upload',
-    loadChildren: () => import('./pages/ranch/ranch-upload/ranch-upload.module').then(m => m.RanchUploadPageModule)
-  },
-  {
     path: 'library-page',
     loadChildren: () => import('./pages/library/library-page/library-page.module').then( m => m.LibraryPagePageModule)
   }

@@ -114,7 +114,7 @@ public class JavaRanchApplicationParser implements RanchApplicationParser {
 				{
 					addSuperFields(schema, View.class);
 				}
-				return new PayloadDescription(classDef.getSimpleName(), payloadType,  schema);
+				return new PayloadDescription(classDef.getSimpleName(), payloadType,  schema.toString());
 			}
 			return null;
 

@@ -7,7 +7,6 @@ import { Component } from '@angular/core';
 export class AppComponent {
   public appPages = [
     { title: 'Registered Ranches', url: '/ranch-list', icon: 'cube' },
-    { title: 'Upload Ranch', url: '/ranch-upload', icon: 'cloud-upload' },
     { title: 'Library', url: '/library-page', icon: 'book' },
   ];
   constructor() {}

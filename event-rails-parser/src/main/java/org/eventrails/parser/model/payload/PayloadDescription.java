@@ -2,15 +2,20 @@ package org.eventrails.parser.model.payload;
 
 import com.google.gson.JsonObject;
 
-public class PayloadDescription {
+import java.io.Serializable;
+
+public class PayloadDescription implements Serializable {
 	private String name;
 	private String type;
-	private JsonObject schema;
+	private String schema;
 
-	public PayloadDescription(String name, String type, JsonObject schema) {
+	public PayloadDescription(String name, String type, String schema) {
 		this.name = name;
 		this.type = type;
 		this.schema = schema;
+	}
+
+	public PayloadDescription() {
 	}
 
 	public String getName() {
@@ -29,11 +34,11 @@ public class PayloadDescription {
 		this.type = type;
 	}
 
-	public JsonObject getSchema() {
+	public String getSchema() {
 		return schema;
 	}
 
-	public void setSchema(JsonObject schema) {
+	public void setSchema(String schema) {
 		this.schema = schema;
 	}
 }
