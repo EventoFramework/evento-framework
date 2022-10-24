@@ -6,4 +6,7 @@ public class EventSourcingHandler extends Handler<DomainEvent> {
 	public EventSourcingHandler(DomainEvent payload) {
 		super(payload);
 	}
+
+	public EventSourcingHandler() {
+	}
 }

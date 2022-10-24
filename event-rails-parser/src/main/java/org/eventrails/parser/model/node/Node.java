@@ -1,6 +1,8 @@
 package org.eventrails.parser.model.node;
 
-public class Node {
+import java.io.Serializable;
+
+public class Node implements Serializable {
 	public String getComponentName() {
 		return componentName;
 	}

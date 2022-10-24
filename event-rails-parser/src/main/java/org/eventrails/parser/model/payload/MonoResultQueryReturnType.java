@@ -5,9 +5,8 @@ public class MonoResultQueryReturnType extends QueryReturnType {
 		super(viewName);
 	}
 
-	@Override
-	public boolean isMultiple() {
-		return false;
+	public MonoResultQueryReturnType() {
+		super();
 	}
 
 	@Override

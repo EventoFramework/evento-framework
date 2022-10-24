@@ -5,6 +5,10 @@ public class ServiceEvent extends Event{
 		super(name);
 	}
 
+	public ServiceEvent() {
+		super();
+	}
+
 	@Override
 	public String toString() {
 		return getName();

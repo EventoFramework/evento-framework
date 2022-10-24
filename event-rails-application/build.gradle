@@ -12,8 +12,8 @@ repositories {
 
 
 dependencies {
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
 
     implementation 'org.reflections:reflections:0.10.2'
     implementation 'io.github.classgraph:classgraph:4.8.149'
@@ -21,7 +21,7 @@ dependencies {
 
     implementation project(":event-rails-modeling")
     implementation project(":event-rails-shared")
-    implementation 'org.jgroups:jgroups:5.2.5.Final'
+    implementation 'org.jgroups:jgroups:5.2.7.Final'
 
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0-rc1'
 
@@ -31,7 +31,7 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
 
-    implementation 'org.jgroups:jgroups:5.2.6.Final'
+    implementation 'org.jgroups:jgroups:5.2.7.Final'
 
 
 

@@ -4,6 +4,7 @@ import org.eventrails.parser.model.RanchApplicationDescription;
 import org.eventrails.parser.model.handler.*;
 import org.eventrails.parser.model.node.*;
 import org.eventrails.parser.model.payload.Command;
+import org.eventrails.parser.model.payload.MultipleResultQueryReturnType;
 import org.eventrails.parser.model.payload.PayloadDescription;
 import org.eventrails.parser.model.payload.Query;
 import org.eventrails.server.domain.model.*;
@@ -121,7 +122,7 @@ public class RanchApplicationService {
 					handler.setHandlerType(HandlerType.QueryHandler);
 					handler.setComponentType(ComponentType.Projection);
 					handler.setHandledPayload(payloadRepository.getById(queryHandler.getPayload().getName()));
-					handler.setReturnIsMultiple(queryHandler.getPayload().getReturnType().isMultiple());
+					handler.setReturnIsMultiple(queryHandler.getPayload().getReturnType() instanceof MultipleResultQueryReturnType);
 					handler.setReturnType(payloadRepository.getById(queryHandler.getPayload().getReturnType().getViewName()));
 					handler.setInvocations(new HashSet<>());
 					handler.generateId();

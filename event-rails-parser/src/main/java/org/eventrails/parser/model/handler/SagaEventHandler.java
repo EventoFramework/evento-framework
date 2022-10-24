@@ -19,6 +19,9 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 		this.associationProperty = associationProperty;
 	}
 
+	public SagaEventHandler() {
+	}
+
 	@Override
 	public void addCommandInvocation(Command command) {
 		invokedCommands.add(command);
@@ -42,5 +45,25 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 
 	public String getAssociationProperty() {
 		return associationProperty;
+	}
+
+	public ArrayList<Command> getInvokedCommands() {
+		return invokedCommands;
+	}
+
+	public void setInvokedCommands(ArrayList<Command> invokedCommands) {
+		this.invokedCommands = invokedCommands;
+	}
+
+	public ArrayList<Query> getInvokedQueries() {
+		return invokedQueries;
+	}
+
+	public void setInvokedQueries(ArrayList<Query> invokedQueries) {
+		this.invokedQueries = invokedQueries;
+	}
+
+	public void setAssociationProperty(String associationProperty) {
+		this.associationProperty = associationProperty;
 	}
 }
