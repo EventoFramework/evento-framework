@@ -45,6 +45,7 @@ class ApplicationTest {
 				"event-rails-demo-command-test",
 				"event-rails-node-server");
 		String id = UUID.randomUUID().toString();
+		Thread.sleep(1500);
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
 		System.out.println(resp);
 		resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, 1));

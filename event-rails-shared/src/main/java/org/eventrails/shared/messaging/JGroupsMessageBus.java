@@ -7,7 +7,6 @@ import org.jgroups.*;
 
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -24,7 +23,9 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 
 	private boolean enabled = false;
 	private boolean isShuttingDown = false;
-	private List<Consumer<String>> joinListeners = new ArrayList<>();
+	private final List<Consumer<String>> joinListeners = new ArrayList<>();
+	private final List<Consumer<List<NodeAddress>>> viewListeners = new ArrayList<>();
+	private final List<Consumer<List<NodeAddress>>> availableViewListeners = new ArrayList<>();
 
 	public JGroupsMessageBus(JChannel jChannel,
 							 Consumer<Serializable> messageReceiver,
@@ -81,6 +82,36 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	@Override
 	public void removeJoinListener(Consumer<String> onRanchJoin) {
 		this.joinListeners.remove(onRanchJoin);
+	}
+
+	@Override
+	public void addViewListener(Consumer<List<NodeAddress>> listener) {
+		viewListeners.add(listener);
+	}
+
+	@Override
+	public void removeViewListener(Consumer<List<NodeAddress>> listener) {
+		viewListeners.remove(listener);
+	}
+
+	@Override
+	public void removeAvailableViewListener(Consumer<List<NodeAddress>> listener) {
+		availableViewListeners.remove(listener);
+	}
+
+	@Override
+	public void addAvailableViewListener(Consumer<List<NodeAddress>> listener) {
+		availableViewListeners.add(listener);
+	}
+
+	@Override
+	public List<NodeAddress> getCurrentAvailableView() {
+		return availableNodes.stream().map(JGroupNodeAddress::new).collect(Collectors.toList());
+	}
+
+	@Override
+	public List<NodeAddress> getCurrentView() {
+		return channel.getView().getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toList());
 	}
 
 
@@ -222,7 +253,7 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 				}else{
 					this.availableNodes.remove(msg.getSrc());
 				}
-
+				availableViewListeners.forEach(l -> l.accept(availableNodes.stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
 			} else
 			{
 				messageReceiver.accept(message);
@@ -233,6 +264,8 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	@Override
 	public void viewAccepted(View newView) {
 		this.availableNodes.removeIf(a -> !newView.getMembers().contains(a));
+		viewListeners.forEach(l -> l.accept(newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
+		availableViewListeners.forEach(l -> l.accept(availableNodes.stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
 	}
 
 	@Override

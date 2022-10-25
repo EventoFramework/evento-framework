@@ -6,7 +6,7 @@ import org.jgroups.Address;
 public class JGroupNodeAddress extends NodeAddress {
 
 	public JGroupNodeAddress(Address address) {
-		super(address);
+		super(address.toString(), address);
 	}
 
 	@Override

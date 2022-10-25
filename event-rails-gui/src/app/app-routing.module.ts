@@ -14,6 +14,10 @@ const routes: Routes = [
   {
     path: 'library-page',
     loadChildren: () => import('./pages/library/library-page/library-page.module').then( m => m.LibraryPagePageModule)
+  },
+  {
+    path: 'cluster-status',
+    loadChildren: () => import('./pages/cluster-status/cluster-status.module').then( m => m.ClusterStatusPageModule)
   }
 ];
 
