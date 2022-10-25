@@ -24,6 +24,11 @@ class ApplicationTest {
 	}
 
 	@Test
+	public void testProcess() throws Exception {
+		Runtime.getRuntime().exec("cmd /c start cmd.exe /K \"dir && ping localhost\"");
+	}
+
+	@Test
 	public void testServiceCommandJGroup2() throws Exception {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",

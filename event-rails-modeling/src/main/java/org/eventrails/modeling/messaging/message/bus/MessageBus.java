@@ -61,6 +61,8 @@ public interface MessageBus {
 	boolean isEnabled();
 
 
+	boolean isRanchAvailable(String ranchName);
 
-
+	void addJoinListener(Consumer<String> onRanchJoin);
+	void removeJoinListener(Consumer<String> onRanchJoin);
 }

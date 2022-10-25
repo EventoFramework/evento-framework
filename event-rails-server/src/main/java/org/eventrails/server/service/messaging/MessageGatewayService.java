@@ -1,6 +1,5 @@
 package org.eventrails.server.service.messaging;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eventrails.modeling.messaging.message.DecoratedDomainCommandMessage;
 import org.eventrails.modeling.messaging.message.*;
 import org.eventrails.modeling.messaging.message.bus.*;
@@ -9,11 +8,11 @@ import org.eventrails.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
+import org.eventrails.server.service.RanchDeployService;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
@@ -25,27 +24,26 @@ public class MessageGatewayService {
 
 	private final LockRegistry lockRegistry;
 
-	private final ObjectMapper objectMapper;
-
 	private final EventStore eventStore;
 
 	private final MessageBus messageBus;
 
 	private final RoundRobinAddressPicker roundRobinAddressPicker;
 
+	private final RanchDeployService ranchDeployService;
+
 
 	public MessageGatewayService(
 			HandlerService handlerService,
 			LockRegistry lockRegistry,
-			ObjectMapper objectMapper,
 			EventStore eventStore,
-			MessageBus messageBus) {
+			MessageBus messageBus, RanchDeployService ranchDeployService) {
 		this.handlerService = handlerService;
 		this.lockRegistry = lockRegistry;
-		this.objectMapper = objectMapper;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
+		this.ranchDeployService = ranchDeployService;
 		messageBus.setRequestReceiver(this::messageHandler);
 	}
 
@@ -56,13 +54,14 @@ public class MessageGatewayService {
 			if (request instanceof DomainCommandMessage c)
 			{
 
+				var handler = handlerService.findByPayloadName(c.getCommandName());
+				ranchDeployService.waitUntilAvailable(handler.getRanch().getName());
+
 				var lock = lockRegistry.obtain("AGGREGATE:" + c.getAggregateId());
 				lock.lock();
 				var semaphore = new Semaphore(0);
 				try
 				{
-
-					var handler = handlerService.findByPayloadName(c.getCommandName());
 					var invocation = new DecoratedDomainCommandMessage();
 					invocation.setCommandMessage(c);
 
@@ -115,6 +114,7 @@ public class MessageGatewayService {
 			} else if (request instanceof ServiceCommandMessage c)
 			{
 				var handler = handlerService.findByPayloadName(c.getCommandName());
+				ranchDeployService.waitUntilAvailable(handler.getRanch().getName());
 				messageBus.cast(
 						roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
 						c,
@@ -132,6 +132,7 @@ public class MessageGatewayService {
 			} else if (request instanceof QueryMessage<?> q)
 			{
 				var handler = handlerService.findByPayloadName(q.getQueryName());
+				ranchDeployService.waitUntilAvailable(handler.getRanch().getName());
 				messageBus.cast(
 						roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
 						q,
