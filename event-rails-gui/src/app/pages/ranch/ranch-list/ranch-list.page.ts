@@ -42,8 +42,12 @@ export class RanchListPage implements OnInit {
       (event: any) => {
         this.loading = false; // Flag variable
         this.toastController.create({
-          message: "Done!"
-        }).then(t => t.prepend())
+          message: "Done!",
+          duration: 1500
+        }).then(t => t.present());
+        this.ranchService.findAll().then(resp => {
+          this.elements = resp;
+        })
       }
     );
   }

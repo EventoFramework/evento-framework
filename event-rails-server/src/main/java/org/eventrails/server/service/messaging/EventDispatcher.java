@@ -18,6 +18,7 @@ import org.eventrails.server.domain.repository.SagaStateRepository;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
+import org.eventrails.server.service.RanchDeployService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -45,6 +46,8 @@ public class EventDispatcher {
 
 	private final RoundRobinAddressPicker roundRobinAddressPicker;
 
+	private final RanchDeployService ranchDeployService;
+
 	public EventDispatcher(
 			RanchRepository ranchRepository,
 			SagaStateRepository sagaStateRepository,
@@ -52,7 +55,7 @@ public class EventDispatcher {
 			MessageBus messageBus,
 			HandlerService handlerService,
 			EventStore eventStore,
-			@Value("${eventrails.cluster.node.server.name}") String serverNodeName) {
+			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, RanchDeployService ranchDeployService) {
 		this.ranchRepository = ranchRepository;
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
@@ -61,7 +64,8 @@ public class EventDispatcher {
 		this.eventStore = eventStore;
 		this.serverNodeName = serverNodeName;
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
-		//eventConsumer();
+		this.ranchDeployService = ranchDeployService;
+		eventConsumer();
 	}
 
 	private void eventConsumer() {
@@ -189,6 +193,7 @@ public class EventDispatcher {
 								associationValue)
 						.orElse(new SagaState(sagaName, new SerializedSagaState<>(null)));
 
+				ranchDeployService.waitUntilAvailable(ranchName);
 				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(ranchName),
 						new EventToSagaMessage(event.getEventMessage(),
 								sagaState.getSerializedSagaState(),
@@ -256,6 +261,8 @@ public class EventDispatcher {
 				processNextProjectorEvent(ranchName, projectorName, events, handlers, eventStore, repository, event);
 			} else
 			{
+
+				ranchDeployService.waitUntilAvailable(ranchName);
 				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(ranchName),
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {

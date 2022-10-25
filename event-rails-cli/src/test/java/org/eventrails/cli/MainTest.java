@@ -11,10 +11,10 @@ class MainTest {
 
 	@Test
 	public void test() throws IOException {
-		Main.main(new String[]{"event-rails-demo-api","../event-rails-demo/event-rails-demo-api"});
-		Main.main(new String[]{"event-rails-demo-command","../event-rails-demo/event-rails-demo-command"});
-		Main.main(new String[]{"event-rails-demo-query","../event-rails-demo/event-rails-demo-query"});
-		Main.main(new String[]{"event-rails-demo-saga","../event-rails-demo/event-rails-demo-saga"});
+		Main.main(new String[]{"event-rails-node-demo-api","../event-rails-demo/event-rails-demo-api"});
+		Main.main(new String[]{"event-rails-node-demo-command","../event-rails-demo/event-rails-demo-command"});
+		Main.main(new String[]{"event-rails-node-demo-query","../event-rails-demo/event-rails-demo-query"});
+		Main.main(new String[]{"event-rails-node-demo-saga","../event-rails-demo/event-rails-demo-saga"});
 	}
 
 }
