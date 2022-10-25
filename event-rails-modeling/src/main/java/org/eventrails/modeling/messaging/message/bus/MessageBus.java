@@ -65,4 +65,16 @@ public interface MessageBus {
 
 	void addJoinListener(Consumer<String> onRanchJoin);
 	void removeJoinListener(Consumer<String> onRanchJoin);
+
+	void addViewListener(Consumer<List<NodeAddress>> listener);
+
+	void removeViewListener(Consumer<List<NodeAddress>> listener);
+
+	void removeAvailableViewListener(Consumer<List<NodeAddress>> listener);
+
+	void addAvailableViewListener(Consumer<List<NodeAddress>> listener);
+
+	List<NodeAddress> getCurrentAvailableView();
+
+	List<NodeAddress>  getCurrentView();
 }
