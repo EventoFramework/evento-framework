@@ -24,6 +24,7 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 
 	private boolean enabled = false;
 	private boolean isShuttingDown = false;
+	private List<Consumer<String>> joinListeners = new ArrayList<>();
 
 	public JGroupsMessageBus(JChannel jChannel,
 							 Consumer<Serializable> messageReceiver,
@@ -63,6 +64,23 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 
 	public boolean isEnabled() {
 		return enabled;
+	}
+
+	@Override
+	public boolean isRanchAvailable(String ranchName) {
+		return channel.getView().getMembers().stream()
+				.filter(address -> ranchName.equals(address.toString()))
+				.anyMatch(this.availableNodes::contains);
+	}
+
+	@Override
+	public void addJoinListener(Consumer<String> onRanchJoin) {
+		this.joinListeners.add(onRanchJoin);
+	}
+
+	@Override
+	public void removeJoinListener(Consumer<String> onRanchJoin) {
+		this.joinListeners.remove(onRanchJoin);
 	}
 
 
@@ -198,7 +216,9 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 						{
 							e.printStackTrace();
 						}
+						joinListeners.forEach(c -> c.accept(msg.getSrc().toString()));
 					}
+
 				}else{
 					this.availableNodes.remove(msg.getSrc());
 				}

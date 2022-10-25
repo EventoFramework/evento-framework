@@ -190,4 +190,8 @@ public class RanchApplicationService {
 	public List<Ranch> findAllRanches() {
 		return ranchRepository.findAll();
 	}
+
+	public Ranch findByName(String ranchName) {
+		return ranchRepository.findById(ranchName).orElseThrow();
+	}
 }
