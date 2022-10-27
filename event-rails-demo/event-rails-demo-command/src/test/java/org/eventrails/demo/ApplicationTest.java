@@ -23,6 +23,7 @@ class ApplicationTest {
 		System.out.println("end");
 	}
 
+
 	@Test
 	public void testProcess() throws Exception {
 		Runtime.getRuntime().exec("cmd /c start cmd.exe /K \"dir && ping localhost\"");

@@ -4,9 +4,11 @@ public abstract class NodeAddress implements Comparable<NodeAddress> {
 
 	private final Object address;
 	private final String nodeName;
-	public NodeAddress(String nodeName, Object address) {
+	private final String nodeId;
+	public NodeAddress(String nodeName, Object address, String nodeId) {
 		this.nodeName = nodeName;
 		this.address = address;
+		this.nodeId = nodeId;
 	}
 
 	public <T> T getAddress(){
@@ -15,5 +17,9 @@ public abstract class NodeAddress implements Comparable<NodeAddress> {
 
 	public String getNodeName() {
 		return nodeName;
+	}
+
+	public String getNodeId() {
+		return nodeId;
 	}
 }

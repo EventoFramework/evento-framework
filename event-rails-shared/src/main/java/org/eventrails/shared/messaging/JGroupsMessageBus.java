@@ -4,6 +4,8 @@ import org.eventrails.modeling.exceptions.NodeNotFoundException;
 import org.eventrails.modeling.exceptions.ThrowableWrapper;
 import org.eventrails.modeling.messaging.message.bus.*;
 import org.jgroups.*;
+import org.jgroups.logging.Log;
+import org.jgroups.logging.LogFactory;
 
 import java.io.Serializable;
 import java.util.*;
@@ -12,6 +14,10 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class JGroupsMessageBus implements MessageBus, Receiver {
+
+
+	private final Log LOGGER = LogFactory.getLog(JGroupsMessageBus.class);
+
 
 	private final JChannel channel;
 	private Consumer<Serializable> messageReceiver;
@@ -37,29 +43,47 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	}
 
 	public void enableBus() throws Exception {
+		LOGGER.info("BUS ENABLED");
 		this.broadcast(new ClusterNodeStatusUpdateMessage(true));
 		this.enabled = true;
 	}
 
 	public void disableBus() throws Exception {
+		LOGGER.info("BUS DISABLED");
 		this.broadcast(new ClusterNodeStatusUpdateMessage(false));
 		this.enabled = false;
 	}
 
 	@Override
-	public synchronized void graceFullShutdown() throws Exception {
-		this.isShuttingDown = true;
-		disableBus();
-		var retry = 0;
-		while (true){
-			var keys = messageCorrelationMap.keySet();
-			Thread.sleep(1000);
-			if(messageCorrelationMap.isEmpty()){
-				System.exit(0);
-			}else if(keys.containsAll(messageCorrelationMap.keySet()) && retry > 5){
-				System.exit(0);
+	public synchronized void gracefulShutdown() {
+		try
+		{
+			LOGGER.info("Graceful Shutdown - Started");
+			this.isShuttingDown = true;
+			LOGGER.info("Graceful Shutdown - Disabling Bus");
+			disableBus();
+			LOGGER.info("Graceful Shutdown - Bus Disabled");
+			var retry = 0;
+			while (true)
+			{
+				var keys = messageCorrelationMap.keySet();
+				LOGGER.info("Graceful Shutdown - Remaining correlations: %d", keys.size());
+				LOGGER.info("Graceful Shutdown - Sleep...");
+				Thread.sleep(1000);
+				if (messageCorrelationMap.isEmpty())
+				{
+					LOGGER.info("Graceful Shutdown - No more correlations, bye!");
+					System.exit(0);
+				} else if (keys.containsAll(messageCorrelationMap.keySet()) && retry > 5)
+				{
+					LOGGER.info("Graceful Shutdown - Pending correlation after 5 retry... so... bye!");
+					System.exit(0);
+				}
+				retry++;
 			}
-			retry++;
+		}catch (Exception e){
+			e.printStackTrace();
+			System.exit(1);
 		}
 	}
 
@@ -112,6 +136,12 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	@Override
 	public List<NodeAddress> getCurrentView() {
 		return channel.getView().getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toList());
+	}
+
+	@Override
+	public void sendKill(String nodeId) throws Exception {
+		Address nodeAddress = org.jgroups.util.UUID.fromString(nodeId);
+		cast(nodeAddress, new ClusterNodeKillMessage());
 	}
 
 
@@ -247,13 +277,17 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 						{
 							e.printStackTrace();
 						}
-						joinListeners.forEach(c -> c.accept(msg.getSrc().toString()));
+						joinListeners.stream().toList().forEach(c -> c.accept(msg.getSrc().toString()));
 					}
 
 				}else{
 					this.availableNodes.remove(msg.getSrc());
 				}
-				availableViewListeners.forEach(l -> l.accept(availableNodes.stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
+				availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes.stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
+			} else if (message instanceof ClusterNodeKillMessage k)
+			{
+				LOGGER.info("ClusterNodeKillMessage received from %s", msg.getSrc());
+				gracefulShutdown();
 			} else
 			{
 				messageReceiver.accept(message);
@@ -264,8 +298,8 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	@Override
 	public void viewAccepted(View newView) {
 		this.availableNodes.removeIf(a -> !newView.getMembers().contains(a));
-		viewListeners.forEach(l -> l.accept(newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
-		availableViewListeners.forEach(l -> l.accept(availableNodes.stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
+		viewListeners.stream().toList().forEach(l -> l.accept(newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
+		availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes.stream().map(JGroupNodeAddress::new).collect(Collectors.toList())));
 	}
 
 	@Override

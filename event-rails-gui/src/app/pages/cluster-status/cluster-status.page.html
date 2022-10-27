@@ -6,4 +6,98 @@
 
 <ion-content>
 
+  <ion-grid>
+    <ion-row>
+      <ion-col size="6" *ngFor="let node of attendedView">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>
+              {{node}}
+            </ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-grid>
+              <ion-row>
+                <ion-col>Status:</ion-col>
+                <ion-col>
+                  <ng-container *ngIf="!view[node].isOnline">
+                    <b class="node-status-offline">OFFLINE</b>
+                  </ng-container>
+                  <ng-container *ngIf="view[node].isOnline && !view[node].isAvailable">
+                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                  </ng-container>
+                  <ng-container *ngIf="view[node].isOnline && view[node].isAvailable">
+                    <b class="node-status-available">AVAILABLE</b>
+                  </ng-container>
+                </ion-col>
+              </ion-row>
+              <ion-row *ngIf="view[node].isOnline">
+                <ion-col>
+                  ReplicaCount:
+                </ion-col>
+                <ion-col>
+                  {{view[node].replicaCount}}
+                </ion-col>
+              </ion-row>
+              <ion-row *ngFor="let replica of view[node].replicasKeys">
+                <ion-col size="6">{{view[node].replicas[replica].nodeId}}</ion-col>
+                <ion-col>
+                  <ng-container *ngIf="!view[node].replicas[replica].isAvailable">
+                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                  </ng-container>
+                  <ng-container *ngIf="view[node].replicas[replica].isAvailable">
+                    <b class="node-status-available">AVAILABLE</b>
+                  </ng-container>
+                </ion-col>
+                <ion-col>
+                  <ion-button (click)="kill(view[node].replicas[replica])" [disabled]="!view[node].replicas[replica]?.isAvailable" color="danger">Kill</ion-button>
+                </ion-col>
+              </ion-row>
+              <ion-row>
+                <ion-button color="primary" (click)="spawnRanch(node)">Spawn</ion-button>
+              </ion-row>
+            </ion-grid>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+
+  <ion-grid>
+    <ion-row>
+      <ion-col size="6" *ngFor="let node of externalView">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>
+              {{node}}
+            </ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-grid>
+              <ion-row>
+                <ion-col>Status:</ion-col>
+                <ion-col>
+                  <ng-container *ngIf="!view[node]?.isAvailable">
+                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                  </ng-container>
+                  <ng-container *ngIf="view[node]?.isAvailable">
+                    <b class="node-status-available">AVAILABLE</b>
+                  </ng-container>
+                </ion-col>
+              </ion-row>
+              <ion-row *ngIf="view[node]?.isAvailable">
+                <ion-col>
+                  ReplicaCount:
+                </ion-col>
+                <ion-col>
+                  {{view[node].replicaCount}}
+                </ion-col>
+              </ion-row>
+            </ion-grid>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+
 </ion-content>
