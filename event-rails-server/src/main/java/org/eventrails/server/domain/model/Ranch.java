@@ -19,6 +19,7 @@ public class Ranch {
 	@Enumerated(EnumType.STRING)
 	private BucketType bucketType;
 	private String artifactCoordinates;
+	private boolean containsHandlers;
 
 	@Override
 	public boolean equals(Object o) {

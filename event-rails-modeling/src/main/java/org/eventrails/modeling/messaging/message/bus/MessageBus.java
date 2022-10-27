@@ -56,7 +56,7 @@ public interface MessageBus {
 	void enableBus() throws Exception;
 	void disableBus() throws Exception;
 
-	void graceFullShutdown() throws Exception;
+	void gracefulShutdown();
 
 	boolean isEnabled();
 
@@ -77,4 +77,6 @@ public interface MessageBus {
 	List<NodeAddress> getCurrentAvailableView();
 
 	List<NodeAddress>  getCurrentView();
+
+	void sendKill(String nodeId) throws Exception;
 }

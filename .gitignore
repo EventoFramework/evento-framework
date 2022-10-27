@@ -2,3 +2,4 @@ build
 .gradle
 .idea
 server-upload
+00_temp

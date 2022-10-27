@@ -1,0 +1,11 @@
+.node-status-offline {
+  color: var(--ion-color-danger);
+}
+
+.node-status-not-available {
+  color: var(--ion-color-warning);
+}
+
+.node-status-available {
+  color: var(--ion-color-success);
+}
