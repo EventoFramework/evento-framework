@@ -43,6 +43,7 @@ public class RanchApplicationService {
 			RanchApplicationDescription ranchApplicationDescription) {
 		Ranch ranch = new Ranch();
 		ranch.setName(ranchDeploymentName);
+		ranch.setContainsHandlers(ranchApplicationDescription.getNodes().size()>0);
 		ranch.setBucketType(ranchDeploymentBucketType);
 		ranch.setArtifactCoordinates(ranchDeploymentArtifactCoordinates);
 		ranch = ranchRepository.save(ranch);

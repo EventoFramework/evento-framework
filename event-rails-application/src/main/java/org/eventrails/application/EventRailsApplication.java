@@ -1,7 +1,5 @@
 package org.eventrails.application;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eventrails.application.reference.*;
 import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
 import org.eventrails.application.server.jgroups.JGroupsQueryGateway;
@@ -24,8 +22,6 @@ import java.util.Set;
 
 public class EventRailsApplication {
 
-
-	private static final Logger logger = LogManager.getLogger(EventRailsApplication.class);
 	private final String basePackage;
 	private final String ranchName;
 	private final JGroupsMessageBus messageBus;
@@ -49,8 +45,6 @@ public class EventRailsApplication {
 		this.ranchName = ranchName;
 
 		JChannel jChannel = new JChannel();
-
-
 
 
 		messageBus = new JGroupsMessageBus(jChannel,
@@ -79,7 +73,7 @@ public class EventRailsApplication {
 									new DomainCommandResponseMessage(
 											new DomainEventMessage(event),
 											handler.getSnapshotFrequency() <= c.getEventStream().size() ?
-													new SerializedAggregateState<>(envelope.getAggregateState()): null
+													new SerializedAggregateState<>(envelope.getAggregateState()) : null
 									)
 							);
 						} else if (request instanceof ServiceCommandMessage c)
@@ -168,7 +162,7 @@ public class EventRailsApplication {
 	}
 
 	public void startBus() throws Exception {
-	messageBus.enableBus();
+		messageBus.enableBus();
 	}
 
 	public void stopBus() throws Exception {
@@ -179,9 +173,7 @@ public class EventRailsApplication {
 		try
 		{
 			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, ranchName, messageChannelName, serverName);
-			logger.info("Parsing package");
 			eventRailsApplication.parsePackage();
-			logger.info("Server Started");
 			eventRailsApplication.startBus();
 			return eventRailsApplication;
 		} catch (Exception e)
