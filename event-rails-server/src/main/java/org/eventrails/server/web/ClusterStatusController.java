@@ -5,6 +5,8 @@ import org.eventrails.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.server.domain.model.Ranch;
 import org.eventrails.server.service.RanchApplicationService;
 import org.eventrails.server.service.RanchDeployService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 @RequestMapping("api/cluster-status")
 public class ClusterStatusController {
 
+	private final Logger logger = LoggerFactory.getLogger(ClusterStatusController.class);
 
 	@Value("${eventrails.cluster.node.server.name}")
 	private String serverNodeName;
@@ -53,6 +56,7 @@ public class ClusterStatusController {
 					emitter.send(o);
 				} catch (Exception e)
 				{
+					logger.warn("Listener Error", e);
 					messageBus.removeViewListener(this);
 				}
 			}
@@ -73,6 +77,7 @@ public class ClusterStatusController {
 					emitter.send(o);
 				} catch (Exception e)
 				{
+					logger.warn("Listener Error", e);
 					messageBus.removeAvailableViewListener(this);
 				}
 			}
