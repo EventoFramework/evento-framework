@@ -4,7 +4,7 @@ import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.ASTClassOrInterfaceType;
 import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTTypeDeclaration;
-import org.eventrails.parser.model.node.Service;
+import org.eventrails.parser.model.component.Service;
 import org.eventrails.parser.model.handler.ServiceCommandHandler;
 import org.eventrails.parser.model.payload.ServiceCommand;
 import org.eventrails.parser.model.payload.ServiceEvent;

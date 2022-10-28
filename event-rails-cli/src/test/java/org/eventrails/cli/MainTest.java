@@ -13,22 +13,24 @@ class MainTest {
 
 	@Test
 	public void test() throws IOException {
-		Main.main(new String[]{"event-rails-node-demo-api","../event-rails-demo/event-rails-demo-api"});
-		Main.main(new String[]{"event-rails-node-demo-command","../event-rails-demo/event-rails-demo-command"});
-		Main.main(new String[]{"event-rails-node-demo-query","../event-rails-demo/event-rails-demo-query"});
-		Main.main(new String[]{"event-rails-node-demo-saga","../event-rails-demo/event-rails-demo-saga"});
+		Main.main(new String[]{"event-rails-bundle-demo-api","../event-rails-demo/event-rails-demo-api"});
+		Main.main(new String[]{"event-rails-bundle-demo-command","../event-rails-demo/event-rails-demo-command"});
+		Main.main(new String[]{"event-rails-bundle-demo-query","../event-rails-demo/event-rails-demo-query"});
+		Main.main(new String[]{"event-rails-bundle-demo-saga","../event-rails-demo/event-rails-demo-saga"});
+
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-api/build/bundle-dist/event-rails-bundle-demo-api.bundle"),
+				Path.of("../00_temp/event-rails-bundle-demo-api.bundle"));
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-command/build/bundle-dist/event-rails-bundle-demo-command.bundle"),
+				Path.of("../00_temp/event-rails-bundle-demo-command.bundle"));
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-query/build/bundle-dist/event-rails-bundle-demo-query.bundle"),
+				Path.of("../00_temp/event-rails-bundle-demo-query.bundle"));
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-saga/build/bundle-dist/event-rails-bundle-demo-saga.bundle"),
+				Path.of("../00_temp/event-rails-bundle-demo-saga.bundle"));
 	}
 	@Test
 	public void move() throws IOException {
 
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-api/build/bundle-dist/event-rails-node-demo-api.bundle"),
-				Path.of("../00_temp/event-rails-node-demo-api.bundle"));
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-command/build/bundle-dist/event-rails-node-demo-command.bundle"),
-				Path.of("../00_temp/event-rails-node-demo-command.bundle"));
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-query/build/bundle-dist/event-rails-node-demo-query.bundle"),
-				Path.of("../00_temp/event-rails-node-demo-query.bundle"));
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-saga/build/bundle-dist/event-rails-node-demo-saga.bundle"),
-				Path.of("../00_temp/event-rails-node-demo-saga.bundle"));
+
 	}
 
 

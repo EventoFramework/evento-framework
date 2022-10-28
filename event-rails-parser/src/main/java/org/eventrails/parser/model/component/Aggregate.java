@@ -1,11 +1,11 @@
-package org.eventrails.parser.model.node;
+package org.eventrails.parser.model.component;
 
 import org.eventrails.parser.model.handler.AggregateCommandHandler;
 import org.eventrails.parser.model.handler.EventSourcingHandler;
 
 import java.util.List;
 
-public class Aggregate extends Node {
+public class Aggregate extends Component {
 	private List<AggregateCommandHandler> aggregateCommandHandlers;
 	private List<EventSourcingHandler> eventSourcingHandlers;
 

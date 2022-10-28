@@ -8,11 +8,11 @@
 
   <ion-grid>
     <ion-row>
-      <ion-col size="6" *ngFor="let node of attendedView">
+      <ion-col size="6" *ngFor="let component of attendedView">
         <ion-card>
           <ion-card-header>
             <ion-card-title>
-              {{node}}
+              {{component}}
             </ion-card-title>
           </ion-card-header>
           <ion-card-content>
@@ -20,41 +20,41 @@
               <ion-row>
                 <ion-col>Status:</ion-col>
                 <ion-col>
-                  <ng-container *ngIf="!view[node].isOnline">
+                  <ng-container *ngIf="!view[component].isOnline">
                     <b class="node-status-offline">OFFLINE</b>
                   </ng-container>
-                  <ng-container *ngIf="view[node].isOnline && !view[node].isAvailable">
+                  <ng-container *ngIf="view[component].isOnline && !view[component].isAvailable">
                     <b class="node-status-not-available">NOT AVAILABLE</b>
                   </ng-container>
-                  <ng-container *ngIf="view[node].isOnline && view[node].isAvailable">
+                  <ng-container *ngIf="view[component].isOnline && view[component].isAvailable">
                     <b class="node-status-available">AVAILABLE</b>
                   </ng-container>
                 </ion-col>
               </ion-row>
-              <ion-row *ngIf="view[node].isOnline">
+              <ion-row *ngIf="view[component].isOnline">
                 <ion-col>
                   ReplicaCount:
                 </ion-col>
                 <ion-col>
-                  {{view[node].replicaCount}}
+                  {{view[component].replicaCount}}
                 </ion-col>
               </ion-row>
-              <ion-row *ngFor="let replica of view[node].replicasKeys">
-                <ion-col size="6">{{view[node].replicas[replica].nodeId}}</ion-col>
+              <ion-row *ngFor="let replica of view[component].replicasKeys">
+                <ion-col size="6">{{view[component].replicas[replica].nodeId}}</ion-col>
                 <ion-col>
-                  <ng-container *ngIf="!view[node].replicas[replica].isAvailable">
+                  <ng-container *ngIf="!view[component].replicas[replica].isAvailable">
                     <b class="node-status-not-available">NOT AVAILABLE</b>
                   </ng-container>
-                  <ng-container *ngIf="view[node].replicas[replica].isAvailable">
+                  <ng-container *ngIf="view[component].replicas[replica].isAvailable">
                     <b class="node-status-available">AVAILABLE</b>
                   </ng-container>
                 </ion-col>
                 <ion-col>
-                  <ion-button (click)="kill(view[node].replicas[replica])" [disabled]="!view[node].replicas[replica]?.isAvailable" color="danger">Kill</ion-button>
+                  <ion-button (click)="kill(view[component].replicas[replica])" [disabled]="!view[component].replicas[replica]?.isAvailable" color="danger">Kill</ion-button>
                 </ion-col>
               </ion-row>
               <ion-row>
-                <ion-button color="primary" (click)="spawnBundle(node)">Spawn</ion-button>
+                <ion-button color="primary" (click)="spawnBundle(component)">Spawn</ion-button>
               </ion-row>
             </ion-grid>
           </ion-card-content>
@@ -65,11 +65,11 @@
 
   <ion-grid>
     <ion-row>
-      <ion-col size="6" *ngFor="let node of externalView">
+      <ion-col size="6" *ngFor="let component of externalView">
         <ion-card>
           <ion-card-header>
             <ion-card-title>
-              {{node}}
+              {{component}}
             </ion-card-title>
           </ion-card-header>
           <ion-card-content>
@@ -77,20 +77,20 @@
               <ion-row>
                 <ion-col>Status:</ion-col>
                 <ion-col>
-                  <ng-container *ngIf="!view[node]?.isAvailable">
-                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                  <ng-container *ngIf="!view[component]?.isAvailable">
+                    <b class="component-status-not-available">NOT AVAILABLE</b>
                   </ng-container>
-                  <ng-container *ngIf="view[node]?.isAvailable">
-                    <b class="node-status-available">AVAILABLE</b>
+                  <ng-container *ngIf="view[component]?.isAvailable">
+                    <b class="component-status-available">AVAILABLE</b>
                   </ng-container>
                 </ion-col>
               </ion-row>
-              <ion-row *ngIf="view[node]?.isAvailable">
+              <ion-row *ngIf="view[component]?.isAvailable">
                 <ion-col>
                   ReplicaCount:
                 </ion-col>
                 <ion-col>
-                  {{view[node].replicaCount}}
+                  {{view[component].replicaCount}}
                 </ion-col>
               </ion-row>
             </ion-grid>

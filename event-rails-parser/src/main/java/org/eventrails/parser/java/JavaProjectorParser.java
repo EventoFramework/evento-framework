@@ -4,7 +4,7 @@ import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.ASTClassOrInterfaceType;
 import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTTypeDeclaration;
-import org.eventrails.parser.model.node.Projector;
+import org.eventrails.parser.model.component.Projector;
 import org.eventrails.parser.model.handler.EventHandler;
 import org.eventrails.parser.model.payload.Event;
 import org.jaxen.JaxenException;
