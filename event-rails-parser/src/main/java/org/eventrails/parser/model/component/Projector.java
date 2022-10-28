@@ -1,10 +1,10 @@
-package org.eventrails.parser.model.node;
+package org.eventrails.parser.model.component;
 
 import org.eventrails.parser.model.handler.EventHandler;
 
 import java.util.List;
 
-public class Projector extends Node {
+public class Projector extends Component {
 	private List<EventHandler> eventHandlers;
 
 	public void setEventHandlers(List<EventHandler> eventHandlers) {

@@ -28,13 +28,13 @@ public class JGroupsCommandGateway implements CommandGateway {
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 	}
 
-	public JGroupsCommandGateway(String messageChannelName, String nodeName, String serverName) throws Exception {
+	public JGroupsCommandGateway(String messageChannelName, String bundleName, String serverName) throws Exception {
 		JChannel jChannel = new JChannel();
 
 		this.messageBus = new JGroupsMessageBus(jChannel);
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 
-		jChannel.setName(nodeName);
+		jChannel.setName(bundleName);
 		jChannel.connect(messageChannelName);
 		this.serverName = serverName;
 

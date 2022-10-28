@@ -1,6 +1,6 @@
 package org.eventrails.parser.model;
 
-import org.eventrails.parser.model.node.*;
+import org.eventrails.parser.model.component.*;
 import org.eventrails.parser.model.payload.*;
 
 import java.io.Serializable;
@@ -8,19 +8,19 @@ import java.util.List;
 
 public class BundleDescription implements Serializable {
 
-	private List<Node> nodes;
+	private List<Component> components;
 	private List<PayloadDescription> payloadDescriptions;
 
-	public BundleDescription(List<Node> nodes, List<PayloadDescription> payloadDescriptions) {
-		this.nodes = nodes;
+	public BundleDescription(List<Component> components, List<PayloadDescription> payloadDescriptions) {
+		this.components = components;
 		this.payloadDescriptions = payloadDescriptions;
 	}
 
 	public BundleDescription() {
 	}
 
-	public List<Node> getNodes() {
-		return nodes;
+	public List<Component> getComponents() {
+		return components;
 	}
 
 	public List<PayloadDescription> getPayloadDescriptions() {

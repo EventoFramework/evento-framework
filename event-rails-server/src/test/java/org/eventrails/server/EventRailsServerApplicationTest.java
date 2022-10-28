@@ -21,17 +21,17 @@ class EventRailsServerApplicationTest {
 	void test() throws IOException {
 		JavaBundleParser applicationParser = new JavaBundleParser();
 
-		bundleService.unregister("event-rails-node-demo-api");
-		bundleService.unregister("event-rails-node-demo-command");
-		bundleService.unregister("event-rails-node-demo-query");
-		bundleService.unregister("event-rails-node-demo-saga");
+		bundleService.unregister("event-rails-bundle-demo-api");
+		bundleService.unregister("event-rails-bundle-demo-command");
+		bundleService.unregister("event-rails-bundle-demo-query");
+		bundleService.unregister("event-rails-bundle-demo-saga");
 
 		var components = applicationParser.parseDirectory(
 				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-api\\src\\main\\java\\org\\eventrails\\demo"));
 
 
 		bundleService.register(
-				"event-rails-node-demo-api",
+				"event-rails-bundle-demo-api",
 				BucketType.LibraryOnly,
 				null,
 				null,
@@ -43,7 +43,7 @@ class EventRailsServerApplicationTest {
 
 
 		bundleService.register(
-				"event-rails-node-demo-command",
+				"event-rails-bundle-demo-command",
 				BucketType.LiveServer,
 				null,
 				null,
@@ -55,7 +55,7 @@ class EventRailsServerApplicationTest {
 
 
 		bundleService.register(
-				"event-rails-node-demo-query",
+				"event-rails-bundle-demo-query",
 				BucketType.LiveServer,
 				null,
 				null,
@@ -67,7 +67,7 @@ class EventRailsServerApplicationTest {
 
 
 		bundleService.register(
-				"event-rails-node-demo-saga",
+				"event-rails-bundle-demo-saga",
 				BucketType.LiveServer,
 				null,
 				null,

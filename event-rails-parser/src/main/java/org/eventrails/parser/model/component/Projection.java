@@ -1,10 +1,10 @@
-package org.eventrails.parser.model.node;
+package org.eventrails.parser.model.component;
 
 import org.eventrails.parser.model.handler.QueryHandler;
 
 import java.util.List;
 
-public class Projection extends Node {
+public class Projection extends Component {
 
 	private List<QueryHandler> queryHandlers;
 

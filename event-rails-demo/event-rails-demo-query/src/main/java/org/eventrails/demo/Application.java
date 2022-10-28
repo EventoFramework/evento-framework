@@ -5,9 +5,9 @@ import org.eventrails.application.EventRailsApplication;
 public class Application {
 	public static void main(String[] args) {
 		EventRailsApplication.start(Application.class.getPackage().getName(),
-				"event-rails-node-demo-query",
+				"event-rails-bundle-demo-query",
 				"event-rails-channel-message",
-				"event-rails-node-server",
+				"event-rails-server",
 				args);
 	}
 }
