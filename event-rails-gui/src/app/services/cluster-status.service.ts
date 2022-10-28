@@ -7,7 +7,8 @@ import {environment} from "../../environments/environment";
 })
 export class ClusterStatusService {
 
-  constructor(private zone: NgZone) { }
+  constructor(private zone: NgZone) {
+  }
 
   getView(): Observable<any> {
 
@@ -26,6 +27,13 @@ export class ClusterStatusService {
             observer.error(event)
           })
         }
+
+        observer.add(() => {
+          source.close()
+          console.log(source);
+        })
+
+
       }
     )
   }
@@ -47,11 +55,17 @@ export class ClusterStatusService {
             observer.error(event)
           })
         }
+
+        observer.add(() => {
+          source.close()
+          console.log(source);
+        })
+
       }
     )
   }
 
-  getAttendedView(){
+  getAttendedView() {
     return fetch(environment.erServerUrl + '/api/cluster-status/attended-view').then(r => r.json());
   }
 

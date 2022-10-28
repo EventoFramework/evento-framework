@@ -34,6 +34,7 @@ class EventRailsServerApplicationTest {
 				"event-rails-node-demo-api",
 				BucketType.LibraryOnly,
 				null,
+				null,
 				components
 		);
 		
@@ -44,6 +45,7 @@ class EventRailsServerApplicationTest {
 		ranchApplicationService.register(
 				"event-rails-node-demo-command",
 				BucketType.LiveServer,
+				null,
 				null,
 				components
 		);
@@ -56,6 +58,7 @@ class EventRailsServerApplicationTest {
 				"event-rails-node-demo-query",
 				BucketType.LiveServer,
 				null,
+				null,
 				components
 		);
 
@@ -66,6 +69,7 @@ class EventRailsServerApplicationTest {
 		ranchApplicationService.register(
 				"event-rails-node-demo-saga",
 				BucketType.LiveServer,
+				null,
 				null,
 				components
 		);

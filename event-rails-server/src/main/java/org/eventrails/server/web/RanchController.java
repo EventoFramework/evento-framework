@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
+import java.time.Instant;
 import java.util.List;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
@@ -43,9 +44,10 @@ public class RanchController {
 	public ResponseEntity<?> registerRanch(@RequestParam("ranch") MultipartFile ranch) throws IOException {
 
 		ZipInputStream zis = new ZipInputStream(ranch.getInputStream());
+		String ranchName = ranch.getOriginalFilename().replace(".ranch", "");
 
 		var jarEntry = zis.getNextEntry();
-		var jarUploadPath = fileUploadDir + "/" + jarEntry.getName();
+		var jarUploadPath = fileUploadDir + "/" + ranchName + "-" + Instant.now().toEpochMilli() + ".jar";
 
 		byte[] buffer = new byte[2048];
 		try (FileOutputStream fos = new FileOutputStream(jarUploadPath);
@@ -66,9 +68,10 @@ public class RanchController {
 			}
 
 			ranchApplicationService.register(
-					ranch.getOriginalFilename().replace(".ranch", ""),
+					ranchName,
 					BucketType.LocalFilesystem,
 					jarUploadPath,
+					jarEntry.getName(),
 					ObjectMapperUtils.getPayloadObjectMapper().readValue(bos.toByteArray(), RanchApplicationDescription.class));
 
 		}

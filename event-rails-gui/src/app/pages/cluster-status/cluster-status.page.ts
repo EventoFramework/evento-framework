@@ -1,16 +1,19 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ClusterStatusService} from "../../services/cluster-status.service";
+import {Subscription} from "rxjs";
 
 @Component({
   selector: 'app-cluster-status',
   templateUrl: './cluster-status.page.html',
   styleUrls: ['./cluster-status.page.scss'],
 })
-export class ClusterStatusPage implements OnInit {
+export class ClusterStatusPage implements OnInit, OnDestroy {
 
   public view = {}
   public attendedView = [];
   public externalView = [];
+  private viewSubscription: Subscription;
+  private availableViewSubscription: Subscription;
 
   constructor(private clusterStatusService: ClusterStatusService) {
   }
@@ -28,7 +31,7 @@ export class ClusterStatusPage implements OnInit {
     }
     this.attendedView = attendedView;
 
-    this.clusterStatusService.getView().subscribe(view => {
+    this.viewSubscription = this.clusterStatusService.getView().subscribe(view => {
       console.log("VIEW", view)
       const upNodes = view.map(n => n.nodeName);
       this.externalView = upNodes.filter(n => !this.attendedView.includes(n))
@@ -48,7 +51,7 @@ export class ClusterStatusPage implements OnInit {
       console.log(this.view);
     })
 
-    this.clusterStatusService.getAvailableView().subscribe(view => {
+    this.availableViewSubscription = this.clusterStatusService.getAvailableView().subscribe(view => {
       console.log("AVAILABLE VIEW", view)
       const availableNodes = view.map(n => n.nodeName);
       for (let node of attendedView) {
@@ -59,6 +62,8 @@ export class ClusterStatusPage implements OnInit {
       }
     })
   }
+
+
 
   async spawnRanch(node: any) {
 
@@ -75,5 +80,10 @@ export class ClusterStatusPage implements OnInit {
   async kill(replica: any) {
     await this.clusterStatusService.kill(replica.nodeId);
     // replica.isAvailable = false;
+  }
+
+  ngOnDestroy(): void {
+    this.viewSubscription.unsubscribe();
+    this.availableViewSubscription.unsubscribe();
   }
 }
