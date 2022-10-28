@@ -1,10 +1,10 @@
-package org.eventrails.parser.model.node;
+package org.eventrails.parser.model.component;
 
 import org.eventrails.parser.model.handler.SagaEventHandler;
 
 import java.util.List;
 
-public class Saga extends Node {
+public class Saga extends Component {
 
 	public List<SagaEventHandler> sagaEventHandlers;
 

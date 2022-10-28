@@ -8,7 +8,7 @@ import net.sourceforge.pmd.lang.java.ast.*;
 import org.eventrails.modeling.messaging.payload.*;
 import org.eventrails.parser.BundleParser;
 import org.eventrails.parser.model.BundleDescription;
-import org.eventrails.parser.model.node.Node;
+import org.eventrails.parser.model.component.Component;
 import org.eventrails.parser.model.payload.PayloadDescription;
 
 import java.io.File;
@@ -61,7 +61,7 @@ public class JavaBundleParser implements BundleParser {
 		return new BundleDescription(components, payloads);
 	}
 
-	private Node toComponent(net.sourceforge.pmd.lang.ast.Node node) throws Exception {
+	private Component toComponent(net.sourceforge.pmd.lang.ast.Node node) throws Exception {
 
 		var classDef = node.getFirstDescendantOfType(ASTTypeDeclaration.class);
 		if (JavaComponentParser.isSaga(classDef))

@@ -2,7 +2,7 @@ package org.eventrails.server.service;
 
 import org.eventrails.parser.model.BundleDescription;
 import org.eventrails.parser.model.handler.*;
-import org.eventrails.parser.model.node.*;
+import org.eventrails.parser.model.component.*;
 import org.eventrails.parser.model.payload.Command;
 import org.eventrails.parser.model.payload.MultipleResultQueryReturnType;
 import org.eventrails.parser.model.payload.PayloadDescription;
@@ -44,7 +44,7 @@ public class BundleService {
 			BundleDescription bundleDescription) {
 		Bundle bundle = new Bundle();
 		bundle.setName(bundleDeploymentName);
-		bundle.setContainsHandlers(bundleDescription.getNodes().size()>0);
+		bundle.setContainsHandlers(bundleDescription.getComponents().size()>0);
 		bundle.setBucketType(bundleDeploymentBucketType);
 		bundle.setArtifactCoordinates(bundleDeploymentArtifactCoordinates);
 		bundle.setArtifactOriginalName(jarOriginalName);
@@ -57,15 +57,15 @@ public class BundleService {
 			payload.setType(PayloadType.valueOf(payloadDescription.getType()));
 			payloadRepository.save(payload);
 		}
-		for (Node node : bundleDescription.getNodes())
+		for (Component component : bundleDescription.getComponents())
 		{
-			if (node instanceof Aggregate a)
+			if (component instanceof Aggregate a)
 			{
 				for (AggregateCommandHandler aggregateCommandHandler : a.getAggregateCommandHandlers())
 				{
 					var handler = new Handler();
 					handler.setBundle(bundle);
-					handler.setComponentName(node.getComponentName());
+					handler.setComponentName(component.getComponentName());
 					handler.setHandlerType(HandlerType.AggregateCommandHandler);
 					handler.setComponentType(ComponentType.Aggregate);
 					handler.setHandledPayload(payloadRepository.getById(aggregateCommandHandler.getPayload().getName()));
@@ -79,7 +79,7 @@ public class BundleService {
 				{
 					var handler = new Handler();
 					handler.setBundle(bundle);
-					handler.setComponentName(node.getComponentName());
+					handler.setComponentName(component.getComponentName());
 					handler.setHandlerType(HandlerType.EventSourcingHandler);
 					handler.setComponentType(ComponentType.Aggregate);
 					handler.setHandledPayload(payloadRepository.getById(eventSourcingHandler.getPayload().getName()));
@@ -89,13 +89,13 @@ public class BundleService {
 					handler.generateId();
 					handlerRepository.save(handler);
 				}
-			} else if (node instanceof Saga s)
+			} else if (component instanceof Saga s)
 			{
 				for (SagaEventHandler sagaEventHandler : s.getSagaEventHandlers())
 				{
 					var handler = new Handler();
 					handler.setBundle(bundle);
-					handler.setComponentName(node.getComponentName());
+					handler.setComponentName(component.getComponentName());
 					handler.setHandlerType(HandlerType.SagaEventHandler);
 					handler.setComponentType(ComponentType.Saga);
 					handler.setHandledPayload(payloadRepository.getById(sagaEventHandler.getPayload().getName()));
@@ -115,13 +115,13 @@ public class BundleService {
 					handler.generateId();
 					handlerRepository.save(handler);
 				}
-			} else if (node instanceof Projection p)
+			} else if (component instanceof Projection p)
 			{
 				for (QueryHandler queryHandler : p.getQueryHandlers())
 				{
 					var handler = new Handler();
 					handler.setBundle(bundle);
-					handler.setComponentName(node.getComponentName());
+					handler.setComponentName(component.getComponentName());
 					handler.setHandlerType(HandlerType.QueryHandler);
 					handler.setComponentType(ComponentType.Projection);
 					handler.setHandledPayload(payloadRepository.getById(queryHandler.getPayload().getName()));
@@ -132,13 +132,13 @@ public class BundleService {
 					handlerRepository.save(handler);
 
 				}
-			} else if (node instanceof Projector p)
+			} else if (component instanceof Projector p)
 			{
 				for (EventHandler eventHandler : p.getEventHandlers())
 				{
 					var handler = new Handler();
 					handler.setBundle(bundle);
-					handler.setComponentName(node.getComponentName());
+					handler.setComponentName(component.getComponentName());
 					handler.setHandlerType(HandlerType.EventHandler);
 					handler.setComponentType(ComponentType.Projector);
 					handler.setHandledPayload(payloadRepository.getById(eventHandler.getPayload().getName()));
@@ -154,13 +154,13 @@ public class BundleService {
 					handlerRepository.save(handler);
 
 				}
-			} else if (node instanceof org.eventrails.parser.model.node.Service s)
+			} else if (component instanceof org.eventrails.parser.model.component.Service s)
 			{
 				for (ServiceCommandHandler commandHandler : s.getCommandHandlers())
 				{
 					var handler = new Handler();
 					handler.setBundle(bundle);
-					handler.setComponentName(node.getComponentName());
+					handler.setComponentName(component.getComponentName());
 					handler.setHandlerType(HandlerType.CommandHandler);
 					handler.setComponentType(ComponentType.Service);
 					handler.setHandledPayload(payloadRepository.getById(commandHandler.getPayload().getName()));

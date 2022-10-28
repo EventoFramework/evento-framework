@@ -18,7 +18,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 		commandGateway.sendAndWait(new NotificationSendSilentCommand("hola_cicos2"));
 		System.out.println("end");
 	}
@@ -34,7 +34,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 		var resp = commandGateway.sendAndWait(new NotificationSendCommand("hola_cicos_4"));
 		System.out.println(resp);
 		System.out.println("end");
@@ -44,7 +44,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 		String id = UUID.randomUUID().toString();
 		Thread.sleep(1500);
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
@@ -61,7 +61,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 		String id = UUID.randomUUID().toString();
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
 		System.out.println(resp);
@@ -74,7 +74,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 		Thread.sleep(1000);
 		var start = System.currentTimeMillis();
 		for(int i = 0; i<300; i++)
@@ -91,7 +91,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 
 		String id = UUID.randomUUID().toString();
 		var start = System.currentTimeMillis();
@@ -111,7 +111,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 
 		String id = UUID.randomUUID().toString();
 		var start = System.currentTimeMillis();
@@ -129,7 +129,7 @@ class ApplicationTest {
 		CommandGateway commandGateway = new JGroupsCommandGateway(
 				"event-rails-channel-message",
 				"event-rails-demo-command-test",
-				"event-rails-node-server");
+				"event-rails-server");
 		var start = System.currentTimeMillis();
 		System.out.println(start);
 		for(int i = 0; i<1200; i++)
