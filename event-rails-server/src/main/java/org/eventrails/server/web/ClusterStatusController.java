@@ -39,7 +39,7 @@ public class ClusterStatusController {
 
 	@GetMapping(value = "/attended-view")
 	public ResponseEntity<List<String>> findAllNodes() {
-		var nodes = bundleService.findAllBundlees().stream().filter(Bundle::isContainsHandlers).map(Bundle::getName).collect(Collectors.toList());
+		var nodes = bundleService.findAllBundles().stream().filter(Bundle::isContainsHandlers).map(Bundle::getName).collect(Collectors.toList());
 		nodes.add(serverNodeName);
 		return ResponseEntity.ok(nodes);
 	}
