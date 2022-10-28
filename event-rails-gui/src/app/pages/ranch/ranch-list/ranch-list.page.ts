@@ -1,30 +1,30 @@
 import {Component, OnInit} from '@angular/core';
-import {RanchService} from "../../../services/ranch.service";
+import {BundleService} from "../../../services/bundle.service";
 import {ToastController} from "@ionic/angular";
 
 @Component({
-  selector: 'app-ranch-list',
-  templateUrl: './ranch-list.page.html',
-  styleUrls: ['./ranch-list.page.scss'],
+  selector: 'app-bundle-list',
+  templateUrl: './bundle-list.page.html',
+  styleUrls: ['./bundle-list.page.scss'],
 })
-export class RanchListPage implements OnInit {
+export class BundleListPage implements OnInit {
   elements: any[] = [];
   loading: boolean = false; // Flag variable
   file: File = null; // Variable to store file
 
-  constructor(private ranchService: RanchService,
+  constructor(private bundleService: BundleService,
               private toastController: ToastController) {
   }
 
   async ngOnInit() {
-    this.elements = await this.ranchService.findAll();
+    this.elements = await this.bundleService.findAll();
     console.log(this.elements)
   }
 
-  async unregister(ranch: any) {
-    await this.ranchService.unregister(ranch.name);
+  async unregister(bundle: any) {
+    await this.bundleService.unregister(bundle.name);
     console.log(this.elements)
-    this.elements = this.elements.filter(r => r.name != ranch.name)
+    this.elements = this.elements.filter(r => r.name != bundle.name)
     console.log(this.elements)
   }
 
@@ -38,14 +38,14 @@ export class RanchListPage implements OnInit {
   onUpload() {
     this.loading = !this.loading;
     console.log(this.file);
-    this.ranchService.register(this.file).then(
+    this.bundleService.register(this.file).then(
       (event: any) => {
         this.loading = false; // Flag variable
         this.toastController.create({
           message: "Done!",
           duration: 1500
         }).then(t => t.present());
-        this.ranchService.findAll().then(resp => {
+        this.bundleService.findAll().then(resp => {
           this.elements = resp;
         })
       }

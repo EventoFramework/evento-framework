@@ -1,6 +1,6 @@
-package org.eventrails.modeling.ranch;
+package org.eventrails.modeling.bundle;
 
-public interface RanchMessageHandler {
+public interface BundleMessageHandler {
 
 	public String handleDomainCommand(String domainCommandName, String domainCommandPayload) throws Throwable;
 	public String handleServiceCommand(String serviceCommandName, String serviceCommandPayload) throws Throwable;

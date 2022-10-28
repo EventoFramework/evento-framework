@@ -7,7 +7,7 @@ import org.eventrails.modeling.annotations.handler.EventHandler;
 import org.eventrails.modeling.messaging.message.EventMessage;
 import org.eventrails.modeling.annotations.component.Projector;
 import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.ranch.TransactionalProjector;
+import org.eventrails.modeling.bundle.TransactionalProjector;
 
 @Projector
 public class DemoProjector implements TransactionalProjector {

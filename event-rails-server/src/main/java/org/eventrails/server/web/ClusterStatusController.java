@@ -2,9 +2,9 @@ package org.eventrails.server.web;
 
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.modeling.messaging.message.bus.NodeAddress;
-import org.eventrails.server.domain.model.Ranch;
-import org.eventrails.server.service.RanchApplicationService;
-import org.eventrails.server.service.RanchDeployService;
+import org.eventrails.server.domain.model.Bundle;
+import org.eventrails.server.service.BundleService;
+import org.eventrails.server.service.BundleDeployService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,19 +27,19 @@ public class ClusterStatusController {
 	private String serverNodeName;
 	private final MessageBus messageBus;
 
-	private final RanchApplicationService ranchApplicationService;
-	private final RanchDeployService ranchDeployService;
+	private final BundleService bundleService;
+	private final BundleDeployService bundleDeployService;
 
 	public ClusterStatusController(MessageBus messageBus,
-								   RanchApplicationService ranchApplicationService, RanchDeployService ranchDeployService) {
+								   BundleService bundleService, BundleDeployService bundleDeployService) {
 		this.messageBus = messageBus;
-		this.ranchApplicationService = ranchApplicationService;
-		this.ranchDeployService = ranchDeployService;
+		this.bundleService = bundleService;
+		this.bundleDeployService = bundleDeployService;
 	}
 
 	@GetMapping(value = "/attended-view")
 	public ResponseEntity<List<String>> findAllNodes() {
-		var nodes = ranchApplicationService.findAllRanches().stream().filter(Ranch::isContainsHandlers).map(Ranch::getName).collect(Collectors.toList());
+		var nodes = bundleService.findAllBundlees().stream().filter(Bundle::isContainsHandlers).map(Bundle::getName).collect(Collectors.toList());
 		nodes.add(serverNodeName);
 		return ResponseEntity.ok(nodes);
 	}
@@ -86,15 +86,15 @@ public class ClusterStatusController {
 		return emitter;
 	}
 
-	@PostMapping(value = "/spawn/{ranchName}")
-	public ResponseEntity<?> spawnRanch(@PathVariable String ranchName) throws Exception {
-		ranchDeployService.spawn(ranchName);
+	@PostMapping(value = "/spawn/{bundleName}")
+	public ResponseEntity<?> spawnBundle(@PathVariable String bundleName) throws Exception {
+		bundleDeployService.spawn(bundleName);
 		return ResponseEntity.ok().build();
 	}
 
 	@DeleteMapping(value = "/kill/{nodeId}")
 	public ResponseEntity<?> killNode(@PathVariable String nodeId) throws Exception {
-		ranchDeployService.kill(nodeId);
+		bundleDeployService.kill(nodeId);
 		return ResponseEntity.ok().build();
 	}
 }

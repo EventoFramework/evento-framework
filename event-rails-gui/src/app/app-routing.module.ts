@@ -8,8 +8,8 @@ const routes: Routes = [
     pathMatch: 'full'
   },
   {
-    path: 'ranch-list',
-    loadChildren: () => import('./pages/ranch/ranch-list/ranch-list.module').then(m => m.RanchListPageModule)
+    path: 'bundle-list',
+    loadChildren: () => import('./pages/bundle/bundle-list/bundle-list.module').then(m => m.BundleListPageModule)
   },
   {
     path: 'library-page',

@@ -8,7 +8,7 @@ import org.eventrails.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
-import org.eventrails.server.service.RanchDeployService;
+import org.eventrails.server.service.BundleDeployService;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
@@ -30,20 +30,20 @@ public class MessageGatewayService {
 
 	private final RoundRobinAddressPicker roundRobinAddressPicker;
 
-	private final RanchDeployService ranchDeployService;
+	private final BundleDeployService bundleDeployService;
 
 
 	public MessageGatewayService(
 			HandlerService handlerService,
 			LockRegistry lockRegistry,
 			EventStore eventStore,
-			MessageBus messageBus, RanchDeployService ranchDeployService) {
+			MessageBus messageBus, BundleDeployService bundleDeployService) {
 		this.handlerService = handlerService;
 		this.lockRegistry = lockRegistry;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
-		this.ranchDeployService = ranchDeployService;
+		this.bundleDeployService = bundleDeployService;
 		messageBus.setRequestReceiver(this::messageHandler);
 	}
 
@@ -55,7 +55,7 @@ public class MessageGatewayService {
 			{
 
 				var handler = handlerService.findByPayloadName(c.getCommandName());
-				ranchDeployService.waitUntilAvailable(handler.getRanch().getName());
+				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
 
 				var lock = lockRegistry.obtain("AGGREGATE:" + c.getAggregateId());
 				lock.lock();
@@ -81,7 +81,7 @@ public class MessageGatewayService {
 						invocation.setSerializedAggregateState(snapshot.getAggregateState());
 					}
 					messageBus.cast(
-							roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
+							roundRobinAddressPicker.pickNodeAddress(handler.getBundle().getName()),
 							invocation,
 							resp -> {
 								var cr = (DomainCommandResponseMessage) resp;
@@ -114,9 +114,9 @@ public class MessageGatewayService {
 			} else if (request instanceof ServiceCommandMessage c)
 			{
 				var handler = handlerService.findByPayloadName(c.getCommandName());
-				ranchDeployService.waitUntilAvailable(handler.getRanch().getName());
+				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
 				messageBus.cast(
-						roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
+						roundRobinAddressPicker.pickNodeAddress(handler.getBundle().getName()),
 						c,
 						resp -> {
 							if (resp != null)
@@ -132,9 +132,9 @@ public class MessageGatewayService {
 			} else if (request instanceof QueryMessage<?> q)
 			{
 				var handler = handlerService.findByPayloadName(q.getQueryName());
-				ranchDeployService.waitUntilAvailable(handler.getRanch().getName());
+				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
 				messageBus.cast(
-						roundRobinAddressPicker.pickNodeAddress(handler.getRanch().getName()),
+						roundRobinAddressPicker.pickNodeAddress(handler.getBundle().getName()),
 						q,
 						response::sendResponse,
 						error -> {

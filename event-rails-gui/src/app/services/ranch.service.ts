@@ -5,33 +5,33 @@ import {Observable} from "rxjs";
 @Injectable({
   providedIn: 'root'
 })
-export class RanchService {
+export class BundleService {
 
   constructor() {
   }
 
   async findAll() {
-    return fetch(environment.erServerUrl + '/api/ranch/').then(r => r.json());
+    return fetch(environment.erServerUrl + '/api/bundle/').then(r => r.json());
   }
 
-  async unregister(ranchName) {
-    return fetch(environment.erServerUrl + '/api/ranch/' + ranchName, {
+  async unregister(bundleName) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName, {
       method: 'DELETE'
     });
   }
 
   // Returns an observable
-  register(ranch) {
+  register(bundle) {
 
     // Create form data
     const formData = new FormData();
 
     // Store form name as "file" with file data
-    formData.append("ranch", ranch, ranch.name);
+    formData.append("bundle", bundle, bundle.name);
 
     // Make http post request over api
     // with formData as req
-    return fetch(environment.erServerUrl + '/api/ranch/', {
+    return fetch(environment.erServerUrl + '/api/bundle/', {
       method: 'POST',
       body: formData
     })

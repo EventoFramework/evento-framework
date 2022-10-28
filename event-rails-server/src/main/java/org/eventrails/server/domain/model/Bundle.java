@@ -11,8 +11,8 @@ import java.util.Objects;
 @Setter
 @ToString
 @RequiredArgsConstructor
-@Table(name = "core__ranch")
-public class Ranch {
+@Table(name = "core__bundle")
+public class Bundle {
 
 	@Id
 	private String name;
@@ -26,7 +26,7 @@ public class Ranch {
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
-		Ranch that = (Ranch) o;
+		Bundle that = (Bundle) o;
 		return name != null && Objects.equals(name, that.name);
 	}
 

@@ -92,20 +92,20 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 	}
 
 	@Override
-	public boolean isRanchAvailable(String ranchName) {
+	public boolean isBundleAvailable(String bundleName) {
 		return channel.getView().getMembers().stream()
-				.filter(address -> ranchName.equals(address.toString()))
+				.filter(address -> bundleName.equals(address.toString()))
 				.anyMatch(this.availableNodes::contains);
 	}
 
 	@Override
-	public void addJoinListener(Consumer<String> onRanchJoin) {
-		this.joinListeners.add(onRanchJoin);
+	public void addJoinListener(Consumer<String> onBundleJoin) {
+		this.joinListeners.add(onBundleJoin);
 	}
 
 	@Override
-	public void removeJoinListener(Consumer<String> onRanchJoin) {
-		this.joinListeners.remove(onRanchJoin);
+	public void removeJoinListener(Consumer<String> onBundleJoin) {
+		this.joinListeners.remove(onBundleJoin);
 	}
 
 	@Override

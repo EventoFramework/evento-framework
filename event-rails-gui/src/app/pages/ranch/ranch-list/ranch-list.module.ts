@@ -4,17 +4,17 @@ import { FormsModule } from '@angular/forms';
 
 import { IonicModule } from '@ionic/angular';
 
-import { RanchListPageRoutingModule } from './ranch-list-routing.module';
+import { BundleListPageRoutingModule } from './bundle-list-routing.module';
 
-import { RanchListPage } from './ranch-list.page';
+import { BundleListPage } from './bundle-list.page';
 
 @NgModule({
   imports: [
     CommonModule,
     FormsModule,
     IonicModule,
-    RanchListPageRoutingModule
+    BundleListPageRoutingModule
   ],
-  declarations: [RanchListPage]
+  declarations: [BundleListPage]
 })
-export class RanchListPageModule {}
+export class BundleListPageModule {}
