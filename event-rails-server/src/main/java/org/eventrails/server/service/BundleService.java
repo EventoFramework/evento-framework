@@ -190,7 +190,7 @@ public class BundleService {
 		bundleRepository.deleteByName(bundleDeploymentName);
 	}
 
-	public List<Bundle> findAllBundlees() {
+	public List<Bundle> findAllBundles() {
 		return bundleRepository.findAll();
 	}
 

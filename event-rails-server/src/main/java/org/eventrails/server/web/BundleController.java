@@ -32,7 +32,7 @@ public class BundleController {
 
 	@GetMapping(value = "/", produces = "application/json")
 	public ResponseEntity<List<Bundle>> findAll(){
-		return ResponseEntity.ok(bundleService.findAllBundlees());
+		return ResponseEntity.ok(bundleService.findAllBundles());
 	}
 
 	@PostMapping(value = "/", produces = "application/json")
