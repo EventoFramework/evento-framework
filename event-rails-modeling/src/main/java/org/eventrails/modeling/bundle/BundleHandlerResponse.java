@@ -1,13 +1,13 @@
-package org.eventrails.modeling.ranch;
+package org.eventrails.modeling.bundle;
 
-public class RanchHandlerResponse {
+public class BundleHandlerResponse {
 	private int status;
 	private String body;
 
-	public RanchHandlerResponse() {
+	public BundleHandlerResponse() {
 	}
 
-	public RanchHandlerResponse(int status, String body) {
+	public BundleHandlerResponse(int status, String body) {
 		this.status = status;
 		this.body = body;
 	}

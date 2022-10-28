@@ -2,7 +2,7 @@ package org.eventrails.server.service;
 
 import org.eventrails.parser.model.handler.EventHandler;
 import org.eventrails.server.domain.model.Handler;
-import org.eventrails.server.domain.model.Ranch;
+import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.domain.model.types.HandlerType;
 import org.eventrails.server.domain.repository.HandlerRepository;
 import org.jgroups.Address;
@@ -28,12 +28,12 @@ public class HandlerService {
 		return handlerRepository.findAllByHandledPayload_Name(payloadName);
 	}
 
-	public Collection<Handler> findAllByRanchAndPayloadName(Ranch ranch, String payloadName) {
-		return handlerRepository.findAllByRanchAndHandledPayload_Name(ranch, payloadName);
+	public Collection<Handler> findAllByBundleAndPayloadName(Bundle bundle, String payloadName) {
+		return handlerRepository.findAllByBundleAndHandledPayload_Name(bundle, payloadName);
 	}
 
-	public Collection<Handler> findAllEventHandlersByRanch(Ranch ranch) {
-		return handlerRepository.findAllByRanchAndHandlerTypeIn(ranch, List.of(HandlerType.EventHandler, HandlerType.SagaEventHandler));
+	public Collection<Handler> findAllEventHandlersByBundle(Bundle bundle) {
+		return handlerRepository.findAllByBundleAndHandlerTypeIn(bundle, List.of(HandlerType.EventHandler, HandlerType.SagaEventHandler));
 	}
 
 
@@ -41,7 +41,7 @@ public class HandlerService {
 		return handlerRepository.save(handler);
 	}
 
-	public boolean hasRanchHandlersForPayload(Ranch ranch, String payloadName){
-		return handlerRepository.existsByRanchAndHandledPayload_NameAndHandlerType(ranch, payloadName, HandlerType.EventHandler);
+	public boolean hasBundleHandlersForPayload(Bundle bundle, String payloadName){
+		return handlerRepository.existsByBundleAndHandledPayload_NameAndHandlerType(bundle, payloadName, HandlerType.EventHandler);
 	}
 }

@@ -61,10 +61,10 @@ public interface MessageBus {
 	boolean isEnabled();
 
 
-	boolean isRanchAvailable(String ranchName);
+	boolean isBundleAvailable(String bundleName);
 
-	void addJoinListener(Consumer<String> onRanchJoin);
-	void removeJoinListener(Consumer<String> onRanchJoin);
+	void addJoinListener(Consumer<String> onBundleJoin);
+	void removeJoinListener(Consumer<String> onBundleJoin);
 
 	void addViewListener(Consumer<List<NodeAddress>> listener);
 

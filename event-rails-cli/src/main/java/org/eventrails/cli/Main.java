@@ -1,7 +1,6 @@
 package org.eventrails.cli;
 
-import org.eventrails.modeling.utils.ObjectMapperUtils;
-import org.eventrails.parser.java.JavaRanchApplicationParser;
+import org.eventrails.parser.java.JavaBundleParser;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -13,28 +12,27 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.eventrails.modeling.utils.ObjectMapperUtils.getPayloadObjectMapper;
-import static org.eventrails.modeling.utils.ObjectMapperUtils.getResultObjectMapper;
 
 public class Main {
 	public static void main(String[] args) throws IOException {
-		String ranchName = args[0];
-		String ranchPath = args[1];
+		String bundleName = args[0];
+		String bundlePath = args[1];
 
-		var jar = Arrays.stream(Objects.requireNonNull(new File(ranchPath + "/build/libs").listFiles()))
+		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
 				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
 				.findFirst().orElseThrow();
 		System.out.println("JAR detected: "+jar.getPath());
 
-		System.out.println("Parsing ranch in: " + ranchPath);
-		JavaRanchApplicationParser applicationParser = new JavaRanchApplicationParser();
+		System.out.println("Parsing bundle in: " + bundlePath);
+		JavaBundleParser applicationParser = new JavaBundleParser();
 		var components = applicationParser.parseDirectory(
-				new File(ranchPath));
+				new File(bundlePath));
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
 		System.out.println("JSON created");
 
-		new File(ranchPath + "/build/ranch-dist/" ).mkdir();
+		new File(bundlePath + "/build/bundle-dist/" ).mkdir();
 		final ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(
-				ranchPath + "/build/ranch-dist/" + ranchName + ".ranch"
+				bundlePath + "/build/bundle-dist/" + bundleName + ".bundle"
 		));
 		// PUT THE JAR
 		outputStream.putNextEntry(new ZipEntry(jar.getName()));

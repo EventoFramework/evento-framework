@@ -1,6 +1,6 @@
 package org.eventrails.server.service;
 
-import org.eventrails.parser.model.RanchApplicationDescription;
+import org.eventrails.parser.model.BundleDescription;
 import org.eventrails.parser.model.handler.*;
 import org.eventrails.parser.model.node.*;
 import org.eventrails.parser.model.payload.Command;
@@ -12,7 +12,7 @@ import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.types.ComponentType;
 import org.eventrails.server.domain.model.types.HandlerType;
 import org.eventrails.server.domain.model.types.PayloadType;
-import org.eventrails.server.domain.repository.RanchRepository;
+import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.domain.repository.HandlerRepository;
 import org.eventrails.server.domain.repository.PayloadRepository;
 import org.springframework.stereotype.Service;
@@ -22,34 +22,34 @@ import java.util.HashSet;
 import java.util.List;
 
 @Service
-public class RanchApplicationService {
+public class BundleService {
 
-	private final RanchRepository ranchRepository;
+	private final BundleRepository bundleRepository;
 
 	private final HandlerRepository handlerRepository;
 	private final PayloadRepository payloadRepository;
 
-	public RanchApplicationService(RanchRepository ranchRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository) {
-		this.ranchRepository = ranchRepository;
+	public BundleService(BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository) {
+		this.bundleRepository = bundleRepository;
 		this.handlerRepository = handlerRepository;
 		this.payloadRepository = payloadRepository;
 	}
 
 
 	public void register(
-			String ranchDeploymentName,
-			BucketType ranchDeploymentBucketType,
-			String ranchDeploymentArtifactCoordinates,
+			String bundleDeploymentName,
+			BucketType bundleDeploymentBucketType,
+			String bundleDeploymentArtifactCoordinates,
 			String jarOriginalName,
-			RanchApplicationDescription ranchApplicationDescription) {
-		Ranch ranch = new Ranch();
-		ranch.setName(ranchDeploymentName);
-		ranch.setContainsHandlers(ranchApplicationDescription.getNodes().size()>0);
-		ranch.setBucketType(ranchDeploymentBucketType);
-		ranch.setArtifactCoordinates(ranchDeploymentArtifactCoordinates);
-		ranch.setArtifactOriginalName(jarOriginalName);
-		ranch = ranchRepository.save(ranch);
-		for (PayloadDescription payloadDescription : ranchApplicationDescription.getPayloadDescriptions())
+			BundleDescription bundleDescription) {
+		Bundle bundle = new Bundle();
+		bundle.setName(bundleDeploymentName);
+		bundle.setContainsHandlers(bundleDescription.getNodes().size()>0);
+		bundle.setBucketType(bundleDeploymentBucketType);
+		bundle.setArtifactCoordinates(bundleDeploymentArtifactCoordinates);
+		bundle.setArtifactOriginalName(jarOriginalName);
+		bundle = bundleRepository.save(bundle);
+		for (PayloadDescription payloadDescription : bundleDescription.getPayloadDescriptions())
 		{
 			var payload = new Payload();
 			payload.setName(payloadDescription.getName());
@@ -57,14 +57,14 @@ public class RanchApplicationService {
 			payload.setType(PayloadType.valueOf(payloadDescription.getType()));
 			payloadRepository.save(payload);
 		}
-		for (Node node : ranchApplicationDescription.getNodes())
+		for (Node node : bundleDescription.getNodes())
 		{
 			if (node instanceof Aggregate a)
 			{
 				for (AggregateCommandHandler aggregateCommandHandler : a.getAggregateCommandHandlers())
 				{
 					var handler = new Handler();
-					handler.setRanch(ranch);
+					handler.setBundle(bundle);
 					handler.setComponentName(node.getComponentName());
 					handler.setHandlerType(HandlerType.AggregateCommandHandler);
 					handler.setComponentType(ComponentType.Aggregate);
@@ -78,7 +78,7 @@ public class RanchApplicationService {
 				for (EventSourcingHandler eventSourcingHandler : a.getEventSourcingHandlers())
 				{
 					var handler = new Handler();
-					handler.setRanch(ranch);
+					handler.setBundle(bundle);
 					handler.setComponentName(node.getComponentName());
 					handler.setHandlerType(HandlerType.EventSourcingHandler);
 					handler.setComponentType(ComponentType.Aggregate);
@@ -94,7 +94,7 @@ public class RanchApplicationService {
 				for (SagaEventHandler sagaEventHandler : s.getSagaEventHandlers())
 				{
 					var handler = new Handler();
-					handler.setRanch(ranch);
+					handler.setBundle(bundle);
 					handler.setComponentName(node.getComponentName());
 					handler.setHandlerType(HandlerType.SagaEventHandler);
 					handler.setComponentType(ComponentType.Saga);
@@ -120,7 +120,7 @@ public class RanchApplicationService {
 				for (QueryHandler queryHandler : p.getQueryHandlers())
 				{
 					var handler = new Handler();
-					handler.setRanch(ranch);
+					handler.setBundle(bundle);
 					handler.setComponentName(node.getComponentName());
 					handler.setHandlerType(HandlerType.QueryHandler);
 					handler.setComponentType(ComponentType.Projection);
@@ -137,7 +137,7 @@ public class RanchApplicationService {
 				for (EventHandler eventHandler : p.getEventHandlers())
 				{
 					var handler = new Handler();
-					handler.setRanch(ranch);
+					handler.setBundle(bundle);
 					handler.setComponentName(node.getComponentName());
 					handler.setHandlerType(HandlerType.EventHandler);
 					handler.setComponentType(ComponentType.Projector);
@@ -159,7 +159,7 @@ public class RanchApplicationService {
 				for (ServiceCommandHandler commandHandler : s.getCommandHandlers())
 				{
 					var handler = new Handler();
-					handler.setRanch(ranch);
+					handler.setBundle(bundle);
 					handler.setComponentName(node.getComponentName());
 					handler.setHandlerType(HandlerType.CommandHandler);
 					handler.setComponentType(ComponentType.Service);
@@ -185,16 +185,16 @@ public class RanchApplicationService {
 
 	@Transactional
 	public void unregister(
-			String ranchDeploymentName) {
-		handlerRepository.deleteAllByRanch_Name(ranchDeploymentName);
-		ranchRepository.deleteByName(ranchDeploymentName);
+			String bundleDeploymentName) {
+		handlerRepository.deleteAllByBundle_Name(bundleDeploymentName);
+		bundleRepository.deleteByName(bundleDeploymentName);
 	}
 
-	public List<Ranch> findAllRanches() {
-		return ranchRepository.findAll();
+	public List<Bundle> findAllBundlees() {
+		return bundleRepository.findAll();
 	}
 
-	public Ranch findByName(String ranchName) {
-		return ranchRepository.findById(ranchName).orElseThrow();
+	public Bundle findByName(String bundleName) {
+		return bundleRepository.findById(bundleName).orElseThrow();
 	}
 }

@@ -9,16 +9,16 @@ import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.state.SerializedSagaState;
 import org.eventrails.server.domain.model.ComponentEventConsumingState;
 import org.eventrails.server.domain.model.Handler;
-import org.eventrails.server.domain.model.Ranch;
+import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.domain.model.SagaState;
 import org.eventrails.server.domain.model.types.HandlerType;
 import org.eventrails.server.domain.repository.ComponentEventConsumingStateRepository;
-import org.eventrails.server.domain.repository.RanchRepository;
+import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.domain.repository.SagaStateRepository;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
-import org.eventrails.server.service.RanchDeployService;
+import org.eventrails.server.service.BundleDeployService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -31,7 +31,7 @@ import static java.util.stream.Collectors.groupingBy;
 @Service
 public class EventDispatcher {
 
-	private final RanchRepository ranchRepository;
+	private final BundleRepository bundleRepository;
 
 	private final SagaStateRepository sagaStateRepository;
 
@@ -46,17 +46,17 @@ public class EventDispatcher {
 
 	private final RoundRobinAddressPicker roundRobinAddressPicker;
 
-	private final RanchDeployService ranchDeployService;
+	private final BundleDeployService bundleDeployService;
 
 	public EventDispatcher(
-			RanchRepository ranchRepository,
+			BundleRepository bundleRepository,
 			SagaStateRepository sagaStateRepository,
 			ComponentEventConsumingStateRepository componentEventConsumingStateRepository,
 			MessageBus messageBus,
 			HandlerService handlerService,
 			EventStore eventStore,
-			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, RanchDeployService ranchDeployService) {
-		this.ranchRepository = ranchRepository;
+			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, BundleDeployService bundleDeployService) {
+		this.bundleRepository = bundleRepository;
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
 		this.messageBus = messageBus;
@@ -64,7 +64,7 @@ public class EventDispatcher {
 		this.eventStore = eventStore;
 		this.serverNodeName = serverNodeName;
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
-		this.ranchDeployService = ranchDeployService;
+		this.bundleDeployService = bundleDeployService;
 		eventConsumer();
 	}
 
@@ -74,27 +74,27 @@ public class EventDispatcher {
 		var nodeIndex = dispatcherAddresses.indexOf(messageBus.getAddress().getAddress());
 		var nodeCount = dispatcherAddresses.size();
 
-		var ranches = ranchRepository.findAll();
-		var managedRanches = new ArrayList<Ranch>();
+		var bundlees = bundleRepository.findAll();
+		var managedBundlees = new ArrayList<Bundle>();
 
-		for (int i = 0; i < ranches.size(); i++)
+		for (int i = 0; i < bundlees.size(); i++)
 		{
 			if (i % nodeCount == nodeIndex)
 			{
-				managedRanches.add(ranches.get(i));
+				managedBundlees.add(bundlees.get(i));
 			}
 		}
 
-		for (Ranch ranch : managedRanches)
+		for (Bundle bundle : managedBundlees)
 		{
-			for (Map.Entry<String, List<Handler>> entry : handlerService.findAllEventHandlersByRanch(ranch)
+			for (Map.Entry<String, List<Handler>> entry : handlerService.findAllEventHandlersByBundle(bundle)
 					.stream().collect(groupingBy(Handler::getComponentName)).entrySet())
 			{
 
 				if (entry.getValue().get(0).getHandlerType() == HandlerType.EventHandler)
 				{
 					new Thread(() -> processProjectorEvents(
-							ranch.getName(),
+							bundle.getName(),
 							entry.getKey(),
 							new ArrayList<>(),
 							entry.getValue(),
@@ -103,7 +103,7 @@ public class EventDispatcher {
 				} else if (entry.getValue().get(0).getHandlerType() == HandlerType.SagaEventHandler)
 				{
 					new Thread(() -> processSagaEvents(
-							ranch.getName(),
+							bundle.getName(),
 							entry.getKey(),
 							new ArrayList<>(),
 							entry.getValue(),
@@ -143,7 +143,7 @@ public class EventDispatcher {
 
 
 	private void processSagaEvents(
-			String ranchName,
+			String bundleName,
 			String sagaName,
 			List<PublishedEvent> events,
 			List<Handler> handlers,
@@ -159,7 +159,7 @@ public class EventDispatcher {
 						.orElseGet(() ->
 							repository.save(new ComponentEventConsumingState(
 									sagaName,
-									ranchName,
+									bundleName,
 									eventStore.getLastEventSequenceNumber()))
 						);
 				events.addAll(eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList());
@@ -173,11 +173,11 @@ public class EventDispatcher {
 				retryBlock(() -> {
 					repository.save(new ComponentEventConsumingState(
 							sagaName,
-							ranchName,
+							bundleName,
 							event.getEventSequenceNumber()));
 
 					processSagaEvents(
-							ranchName, sagaName,
+							bundleName, sagaName,
 							events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
 							handlers, eventStore,
 							repository, sagaStateRepository);
@@ -193,8 +193,8 @@ public class EventDispatcher {
 								associationValue)
 						.orElse(new SagaState(sagaName, new SerializedSagaState<>(null)));
 
-				ranchDeployService.waitUntilAvailable(ranchName);
-				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(ranchName),
+				bundleDeployService.waitUntilAvailable(bundleName);
+				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(bundleName),
 						new EventToSagaMessage(event.getEventMessage(),
 								sagaState.getSerializedSagaState(),
 								sagaName
@@ -212,11 +212,11 @@ public class EventDispatcher {
 									sagaStateRepository.delete(sagaState);
 								repository.save(new ComponentEventConsumingState(
 										sagaName,
-										ranchName,
+										bundleName,
 										event.getEventSequenceNumber()));
 
 								processSagaEvents(
-										ranchName, sagaName,
+										bundleName, sagaName,
 										events.size() == 1 ? new ArrayList<>() : events.subList(1, events.size()), handlers, eventStore,
 										repository, sagaStateRepository);
 							});
@@ -225,7 +225,7 @@ public class EventDispatcher {
 						error -> {
 							error.toException().printStackTrace();
 							processSagaEvents(
-									ranchName, sagaName, events,
+									bundleName, sagaName, events,
 									handlers, eventStore,
 									repository, sagaStateRepository);
 
@@ -236,7 +236,7 @@ public class EventDispatcher {
 	}
 
 	private void processProjectorEvents(
-			String ranchName,
+			String bundleName,
 			String projectorName,
 			List<PublishedEvent> events,
 			List<Handler> handlers,
@@ -250,7 +250,7 @@ public class EventDispatcher {
 						.findById(projectorName)
 						.orElse(new ComponentEventConsumingState(
 								projectorName,
-								ranchName,
+								bundleName,
 								0L));
 				events.addAll(eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList());
 			}
@@ -258,19 +258,19 @@ public class EventDispatcher {
 			if (handlers.stream()
 					.noneMatch(h -> h.getHandledPayload().getName().equals(event.getEventName())))
 			{
-				processNextProjectorEvent(ranchName, projectorName, events, handlers, eventStore, repository, event);
+				processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
 			} else
 			{
 
-				ranchDeployService.waitUntilAvailable(ranchName);
-				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(ranchName),
+				bundleDeployService.waitUntilAvailable(bundleName);
+				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(bundleName),
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {
-							processNextProjectorEvent(ranchName, projectorName, events, handlers, eventStore, repository, event);
+							processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
 						},
 						err -> {
 							err.toException().printStackTrace();
-							processProjectorEvents(ranchName, projectorName, events, handlers, eventStore, repository);
+							processProjectorEvents(bundleName, projectorName, events, handlers, eventStore, repository);
 						});
 			}
 
@@ -279,18 +279,18 @@ public class EventDispatcher {
 	}
 
 	private void processNextProjectorEvent(
-			String ranchName,
+			String bundleName,
 			String projectorName,
 			List<PublishedEvent> events, List<Handler> handlers, EventStore eventStore,
 			ComponentEventConsumingStateRepository repository, PublishedEvent event) {
 		retryBlock(() -> {
 			repository.save(new ComponentEventConsumingState(
 					projectorName,
-					ranchName,
+					bundleName,
 					event.getEventSequenceNumber()));
 
 			processProjectorEvents(
-					ranchName,
+					bundleName,
 					projectorName,
 					events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
 					handlers,

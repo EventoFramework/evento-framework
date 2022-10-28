@@ -23,7 +23,7 @@ import java.util.Set;
 public class EventRailsApplication {
 
 	private final String basePackage;
-	private final String ranchName;
+	private final String bundleName;
 	private final JGroupsMessageBus messageBus;
 
 	private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
@@ -37,12 +37,12 @@ public class EventRailsApplication {
 
 	private EventRailsApplication(
 			String basePackage,
-			String ranchName,
+			String bundleName,
 			String clusterName,
 			String serverName
 	) throws Exception {
 		this.basePackage = basePackage;
-		this.ranchName = ranchName;
+		this.bundleName = bundleName;
 
 		JChannel jChannel = new JChannel();
 
@@ -60,7 +60,7 @@ public class EventRailsApplication {
 									.get(c.getCommandMessage().getCommandName());
 							if (handler == null)
 								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(c.getCommandMessage().getCommandName(), getRanchName()));
+										.formatted(c.getCommandMessage().getCommandName(), getBundleName()));
 							var envelope = new AggregateStateEnvelope(c.getSerializedAggregateState().getAggregateState());
 							var event = handler.invoke(
 									c.getCommandMessage(),
@@ -81,7 +81,7 @@ public class EventRailsApplication {
 							var handler = getServiceMessageHandlers().get(c.getCommandName());
 							if (handler == null)
 								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(c.getCommandName(), getRanchName()));
+										.formatted(c.getCommandName(), getBundleName()));
 							var event = handler.invoke(
 									c,
 									commandGateway,
@@ -92,7 +92,7 @@ public class EventRailsApplication {
 						{
 							var handler = getProjectionMessageHandlers().get(q.getQueryName());
 							if (handler == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getRanchName()));
+								throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleName()));
 							var result = handler.invoke(
 									q,
 									commandGateway,
@@ -105,13 +105,13 @@ public class EventRailsApplication {
 									.get(m.getEventMessage().getEventName());
 							if (handlers == null)
 								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getRanchName()));
+										.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
 
 							var handler = handlers.getOrDefault(m.getProjectorName(), null);
 							if (handler == null)
 								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getRanchName()));
+										.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
 							handler.begin();
 							handler.invoke(
@@ -127,13 +127,13 @@ public class EventRailsApplication {
 									.get(m.getEventMessage().getEventName());
 							if (handlers == null)
 								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getRanchName()));
+										.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
 
 							var handler = handlers.getOrDefault(m.getSagaName(), null);
 							if (handler == null)
 								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getRanchName()));
+										.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
 
 							var state = handler.invoke(
@@ -153,7 +153,7 @@ public class EventRailsApplication {
 					}
 
 				});
-		jChannel.setName(ranchName);
+		jChannel.setName(bundleName);
 		jChannel.connect(clusterName);
 
 		commandGateway = new JGroupsCommandGateway(messageBus, serverName);
@@ -169,10 +169,10 @@ public class EventRailsApplication {
 		messageBus.disableBus();
 	}
 
-	public static EventRailsApplication start(String basePackage, String ranchName, String messageChannelName, String serverName, String[] args) {
+	public static EventRailsApplication start(String basePackage, String bundleName, String messageChannelName, String serverName, String[] args) {
 		try
 		{
-			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, ranchName, messageChannelName, serverName);
+			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, messageChannelName, serverName);
 			eventRailsApplication.parsePackage();
 			eventRailsApplication.startBus();
 			return eventRailsApplication;
@@ -258,13 +258,13 @@ public class EventRailsApplication {
 		return basePackage;
 	}
 
-	public String getRanchName() {
-		return ranchName;
+	public String getBundleName() {
+		return bundleName;
 	}
 
 	public static class ApplicationInfo {
 		public String basePackage;
-		public String ranchName;
+		public String bundleName;
 		public String clusterName;
 
 		public Set<String> aggregateMessageHandlers;
@@ -277,7 +277,7 @@ public class EventRailsApplication {
 	public ApplicationInfo getAppInfo() {
 		var info = new ApplicationInfo();
 		info.basePackage = basePackage;
-		info.ranchName = ranchName;
+		info.bundleName = bundleName;
 		info.aggregateMessageHandlers = aggregateMessageHandlers.keySet();
 		info.serviceMessageHandlers = serviceMessageHandlers.keySet();
 		info.projectionMessageHandlers = projectionMessageHandlers.keySet();

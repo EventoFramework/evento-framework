@@ -26,7 +26,7 @@ public class Handler {
 	private Payload handledPayload;
 
 	@ManyToOne(cascade = CascadeType.REMOVE)
-	private Ranch ranch;
+	private Bundle bundle;
 
 	private String componentName;
 
@@ -53,7 +53,7 @@ public class Handler {
 		if (this == o) return true;
 		if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
 		Handler handler = (Handler) o;
-		return ranch != null && Objects.equals(ranch, handler.ranch)
+		return bundle != null && Objects.equals(bundle, handler.bundle)
 				&& componentName != null && Objects.equals(componentName, handler.componentName)
 				&& handledPayload != null && Objects.equals(handledPayload, handler.handledPayload)
 				&& returnType != null && Objects.equals(returnType, handler.returnType);
@@ -61,7 +61,7 @@ public class Handler {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(ranch,
+		return Objects.hash(bundle,
 				componentName,
 				handledPayload,
 				returnType);
@@ -69,7 +69,7 @@ public class Handler {
 
 	@SneakyThrows
 	public void generateId() throws HibernateException {
-		var str = this.getRanch() + this.getComponentName() + this.getComponentType() + this.getHandledPayload();
+		var str = this.getBundle() + this.getComponentName() + this.getComponentType() + this.getHandledPayload();
 		MessageDigest digest = MessageDigest.getInstance("SHA-256");
 		byte[] hash = digest.digest(
 				str.getBytes(StandardCharsets.UTF_8));
