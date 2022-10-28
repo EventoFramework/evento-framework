@@ -74,18 +74,18 @@ public class EventDispatcher {
 		var nodeIndex = dispatcherAddresses.indexOf(messageBus.getAddress().getAddress());
 		var nodeCount = dispatcherAddresses.size();
 
-		var bundlees = bundleRepository.findAll();
-		var managedBundlees = new ArrayList<Bundle>();
+		var bundles = bundleRepository.findAll();
+		var managedBundles = new ArrayList<Bundle>();
 
-		for (int i = 0; i < bundlees.size(); i++)
+		for (int i = 0; i < bundles.size(); i++)
 		{
 			if (i % nodeCount == nodeIndex)
 			{
-				managedBundlees.add(bundlees.get(i));
+				managedBundles.add(bundles.get(i));
 			}
 		}
 
-		for (Bundle bundle : managedBundlees)
+		for (Bundle bundle : managedBundles)
 		{
 			for (Map.Entry<String, List<Handler>> entry : handlerService.findAllEventHandlersByBundle(bundle)
 					.stream().collect(groupingBy(Handler::getComponentName)).entrySet())
