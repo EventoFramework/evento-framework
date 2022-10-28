@@ -18,7 +18,12 @@ const routes: Routes = [
   {
     path: 'cluster-status',
     loadChildren: () => import('./pages/cluster-status/cluster-status.module').then( m => m.ClusterStatusPageModule)
+  },  {
+    path: 'application-map',
+    loadChildren: () => import('./pages/application-map/application-map.module').then( m => m.ApplicationMapPageModule)
   }
+
+
 ];
 
 @NgModule({
