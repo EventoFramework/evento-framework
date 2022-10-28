@@ -6,8 +6,8 @@ import net.sourceforge.pmd.lang.LanguageVersionHandler;
 import net.sourceforge.pmd.lang.Parser;
 import net.sourceforge.pmd.lang.java.ast.*;
 import org.eventrails.modeling.messaging.payload.*;
-import org.eventrails.parser.RanchApplicationParser;
-import org.eventrails.parser.model.RanchApplicationDescription;
+import org.eventrails.parser.BundleParser;
+import org.eventrails.parser.model.BundleDescription;
 import org.eventrails.parser.model.node.Node;
 import org.eventrails.parser.model.payload.PayloadDescription;
 
@@ -18,9 +18,9 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.Objects;
 
-public class JavaRanchApplicationParser implements RanchApplicationParser {
+public class JavaBundleParser implements BundleParser {
 
-	public RanchApplicationDescription parseDirectory(File file) throws IOException {
+	public BundleDescription parseDirectory(File file) throws IOException {
 		LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
 		Parser parser = java.getParser(java.getDefaultParserOptions());
 		if (!file.isDirectory()) throw new RuntimeException("error.not.dir");
@@ -58,7 +58,7 @@ public class JavaRanchApplicationParser implements RanchApplicationParser {
 					}
 				}).filter(Objects::nonNull).toList();
 
-		return new RanchApplicationDescription(components, payloads);
+		return new BundleDescription(components, payloads);
 	}
 
 	private Node toComponent(net.sourceforge.pmd.lang.ast.Node node) throws Exception {

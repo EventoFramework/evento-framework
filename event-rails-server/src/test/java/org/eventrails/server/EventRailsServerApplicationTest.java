@@ -1,8 +1,8 @@
 package org.eventrails.server;
 
-import org.eventrails.parser.java.JavaRanchApplicationParser;
+import org.eventrails.parser.java.JavaBundleParser;
 import org.eventrails.server.domain.model.BucketType;
-import org.eventrails.server.service.RanchApplicationService;
+import org.eventrails.server.service.BundleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,21 +16,21 @@ import java.io.IOException;
 class EventRailsServerApplicationTest {
 
 	@Autowired
-	RanchApplicationService ranchApplicationService;
+	BundleService bundleService;
 	@Test
 	void test() throws IOException {
-		JavaRanchApplicationParser applicationParser = new JavaRanchApplicationParser();
+		JavaBundleParser applicationParser = new JavaBundleParser();
 
-		ranchApplicationService.unregister("event-rails-node-demo-api");
-		ranchApplicationService.unregister("event-rails-node-demo-command");
-		ranchApplicationService.unregister("event-rails-node-demo-query");
-		ranchApplicationService.unregister("event-rails-node-demo-saga");
+		bundleService.unregister("event-rails-node-demo-api");
+		bundleService.unregister("event-rails-node-demo-command");
+		bundleService.unregister("event-rails-node-demo-query");
+		bundleService.unregister("event-rails-node-demo-saga");
 
 		var components = applicationParser.parseDirectory(
 				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-api\\src\\main\\java\\org\\eventrails\\demo"));
 
 
-		ranchApplicationService.register(
+		bundleService.register(
 				"event-rails-node-demo-api",
 				BucketType.LibraryOnly,
 				null,
@@ -42,7 +42,7 @@ class EventRailsServerApplicationTest {
 				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-command\\src\\main\\java\\org\\eventrails\\demo"));
 
 
-		ranchApplicationService.register(
+		bundleService.register(
 				"event-rails-node-demo-command",
 				BucketType.LiveServer,
 				null,
@@ -54,7 +54,7 @@ class EventRailsServerApplicationTest {
 				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-query\\src\\main\\java\\org\\eventrails\\demo"));
 
 
-		ranchApplicationService.register(
+		bundleService.register(
 				"event-rails-node-demo-query",
 				BucketType.LiveServer,
 				null,
@@ -66,7 +66,7 @@ class EventRailsServerApplicationTest {
 				new File(System.getProperty("user.dir") + "\\..\\event-rails-demo\\event-rails-demo-saga\\src\\main\\java\\org\\eventrails\\demo"));
 
 
-		ranchApplicationService.register(
+		bundleService.register(
 				"event-rails-node-demo-saga",
 				BucketType.LiveServer,
 				null,

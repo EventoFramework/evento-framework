@@ -6,17 +6,17 @@ import org.eventrails.parser.model.payload.*;
 import java.io.Serializable;
 import java.util.List;
 
-public class RanchApplicationDescription implements Serializable {
+public class BundleDescription implements Serializable {
 
 	private List<Node> nodes;
 	private List<PayloadDescription> payloadDescriptions;
 
-	public RanchApplicationDescription(List<Node> nodes, List<PayloadDescription> payloadDescriptions) {
+	public BundleDescription(List<Node> nodes, List<PayloadDescription> payloadDescriptions) {
 		this.nodes = nodes;
 		this.payloadDescriptions = payloadDescriptions;
 	}
 
-	public RanchApplicationDescription() {
+	public BundleDescription() {
 	}
 
 	public List<Node> getNodes() {

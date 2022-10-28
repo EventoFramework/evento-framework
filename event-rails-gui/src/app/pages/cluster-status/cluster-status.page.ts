@@ -65,7 +65,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
 
 
 
-  async spawnRanch(node: any) {
+  async spawnBundle(node: any) {
 
     await this.clusterStatusService.spawn(node);
     this.view[node].isOnline = true;

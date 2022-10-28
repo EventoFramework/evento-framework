@@ -21,14 +21,14 @@ class MainTest {
 	@Test
 	public void move() throws IOException {
 
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-api/build/ranch-dist/event-rails-node-demo-api.ranch"),
-				Path.of("../00_temp/event-rails-node-demo-api.ranch"));
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-command/build/ranch-dist/event-rails-node-demo-command.ranch"),
-				Path.of("../00_temp/event-rails-node-demo-command.ranch"));
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-query/build/ranch-dist/event-rails-node-demo-query.ranch"),
-				Path.of("../00_temp/event-rails-node-demo-query.ranch"));
-		Files.move(Path.of("../event-rails-demo/event-rails-demo-saga/build/ranch-dist/event-rails-node-demo-saga.ranch"),
-				Path.of("../00_temp/event-rails-node-demo-saga.ranch"));
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-api/build/bundle-dist/event-rails-node-demo-api.bundle"),
+				Path.of("../00_temp/event-rails-node-demo-api.bundle"));
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-command/build/bundle-dist/event-rails-node-demo-command.bundle"),
+				Path.of("../00_temp/event-rails-node-demo-command.bundle"));
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-query/build/bundle-dist/event-rails-node-demo-query.bundle"),
+				Path.of("../00_temp/event-rails-node-demo-query.bundle"));
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-saga/build/bundle-dist/event-rails-node-demo-saga.bundle"),
+				Path.of("../00_temp/event-rails-node-demo-saga.bundle"));
 	}
 
 

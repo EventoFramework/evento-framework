@@ -6,7 +6,7 @@ import org.eventrails.modeling.gateway.CommandGateway;
 import org.eventrails.modeling.gateway.QueryGateway;
 import org.eventrails.modeling.messaging.message.EventMessage;
 import org.eventrails.modeling.messaging.payload.Event;
-import org.eventrails.modeling.ranch.TransactionalProjector;
+import org.eventrails.modeling.bundle.TransactionalProjector;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

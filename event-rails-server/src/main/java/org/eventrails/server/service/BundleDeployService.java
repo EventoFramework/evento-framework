@@ -1,60 +1,57 @@
 package org.eventrails.server.service;
 
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
-import org.eventrails.server.domain.model.Ranch;
+import org.eventrails.server.domain.model.Bundle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-import java.awt.*;
 import java.io.*;
 import java.util.HashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 @Service
-public class RanchDeployService {
+public class BundleDeployService {
 
-	private final Logger LOGGER = LoggerFactory.getLogger(RanchDeployService.class);
+	private final Logger LOGGER = LoggerFactory.getLogger(BundleDeployService.class);
 
-	@Value("${eventrails.ranch.deploy.java}")
+	@Value("${eventrails.bundle.deploy.java}")
 	private String javaExe;
 	private final MessageBus messageBus;
 	private final LockRegistry lockRegistry;
-	private final RanchApplicationService ranchApplicationService;
+	private final BundleService bundleService;
 
 	private final HashMap<String, Semaphore> semaphoreMap = new HashMap<>();
 
-	public RanchDeployService(MessageBus messageBus, LockRegistry lockRegistry, RanchApplicationService ranchApplicationService) {
+	public BundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleService bundleService) {
 		this.messageBus = messageBus;
 		this.lockRegistry = lockRegistry;
-		this.ranchApplicationService = ranchApplicationService;
-		messageBus.addJoinListener(ranch -> {
-			var s = semaphoreMap.get(ranch);
+		this.bundleService = bundleService;
+		messageBus.addJoinListener(bundle -> {
+			var s = semaphoreMap.get(bundle);
 			if (s != null)
 				s.release();
 		});
 	}
 
-	public void waitUntilAvailable(String ranchName) {
+	public void waitUntilAvailable(String bundleName) {
 
-		if (!messageBus.isRanchAvailable(ranchName))
+		if (!messageBus.isBundleAvailable(bundleName))
 		{
-			var ranch = ranchApplicationService.findByName(ranchName);
-			var lock = lockRegistry.obtain("RANCH:" + ranchName);
+			var bundle = bundleService.findByName(bundleName);
+			var lock = lockRegistry.obtain("RANCH:" + bundleName);
 			try
 			{
 				lock.lock();
-				var semaphore = semaphoreMap.getOrDefault(ranchName, new Semaphore(0));
-				semaphoreMap.put(ranchName, semaphore);
-				spawn(ranch);
+				var semaphore = semaphoreMap.getOrDefault(bundleName, new Semaphore(0));
+				semaphoreMap.put(bundleName, semaphore);
+				spawn(bundle);
 				if (!semaphore.tryAcquire(30, TimeUnit.SECONDS))
 				{
-					throw new IllegalStateException("Ranch Cannot Start");
+					throw new IllegalStateException("Bundle Cannot Start");
 				}
 
 			} catch (Exception e)
@@ -62,20 +59,20 @@ public class RanchDeployService {
 				throw new RuntimeException(e);
 			} finally
 			{
-				semaphoreMap.remove(ranchName);
+				semaphoreMap.remove(bundleName);
 				lock.unlock();
 			}
 		}
 	}
 
-	public void spawn(Ranch ranch) throws Exception {
-		LOGGER.info("Spawning ranch {}", ranch.getName());
-		switch (ranch.getBucketType())
+	public void spawn(Bundle bundle) throws Exception {
+		LOGGER.info("Spawning bundle {}", bundle.getName());
+		switch (bundle.getBucketType())
 		{
 			case LocalFilesystem ->
 			{
 				var p = Runtime.getRuntime()
-						.exec(new String[]{javaExe, "-jar", ranch.getArtifactCoordinates()});
+						.exec(new String[]{javaExe, "-jar", bundle.getArtifactCoordinates()});
 				var t1 = new Thread(() -> {
 					BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
 					String line;
@@ -88,7 +85,7 @@ public class RanchDeployService {
 						{
 							throw new RuntimeException(e);
 						}
-						LOGGER.debug("[" + ranch.getName() + " (" + p.pid() + ")]: " + line);
+						LOGGER.debug("[" + bundle.getName() + " (" + p.pid() + ")]: " + line);
 					}
 				});
 				var t2 = new Thread(() -> {
@@ -103,7 +100,7 @@ public class RanchDeployService {
 						{
 							throw new RuntimeException(e);
 						}
-						LOGGER.error("[" + ranch.getName() + " (" + p.pid() + ")]: " + line);
+						LOGGER.error("[" + bundle.getName() + " (" + p.pid() + ")]: " + line);
 					}
 				});
 				t1.start();
@@ -114,10 +111,10 @@ public class RanchDeployService {
 						int exitCode = p.waitFor();
 						if (exitCode != 0)
 						{
-							LOGGER.error("[" + ranch.getName() + " (" + p.pid() + ")]: TERMINATED WITH ERROR");
+							LOGGER.error("[" + bundle.getName() + " (" + p.pid() + ")]: TERMINATED WITH ERROR");
 						} else
 						{
-							LOGGER.debug("[" + ranch.getName() + " (" + p.pid() + ")]: TERMINATED GRACEFULLY");
+							LOGGER.debug("[" + bundle.getName() + " (" + p.pid() + ")]: TERMINATED GRACEFULLY");
 						}
 					} catch (InterruptedException e)
 					{
@@ -133,8 +130,8 @@ public class RanchDeployService {
 		}
 	}
 
-	public void spawn(String ranchName) throws Exception {
-		spawn(ranchApplicationService.findByName(ranchName));
+	public void spawn(String bundleName) throws Exception {
+		spawn(bundleService.findByName(bundleName));
 	}
 
 	public void kill(String nodeId) throws Exception {

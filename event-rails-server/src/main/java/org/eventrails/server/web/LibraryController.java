@@ -26,7 +26,7 @@ public class LibraryController {
 		return ResponseEntity.ok(payloadRepository.findAll().stream().map(p ->
 			new PayloadDto(p.getName(),
 					p.getHandlers().stream().map(h ->
-							new PayloadDto.HandlerDto(h.getUuid(),h.getRanch().getName(),
+							new PayloadDto.HandlerDto(h.getUuid(),h.getBundle().getName(),
 									h.getComponentName(),
 									h.getReturnType() == null ? null : h.getReturnType().getName(),
 									h.getComponentType(),  h.getHandlerType(),
