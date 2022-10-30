@@ -10,6 +10,19 @@ class BundleDescriptionParserTest {
 
 	@Test
 	void parseDirectory() throws IOException {
+		JavaBundleParser applicationParser = new JavaBundleParser();
+		var components = applicationParser.parseDirectory(
+				new File("..\\..\\event-rails\\event-rails-demo\\event-rails-demo-command\\src\\main\\java\\org\\eventrails\\demo"));
+
+		System.out.println(components);
+
+		components = applicationParser.parseDirectory(
+				new File("..\\..\\event-rails\\event-rails-demo\\event-rails-demo-query\\src\\main\\java\\org\\eventrails\\demo"));
+
+		System.out.println(components);
+		components = applicationParser.parseDirectory(
+				new File("..\\..\\event-rails\\event-rails-demo\\event-rails-demo-saga\\src\\main\\java\\org\\eventrails\\demo"));
+		System.out.println(components);
 
 	}
 }
