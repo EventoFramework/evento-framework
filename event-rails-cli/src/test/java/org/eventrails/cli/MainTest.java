@@ -18,6 +18,11 @@ class MainTest {
 		Main.main(new String[]{"event-rails-bundle-demo-query","../event-rails-demo/event-rails-demo-query"});
 		Main.main(new String[]{"event-rails-bundle-demo-saga","../event-rails-demo/event-rails-demo-saga"});
 
+
+	}
+	@Test
+	public void move() throws IOException {
+
 		Files.move(Path.of("../event-rails-demo/event-rails-demo-api/build/bundle-dist/event-rails-bundle-demo-api.bundle"),
 				Path.of("../00_temp/event-rails-bundle-demo-api.bundle"));
 		Files.move(Path.of("../event-rails-demo/event-rails-demo-command/build/bundle-dist/event-rails-bundle-demo-command.bundle"),
@@ -26,11 +31,6 @@ class MainTest {
 				Path.of("../00_temp/event-rails-bundle-demo-query.bundle"));
 		Files.move(Path.of("../event-rails-demo/event-rails-demo-saga/build/bundle-dist/event-rails-bundle-demo-saga.bundle"),
 				Path.of("../00_temp/event-rails-bundle-demo-saga.bundle"));
-	}
-	@Test
-	public void move() throws IOException {
-
-
 	}
 
 

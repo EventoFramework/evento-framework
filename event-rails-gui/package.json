@@ -25,10 +25,14 @@
     "@capacitor/keyboard": "4.0.1",
     "@capacitor/status-bar": "4.0.1",
     "@ionic/angular": "^6.1.9",
-    "gojs-angular": "^2.0.6",
+    "graphviz-builder": "^0.1.0",
+    "graphviz-wasm": "^3.0.0",
     "ionicons": "^6.0.3",
+    "mxgraph": "^4.2.2",
     "rxjs": "~6.6.0",
+    "svg-pan-zoom": "^3.6.1",
     "tslib": "^2.2.0",
+    "vizjs": "^2.1.1",
     "zone.js": "~0.11.4"
   },
   "devDependencies": {
@@ -43,6 +47,7 @@
     "@angular/language-service": "^14.0.0",
     "@capacitor/cli": "4.3.0",
     "@ionic/angular-toolkit": "^6.0.0",
+    "@typed-mxgraph/typed-mxgraph": "^1.0.7",
     "@types/jasmine": "~3.6.0",
     "@types/jasminewd2": "~2.0.3",
     "@types/node": "^12.11.1",

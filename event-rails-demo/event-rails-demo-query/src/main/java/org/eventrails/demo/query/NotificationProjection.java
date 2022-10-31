@@ -5,6 +5,8 @@ import org.eventrails.demo.api.query.NotificationFindByIdQuery;
 import org.eventrails.demo.api.view.NotificationView;
 import org.eventrails.modeling.annotations.component.Projection;
 import org.eventrails.modeling.annotations.handler.QueryHandler;
+import org.eventrails.modeling.messaging.query.Multiple;
+import org.eventrails.modeling.messaging.query.Single;
 
 import java.util.List;
 
@@ -12,14 +14,14 @@ import java.util.List;
 public class NotificationProjection {
 
 	@QueryHandler
-	NotificationView query(NotificationFindByIdQuery query){
+	Single<NotificationView> query(NotificationFindByIdQuery query){
 		System.out.println(this.getClass() + " - query(NotificationFindByIdQuery)");
-		return new NotificationView(null, null);
+		return Single.of(new NotificationView(null, null));
 	}
 
 	@QueryHandler
-	List<NotificationView> query(NotificationFindAllQuery query){
+	Multiple<NotificationView> query(NotificationFindAllQuery query){
 		System.out.println(this.getClass() + " - query(NotificationFindAllQuery)");
-		return List.of(new NotificationView(null, null));
+		return Multiple.of(new NotificationView(null, null));
 	}
 }

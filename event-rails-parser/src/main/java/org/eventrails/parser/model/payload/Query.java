@@ -22,7 +22,7 @@ public class Query extends Payload {
 
 	@Override
 	public String toString() {
-		return getName()+":"+returnType.toString();
+		return getName()+":"+returnType;
 	}
 
 	@Override
