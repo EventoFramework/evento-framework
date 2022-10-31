@@ -56,7 +56,6 @@ public class ClusterStatusController {
 					emitter.send(o);
 				} catch (Exception e)
 				{
-					logger.warn("Listener Error", e);
 					messageBus.removeViewListener(this);
 				}
 			}
@@ -77,7 +76,6 @@ public class ClusterStatusController {
 					emitter.send(o);
 				} catch (Exception e)
 				{
-					logger.warn("Listener Error", e);
 					messageBus.removeAvailableViewListener(this);
 				}
 			}

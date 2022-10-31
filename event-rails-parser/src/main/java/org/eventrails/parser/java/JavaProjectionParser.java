@@ -27,8 +27,8 @@ public class JavaProjectionParser extends JavaComponentParser<Projection> {
 					var name = md.getFormalParameters().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
 					var msgRetType = md.getResultType();
 					var resultTypeDefinitions =  msgRetType.findDescendantsOfType(ASTClassOrInterfaceType.class);
-					var isMultiple = resultTypeDefinitions.size() > 1;
-					var type = isMultiple ? new MultipleResultQueryReturnType(resultTypeDefinitions.get(1).getImage()) : new MonoResultQueryReturnType(resultTypeDefinitions.get(0).getImage());
+					var isMultiple = !resultTypeDefinitions.get(0).getImage().equals("Single");
+					var type = isMultiple ? new MultipleResultQueryReturnType(resultTypeDefinitions.get(1).getImage()) : new MonoResultQueryReturnType(resultTypeDefinitions.get(1).getImage());
 					return new QueryHandler(new Query(name, type));
 				}
 		).collect(Collectors.toList());

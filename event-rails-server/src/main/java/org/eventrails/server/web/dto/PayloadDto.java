@@ -24,6 +24,7 @@ public class PayloadDto implements Serializable {
 	private PayloadType type;
 	private String jsonSchema;
 
+
 	/**
 	 * A DTO for the {@link Handler} entity
 	 */

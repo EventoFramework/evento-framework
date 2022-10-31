@@ -1,14 +1,11 @@
 package org.eventrails.server.service;
 
-import org.eventrails.parser.model.handler.EventHandler;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.domain.model.types.HandlerType;
 import org.eventrails.server.domain.repository.HandlerRepository;
-import org.jgroups.Address;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -43,5 +40,9 @@ public class HandlerService {
 
 	public boolean hasBundleHandlersForPayload(Bundle bundle, String payloadName){
 		return handlerRepository.existsByBundleAndHandledPayload_NameAndHandlerType(bundle, payloadName, HandlerType.EventHandler);
+	}
+
+	public List<Handler> findAll() {
+		return handlerRepository.findAll();
 	}
 }

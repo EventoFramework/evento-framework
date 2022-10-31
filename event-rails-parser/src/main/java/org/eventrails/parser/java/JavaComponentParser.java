@@ -77,13 +77,9 @@ public abstract class JavaComponentParser<T extends Component> {
 		{
 			var expr = ((ASTPrimaryExpression) n);
 			var types = expr.findDescendantsOfType(ASTClassOrInterfaceType.class);
-			if (types.size() < 2) return;
 			var msgArg = types.get(0);
-			var msgRetType = types.get(types.size() - 1);
-			var isMultiple = expr.findDescendantsOfType(ASTName.class).stream().map(AbstractNode::getImage).anyMatch(i -> i.equals("multipleInstancesOf"));
-			var type = isMultiple ? new MultipleResultQueryReturnType(msgRetType.getImage()) : new MonoResultQueryReturnType(msgRetType.getImage());
 			var qName = msgArg.getImage();
-			var q = new Query(qName, type);
+			var q = new Query(qName, null);
 			Node methodOrConstructor = expr.getFirstParentOfType(ASTMethodDeclaration.class);
 			if (methodOrConstructor == null)
 			{
