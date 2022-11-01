@@ -1,10 +1,21 @@
 export class ApplicationMap{
-  nodes: Node[]
-  edges: []
+  bundles: Bundle[]
+  edges: {}
 }
 
-export class Node{
+export class Bundle{
   id: string;
   name: string;
-  children: Node[]
+  components: Component[]
+}
+
+export class Component{
+  id: string;
+  name: string;
+  handledMessages: Message[]
+}
+
+export class Message{
+  id: string;
+  name: string;
 }
