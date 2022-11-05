@@ -11,6 +11,7 @@ import org.eventrails.parser.model.payload.*;
 import org.jaxen.JaxenException;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Stack;
 
 public abstract class JavaComponentParser<T extends Component> {
@@ -21,6 +22,8 @@ public abstract class JavaComponentParser<T extends Component> {
 	public JavaComponentParser(Node node) {
 		this.node = node;
 	}
+
+
 
 	public abstract  T parse() throws Exception;
 
@@ -51,6 +54,10 @@ public abstract class JavaComponentParser<T extends Component> {
 
 	protected String getDeclaredClassName(){
 		return node.getFirstDescendantOfType(ASTTypeDeclaration.class).getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName();
+	}
+
+	public static boolean isInvoker(ASTTypeDeclaration classDef) throws JaxenException {
+		return !classDef.findChildNodesWithXPath("//MarkerAnnotation/Name[@Image = \"Invoker\"]").isEmpty();
 	}
 
 	protected void findCommandInvocations(List<? extends Handler<?>> ehs) throws JaxenException {
@@ -97,23 +104,47 @@ public abstract class JavaComponentParser<T extends Component> {
 	}
 
 
-	private void manageMessageInvocation(Node methodOrConstructor, Payload m, List<? extends Handler<?>> ehs,
+	private void manageMessageInvocation(Node methodOrConstructor, Payload m, List<? extends Handler<?>> hs,
 										 Stack<ASTPrimaryExpression> expr
 	) throws JaxenException {
-		var annot = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceBodyDeclaration.class).findChildNodesWithXPath("Annotation//Name[ends-with(@Image,\"Handler\") and not(starts-with(@Image,'Deadline'))]");
-		if (!annot.isEmpty())
+		var annot = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceBodyDeclaration.class).findChildNodesWithXPath("Annotation//Name[ends-with(@Image,\"Handler\") and not(starts-with(@Image,'Deadline'))]")
+				.stream().map(Node::getImage).filter(Objects::nonNull).filter(n ->
+					n.equals("AggregateCommandHandler") ||
+					n.equals("CommandHandler") ||
+					n.equals("EventHandler") ||
+					n.equals("EventSourcingHandler") ||
+					n.equals("InvocationHandler") ||
+					n.equals("QueryHandler") ||
+					n.equals("SagaEventHandler")
+				).findFirst();
+		if (annot.isPresent())
 		{
-			var eName = methodOrConstructor.getFirstDescendantOfType(ASTFormalParameters.class).getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-			ehs.stream().filter(eh -> eh.getPayload().getName().equals(eName)).forEach(eh -> {
-				if (m instanceof Query q && eh instanceof HasQueryInvocations qi)
-				{
-					qi.addQueryInvocation(q);
-				}
-				if (m instanceof Command c && eh instanceof HasCommandInvocations ci)
-				{
-					ci.addCommandInvocation(c);
-				}
-			});
+			if(annot.get().equals("InvocationHandler")){
+				var name = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() +  "::" + ((ASTMethodDeclaration) methodOrConstructor).getName();
+				hs.stream().filter(eh -> eh.getPayload().getName().equals(name)).forEach(h -> {
+					if (m instanceof Query q && h instanceof HasQueryInvocations qi)
+					{
+						qi.addQueryInvocation(q);
+					}
+					if (m instanceof Command c && h instanceof HasCommandInvocations ci)
+					{
+						ci.addCommandInvocation(c);
+					}
+				});
+			}else
+			{
+				var eName = methodOrConstructor.getFirstDescendantOfType(ASTFormalParameters.class).getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
+				hs.stream().filter(eh -> eh.getPayload().getName().equals(eName)).forEach(h -> {
+					if (m instanceof Query q && h instanceof HasQueryInvocations qi)
+					{
+						qi.addQueryInvocation(q);
+					}
+					if (m instanceof Command c && h instanceof HasCommandInvocations ci)
+					{
+						ci.addCommandInvocation(c);
+					}
+				});
+			}
 			return;
 		}
 
@@ -126,7 +157,7 @@ public abstract class JavaComponentParser<T extends Component> {
 			var nExpr = new Stack<ASTPrimaryExpression>();
 			nExpr.addAll(expr);
 			nExpr.add(i.getFirstParentOfType(ASTPrimaryExpression.class));
-			manageMessageInvocation(mt, m, ehs, nExpr);
+			manageMessageInvocation(mt, m, hs, nExpr);
 		}
 
 	}

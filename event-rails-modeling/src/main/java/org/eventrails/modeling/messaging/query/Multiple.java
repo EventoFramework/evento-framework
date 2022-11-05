@@ -7,10 +7,6 @@ import java.util.List;
 
 public class Multiple<T extends View> extends QueryResponse<T>{
 
-
-
-
-
 	private Collection<T> data;
 
 	public Multiple() {
