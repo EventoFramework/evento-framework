@@ -6,5 +6,6 @@ public enum HandlerType {
 	QueryHandler,
 	EventHandler,
 	EventSourcingHandler,
+	InvocationHandler,
 	SagaEventHandler
 }

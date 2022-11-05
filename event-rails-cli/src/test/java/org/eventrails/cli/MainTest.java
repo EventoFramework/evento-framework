@@ -19,6 +19,7 @@ class MainTest {
 		Main.main(new String[]{"event-rails-bundle-demo-saga","../event-rails-demo/event-rails-demo-saga"});
 
 
+
 	}
 	@Test
 	public void move() throws IOException {
@@ -31,6 +32,13 @@ class MainTest {
 				Path.of("../00_temp/event-rails-bundle-demo-query.bundle"));
 		Files.move(Path.of("../event-rails-demo/event-rails-demo-saga/build/bundle-dist/event-rails-bundle-demo-saga.bundle"),
 				Path.of("../00_temp/event-rails-bundle-demo-saga.bundle"));
+	}
+
+	@Test
+	public void buildWeb() throws IOException {
+		Main.main(new String[]{"event-rails-bundle-demo-web-domain","../event-rails-demo/event-rails-demo-web-domain"});
+		Files.move(Path.of("../event-rails-demo/event-rails-demo-web-domain/build/bundle-dist/event-rails-bundle-demo-web-domain.bundle"),
+				Path.of("../00_temp/event-rails-bundle-demo-web-domain.bundle"));
 	}
 
 

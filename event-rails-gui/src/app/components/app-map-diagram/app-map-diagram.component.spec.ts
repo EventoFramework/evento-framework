@@ -1,19 +1,19 @@
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 import { IonicModule } from '@ionic/angular';
 
-import { EdgedCirclePackComponent } from './edged-circle-pack.component';
+import { AppMapDiagramComponent } from './app-map-diagram.component';
 
-describe('EdgedCirclePackComponent', () => {
-  let component: EdgedCirclePackComponent;
-  let fixture: ComponentFixture<EdgedCirclePackComponent>;
+describe('AppMapDiagramComponent', () => {
+  let component: AppMapDiagramComponent;
+  let fixture: ComponentFixture<AppMapDiagramComponent>;
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ EdgedCirclePackComponent ],
+      declarations: [ AppMapDiagramComponent ],
       imports: [IonicModule.forRoot()]
     }).compileComponents();
 
-    fixture = TestBed.createComponent(EdgedCirclePackComponent);
+    fixture = TestBed.createComponent(AppMapDiagramComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   }));

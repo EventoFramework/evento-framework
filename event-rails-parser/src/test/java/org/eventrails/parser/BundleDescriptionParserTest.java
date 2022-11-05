@@ -25,4 +25,12 @@ class BundleDescriptionParserTest {
 		System.out.println(components);
 
 	}
+
+	@Test
+	void parseWeb() throws IOException {
+		JavaBundleParser applicationParser = new JavaBundleParser();
+		var components = applicationParser.parseDirectory(
+				new File("..\\..\\event-rails\\event-rails-demo\\event-rails-demo-web-domain\\src\\main\\java\\org\\eventrails\\demo"));
+		System.out.println(components);
+	}
 }
