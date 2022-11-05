@@ -7,7 +7,7 @@ import { IonicModule } from '@ionic/angular';
 import { ApplicationMapPageRoutingModule } from './application-map-routing.module';
 
 import { ApplicationMapPage } from './application-map.page';
-import {EdgedCirclePackComponent} from "../../components/edged-circle-pack/edged-circle-pack.component";
+import {AppMapDiagramComponent} from "../../components/app-map-diagram/app-map-diagram.component";
 
 @NgModule({
     imports: [
@@ -16,6 +16,6 @@ import {EdgedCirclePackComponent} from "../../components/edged-circle-pack/edged
         IonicModule,
         ApplicationMapPageRoutingModule
     ],
-    declarations: [ApplicationMapPage, EdgedCirclePackComponent]
+    declarations: [ApplicationMapPage, AppMapDiagramComponent]
 })
 export class ApplicationMapPageModule {}

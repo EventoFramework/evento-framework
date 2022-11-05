@@ -4,11 +4,14 @@ import com.google.gson.JsonObject;
 import net.sourceforge.pmd.lang.LanguageRegistry;
 import net.sourceforge.pmd.lang.LanguageVersionHandler;
 import net.sourceforge.pmd.lang.Parser;
+import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
 import org.eventrails.modeling.messaging.payload.*;
 import org.eventrails.parser.BundleParser;
 import org.eventrails.parser.model.BundleDescription;
 import org.eventrails.parser.model.component.Component;
+import org.eventrails.parser.model.component.Invoker;
+import org.eventrails.parser.model.handler.Handler;
 import org.eventrails.parser.model.payload.PayloadDescription;
 
 import java.io.File;
@@ -17,6 +20,8 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JavaBundleParser implements BundleParser {
 
@@ -24,7 +29,7 @@ public class JavaBundleParser implements BundleParser {
 		LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
 		Parser parser = java.getParser(java.getDefaultParserOptions());
 		if (!file.isDirectory()) throw new RuntimeException("error.not.dir");
-		var components =  Files.walk(file.toPath())
+		var components = Files.walk(file.toPath())
 				.filter(p -> p.toString().endsWith(".java"))
 				.filter(p -> !p.toString().toLowerCase().contains("test"))
 				.map(p -> {
@@ -41,27 +46,35 @@ public class JavaBundleParser implements BundleParser {
 					}
 				}).filter(Objects::nonNull).toList();
 
-		var payloads =  Files.walk(file.toPath())
-				.filter(p -> p.toString().endsWith(".java"))
-				.filter(p -> !p.toString().toLowerCase().contains("test"))
-				.map(p -> {
-					try
-					{
-						var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
-						System.out.println(p.toAbsolutePath());
+		var payloads = Stream.concat(
+				Files.walk(file.toPath())
+						.filter(p -> p.toString().endsWith(".java"))
+						.filter(p -> !p.toString().toLowerCase().contains("test"))
+						.map(p -> {
+							try
+							{
+								var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
+								System.out.println(p.toAbsolutePath());
 
-						return toPayload(node);
-					} catch (Exception e)
-					{
-						e.printStackTrace();
-						return null;
-					}
-				}).filter(Objects::nonNull).toList();
+								return toPayload(node);
+							} catch (Exception e)
+							{
+								e.printStackTrace();
+								return null;
+							}
+						}).filter(Objects::nonNull),
+				components.stream()
+						.filter(c -> c instanceof Invoker)
+						.map(c -> ((Invoker) c))
+						.flatMap(i -> i.getInvocationHandlers().stream())
+						.map(Handler::getPayload).distinct()
+						.map(p -> new PayloadDescription(p.getName(), "Invocation", "{}"))
+		).collect(Collectors.toList());
 
 		return new BundleDescription(components, payloads);
 	}
 
-	private Component toComponent(net.sourceforge.pmd.lang.ast.Node node) throws Exception {
+	private Component toComponent(Node node) throws Exception {
 
 		var classDef = node.getFirstDescendantOfType(ASTTypeDeclaration.class);
 		if (JavaComponentParser.isSaga(classDef))
@@ -79,6 +92,9 @@ public class JavaBundleParser implements BundleParser {
 		} else if (JavaComponentParser.isService(classDef))
 		{
 			return new JavaServiceParser(node).parse();
+		} else if (JavaComponentParser.isInvoker(classDef))
+		{
+			return new JavaInvokerParser(node).parse();
 		}
 		return null;
 	}
@@ -90,35 +106,43 @@ public class JavaBundleParser implements BundleParser {
 		{
 			var classDef = node.getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class);
 			var payloadType = classDef.getParent().getFirstDescendantOfType(ASTExtendsList.class).getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-			if(payloadType.equals("DomainCommand") || payloadType.equals("DomainEvent") ||
+			if (payloadType.equals("DomainCommand") || payloadType.equals("DomainEvent") ||
 					payloadType.equals("ServiceCommand") || payloadType.equals("ServiceEvent") ||
-			payloadType.equals("Query") || payloadType.equals("View")){
+					payloadType.equals("Query") || payloadType.equals("View"))
+			{
 				JsonObject schema = new JsonObject();
 				var fields = node.findDescendantsOfType(ASTFieldDeclaration.class);
-				for(var field: fields){
+				for (var field : fields)
+				{
 					var name = field.getFirstDescendantOfType(ASTVariableDeclaratorId.class).getName();
 					var type = field.getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
 					schema.addProperty(name, type);
 				}
-				if(payloadType.equals("DomainCommand")){
+				if (payloadType.equals("DomainCommand"))
+				{
 					addSuperFields(schema, DomainCommand.class);
-				}else if( payloadType.equals("DomainEvent")){
+				} else if (payloadType.equals("DomainEvent"))
+				{
 					addSuperFields(schema, DomainEvent.class);
-				}else if( payloadType.equals("ServiceCommand")){
+				} else if (payloadType.equals("ServiceCommand"))
+				{
 					addSuperFields(schema, ServiceCommand.class);
-				}else if( payloadType.equals("ServiceEvent")){
+				} else if (payloadType.equals("ServiceEvent"))
+				{
 					addSuperFields(schema, ServiceEvent.class);
-				}else if( payloadType.equals("Query")){
+				} else if (payloadType.equals("Query"))
+				{
 					addSuperFields(schema, Query.class);
-				}else
+				} else
 				{
 					addSuperFields(schema, View.class);
 				}
-				return new PayloadDescription(classDef.getSimpleName(), payloadType,  schema.toString());
+				return new PayloadDescription(classDef.getSimpleName(), payloadType, schema.toString());
 			}
 			return null;
 
-		}catch (Exception e){
+		} catch (Exception e)
+		{
 			return null;
 		}
 	}

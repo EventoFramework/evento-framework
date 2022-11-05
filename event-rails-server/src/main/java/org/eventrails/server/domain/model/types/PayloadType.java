@@ -8,5 +8,6 @@ public enum PayloadType {
 	DomainCommand,
 	DomainEvent,
 	ServiceCommand,
-	ServiceEvent
+	ServiceEvent,
+	Invocation
 }

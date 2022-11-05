@@ -180,6 +180,32 @@ public class BundleService {
 					handlerRepository.save(handler);
 				}
 			}
+			else if (component instanceof Invoker i)
+			{
+				for (InvocationHandler invocationHandler : i.getInvocationHandlers())
+				{
+					var handler = new Handler();
+					handler.setBundle(bundle);
+					handler.setComponentName(component.getComponentName());
+					handler.setHandlerType(HandlerType.InvocationHandler);
+					handler.setComponentType(ComponentType.Invoker);
+					handler.setHandledPayload(payloadRepository.getById(invocationHandler.getPayload().getName()));
+					handler.setReturnIsMultiple(false);
+					handler.setReturnType(null);
+					var invocations = new HashSet<Payload>();
+					for (Query query : invocationHandler.getQueryInvocations())
+					{
+						invocations.add(payloadRepository.getById(query.getName()));
+					}
+					for (Command command : invocationHandler.getCommandInvocations())
+					{
+						invocations.add(payloadRepository.getById(command.getName()));
+					}
+					handler.setInvocations(invocations);
+					handler.generateId();
+					handlerRepository.save(handler);
+				}
+			}
 		}
 	}
 
