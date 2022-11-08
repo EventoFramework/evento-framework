@@ -7,6 +7,7 @@ import { Component } from '@angular/core';
 export class AppComponent {
   public appPages = [
     { title: 'Application Map', url: '/application-map', icon: 'apps' },
+    { title: 'Application Petri Net', url: '/application-petri-net', icon: 'git-compare' },
     { title: 'Cluster Status', url: '/cluster-status', icon: 'layers' },
     { title: 'Registered Bundles', url: '/bundle-list', icon: 'cube' },
     { title: 'Library', url: '/library-page', icon: 'book' },

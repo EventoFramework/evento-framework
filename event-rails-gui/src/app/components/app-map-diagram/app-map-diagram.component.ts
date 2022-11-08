@@ -1,5 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {HandlerService} from "../../services/handler.service";
+
 declare var mxGraph: any;
 declare var mxConstants: any;
 declare var mxUtils: any;
@@ -13,7 +14,8 @@ export class AppMapDiagramComponent implements OnInit {
 
   padding = 20;
 
-  constructor(private handlerService: HandlerService) { }
+  constructor(private handlerService: HandlerService) {
+  }
 
   private diameter(hull) {
     const c = this.getCenter(hull);
@@ -131,7 +133,7 @@ export class AppMapDiagramComponent implements OnInit {
     //vertex_1b(2) = y2 + (k/d2)*(y3 - y2) - (h/d2)*(x3 - x2);
   }
 
-  private addCircle(circles, radius, id, name){
+  private addCircle(circles, radius, id, name) {
     var center = this.getCenter(circles);
 
     var minD = null;
@@ -208,7 +210,7 @@ export class AppMapDiagramComponent implements OnInit {
           componentType: handler.componentType
         }
       }
-      if(handler.handledPayload.name.length > minCircleSize){
+      if (handler.handledPayload.name.length > minCircleSize) {
         minCircleSize = handler.handledPayload.name.length;
       }
       bundles[handler.bundleName].components[handler.componentName].handlers[handler.handledPayload.name] = {
@@ -230,7 +232,7 @@ export class AppMapDiagramComponent implements OnInit {
           h.responseHandeledBy.push(target.uuid)
         }
       }
-      for(const invocation of handler.invocations){
+      for (const invocation of handler.invocations) {
         for (const target of handlers.filter(h => h.handledPayload.name === invocation.name && h.handlerType !== 'EventSourcingHandler')) {
           h.invoke.push(target.uuid)
         }
@@ -254,7 +256,7 @@ export class AppMapDiagramComponent implements OnInit {
           if (h.handlerType === 'EventSourcingHandler') {
             continue;
           }
-          this.addCircle(handlerCircles, (60) + (10*(h.invoke.length + h.responseHandeledBy.length)), h.uuid, handler);
+          this.addCircle(handlerCircles, (60) + (10 * (h.invoke.length + h.responseHandeledBy.length)), h.uuid, handler);
         }
         componentHandlerCircles[component] = handlerCircles;
         this.addCircle(componentCircles, (this.diameter(handlerCircles) / 2) + this.padding, component, null)
@@ -266,8 +268,27 @@ export class AppMapDiagramComponent implements OnInit {
     const container = <HTMLElement>document.getElementById('graph');
 
     const graph = new mxGraph(container)
-    const parent = graph.getDefaultParent()
-    graph.setTooltips(true)
+    const parent = graph.getDefaultParent();
+    graph.centerZoom = false;
+    graph.setTooltips(false);
+    graph.setEnabled(false);
+
+    // Enables panning with left mouse button
+    graph.panningHandler.useLeftButtonForPanning = true;
+    graph.panningHandler.ignoreCell = true;
+    graph.container.style.cursor = 'move';
+    graph.setPanning(true);
+    graph.resizeContainer = true;
+
+    container.addEventListener('wheel', (e: any) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if(e.wheelDelta > 0){
+          graph.zoomIn();
+        }else{
+          graph.zoomOut();
+        }
+    })
 
     graph.getModel().beginUpdate()
     try {
@@ -286,7 +307,6 @@ export class AppMapDiagramComponent implements OnInit {
           c.r * 2,
           c.r * 2, nodeStyle + ";fillColor=transparent");
         bp.setConnectable(false);
-        console.log(bp)
 
         const _minX = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.x - h.r));
         const _minY = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.y - h.r));
@@ -328,35 +348,27 @@ export class AppMapDiagramComponent implements OnInit {
 
 
       const edgeStyle = "opacity=10;strokeColor=#000000;"
-      for(let handler of handlers){
-        for(let to of handler.h.invoke){
-          graph.insertEdge(parent, null, null,  graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle)
+      for (let handler of handlers) {
+        for (let to of handler.h.invoke) {
+          graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle)
         }
-        for(let to of handler.h.responseHandeledBy){
-          graph.insertEdge(parent, null, null,  graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle + "dashed=1;")
+        for (let to of handler.h.responseHandeledBy) {
+          graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle + "dashed=1;")
         }
       }
-      /*
-      for(let n in map.edges){
-        for(let to of map.edges[n].links){
-          graph.insertEdge(parent, null, null,  graph.getModel().getCell(n), graph.getModel().getCell(to))
-        }
-      }*/
 
     } finally {
       graph.getModel().endUpdate()
     }
 
-    console.log(graph)
 
-    const updateStyle = (state, hover)=>
-    {
+    const updateStyle = (state, hover) => {
       var q = [state];
-      while (q.length > 0){
+      while (q.length > 0) {
         var n = q.shift();
-        if(n.cell.edges){
-          for(const e of n.cell.edges){
-            if(e.source === n.cell) {
+        if (n.cell.edges) {
+          for (const e of n.cell.edges) {
+            if (e.source === n.cell) {
               const eState = graph.view.getState(e);
               eState.style['opacity'] = hover ? 100 : 10
               eState.shape.apply(eState);
@@ -371,25 +383,20 @@ export class AppMapDiagramComponent implements OnInit {
       }
 
 
-
     };
 
     graph.addMouseListener(
       {
         currentState: null,
         previousStyle: null,
-        mouseDown: function(sender, me)
-        {
-          if (this.currentState != null)
-          {
+        mouseDown: function (sender, me) {
+          if (this.currentState != null) {
             this.dragLeave(me.getEvent(), this.currentState);
             this.currentState = null;
           }
         },
-        mouseMove: function(sender, me)
-        {
-          if (this.currentState != null && me.getState() == this.currentState)
-          {
+        mouseMove: function (sender, me) {
+          if (this.currentState != null && me.getState() == this.currentState) {
             return;
           }
 
@@ -397,39 +404,32 @@ export class AppMapDiagramComponent implements OnInit {
 
           // Ignores everything but vertices
           if (graph.isMouseDown || (tmp != null && !
-            graph.getModel().isVertex(tmp.cell)))
-          {
+            graph.getModel().isVertex(tmp.cell))) {
             tmp = null;
           }
 
-          if (tmp != this.currentState)
-          {
-            if (this.currentState != null)
-            {
+          if (tmp != this.currentState) {
+            if (this.currentState != null) {
               this.dragLeave(me.getEvent(), this.currentState);
             }
 
             this.currentState = tmp;
 
-            if (this.currentState != null)
-            {
+            if (this.currentState != null) {
               this.dragEnter(me.getEvent(), this.currentState);
             }
           }
         },
-        mouseUp: function(sender, me) { },
-        dragEnter: function(evt, state)
-        {
-          if (state != null)
-          {
+        mouseUp: function (sender, me) {
+        },
+        dragEnter: function (evt, state) {
+          if (state != null) {
 
             updateStyle(state, true);
           }
         },
-        dragLeave: function(evt, state)
-        {
-          if (state != null)
-          {
+        dragLeave: function (evt, state) {
+          if (state != null) {
             updateStyle(state, false);
             /*
             state.style = this.previousStyle;
@@ -445,6 +445,8 @@ export class AppMapDiagramComponent implements OnInit {
           }
         }
       });
+
+    console.log(handlers);
 
 
   }
