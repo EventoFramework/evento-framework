@@ -1,8 +1,10 @@
 package org.eventrails.server.web;
 
-import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.service.HandlerService;
+import org.eventrails.server.service.performance.ApplicationPetriNetService;
+import org.eventrails.server.service.performance.Network;
 import org.eventrails.server.web.dto.HandlerDto;
+import org.eventrails.server.web.dto.performance.NetworkDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,12 +19,20 @@ public class HandlerController {
 
 	private final HandlerService handlerService;
 
-	public HandlerController(HandlerService handlerService) {
+	private final ApplicationPetriNetService applicationPetriNetService;
+
+	public HandlerController(HandlerService handlerService, ApplicationPetriNetService applicationPetriNetService) {
 		this.handlerService = handlerService;
+		this.applicationPetriNetService = applicationPetriNetService;
 	}
 
 	@GetMapping("/")
 	public ResponseEntity<List<HandlerDto>> findAllHandlers(){
 		return ResponseEntity.ok(handlerService.findAll().stream().map(HandlerDto::new).collect(Collectors.toList()));
+	}
+
+	@GetMapping("/to-petri-net")
+	public ResponseEntity<NetworkDto> toPetriNet(){
+		return ResponseEntity.ok(new NetworkDto(applicationPetriNetService.toPetriNet()));
 	}
 }
