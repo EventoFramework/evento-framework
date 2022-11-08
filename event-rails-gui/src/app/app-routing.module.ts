@@ -4,7 +4,7 @@ import {PreloadAllModules, RouterModule, Routes} from '@angular/router';
 const routes: Routes = [
   {
     path: '',
-    redirectTo: 'folder/Inbox',
+    redirectTo: 'application-map',
     pathMatch: 'full'
   },
   {
@@ -18,9 +18,14 @@ const routes: Routes = [
   {
     path: 'cluster-status',
     loadChildren: () => import('./pages/cluster-status/cluster-status.module').then( m => m.ClusterStatusPageModule)
-  },  {
+  },
+  {
     path: 'application-map',
     loadChildren: () => import('./pages/application-map/application-map.module').then( m => m.ApplicationMapPageModule)
+  },
+  {
+    path: 'application-petri-net',
+    loadChildren: () => import('./pages/application-petri-net/application-petri-net.module').then( m => m.ApplicationPetriNetPageModule)
   }
 
 

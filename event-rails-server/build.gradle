@@ -32,7 +32,9 @@ dependencies {
 	implementation project(':event-rails-parser')
 	implementation project(':event-rails-shared')
 	// https://mvnrepository.com/artifact/com.google.code.gson/gson
-	implementation 'com.google.code.gson:gson:2.9.0'
+	implementation 'com.google.code.gson:gson:2.10'
+
+	implementation files('libs/JMT-singlejar-1.2.1.jar')
 
 
 	runtimeOnly 'com.h2database:h2'

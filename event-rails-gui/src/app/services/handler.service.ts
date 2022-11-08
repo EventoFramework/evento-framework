@@ -11,4 +11,8 @@ export class HandlerService {
   findAll(){
     return fetch(environment.erServerUrl + '/api/handler/').then(r => r.json());
   }
+
+  getPetriNet() {
+    return fetch(environment.erServerUrl + '/api/handler/to-petri-net').then(r => r.json());
+  }
 }
