@@ -1,6 +1,7 @@
 package org.eventrails.server.service.performance;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -10,13 +11,14 @@ public class Network {
 	private final List<Transition> transitions = new ArrayList<>();
 	private final AtomicLong idGenerator = new AtomicLong();
 
+	private final HashMap<String, Post> instancesPosts = new HashMap<>();
 
-	public Post post(String name){
-		return post(name, 0);
+	public Post post(String bundle, String component, String action) {
+		return post(bundle, component, action, 0);
 	}
 
-	public Post post(String name, long initialMarking){
-		var p = new Post(idGenerator.getAndIncrement(), name, initialMarking);
+	public Post post(String bundle, String component, String action, long initialMarking) {
+		var p = new Post(idGenerator.getAndIncrement(), bundle, component, action, initialMarking);
 		posts.add(p);
 		return p;
 	}
@@ -25,9 +27,12 @@ public class Network {
 		return posts;
 	}
 
-	public Transition transition(String name){
-		var t = new Transition(idGenerator.getAndIncrement(), name);
+	public Transition transition(String bundle, String component, String action) {
+		var t = new Transition(idGenerator.getAndIncrement(), bundle, component, action);
 		transitions.add(t);
+		var iq = instancesPosts.get(bundle);
+		iq.getTarget().add(t);
+		t.getTarget().add(iq);
 		return t;
 	}
 
@@ -43,4 +48,9 @@ public class Network {
 		return sources;
 	}
 
+	public Post instancePost(String bundle) {
+		var instancePost =  post(bundle, "Instance", "Token", 1);
+		instancesPosts.put(bundle, instancePost);
+		return instancePost;
+	}
 }

@@ -9,12 +9,16 @@ import java.util.stream.Collectors;
 public class PostDto {
 
 	private long id;
-	private String name;
+	private String bundle;
+	private String component;
+	private String action;
 	private Set<Long> target;
 	private long marking;
 	public PostDto(Post post){
 		id = post.getId();
-		name = post.getName();
+		bundle = post.getBundle();
+		component = post.getComponent();
+		action = post.getAction();
 		marking = post.getMarking();
 		target = post.getTarget().stream().map(Transition::getId).collect(Collectors.toSet());
 	}
@@ -29,15 +33,6 @@ public class PostDto {
 	public void setId(long id) {
 		this.id = id;
 	}
-
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
-
 	public Set<Long> getTarget() {
 		return target;
 	}
@@ -52,5 +47,29 @@ public class PostDto {
 
 	public void setMarking(long marking) {
 		this.marking = marking;
+	}
+
+	public String getBundle() {
+		return bundle;
+	}
+
+	public void setBundle(String bundle) {
+		this.bundle = bundle;
+	}
+
+	public String getComponent() {
+		return component;
+	}
+
+	public void setComponent(String component) {
+		this.component = component;
+	}
+
+	public String getAction() {
+		return action;
+	}
+
+	public void setAction(String action) {
+		this.action = action;
 	}
 }
