@@ -7,12 +7,16 @@ import java.util.Set;
 public class Transition {
 
     private long id;
-    private String name;
+    private String bundle;
+    private String component;
+    private String action;
     private Set<Post> target;
 
-    public Transition(long id, String name) {
+    public Transition(long id, String bundle,String component,String action) {
         this.id = id;
-        this.name = name;
+        this.bundle = bundle;
+        this.component = component;
+        this.action = action;
         target = new HashSet<>();
     }
 
@@ -24,12 +28,28 @@ public class Transition {
         this.id = id;
     }
 
-    public String getName() {
-        return name;
+    public String getBundle() {
+        return bundle;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setBundle(String bundle) {
+        this.bundle = bundle;
+    }
+
+    public String getComponent() {
+        return component;
+    }
+
+    public void setComponent(String component) {
+        this.component = component;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public void setAction(String action) {
+        this.action = action;
     }
 
     public Set<Post> getTarget() {
