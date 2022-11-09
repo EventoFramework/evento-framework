@@ -1,5 +1,6 @@
 import {Component, OnInit} from '@angular/core';
 import {HandlerService} from "../../services/handler.service";
+import {BundleColorService} from "../../services/bundle-color.service";
 
 declare var mxGraph: any;
 declare var mxConstants: any;
@@ -14,7 +15,8 @@ export class AppMapDiagramComponent implements OnInit {
 
   padding = 20;
 
-  constructor(private handlerService: HandlerService) {
+  constructor(private handlerService: HandlerService,
+              private bundleColorService: BundleColorService) {
   }
 
   private diameter(hull) {
@@ -293,19 +295,20 @@ export class AppMapDiagramComponent implements OnInit {
     graph.getModel().beginUpdate()
     try {
 
-      const nodeStyle = "shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;"
+      const nodeStyle = "shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=white;"
       var diameter = this.diameter(bundleCircles);
 
       const minX = Math.min.apply(null, bundleCircles.map(c => c.x - c.r));
       const minY = Math.min.apply(null, bundleCircles.map(c => c.y - c.r));
       for (let c of bundleCircles) {
+        console.log(c)
         var x = c.x - c.r - minX;
         var y = c.y - c.r - minY;
         var bp = graph.insertVertex(parent, null, c.n,
           x,
           y,
           c.r * 2,
-          c.r * 2, nodeStyle + ";fillColor=transparent");
+          c.r * 2, nodeStyle + "strokeColor="+this.bundleColorService.getColorForBundle(c.id));
         bp.setConnectable(false);
 
         const _minX = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.x - h.r));
@@ -322,7 +325,7 @@ export class AppMapDiagramComponent implements OnInit {
             _x + (_center - (_centralPoint.x - _minX)),
             _y + (_center - (_centralPoint.y - _minY)),
             _c.r * 2,
-            _c.r * 2, nodeStyle + ";fillColor=transparent");
+            _c.r * 2, nodeStyle + ";fillColor=white");
           _bp.setConnectable(false);
 
           const __minX = Math.min.apply(null, componentHandlerCircles[_c.id].map(h => h.x - h.r));

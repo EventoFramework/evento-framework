@@ -6,18 +6,22 @@ import java.util.Set;
 
 public class Post {
     private long id;
-    private String name;
+    private String bundle;
+    private String component;
+    private String action;
     private Set<Transition> target;
 
     private long marking;
 
-    public Post(long id, String name) {
-        this(id, name, 0);
+    public Post(long id, String bundle,String component,String action) {
+        this(id, bundle, component, action, 0);
     }
 
-    public Post(long id, String name, long initialMarking) {
+    public Post(long id, String bundle,String component,String action, long initialMarking) {
         this.id = id;
-        this.name = name;
+        this.bundle = bundle;
+        this.component = component;
+        this.action = action;
         target = new HashSet<>();
         marking = initialMarking;
     }
@@ -28,14 +32,6 @@ public class Post {
 
     public void setId(long id) {
         this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 
     public Set<Transition> getTarget() {
@@ -65,5 +61,29 @@ public class Post {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    public String getBundle() {
+        return bundle;
+    }
+
+    public void setBundle(String bundle) {
+        this.bundle = bundle;
+    }
+
+    public String getComponent() {
+        return component;
+    }
+
+    public void setComponent(String component) {
+        this.component = component;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public void setAction(String action) {
+        this.action = action;
     }
 }

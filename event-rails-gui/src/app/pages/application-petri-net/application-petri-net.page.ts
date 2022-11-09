@@ -1,5 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 import {HandlerService} from "../../services/handler.service";
+import {BundleColorService} from "../../services/bundle-color.service";
+import {add} from "ionicons/icons";
 
 declare var mxGraph: any;
 declare var mxHierarchicalLayout: any;
@@ -11,7 +13,10 @@ declare var mxHierarchicalLayout: any;
 })
 export class ApplicationPetriNetPage implements OnInit {
 
-  constructor(private handlerService: HandlerService) {
+
+
+  constructor(private handlerService: HandlerService,
+              private bundleColorService: BundleColorService) {
   }
 
   async ngOnInit() {
@@ -51,17 +56,30 @@ export class ApplicationPetriNetPage implements OnInit {
       const postNodes = {}
       const transitionNodes = {}
       const postStyle = "shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent"
-      if(showPosts) {
+      if (showPosts) {
         for (const post of network.posts) {
-          postNodes[post.id] = graph.insertVertex(parent, post.id, post.name, null, null, post.name.length * 7, 50, postStyle);
+          postNodes[post.id] = graph.insertVertex(parent, post.id, null, null, null, 50, 50, postStyle);
         }
       }
-      const transitionStyle = "shape=rectangle;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent"
+      const transitionStyle = "shape=rectangle;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;"
       for (const transition of network.transitions) {
-        transitionNodes[transition.id] = graph.insertVertex(parent, transition.id, transition.name, null, null, transition.name.length * 7, 50, transitionStyle);
+        if(transition.action === 'Sink') continue;
+        transition.name = transition.bundle + "\n\n" + transition.component + "\n\n" + transition.action
+        Math.max(transition.bundle.length, transition.component.length, transition.action.length)
+        let additionalStyles = "fillColor=" + this.bundleColorService.getColorForBundle(transition.bundle) + ";"
+        let width = Math.max(transition.bundle.length, transition.component.length, transition.action.length) * 10;
+        let height = 90;
+        let name =  transition.name;
+        if(transition.bundle === 'event-store' || transition.component === 'SagaStore' || transition.component === 'ProjectorStore'){
+          additionalStyles += "shape=cylinder;verticalAlign=bottom;spacingBottom=20;"
+          height = 90 + 70
+        }
+        transitionNodes[transition.id] = graph.insertVertex(parent, transition.id,name, null, null, width,
+          height,
+          transitionStyle + additionalStyles);
       }
 
-      if(showPosts) {
+      if (showPosts) {
         for (const post of network.posts) {
           for (const target of post.target) {
             graph.insertEdge(parent, null, '', postNodes[post.id], transitionNodes[target]);
@@ -69,16 +87,17 @@ export class ApplicationPetriNetPage implements OnInit {
         }
       }
 
+      const edgeStyle = "endArrow=classic;html=1;rounded=0;curved=1;"
       for (const transition of network.transitions) {
         for (const target of transition.target) {
-          if(showPosts) {
-            graph.insertEdge(parent, null, '', transitionNodes[transition.id], postNodes[target]);
-          }else{
-            const targetTransition = network.posts.filter(p => p.id === target)[0];
-            if(targetTransition) {
+          if (showPosts) {
+            graph.insertEdge(parent, null, '', transitionNodes[transition.id], postNodes[target], edgeStyle);
+          } else {
+            const targetTransition = network.posts.filter(p => p.id === target && p.action !== 'Token')[0];
+            if (targetTransition) {
               for (const targetTarget of targetTransition.target) {
-                if(transition.id !== targetTarget) {
-                  graph.insertEdge(parent, null, '', transitionNodes[transition.id], transitionNodes[targetTarget]);
+                if (transition.id !== targetTarget && transitionNodes[targetTarget]) {
+                  graph.insertEdge(parent, null, '', transitionNodes[transition.id], transitionNodes[targetTarget], edgeStyle);
                 }
               }
             }
@@ -89,9 +108,11 @@ export class ApplicationPetriNetPage implements OnInit {
       // Executes the layout
       layout.execute(parent);
 
+
     } finally {
       graph.getModel().endUpdate()
     }
   }
+
 
 }
