@@ -1,22 +1,23 @@
 package org.eventrails.server.service.messaging;
 
-import org.eventrails.modeling.messaging.message.DecoratedDomainCommandMessage;
 import org.eventrails.modeling.messaging.message.*;
-import org.eventrails.modeling.messaging.message.bus.*;
+import org.eventrails.modeling.messaging.message.bus.MessageBus;
+import org.eventrails.modeling.messaging.message.bus.ResponseSender;
+import org.eventrails.modeling.messaging.message.bus.ServerHandleInvocationMessage;
 import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
-import org.eventrails.server.service.HandlerService;
 import org.eventrails.server.service.BundleDeployService;
+import org.eventrails.server.service.HandlerService;
+import org.eventrails.server.service.performance.PerformanceService;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.groupingBy;
 
 @Service
 public class MessageGatewayService {
@@ -32,23 +33,28 @@ public class MessageGatewayService {
 
 	private final BundleDeployService bundleDeployService;
 
+	private final PerformanceService performanceService;
+
 
 	public MessageGatewayService(
 			HandlerService handlerService,
 			LockRegistry lockRegistry,
 			EventStore eventStore,
-			MessageBus messageBus, BundleDeployService bundleDeployService) {
+			MessageBus messageBus, BundleDeployService bundleDeployService, PerformanceService performanceService) {
 		this.handlerService = handlerService;
 		this.lockRegistry = lockRegistry;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
+		this.performanceService = performanceService;
 		messageBus.setRequestReceiver(this::messageHandler);
 	}
 
 	private void messageHandler(Serializable request, ResponseSender response) {
 
+
+		var startTime = Instant.now();
 		try
 		{
 			if (request instanceof DomainCommandMessage c)
@@ -109,6 +115,7 @@ public class MessageGatewayService {
 				{
 					semaphore.acquire();
 					lock.unlock();
+					performanceService.updatePerformances(handler, startTime);
 				}
 
 			} else if (request instanceof ServiceCommandMessage c)
@@ -122,9 +129,11 @@ public class MessageGatewayService {
 							if (resp != null)
 								eventStore.publishEvent((EventMessage<?>) resp);
 							response.sendResponse(resp);
+							performanceService.updatePerformances(handler, startTime);
 						},
 						error -> {
 							response.sendError(error.toThrowable());
+							performanceService.updatePerformances(handler, startTime);
 						}
 
 				);
@@ -136,9 +145,13 @@ public class MessageGatewayService {
 				messageBus.cast(
 						roundRobinAddressPicker.pickNodeAddress(handler.getBundle().getName()),
 						q,
-						response::sendResponse,
+						resp -> {
+							response.sendResponse(resp);
+							performanceService.updatePerformances(handler, startTime);
+						},
 						error -> {
 							response.sendError(error.toThrowable());
+							performanceService.updatePerformances(handler, startTime);
 						}
 				);
 

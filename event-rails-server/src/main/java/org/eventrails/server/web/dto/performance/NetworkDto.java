@@ -1,7 +1,6 @@
 package org.eventrails.server.web.dto.performance;
 
-import org.eventrails.server.service.performance.Network;
-import org.eventrails.server.service.performance.Post;
+import org.eventrails.server.domain.performance.modeling.Network;
 
 import java.util.List;
 import java.util.stream.Collectors;

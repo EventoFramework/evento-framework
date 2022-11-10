@@ -6,6 +6,7 @@ import org.eventrails.modeling.gateway.CommandGateway;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -53,6 +54,28 @@ class ApplicationTest {
 		System.out.println(resp);
 		resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
 		System.out.println(resp);
+		System.out.println("end");
+	}
+
+	@Test
+	public void generatePerformances() throws Exception {
+		CommandGateway commandGateway = new JGroupsCommandGateway(
+				"event-rails-channel-message",
+				"event-rails-demo-command-test",
+				"event-rails-server");
+		Thread.sleep(1500);
+		for(int i = 0; i<300; i++){
+
+			String id = UUID.randomUUID().toString();
+			var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
+			System.out.println(resp);
+			for(int j = 1; j< new Random().nextInt(6, 11); j++) {
+				resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, j));
+			}
+			System.out.println(resp);
+			resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
+			System.out.println(resp);
+		}
 		System.out.println("end");
 	}
 
