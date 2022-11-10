@@ -7,6 +7,7 @@ import org.hibernate.Hibernate;
 import org.hibernate.HibernateException;
 
 import javax.persistence.*;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Objects;
@@ -17,7 +18,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Entity
 @Table(name = "core__handler")
-public class Handler {
+public class Handler implements Serializable {
 
 	@Id
 	private String uuid;
