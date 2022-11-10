@@ -1,4 +1,4 @@
-package org.eventrails.server.service.performance;
+package org.eventrails.server.domain.performance.modeling;
 
 import java.util.ArrayList;
 import java.util.HashMap;

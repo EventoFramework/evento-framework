@@ -2,7 +2,6 @@ package org.eventrails.server.web;
 
 import org.eventrails.server.service.HandlerService;
 import org.eventrails.server.service.performance.ApplicationPetriNetService;
-import org.eventrails.server.service.performance.Network;
 import org.eventrails.server.web.dto.HandlerDto;
 import org.eventrails.server.web.dto.performance.NetworkDto;
 import org.springframework.http.ResponseEntity;
