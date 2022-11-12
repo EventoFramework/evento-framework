@@ -20,7 +20,6 @@ import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
 import org.eventrails.server.service.BundleDeployService;
-import org.eventrails.server.service.performance.PerformanceService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -51,7 +50,6 @@ public class EventDispatcher {
 
 	private final BundleDeployService bundleDeployService;
 
-	private final PerformanceService performanceService;
 
 	public EventDispatcher(
 			BundleRepository bundleRepository,
@@ -60,7 +58,7 @@ public class EventDispatcher {
 			MessageBus messageBus,
 			HandlerService handlerService,
 			EventStore eventStore,
-			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, BundleDeployService bundleDeployService, PerformanceService performanceService) {
+			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, BundleDeployService bundleDeployService) {
 		this.bundleRepository = bundleRepository;
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
@@ -70,8 +68,7 @@ public class EventDispatcher {
 		this.serverNodeName = serverNodeName;
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
-		this.performanceService = performanceService;
-		eventConsumer();
+		// eventConsumer();
 	}
 
 	private void eventConsumer() {
@@ -228,8 +225,6 @@ public class EventDispatcher {
 										events.size() == 1 ? new ArrayList<>() : events.subList(1, events.size()), handlers, eventStore,
 										repository, sagaStateRepository);
 							});
-							performanceService.updatePerformances(dest, handler.get(), startTime);
-
 						},
 						error -> {
 							error.toException().printStackTrace();
@@ -237,7 +232,6 @@ public class EventDispatcher {
 									bundleName, sagaName, events,
 									handlers, eventStore,
 									repository, sagaStateRepository);
-							performanceService.updatePerformances(dest, handler.get(), startTime);
 
 						});
 			}
@@ -278,14 +272,10 @@ public class EventDispatcher {
 				messageBus.cast(dest,
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {
-							performanceService.updatePerformances(dest, handlers.stream()
-									.filter(h -> h.getHandledPayload().getName().equals(event.getEventName())).toList(), startTime);
 							processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
 						},
 						err -> {
 							err.toException().printStackTrace();
-							performanceService.updatePerformances(dest, handlers.stream()
-									.filter(h -> h.getHandledPayload().getName().equals(event.getEventName())).toList(), startTime);
 							processProjectorEvents(bundleName, projectorName, events, handlers, eventStore, repository);
 						});
 			}

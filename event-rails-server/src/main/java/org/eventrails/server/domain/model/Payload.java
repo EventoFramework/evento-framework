@@ -30,8 +30,7 @@ public class Payload implements Serializable {
 	@Column(columnDefinition = "JSON")
 	private String jsonSchema;
 
-	@ManyToOne
-	private Bundle registeredIn;
+	private String registeredIn;
 
 	private Instant updatedAt;
 

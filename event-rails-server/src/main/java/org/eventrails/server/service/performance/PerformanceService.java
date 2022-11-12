@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
-@Service
 public class PerformanceService {
 
     /*
