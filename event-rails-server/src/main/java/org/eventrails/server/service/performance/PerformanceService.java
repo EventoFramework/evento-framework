@@ -1,5 +1,6 @@
 package org.eventrails.server.service.performance;
 
+import org.eventrails.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.performance.HandlerPerformances;
 import org.eventrails.server.domain.repository.HandlerPerformancesRepository;
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 
 @Service
 public class PerformanceService {
@@ -31,14 +33,32 @@ from performance__handler ph inner join core__handler h on h.uuid = ph.handler_i
     public static final double ALPHA = 0.9;
     public static final int MAX_DEPARTURES = 200;
 
+    private final LinkedBlockingQueue<PerformanceLog> queue = new LinkedBlockingQueue<PerformanceLog>();
+
+    private static record PerformanceLog(NodeAddress dest, Handler handler, Instant startTime){}
+
+    private final Thread worker = new Thread(() -> {
+        while (true){
+            try
+            {
+                var log = queue.take();
+                savePerformance(log.dest, log.handler, log.startTime);
+            } catch (InterruptedException e)
+            {
+               e.printStackTrace();
+            }
+        }
+    });
+
     public PerformanceService(HandlerPerformancesRepository handlerPerformancesRepository) {
         this.handlerPerformancesRepository = handlerPerformancesRepository;
+        worker.start();
+
     }
 
-
-    public void updatePerformances(Handler handler, Instant startTime) {
+    private void savePerformance(NodeAddress dest, Handler handler, Instant startTime){
         var now = Instant.now();
-        var hp = handlerPerformancesRepository.findById(handler.getUuid());
+        var hp = handlerPerformancesRepository.findById(dest.getNodeId() + "_" + handler.getUuid());
         HandlerPerformances handlerPerformances;
         if(hp.isPresent()){
             handlerPerformances = hp.get();
@@ -55,6 +75,8 @@ from performance__handler ph inner join core__handler h on h.uuid = ph.handler_i
             handlerPerformances.setUpdatedAt(now);
         }else{
             handlerPerformances = new HandlerPerformances(
+                    dest.getNodeId() + "_" + handler.getUuid(),
+                    dest.getNodeId(),
                     handler.getUuid(),
                     now.toEpochMilli() - startTime.toEpochMilli(),
                     now.toEpochMilli() - startTime.toEpochMilli(),
@@ -66,12 +88,15 @@ from performance__handler ph inner join core__handler h on h.uuid = ph.handler_i
             );
         }
         handlerPerformancesRepository.save(handlerPerformances);
-
     }
 
-    public void updatePerformances(List<Handler> handlers, Instant startTime) {
+    public void updatePerformances(NodeAddress dest, Handler handler, Instant startTime) {
+        queue.add(new PerformanceLog(dest, handler, startTime));
+    }
+
+    public void updatePerformances(NodeAddress dest, List<Handler> handlers, Instant startTime) {
         for (Handler handler : handlers) {
-            updatePerformances(handler, startTime);
+            updatePerformances(dest, handler, startTime);
         }
     }
 }

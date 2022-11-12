@@ -19,6 +19,10 @@ import java.time.Instant;
 public class HandlerPerformances {
 
     @Id
+    private String id;
+
+    private String nodeId;
+
     private String handlerId;
 
     private double lastServiceTime;

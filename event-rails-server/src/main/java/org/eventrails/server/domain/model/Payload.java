@@ -6,6 +6,7 @@ import org.hibernate.Hibernate;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -16,9 +17,9 @@ import java.util.Objects;
 @RequiredArgsConstructor
 @Embeddable
 @Table(name = "core__payload")
+@AllArgsConstructor
 public class Payload implements Serializable {
 	@Id
-	@Column(name = "name")
 	private String name;
 
 	@OneToMany(mappedBy = "handledPayload")
@@ -28,6 +29,11 @@ public class Payload implements Serializable {
 	private PayloadType type;
 	@Column(columnDefinition = "JSON")
 	private String jsonSchema;
+
+	@ManyToOne
+	private Bundle registeredIn;
+
+	private Instant updatedAt;
 
 	@Override
 	public boolean equals(Object o) {

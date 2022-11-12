@@ -9,6 +9,9 @@ import java.time.Instant;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 class ApplicationTest {
 
@@ -64,19 +67,24 @@ class ApplicationTest {
 				"event-rails-demo-command-test",
 				"event-rails-server");
 		Thread.sleep(1500);
-		for(int i = 0; i<300; i++){
-
+		var list = IntStream.range(0, 300).parallel().mapToObj(i -> {
 			String id = UUID.randomUUID().toString();
+
+			System.out.println("["+i+"] - START");
 			var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
-			System.out.println(resp);
-			for(int j = 1; j< new Random().nextInt(6, 11); j++) {
+			System.out.println("["+i+"] - " + resp);
+			for (int j = 1; j < new Random().nextInt(6, 11); j++)
+			{
 				resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, j));
+				System.out.println("["+i+"] - " + resp);
 			}
-			System.out.println(resp);
 			resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
-			System.out.println(resp);
-		}
-		System.out.println("end");
+			System.out.println("["+i+"] - " + resp);
+			System.out.println("["+i+"] - END");
+			return resp;
+		}).toList();
+
+		System.out.println(list);
 	}
 
 	@Test

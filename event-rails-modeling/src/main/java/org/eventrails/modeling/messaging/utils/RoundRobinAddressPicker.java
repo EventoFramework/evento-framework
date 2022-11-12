@@ -6,7 +6,7 @@ import org.eventrails.modeling.messaging.message.bus.NodeAddress;
 
 import java.util.HashMap;
 
-public class RoundRobinAddressPicker {
+public class RoundRobinAddressPicker implements AddressPicker {
 
 	private static final int RESET = 1000;
 
@@ -17,6 +17,7 @@ public class RoundRobinAddressPicker {
 		this.messageBus = messageBus;
 	}
 
+	@Override
 	public synchronized NodeAddress pickNodeAddress(String serverName) {
 		var addresses = messageBus.findAllNodeAddresses(serverName);
 		if(addresses.isEmpty()) throw  new NodeNotFoundException("Node %s not found".formatted(serverName));

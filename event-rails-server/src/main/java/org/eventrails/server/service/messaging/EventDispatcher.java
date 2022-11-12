@@ -5,6 +5,7 @@ import org.eventrails.modeling.messaging.message.EventToProjectorMessage;
 import org.eventrails.modeling.messaging.message.EventToSagaMessage;
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.modeling.messaging.message.bus.NodeAddress;
+import org.eventrails.modeling.messaging.utils.AddressPicker;
 import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.state.SerializedSagaState;
 import org.eventrails.server.domain.model.ProjectorState;
@@ -46,7 +47,7 @@ public class EventDispatcher {
 	private final EventStore eventStore;
 	private final String serverNodeName;
 
-	private final RoundRobinAddressPicker roundRobinAddressPicker;
+	private final AddressPicker addressPicker;
 
 	private final BundleDeployService bundleDeployService;
 
@@ -67,7 +68,7 @@ public class EventDispatcher {
 		this.handlerService = handlerService;
 		this.eventStore = eventStore;
 		this.serverNodeName = serverNodeName;
-		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
+		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
 		this.performanceService = performanceService;
 		eventConsumer();
@@ -200,7 +201,8 @@ public class EventDispatcher {
 						.orElse(new SagaState(sagaName, new SerializedSagaState<>(null)));
 
 				bundleDeployService.waitUntilAvailable(bundleName);
-				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(bundleName),
+				var dest = addressPicker.pickNodeAddress(bundleName);
+				messageBus.cast(dest,
 						new EventToSagaMessage(event.getEventMessage(),
 								sagaState.getSerializedSagaState(),
 								sagaName
@@ -226,7 +228,7 @@ public class EventDispatcher {
 										events.size() == 1 ? new ArrayList<>() : events.subList(1, events.size()), handlers, eventStore,
 										repository, sagaStateRepository);
 							});
-							performanceService.updatePerformances(handler.get(), startTime);
+							performanceService.updatePerformances(dest, handler.get(), startTime);
 
 						},
 						error -> {
@@ -235,7 +237,7 @@ public class EventDispatcher {
 									bundleName, sagaName, events,
 									handlers, eventStore,
 									repository, sagaStateRepository);
-							performanceService.updatePerformances(handler.get(), startTime);
+							performanceService.updatePerformances(dest, handler.get(), startTime);
 
 						});
 			}
@@ -272,15 +274,18 @@ public class EventDispatcher {
 
 				var startTime = Instant.now();
 				bundleDeployService.waitUntilAvailable(bundleName);
-				messageBus.cast(roundRobinAddressPicker.pickNodeAddress(bundleName),
+				var dest = addressPicker.pickNodeAddress(bundleName);
+				messageBus.cast(dest,
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {
-							performanceService.updatePerformances(handlers, startTime);
+							performanceService.updatePerformances(dest, handlers.stream()
+									.filter(h -> h.getHandledPayload().getName().equals(event.getEventName())).toList(), startTime);
 							processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
 						},
 						err -> {
 							err.toException().printStackTrace();
-							performanceService.updatePerformances(handlers, startTime);
+							performanceService.updatePerformances(dest, handlers.stream()
+									.filter(h -> h.getHandledPayload().getName().equals(event.getEventName())).toList(), startTime);
 							processProjectorEvents(bundleName, projectorName, events, handlers, eventStore, repository);
 						});
 			}
