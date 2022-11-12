@@ -69,7 +69,7 @@ public class JGroupsMessageBus implements MessageBus, Receiver {
 				var keys = messageCorrelationMap.keySet();
 				LOGGER.info("Graceful Shutdown - Remaining correlations: %d", keys.size());
 				LOGGER.info("Graceful Shutdown - Sleep...");
-				Thread.sleep(1000);
+				Thread.sleep(5*1000);
 				if (messageCorrelationMap.isEmpty())
 				{
 					LOGGER.info("Graceful Shutdown - No more correlations, bye!");

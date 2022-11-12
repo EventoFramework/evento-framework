@@ -67,7 +67,39 @@ class ApplicationTest {
 				"event-rails-demo-command-test",
 				"event-rails-server");
 		Thread.sleep(1500);
-		var list = IntStream.range(0, 300).parallel().mapToObj(i -> {
+		var list = IntStream.range(0, 50).parallel().mapToObj(i -> {
+			String id = UUID.randomUUID().toString();
+
+			System.out.println("["+i+"] - START");
+			var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
+			System.out.println("["+i+"] - " + resp);
+			for (int j = 1; j < new Random().nextInt(6, 11); j++)
+			{
+				resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, j));
+				System.out.println("["+i+"] - " + resp);
+			}
+			resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
+			System.out.println("["+i+"] - " + resp);
+			System.out.println("["+i+"] - END");
+			return resp;
+		}).toList();
+		list = IntStream.range(0, 10).parallel().mapToObj(i -> {
+			String id = UUID.randomUUID().toString();
+
+			System.out.println("["+i+"] - START");
+			var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
+			System.out.println("["+i+"] - " + resp);
+			for (int j = 1; j < new Random().nextInt(6, 11); j++)
+			{
+				resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, j));
+				System.out.println("["+i+"] - " + resp);
+			}
+			resp = commandGateway.sendAndWait(new DemoDeleteCommand(id));
+			System.out.println("["+i+"] - " + resp);
+			System.out.println("["+i+"] - END");
+			return resp;
+		}).toList();
+		list = IntStream.range(0, 5).parallel().mapToObj(i -> {
 			String id = UUID.randomUUID().toString();
 
 			System.out.println("["+i+"] - START");
