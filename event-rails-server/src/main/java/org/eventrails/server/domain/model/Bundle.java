@@ -12,6 +12,7 @@ import java.util.Objects;
 @ToString
 @RequiredArgsConstructor
 @Table(name = "core__bundle")
+@AllArgsConstructor
 public class Bundle {
 
 	@Id

@@ -4,6 +4,7 @@ import org.eventrails.modeling.messaging.message.*;
 import org.eventrails.modeling.messaging.message.bus.MessageBus;
 import org.eventrails.modeling.messaging.message.bus.ResponseSender;
 import org.eventrails.modeling.messaging.message.bus.ServerHandleInvocationMessage;
+import org.eventrails.modeling.messaging.utils.AddressPicker;
 import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
@@ -29,7 +30,7 @@ public class MessageGatewayService {
 
 	private final MessageBus messageBus;
 
-	private final RoundRobinAddressPicker roundRobinAddressPicker;
+	private final AddressPicker addressPicker;
 
 	private final BundleDeployService bundleDeployService;
 
@@ -45,7 +46,7 @@ public class MessageGatewayService {
 		this.lockRegistry = lockRegistry;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
-		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
+		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
 		this.performanceService = performanceService;
 		messageBus.setRequestReceiver(this::messageHandler);
@@ -66,6 +67,7 @@ public class MessageGatewayService {
 				var lock = lockRegistry.obtain("AGGREGATE:" + c.getAggregateId());
 				lock.lock();
 				var semaphore = new Semaphore(0);
+				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
 				try
 				{
 					var invocation = new DecoratedDomainCommandMessage();
@@ -87,7 +89,7 @@ public class MessageGatewayService {
 						invocation.setSerializedAggregateState(snapshot.getAggregateState());
 					}
 					messageBus.cast(
-							roundRobinAddressPicker.pickNodeAddress(handler.getBundle().getName()),
+							dest,
 							invocation,
 							resp -> {
 								var cr = (DomainCommandResponseMessage) resp;
@@ -115,25 +117,26 @@ public class MessageGatewayService {
 				{
 					semaphore.acquire();
 					lock.unlock();
-					performanceService.updatePerformances(handler, startTime);
+					performanceService.updatePerformances(dest, handler, startTime);
 				}
 
 			} else if (request instanceof ServiceCommandMessage c)
 			{
 				var handler = handlerService.findByPayloadName(c.getCommandName());
 				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
+				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
 				messageBus.cast(
-						roundRobinAddressPicker.pickNodeAddress(handler.getBundle().getName()),
+						dest,
 						c,
 						resp -> {
 							if (resp != null)
 								eventStore.publishEvent((EventMessage<?>) resp);
 							response.sendResponse(resp);
-							performanceService.updatePerformances(handler, startTime);
+							performanceService.updatePerformances(dest, handler, startTime);
 						},
 						error -> {
 							response.sendError(error.toThrowable());
-							performanceService.updatePerformances(handler, startTime);
+							performanceService.updatePerformances(dest, handler, startTime);
 						}
 
 				);
@@ -142,16 +145,17 @@ public class MessageGatewayService {
 			{
 				var handler = handlerService.findByPayloadName(q.getQueryName());
 				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
+				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
 				messageBus.cast(
-						roundRobinAddressPicker.pickNodeAddress(handler.getBundle().getName()),
+						dest,
 						q,
 						resp -> {
 							response.sendResponse(resp);
-							performanceService.updatePerformances(handler, startTime);
+							performanceService.updatePerformances(dest, handler, startTime);
 						},
 						error -> {
 							response.sendError(error.toThrowable());
-							performanceService.updatePerformances(handler, startTime);
+							performanceService.updatePerformances(dest, handler, startTime);
 						}
 				);
 
