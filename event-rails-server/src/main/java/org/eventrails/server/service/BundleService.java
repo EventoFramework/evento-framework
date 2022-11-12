@@ -18,6 +18,8 @@ import org.eventrails.server.domain.repository.PayloadRepository;
 import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
@@ -42,19 +44,20 @@ public class BundleService {
 			String bundleDeploymentArtifactCoordinates,
 			String jarOriginalName,
 			BundleDescription bundleDescription) {
-		Bundle bundle = new Bundle();
-		bundle.setName(bundleDeploymentName);
-		bundle.setContainsHandlers(bundleDescription.getComponents().size()>0);
-		bundle.setBucketType(bundleDeploymentBucketType);
-		bundle.setArtifactCoordinates(bundleDeploymentArtifactCoordinates);
-		bundle.setArtifactOriginalName(jarOriginalName);
-		bundle = bundleRepository.save(bundle);
+		Bundle bundle = bundleRepository.save(new Bundle(
+				bundleDeploymentName,
+				bundleDeploymentBucketType,
+				bundleDeploymentArtifactCoordinates,
+				jarOriginalName,
+				bundleDescription.getComponents().size()>0));
 		for (PayloadDescription payloadDescription : bundleDescription.getPayloadDescriptions())
 		{
 			var payload = new Payload();
 			payload.setName(payloadDescription.getName());
 			payload.setJsonSchema(payloadDescription.getSchema().toString());
 			payload.setType(PayloadType.valueOf(payloadDescription.getType()));
+			payload.setUpdatedAt(Instant.now());
+			payload.setRegisteredIn(bundle);
 			payloadRepository.save(payload);
 		}
 		for (Component component : bundleDescription.getComponents())

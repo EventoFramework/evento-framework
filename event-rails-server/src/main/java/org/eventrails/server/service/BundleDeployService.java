@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -24,7 +25,7 @@ public class BundleDeployService {
 	private final LockRegistry lockRegistry;
 	private final BundleService bundleService;
 
-	private final HashMap<String, Semaphore> semaphoreMap = new HashMap<>();
+	private final ConcurrentHashMap<String, Semaphore> semaphoreMap = new ConcurrentHashMap<>();
 
 	public BundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleService bundleService) {
 		this.messageBus = messageBus;
@@ -48,8 +49,9 @@ public class BundleDeployService {
 				lock.lock();
 				var semaphore = semaphoreMap.getOrDefault(bundleName, new Semaphore(0));
 				semaphoreMap.put(bundleName, semaphore);
+				if(messageBus.isBundleAvailable(bundleName)) return;
 				spawn(bundle);
-				if (!semaphore.tryAcquire(30, TimeUnit.SECONDS))
+				if (!semaphore.tryAcquire(60, TimeUnit.SECONDS))
 				{
 					throw new IllegalStateException("Bundle Cannot Start");
 				}
