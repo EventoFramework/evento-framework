@@ -12,6 +12,7 @@ import org.eventrails.modeling.messaging.message.*;
 import org.eventrails.modeling.messaging.query.SerializedQueryResponse;
 import org.eventrails.modeling.state.SerializedAggregateState;
 import org.eventrails.modeling.state.SerializedSagaState;
+import org.eventrails.shared.messaging.AutoscalingProtocol;
 import org.eventrails.shared.messaging.JGroupsMessageBus;
 import org.jgroups.JChannel;
 import org.reflections.Reflections;
@@ -19,6 +20,7 @@ import org.reflections.Reflections;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class EventRailsApplication {
 
@@ -32,6 +34,10 @@ public class EventRailsApplication {
 	private HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers = new HashMap<>();
 	private HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers = new HashMap<>();
 
+	private transient AutoscalingProtocol autoscalingProtocol;
+
+	private boolean suffering = false;
+
 	private transient CommandGateway commandGateway;
 	private transient QueryGateway queryGateway;
 
@@ -41,11 +47,12 @@ public class EventRailsApplication {
 			String clusterName,
 			String serverName
 	) throws Exception {
+
+
 		this.basePackage = basePackage;
 		this.bundleName = bundleName;
 
 		JChannel jChannel = new JChannel();
-
 
 		messageBus = new JGroupsMessageBus(jChannel,
 				message -> {
@@ -54,6 +61,8 @@ public class EventRailsApplication {
 				(request, response) -> {
 					try
 					{
+						this.autoscalingProtocol.arrival();
+						Thread.sleep(5000);
 						if (request instanceof DecoratedDomainCommandMessage c)
 						{
 							var handler = getAggregateMessageHandlers()
@@ -150,11 +159,26 @@ public class EventRailsApplication {
 					} catch (Throwable e)
 					{
 						response.sendError(e);
+					}finally
+					{
+						this.autoscalingProtocol.departure();
 					}
 
 				});
+
+		this.autoscalingProtocol = new AutoscalingProtocol(
+				bundleName,
+				serverName,
+				messageBus,
+				16,
+				4,
+				5,
+				5);
+
 		jChannel.setName(bundleName);
 		jChannel.connect(clusterName);
+
+
 
 		commandGateway = new JGroupsCommandGateway(messageBus, serverName);
 		queryGateway = new JGroupsQueryGateway(messageBus, serverName);

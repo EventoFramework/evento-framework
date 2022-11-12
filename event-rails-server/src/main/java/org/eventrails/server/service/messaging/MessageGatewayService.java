@@ -1,9 +1,7 @@
 package org.eventrails.server.service.messaging;
 
 import org.eventrails.modeling.messaging.message.*;
-import org.eventrails.modeling.messaging.message.bus.MessageBus;
-import org.eventrails.modeling.messaging.message.bus.ResponseSender;
-import org.eventrails.modeling.messaging.message.bus.ServerHandleInvocationMessage;
+import org.eventrails.modeling.messaging.message.bus.*;
 import org.eventrails.modeling.messaging.utils.AddressPicker;
 import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.modeling.state.SerializedAggregateState;
@@ -11,7 +9,8 @@ import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.BundleDeployService;
 import org.eventrails.server.service.HandlerService;
-import org.eventrails.server.service.performance.PerformanceService;
+import org.eventrails.shared.messaging.AutoscalingProtocol;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
@@ -34,30 +33,71 @@ public class MessageGatewayService {
 
 	private final BundleDeployService bundleDeployService;
 
-	private final PerformanceService performanceService;
-
+	private final AutoscalingProtocol autoscalingProtocol;
+	private final int minNodes;
+	private final boolean autoscalingEnabled;
 
 	public MessageGatewayService(
 			HandlerService handlerService,
 			LockRegistry lockRegistry,
 			EventStore eventStore,
-			MessageBus messageBus, BundleDeployService bundleDeployService, PerformanceService performanceService) {
+			MessageBus messageBus,
+			BundleDeployService bundleDeployService,
+			@Value("${eventrails.cluster.node.server.name}") String serverNodeName,
+			@Value("${eventrails.cluster.autoscaling.max.threads}") int maxThreads,
+			@Value("${eventrails.cluster.autoscaling.max.overflow}") int maxOverflow,
+			@Value("${eventrails.cluster.autoscaling.min.threads}") int minThreads,
+			@Value("${eventrails.cluster.autoscaling.max.underflow}") int maxUnderflow,
+			@Value("${eventrails.cluster.autoscaling.min.nodes}") int minNodes,
+			@Value("${eventrails.cluster.autoscaling.enabled}") boolean autoscalingEnabled
+			) {
 		this.handlerService = handlerService;
 		this.lockRegistry = lockRegistry;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
-		this.performanceService = performanceService;
-		messageBus.setRequestReceiver(this::messageHandler);
+		this.autoscalingProtocol = new AutoscalingProtocol(
+				serverNodeName,
+				serverNodeName,
+				messageBus,
+				maxThreads,
+				minThreads,
+				maxOverflow,
+				maxUnderflow
+		);
+		this.minNodes = minNodes;
+		this.autoscalingEnabled = autoscalingEnabled;
+		messageBus.setRequestReceiver(this::requestHandler);
+		messageBus.setMessageReceiver(this::messageHandler);
 	}
 
-	private void messageHandler(Serializable request, ResponseSender response) {
-
-
-		var startTime = Instant.now();
+	private void messageHandler(Serializable request) {
 		try
 		{
+			if(this.autoscalingEnabled)
+			{
+				if (request instanceof ClusterNodeIsSufferingMessage m)
+				{
+					bundleDeployService.spawn(m.getBundleName());
+				} else if (request instanceof ClusterNodeIsBoredMessage m)
+				{
+					var nodes = messageBus.findAllNodeAddresses(m.getBundleName());
+					if (nodes.size() > minNodes)
+					{
+						messageBus.sendKill(m.getNodeId());
+					}
+				}
+			}
+		}catch (Exception e){
+			e.printStackTrace();
+		}
+	}
+
+	private void requestHandler(Serializable request, ResponseSender response) {
+		try
+		{
+			this.autoscalingProtocol.arrival();
 			if (request instanceof DomainCommandMessage c)
 			{
 
@@ -117,7 +157,6 @@ public class MessageGatewayService {
 				{
 					semaphore.acquire();
 					lock.unlock();
-					performanceService.updatePerformances(dest, handler, startTime);
 				}
 
 			} else if (request instanceof ServiceCommandMessage c)
@@ -132,11 +171,9 @@ public class MessageGatewayService {
 							if (resp != null)
 								eventStore.publishEvent((EventMessage<?>) resp);
 							response.sendResponse(resp);
-							performanceService.updatePerformances(dest, handler, startTime);
 						},
 						error -> {
 							response.sendError(error.toThrowable());
-							performanceService.updatePerformances(dest, handler, startTime);
 						}
 
 				);
@@ -149,13 +186,9 @@ public class MessageGatewayService {
 				messageBus.cast(
 						dest,
 						q,
-						resp -> {
-							response.sendResponse(resp);
-							performanceService.updatePerformances(dest, handler, startTime);
-						},
+						response::sendResponse,
 						error -> {
 							response.sendError(error.toThrowable());
-							performanceService.updatePerformances(dest, handler, startTime);
 						}
 				);
 
@@ -167,6 +200,9 @@ public class MessageGatewayService {
 		{
 			e.printStackTrace();
 			response.sendError(e);
+		}finally
+		{
+			this.autoscalingProtocol.departure();
 		}
 	}
 

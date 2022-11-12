@@ -57,7 +57,7 @@ public class BundleService {
 			payload.setJsonSchema(payloadDescription.getSchema().toString());
 			payload.setType(PayloadType.valueOf(payloadDescription.getType()));
 			payload.setUpdatedAt(Instant.now());
-			payload.setRegisteredIn(bundle);
+			payload.setRegisteredIn(bundle.getName());
 			payloadRepository.save(payload);
 		}
 		for (Component component : bundleDescription.getComponents())
