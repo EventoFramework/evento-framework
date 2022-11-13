@@ -5,8 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.eventrails.modeling.state.SerializedSagaState;
-import org.eventrails.server.config.JsonConverter;
+import org.eventrails.common.modeling.state.SerializedSagaState;
 
 import javax.persistence.*;
 

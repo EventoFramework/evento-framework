@@ -1,10 +1,9 @@
 package org.eventrails.server.service.performance;
 
-import org.eventrails.modeling.messaging.message.bus.NodeAddress;
+import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.performance.HandlerPerformances;
 import org.eventrails.server.domain.repository.HandlerPerformancesRepository;
-import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;

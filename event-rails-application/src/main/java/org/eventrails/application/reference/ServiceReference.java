@@ -2,11 +2,12 @@ package org.eventrails.application.reference;
 
 
 import org.eventrails.application.utils.ReflectionUtils;
-import org.eventrails.modeling.annotations.handler.CommandHandler;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.CommandMessage;
-import org.eventrails.modeling.messaging.payload.*;
+import org.eventrails.common.modeling.annotations.handler.CommandHandler;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.messaging.message.application.CommandMessage;
+import org.eventrails.common.modeling.messaging.payload.ServiceCommand;
+import org.eventrails.common.modeling.messaging.payload.ServiceEvent;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

@@ -1,6 +1,6 @@
 package org.eventrails.demo.api.event;
 
-import org.eventrails.modeling.messaging.payload.ServiceEvent;
+import org.eventrails.common.modeling.messaging.payload.ServiceEvent;
 
 public class NotificationSentEvent extends ServiceEvent {
 	private String notificationId;

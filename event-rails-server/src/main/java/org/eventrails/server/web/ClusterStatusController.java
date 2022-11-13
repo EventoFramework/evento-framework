@@ -1,7 +1,7 @@
 package org.eventrails.server.web;
 
-import org.eventrails.modeling.messaging.message.bus.MessageBus;
-import org.eventrails.modeling.messaging.message.bus.NodeAddress;
+import org.eventrails.common.messaging.bus.MessageBus;
+import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.service.BundleService;
 import org.eventrails.server.service.BundleDeployService;
@@ -14,6 +14,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -48,9 +49,9 @@ public class ClusterStatusController {
 	public SseEmitter handle() throws IOException {
 		SseEmitter emitter = new SseEmitter(15 * 60 * 1000L);
 		emitter.send(messageBus.getCurrentView());
-		var listener = new Consumer<List<NodeAddress>>() {
+		var listener = new Consumer<Set<NodeAddress>>() {
 			@Override
-			public void accept(List<NodeAddress> o) {
+			public void accept(Set<NodeAddress> o) {
 				try
 				{
 					emitter.send(o);
@@ -68,9 +69,9 @@ public class ClusterStatusController {
 	public SseEmitter handleViewEnabled() throws IOException {
 		SseEmitter emitter = new SseEmitter(15 * 60 * 1000L);
 		emitter.send(messageBus.getCurrentAvailableView());
-		var listener = new Consumer<List<NodeAddress>>() {
+		var listener = new Consumer<Set<NodeAddress>>() {
 			@Override
-			public void accept(List<NodeAddress> o) {
+			public void accept(Set<NodeAddress> o) {
 				try
 				{
 					emitter.send(o);

@@ -1,12 +1,11 @@
 package org.eventrails.server.es.eventstore;
 
 import lombok.*;
-import org.eventrails.modeling.gateway.PublishedEvent;
-import org.eventrails.modeling.messaging.message.EventMessage;
+import org.eventrails.common.modeling.messaging.dto.PublishedEvent;
+import org.eventrails.common.modeling.messaging.message.application.EventMessage;
 import org.eventrails.server.config.JsonConverter;
 
 import javax.persistence.*;
-import java.time.Instant;
 
 @Entity
 @Table(name = "es__events", indexes = {

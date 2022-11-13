@@ -28,7 +28,7 @@ dependencies {
     implementation 'org.ow2.asm:asm:9.2'
 
     implementation 'org.reflections:reflections:0.10.2'
-    implementation project(':event-rails-modeling')
+    implementation project(':event-rails-common')
 
 }
 

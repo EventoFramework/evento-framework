@@ -1,7 +1,7 @@
 package org.eventrails.server.web;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.eventrails.modeling.utils.ObjectMapperUtils;
+import org.eventrails.common.serialization.ObjectMapperUtils;
 import org.eventrails.parser.model.BundleDescription;
 import org.eventrails.server.domain.model.BucketType;
 import org.eventrails.server.domain.model.Bundle;

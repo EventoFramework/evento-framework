@@ -1,19 +1,19 @@
 package org.eventrails.application.reference;
 
 
-import org.eventrails.modeling.exceptions.AggregateDeletedError;
-import org.eventrails.modeling.exceptions.AggregateInitializedError;
-import org.eventrails.modeling.exceptions.AggregateNotInitializedError;
+import org.eventrails.common.modeling.exceptions.AggregateDeletedError;
+import org.eventrails.common.modeling.exceptions.AggregateInitializedError;
+import org.eventrails.common.modeling.exceptions.AggregateNotInitializedError;
 import org.eventrails.application.utils.ReflectionUtils;
-import org.eventrails.modeling.annotations.handler.AggregateCommandHandler;
-import org.eventrails.modeling.annotations.handler.EventSourcingHandler;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.DomainCommandMessage;
-import org.eventrails.modeling.messaging.message.DomainEventMessage;
-import org.eventrails.modeling.messaging.payload.DomainCommand;
-import org.eventrails.modeling.messaging.payload.DomainEvent;
-import org.eventrails.modeling.state.AggregateState;
+import org.eventrails.common.modeling.annotations.handler.AggregateCommandHandler;
+import org.eventrails.common.modeling.annotations.handler.EventSourcingHandler;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.messaging.message.application.DomainCommandMessage;
+import org.eventrails.common.modeling.messaging.message.application.DomainEventMessage;
+import org.eventrails.common.modeling.messaging.payload.DomainCommand;
+import org.eventrails.common.modeling.messaging.payload.DomainEvent;
+import org.eventrails.common.modeling.state.AggregateState;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

@@ -1,12 +1,12 @@
 package org.eventrails.application.reference;
 
 import org.eventrails.application.utils.ReflectionUtils;
-import org.eventrails.modeling.annotations.handler.EventHandler;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.EventMessage;
-import org.eventrails.modeling.messaging.payload.Event;
-import org.eventrails.modeling.bundle.TransactionalProjector;
+import org.eventrails.common.modeling.annotations.handler.EventHandler;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.messaging.message.application.EventMessage;
+import org.eventrails.common.modeling.messaging.payload.Event;
+import org.eventrails.common.modeling.bundle.TransactionalProjector;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

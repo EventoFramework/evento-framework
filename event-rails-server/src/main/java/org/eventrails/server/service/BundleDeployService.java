@@ -1,6 +1,6 @@
 package org.eventrails.server.service;
 
-import org.eventrails.modeling.messaging.message.bus.MessageBus;
+import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.server.domain.model.Bundle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,7 +9,6 @@ import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;

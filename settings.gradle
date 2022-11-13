@@ -10,7 +10,6 @@ pluginManagement {
 }
 
 rootProject.name = 'event-rails'
-include 'event-rails-modeling'
 include 'event-rails-parser'
 include 'event-rails-server'
 include 'event-rails-cli'
@@ -21,10 +20,11 @@ include 'event-rails-demo:event-rails-demo-api'
 include 'event-rails-demo:event-rails-demo-web-domain'
 include 'event-rails-application'
 include 'event-rails-demo'
-include 'event-rails-shared'
+include 'event-rails-common'
 include 'ecent-rails-dispatcher'
 findProject(':event-rails-demo:event-rails-demo-api')?.name = 'event-rails-demo-api'
 include 'event-rails-plugin-gradle'
 include 'event-rails-demo:event-rails-demo-web-domain'
 findProject(':event-rails-demo:event-rails-demo-web-domain')?.name = 'event-rails-demo-web-domain'
+include 'event-rails-bus-jgroups'
 

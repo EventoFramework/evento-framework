@@ -1,7 +1,7 @@
 package org.eventrails.server.config;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.eventrails.modeling.utils.ObjectMapperUtils;
+import org.eventrails.common.serialization.ObjectMapperUtils;
 
 import javax.persistence.AttributeConverter;
 

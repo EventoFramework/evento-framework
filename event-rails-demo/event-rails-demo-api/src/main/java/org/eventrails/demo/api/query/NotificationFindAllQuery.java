@@ -1,6 +1,6 @@
 package org.eventrails.demo.api.query;
 
-import org.eventrails.modeling.messaging.payload.Query;
+import org.eventrails.common.modeling.messaging.payload.Query;
 
 public class NotificationFindAllQuery extends Query {
 	private Integer limit;
