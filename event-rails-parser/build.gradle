@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'java-library'
 }
 
 group 'org.eventrails.parser'
@@ -10,25 +11,25 @@ repositories {
 }
 
 dependencies {
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
 
     // https://mvnrepository.com/artifact/net.sourceforge.pmd/pmd-java
-    implementation 'net.sourceforge.pmd:pmd-java:6.46.0'
+    implementation 'net.sourceforge.pmd:pmd-java:6.51.0'
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
-    implementation 'com.google.code.gson:gson:2.9.0'
+    implementation 'com.google.code.gson:gson:2.10'
 
 
 
     // https://mvnrepository.com/artifact/org.ow2.asm/asm-commons
-    implementation 'org.ow2.asm:asm-commons:9.3'
+    implementation 'org.ow2.asm:asm-commons:9.4'
     // https://mvnrepository.com/artifact/org.ow2.asm/asm-util
-    implementation 'org.ow2.asm:asm-util:9.3'
+    implementation 'org.ow2.asm:asm-util:9.4'
     // https://mvnrepository.com/artifact/org.ow2.asm/asm
     implementation 'org.ow2.asm:asm:9.2'
 
     implementation 'org.reflections:reflections:0.10.2'
-    implementation project(':event-rails-common')
+    api project(':event-rails-common')
 
 }
 

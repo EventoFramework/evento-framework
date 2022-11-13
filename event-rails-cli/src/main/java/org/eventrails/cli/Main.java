@@ -1,10 +1,14 @@
 package org.eventrails.cli;
 
+import okhttp3.*;
 import org.eventrails.parser.java.JavaBundleParser;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Objects;
@@ -18,6 +22,7 @@ public class Main {
 	public static void main(String[] args) throws IOException {
 		String bundleName = args[0];
 		String bundlePath = args[1];
+		String serverUrl = args[2];
 
 		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
 				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
@@ -32,8 +37,9 @@ public class Main {
 		System.out.println("JSON created");
 
 		new File(bundlePath + "/build/bundle-dist/" ).mkdir();
+		var bundleFile = bundlePath + "/build/bundle-dist/" + bundleName + ".bundle";
 		final ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(
-				bundlePath + "/build/bundle-dist/" + bundleName + ".bundle"
+				bundleFile
 		));
 		// PUT THE JAR
 		outputStream.putNextEntry(new ZipEntry(jar.getName()));
@@ -48,8 +54,16 @@ public class Main {
 
 		outputStream.close();
 
-
-
+		System.out.println("Uploading to server");
+		OkHttpClient client = new OkHttpClient();
+		Request request = new Request.Builder()
+				.url(serverUrl + "/api/bundle/")
+				.post(new MultipartBody.Builder().setType(MultipartBody.FORM)
+						.addFormDataPart("bundle", bundleName, RequestBody.create(new File(bundleFile), null))
+						.build())
+				.build();
+		client.newCall(request).execute();
+		System.out.println("DONE!");
 
 
 
