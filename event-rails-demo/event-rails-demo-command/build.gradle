@@ -14,7 +14,7 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
 
-    implementation project(":event-rails-bus-jgroups")
+    implementation project(":event-rails-bus-rabbitmq")
     implementation project(":event-rails-application")
     implementation project(":event-rails-demo:event-rails-demo-api")
 }

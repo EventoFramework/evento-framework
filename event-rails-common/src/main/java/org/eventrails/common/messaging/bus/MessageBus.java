@@ -1,5 +1,7 @@
 package org.eventrails.common.messaging.bus;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eventrails.common.modeling.exceptions.NodeNotFoundException;
 import org.eventrails.common.modeling.exceptions.ThrowableWrapper;
 import org.eventrails.common.modeling.messaging.message.bus.BusEventPublisher;
@@ -14,12 +16,11 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public abstract class MessageBus {
 
-	private final Logger LOGGER = Logger.getLogger(MessageBus.class.getName());
+	private static Logger logger = LogManager.getLogger(MessageBus.class);
 	private Consumer<Serializable> messageReceiver =  object -> {};
 	private BiConsumer<Serializable, MessageBusResponseSender> requestReceiver = (request, response) -> {};
 
@@ -30,9 +31,10 @@ public abstract class MessageBus {
 	private final List<Consumer<NodeAddress>> joinListeners = new ArrayList<>();
 	private final List<Consumer<Set<NodeAddress>>> viewListeners = new ArrayList<>();
 	private final List<Consumer<Set<NodeAddress>>> availableViewListeners = new ArrayList<>();
+	private Set<NodeAddress> currentView = new HashSet<>();
 
 
-	public MessageBus(BusEventPublisher publisher) {
+	protected MessageBus(BusEventPublisher publisher) {
 		publisher.subscribe(new BusEventSubscriber() {
 			@Override
 			public void onMessage(NodeAddress address, Serializable message) {
@@ -40,6 +42,8 @@ public abstract class MessageBus {
 			}
 			@Override
 			public void onViewUpdate(Set<NodeAddress> view) {
+				logger.debug("View Updated - {}", view.stream().map(NodeAddress::getNodeId).collect(Collectors.joining(" ")));
+				currentView = view;
 				availableNodes.removeIf(a -> !view.contains(a));
 				viewListeners.stream().toList().forEach(l -> l.accept(view));
 				availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
@@ -136,24 +140,24 @@ public abstract class MessageBus {
 	public synchronized void gracefulShutdown() {
 		try
 		{
-			LOGGER.info("Graceful Shutdown - Started");
-			LOGGER.info("Graceful Shutdown - Disabling Bus");
+			logger.info("Graceful Shutdown - Started");
+			logger.info("Graceful Shutdown - Disabling Bus");
 			disableBus();
-			LOGGER.info("Graceful Shutdown - Bus Disabled");
+			logger.info("Graceful Shutdown - Bus Disabled");
 			var retry = 0;
 			while (true)
 			{
 				var keys = messageCorrelationMap.keySet();
-				LOGGER.info("Graceful Shutdown - Remaining correlations: %d".formatted(keys.size()));
-				LOGGER.info("Graceful Shutdown - Sleep...");
+				logger.info("Graceful Shutdown - Remaining correlations: %d".formatted(keys.size()));
+				logger.info("Graceful Shutdown - Sleep...");
 				Thread.sleep(5*1000);
 				if (messageCorrelationMap.isEmpty())
 				{
-					LOGGER.info("Graceful Shutdown - No more correlations, bye!");
+					logger.info("Graceful Shutdown - No more correlations, bye!");
 					System.exit(0);
 				} else if (keys.containsAll(messageCorrelationMap.keySet()) && retry > 5)
 				{
-					LOGGER.info("Graceful Shutdown - Pending correlation after 5 retry... so... bye!");
+					logger.info("Graceful Shutdown - Pending correlation after 5 retry... so... bye!");
 					System.exit(0);
 				}
 				retry++;
@@ -270,7 +274,7 @@ public abstract class MessageBus {
 				availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 			} else if (message instanceof ClusterNodeKillMessage k)
 			{
-				LOGGER.info("ClusterNodeKillMessage received from %s".formatted(src));
+				logger.info("ClusterNodeKillMessage received from %s".formatted(src));
 				gracefulShutdown();
 			} else
 			{
@@ -326,7 +330,9 @@ public abstract class MessageBus {
 
 
 
-	public abstract Set<NodeAddress>  getCurrentView();
+	public Set<NodeAddress>  getCurrentView(){
+		return currentView;
+	}
 
 
 }

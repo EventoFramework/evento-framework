@@ -42,6 +42,7 @@ dependencies {
 
 
 	implementation project(":event-rails-bus-jgroups")
+	implementation project(":event-rails-bus-rabbitmq")
 	implementation project(':event-rails-common')
 	implementation project(':event-rails-parser')
 }
