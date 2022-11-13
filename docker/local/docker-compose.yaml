@@ -24,8 +24,13 @@ services:
     volumes:
       - ./data/mongo:/data/db
 
-
-  zipkin:
-    image: openzipkin/zipkin
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
     ports:
-      - '9411:9411'
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./data/rabbitmq/data/:/var/lib/rabbitmq/
+      - ./data/rabbitmq/log/:/var/log/rabbitmq
+

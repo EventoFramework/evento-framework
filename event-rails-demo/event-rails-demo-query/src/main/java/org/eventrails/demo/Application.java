@@ -1,7 +1,7 @@
 package org.eventrails.demo;
 
 import org.eventrails.application.EventRailsApplication;
-import org.eventrails.bus.jgroups.JGroupsMessageBus;
+import org.eventrails.bus.rabbitmq.RabbitMqMessageBus;
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
 
@@ -11,7 +11,7 @@ public class Application {
 		String bundleName = "event-rails-bundle-demo-query";
 		String channelName = "event-rails-channel-message";
 		String serverName = "event-rails-server";
-		MessageBus messageBus = JGroupsMessageBus.create(bundleName, channelName);
+		MessageBus messageBus = RabbitMqMessageBus.create(bundleName, channelName, "host.docker.internal");
 		EventRailsApplication.start(Application.class.getPackage().getName(),
 				bundleName,
 				serverName,

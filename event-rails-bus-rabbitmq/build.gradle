@@ -3,7 +3,7 @@ plugins {
     id 'java-library'
 }
 
-group 'org.eventrails.bus.jgroups'
+group 'org.eventrails'
 version '1.0-SNAPSHOT'
 
 repositories {
@@ -16,7 +16,9 @@ dependencies {
 
 
     api project(":event-rails-common")
-    api group: 'org.jgroups', name: 'jgroups', version:'5.2.7.Final'
+    // https://mvnrepository.com/artifact/com.rabbitmq/amqp-client
+    implementation group: 'com.rabbitmq', name: 'amqp-client', version: '5.16.0'
+
 }
 
 test {
