@@ -4,7 +4,7 @@ import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.service.BundleService;
-import org.eventrails.server.service.BundleDeployService;
+import org.eventrails.server.service.deploy.BundleDeployService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;

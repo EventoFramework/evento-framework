@@ -18,11 +18,9 @@ public class JGroupConfiguration {
 
 	@Bean
 	MessageBus messageBus() throws Exception {
-		var jChannel = new JChannel();
-		var messageBus = new JGroupsMessageBus(jChannel);
-		jChannel.setName(serverNodeName);
-		jChannel.setDiscardOwnMessages(false);
-		jChannel.connect(handlerClusterName);
+		var messageBus = JGroupsMessageBus.create(
+				serverNodeName,
+				handlerClusterName);
 		messageBus.enableBus();
 		return messageBus;
 	}

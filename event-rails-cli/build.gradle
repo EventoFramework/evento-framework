@@ -17,6 +17,8 @@ dependencies {
 
     implementation project(":event-rails-parser")
     implementation project(":event-rails-common")
+
+    implementation("com.squareup.okhttp3:okhttp:4.10.0")
 }
 
 test {

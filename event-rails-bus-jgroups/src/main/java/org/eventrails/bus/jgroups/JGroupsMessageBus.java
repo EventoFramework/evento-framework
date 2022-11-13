@@ -50,13 +50,16 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 		this.channel = jChannel;
 	}
 
-	public static MessageBus create(String bundleName, String channelName) throws Exception {
-		var jChannel = new JChannel();
+	public static MessageBus create(
+			String bundleName,
+			String channelName) throws Exception {
+		var jChannel = new JChannel("docker-local.xml");
 		jChannel.setName(bundleName);
 		var bus = new JGroupsMessageBus(jChannel);
 		jChannel.connect(channelName);
 		return bus;
 	}
+
 
 	@Override
 	public void broadcast(Serializable message) throws Exception {
