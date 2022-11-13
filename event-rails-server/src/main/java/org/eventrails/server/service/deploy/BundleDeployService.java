@@ -1,25 +1,23 @@
-package org.eventrails.server.service;
+package org.eventrails.server.service.deploy;
 
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.server.domain.model.Bundle;
+import org.eventrails.server.service.BundleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
-import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-@Service
-public class BundleDeployService {
+public abstract class BundleDeployService {
 
 	private final Logger LOGGER = LoggerFactory.getLogger(BundleDeployService.class);
 
-	@Value("${eventrails.bundle.deploy.java}")
-	private String javaExe;
+
 	private final MessageBus messageBus;
 	private final LockRegistry lockRegistry;
 	private final BundleService bundleService;
@@ -66,70 +64,7 @@ public class BundleDeployService {
 		}
 	}
 
-	public void spawn(Bundle bundle) throws Exception {
-		LOGGER.info("Spawning bundle {}", bundle.getName());
-		switch (bundle.getBucketType())
-		{
-			case LocalFilesystem ->
-			{
-				var p = Runtime.getRuntime()
-						.exec(new String[]{javaExe, "-jar", bundle.getArtifactCoordinates()});
-				var t1 = new Thread(() -> {
-					BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
-					String line;
-					while (true)
-					{
-						try
-						{
-							if (!((line = input.readLine()) != null)) break;
-						} catch (IOException e)
-						{
-							throw new RuntimeException(e);
-						}
-						LOGGER.debug("[" + bundle.getName() + " (" + p.pid() + ")]: " + line);
-					}
-				});
-				var t2 = new Thread(() -> {
-					BufferedReader input = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-					String line;
-					while (true)
-					{
-						try
-						{
-							if (!((line = input.readLine()) != null)) break;
-						} catch (IOException e)
-						{
-							throw new RuntimeException(e);
-						}
-						LOGGER.error("[" + bundle.getName() + " (" + p.pid() + ")]: " + line);
-					}
-				});
-				t1.start();
-				t2.start();
-				new Thread(() -> {
-					try
-					{
-						int exitCode = p.waitFor();
-						if (exitCode != 0)
-						{
-							LOGGER.error("[" + bundle.getName() + " (" + p.pid() + ")]: TERMINATED WITH ERROR");
-						} else
-						{
-							LOGGER.debug("[" + bundle.getName() + " (" + p.pid() + ")]: TERMINATED GRACEFULLY");
-						}
-					} catch (InterruptedException e)
-					{
-						throw new RuntimeException(e);
-					}
-				}).start();
-
-			}
-			default ->
-			{
-				throw new IllegalArgumentException("Bucket Type Not Implemented");
-			}
-		}
-	}
+	protected abstract void spawn(Bundle bundle) throws Exception;
 
 	public void spawn(String bundleName) throws Exception {
 		spawn(bundleService.findByName(bundleName));

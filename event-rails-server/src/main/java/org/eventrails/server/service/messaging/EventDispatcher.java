@@ -19,7 +19,7 @@ import org.eventrails.server.domain.repository.SagaStateRepository;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
-import org.eventrails.server.service.BundleDeployService;
+import org.eventrails.server.service.deploy.BundleDeployService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

@@ -11,7 +11,7 @@ import org.eventrails.common.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.common.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
-import org.eventrails.server.service.BundleDeployService;
+import org.eventrails.server.service.deploy.BundleDeployService;
 import org.eventrails.server.service.HandlerService;
 import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
 import org.springframework.beans.factory.annotation.Value;
