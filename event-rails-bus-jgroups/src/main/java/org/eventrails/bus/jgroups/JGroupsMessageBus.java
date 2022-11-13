@@ -17,7 +17,7 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 	private final Log LOGGER = LogFactory.getLog(JGroupsMessageBus.class);
 	private final JChannel channel;
 
-	public JGroupsMessageBus(JChannel jChannel,
+	protected JGroupsMessageBus(JChannel jChannel,
 							 Consumer<Serializable> messageReceiver,
 							 BiConsumer<Serializable, MessageBusResponseSender> requestReceiver) {
 
@@ -36,7 +36,7 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 		setRequestReceiver(requestReceiver);
 	}
 
-	public JGroupsMessageBus(JChannel jChannel) {
+	protected JGroupsMessageBus(JChannel jChannel) {
 		super(subscriber -> jChannel.setReceiver(new Receiver() {
 			@Override
 			public void receive(Message msg) {
@@ -53,7 +53,7 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 	public static MessageBus create(
 			String bundleName,
 			String channelName) throws Exception {
-		var jChannel = new JChannel("docker-local.xml");
+		var jChannel = new JChannel();
 		jChannel.setName(bundleName);
 		var bus = new JGroupsMessageBus(jChannel);
 		jChannel.connect(channelName);
