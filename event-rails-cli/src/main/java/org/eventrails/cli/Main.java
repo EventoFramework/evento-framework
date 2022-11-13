@@ -11,7 +11,8 @@ import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.eventrails.modeling.utils.ObjectMapperUtils.getPayloadObjectMapper;
+import static org.eventrails.common.serialization.ObjectMapperUtils.getPayloadObjectMapper;
+
 
 public class Main {
 	public static void main(String[] args) throws IOException {

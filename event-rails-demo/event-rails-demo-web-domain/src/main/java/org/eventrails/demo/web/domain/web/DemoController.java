@@ -7,12 +7,12 @@ import org.eventrails.demo.api.query.DemoViewFindAllQuery;
 import org.eventrails.demo.api.query.DemoViewFindByIdQuery;
 import org.eventrails.demo.api.view.DemoView;
 import org.eventrails.demo.web.domain.web.payload.DemoPayload;
-import org.eventrails.modeling.annotations.component.Invoker;
-import org.eventrails.modeling.annotations.handler.InvocationHandler;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.query.Multiple;
-import org.eventrails.modeling.messaging.query.Single;
+import org.eventrails.common.modeling.annotations.component.Invoker;
+import org.eventrails.common.modeling.annotations.handler.InvocationHandler;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.messaging.query.Multiple;
+import org.eventrails.common.modeling.messaging.query.Single;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;

@@ -1,6 +1,7 @@
 package org.eventrails.demo.api.command;
 
-import org.eventrails.modeling.messaging.payload.DomainCommand;
+
+import org.eventrails.common.modeling.messaging.payload.DomainCommand;
 
 public class DemoCreateCommand extends DomainCommand {
 

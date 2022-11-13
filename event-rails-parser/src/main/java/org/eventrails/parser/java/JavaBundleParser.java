@@ -6,7 +6,7 @@ import net.sourceforge.pmd.lang.LanguageVersionHandler;
 import net.sourceforge.pmd.lang.Parser;
 import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
-import org.eventrails.modeling.messaging.payload.*;
+import org.eventrails.common.modeling.messaging.payload.*;
 import org.eventrails.parser.BundleParser;
 import org.eventrails.parser.model.BundleDescription;
 import org.eventrails.parser.model.component.Component;

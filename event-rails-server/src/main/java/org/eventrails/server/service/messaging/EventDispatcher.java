@@ -1,13 +1,13 @@
 package org.eventrails.server.service.messaging;
 
-import org.eventrails.modeling.gateway.PublishedEvent;
-import org.eventrails.modeling.messaging.message.EventToProjectorMessage;
-import org.eventrails.modeling.messaging.message.EventToSagaMessage;
-import org.eventrails.modeling.messaging.message.bus.MessageBus;
-import org.eventrails.modeling.messaging.message.bus.NodeAddress;
-import org.eventrails.modeling.messaging.utils.AddressPicker;
-import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
-import org.eventrails.modeling.state.SerializedSagaState;
+import org.eventrails.common.modeling.messaging.dto.PublishedEvent;
+import org.eventrails.common.modeling.messaging.message.application.EventToProjectorMessage;
+import org.eventrails.common.modeling.messaging.message.application.EventToSagaMessage;
+import org.eventrails.common.messaging.bus.MessageBus;
+import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
+import org.eventrails.common.messaging.utils.AddressPicker;
+import org.eventrails.common.messaging.utils.RoundRobinAddressPicker;
+import org.eventrails.common.modeling.state.SerializedSagaState;
 import org.eventrails.server.domain.model.ProjectorState;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.Bundle;
@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.stream.Collectors.groupingBy;
 
@@ -306,7 +307,7 @@ public class EventDispatcher {
 	}
 
 
-	private List<NodeAddress> fetchDispatcherAddresses() {
+	private Set<NodeAddress> fetchDispatcherAddresses() {
 		return this.messageBus.findAllNodeAddresses(serverNodeName);
 	}
 

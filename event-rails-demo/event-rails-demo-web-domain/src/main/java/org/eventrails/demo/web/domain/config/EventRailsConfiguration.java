@@ -1,9 +1,12 @@
 package org.eventrails.demo.web.domain.config;
 
 import org.eventrails.application.EventRailsApplication;
+import org.eventrails.bus.jgroups.JGroupsMessageBus;
 import org.eventrails.demo.web.domain.Application;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
+import org.eventrails.common.messaging.bus.MessageBus;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,12 +19,21 @@ public class EventRailsConfiguration {
 			@Value("${eventrails.cluster.message.channel.name}") String channelName,
 			@Value("${eventrails.cluster.node.server.name}") String serverName,
 			@Value("${eventrails.cluster.bundle.name}") String bundleName
-			){
+			) throws Exception {
+
+		MessageBus messageBus = JGroupsMessageBus.create(bundleName, channelName);
 		return EventRailsApplication.start(Application.class.getPackage().getName(),
 				bundleName,
-				channelName,
 				serverName,
-				new String[0]);
+				messageBus,
+				new ThreadCountAutoscalingProtocol(
+						bundleName,
+						serverName,
+						messageBus,
+						16,
+						4,
+						5,
+						5));
 	}
 
 	@Bean

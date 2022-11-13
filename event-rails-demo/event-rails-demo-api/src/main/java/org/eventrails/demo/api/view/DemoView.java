@@ -1,6 +1,6 @@
 package org.eventrails.demo.api.view;
 
-import org.eventrails.modeling.messaging.payload.View;
+import org.eventrails.common.modeling.messaging.payload.View;
 
 public class DemoView extends View {
 	private String demoId;

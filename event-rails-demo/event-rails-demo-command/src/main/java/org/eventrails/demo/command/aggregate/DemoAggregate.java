@@ -6,13 +6,13 @@ import org.eventrails.demo.api.command.DemoUpdateCommand;
 import org.eventrails.demo.api.event.DemoCreatedEvent;
 import org.eventrails.demo.api.event.DemoDeletedEvent;
 import org.eventrails.demo.api.event.DemoUpdatedEvent;
-import org.eventrails.modeling.annotations.component.Aggregate;
-import org.eventrails.modeling.annotations.handler.AggregateCommandHandler;
-import org.eventrails.modeling.annotations.handler.EventSourcingHandler;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.CommandMessage;
-import org.eventrails.modeling.messaging.message.EventMessage;
+import org.eventrails.common.modeling.annotations.component.Aggregate;
+import org.eventrails.common.modeling.annotations.handler.AggregateCommandHandler;
+import org.eventrails.common.modeling.annotations.handler.EventSourcingHandler;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.messaging.message.application.CommandMessage;
+import org.eventrails.common.modeling.messaging.message.application.EventMessage;
 
 @Aggregate(snapshotFrequency=10)
 public class DemoAggregate {

@@ -1,43 +1,25 @@
 package org.eventrails.demo;
 
-import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
+import org.eventrails.bus.jgroups.JGroupsMessageBus;
 import org.eventrails.demo.api.command.*;
-import org.eventrails.modeling.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.CommandGateway;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 class ApplicationTest {
 
 
 
-	@Test
-	public void testServiceCommandJGroup() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
-				"event-rails-server");
-		commandGateway.sendAndWait(new NotificationSendSilentCommand("hola_cicos2"));
-		System.out.println("end");
-	}
 
-
-	@Test
-	public void testProcess() throws Exception {
-		Runtime.getRuntime().exec("cmd /c start cmd.exe /K \"dir && ping localhost\"");
-	}
 
 	@Test
 	public void testServiceCommandJGroup2() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 		var resp = commandGateway.sendAndWait(new NotificationSendCommand("hola_cicos_4"));
 		System.out.println(resp);
@@ -45,9 +27,8 @@ class ApplicationTest {
 	}
 	@Test
 	public void testServiceCommandJGroup3() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 		String id = UUID.randomUUID().toString();
 		Thread.sleep(1500);
@@ -62,9 +43,8 @@ class ApplicationTest {
 
 	@Test
 	public void generatePerformances() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 		Thread.sleep(1500);
 		var list = IntStream.range(0, 50).parallel().mapToObj(i -> {
@@ -121,9 +101,8 @@ class ApplicationTest {
 
 	@Test
 	public void testServiceCommandJGroup4() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 		String id = UUID.randomUUID().toString();
 		var resp = commandGateway.sendAndWait(new DemoCreateCommand(id, id, 0));
@@ -134,9 +113,8 @@ class ApplicationTest {
 
 	@Test
 	public void benchmark() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 		Thread.sleep(1000);
 		var start = System.currentTimeMillis();
@@ -151,9 +129,8 @@ class ApplicationTest {
 
 	@Test
 	public void benchmarkAggregate() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 
 		String id = UUID.randomUUID().toString();
@@ -171,9 +148,8 @@ class ApplicationTest {
 
 	@Test
 	public void benchmarkAggregateAsync() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 
 		String id = UUID.randomUUID().toString();
@@ -189,9 +165,8 @@ class ApplicationTest {
 
 	@Test
 	public void benchmarkAsync() throws Exception {
-		CommandGateway commandGateway = new JGroupsCommandGateway(
-				"event-rails-channel-message",
-				"event-rails-demo-command-test",
+		CommandGateway commandGateway = new CommandGateway(
+				JGroupsMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message"),
 				"event-rails-server");
 		var start = System.currentTimeMillis();
 		System.out.println(start);

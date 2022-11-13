@@ -1,8 +1,8 @@
 package org.eventrails.demo.api.query;
 
 import org.eventrails.demo.api.view.DemoView;
-import org.eventrails.modeling.messaging.payload.Query;
-import org.eventrails.modeling.messaging.query.Multiple;
+import org.eventrails.common.modeling.messaging.payload.Query;
+import org.eventrails.common.modeling.messaging.query.Multiple;
 
 public class DemoViewFindAllQuery extends Query<Multiple<DemoView>> {
 	private Integer limit;

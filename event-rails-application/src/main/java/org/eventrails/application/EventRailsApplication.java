@@ -1,204 +1,171 @@
 package org.eventrails.application;
 
 import org.eventrails.application.reference.*;
-import org.eventrails.application.server.jgroups.JGroupsCommandGateway;
-import org.eventrails.application.server.jgroups.JGroupsQueryGateway;
-import org.eventrails.modeling.annotations.component.*;
-import org.eventrails.modeling.exceptions.HandlerNotFoundException;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.DecoratedDomainCommandMessage;
-import org.eventrails.modeling.messaging.message.*;
-import org.eventrails.modeling.messaging.query.SerializedQueryResponse;
-import org.eventrails.modeling.state.SerializedAggregateState;
-import org.eventrails.modeling.state.SerializedSagaState;
-import org.eventrails.shared.messaging.AutoscalingProtocol;
-import org.eventrails.shared.messaging.JGroupsMessageBus;
-import org.jgroups.JChannel;
+import org.eventrails.common.modeling.annotations.component.*;
+import org.eventrails.common.modeling.messaging.message.application.*;
+import org.eventrails.common.modeling.exceptions.HandlerNotFoundException;
+import org.eventrails.common.modeling.messaging.query.SerializedQueryResponse;
+import org.eventrails.common.modeling.state.SerializedAggregateState;
+import org.eventrails.common.modeling.state.SerializedSagaState;
+import org.eventrails.common.messaging.bus.MessageBus;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.performance.AutoscalingProtocol;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class EventRailsApplication {
 
 	private final String basePackage;
 	private final String bundleName;
-	private final JGroupsMessageBus messageBus;
 
 	private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
 	private HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
 	private HashMap<String, ProjectionReference> projectionMessageHandlers = new HashMap<>();
 	private HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers = new HashMap<>();
 	private HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers = new HashMap<>();
-
-	private transient AutoscalingProtocol autoscalingProtocol;
-
-	private boolean suffering = false;
-
 	private transient CommandGateway commandGateway;
 	private transient QueryGateway queryGateway;
 
 	private EventRailsApplication(
 			String basePackage,
 			String bundleName,
-			String clusterName,
-			String serverName
-	) throws Exception {
+			String serverName,
+			MessageBus messageBus,
+			AutoscalingProtocol autoscalingProtocol){
 
 
 		this.basePackage = basePackage;
 		this.bundleName = bundleName;
+		this.commandGateway = new CommandGateway(messageBus, serverName);
+		this.queryGateway = new QueryGateway(messageBus, serverName);
 
-		JChannel jChannel = new JChannel();
-
-		messageBus = new JGroupsMessageBus(jChannel,
-				message -> {
-
-				},
-				(request, response) -> {
-					try
-					{
-						this.autoscalingProtocol.arrival();
-						Thread.sleep(5000);
-						if (request instanceof DecoratedDomainCommandMessage c)
-						{
-							var handler = getAggregateMessageHandlers()
-									.get(c.getCommandMessage().getCommandName());
-							if (handler == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(c.getCommandMessage().getCommandName(), getBundleName()));
-							var envelope = new AggregateStateEnvelope(c.getSerializedAggregateState().getAggregateState());
-							var event = handler.invoke(
-									c.getCommandMessage(),
-									envelope,
-									c.getEventStream(),
-									commandGateway,
-									queryGateway
-							);
-							response.sendResponse(
-									new DomainCommandResponseMessage(
-											new DomainEventMessage(event),
-											handler.getSnapshotFrequency() <= c.getEventStream().size() ?
-													new SerializedAggregateState<>(envelope.getAggregateState()) : null
-									)
-							);
-						} else if (request instanceof ServiceCommandMessage c)
-						{
-							var handler = getServiceMessageHandlers().get(c.getCommandName());
-							if (handler == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(c.getCommandName(), getBundleName()));
-							var event = handler.invoke(
-									c,
-									commandGateway,
-									queryGateway
-							);
-							response.sendResponse(event);
-						} else if (request instanceof QueryMessage<?> q)
-						{
-							var handler = getProjectionMessageHandlers().get(q.getQueryName());
-							if (handler == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleName()));
-							var result = handler.invoke(
-									q,
-									commandGateway,
-									queryGateway
-							);
-							response.sendResponse(new SerializedQueryResponse<>(result));
-						} else if (request instanceof EventToProjectorMessage m)
-						{
-							var handlers = getProjectorMessageHandlers()
-									.get(m.getEventMessage().getEventName());
-							if (handlers == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getBundleName()));
+		messageBus.setRequestReceiver((request, response) -> {
+			try
+			{
+				autoscalingProtocol.arrival();
+				Thread.sleep(5000);
+				if (request instanceof DecoratedDomainCommandMessage c)
+				{
+					var handler = getAggregateMessageHandlers()
+							.get(c.getCommandMessage().getCommandName());
+					if (handler == null)
+						throw new HandlerNotFoundException("No handler found for %s in %s"
+								.formatted(c.getCommandMessage().getCommandName(), getBundleName()));
+					var envelope = new AggregateStateEnvelope(c.getSerializedAggregateState().getAggregateState());
+					var event = handler.invoke(
+							c.getCommandMessage(),
+							envelope,
+							c.getEventStream(),
+							commandGateway,
+							queryGateway
+					);
+					response.sendResponse(
+							new DomainCommandResponseMessage(
+									new DomainEventMessage(event),
+									handler.getSnapshotFrequency() <= c.getEventStream().size() ?
+											new SerializedAggregateState<>(envelope.getAggregateState()) : null
+							)
+					);
+				} else if (request instanceof ServiceCommandMessage c)
+				{
+					var handler = getServiceMessageHandlers().get(c.getCommandName());
+					if (handler == null)
+						throw new HandlerNotFoundException("No handler found for %s in %s"
+								.formatted(c.getCommandName(), getBundleName()));
+					var event = handler.invoke(
+							c,
+							commandGateway,
+							queryGateway
+					);
+					response.sendResponse(event);
+				} else if (request instanceof QueryMessage<?> q)
+				{
+					var handler = getProjectionMessageHandlers().get(q.getQueryName());
+					if (handler == null)
+						throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleName()));
+					var result = handler.invoke(
+							q,
+							commandGateway,
+							queryGateway
+					);
+					response.sendResponse(new SerializedQueryResponse<>(result));
+				} else if (request instanceof EventToProjectorMessage m)
+				{
+					var handlers = getProjectorMessageHandlers()
+							.get(m.getEventMessage().getEventName());
+					if (handlers == null)
+						throw new HandlerNotFoundException("No handler found for %s in %s"
+								.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
 
-							var handler = handlers.getOrDefault(m.getProjectorName(), null);
-							if (handler == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getBundleName()));
+					var handler = handlers.getOrDefault(m.getProjectorName(), null);
+					if (handler == null)
+						throw new HandlerNotFoundException("No handler found for %s in %s"
+								.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
-							handler.begin();
-							handler.invoke(
-									m.getEventMessage(),
-									commandGateway,
-									queryGateway
-							);
-							handler.commit();
-							response.sendResponse(null);
-						} else if (request instanceof EventToSagaMessage m)
-						{
-							var handlers = getSagaMessageHandlers()
-									.get(m.getEventMessage().getEventName());
-							if (handlers == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getBundleName()));
-
-
-							var handler = handlers.getOrDefault(m.getSagaName(), null);
-							if (handler == null)
-								throw new HandlerNotFoundException("No handler found for %s in %s"
-										.formatted(m.getEventMessage().getEventName(), getBundleName()));
+					handler.begin();
+					handler.invoke(
+							m.getEventMessage(),
+							commandGateway,
+							queryGateway
+					);
+					handler.commit();
+					response.sendResponse(null);
+				} else if (request instanceof EventToSagaMessage m)
+				{
+					var handlers = getSagaMessageHandlers()
+							.get(m.getEventMessage().getEventName());
+					if (handlers == null)
+						throw new HandlerNotFoundException("No handler found for %s in %s"
+								.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
 
-							var state = handler.invoke(
-									m.getEventMessage(),
-									m.getSerializedSagaState().getSagaState(),
-									commandGateway,
-									queryGateway
-							);
-							response.sendResponse(new SerializedSagaState<>(state));
-						} else
-						{
-							throw new IllegalArgumentException("Request not found");
-						}
-					} catch (Throwable e)
-					{
-						response.sendError(e);
-					}finally
-					{
-						this.autoscalingProtocol.departure();
-					}
-
-				});
-
-		this.autoscalingProtocol = new AutoscalingProtocol(
-				bundleName,
-				serverName,
-				messageBus,
-				16,
-				4,
-				5,
-				5);
-
-		jChannel.setName(bundleName);
-		jChannel.connect(clusterName);
+					var handler = handlers.getOrDefault(m.getSagaName(), null);
+					if (handler == null)
+						throw new HandlerNotFoundException("No handler found for %s in %s"
+								.formatted(m.getEventMessage().getEventName(), getBundleName()));
 
 
+					var state = handler.invoke(
+							m.getEventMessage(),
+							m.getSerializedSagaState().getSagaState(),
+							commandGateway,
+							queryGateway
+					);
+					response.sendResponse(new SerializedSagaState<>(state));
+				} else
+				{
+					throw new IllegalArgumentException("Request not found");
+				}
+			} catch (Throwable e)
+			{
+				response.sendError(e);
+			}finally
+			{
+				autoscalingProtocol.departure();
+			}
 
-		commandGateway = new JGroupsCommandGateway(messageBus, serverName);
-		queryGateway = new JGroupsQueryGateway(messageBus, serverName);
+		});
 
 	}
 
-	public void startBus() throws Exception {
-		messageBus.enableBus();
-	}
+	public static EventRailsApplication start(
+			String basePackage,
+			String bundleName,
+			String serverName,
+			MessageBus messageBus,
+			AutoscalingProtocol autoscalingProtocol) {
 
-	public void stopBus() throws Exception {
-		messageBus.disableBus();
-	}
 
-	public static EventRailsApplication start(String basePackage, String bundleName, String messageChannelName, String serverName, String[] args) {
 		try
 		{
-			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, messageChannelName, serverName);
+			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, serverName, messageBus, autoscalingProtocol);
 			eventRailsApplication.parsePackage();
-			eventRailsApplication.startBus();
+			messageBus.enableBus();
 			return eventRailsApplication;
 		} catch (Exception e)
 		{

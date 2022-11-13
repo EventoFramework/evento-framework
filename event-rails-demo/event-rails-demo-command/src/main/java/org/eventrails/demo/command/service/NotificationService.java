@@ -3,11 +3,11 @@ package org.eventrails.demo.command.service;
 import org.eventrails.demo.api.command.NotificationSendCommand;
 import org.eventrails.demo.api.command.NotificationSendSilentCommand;
 import org.eventrails.demo.api.event.NotificationSentEvent;
-import org.eventrails.modeling.annotations.component.Service;
-import org.eventrails.modeling.annotations.handler.CommandHandler;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.CommandMessage;
+import org.eventrails.common.modeling.annotations.component.Service;
+import org.eventrails.common.modeling.annotations.handler.CommandHandler;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.messaging.message.application.CommandMessage;
 
 import java.util.UUID;
 

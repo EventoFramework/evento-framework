@@ -7,13 +7,11 @@ import org.eventrails.demo.api.event.DemoDeletedEvent;
 import org.eventrails.demo.api.event.DemoUpdatedEvent;
 import org.eventrails.demo.api.event.NotificationSentEvent;
 import org.eventrails.demo.api.query.DemoViewFindByIdQuery;
-import org.eventrails.demo.api.view.DemoRichView;
-import org.eventrails.demo.api.view.DemoView;
-import org.eventrails.modeling.annotations.component.Saga;
-import org.eventrails.modeling.annotations.handler.SagaEventHandler;
-import org.eventrails.modeling.gateway.CommandGateway;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.messaging.message.EventMessage;
+import org.eventrails.common.modeling.annotations.component.Saga;
+import org.eventrails.common.modeling.annotations.handler.SagaEventHandler;
+import org.eventrails.common.messaging.gateway.CommandGateway;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.messaging.message.application.EventMessage;
 
 import java.util.concurrent.ExecutionException;
 

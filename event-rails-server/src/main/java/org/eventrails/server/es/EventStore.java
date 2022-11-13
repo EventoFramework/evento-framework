@@ -2,9 +2,9 @@ package org.eventrails.server.es;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.eventrails.modeling.messaging.message.EventMessage;
-import org.eventrails.modeling.state.SerializedAggregateState;
-import org.eventrails.modeling.utils.ObjectMapperUtils;
+import org.eventrails.common.modeling.messaging.message.application.EventMessage;
+import org.eventrails.common.modeling.state.SerializedAggregateState;
+import org.eventrails.common.serialization.ObjectMapperUtils;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.es.eventstore.EventStoreRepository;
 import org.eventrails.server.es.snapshot.Snapshot;
@@ -13,9 +13,6 @@ import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

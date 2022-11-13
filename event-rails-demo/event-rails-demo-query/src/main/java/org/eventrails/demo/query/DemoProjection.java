@@ -6,11 +6,11 @@ import org.eventrails.demo.api.query.DemoViewFindAllQuery;
 import org.eventrails.demo.api.query.DemoViewFindByIdQuery;
 import org.eventrails.demo.api.view.DemoRichView;
 import org.eventrails.demo.api.view.DemoView;
-import org.eventrails.modeling.annotations.component.Projection;
-import org.eventrails.modeling.annotations.handler.QueryHandler;
-import org.eventrails.modeling.messaging.message.QueryMessage;
-import org.eventrails.modeling.messaging.query.Multiple;
-import org.eventrails.modeling.messaging.query.Single;
+import org.eventrails.common.modeling.annotations.component.Projection;
+import org.eventrails.common.modeling.annotations.handler.QueryHandler;
+import org.eventrails.common.modeling.messaging.message.application.QueryMessage;
+import org.eventrails.common.modeling.messaging.query.Multiple;
+import org.eventrails.common.modeling.messaging.query.Single;
 
 @Projection
 public class DemoProjection {

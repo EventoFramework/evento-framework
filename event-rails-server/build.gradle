@@ -28,9 +28,8 @@ dependencies {
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	implementation project(':event-rails-modeling')
 	implementation project(':event-rails-parser')
-	implementation project(':event-rails-shared')
+	implementation project(':event-rails-common')
 	// https://mvnrepository.com/artifact/com.google.code.gson/gson
 	implementation 'com.google.code.gson:gson:2.10'
 
@@ -44,6 +43,9 @@ dependencies {
 	implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
 	implementation 'org.jgroups:jgroups:5.2.7.Final'
+
+
+	implementation project(":event-rails-bus-jgroups")
 }
 
 task prepareKotlinBuildScriptModel {
