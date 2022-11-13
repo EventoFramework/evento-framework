@@ -1,6 +1,6 @@
 package org.eventrails.server.es.snapshot;
 
-import org.eventrails.modeling.state.SerializedAggregateState;
+import org.eventrails.common.modeling.state.SerializedAggregateState;
 import org.eventrails.server.config.JsonConverter;
 
 import javax.persistence.*;

@@ -1,21 +1,24 @@
 package org.eventrails.server.service.messaging;
 
-import org.eventrails.modeling.messaging.message.*;
-import org.eventrails.modeling.messaging.message.bus.*;
-import org.eventrails.modeling.messaging.utils.AddressPicker;
-import org.eventrails.modeling.messaging.utils.RoundRobinAddressPicker;
-import org.eventrails.modeling.state.SerializedAggregateState;
+import org.eventrails.common.modeling.messaging.message.application.*;
+import org.eventrails.common.modeling.messaging.message.bus.ResponseSender;
+import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeIsBoredMessage;
+import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeIsSufferingMessage;
+import org.eventrails.common.modeling.messaging.message.internal.ServerHandleInvocationMessage;
+import org.eventrails.common.messaging.bus.MessageBus;
+import org.eventrails.common.messaging.utils.AddressPicker;
+import org.eventrails.common.messaging.utils.RoundRobinAddressPicker;
+import org.eventrails.common.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.BundleDeployService;
 import org.eventrails.server.service.HandlerService;
-import org.eventrails.shared.messaging.AutoscalingProtocol;
+import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
-import java.time.Instant;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
@@ -33,7 +36,7 @@ public class MessageGatewayService {
 
 	private final BundleDeployService bundleDeployService;
 
-	private final AutoscalingProtocol autoscalingProtocol;
+	private final ThreadCountAutoscalingProtocol threadCountAutoscalingProtocol;
 	private final int minNodes;
 	private final boolean autoscalingEnabled;
 
@@ -57,7 +60,7 @@ public class MessageGatewayService {
 		this.messageBus = messageBus;
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
-		this.autoscalingProtocol = new AutoscalingProtocol(
+		this.threadCountAutoscalingProtocol = new ThreadCountAutoscalingProtocol(
 				serverNodeName,
 				serverNodeName,
 				messageBus,
@@ -97,7 +100,7 @@ public class MessageGatewayService {
 	private void requestHandler(Serializable request, ResponseSender response) {
 		try
 		{
-			this.autoscalingProtocol.arrival();
+			this.threadCountAutoscalingProtocol.arrival();
 			if (request instanceof DomainCommandMessage c)
 			{
 
@@ -202,7 +205,7 @@ public class MessageGatewayService {
 			response.sendError(e);
 		}finally
 		{
-			this.autoscalingProtocol.departure();
+			this.threadCountAutoscalingProtocol.departure();
 		}
 	}
 

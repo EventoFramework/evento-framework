@@ -3,11 +3,11 @@ package org.eventrails.demo.query;
 import org.eventrails.demo.api.event.DemoCreatedEvent;
 import org.eventrails.demo.api.event.DemoDeletedEvent;
 import org.eventrails.demo.api.event.DemoUpdatedEvent;
-import org.eventrails.modeling.annotations.handler.EventHandler;
-import org.eventrails.modeling.messaging.message.EventMessage;
-import org.eventrails.modeling.annotations.component.Projector;
-import org.eventrails.modeling.gateway.QueryGateway;
-import org.eventrails.modeling.bundle.TransactionalProjector;
+import org.eventrails.common.modeling.annotations.handler.EventHandler;
+import org.eventrails.common.modeling.messaging.message.application.EventMessage;
+import org.eventrails.common.modeling.annotations.component.Projector;
+import org.eventrails.common.messaging.gateway.QueryGateway;
+import org.eventrails.common.modeling.bundle.TransactionalProjector;
 
 @Projector
 public class DemoProjector implements TransactionalProjector {

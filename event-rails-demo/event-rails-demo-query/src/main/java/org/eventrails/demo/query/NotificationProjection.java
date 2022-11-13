@@ -3,12 +3,10 @@ package org.eventrails.demo.query;
 import org.eventrails.demo.api.query.NotificationFindAllQuery;
 import org.eventrails.demo.api.query.NotificationFindByIdQuery;
 import org.eventrails.demo.api.view.NotificationView;
-import org.eventrails.modeling.annotations.component.Projection;
-import org.eventrails.modeling.annotations.handler.QueryHandler;
-import org.eventrails.modeling.messaging.query.Multiple;
-import org.eventrails.modeling.messaging.query.Single;
-
-import java.util.List;
+import org.eventrails.common.modeling.annotations.component.Projection;
+import org.eventrails.common.modeling.annotations.handler.QueryHandler;
+import org.eventrails.common.modeling.messaging.query.Multiple;
+import org.eventrails.common.modeling.messaging.query.Single;
 
 @Projection
 public class NotificationProjection {

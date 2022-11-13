@@ -1,6 +1,6 @@
 package org.eventrails.application.reference;
 
-import org.eventrails.modeling.state.AggregateState;
+import org.eventrails.common.modeling.state.AggregateState;
 
 public class AggregateStateEnvelope {
     private AggregateState aggregateState;

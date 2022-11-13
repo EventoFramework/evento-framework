@@ -1,11 +1,8 @@
 package org.eventrails.server.cluster;
 
-import org.eventrails.shared.messaging.JGroupsMessageBus;
-import org.eventrails.modeling.messaging.message.bus.MessageBus;
-import org.jgroups.Event;
+import org.eventrails.bus.jgroups.JGroupsMessageBus;
+import org.eventrails.common.messaging.bus.MessageBus;
 import org.jgroups.JChannel;
-import org.jgroups.Message;
-import org.jgroups.blocks.locking.LockService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

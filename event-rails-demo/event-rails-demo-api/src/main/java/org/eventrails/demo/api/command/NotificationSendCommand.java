@@ -1,6 +1,6 @@
 package org.eventrails.demo.api.command;
 
-import org.eventrails.modeling.messaging.payload.ServiceCommand;
+import org.eventrails.common.modeling.messaging.payload.ServiceCommand;
 
 public class NotificationSendCommand extends ServiceCommand {
 	private String body;

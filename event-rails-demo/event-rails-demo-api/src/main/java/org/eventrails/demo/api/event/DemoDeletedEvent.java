@@ -1,6 +1,6 @@
 package org.eventrails.demo.api.event;
 
-import org.eventrails.modeling.messaging.payload.DomainEvent;
+import org.eventrails.common.modeling.messaging.payload.DomainEvent;
 
 public class DemoDeletedEvent extends DomainEvent {
 

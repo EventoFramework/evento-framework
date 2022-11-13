@@ -18,12 +18,10 @@ dependencies {
     implementation 'org.reflections:reflections:0.10.2'
     implementation 'io.github.classgraph:classgraph:4.8.149'
 
-
-    implementation project(":event-rails-modeling")
-    implementation project(":event-rails-shared")
+    implementation project(":event-rails-common")
     implementation 'org.jgroups:jgroups:5.2.7.Final'
 
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0-rc1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0'
 
     implementation 'org.apache.logging.log4j:log4j-core:2.19.0'
     implementation 'org.apache.logging.log4j:log4j-api:2.19.0'
