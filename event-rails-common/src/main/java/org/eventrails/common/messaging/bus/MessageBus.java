@@ -14,6 +14,7 @@ import org.eventrails.common.modeling.messaging.message.internal.CorrelatedMessa
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -21,8 +22,10 @@ import java.util.stream.Collectors;
 public abstract class MessageBus {
 
 	private static Logger logger = LogManager.getLogger(MessageBus.class);
-	private Consumer<Serializable> messageReceiver =  object -> {};
-	private BiConsumer<Serializable, MessageBusResponseSender> requestReceiver = (request, response) -> {};
+	private Consumer<Serializable> messageReceiver = object -> {
+	};
+	private BiConsumer<Serializable, MessageBusResponseSender> requestReceiver = (request, response) -> {
+	};
 
 	private boolean enabled = false;
 
@@ -40,18 +43,26 @@ public abstract class MessageBus {
 			public void onMessage(NodeAddress address, Serializable message) {
 				receive(address, message);
 			}
+
 			@Override
 			public void onViewUpdate(Set<NodeAddress> view) {
 				logger.debug("View Updated - {}", view.stream().map(NodeAddress::getNodeId).collect(Collectors.joining(" ")));
 				currentView = view;
-				availableNodes.removeIf(a -> !view.contains(a));
-				viewListeners.stream().toList().forEach(l -> l.accept(view));
-				availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
+				AtomicBoolean availableViewChanged = new AtomicBoolean(false);
+				availableNodes.removeIf(a -> {
+					var toRemove = !view.contains(a);
+					availableViewChanged.set(availableViewChanged.get() || toRemove);
+					return toRemove;
+				});
+				viewListeners.forEach(l -> l.accept(view));
+				if (availableViewChanged.get())
+					availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 			}
 		});
 	}
 
-	private record Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {}
+	private record Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {
+	}
 
 	public void setMessageReceiver(Consumer<Serializable> messageReceiver) {
 		this.messageReceiver = messageReceiver;
@@ -62,9 +73,9 @@ public abstract class MessageBus {
 	}
 
 
-
 	/**
 	 * Send a message to an address
+	 *
 	 * @param address the destination address
 	 * @param message the message to send
 	 */
@@ -72,6 +83,7 @@ public abstract class MessageBus {
 
 	/**
 	 * Broadcast a message
+	 *
 	 * @param message the message to send
 	 */
 	public abstract void broadcast(Serializable message) throws Exception;
@@ -79,8 +91,9 @@ public abstract class MessageBus {
 
 	/**
 	 * Send a message to multiple addresses
+	 *
 	 * @param addresses receiver list
-	 * @param message the message to send
+	 * @param message   the message to send
 	 */
 	public void multicast(Collection<NodeAddress> addresses, Serializable message) throws Exception {
 		for (NodeAddress address : addresses)
@@ -91,8 +104,9 @@ public abstract class MessageBus {
 
 	/**
 	 * Cast a message and wait for a response
-	 * @param address the destination address
-	 * @param message the message to send
+	 *
+	 * @param address         the destination address
+	 * @param message         the message to send
 	 * @param responseHandler the response handler
 	 */
 	public final void cast(NodeAddress address, Serializable message, Consumer<Serializable> responseHandler, Consumer<ThrowableWrapper> errorHandler) throws Exception {
@@ -110,10 +124,11 @@ public abstract class MessageBus {
 	}
 
 	public void cast(NodeAddress address, Serializable message, Consumer<Serializable> responseHandler) throws Exception {
-		this.cast(address, message, responseHandler, error -> {});
+		this.cast(address, message, responseHandler, error -> {
+		});
 	}
 
-	public NodeAddress findNodeAddress(String nodeName){
+	public NodeAddress findNodeAddress(String nodeName) {
 		return getCurrentAvailableView().stream()
 				.filter(address -> nodeName.equals(address.getNodeName()))
 				.findAny().orElseThrow(() -> new NodeNotFoundException("Node %s not found".formatted(nodeName)));
@@ -121,7 +136,7 @@ public abstract class MessageBus {
 
 	public abstract NodeAddress getAddress();
 
-	public Set<NodeAddress> findAllNodeAddresses(String nodeName){
+	public Set<NodeAddress> findAllNodeAddresses(String nodeName) {
 		return getCurrentAvailableView().stream()
 				.filter(address -> nodeName.equals(address.getNodeName()))
 				.collect(Collectors.toSet());
@@ -150,7 +165,7 @@ public abstract class MessageBus {
 				var keys = messageCorrelationMap.keySet();
 				logger.info("Graceful Shutdown - Remaining correlations: %d".formatted(keys.size()));
 				logger.info("Graceful Shutdown - Sleep...");
-				Thread.sleep(5*1000);
+				Thread.sleep(5 * 1000);
 				if (messageCorrelationMap.isEmpty())
 				{
 					logger.info("Graceful Shutdown - No more correlations, bye!");
@@ -162,7 +177,8 @@ public abstract class MessageBus {
 				}
 				retry++;
 			}
-		}catch (Exception e){
+		} catch (Exception e)
+		{
 			e.printStackTrace();
 			System.exit(1);
 		}
@@ -171,7 +187,6 @@ public abstract class MessageBus {
 	public boolean isEnabled() {
 		return enabled;
 	}
-
 
 
 	public void addJoinListener(Consumer<NodeAddress> onBundleJoin) {
@@ -215,7 +230,6 @@ public abstract class MessageBus {
 	}
 
 
-
 	private void receive(NodeAddress src, Serializable message) {
 		new Thread(() -> {
 			if (message instanceof CorrelatedMessage cm)
@@ -254,8 +268,9 @@ public abstract class MessageBus {
 				}
 			} else if (message instanceof ClusterNodeStatusUpdateMessage u)
 			{
-				if(u.getNewStatus()){
-					if(!this.availableNodes.contains(src))
+				if (u.getNewStatus())
+				{
+					if (!this.availableNodes.contains(src))
 					{
 						this.availableNodes.add(src);
 						try
@@ -266,12 +281,14 @@ public abstract class MessageBus {
 							e.printStackTrace();
 						}
 						joinListeners.stream().toList().forEach(c -> c.accept(src));
+						availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 					}
 
-				}else{
+				} else
+				{
 					this.availableNodes.remove(src);
+					availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 				}
-				availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 			} else if (message instanceof ClusterNodeKillMessage k)
 			{
 				logger.info("ClusterNodeKillMessage received from %s".formatted(src));
@@ -329,8 +346,7 @@ public abstract class MessageBus {
 	}
 
 
-
-	public Set<NodeAddress>  getCurrentView(){
+	public Set<NodeAddress> getCurrentView() {
 		return currentView;
 	}
 

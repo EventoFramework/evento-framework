@@ -38,33 +38,6 @@ export class ClusterStatusService {
     )
   }
 
-  getAvailableView(): Observable<any> {
-
-    return new Observable<any>(
-      observer => {
-
-        let source = new EventSource(environment.erServerUrl + '/api/cluster-status/available-view');
-        source.onmessage = event => {
-          this.zone.run(() => {
-            observer.next(JSON.parse(event.data))
-          })
-        }
-
-        source.onerror = event => {
-          this.zone.run(() => {
-            observer.error(event)
-          })
-        }
-
-        observer.add(() => {
-          source.close()
-          console.log(source);
-        })
-
-      }
-    )
-  }
-
   getAttendedView() {
     return fetch(environment.erServerUrl + '/api/cluster-status/attended-view').then(r => r.json());
   }

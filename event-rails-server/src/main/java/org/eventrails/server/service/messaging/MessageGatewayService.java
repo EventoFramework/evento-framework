@@ -32,7 +32,7 @@ public class MessageGatewayService {
 
 	private final MessageBus messageBus;
 
-	private final AddressPicker addressPicker;
+	private final AddressPicker<?> addressPicker;
 
 	private final BundleDeployService bundleDeployService;
 

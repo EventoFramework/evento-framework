@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -48,43 +50,34 @@ public class ClusterStatusController {
 	@GetMapping(value = "/view")
 	public SseEmitter handle() throws IOException {
 		SseEmitter emitter = new SseEmitter(15 * 60 * 1000L);
-		emitter.send(messageBus.getCurrentView());
-		var listener = new Consumer<Set<NodeAddress>>() {
+		emitter.send(Map.of("type", "current", "view", messageBus.getCurrentView()));
+		emitter.send(Map.of("type", "available", "view", messageBus.getCurrentAvailableView()));
+		messageBus.addViewListener(new Consumer<>() {
 			@Override
 			public void accept(Set<NodeAddress> o) {
 				try
 				{
-					emitter.send(o);
+					emitter.send(Map.of("type", "current", "view", o));
 				} catch (Exception e)
 				{
 					messageBus.removeViewListener(this);
 				}
 			}
-		};
-		messageBus.addViewListener(listener);
-		return emitter;
-	}
-
-	@GetMapping(value = "/available-view")
-	public SseEmitter handleViewEnabled() throws IOException {
-		SseEmitter emitter = new SseEmitter(15 * 60 * 1000L);
-		emitter.send(messageBus.getCurrentAvailableView());
-		var listener = new Consumer<Set<NodeAddress>>() {
+		});
+		messageBus.addAvailableViewListener(new Consumer<>() {
 			@Override
 			public void accept(Set<NodeAddress> o) {
 				try
 				{
-					emitter.send(o);
+					emitter.send(Map.of("type", "available", "view", o));
 				} catch (Exception e)
 				{
 					messageBus.removeAvailableViewListener(this);
 				}
 			}
-		};
-		messageBus.addAvailableViewListener(listener);
+		});
 		return emitter;
 	}
-
 	@PostMapping(value = "/spawn/{bundleName}")
 	public ResponseEntity<?> spawnBundle(@PathVariable String bundleName) throws Exception {
 		bundleDeployService.spawn(bundleName);

@@ -25,6 +25,7 @@ services:
       - ./data/mongo:/data/db
 
   rabbitmq:
+    restart: always
     image: rabbitmq:3-management-alpine
     container_name: 'rabbitmq'
     ports:
