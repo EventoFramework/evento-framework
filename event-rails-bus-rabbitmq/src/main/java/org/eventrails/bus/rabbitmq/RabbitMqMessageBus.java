@@ -4,15 +4,17 @@ import com.rabbitmq.client.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eventrails.common.messaging.bus.MessageBus;
+import org.eventrails.common.messaging.bus.MessageNotReceivedException;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
-import org.eventrails.common.serialization.ObjectMapperUtils;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class RabbitMqMessageBus extends MessageBus {
 
@@ -30,35 +32,48 @@ public class RabbitMqMessageBus extends MessageBus {
 				var view = new HashSet<NodeAddress>();
 				view.add(nodeAddress);
 				channel.basicConsume(nodeAddress.getNodeId(), true, (consumerTag, delivery) -> {
+					channel.basicPublish(exchange, delivery.getProperties().getReplyTo(),
+							new AMQP.BasicProperties
+									.Builder()
+									.correlationId(delivery.getProperties().getCorrelationId())
+									.build(), null);
 					var rabbitMessage = RabbitMqMessage.parse(delivery.getBody());
 					subscriber.onMessage(rabbitMessage.getSource(), rabbitMessage.getMessage());
 				}, consumerTag -> {
 				});
 
 				channel.basicConsume(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeAddress.getNodeId(), true, (consumerTag, delivery) -> {
-					var rabbitMessage = RabbitMqMessage.parse(delivery.getBody());
-					if (rabbitMessage.getMessage() instanceof String)
+					try
 					{
-						String signal = rabbitMessage.getMessage().toString();
-						logger.info("{} from {}", signal.toUpperCase(), rabbitMessage.getSourceNodeId());
-						if (signal.equals("join"))
+						var rabbitMessage = RabbitMqMessage.parse(delivery.getBody());
+						if (rabbitMessage.getMessage() instanceof String)
 						{
-							view.add(rabbitMessage.getSource());
-							subscriber.onViewUpdate(view);
-							channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(nodeAddress, "hello"));
+							String signal = rabbitMessage.getMessage().toString();
+							logger.info("{} from {}", signal.toUpperCase(), rabbitMessage.getSourceNodeId());
+							if (signal.equals("join"))
+							{
+								view.add(rabbitMessage.getSource());
+								subscriber.onViewUpdate(view);
+								channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(nodeAddress, "hello"));
+							}
+							if (signal.equals("hello"))
+							{
+								if(!view.contains(rabbitMessage.getSource()))
+								{
+									view.add(rabbitMessage.getSource());
+									subscriber.onViewUpdate(view);
+								}
+							} else if (signal.equals("leave"))
+							{
+								view.remove(rabbitMessage.getSource());
+								subscriber.onViewUpdate(view);
+							}
+						} else
+						{
+							subscriber.onMessage(rabbitMessage.getSource(), rabbitMessage.getMessage());
 						}
-						if (signal.equals("hello"))
-						{
-							view.add(rabbitMessage.getSource());
-							subscriber.onViewUpdate(view);
-						} else if (signal.equals("leave"))
-						{
-							view.remove(rabbitMessage.getSource());
-							subscriber.onViewUpdate(view);
-						}
-					} else
-					{
-						subscriber.onMessage(rabbitMessage.getSource(), rabbitMessage.getMessage());
+					}catch (Exception e){
+						logger.error(e);
 					}
 				}, consumerTag -> {
 				});
@@ -86,13 +101,14 @@ public class RabbitMqMessageBus extends MessageBus {
 		var nodeId = bundleName + "-" + Instant.now().toEpochMilli();
 		channel.queueDeclare(nodeId, false, false, false, null);
 		logger.info("Created service queue: %s".formatted(nodeId));
+
 		channel.exchangeDeclare(exchange, BuiltinExchangeType.DIRECT, false, false, null);
-		channel.queueBind(nodeId,exchange, nodeId);
+		channel.queueBind(nodeId, exchange, nodeId);
 
 		channel.exchangeDeclare(CLUSTER_BROADCAST_EXCHANGE, BuiltinExchangeType.FANOUT, false, false, null);
 		channel.queueDeclare(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId, false, false, false, null);
 		channel.queueBind(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId, CLUSTER_BROADCAST_EXCHANGE, "");
-		logger.info("Created cluster queue: %s".formatted(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId));
+		logger.info("Created broadcast queue: %s".formatted(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId));
 
 		var address = new RabbitMqNodeAddress(bundleName, connection.getAddress().toString(), nodeId);
 		channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(address, "join"));
@@ -101,11 +117,15 @@ public class RabbitMqMessageBus extends MessageBus {
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
 			try
 			{
-				channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(address, "leave"));
-				channel.queueDelete(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId);
-				channel.queueDelete(nodeId);
+				var conn = factory.newConnection(bundleName);
+				var c = conn.createChannel();
+				c.queueDelete(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId);
+				c.queueDelete(nodeId);
+				c.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(address, "leave"));
+				c.close();
+				conn.close();
 				logger.info("Cluster LEAVE Sent");
-			} catch (IOException ex)
+			} catch (IOException | TimeoutException ex)
 			{
 				throw new RuntimeException(ex);
 			}
@@ -116,8 +136,33 @@ public class RabbitMqMessageBus extends MessageBus {
 
 	@Override
 	public void cast(NodeAddress address, Serializable message) throws Exception {
-		channel.basicPublish(exchange, address.getNodeId(), null,
+		final String corrId = UUID.randomUUID().toString();
+		String replyQueueName = channel.queueDeclare().getQueue();
+		channel.queueBind(replyQueueName, exchange, replyQueueName);
+		channel.basicPublish(exchange, address.getNodeId(), new AMQP.BasicProperties.Builder()
+						.replyTo(replyQueueName)
+						.correlationId(corrId)
+						.build(),
 				RabbitMqMessage.create(this.address, message));
+		final CompletableFuture<Void> response = new CompletableFuture<>();
+		var ctag = channel.basicConsume(replyQueueName, true, (consumerTag, delivery) -> {
+			if (corrId.equals(delivery.getProperties().getCorrelationId()))
+			{
+				response.complete(null);
+			}
+		}, consumerTag -> {
+		});
+		try
+		{
+			response.get(5, TimeUnit.SECONDS);
+		}catch (TimeoutException e){
+			channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null,RabbitMqMessage.create(
+					(RabbitMqNodeAddress) address, "leave"));
+			throw new MessageNotReceivedException(address, message);
+		}finally
+		{
+			channel.basicCancel(ctag);
+		}
 	}
 
 	@Override
@@ -127,7 +172,7 @@ public class RabbitMqMessageBus extends MessageBus {
 	}
 
 	@Override
-	public NodeAddress getAddress() {
+	public RabbitMqNodeAddress getAddress() {
 		return address;
 	}
 }
