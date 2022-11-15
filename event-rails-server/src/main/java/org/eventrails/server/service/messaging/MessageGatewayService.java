@@ -104,6 +104,7 @@ public class MessageGatewayService {
 			if (request instanceof DomainCommandMessage c)
 			{
 
+				System.out.println("START " + c.getClass().getSimpleName());
 				var handler = handlerService.findByPayloadName(c.getCommandName());
 				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
 
@@ -131,10 +132,12 @@ public class MessageGatewayService {
 								.map(e -> ((DomainEventMessage) e)).collect(Collectors.toList()));
 						invocation.setSerializedAggregateState(snapshot.getAggregateState());
 					}
+					System.out.println("INVOKE " + c.getClass().getSimpleName());
 					messageBus.cast(
 							dest,
 							invocation,
 							resp -> {
+								System.out.println("END " + c.getClass().getSimpleName());
 								var cr = (DomainCommandResponseMessage) resp;
 								var aggregateSequenceNumber = eventStore.publishEvent(cr.getDomainEventMessage(), c.getAggregateId());
 								if(cr.getSerializedAggregateState() != null){

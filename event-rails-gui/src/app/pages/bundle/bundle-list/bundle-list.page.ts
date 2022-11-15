@@ -18,14 +18,11 @@ export class BundleListPage implements OnInit {
 
   async ngOnInit() {
     this.elements = await this.bundleService.findAll();
-    console.log(this.elements)
   }
 
   async unregister(bundle: any) {
     await this.bundleService.unregister(bundle.name);
-    console.log(this.elements)
     this.elements = this.elements.filter(r => r.name != bundle.name)
-    console.log(this.elements)
   }
 
 
@@ -37,7 +34,6 @@ export class BundleListPage implements OnInit {
   // OnClick of button Upload
   onUpload() {
     this.loading = !this.loading;
-    console.log(this.file);
     this.bundleService.register(this.file).then(
       (event: any) => {
         this.loading = false; // Flag variable
