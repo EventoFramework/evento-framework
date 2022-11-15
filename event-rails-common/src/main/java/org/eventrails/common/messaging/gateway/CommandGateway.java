@@ -50,11 +50,11 @@ public class CommandGateway {
 		var future = new CompletableFuture<R>();
 		try
 		{
-			messageBus.cast(
-					roundRobinAddressPicker.pickNodeAddress(serverName),
-					command instanceof DomainCommand ?
-							new DomainCommandMessage((DomainCommand) command) :
-							new ServiceCommandMessage((ServiceCommand) command),
+			var address = roundRobinAddressPicker.pickNodeAddress(serverName);
+			var message = command instanceof DomainCommand ?
+					new DomainCommandMessage((DomainCommand) command) :
+					new ServiceCommandMessage((ServiceCommand) command);
+			messageBus.cast(address,message,
 					response -> {
 						try{
 							future.complete((R) response);

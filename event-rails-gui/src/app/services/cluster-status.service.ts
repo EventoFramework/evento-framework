@@ -30,7 +30,6 @@ export class ClusterStatusService {
 
         observer.add(() => {
           source.close()
-          console.log(source);
         })
 
 

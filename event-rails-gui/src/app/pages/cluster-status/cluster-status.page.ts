@@ -13,8 +13,6 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
   public attendedView = [];
   public externalView = [];
   private viewSubscription: Subscription;
-  private availableViewSubscription: Subscription;
-
   constructor(private clusterStatusService: ClusterStatusService) {
   }
 
@@ -26,7 +24,8 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
         isOnline: false,
         isAvailable: false,
         replicas: {},
-        replicaCount: 0
+        replicaCount: 0,
+        external: false
       }
     }
     this.attendedView = attendedView;
@@ -34,10 +33,20 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
     this.viewSubscription = this.clusterStatusService.getView().subscribe(viewUpdate => {
       const view = viewUpdate.view;
       if (viewUpdate.type === 'current') {
-        console.log("CURRENT VIEW", view)
         const upNodes = view.map(n => n.nodeName);
-        this.externalView = upNodes.filter(n => !this.attendedView.includes(n))
-        for (let node of attendedView) {
+        this.externalView = [...new Set(upNodes.filter(n => !this.attendedView.includes(n)))]
+        for (let node of this.externalView) {
+          if(!this.view[node]) {
+            this.view[node] = {
+              isOnline: false,
+              isAvailable: false,
+              replicas: {},
+              replicaCount: 0,
+              external: true
+            }
+          }
+        }
+        for (let node of this.attendedView.concat(this.externalView)) {
           this.view[node].isOnline = upNodes.includes(node);
           this.view[node].replicas = view.filter(n => n.nodeName === node).reduce((a, e) => {
             a[e.nodeId] = {
@@ -51,9 +60,8 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
           this.view[node].replicaCount = upNodes.filter(n => n === node).length
         }
       } else {
-        console.log("AVAILABLE VIEW", view)
         const availableNodes = view.map(n => n.nodeName);
-        for (let node of attendedView) {
+        for (let node of this.attendedView.concat(this.externalView)) {
           this.view[node].isAvailable = availableNodes.includes(node);
           for (let replica of this.view[node].replicasKeys) {
             this.view[node].replicas[replica].isAvailable = view.map(n => n.nodeId).includes(this.view[node].replicas[replica].nodeId)
@@ -83,6 +91,5 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.viewSubscription.unsubscribe();
-    this.availableViewSubscription.unsubscribe();
   }
 }

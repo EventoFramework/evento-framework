@@ -28,7 +28,10 @@ class ApplicationTest {
 	@Test
 	public void testServiceCommandJGroup3() throws Exception {
 		CommandGateway commandGateway = new CommandGateway(
-				RabbitMqMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message", "localhost"),
+				RabbitMqMessageBus.create(
+						"event-rails-demo-command-test",
+						"event-rails-channel-message",
+						"localhost").enabled(),
 				"event-rails-server");
 		String id = UUID.randomUUID().toString();
 		Thread.sleep(1500);
@@ -44,9 +47,9 @@ class ApplicationTest {
 	@Test
 	public void generatePerformances() throws Exception {
 		CommandGateway commandGateway = new CommandGateway(
-				RabbitMqMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message", "localhost"),
+				RabbitMqMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message", "localhost").enabled(),
 				"event-rails-server");
-		Thread.sleep(1500);
+		Thread.sleep(5000);
 		var list = IntStream.range(0, 50).parallel().mapToObj(i -> {
 			String id = UUID.randomUUID().toString();
 

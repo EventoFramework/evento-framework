@@ -29,7 +29,7 @@ public abstract class BundleDeployService {
 		this.lockRegistry = lockRegistry;
 		this.bundleService = bundleService;
 		messageBus.addJoinListener(bundle -> {
-			var s = semaphoreMap.get(bundle);
+			var s = semaphoreMap.get(bundle.getNodeName());
 			if (s != null)
 				s.release();
 		});

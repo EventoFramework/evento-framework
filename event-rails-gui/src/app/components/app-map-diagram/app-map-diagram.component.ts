@@ -196,7 +196,10 @@ export class AppMapDiagramComponent implements OnInit {
   async ngOnInit() {
     const handlers = await this.handlerService.findAll();
 
-
+    const priority = ['Aggregate','Service','Projector','Projection','Saga','Invoker']
+    handlers.sort((a,b) => {
+      return priority.indexOf(a.componentType) - priority.indexOf(b.componentType)
+    })
     var minCircleSize = 0;
 
     const bundles = {};
@@ -241,7 +244,6 @@ export class AppMapDiagramComponent implements OnInit {
       }
       handler.h = h;
     }
-
 
     const bundleComponentCircles = {};
     const componentHandlerCircles = {};
@@ -301,7 +303,6 @@ export class AppMapDiagramComponent implements OnInit {
       const minX = Math.min.apply(null, bundleCircles.map(c => c.x - c.r));
       const minY = Math.min.apply(null, bundleCircles.map(c => c.y - c.r));
       for (let c of bundleCircles) {
-        console.log(c)
         var x = c.x - c.r - minX;
         var y = c.y - c.r - minY;
         var bp = graph.insertVertex(parent, null, c.n,
@@ -448,9 +449,6 @@ export class AppMapDiagramComponent implements OnInit {
           }
         }
       });
-
-    console.log(handlers);
-
 
   }
 

@@ -22,7 +22,6 @@ export class ApplicationPetriNetPage implements OnInit {
   async ngOnInit() {
 
     const network = await this.handlerService.getPetriNet();
-    console.log(network);
     const container = <HTMLElement>document.getElementById('graph');
 
     const graph = new mxGraph(container)
