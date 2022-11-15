@@ -59,8 +59,6 @@ export class ApplicationMapPage implements OnInit {
       }
       //g.addNode()
     }
-
-    console.log(bundles)
     const node = {
       name: "root",
       children: []
@@ -136,7 +134,6 @@ export class ApplicationMapPage implements OnInit {
 
       const dot = g.to_dot();
 
-      console.log(dot)
       this.svg = graphviz.layout(dot);
       document.getElementById("graph").innerHTML = this.svg;
       var panZoomTiger = svgPanZoom(document.getElementById("graph").children.item(0) as any, {

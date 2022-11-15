@@ -14,6 +14,7 @@ import org.eventrails.common.modeling.messaging.message.internal.CorrelatedMessa
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -29,7 +30,7 @@ public abstract class MessageBus {
 
 	private boolean enabled = false;
 
-	private final HashMap<String, Handlers> messageCorrelationMap = new HashMap<>();
+	private final ConcurrentHashMap<String, Handlers> messageCorrelationMap = new ConcurrentHashMap<>();
 	private final HashSet<NodeAddress> availableNodes = new HashSet<>();
 	private final List<Consumer<NodeAddress>> joinListeners = new ArrayList<>();
 	private final List<Consumer<Set<NodeAddress>>> viewListeners = new ArrayList<>();
@@ -59,6 +60,11 @@ public abstract class MessageBus {
 					availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 			}
 		});
+	}
+
+	public MessageBus enabled() throws Exception {
+		enableBus();
+		return this;
 	}
 
 	private record Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {
@@ -234,7 +240,7 @@ public abstract class MessageBus {
 		new Thread(() -> {
 			if (message instanceof CorrelatedMessage cm)
 			{
-				if (cm.isResponse())
+				if (cm.getIsResponse())
 				{
 					if (cm.getBody() instanceof ThrowableWrapper tw)
 					{
@@ -276,6 +282,7 @@ public abstract class MessageBus {
 						try
 						{
 							cast(src, new ClusterNodeStatusUpdateMessage(this.enabled));
+							logger.debug("ENABLED " + src.getNodeId());
 						} catch (Exception e)
 						{
 							e.printStackTrace();
