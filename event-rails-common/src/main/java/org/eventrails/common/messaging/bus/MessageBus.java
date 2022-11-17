@@ -55,7 +55,7 @@ public abstract class MessageBus {
 					availableViewChanged.set(availableViewChanged.get() || toRemove);
 					return toRemove;
 				});
-				viewListeners.forEach(l -> l.accept(view));
+				viewListeners.stream().toList().forEach(l -> l.accept(view));
 				if (availableViewChanged.get())
 					availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 			}
