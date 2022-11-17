@@ -7,5 +7,5 @@ public interface BusEventSubscriber {
 
 	public void onMessage(NodeAddress address, Serializable message);
 
-	public void onViewUpdate(Set<NodeAddress> view);
+	public void onViewUpdate(Set<NodeAddress> view, Set<NodeAddress> nodeAdded, Set<NodeAddress> nodeRemoved);
 }

@@ -54,7 +54,7 @@ public class CommandGateway {
 			var message = command instanceof DomainCommand ?
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
-			messageBus.cast(address,message,
+			messageBus.request(address,message,
 					response -> {
 						try{
 							future.complete((R) response);

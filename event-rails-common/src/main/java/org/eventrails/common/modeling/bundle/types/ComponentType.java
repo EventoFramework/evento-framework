@@ -1,4 +1,4 @@
-package org.eventrails.server.domain.model.types;
+package org.eventrails.common.modeling.bundle.types;
 
 public enum ComponentType {
 	Aggregate,

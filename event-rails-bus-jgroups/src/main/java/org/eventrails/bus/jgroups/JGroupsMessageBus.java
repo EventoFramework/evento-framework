@@ -22,13 +22,17 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 							 BiConsumer<Serializable, MessageBusResponseSender> requestReceiver) {
 
 		super(subscriber -> jChannel.setReceiver(new Receiver() {
+
+			private Set<NodeAddress> ov = new HashSet<>();
 			@Override
 			public void receive(Message msg) {
 				subscriber.onMessage(new JGroupNodeAddress(msg.getSrc()), ((BytesMessage) msg).getObject(this.getClass().getClassLoader()));
 			}
 			@Override
-			public void viewAccepted(View newView) {
-				subscriber.onViewUpdate(newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toSet()));
+			public synchronized void viewAccepted(View newView) {
+				Set<NodeAddress> nv = newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toSet());
+				subscriber.onViewUpdate(nv, nv.stream().filter(n -> !ov.contains(n)).collect(Collectors.toSet()), ov.stream().filter(n -> !nv.contains(n)).collect(Collectors.toSet()));
+				ov = nv;
 			}
 		}));
 		this.channel = jChannel;
@@ -38,13 +42,17 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 
 	protected JGroupsMessageBus(JChannel jChannel) {
 		super(subscriber -> jChannel.setReceiver(new Receiver() {
+
+			private Set<NodeAddress> ov = new HashSet<>();
 			@Override
 			public void receive(Message msg) {
 				subscriber.onMessage(new JGroupNodeAddress(msg.getSrc()), ((BytesMessage) msg).getObject(this.getClass().getClassLoader()));
 			}
 			@Override
-			public void viewAccepted(View newView) {
-				subscriber.onViewUpdate(newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toSet()));
+			public synchronized void viewAccepted(View newView) {
+				Set<NodeAddress> nv = newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toSet());
+				subscriber.onViewUpdate(nv, nv.stream().filter(n -> !ov.contains(n)).collect(Collectors.toSet()), ov.stream().filter(n -> !nv.contains(n)).collect(Collectors.toSet()));
+				ov = nv;
 			}
 		}));
 		this.channel = jChannel;
