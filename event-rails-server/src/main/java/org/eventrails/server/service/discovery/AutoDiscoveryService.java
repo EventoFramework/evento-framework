@@ -72,7 +72,15 @@ public class AutoDiscoveryService {
                                 logger.info(registeredHandler.toString());
                                 var handler = new Handler();
                                 handler.setBundle(bundle);
-                                handler.setHandledPayload(payloadRepository.findById(registeredHandler.getHandledPayload()).orElseGet(
+                                handler.setHandledPayload(payloadRepository.findById(registeredHandler.getHandledPayload())
+                                        .map(p -> {
+                                            if(p.getType() != registeredHandler.getHandledPayloadType()){
+                                                p.setType(registeredHandler.getHandledPayloadType());
+                                                return payloadRepository.save(p);
+                                            }
+                                            return p;
+                                        })
+                                        .orElseGet(
                                         () -> {
                                             logger.info("Payload %s not found, creating an ephemeral one".formatted(registeredHandler.getHandledPayload()));
                                             var payload = new Payload();
@@ -85,18 +93,27 @@ public class AutoDiscoveryService {
                                         }
                                 ));
                                 handler.setComponentName(registeredHandler.getComponentName());
-                                handler.setReturnType(registeredHandler.getReturnType() == null ? null : payloadRepository.findById(registeredHandler.getReturnType()).orElseGet(
+                                var type = switch (registeredHandler.getComponentType()) {
+                                    case Aggregate -> PayloadType.DomainEvent;
+                                    case Service -> PayloadType.ServiceEvent;
+                                    case Projection -> PayloadType.View;
+                                    default -> null;
+                                };
+                                handler.setReturnType(registeredHandler.getReturnType() == null ? null : payloadRepository.findById(registeredHandler.getReturnType())
+                                        .map(p -> {
+                                            if(p.getType() != type){
+                                                p.setType(type);
+                                                return payloadRepository.save(p);
+                                            }
+                                            return p;
+                                        })
+                                        .orElseGet(
                                         () -> {
                                             logger.info("Payload %s not found, creating an ephemeral one".formatted(registeredHandler.getReturnType()));
                                             var payload = new Payload();
                                             payload.setName(registeredHandler.getReturnType());
                                             payload.setJsonSchema("null");
-                                            payload.setType(switch (registeredHandler.getComponentType()) {
-                                                case Aggregate -> PayloadType.DomainEvent;
-                                                case Service -> PayloadType.ServiceEvent;
-                                                case Projection -> PayloadType.View;
-                                                default -> null;
-                                            });
+                                            payload.setType(type);
                                             payload.setUpdatedAt(Instant.now());
                                             payload.setRegisteredIn(bundle.getName());
                                             return payloadRepository.save(payload);
