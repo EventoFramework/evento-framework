@@ -2,6 +2,7 @@ package org.eventrails.server.web;
 
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
+import org.eventrails.server.domain.model.BucketType;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.service.BundleService;
 import org.eventrails.server.service.deploy.BundleDeployService;
@@ -42,8 +43,8 @@ public class ClusterStatusController {
 
 	@GetMapping(value = "/attended-view")
 	public ResponseEntity<List<String>> findAllNodes() {
-		var nodes = bundleService.findAllBundles().stream().filter(Bundle::isContainsHandlers).map(Bundle::getName).collect(Collectors.toList());
-		// nodes.add(serverNodeName);
+		var nodes = bundleService.findAllBundles().stream().filter(Bundle::isContainsHandlers)
+				.filter(b -> b.getBucketType() != BucketType.Ephemeral).map(Bundle::getName).collect(Collectors.toList());
 		return ResponseEntity.ok(nodes);
 	}
 

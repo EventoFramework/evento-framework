@@ -106,6 +106,9 @@
                     <b class="node-status-available">AVAILABLE</b>
                   </ng-container>
                 </ion-col>
+                <ion-col>
+                  <ion-button (click)="kill(view[component].replicas[replica])" [disabled]="!view[component].replicas[replica]?.isAvailable" color="danger">Kill</ion-button>
+                </ion-col>
               </ion-row>
             </ion-grid>
           </ion-card-content>

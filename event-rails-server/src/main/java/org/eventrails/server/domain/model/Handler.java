@@ -26,7 +26,7 @@ public class Handler implements Serializable {
 	@ManyToOne
 	private Payload handledPayload;
 
-	@ManyToOne(cascade = CascadeType.REMOVE)
+	@ManyToOne()
 	private Bundle bundle;
 
 	private String componentName;
