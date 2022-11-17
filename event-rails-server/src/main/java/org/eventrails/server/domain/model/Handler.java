@@ -1,8 +1,8 @@
 package org.eventrails.server.domain.model;
 
 import lombok.*;
-import org.eventrails.server.domain.model.types.ComponentType;
-import org.eventrails.server.domain.model.types.HandlerType;
+import org.eventrails.common.modeling.bundle.types.ComponentType;
+import org.eventrails.common.modeling.bundle.types.HandlerType;
 import org.hibernate.Hibernate;
 import org.hibernate.HibernateException;
 

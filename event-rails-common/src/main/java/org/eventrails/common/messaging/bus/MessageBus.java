@@ -33,6 +33,7 @@ public abstract class MessageBus {
 	private final ConcurrentHashMap<String, Handlers> messageCorrelationMap = new ConcurrentHashMap<>();
 	private final HashSet<NodeAddress> availableNodes = new HashSet<>();
 	private final List<Consumer<NodeAddress>> joinListeners = new ArrayList<>();
+	private final List<Consumer<NodeAddress>> leaveListeners = new ArrayList<>();
 	private final List<Consumer<Set<NodeAddress>>> viewListeners = new ArrayList<>();
 	private final List<Consumer<Set<NodeAddress>>> availableViewListeners = new ArrayList<>();
 	private Set<NodeAddress> currentView = new HashSet<>();
@@ -46,20 +47,22 @@ public abstract class MessageBus {
 			}
 
 			@Override
-			public void onViewUpdate(Set<NodeAddress> view) {
+			public void onViewUpdate(Set<NodeAddress> view, Set<NodeAddress> nodeAdded, Set<NodeAddress> nodeRemoved) {
 				logger.debug("View Updated - {}", view.stream().map(NodeAddress::getNodeId).collect(Collectors.joining(" ")));
 				currentView = view;
 				AtomicBoolean availableViewChanged = new AtomicBoolean(false);
-				availableNodes.removeIf(a -> {
-					var toRemove = !view.contains(a);
-					availableViewChanged.set(availableViewChanged.get() || toRemove);
-					return toRemove;
-				});
+				availableNodes.removeAll(nodeRemoved);
 				viewListeners.stream().toList().forEach(l -> l.accept(view));
-				if (availableViewChanged.get())
+				if(nodeRemoved.size() > 0) {
 					availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
+					for (NodeAddress nodeAddress : nodeRemoved) {
+						leaveListeners.stream().toList().forEach(l -> l.accept(nodeAddress));
+					}
+				}
+
 			}
 		});
+
 	}
 
 	public MessageBus enabled() throws Exception {
@@ -115,7 +118,7 @@ public abstract class MessageBus {
 	 * @param message         the message to send
 	 * @param responseHandler the response handler
 	 */
-	public final void cast(NodeAddress address, Serializable message, Consumer<Serializable> responseHandler, Consumer<ThrowableWrapper> errorHandler) throws Exception {
+	public final void request(NodeAddress address, Serializable message, Consumer<Serializable> responseHandler, Consumer<ThrowableWrapper> errorHandler) throws Exception {
 		var correlationId = UUID.randomUUID().toString();
 		messageCorrelationMap.put(correlationId, new Handlers(responseHandler, errorHandler));
 		var cm = new CorrelatedMessage(correlationId, message, false);
@@ -129,8 +132,8 @@ public abstract class MessageBus {
 		}
 	}
 
-	public void cast(NodeAddress address, Serializable message, Consumer<Serializable> responseHandler) throws Exception {
-		this.cast(address, message, responseHandler, error -> {
+	public void request(NodeAddress address, Serializable message, Consumer<Serializable> responseHandler) throws Exception {
+		this.request(address, message, responseHandler, error -> {
 		});
 	}
 
@@ -201,6 +204,14 @@ public abstract class MessageBus {
 
 	public void removeJoinListener(Consumer<NodeAddress> onBundleJoin) {
 		this.joinListeners.remove(onBundleJoin);
+	}
+
+	public void addLeaveListener(Consumer<NodeAddress> onBundleJoin) {
+		this.leaveListeners.add(onBundleJoin);
+	}
+
+	public void removeLeaveListener(Consumer<NodeAddress> onBundleJoin) {
+		this.leaveListeners.remove(onBundleJoin);
 	}
 
 	public void addViewListener(Consumer<Set<NodeAddress>> listener) {
@@ -294,6 +305,7 @@ public abstract class MessageBus {
 				} else
 				{
 					this.availableNodes.remove(src);
+					leaveListeners.stream().toList().forEach(c -> c.accept(src));
 					availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 				}
 			} else if (message instanceof ClusterNodeKillMessage k)

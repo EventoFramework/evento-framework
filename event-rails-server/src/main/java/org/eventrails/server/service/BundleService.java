@@ -9,9 +9,9 @@ import org.eventrails.parser.model.payload.PayloadDescription;
 import org.eventrails.parser.model.payload.Query;
 import org.eventrails.server.domain.model.*;
 import org.eventrails.server.domain.model.Handler;
-import org.eventrails.server.domain.model.types.ComponentType;
-import org.eventrails.server.domain.model.types.HandlerType;
-import org.eventrails.server.domain.model.types.PayloadType;
+import org.eventrails.common.modeling.bundle.types.ComponentType;
+import org.eventrails.common.modeling.bundle.types.HandlerType;
+import org.eventrails.common.modeling.bundle.types.PayloadType;
 import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.domain.repository.HandlerRepository;
 import org.eventrails.server.domain.repository.PayloadRepository;
@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 

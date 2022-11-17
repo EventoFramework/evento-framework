@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -56,17 +57,17 @@ public class RabbitMqMessageBus extends MessageBus {
                             logger.info("{} from {}", signal.toUpperCase(), rabbitMessage.getSourceNodeId());
                             if (signal.equals("join")) {
                                 view.add(rabbitMessage.getSource());
-                                subscriber.onViewUpdate(view);
+                                subscriber.onViewUpdate(view, Set.of(rabbitMessage.getSource()), Set.of());
                                 channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(nodeAddress, "hello"));
                             }
                             if (signal.equals("hello")) {
                                 if (!view.contains(rabbitMessage.getSource())) {
                                     view.add(rabbitMessage.getSource());
-                                    subscriber.onViewUpdate(view);
+                                    subscriber.onViewUpdate(view, Set.of(rabbitMessage.getSource()), Set.of());
                                 }
                             } else if (signal.equals("leave")) {
                                 view.remove(rabbitMessage.getSource());
-                                subscriber.onViewUpdate(view);
+                                subscriber.onViewUpdate(view, Set.of(), Set.of(rabbitMessage.getSource()));
                             }
                         } else {
                             subscriber.onMessage(rabbitMessage.getSource(), rabbitMessage.getMessage());
@@ -76,7 +77,7 @@ public class RabbitMqMessageBus extends MessageBus {
                     }
                 }, consumerTag -> {
                 });
-                subscriber.onViewUpdate(view);
+                subscriber.onViewUpdate(view, Set.of(), Set.of());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

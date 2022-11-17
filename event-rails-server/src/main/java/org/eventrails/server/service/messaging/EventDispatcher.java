@@ -12,7 +12,7 @@ import org.eventrails.server.domain.model.ProjectorState;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.domain.model.SagaState;
-import org.eventrails.server.domain.model.types.HandlerType;
+import org.eventrails.common.modeling.bundle.types.HandlerType;
 import org.eventrails.server.domain.repository.ComponentEventConsumingStateRepository;
 import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.domain.repository.SagaStateRepository;
@@ -200,7 +200,7 @@ public class EventDispatcher {
 
 				bundleDeployService.waitUntilAvailable(bundleName);
 				var dest = addressPicker.pickNodeAddress(bundleName);
-				messageBus.cast(dest,
+				messageBus.request(dest,
 						new EventToSagaMessage(event.getEventMessage(),
 								sagaState.getSerializedSagaState(),
 								sagaName
@@ -270,7 +270,7 @@ public class EventDispatcher {
 				var startTime = Instant.now();
 				bundleDeployService.waitUntilAvailable(bundleName);
 				var dest = addressPicker.pickNodeAddress(bundleName);
-				messageBus.cast(dest,
+				messageBus.request(dest,
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {
 							processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
