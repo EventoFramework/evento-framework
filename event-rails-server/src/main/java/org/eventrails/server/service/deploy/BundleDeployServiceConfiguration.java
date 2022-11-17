@@ -14,7 +14,7 @@ public class BundleDeployServiceConfiguration {
 	public BundleDeployService bundleDeployService(
 			MessageBus messageBus, LockRegistry lockRegistry, BundleService bundleService,
 			@Value("${eventrails.cluster.bundle.deploy.service}") String bundleDeployService,
-			@Value("${eventrails.cluster.bundle.deploy.java}") String javaExe){
+			@Value("${eventrails.cluster.bundle.deploy.java:null}") String javaExe){
 		return switch (bundleDeployService)
 				{
 					case "docker" -> new DockerBundleDeployService(messageBus, lockRegistry, bundleService);
