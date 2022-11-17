@@ -27,7 +27,7 @@ public class QueryGateway {
 		var future = new CompletableFuture<T>();
 		try
 		{
-			messageBus.cast(
+			messageBus.request(
 					roundRobinAddressPicker.pickNodeAddress(serverName),
 					new QueryMessage<>((query)),
 					response -> {

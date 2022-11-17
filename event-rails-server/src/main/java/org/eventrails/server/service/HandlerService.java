@@ -2,7 +2,7 @@ package org.eventrails.server.service;
 
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.Bundle;
-import org.eventrails.server.domain.model.types.HandlerType;
+import org.eventrails.common.modeling.bundle.types.HandlerType;
 import org.eventrails.server.domain.repository.HandlerRepository;
 import org.springframework.stereotype.Service;
 

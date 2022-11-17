@@ -1,10 +1,13 @@
 package org.eventrails.server.domain.repository;
 
+import ch.qos.logback.core.joran.node.ComponentNode;
+import org.eventrails.common.modeling.bundle.types.ComponentType;
+import org.eventrails.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.Bundle;
-import org.eventrails.server.domain.model.types.ComponentType;
-import org.eventrails.server.domain.model.types.HandlerType;
+import org.eventrails.common.modeling.bundle.types.HandlerType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.Collection;
 import java.util.List;
@@ -24,4 +27,7 @@ public interface HandlerRepository extends JpaRepository<Handler, Bundle> {
 	List<Handler> findAllByBundle(Bundle bundle);
 
 	Collection<Handler> findAllByBundleAndHandledPayload_Name(Bundle bundle, String payloadName);
+
+	@Query("select count(h) > 0 from Handler h where h.bundle.name = ?1 and h.componentType = ?2 and h.componentName = ?3 and h.handlerType = ?4 and h.handledPayload.name = ?5" )
+	boolean exists(String bundleName, ComponentType componentType, String componentName, HandlerType handlerType, String handledPayload);
 }

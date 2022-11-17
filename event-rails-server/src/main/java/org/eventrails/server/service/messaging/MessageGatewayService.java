@@ -2,12 +2,12 @@ package org.eventrails.server.service.messaging;
 
 import org.eventrails.common.modeling.messaging.message.application.*;
 import org.eventrails.common.modeling.messaging.message.bus.ResponseSender;
-import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeIsBoredMessage;
-import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeIsSufferingMessage;
-import org.eventrails.common.modeling.messaging.message.internal.ServerHandleInvocationMessage;
+import org.eventrails.common.modeling.messaging.message.internal.*;
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.messaging.utils.AddressPicker;
 import org.eventrails.common.messaging.utils.RoundRobinAddressPicker;
+import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
+import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
 import org.eventrails.common.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
@@ -19,6 +19,7 @@ import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
@@ -39,6 +40,7 @@ public class MessageGatewayService {
 	private final ThreadCountAutoscalingProtocol threadCountAutoscalingProtocol;
 	private final int minNodes;
 	private final boolean autoscalingEnabled;
+	private final String serverNodeName;
 
 	public MessageGatewayService(
 			HandlerService handlerService,
@@ -56,6 +58,7 @@ public class MessageGatewayService {
 			) {
 		this.handlerService = handlerService;
 		this.lockRegistry = lockRegistry;
+		this.serverNodeName = serverNodeName;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
@@ -133,7 +136,7 @@ public class MessageGatewayService {
 						invocation.setSerializedAggregateState(snapshot.getAggregateState());
 					}
 					System.out.println("INVOKE " + c.getClass().getSimpleName());
-					messageBus.cast(
+					messageBus.request(
 							dest,
 							invocation,
 							resp -> {
@@ -170,7 +173,7 @@ public class MessageGatewayService {
 				var handler = handlerService.findByPayloadName(c.getCommandName());
 				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
 				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
-				messageBus.cast(
+				messageBus.request(
 						dest,
 						c,
 						resp -> {
@@ -189,7 +192,7 @@ public class MessageGatewayService {
 				var handler = handlerService.findByPayloadName(q.getQueryName());
 				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
 				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
-				messageBus.cast(
+				messageBus.request(
 						dest,
 						q,
 						response::sendResponse,
@@ -198,7 +201,10 @@ public class MessageGatewayService {
 						}
 				);
 
-			} else
+			} else if (request instanceof ClusterNodeApplicationDiscoveryRequest d){
+				response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(serverNodeName, new ArrayList<>()));
+			}
+			else
 			{
 				throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
 			}

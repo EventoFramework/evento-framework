@@ -38,6 +38,7 @@ public class ProjectorReference extends Reference implements TransactionalProjec
 		return eventHandlerReferences.keySet();
 	}
 
+
 	public void invoke(
 			EventMessage<? extends Event> em,
 			CommandGateway commandGateway,
@@ -72,5 +73,9 @@ public class ProjectorReference extends Reference implements TransactionalProjec
 	@Override
 	public void rollback() throws Exception {
 
+	}
+
+	public Method getEventHandler(String event) {
+		return eventHandlerReferences.get(event);
 	}
 }

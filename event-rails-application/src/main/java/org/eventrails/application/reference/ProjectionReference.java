@@ -37,6 +37,10 @@ public class ProjectionReference extends Reference{
 		return queryHandlerReferences.keySet();
 	}
 
+	public Method getQueryHandler(String queryName){
+		return queryHandlerReferences.get(queryName);
+	}
+
 	public QueryResponse<?> invoke(
 			QueryMessage<?> qm,
 			CommandGateway commandGateway,

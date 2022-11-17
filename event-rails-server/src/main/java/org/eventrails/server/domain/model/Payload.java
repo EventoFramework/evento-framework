@@ -1,7 +1,7 @@
 package org.eventrails.server.domain.model;
 
 import lombok.*;
-import org.eventrails.server.domain.model.types.PayloadType;
+import org.eventrails.common.modeling.bundle.types.PayloadType;
 import org.hibernate.Hibernate;
 
 import javax.persistence.*;
