@@ -38,7 +38,7 @@ export class AppMapDiagramComponent implements OnInit {
       return true;
     } else if (d <= r2 - r1) {
       return true;
-    } else if (d + 0.00000000000001 < r1 + r2) {
+    } else if (d + 0.1 < r1 + r2) {
       return true;
     }
     return false;
@@ -268,6 +268,7 @@ export class AppMapDiagramComponent implements OnInit {
       bundleComponentCircles[bundle] = componentCircles;
       this.addCircle(bundleCircles, (this.diameter(componentCircles) / 2) + this.padding, bundle, null)
     }
+    console.log(bundleCircles);
 
     const container = <HTMLElement>document.getElementById('graph');
 
