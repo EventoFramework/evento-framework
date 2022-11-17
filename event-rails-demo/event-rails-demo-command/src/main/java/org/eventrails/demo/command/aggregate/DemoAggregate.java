@@ -1,5 +1,6 @@
 package org.eventrails.demo.command.aggregate;
 
+import jdk.jshell.execution.Util;
 import org.eventrails.demo.api.command.DemoCreateCommand;
 import org.eventrails.demo.api.command.DemoDeleteCommand;
 import org.eventrails.demo.api.command.DemoUpdateCommand;
@@ -13,6 +14,7 @@ import org.eventrails.common.messaging.gateway.CommandGateway;
 import org.eventrails.common.messaging.gateway.QueryGateway;
 import org.eventrails.common.modeling.messaging.message.application.CommandMessage;
 import org.eventrails.common.modeling.messaging.message.application.EventMessage;
+import org.eventrails.demo.api.utils.Utils;
 
 @Aggregate(snapshotFrequency=10)
 public class DemoAggregate {
@@ -23,7 +25,9 @@ public class DemoAggregate {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							CommandMessage commandMessage){
-		System.out.println(this.getClass() + " - handle(DemoCreateCommand)");
+		Utils.logMethodFlow(this,"handle", command, "BEGIN");
+		Utils.doWork(1200);
+		Utils.logMethodFlow(this,"handle", command, "END");
 		return new DemoCreatedEvent(
 				command.getDemoId(),
 				command.getName(),
@@ -32,7 +36,7 @@ public class DemoAggregate {
 
 	@EventSourcingHandler
 	DemoAggregateState on(DemoCreatedEvent event, DemoAggregateState state, EventMessage<DemoCreatedEvent> eventMessage){
-		System.out.println(this.getClass() + " - on(DemoCreatedEvent)");
+		Utils.logMethodFlow(this,"on", event, "ES");
 		return new DemoAggregateState(event.getValue());
 	}
 
@@ -40,8 +44,10 @@ public class DemoAggregate {
 	DemoUpdatedEvent handle(DemoUpdateCommand command,
 							DemoAggregateState state){
 
-		System.out.println(this.getClass() + " - handle(DemoUpdateCommand)");
+		Utils.logMethodFlow(this,"handle", command, "BEGIN");
+		Utils.doWork(1100);
 		if(state.getValue() >= command.getValue()) throw new RuntimeException("error.invalid.value");
+		Utils.logMethodFlow(this,"handle", command, "END");
 		return new DemoUpdatedEvent(
 				command.getDemoId(),
 				command.getName(),
@@ -50,7 +56,7 @@ public class DemoAggregate {
 
 	@EventSourcingHandler
 	DemoAggregateState on(DemoUpdatedEvent event, DemoAggregateState state){
-		System.out.println(this.getClass() + " - on(DemoUpdatedEvent)");
+		Utils.logMethodFlow(this,"on", event, "ES");
 		state.setValue(event.getValue());
 		return state;
 	}
@@ -58,15 +64,16 @@ public class DemoAggregate {
 	@AggregateCommandHandler
 	DemoDeletedEvent handle(DemoDeleteCommand command,
 							DemoAggregateState state){
-
-		System.out.println(this.getClass() + " - handle(DemoDeleteCommand)");
+		Utils.logMethodFlow(this,"handle", command, "BEGIN");
+		Utils.doWork(900);
+		Utils.logMethodFlow(this,"handle", command, "END");
 		return new DemoDeletedEvent(
 				command.getDemoId());
 	}
 
 	@EventSourcingHandler
 	DemoAggregateState on(DemoDeletedEvent event, DemoAggregateState state){
-		System.out.println(this.getClass() + " - on(DemoDeletedEvent)");
+		Utils.logMethodFlow(this,"on", event, "ES");
 		state.setDeleted(true);
 		return state;
 	}
