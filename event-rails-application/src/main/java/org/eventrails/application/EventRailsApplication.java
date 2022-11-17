@@ -11,11 +11,14 @@ import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.messaging.gateway.CommandGateway;
 import org.eventrails.common.messaging.gateway.QueryGateway;
 import org.eventrails.common.performance.AutoscalingProtocol;
+import org.eventrails.common.utils.Inject;
 import org.reflections.Reflections;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.function.Function;
 
 public class EventRailsApplication {
 
@@ -47,7 +50,6 @@ public class EventRailsApplication {
 			try
 			{
 				autoscalingProtocol.arrival();
-				Thread.sleep(5000);
 				if (request instanceof DecoratedDomainCommandMessage c)
 				{
 					var handler = getAggregateMessageHandlers()
@@ -81,7 +83,7 @@ public class EventRailsApplication {
 							commandGateway,
 							queryGateway
 					);
-					response.sendResponse(event);
+					response.sendResponse(new ServiceEventMessage(event));
 				} else if (request instanceof QueryMessage<?> q)
 				{
 					var handler = getProjectionMessageHandlers().get(q.getQueryName());
@@ -164,7 +166,7 @@ public class EventRailsApplication {
 		try
 		{
 			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, serverName, messageBus, autoscalingProtocol);
-			eventRailsApplication.parsePackage();
+			eventRailsApplication.parsePackage(clz->null);
 			messageBus.enableBus();
 			return eventRailsApplication;
 		} catch (Exception e)
@@ -174,12 +176,34 @@ public class EventRailsApplication {
 
 	}
 
-	private void parsePackage() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+	public static EventRailsApplication start(
+			String basePackage,
+			String bundleName,
+			String serverName,
+			MessageBus messageBus,
+			AutoscalingProtocol autoscalingProtocol,
+			Function<Class<?>, Object> findInjectableObject) {
+
+
+		try
+		{
+			EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, serverName, messageBus, autoscalingProtocol);
+			eventRailsApplication.parsePackage(findInjectableObject);
+			messageBus.enableBus();
+			return eventRailsApplication;
+		} catch (Exception e)
+		{
+			throw new RuntimeException(e);
+		}
+
+	}
+
+	private void parsePackage(Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
 
 		Reflections reflections = new Reflections(basePackage);
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Aggregate.class))
 		{
-			var aggregateReference = new AggregateReference(aClass.getConstructor().newInstance(), aClass.getAnnotation(Aggregate.class).snapshotFrequency());
+			var aggregateReference = new AggregateReference(createComponentInstance(aClass, findInjectableObject), aClass.getAnnotation(Aggregate.class).snapshotFrequency());
 			for (String command : aggregateReference.getRegisteredCommands())
 			{
 				aggregateMessageHandlers.put(command, aggregateReference);
@@ -187,7 +211,7 @@ public class EventRailsApplication {
 		}
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Service.class))
 		{
-			var serviceReference = new ServiceReference(aClass.getConstructor().newInstance());
+			var serviceReference = new ServiceReference(createComponentInstance(aClass, findInjectableObject));
 			for (String command : serviceReference.getRegisteredCommands())
 			{
 				serviceMessageHandlers.put(command, serviceReference);
@@ -195,7 +219,7 @@ public class EventRailsApplication {
 		}
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projection.class))
 		{
-			var projectionReference = new ProjectionReference(aClass.getConstructor().newInstance());
+			var projectionReference = new ProjectionReference(createComponentInstance(aClass, findInjectableObject));
 			for (String query : projectionReference.getRegisteredQueries())
 			{
 				projectionMessageHandlers.put(query, projectionReference);
@@ -203,7 +227,7 @@ public class EventRailsApplication {
 		}
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projector.class))
 		{
-			var projectorReference = new ProjectorReference(aClass.getConstructor().newInstance());
+			var projectorReference = new ProjectorReference(createComponentInstance(aClass, findInjectableObject));
 			for (String event : projectorReference.getRegisteredEvents())
 			{
 				var hl = projectorMessageHandlers.getOrDefault(event, new HashMap<>());
@@ -213,7 +237,7 @@ public class EventRailsApplication {
 		}
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Saga.class))
 		{
-			var sagaReference = new SagaReference(aClass.getConstructor().newInstance());
+			var sagaReference = new SagaReference(createComponentInstance(aClass, findInjectableObject));
 			for (String event : sagaReference.getRegisteredEvents())
 			{
 				var hl = sagaMessageHandlers.getOrDefault(event, new HashMap<>());
@@ -221,6 +245,19 @@ public class EventRailsApplication {
 				sagaMessageHandlers.put(event, hl);
 			}
 		}
+	}
+
+	private Object createComponentInstance(Class<?> aClass, Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+		var ref =  aClass.getConstructor().newInstance();
+		for (Field declaredField : aClass.getDeclaredFields()) {
+			if(declaredField.getAnnotation(Inject.class)!=null){
+				var oldAccessibility = declaredField.canAccess(ref);
+				declaredField.setAccessible(true);
+				declaredField.set(ref, findInjectableObject.apply(declaredField.getType()));
+				declaredField.setAccessible(oldAccessibility);
+			}
+		}
+		return ref;
 	}
 
 

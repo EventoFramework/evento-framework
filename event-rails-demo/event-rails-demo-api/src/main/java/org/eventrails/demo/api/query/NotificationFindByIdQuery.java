@@ -12,4 +12,12 @@ public class NotificationFindByIdQuery extends Query {
 
 	public NotificationFindByIdQuery() {
 	}
+
+	public String getNotificationId() {
+		return notificationId;
+	}
+
+	public void setNotificationId(String notificationId) {
+		this.notificationId = notificationId;
+	}
 }

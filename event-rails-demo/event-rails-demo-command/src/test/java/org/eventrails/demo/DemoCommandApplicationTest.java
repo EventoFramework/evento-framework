@@ -9,9 +9,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
-class ApplicationTest {
-
-
+class DemoCommandApplicationTest {
 
 
 
@@ -19,8 +17,10 @@ class ApplicationTest {
 	public void testServiceCommandJGroup2() throws Exception {
 
 		CommandGateway commandGateway = new CommandGateway(
-				RabbitMqMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message", "localhost"),
+				RabbitMqMessageBus.create("event-rails-demo-command-test", "event-rails-channel-message",
+						"localhost").enabled(),
 				"event-rails-server");
+		Thread.sleep(1500);
 		var resp = commandGateway.sendAndWait(new NotificationSendCommand("hola_cicos_4"));
 		System.out.println(resp);
 		System.out.println("end");

@@ -1,10 +1,10 @@
-package org.eventrails.demo.web.domain.config;
+package org.eventrails.demo.config;
 
 import org.eventrails.application.EventRailsApplication;
 import org.eventrails.bus.rabbitmq.RabbitMqMessageBus;
-import org.eventrails.demo.web.domain.DemoWebApplication;
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
+import org.eventrails.demo.DemoQueryApplication;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -27,7 +27,7 @@ public class EventRailsConfiguration {
 	) throws Exception {
 
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleName, channelName, rabbitHost);
-		return EventRailsApplication.start(DemoWebApplication.class.getPackage().getName(),
+		return EventRailsApplication.start(DemoQueryApplication.class.getPackage().getName(),
 				bundleName,
 				serverName,
 				messageBus,
