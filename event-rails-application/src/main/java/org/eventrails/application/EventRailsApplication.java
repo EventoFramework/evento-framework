@@ -1,7 +1,10 @@
 package org.eventrails.application;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eventrails.application.reference.*;
 import org.eventrails.common.modeling.annotations.component.*;
+import org.eventrails.common.modeling.annotations.handler.InvocationHandler;
 import org.eventrails.common.modeling.annotations.handler.SagaEventHandler;
 import org.eventrails.common.modeling.bundle.types.ComponentType;
 import org.eventrails.common.modeling.bundle.types.HandlerType;
@@ -22,16 +25,21 @@ import org.eventrails.common.messaging.gateway.QueryGateway;
 import org.eventrails.common.performance.AutoscalingProtocol;
 import org.eventrails.common.utils.Inject;
 import org.reflections.Reflections;
+import org.reflections.util.ConfigurationBuilder;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
 public class EventRailsApplication {
+
+    private static final Logger logger = LogManager.getLogger(EventRailsApplication.class);
 
     private final String basePackage;
     private final String bundleName;
@@ -41,6 +49,8 @@ public class EventRailsApplication {
     private HashMap<String, ProjectionReference> projectionMessageHandlers = new HashMap<>();
     private HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers = new HashMap<>();
     private HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers = new HashMap<>();
+
+    private final List<RegisteredHandler> invocationHandlers = new ArrayList<>();
     private transient CommandGateway commandGateway;
     private transient QueryGateway queryGateway;
 
@@ -232,6 +242,7 @@ public class EventRailsApplication {
                                 null
                         ));
                     });
+                    handlers.addAll(invocationHandlers);
                     response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
                             bundleName,
                             handlers
@@ -255,17 +266,7 @@ public class EventRailsApplication {
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol) {
-
-
-        try {
-            EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, serverName, messageBus, autoscalingProtocol);
-            eventRailsApplication.parsePackage(clz -> null);
-            messageBus.enableBus();
-            return eventRailsApplication;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
+       return start(basePackage, bundleName, serverName, messageBus,autoscalingProtocol, clz->null);
     }
 
     public static EventRailsApplication start(
@@ -278,9 +279,17 @@ public class EventRailsApplication {
 
 
         try {
+            logger.info("Starting EventRailsApplication %s".formatted(bundleName));
+            logger.info("Used message bus: %s".formatted(messageBus.getClass().getName()));
+            logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
             EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, serverName, messageBus, autoscalingProtocol);
             eventRailsApplication.parsePackage(findInjectableObject);
+            logger.info("Enabling message bus");
             messageBus.enableBus();
+            logger.info("Message bus enabled");
+            logger.info("Wait for discovery");
+            Thread.sleep(3000);
+            logger.info("Application Started!");
             return eventRailsApplication;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -290,23 +299,27 @@ public class EventRailsApplication {
 
     private void parsePackage(Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
 
-        Reflections reflections = new Reflections(basePackage);
+        logger.info("Discovery handlers in %s".formatted(basePackage));
+        Reflections reflections = new Reflections((new ConfigurationBuilder().forPackages(basePackage)));
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Aggregate.class)) {
             var aggregateReference = new AggregateReference(createComponentInstance(aClass, findInjectableObject), aClass.getAnnotation(Aggregate.class).snapshotFrequency());
             for (String command : aggregateReference.getRegisteredCommands()) {
                 aggregateMessageHandlers.put(command, aggregateReference);
+                logger.info("Aggregate command handler for %s found in %s".formatted(command, aggregateReference.getRef().getClass().getName()));
             }
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Service.class)) {
             var serviceReference = new ServiceReference(createComponentInstance(aClass, findInjectableObject));
             for (String command : serviceReference.getRegisteredCommands()) {
                 serviceMessageHandlers.put(command, serviceReference);
+                logger.info("Service command handler for %s found in %s".formatted(command, serviceReference.getRef().getClass().getName()));
             }
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projection.class)) {
             var projectionReference = new ProjectionReference(createComponentInstance(aClass, findInjectableObject));
             for (String query : projectionReference.getRegisteredQueries()) {
                 projectionMessageHandlers.put(query, projectionReference);
+                logger.info("Projection query handler for %s found in %s".formatted(query, projectionReference.getRef().getClass().getName()));
             }
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projector.class)) {
@@ -315,6 +328,7 @@ public class EventRailsApplication {
                 var hl = projectorMessageHandlers.getOrDefault(event, new HashMap<>());
                 hl.put(aClass.getSimpleName(), projectorReference);
                 projectorMessageHandlers.put(event, hl);
+                logger.info("Projector event handler for %s found in %s".formatted(event, projectorReference.getRef().getClass().getName()));
             }
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Saga.class)) {
@@ -323,8 +337,29 @@ public class EventRailsApplication {
                 var hl = sagaMessageHandlers.getOrDefault(event, new HashMap<>());
                 hl.put(aClass.getSimpleName(), sagaReference);
                 sagaMessageHandlers.put(event, hl);
+                logger.info("Saga event handler for %s found in %s".formatted(event, sagaReference.getRef().getClass().getName()));
             }
         }
+        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Invoker.class)) {
+            for (Method declaredMethod : aClass.getDeclaredMethods()) {
+                if(declaredMethod.getAnnotation(InvocationHandler.class)!=null){
+                    var payload = aClass.getSimpleName() + "::" + declaredMethod.getName();
+                    invocationHandlers.add(new RegisteredHandler(
+                            ComponentType.Invoker,
+                            aClass.getSimpleName(),
+                            HandlerType.InvocationHandler,
+                            PayloadType.Invocation,
+                            payload,
+                            null,
+                            false,
+                            null
+                    ));
+                    logger.info("Invoker invocation handler for %s found in %s".formatted(payload, aClass.getName()));
+
+                }
+            }
+        }
+        logger.info("Discovery Complete");
     }
 
     private Object createComponentInstance(Class<?> aClass, Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
@@ -360,6 +395,10 @@ public class EventRailsApplication {
 
     public HashMap<String, HashMap<String, SagaReference>> getSagaMessageHandlers() {
         return sagaMessageHandlers;
+    }
+
+    public List<RegisteredHandler> getInvocationHandlers() {
+        return invocationHandlers;
     }
 
     public String getBasePackage() {

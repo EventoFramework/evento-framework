@@ -12,8 +12,8 @@ import javax.persistence.*;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "core__projector_state")
-public class ProjectorState {
+@Table(name = "core__event_consumer_state")
+public class EventConsumerState {
 
 	@Id
 	private String componentName;

@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.eventrails.server.service.performance.Action;
 
 import javax.persistence.Entity;
 import javax.persistence.Id;
@@ -21,9 +22,11 @@ public class HandlerPerformances {
     @Id
     private String id;
 
-    private String nodeId;
+    private String bundle;
 
-    private String handlerId;
+    private String component;
+
+    private String action;
 
     private double lastServiceTime;
 

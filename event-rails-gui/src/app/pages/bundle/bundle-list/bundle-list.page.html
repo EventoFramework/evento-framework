@@ -23,7 +23,7 @@
           <ion-col size="4"><ion-label>{{bundle.artifactOriginalName ? bundle.artifactOriginalName : ' - '}}</ion-label></ion-col>
           <ion-col size="2"><ion-label>{{bundle.bucketType}}</ion-label></ion-col>
           <ion-col size="2">
-            <ion-button color="danger" (click)="unregister(bundle)">
+            <ion-button [disabled]="'Ephemeral' === bundle.bucketType" color="danger" (click)="unregister(bundle)">
               <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
             </ion-button>
           </ion-col>

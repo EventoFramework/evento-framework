@@ -154,7 +154,7 @@ public class RabbitMqMessageBus extends MessageBus {
                         .build(),
                 RabbitMqMessage.create(this.address, message));
         try {
-            response.get(10, TimeUnit.SECONDS);
+            response.get(120, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(
                     (RabbitMqNodeAddress) address, "leave"));

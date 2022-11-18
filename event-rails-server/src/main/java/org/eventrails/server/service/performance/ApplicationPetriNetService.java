@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import static org.eventrails.server.service.performance.PerformanceService.EVENT_STORE;
+import static org.eventrails.server.service.performance.PerformanceService.SERVER;
+
 @Service
 public class ApplicationPetriNetService {
 
@@ -21,7 +24,9 @@ public class ApplicationPetriNetService {
 
 	private final HandlerRepository handlerRepository;
 
-	public ApplicationPetriNetService(BundleRepository bundleRepository, HandlerRepository handlerRepository) {
+	public ApplicationPetriNetService(
+			BundleRepository bundleRepository,
+			HandlerRepository handlerRepository) {
 		this.bundleRepository = bundleRepository;
 		this.handlerRepository = handlerRepository;
 	}
@@ -35,8 +40,8 @@ public class ApplicationPetriNetService {
 		{
 			n.instancePost(bundle.getName());
 		}
-		n.instancePost("server");
-		n.instancePost("event-store");
+		n.instancePost(SERVER);
+		n.instancePost(EVENT_STORE);
 
 		var handlers = handlerRepository.findAll();
 
@@ -73,9 +78,9 @@ public class ApplicationPetriNetService {
 		if (p.getType() == PayloadType.Command || p.getType() == PayloadType.DomainCommand || p.getType() == PayloadType.ServiceCommand)
 		{
 			// Invoker -> Server
-			var serverRequestQueue = n.post("server","Gateway", p.getName());
+			var serverRequestQueue = n.post(SERVER,"Gateway", p.getName());
 			sourceAgent.getTarget().add(serverRequestQueue);
-			var serverRequestAgent = n.transition("server","Gateway", p.getName());
+			var serverRequestAgent = n.transition(SERVER,"Gateway", p.getName());
 			serverRequestQueue.getTarget().add(serverRequestAgent);
 			// Server -> Component
 			var handler = p.getHandlers().get(0);
@@ -84,9 +89,9 @@ public class ApplicationPetriNetService {
 			serverRequestAgent.getTarget().add(q);
 			q.getTarget().add(a);
 			// Component -> Server
-			var serverResponseQueue = n.post("server", "Gateway",  handler.getHandledPayload().getName());
+			var serverResponseQueue = n.post(SERVER, "Gateway", handler.getReturnType() == null ? "Void" : handler.getReturnType().getName());
 			a.getTarget().add(serverResponseQueue);
-			var serverResponseAgent = n.transition("server", "Gateway",  handler.getHandledPayload().getName());
+			var serverResponseAgent = n.transition(SERVER, "Gateway",   handler.getReturnType() == null ? "Void" :handler.getReturnType().getName());
 			serverResponseQueue.getTarget().add(serverResponseAgent);
 
 			if (handler.getReturnType() != null)
@@ -116,22 +121,22 @@ public class ApplicationPetriNetService {
 							}
 
 							if(h.getHandlerType() == HandlerType.SagaEventHandler){
-								var ssq = n.post("server","SagaStore", h.getComponentName());
-								var ssa = n.transition( "server","SagaStore", h.getComponentName());
+								var ssq = n.post(SERVER,"SagaStore", h.getComponentName());
+								var ssa = n.transition( SERVER,"SagaStore", h.getComponentName());
 								ha.getTarget().add(ssq);
 								ssq.getTarget().add(ssa);
-								var ssqOk = n.post("server", "SagaStore", "Sink");
-								var ssaOk = n.transition( "server", "SagaStore", "Sink");
+								var ssqOk = n.post(SERVER, "SagaStore", "Sink");
+								var ssaOk = n.transition( SERVER, "SagaStore", "Sink");
 								ssa.getTarget().add(ssqOk);
 								ssqOk.getTarget().add(ssaOk);
 							} else if (h.getHandlerType() == HandlerType.EventHandler)
 							{
-								var psq = n.post("server","ProjectorStore",h.getComponentName());
-								var psa = n.transition( "server","ProjectorStore",h.getComponentName());
+								var psq = n.post(SERVER,"ProjectorStore",h.getComponentName());
+								var psa = n.transition( SERVER,"ProjectorStore",h.getComponentName());
 								ha.getTarget().add(psq);
 								psq.getTarget().add(psa);
-								var psqOk = n.post("server","ProjectorStore", "Sink");
-								var psaOk = n.transition( "server","ProjectorStore", "Sink");
+								var psqOk = n.post(SERVER,"ProjectorStore", "Sink");
+								var psaOk = n.transition( SERVER,"ProjectorStore", "Sink");
 								psa.getTarget().add(psqOk);
 								psqOk.getTarget().add(psaOk);
 							}
@@ -146,9 +151,9 @@ public class ApplicationPetriNetService {
 		if (p.getType() == PayloadType.Query)
 		{
 			// Invoker -> Server
-			var serverRequestQueue = n.post("server","Gateway",p.getName());
+			var serverRequestQueue = n.post(SERVER,"Gateway",p.getName());
 			sourceAgent.getTarget().add(serverRequestQueue);
-			var serverRequestAgent = n.transition("server","Gateway",p.getName());
+			var serverRequestAgent = n.transition(SERVER,"Gateway",p.getName());
 			serverRequestQueue.getTarget().add(serverRequestAgent);
 			// Server -> Component
 			var handler = p.getHandlers().get(0);
@@ -157,9 +162,9 @@ public class ApplicationPetriNetService {
 			serverRequestAgent.getTarget().add(q);
 			q.getTarget().add(a);
 			// Component -> Server
-			var serverResponseQueue = n.post("server","Gateway",handler.getReturnType().getName());
+			var serverResponseQueue = n.post(SERVER,"Gateway",handler.getReturnType().getName());
 			a.getTarget().add(serverResponseQueue);
-			var serverResponseAgent = n.transition("server","Gateway",handler.getReturnType().getName());
+			var serverResponseAgent = n.transition(SERVER,"Gateway",handler.getReturnType().getName());
 			serverResponseQueue.getTarget().add(serverResponseAgent);
 
 			// Server -> Invoker
