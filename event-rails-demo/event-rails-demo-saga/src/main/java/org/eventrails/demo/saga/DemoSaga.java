@@ -57,9 +57,13 @@ public class DemoSaga {
 							EventMessage<?> message) throws ExecutionException, InterruptedException {
 		Utils.logMethodFlow(this,"on", event, "BEGIN");
 		System.out.println(this.getClass() + " - on(DemoDeletedEvent)");
-		var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
-		var resp = commandGateway.send(new NotificationSendSilentCommand("lol" + demo.getData().getDemoId())).get();
-		System.out.println(resp);
+		try {
+			var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
+			var resp = commandGateway.send(new NotificationSendSilentCommand("lol" + demo.getData().getDemoId())).get();
+			System.out.println(resp);
+		}catch (Exception e) {
+			e.printStackTrace();
+		}
 		demoSagaState.setEnded(true);
 		Utils.logMethodFlow(this,"on", event, "END");
 		return demoSagaState;

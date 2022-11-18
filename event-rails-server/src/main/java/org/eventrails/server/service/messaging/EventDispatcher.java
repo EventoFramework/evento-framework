@@ -8,7 +8,7 @@ import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.common.messaging.utils.AddressPicker;
 import org.eventrails.common.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.common.modeling.state.SerializedSagaState;
-import org.eventrails.server.domain.model.ProjectorState;
+import org.eventrails.server.domain.model.EventConsumerState;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.domain.model.SagaState;
@@ -20,6 +20,7 @@ import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
 import org.eventrails.server.service.deploy.BundleDeployService;
+import org.eventrails.server.service.performance.PerformanceService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
 
@@ -51,6 +53,8 @@ public class EventDispatcher {
 
 	private final BundleDeployService bundleDeployService;
 
+	private final PerformanceService performanceService;
+
 
 	public EventDispatcher(
 			BundleRepository bundleRepository,
@@ -59,7 +63,7 @@ public class EventDispatcher {
 			MessageBus messageBus,
 			HandlerService handlerService,
 			EventStore eventStore,
-			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, BundleDeployService bundleDeployService) {
+			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, BundleDeployService bundleDeployService, PerformanceService performanceService) {
 		this.bundleRepository = bundleRepository;
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
@@ -69,7 +73,8 @@ public class EventDispatcher {
 		this.serverNodeName = serverNodeName;
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
-		// eventConsumer();
+		this.performanceService = performanceService;
+		eventConsumer();
 	}
 
 	private void eventConsumer() {
@@ -161,7 +166,7 @@ public class EventDispatcher {
 				var state = repository
 						.findById(sagaName)
 						.orElseGet(() ->
-							repository.save(new ProjectorState(
+							repository.save(new EventConsumerState(
 									sagaName,
 									bundleName,
 									eventStore.getLastEventSequenceNumber()))
@@ -175,7 +180,7 @@ public class EventDispatcher {
 			if (handler.isEmpty())
 			{
 				retryBlock(() -> {
-					repository.save(new ProjectorState(
+					repository.save(new EventConsumerState(
 							sagaName,
 							bundleName,
 							event.getEventSequenceNumber()));
@@ -207,6 +212,12 @@ public class EventDispatcher {
 						)
 						,
 						resp -> {
+							performanceService.updatePerformances(
+									dest.getNodeName(),
+									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
+									event.getEventName(),
+									startTime
+							);
 							retryBlock(() -> {
 								if (!((SerializedSagaState<?>) resp).isEnded())
 									sagaStateRepository.save(new SagaState(
@@ -216,7 +227,7 @@ public class EventDispatcher {
 									));
 								else
 									sagaStateRepository.delete(sagaState);
-								repository.save(new ProjectorState(
+								repository.save(new EventConsumerState(
 										sagaName,
 										bundleName,
 										event.getEventSequenceNumber()));
@@ -228,6 +239,12 @@ public class EventDispatcher {
 							});
 						},
 						error -> {
+							performanceService.updatePerformances(
+									dest.getNodeName(),
+									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
+									event.getEventName(),
+									startTime
+							);
 							error.toException().printStackTrace();
 							processSagaEvents(
 									bundleName, sagaName, events,
@@ -253,7 +270,7 @@ public class EventDispatcher {
 				Thread.sleep(1000);
 				var state = componentEventConsumingStateRepository
 						.findById(projectorName)
-						.orElse(new ProjectorState(
+						.orElse(new EventConsumerState(
 								projectorName,
 								bundleName,
 								0L));
@@ -273,9 +290,21 @@ public class EventDispatcher {
 				messageBus.request(dest,
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {
+							performanceService.updatePerformances(
+									dest.getNodeName(),
+									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
+									event.getEventName(),
+									startTime
+							);
 							processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
 						},
 						err -> {
+							performanceService.updatePerformances(
+									dest.getNodeName(),
+									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
+									event.getEventName(),
+									startTime
+							);
 							err.toException().printStackTrace();
 							processProjectorEvents(bundleName, projectorName, events, handlers, eventStore, repository);
 						});
@@ -291,7 +320,7 @@ public class EventDispatcher {
 			List<PublishedEvent> events, List<Handler> handlers, EventStore eventStore,
 			ComponentEventConsumingStateRepository repository, PublishedEvent event) {
 		retryBlock(() -> {
-			repository.save(new ProjectorState(
+			repository.save(new EventConsumerState(
 					projectorName,
 					bundleName,
 					event.getEventSequenceNumber()));
