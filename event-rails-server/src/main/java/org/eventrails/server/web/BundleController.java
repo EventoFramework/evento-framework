@@ -8,6 +8,7 @@ import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.service.BundleService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -74,7 +75,10 @@ public class BundleController {
 	}
 
 	@DeleteMapping(value = "/{bundleName}")
-	public ResponseEntity<?> unregisterBundle(@PathVariable String bundleName) throws JsonProcessingException {
+	public ResponseEntity<?> unregisterBundle(@PathVariable String bundleName) {
+		var bundle = bundleService.findByName(bundleName);
+		Assert.isTrue(bundle != null, "error.bundle.is.null");
+		Assert.isTrue(bundle.getBucketType() != BucketType.Ephemeral, "error.bundle.is.epehemeral");
 		bundleService.unregister(bundleName);
 		return ResponseEntity.ok().build();
 	}
