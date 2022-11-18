@@ -28,4 +28,5 @@ include 'event-rails-demo:event-rails-demo-web-domain'
 findProject(':event-rails-demo:event-rails-demo-web-domain')?.name = 'event-rails-demo-web-domain'
 include 'event-rails-bus-jgroups'
 include 'event-rails-bus-rabbitmq'
+include 'event-rails-bus'
 
