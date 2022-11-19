@@ -52,6 +52,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
             a[e.nodeId] = {
               nodeId: e.nodeId,
               bundleId: e.bundleId,
+              bundleVersion: e.bundleVersion,
               isAvailable: this.view[node]?.replicas[e.nodeId]?.isAvailable
             };
             return a;

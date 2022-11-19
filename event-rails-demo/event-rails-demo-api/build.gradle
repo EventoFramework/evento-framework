@@ -1,3 +1,13 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath files('../../event-rails-cli/build/libs/event-rails-cli-1.0-SNAPSHOT-all.jar')
+    }
+}
+
+
 plugins {
     id 'java'
 }
@@ -20,4 +30,11 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+task eventRailsPublish {
+    dependsOn 'jar'
+    doLast {
+        org.eventrails.cli.Main.main(new String[]{file("."), 'http://localhost:3000'})
+    }
 }

@@ -50,16 +50,16 @@ public abstract class MessageBus {
 			public void onViewUpdate(Set<NodeAddress> view, Set<NodeAddress> nodeAdded, Set<NodeAddress> nodeRemoved) {
 				logger.debug("View Updated - {}", view.stream().map(NodeAddress::getNodeId).collect(Collectors.joining(" ")));
 				currentView = view;
-				AtomicBoolean availableViewChanged = new AtomicBoolean(false);
 				availableNodes.removeAll(nodeRemoved);
 				viewListeners.stream().toList().forEach(l -> l.accept(view));
-				if(nodeRemoved.size() > 0) {
+				if (nodeRemoved.size() > 0)
+				{
 					availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
-					for (NodeAddress nodeAddress : nodeRemoved) {
+					for (NodeAddress nodeAddress : nodeRemoved)
+					{
 						leaveListeners.stream().toList().forEach(l -> l.accept(nodeAddress));
 					}
 				}
-
 			}
 		});
 
@@ -290,17 +290,26 @@ public abstract class MessageBus {
 				{
 					if (!this.availableNodes.contains(src))
 					{
-						this.availableNodes.add(src);
-						try
+
 						{
-							cast(src, new ClusterNodeStatusUpdateMessage(this.enabled));
-							logger.debug("ENABLED " + src.getNodeId());
-						} catch (Exception e)
-						{
-							e.printStackTrace();
+							this.availableNodes.add(src);
+							try
+							{
+								cast(src, new ClusterNodeStatusUpdateMessage(this.enabled));
+								logger.debug("ENABLED " + src.getNodeId());
+							} catch (Exception e)
+							{
+								e.printStackTrace();
+							}
+							joinListeners.stream().toList().forEach(c -> c.accept(src));
+							availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
+
+							if (getAddress().getBundleId().equals(src.getBundleId()) && getAddress().getBundleVersion() < src.getBundleVersion())
+							{
+								logger.info("Newer bundle version detected (current: %d -> newer: %d), stepping aside :( ".formatted(getAddress().getBundleVersion(), src.getBundleVersion()));
+								gracefulShutdown();
+							}
 						}
-						joinListeners.stream().toList().forEach(c -> c.accept(src));
-						availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 					}
 
 				} else
