@@ -25,6 +25,7 @@ public interface HandlerRepository extends JpaRepository<Handler, Bundle> {
 	List<Handler> findAllByBundleAndHandlerType(Bundle bundle, HandlerType handlerType);
 	List<Handler> findAllByBundleAndHandlerTypeIn(Bundle bundle, Collection<HandlerType> handlerType);
 	List<Handler> findAllByBundle(Bundle bundle);
+	List<Handler> findAllByBundle_Name(String bundle);
 
 	Collection<Handler> findAllByBundleAndHandledPayload_Name(Bundle bundle, String payloadName);
 

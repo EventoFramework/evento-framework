@@ -29,6 +29,7 @@ import static org.eventrails.server.service.performance.PerformanceService.*;
 
 @Service
 public class MessageGatewayService {
+	private static final String AGGREGATE_LOCK_PREFIX = "AGGREGATE:";
 	private final HandlerService handlerService;
 
 	private final LockRegistry lockRegistry;
@@ -112,13 +113,13 @@ public class MessageGatewayService {
 		try
 		{
 			this.threadCountAutoscalingProtocol.arrival();
-			var start = PerformanceService.now();
 			if (request instanceof DomainCommandMessage c)
 			{
 				var handler = handlerService.findByPayloadName(c.getCommandName());
 				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
+				var start = PerformanceService.now();
 
-				var lock = lockRegistry.obtain("AGGREGATE:" + c.getAggregateId());
+				var lock = lockRegistry.obtain(AGGREGATE_LOCK_PREFIX + c.getAggregateId());
 				lock.lock();
 				var semaphore = new Semaphore(0);
 

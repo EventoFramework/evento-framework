@@ -7,14 +7,16 @@ import { IonicModule } from '@ionic/angular';
 import { ClusterStatusPageRoutingModule } from './cluster-status-routing.module';
 
 import { ClusterStatusPage } from './cluster-status.page';
+import {TranslateModule} from "@ngx-translate/core";
 
 @NgModule({
-  imports: [
-    CommonModule,
-    FormsModule,
-    IonicModule,
-    ClusterStatusPageRoutingModule
-  ],
+    imports: [
+        CommonModule,
+        FormsModule,
+        IonicModule,
+        ClusterStatusPageRoutingModule,
+        TranslateModule
+    ],
   declarations: [ClusterStatusPage]
 })
 export class ClusterStatusPageModule {}

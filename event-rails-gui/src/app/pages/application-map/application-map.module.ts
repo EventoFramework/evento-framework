@@ -8,14 +8,16 @@ import { ApplicationMapPageRoutingModule } from './application-map-routing.modul
 
 import { ApplicationMapPage } from './application-map.page';
 import {AppMapDiagramComponent} from "../../components/app-map-diagram/app-map-diagram.component";
+import {TranslateModule} from "@ngx-translate/core";
 
 @NgModule({
-    imports: [
-        CommonModule,
-        FormsModule,
-        IonicModule,
-        ApplicationMapPageRoutingModule
-    ],
+  imports: [
+    CommonModule,
+    FormsModule,
+    IonicModule,
+    ApplicationMapPageRoutingModule,
+    TranslateModule
+  ],
     declarations: [ApplicationMapPage, AppMapDiagramComponent]
 })
 export class ApplicationMapPageModule {}

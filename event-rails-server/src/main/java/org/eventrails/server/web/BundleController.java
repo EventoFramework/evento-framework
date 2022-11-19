@@ -1,11 +1,12 @@
 package org.eventrails.server.web;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import org.eventrails.common.serialization.ObjectMapperUtils;
 import org.eventrails.parser.model.BundleDescription;
 import org.eventrails.server.domain.model.BucketType;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.service.BundleService;
+import org.eventrails.server.service.HandlerService;
+import org.eventrails.server.web.dto.BundleDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.Assert;
@@ -25,15 +26,22 @@ public class BundleController {
 	private String fileUploadDir;
 
 	private final BundleService bundleService;
+	private final HandlerService handlerService;
 
-	public BundleController(BundleService bundleService) {
+	public BundleController(BundleService bundleService, HandlerService handlerService) {
 		this.bundleService = bundleService;
+		this.handlerService = handlerService;
 	}
 
 
 	@GetMapping(value = "/", produces = "application/json")
 	public ResponseEntity<List<Bundle>> findAll(){
 		return ResponseEntity.ok(bundleService.findAllBundles());
+	}
+	@GetMapping(value = "/{name}", produces = "application/json")
+	public ResponseEntity<BundleDto> findByName(@PathVariable String name){
+		return ResponseEntity.ok(new BundleDto(bundleService.findByName(name),
+				handlerService.findAllByBundleName(name)));
 	}
 
 	@PostMapping(value = "/", produces = "application/json")
@@ -80,6 +88,29 @@ public class BundleController {
 		Assert.isTrue(bundle != null, "error.bundle.is.null");
 		Assert.isTrue(bundle.getBucketType() != BucketType.Ephemeral, "error.bundle.is.epehemeral");
 		bundleService.unregister(bundleName);
+		return ResponseEntity.ok().build();
+	}
+
+	@PostMapping("/{bundleName}/env/{key}")
+	public ResponseEntity<?> putEnv(@PathVariable String bundleName, @PathVariable String key, @RequestBody String value) {
+		bundleService.putEnv(bundleName, key, value);
+		return ResponseEntity.ok().build();
+	}
+
+	@DeleteMapping("/{bundleName}/env/{key}")
+	public ResponseEntity<?> removeEnv(@PathVariable String bundleName, @PathVariable String key){
+		bundleService.removeEnv(bundleName, key);
+		return ResponseEntity.ok().build();
+	}
+	@PostMapping("/{bundleName}/vm-option/{key}")
+	public ResponseEntity<?> putVmOption(@PathVariable String bundleName, @PathVariable String key, @RequestBody String value) {
+		bundleService.putVmOption(bundleName, key, value);
+		return ResponseEntity.ok().build();
+	}
+
+	@DeleteMapping("/{bundleName}/vm-option/{key}")
+	public ResponseEntity<?> removeVmOption(@PathVariable String bundleName, @PathVariable String key){
+		bundleService.removeVmOption(bundleName, key);
 		return ResponseEntity.ok().build();
 	}
 }

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
 import java.time.Instant;
+import java.util.HashMap;
 
 @Service
 public class AutoDiscoveryService {
@@ -57,7 +58,14 @@ public class AutoDiscoveryService {
                     if (resp.getHandlers().size() > 0) {
                         var bundle = bundleRepository.findById(resp.getBundleName()).orElseGet(() -> {
                                     logger.info("Bundle %s not found, creating an ephemeral one".formatted(resp.getBundleName()));
-                                    return bundleRepository.save(new Bundle(resp.getBundleName(), BucketType.Ephemeral, node.getNodeId(), null, true));
+                                    return bundleRepository.save(new Bundle(
+                                            resp.getBundleName(),
+                                            BucketType.Ephemeral,
+                                            node.getNodeId(),
+                                            null,
+                                            true,
+                                            new HashMap<>(),
+                                            new HashMap<>()));
                                 }
                         );
                         for (RegisteredHandler registeredHandler : resp.getHandlers()) {

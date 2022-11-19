@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
@@ -48,7 +49,9 @@ public class BundleService {
                 bundleDeploymentBucketType,
                 bundleDeploymentArtifactCoordinates,
                 jarOriginalName,
-                bundleDescription.getComponents().size() > 0));
+                bundleDescription.getComponents().size() > 0,
+                new HashMap<>(),
+                new HashMap<>()));
         for (PayloadDescription payloadDescription : bundleDescription.getPayloadDescriptions()) {
             var payload = new Payload();
             payload.setName(payloadDescription.getName());
@@ -393,5 +396,29 @@ public class BundleService {
 
     public Bundle findByName(String bundleName) {
         return bundleRepository.findById(bundleName).orElseThrow();
+    }
+
+    public void putEnv(String bundleName, String key, String value) {
+        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+        bundle.getEnvironment().put(key, value);
+        bundleRepository.save(bundle);
+    }
+
+    public void removeEnv(String bundleName, String key) {
+        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+        bundle.getEnvironment().remove(key);
+        bundleRepository.save(bundle);
+    }
+
+    public void putVmOption(String bundleName, String key, String value) {
+        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+        bundle.getVmOptions().put(key, value);
+        bundleRepository.save(bundle);
+    }
+
+    public void removeVmOption(String bundleName, String key) {
+        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+        bundle.getVmOptions().remove(key);
+        bundleRepository.save(bundle);
     }
 }
