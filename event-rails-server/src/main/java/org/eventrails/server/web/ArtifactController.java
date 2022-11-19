@@ -1,6 +1,5 @@
 package org.eventrails.server.web;
 
-import org.apache.commons.io.IOUtils;
 import org.eventrails.server.service.BundleService;
 import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.*;

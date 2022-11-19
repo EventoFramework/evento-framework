@@ -1,5 +1,6 @@
 package org.eventrails.common.messaging.bus;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eventrails.common.modeling.exceptions.NodeNotFoundException;
@@ -12,6 +13,7 @@ import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeKill
 import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeStatusUpdateMessage;
 import org.eventrails.common.modeling.messaging.message.internal.CorrelatedMessage;
 
+import java.io.Closeable;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,8 +64,43 @@ public abstract class MessageBus {
 				}
 			}
 		});
+		
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			try
+			{
+				System.out.println("Graceful Shutdown - Started");
+				System.out.println("Graceful Shutdown - Disabling Bus");
+				disableBus();
+				System.out.println("Graceful Shutdown - Bus Disabled");
+				var retry = 0;
+				while (true)
+				{
+					var keys = messageCorrelationMap.keySet();
+					System.out.println("Graceful Shutdown - Remaining correlations: %d".formatted(keys.size()));
+					System.out.println("Graceful Shutdown - Sleep...");
+					Thread.sleep(5 * 1000);
+					if (messageCorrelationMap.isEmpty())
+					{
+						System.out.println("Graceful Shutdown - No more correlations, bye!");
+						disconnect();
+						return;
+					} else if (keys.containsAll(messageCorrelationMap.keySet()) && retry > 5)
+					{
+						System.out.println("Graceful Shutdown - Pending correlation after 5 retry... so... bye!");
+						disconnect();
+						return;
+					}
+					retry++;
+				}
+			} catch (Exception e)
+			{
+				throw new RuntimeException(e);
+			}
+		}));
 
 	}
+
+	protected abstract void disconnect();
 
 	public MessageBus enabled() throws Exception {
 		enableBus();
@@ -162,36 +199,7 @@ public abstract class MessageBus {
 	}
 
 	public synchronized void gracefulShutdown() {
-		try
-		{
-			logger.info("Graceful Shutdown - Started");
-			logger.info("Graceful Shutdown - Disabling Bus");
-			disableBus();
-			logger.info("Graceful Shutdown - Bus Disabled");
-			var retry = 0;
-			while (true)
-			{
-				var keys = messageCorrelationMap.keySet();
-				logger.info("Graceful Shutdown - Remaining correlations: %d".formatted(keys.size()));
-				logger.info("Graceful Shutdown - Sleep...");
-				Thread.sleep(5 * 1000);
-				if (messageCorrelationMap.isEmpty())
-				{
-					logger.info("Graceful Shutdown - No more correlations, bye!");
-
-					System.exit(0);
-				} else if (keys.containsAll(messageCorrelationMap.keySet()) && retry > 5)
-				{
-					logger.info("Graceful Shutdown - Pending correlation after 5 retry... so... bye!");
-					System.exit(0);
-				}
-				retry++;
-			}
-		} catch (Exception e)
-		{
-			e.printStackTrace();
-			System.exit(1);
-		}
+		System.exit(0);
 	}
 
 	public boolean isEnabled() {

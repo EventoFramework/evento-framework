@@ -7,6 +7,7 @@ import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.Serializable;
 import java.net.Socket;
 import java.time.Instant;
@@ -76,5 +77,10 @@ public class EventRailsMessageBus extends MessageBus {
     @Override
     public NodeAddress getAddress() {
         return address;
+    }
+
+    @Override
+    protected void disconnect() {
+
     }
 }
