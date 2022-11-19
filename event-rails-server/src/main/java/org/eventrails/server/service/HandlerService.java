@@ -45,4 +45,8 @@ public class HandlerService {
 	public List<Handler> findAll() {
 		return handlerRepository.findAll();
 	}
+
+	public List<Handler> findAllByBundleName(String name) {
+		return handlerRepository.findAllByBundle_Name(name);
+	}
 }

@@ -4,9 +4,9 @@ import { FormsModule } from '@angular/forms';
 
 import { IonicModule } from '@ionic/angular';
 
-import { BundleListPageRoutingModule } from './bundle-list-routing.module';
+import { BundleInfoPageRoutingModule } from './bundle-info-routing.module';
 
-import { BundleListPage } from './bundle-list.page';
+import { BundleInfoPage } from './bundle-info.page';
 import {TranslateModule} from "@ngx-translate/core";
 
 @NgModule({
@@ -14,9 +14,9 @@ import {TranslateModule} from "@ngx-translate/core";
         CommonModule,
         FormsModule,
         IonicModule,
-        BundleListPageRoutingModule,
+        BundleInfoPageRoutingModule,
         TranslateModule
     ],
-  declarations: [BundleListPage]
+  declarations: [BundleInfoPage]
 })
-export class BundleListPageModule {}
+export class BundleInfoPageModule {}

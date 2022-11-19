@@ -39,8 +39,9 @@ public abstract class BundleDeployService {
 
 		if (!messageBus.isBundleAvailable(bundleName))
 		{
+			LOGGER.info("Bundle %s not available, spawning a new one".formatted(bundleName));
 			var bundle = bundleService.findByName(bundleName);
-			var lock = lockRegistry.obtain("RANCH:" + bundleName);
+			var lock = lockRegistry.obtain("BUNDLE:" + bundleName);
 			try
 			{
 				lock.lock();
@@ -48,13 +49,15 @@ public abstract class BundleDeployService {
 				semaphoreMap.put(bundleName, semaphore);
 				if(messageBus.isBundleAvailable(bundleName)) return;
 				spawn(bundle);
-				if (!semaphore.tryAcquire(60, TimeUnit.SECONDS))
+				if (!semaphore.tryAcquire(120, TimeUnit.SECONDS))
 				{
 					throw new IllegalStateException("Bundle Cannot Start");
 				}
+				LOGGER.info("New %s bundle spawned".formatted(bundleName));
 
 			} catch (Exception e)
 			{
+				LOGGER.error("Spawning for %s bundle failed".formatted(bundleName), e);
 				throw new RuntimeException(e);
 			} finally
 			{

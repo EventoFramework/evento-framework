@@ -7,14 +7,16 @@ import { IonicModule } from '@ionic/angular';
 import { ApplicationPetriNetPageRoutingModule } from './application-petri-net-routing.module';
 
 import { ApplicationPetriNetPage } from './application-petri-net.page';
+import {TranslateModule} from "@ngx-translate/core";
 
 @NgModule({
-  imports: [
-    CommonModule,
-    FormsModule,
-    IonicModule,
-    ApplicationPetriNetPageRoutingModule
-  ],
+    imports: [
+        CommonModule,
+        FormsModule,
+        IonicModule,
+        ApplicationPetriNetPageRoutingModule,
+        TranslateModule
+    ],
   declarations: [ApplicationPetriNetPage]
 })
 export class ApplicationPetriNetPageModule {}

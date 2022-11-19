@@ -1,6 +1,6 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>Cluster Status</ion-title>
+    <ion-title translate="cluster.status"></ion-title>
   </ion-toolbar>
 </ion-header>
 
@@ -18,22 +18,22 @@
           <ion-card-content>
             <ion-grid>
               <ion-row>
-                <ion-col>Status:</ion-col>
+                <ion-col><span translate="cluster.status"></span>:</ion-col>
                 <ion-col>
                   <ng-container *ngIf="!view[component].isOnline">
-                    <b class="node-status-offline">OFFLINE</b>
+                    <b class="node-status-offline" translate="node.status.offline"></b>
                   </ng-container>
                   <ng-container *ngIf="view[component].isOnline && !view[component].isAvailable">
-                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                    <b class="node-status-not-available" translate="node.status.not.available"></b>
                   </ng-container>
                   <ng-container *ngIf="view[component].isOnline && view[component].isAvailable">
-                    <b class="node-status-available">AVAILABLE</b>
+                    <b class="node-status-available" translate="node.status.available"></b>
                   </ng-container>
                 </ion-col>
               </ion-row>
               <ion-row *ngIf="view[component].isOnline">
                 <ion-col>
-                  ReplicaCount:
+                  <span translate="node.replica.count"></span>:
                 </ion-col>
                 <ion-col>
                   {{view[component].replicaCount}}
@@ -43,18 +43,21 @@
                 <ion-col size="6">{{view[component].replicas[replica].nodeId}}</ion-col>
                 <ion-col>
                   <ng-container *ngIf="!view[component].replicas[replica].isAvailable">
-                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                    <b class="node-status-not-available" translate="node.status.not.available"></b>
                   </ng-container>
                   <ng-container *ngIf="view[component].replicas[replica].isAvailable">
-                    <b class="node-status-available">AVAILABLE</b>
+                    <b class="node-status-available" translate="node.status.available"></b>
                   </ng-container>
                 </ion-col>
                 <ion-col>
-                  <ion-button (click)="kill(view[component].replicas[replica])" [disabled]="!view[component].replicas[replica]?.isAvailable" color="danger">Kill</ion-button>
+                  <ion-button (click)="kill(view[component].replicas[replica])"
+                              [disabled]="!view[component].replicas[replica]?.isAvailable" color="danger"  translate="cluster.node.kill">
+                  </ion-button>
                 </ion-col>
               </ion-row>
               <ion-row>
-                <ion-button color="primary" (click)="spawnBundle(component)">Spawn</ion-button>
+                <ion-button color="primary" (click)="spawnBundle(component)"
+                            translate="cluster.node.spawn"></ion-button>
               </ion-row>
             </ion-grid>
           </ion-card-content>
@@ -69,28 +72,28 @@
         <ion-card>
           <ion-card-header>
             <ion-card-title>
-              {{component}} (external)
+              {{component}} (<span translate="node.external"></span>)
             </ion-card-title>
           </ion-card-header>
           <ion-card-content>
             <ion-grid>
               <ion-row>
-                <ion-col>Status:</ion-col>
+                <ion-col><span translate="status"></span>:</ion-col>
                 <ion-col>
                   <ng-container *ngIf="!view[component].isOnline">
-                    <b class="node-status-offline">OFFLINE</b>
+                    <b class="node-status-offline" translate="node.status.offline"></b>
                   </ng-container>
                   <ng-container *ngIf="view[component].isOnline && !view[component].isAvailable">
-                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                    <b class="node-status-not-available" translate="node.status.not.available"></b>
                   </ng-container>
                   <ng-container *ngIf="view[component].isOnline && view[component].isAvailable">
-                    <b class="node-status-available">AVAILABLE</b>
+                    <b class="node-status-available" translate="node.status.available"></b>
                   </ng-container>
                 </ion-col>
               </ion-row>
               <ion-row *ngIf="view[component].isOnline">
                 <ion-col>
-                  ReplicaCount:
+                  <span translate="node.replica.count"></span>:
                 </ion-col>
                 <ion-col>
                   {{view[component].replicaCount}}
@@ -100,14 +103,17 @@
                 <ion-col size="6">{{view[component].replicas[replica].nodeId}}</ion-col>
                 <ion-col>
                   <ng-container *ngIf="!view[component].replicas[replica].isAvailable">
-                    <b class="node-status-not-available">NOT AVAILABLE</b>
+                    <b class="node-status-not-available" translate="node.status.not.available"></b>
                   </ng-container>
                   <ng-container *ngIf="view[component].replicas[replica].isAvailable">
-                    <b class="node-status-available">AVAILABLE</b>
+                    <b class="node-status-available" translate="node.status.available"></b>
                   </ng-container>
                 </ion-col>
                 <ion-col>
-                  <ion-button (click)="kill(view[component].replicas[replica])" [disabled]="!view[component].replicas[replica]?.isAvailable" color="danger">Kill</ion-button>
+                  <ion-button (click)="kill(view[component].replicas[replica])"
+                              [disabled]="!view[component].replicas[replica]?.isAvailable" color="danger"
+                              translate="cluster.node.kill"
+                  ></ion-button>
                 </ion-col>
               </ion-row>
             </ion-grid>

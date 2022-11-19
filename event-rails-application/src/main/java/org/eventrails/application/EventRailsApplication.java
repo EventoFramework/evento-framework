@@ -43,6 +43,7 @@ public class EventRailsApplication {
 
     private final String basePackage;
     private final String bundleName;
+    private final MessageBus messageBus;
 
     private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
     private HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
@@ -62,6 +63,7 @@ public class EventRailsApplication {
             AutoscalingProtocol autoscalingProtocol) {
 
 
+        this.messageBus = messageBus;
         this.basePackage = basePackage;
         this.bundleName = bundleName;
         this.commandGateway = new CommandGateway(messageBus, serverName);
@@ -407,6 +409,10 @@ public class EventRailsApplication {
 
     public String getBundleName() {
         return bundleName;
+    }
+
+    public void shutdown() {
+        this.messageBus.gracefulShutdown();
     }
 
     public static class ApplicationInfo {

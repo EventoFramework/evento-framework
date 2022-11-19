@@ -193,6 +193,8 @@ public class EventDispatcher {
 				});
 			} else
 			{
+
+				bundleDeployService.waitUntilAvailable(bundleName);
 				var startTime = Instant.now();
 				var associationProperty = handler.get().getAssociationProperty();
 				var associationValue = event.getEventMessage().getAssociationValue(associationProperty);
@@ -202,8 +204,6 @@ public class EventDispatcher {
 								associationProperty,
 								associationValue)
 						.orElse(new SagaState(sagaName, new SerializedSagaState<>(null)));
-
-				bundleDeployService.waitUntilAvailable(bundleName);
 				var dest = addressPicker.pickNodeAddress(bundleName);
 				messageBus.request(dest,
 						new EventToSagaMessage(event.getEventMessage(),
@@ -284,8 +284,8 @@ public class EventDispatcher {
 			} else
 			{
 
-				var startTime = Instant.now();
 				bundleDeployService.waitUntilAvailable(bundleName);
+				var startTime = Instant.now();
 				var dest = addressPicker.pickNodeAddress(bundleName);
 				messageBus.request(dest,
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
