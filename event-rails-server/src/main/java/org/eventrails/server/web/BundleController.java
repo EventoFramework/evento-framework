@@ -64,21 +64,21 @@ public class BundleController {
 		}
 
 		zis.getNextEntry();
-		try (ByteArrayOutputStream bos = new ByteArrayOutputStream(buffer.length)) {
+		ByteArrayOutputStream bos = new ByteArrayOutputStream(buffer.length);
 
-			int len;
-			while ((len = zis.read(buffer)) > 0) {
-				bos.write(buffer, 0, len);
-			}
-
-			bundleService.register(
-					bundleId,
-					BucketType.LocalFilesystem,
-					jarUploadPath,
-					jarEntry.getName(),
-					ObjectMapperUtils.getPayloadObjectMapper().readValue(bos.toByteArray(), BundleDescription.class));
-
+		int len;
+		while ((len = zis.read(buffer)) > 0) {
+			bos.write(buffer, 0, len);
 		}
+
+		bundleService.register(
+				bundleId,
+				BucketType.LocalFilesystem,
+				jarUploadPath,
+				jarEntry.getName(),
+				ObjectMapperUtils.getPayloadObjectMapper().readValue(bos.toByteArray(), BundleDescription.class));
+
+
 		return ResponseEntity.ok().build();
 	}
 

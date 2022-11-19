@@ -25,8 +25,10 @@ public class Bundle {
 	private String artifactOriginalName;
 	private boolean containsHandlers;
 	@ElementCollection
+	@JoinTable(name = "core__bundle__environment")
 	private Map<String, String> environment;
 	@ElementCollection
+	@JoinTable(name = "core__bundle__vm_option")
 	private Map<String, String> vmOptions;
 
 	@Override

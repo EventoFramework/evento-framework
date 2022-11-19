@@ -61,8 +61,14 @@ public class Main {
 						.addFormDataPart("bundle", components.getBundleId(), RequestBody.create(new File(bundleFile), null))
 						.build())
 				.build();
-		client.newCall(request).execute();
-		System.out.println("DONE!");
+		var resp = client.newCall(request).execute();
+		if(resp.code() == 200)
+		{
+			System.out.println("DONE!");
+		}else{
+			System.err.println("Server Upload Failed");
+			System.err.println(resp.body().string());
+		}
 
 
 
