@@ -178,6 +178,7 @@ public abstract class MessageBus {
 				if (messageCorrelationMap.isEmpty())
 				{
 					logger.info("Graceful Shutdown - No more correlations, bye!");
+
 					System.exit(0);
 				} else if (keys.containsAll(messageCorrelationMap.keySet()) && retry > 5)
 				{

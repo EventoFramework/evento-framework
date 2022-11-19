@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class EventRailsConfiguration {
 
+
     @Bean
     public EventRailsApplication eventRailsApplication(
             @Value("${eventrails.cluster.message.channel.name}") String channelName,
@@ -25,7 +26,6 @@ public class EventRailsConfiguration {
             @Value("${eventrails.cluster.autoscaling.max.underflow}") int maxUnderflow,
             BeanFactory factory
     ) throws Exception {
-
         MessageBus messageBus = RabbitMqMessageBus.create(bundleName, channelName, rabbitHost);
         return EventRailsApplication.start(DemoAgentApplication.class.getPackage().getName(),
                 bundleName,

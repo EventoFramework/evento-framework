@@ -11,6 +11,7 @@ import java.util.stream.IntStream;
 @Component
 public class AgentDispatcher implements CommandLineRunner {
 
+
 	private final EventRailsApplication eventRailsApplication;
 
 	public AgentDispatcher(EventRailsApplication eventRailsApplication) {
@@ -20,11 +21,14 @@ public class AgentDispatcher implements CommandLineRunner {
 	@Override
 	public void run(String... args) throws Exception {
 
+/*
 		var demoLifecycleAgent = new DemoLifecycleAgent(eventRailsApplication);
 
+
 		var listStart = IntStream.range(0, 10).parallel().mapToObj(demoLifecycleAgent::action).toList();
-		var listMiddle = IntStream.range(0, 30).parallel().mapToObj(demoLifecycleAgent::action).toList();
-		var listEnd = IntStream.range(0, 10).parallel().mapToObj(demoLifecycleAgent::action).toList();
+
+		var listMiddle = IntStream.range(0, 30).mapToObj(demoLifecycleAgent::action).toList();
+		var listEnd = IntStream.range(0, 10).mapToObj(demoLifecycleAgent::action).toList();
 		System.out.println("listStart (10) MeanCreateTime: "+listStart.stream().filter(Report::success).mapToLong(Report::createTime).average().orElse(0));
 		System.out.println("listStart (10) MeanMeanUpdateTime: "+listStart.stream().filter(Report::success).mapToLong(Report::meanUpdateTime).average().orElse(0));
 		System.out.println("listStart (10) MeanDeleteTime: "+listStart.stream().filter(Report::success).mapToLong(Report::deleteTime).average().orElse(0));
@@ -38,6 +42,10 @@ public class AgentDispatcher implements CommandLineRunner {
 		listMiddle.stream().filter(r -> !r.success()).forEach(System.out::println);
 		listEnd.stream().filter(r -> !r.success()).forEach(System.out::println);
 
-		eventRailsApplication.shutdown();
+		//eventRailsApplication.shutdown();
+		*/
+
+		eventRailsApplication.gracefulShutdown();
+
 	}
 }
