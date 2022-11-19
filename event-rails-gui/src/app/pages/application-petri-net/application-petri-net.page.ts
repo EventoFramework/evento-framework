@@ -74,6 +74,7 @@ export class ApplicationPetriNetPage implements OnInit {
           height += 30
         }
         if (transition.meanThroughput) {
+          console.log(transition)
           text += "\n\nthr: " + transition.meanThroughput.toFixed(3) + " [r/s]"
           height += 30
         }

@@ -63,7 +63,7 @@ from performance__handler ph inner join core__handler h on h.uuid = ph.handler_i
     }
 
     public Performance toPerformance(double maxDepartures ) {
-        var t = ((double) departures) / ((double)(updatedAt.toEpochMilli() - createdAt.toEpochMilli()));
+        var t =  departures < 2 ? 0 : ((double) departures) / (((double)(updatedAt.toEpochMilli() - createdAt.toEpochMilli())));
         if(lastThroughput != null){
             t = lastThroughput * (maxDepartures / (maxDepartures + departures))  + t * (departures / (maxDepartures + departures));
         }
