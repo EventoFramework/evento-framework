@@ -36,4 +36,34 @@ export class BundleService {
       body: formData
     })
   }
+
+  find(bundleName: string) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName).then(r => r.json());
+  }
+
+  putEnv(bundleName: string, key: any, value: any) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/env/' + key, {
+      method: 'POST',
+      body: value
+    })
+  }
+
+   removeEnv(bundleName: string, key: any) {
+     return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/env/' + key, {
+       method: 'DELETE'
+     })
+  }
+
+  putVmOption(bundleName: string, key: any, value: any) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/vm-option/' + key, {
+      method: 'POST',
+      body:value
+    })
+  }
+
+  removeVmOption(bundleName: string, key: any) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/vm-option/' + key, {
+      method: 'DELETE'
+    })
+  }
 }

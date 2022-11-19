@@ -26,7 +26,12 @@ const routes: Routes = [
   {
     path: 'application-petri-net',
     loadChildren: () => import('./pages/application-petri-net/application-petri-net.module').then( m => m.ApplicationPetriNetPageModule)
+  },
+  {
+    path: 'bundle-info/:identifier',
+    loadChildren: () => import('./pages/bundle/bundle-info/bundle-info.module').then( m => m.BundleInfoPageModule)
   }
+
 
 
 ];

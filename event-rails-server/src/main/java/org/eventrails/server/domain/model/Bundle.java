@@ -4,6 +4,7 @@ import lombok.*;
 import org.hibernate.Hibernate;
 
 import javax.persistence.*;
+import java.util.Map;
 import java.util.Objects;
 
 @Entity
@@ -22,6 +23,10 @@ public class Bundle {
 	private String artifactCoordinates;
 	private String artifactOriginalName;
 	private boolean containsHandlers;
+	@ElementCollection
+	private Map<String, String> environment;
+	@ElementCollection
+	private Map<String, String> vmOptions;
 
 	@Override
 	public boolean equals(Object o) {
