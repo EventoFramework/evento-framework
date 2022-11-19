@@ -63,7 +63,9 @@ public class EventDispatcher {
 			MessageBus messageBus,
 			HandlerService handlerService,
 			EventStore eventStore,
-			@Value("${eventrails.cluster.node.server.id}") String serverNodeName, BundleDeployService bundleDeployService, PerformanceService performanceService) {
+			@Value("${eventrails.cluster.node.server.id}") String serverNodeName,
+			BundleDeployService bundleDeployService,
+			PerformanceService performanceService) {
 		this.bundleRepository = bundleRepository;
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
@@ -195,6 +197,12 @@ public class EventDispatcher {
 			{
 
 				bundleDeployService.waitUntilAvailable(bundleId);
+				performanceService.updatePerformances(
+						PerformanceService.DISPATCHER,
+						handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
+						event.getEventName(),
+						Instant.ofEpochMilli(event.getCreatedAt())
+				);
 				var startTime = Instant.now();
 				var associationProperty = handler.get().getAssociationProperty();
 				var associationValue = event.getEventMessage().getAssociationValue(associationProperty);
@@ -285,6 +293,12 @@ public class EventDispatcher {
 			{
 
 				bundleDeployService.waitUntilAvailable(bundleId);
+				performanceService.updatePerformances(
+						PerformanceService.DISPATCHER,
+						handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
+						event.getEventName(),
+						Instant.ofEpochMilli(event.getCreatedAt())
+				);
 				var startTime = Instant.now();
 				var dest = addressPicker.pickNodeAddress(bundleId);
 				messageBus.request(dest,
