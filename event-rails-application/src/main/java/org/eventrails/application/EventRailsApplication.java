@@ -411,8 +411,8 @@ public class EventRailsApplication {
         return bundleName;
     }
 
-    public void shutdown() {
-        this.messageBus.gracefulShutdown();
+    public void gracefulShutdown() {
+       this.messageBus.gracefulShutdown();
     }
 
     public static class ApplicationInfo {
