@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +26,7 @@ public class ClusterStatusController {
 
 	private final Logger logger = LoggerFactory.getLogger(ClusterStatusController.class);
 
-	@Value("${eventrails.cluster.node.server.name}")
+	@Value("${eventrails.cluster.node.server.id}")
 	private String serverNodeName;
 	private final MessageBus messageBus;
 
@@ -44,7 +43,7 @@ public class ClusterStatusController {
 	@GetMapping(value = "/attended-view")
 	public ResponseEntity<List<String>> findAllNodes() {
 		var nodes = bundleService.findAllBundles().stream().filter(Bundle::isContainsHandlers)
-				.filter(b -> b.getBucketType() != BucketType.Ephemeral).map(Bundle::getName).collect(Collectors.toList());
+				.filter(b -> b.getBucketType() != BucketType.Ephemeral).map(Bundle::getId).collect(Collectors.toList());
 		return ResponseEntity.ok(nodes);
 	}
 
@@ -79,9 +78,9 @@ public class ClusterStatusController {
 		});
 		return emitter;
 	}
-	@PostMapping(value = "/spawn/{bundleName}")
-	public ResponseEntity<?> spawnBundle(@PathVariable String bundleName) throws Exception {
-		bundleDeployService.spawn(bundleName);
+	@PostMapping(value = "/spawn/{bundleId}")
+	public ResponseEntity<?> spawnBundle(@PathVariable String bundleId) throws Exception {
+		bundleDeployService.spawn(bundleId);
 		return ResponseEntity.ok().build();
 	}
 

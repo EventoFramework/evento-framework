@@ -41,17 +41,17 @@ public class BundleController {
 	@GetMapping(value = "/{name}", produces = "application/json")
 	public ResponseEntity<BundleDto> findByName(@PathVariable String name){
 		return ResponseEntity.ok(new BundleDto(bundleService.findByName(name),
-				handlerService.findAllByBundleName(name)));
+				handlerService.findAllByBundleId(name)));
 	}
 
 	@PostMapping(value = "/", produces = "application/json")
 	public ResponseEntity<?> registerBundle(@RequestParam("bundle") MultipartFile bundle) throws IOException {
 
 		ZipInputStream zis = new ZipInputStream(bundle.getInputStream());
-		String bundleName = bundle.getOriginalFilename().replace(".bundle", "");
+		String bundleId = bundle.getOriginalFilename().replace(".bundle", "");
 
 		var jarEntry = zis.getNextEntry();
-		var jarUploadPath = fileUploadDir + "/" + bundleName + "-" + Instant.now().toEpochMilli() + ".jar";
+		var jarUploadPath = fileUploadDir + "/" + bundleId + "-" + Instant.now().toEpochMilli() + ".jar";
 
 		byte[] buffer = new byte[2048];
 		try (FileOutputStream fos = new FileOutputStream(jarUploadPath);
@@ -72,7 +72,7 @@ public class BundleController {
 			}
 
 			bundleService.register(
-					bundleName,
+					bundleId,
 					BucketType.LocalFilesystem,
 					jarUploadPath,
 					jarEntry.getName(),
@@ -82,35 +82,35 @@ public class BundleController {
 		return ResponseEntity.ok().build();
 	}
 
-	@DeleteMapping(value = "/{bundleName}")
-	public ResponseEntity<?> unregisterBundle(@PathVariable String bundleName) {
-		var bundle = bundleService.findByName(bundleName);
+	@DeleteMapping(value = "/{bundleId}")
+	public ResponseEntity<?> unregisterBundle(@PathVariable String bundleId) {
+		var bundle = bundleService.findByName(bundleId);
 		Assert.isTrue(bundle != null, "error.bundle.is.null");
 		Assert.isTrue(bundle.getBucketType() != BucketType.Ephemeral, "error.bundle.is.epehemeral");
-		bundleService.unregister(bundleName);
+		bundleService.unregister(bundleId);
 		return ResponseEntity.ok().build();
 	}
 
-	@PostMapping("/{bundleName}/env/{key}")
-	public ResponseEntity<?> putEnv(@PathVariable String bundleName, @PathVariable String key, @RequestBody String value) {
-		bundleService.putEnv(bundleName, key, value);
+	@PostMapping("/{bundleId}/env/{key}")
+	public ResponseEntity<?> putEnv(@PathVariable String bundleId, @PathVariable String key, @RequestBody String value) {
+		bundleService.putEnv(bundleId, key, value);
 		return ResponseEntity.ok().build();
 	}
 
-	@DeleteMapping("/{bundleName}/env/{key}")
-	public ResponseEntity<?> removeEnv(@PathVariable String bundleName, @PathVariable String key){
-		bundleService.removeEnv(bundleName, key);
+	@DeleteMapping("/{bundleId}/env/{key}")
+	public ResponseEntity<?> removeEnv(@PathVariable String bundleId, @PathVariable String key){
+		bundleService.removeEnv(bundleId, key);
 		return ResponseEntity.ok().build();
 	}
-	@PostMapping("/{bundleName}/vm-option/{key}")
-	public ResponseEntity<?> putVmOption(@PathVariable String bundleName, @PathVariable String key, @RequestBody String value) {
-		bundleService.putVmOption(bundleName, key, value);
+	@PostMapping("/{bundleId}/vm-option/{key}")
+	public ResponseEntity<?> putVmOption(@PathVariable String bundleId, @PathVariable String key, @RequestBody String value) {
+		bundleService.putVmOption(bundleId, key, value);
 		return ResponseEntity.ok().build();
 	}
 
-	@DeleteMapping("/{bundleName}/vm-option/{key}")
-	public ResponseEntity<?> removeVmOption(@PathVariable String bundleName, @PathVariable String key){
-		bundleService.removeVmOption(bundleName, key);
+	@DeleteMapping("/{bundleId}/vm-option/{key}")
+	public ResponseEntity<?> removeVmOption(@PathVariable String bundleId, @PathVariable String key){
+		bundleService.removeVmOption(bundleId, key);
 		return ResponseEntity.ok().build();
 	}
 }

@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @NoArgsConstructor
 public class BundleDto implements Serializable {
-	private String name;
+	private String id;
 	private BucketType bucketType;
 	private String artifactCoordinates;
 	private String artifactOriginalName;
@@ -30,7 +30,7 @@ public class BundleDto implements Serializable {
 	private Collection<HandlerDto> handlers;
 
 	public BundleDto(Bundle bundle, List<Handler> handlers) {
-		this.name = bundle.getName();
+		this.id = bundle.getId();
 		this.bucketType = bundle.getBucketType();
 		this.artifactCoordinates = bundle.getArtifactCoordinates();
 		this.artifactOriginalName = bundle.getArtifactOriginalName();

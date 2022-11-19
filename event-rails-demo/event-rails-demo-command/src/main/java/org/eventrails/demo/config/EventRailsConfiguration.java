@@ -16,8 +16,9 @@ public class EventRailsConfiguration {
     @Bean
     public EventRailsApplication eventRailsApplication(
             @Value("${eventrails.cluster.message.channel.name}") String channelName,
-            @Value("${eventrails.cluster.node.server.name}") String serverName,
-            @Value("${eventrails.cluster.bundle.name}") String bundleName,
+            @Value("${eventrails.cluster.node.server.id}") String serverName,
+            @Value("${eventrails.bundle.id}") String bundleId,
+            @Value("${eventrails.bundle.version}") long bundleVersion,
             @Value("${eventrails.cluster.rabbitmq.host}") String rabbitHost,
             @Value("${eventrails.cluster.autoscaling.max.threads}") int maxThreads,
             @Value("${eventrails.cluster.autoscaling.max.overflow}") int maxOverflow,
@@ -26,13 +27,14 @@ public class EventRailsConfiguration {
             BeanFactory factory
     ) throws Exception {
 
-        MessageBus messageBus = RabbitMqMessageBus.create(bundleName, channelName, rabbitHost);
+        MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
         return EventRailsApplication.start(DemoCommandApplication.class.getPackage().getName(),
-                bundleName,
+                bundleId,
+				bundleVersion,
                 serverName,
                 messageBus,
                 new ThreadCountAutoscalingProtocol(
-                        bundleName,
+                        bundleId,
                         serverName,
                         messageBus,
                         maxThreads,

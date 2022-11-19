@@ -14,8 +14,8 @@ export class BundleService {
     return fetch(environment.erServerUrl + '/api/bundle/').then(r => r.json());
   }
 
-  async unregister(bundleName) {
-    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName, {
+  async unregister(bundleId) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleId, {
       method: 'DELETE'
     });
   }
@@ -37,32 +37,32 @@ export class BundleService {
     })
   }
 
-  find(bundleName: string) {
-    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName).then(r => r.json());
+  find(bundleId: string) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleId).then(r => r.json());
   }
 
-  putEnv(bundleName: string, key: any, value: any) {
-    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/env/' + key, {
+  putEnv(bundleId: string, key: any, value: any) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleId + '/env/' + key, {
       method: 'POST',
       body: value
     })
   }
 
-   removeEnv(bundleName: string, key: any) {
-     return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/env/' + key, {
+   removeEnv(bundleId: string, key: any) {
+     return fetch(environment.erServerUrl + '/api/bundle/' + bundleId + '/env/' + key, {
        method: 'DELETE'
      })
   }
 
-  putVmOption(bundleName: string, key: any, value: any) {
-    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/vm-option/' + key, {
+  putVmOption(bundleId: string, key: any, value: any) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleId + '/vm-option/' + key, {
       method: 'POST',
       body:value
     })
   }
 
-  removeVmOption(bundleName: string, key: any) {
-    return fetch(environment.erServerUrl + '/api/bundle/' + bundleName + '/vm-option/' + key, {
+  removeVmOption(bundleId: string, key: any) {
+    return fetch(environment.erServerUrl + '/api/bundle/' + bundleId + '/vm-option/' + key, {
       method: 'DELETE'
     })
   }

@@ -137,17 +137,17 @@ public abstract class MessageBus {
 		});
 	}
 
-	public NodeAddress findNodeAddress(String nodeName) {
+	public NodeAddress findNodeAddress(String bundleId) {
 		return getCurrentAvailableView().stream()
-				.filter(address -> nodeName.equals(address.getNodeName()))
-				.findAny().orElseThrow(() -> new NodeNotFoundException("Node %s not found".formatted(nodeName)));
+				.filter(address -> bundleId.equals(address.getBundleId()))
+				.findAny().orElseThrow(() -> new NodeNotFoundException("Node %s not found".formatted(bundleId)));
 	}
 
 	public abstract NodeAddress getAddress();
 
-	public Set<NodeAddress> findAllNodeAddresses(String nodeName) {
+	public Set<NodeAddress> findAllNodeAddresses(String bundleId) {
 		return getCurrentAvailableView().stream()
-				.filter(address -> nodeName.equals(address.getNodeName()))
+				.filter(address -> bundleId.equals(address.getBundleId()))
 				.collect(Collectors.toSet());
 	}
 
@@ -241,9 +241,9 @@ public abstract class MessageBus {
 		cast(nodeAddress, new ClusterNodeKillMessage());
 	}
 
-	public boolean isBundleAvailable(String bundleName) {
+	public boolean isBundleAvailable(String bundleId) {
 		return getCurrentView().stream()
-				.filter(a -> a.getNodeName().equals(bundleName))
+				.filter(a -> a.getBundleId().equals(bundleId))
 				.anyMatch(this.availableNodes::contains);
 	}
 

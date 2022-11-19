@@ -4,8 +4,8 @@ import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 
 public class EventRailsNodeAddress extends NodeAddress {
 
-    public EventRailsNodeAddress(String nodeName, Object address, String nodeId) {
-        super(nodeName, address, nodeId);
+    public EventRailsNodeAddress(String bundleId, long bundleVersion, Object address, String nodeId) {
+        super(bundleId, bundleVersion, address, nodeId);
     }
 
     @Override

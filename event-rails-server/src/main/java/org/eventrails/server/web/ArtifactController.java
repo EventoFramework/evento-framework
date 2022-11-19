@@ -22,9 +22,9 @@ public class ArtifactController {
 		this.bundleService = bundleService;
 	}
 
-	@GetMapping(value = "/bundle/{bundleName}", produces = "application/zip")
-	public @ResponseBody byte[] getBundleArtifact(@PathVariable String bundleName) throws IOException {
-		var bundle = bundleService.findByName(bundleName);
+	@GetMapping(value = "/bundle/{bundleId}", produces = "application/zip")
+	public @ResponseBody byte[] getBundleArtifact(@PathVariable String bundleId) throws IOException {
+		var bundle = bundleService.findByName(bundleId);
 		Assert.isTrue(bundle != null, "error.bundle.not.found");
 		return switch (bundle.getBucketType()){
 			default -> Files.readAllBytes(Path.of(bundle.getArtifactCoordinates()));

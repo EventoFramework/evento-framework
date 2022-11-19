@@ -19,7 +19,6 @@ import org.eventrails.server.service.BundleService;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
-import javax.transaction.Transactional;
 import java.time.Instant;
 import java.util.HashMap;
 
@@ -54,12 +53,13 @@ public class AutoDiscoveryService {
                 lock.lock();
                 try {
                     var resp = ((ClusterNodeApplicationDiscoveryResponse) response);
-                    logger.info("Discovering bundle: %s".formatted(resp.getBundleName()));
+                    logger.info("Discovering bundle: %s".formatted(resp.getBundleId()));
                     if (resp.getHandlers().size() > 0) {
-                        var bundle = bundleRepository.findById(resp.getBundleName()).orElseGet(() -> {
-                                    logger.info("Bundle %s not found, creating an ephemeral one".formatted(resp.getBundleName()));
+                        var bundle = bundleRepository.findById(resp.getBundleId()).orElseGet(() -> {
+                                    logger.info("Bundle %s not found, creating an ephemeral one".formatted(resp.getBundleId()));
                                     return bundleRepository.save(new Bundle(
-                                            resp.getBundleName(),
+                                            resp.getBundleId(),
+                                            resp.getBundleVersion(),
                                             BucketType.Ephemeral,
                                             node.getNodeId(),
                                             null,
@@ -70,7 +70,7 @@ public class AutoDiscoveryService {
                         );
                         for (RegisteredHandler registeredHandler : resp.getHandlers()) {
                             if (!handlerRepository.exists(
-                                    resp.getBundleName(),
+                                    resp.getBundleId(),
                                     registeredHandler.getComponentType(),
                                     registeredHandler.getComponentName(),
                                     registeredHandler.getHandlerType(),
@@ -96,7 +96,7 @@ public class AutoDiscoveryService {
                                             payload.setJsonSchema("null");
                                             payload.setType(registeredHandler.getHandledPayloadType());
                                             payload.setUpdatedAt(Instant.now());
-                                            payload.setRegisteredIn(bundle.getName());
+                                            payload.setRegisteredIn(bundle.getId());
                                             return payloadRepository.save(payload);
                                         }
                                 ));
@@ -123,7 +123,7 @@ public class AutoDiscoveryService {
                                             payload.setJsonSchema("null");
                                             payload.setType(type);
                                             payload.setUpdatedAt(Instant.now());
-                                            payload.setRegisteredIn(bundle.getName());
+                                            payload.setRegisteredIn(bundle.getId());
                                             return payloadRepository.save(payload);
                                         }
                                 ));
@@ -149,9 +149,9 @@ public class AutoDiscoveryService {
         var lock = lockRegistry.obtain("DISCOVERY:" + node.getNodeId());
         lock.lock();
         try {
-            bundleRepository.findById(node.getNodeName()).ifPresent(b -> {
+            bundleRepository.findById(node.getBundleId()).ifPresent(b -> {
                 if(b.getBucketType().equals(BucketType.Ephemeral) && b.getArtifactCoordinates().equals(node.getNodeId())){
-                   bundleService.unregister(node.getNodeName());
+                   bundleService.unregister(node.getBundleId());
                 }
             });
         }finally {

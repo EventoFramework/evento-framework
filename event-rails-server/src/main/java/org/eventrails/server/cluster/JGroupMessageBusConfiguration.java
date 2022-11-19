@@ -14,13 +14,17 @@ public class JGroupMessageBusConfiguration {
 	@Value("${eventrails.cluster.message.channel.name}")
 	private String handlerClusterName;
 
-	@Value("${eventrails.cluster.node.server.name}")
-	private String serverNodeName;
+	@Value("${eventrails.cluster.node.server.id}")
+	private String serverBundleId;
+
+	@Value("${eventrails.cluster.node.server.version}")
+	private long serverBundleVersion;
 
 	@Bean
 	MessageBus messageBus() throws Exception {
 		var messageBus = JGroupsMessageBus.create(
-				serverNodeName,
+				serverBundleId,
+				serverBundleVersion,
 				handlerClusterName);
 		messageBus.enableBus();
 		return messageBus;

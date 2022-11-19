@@ -89,16 +89,17 @@ public class RabbitMqMessageBus extends MessageBus {
     }
 
     public static MessageBus create(
-            String bundleName,
+            String bundleId,
+            long bundleVersion,
             String exchange,
             String rabbitHost) throws Exception {
-        logger.info("Starting Message Bus for %s".formatted(bundleName));
+        logger.info("Starting Message Bus for %s".formatted(bundleId));
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(rabbitHost);
-        Connection connection = factory.newConnection(bundleName);
+        Connection connection = factory.newConnection(bundleId);
         logger.info("Connected to RabbitMQ @ %s".formatted(rabbitHost));
         Channel channel = connection.createChannel();
-        var nodeId = bundleName + "-" + Instant.now().toEpochMilli();
+        var nodeId = bundleId + "-" + Instant.now().toEpochMilli();
         channel.queueDeclare(nodeId, false, false, false, null);
         logger.info("Created service queue: %s".formatted(nodeId));
 
@@ -110,13 +111,13 @@ public class RabbitMqMessageBus extends MessageBus {
         channel.queueBind(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId, CLUSTER_BROADCAST_EXCHANGE, "");
         logger.info("Created broadcast queue: %s".formatted(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId));
 
-        var address = new RabbitMqNodeAddress(bundleName, connection.getAddress().toString(), nodeId);
+        var address = new RabbitMqNodeAddress(bundleId, bundleVersion, connection.getAddress().toString(), nodeId);
         channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(address, "join"));
         logger.info("Cluster JOIN Sent");
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                var conn = factory.newConnection(bundleName);
+                var conn = factory.newConnection(bundleId);
                 var c = conn.createChannel();
                 c.queueDelete(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId);
                 c.queueDelete(nodeId);
