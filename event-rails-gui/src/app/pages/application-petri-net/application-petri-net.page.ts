@@ -14,7 +14,6 @@ declare var mxHierarchicalLayout: any;
 export class ApplicationPetriNetPage implements OnInit {
 
 
-
   constructor(private handlerService: HandlerService,
               private bundleColorService: BundleColorService) {
   }
@@ -54,6 +53,7 @@ export class ApplicationPetriNetPage implements OnInit {
     try {
       const postNodes = {}
       const transitionNodes = {}
+      const transitionRef = {}
       const postStyle = "shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent"
       if (showPosts) {
         for (const post of network.posts) {
@@ -62,20 +62,29 @@ export class ApplicationPetriNetPage implements OnInit {
       }
       const transitionStyle = "shape=rectangle;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;"
       for (const transition of network.transitions) {
-        if(transition.action === 'Sink') continue;
+        if (transition.action === 'Sink') continue;
         transition.name = transition.bundle + "\n\n" + transition.component + "\n\n" + transition.action
         Math.max(transition.bundle.length, transition.component.length, transition.action.length)
         let additionalStyles = "fillColor=" + this.bundleColorService.getColorForBundle(transition.bundle) + ";"
         let width = Math.max(transition.bundle.length, transition.component.length, transition.action.length) * 10;
         let height = 90;
-        let name =  transition.name;
-        if(transition.bundle === 'event-store' || transition.component === 'SagaStore' || transition.component === 'ProjectorStore'){
-          additionalStyles += "shape=cylinder;verticalAlign=bottom;spacingBottom=20;"
-          height = 90 + 70
+        let text = transition.name;
+        if (transition.meanServiceTime) {
+          text += "\n\nmst: " + transition.meanServiceTime.toFixed(3) + " [s]"
+          height += 30
         }
-        transitionNodes[transition.id] = graph.insertVertex(parent, transition.id,name, null, null, width,
+        if (transition.meanThroughput) {
+          text += "\n\nthr: " + transition.meanThroughput.toFixed(3) + " [r/s]"
+          height += 30
+        }
+        if (transition.bundle === 'event-store' || transition.component === 'SagaStore' || transition.component === 'ProjectorStore') {
+          additionalStyles += "shape=cylinder;verticalAlign=bottom;spacingBottom=20;"
+          height += 70
+        }
+        transitionNodes[transition.id] = graph.insertVertex(parent, transition.id, text, null, null, width,
           height,
           transitionStyle + additionalStyles);
+        transitionRef[transition.id] = transition;
       }
 
       if (showPosts) {
@@ -86,7 +95,7 @@ export class ApplicationPetriNetPage implements OnInit {
         }
       }
 
-      const edgeStyle = "endArrow=classic;html=1;rounded=0;curved=1;"
+      const edgeStyle = "endArrow=classic;html=1;rounded=0;curved=1;labelBackgroundColor=white"
       for (const transition of network.transitions) {
         for (const target of transition.target) {
           if (showPosts) {
@@ -96,7 +105,12 @@ export class ApplicationPetriNetPage implements OnInit {
             if (targetTransition) {
               for (const targetTarget of targetTransition.target) {
                 if (transition.id !== targetTarget && transitionNodes[targetTarget]) {
-                  graph.insertEdge(parent, null, '', transitionNodes[transition.id], transitionNodes[targetTarget], edgeStyle);
+                  const target  = transitionRef[targetTarget]
+                  var txt = ''
+                  if(target.meanServiceTime && target.meanThroughput){
+                    txt = (target.meanServiceTime*target.meanThroughput).toFixed(3) +" [r]"
+                  }
+                  graph.insertEdge(parent, null, txt, transitionNodes[transition.id], transitionNodes[targetTarget], edgeStyle);
                 }
               }
             }

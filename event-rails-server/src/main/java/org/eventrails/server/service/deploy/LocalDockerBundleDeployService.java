@@ -8,11 +8,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.integration.support.locks.LockRegistry;
 
 import java.time.Instant;
+import java.util.ArrayList;
 
 
-public class LocalDockerBundleDeployService extends BundleDeployService{
+public class LocalDockerBundleDeployService extends BundleDeployService {
 
 	private final Logger LOGGER = LoggerFactory.getLogger(LocalDockerBundleDeployService.class);
+
 	public LocalDockerBundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleService bundleService) {
 		super(messageBus, lockRegistry, bundleService);
 	}
@@ -20,18 +22,24 @@ public class LocalDockerBundleDeployService extends BundleDeployService{
 	@Override
 	protected void spawn(Bundle bundle) throws Exception {
 		LOGGER.info("Spawning bundle {}", bundle.getName());
-		var cmd = new String[]{
-				"docker",
-				"run",
-				"--name", bundle.getName() + "-" + Instant.now().toEpochMilli(),
-				"-d",
-				"--rm",
-				"-e",
-				"APP_JAR_URL=http://host.docker.internal:3000/asset/bundle/" + bundle.getName(),
-				"eventrails-bundle-container"
-		};
+		var cmd = new ArrayList<String>();
+		cmd.add("docker");
+		cmd.add("run");
+		cmd.add("--name");
+		cmd.add(bundle.getName() + "-" + Instant.now().toEpochMilli());
+		cmd.add("-d");
+		cmd.add("--rm");
+		cmd.add("-e");
+		cmd.add("APP_JAR_URL=http://host.docker.internal:3000/asset/bundle/" + bundle.getName());
+		bundle.getEnvironment().forEach((k, v) -> {
+			cmd.add("-e");
+			cmd.add(k + "=" + v);
+		});
+		cmd.add("eventrails-bundle-container");
+
+
 		LOGGER.info("COMMAND: {}", String.join(" ", cmd));
 		Runtime.getRuntime()
-				.exec(cmd);
+				.exec(cmd.toArray(String[]::new));
 	}
 }

@@ -13,6 +13,13 @@ public class Network {
 
 	private final HashMap<String, Post> instancesPosts = new HashMap<>();
 
+	private final PerformanceFetcher performanceFetcher;
+
+	public Network(PerformanceFetcher performanceFetcher) {
+		this.performanceFetcher = performanceFetcher;
+	}
+
+
 	public Post post(String bundle, String component, String action) {
 		return post(bundle, component, action, 0);
 	}
@@ -28,7 +35,8 @@ public class Network {
 	}
 
 	public Transition transition(String bundle, String component, String action) {
-		var t = new Transition(idGenerator.getAndIncrement(), bundle, component, action);
+		var p = performanceFetcher.getPerformance(bundle, component, action);
+		var t = new Transition(idGenerator.getAndIncrement(), bundle, component, action, p.meanServiceTime(), p.meanThroughput());
 		transitions.add(t);
 		var iq = instancesPosts.get(bundle);
 		iq.getTarget().add(t);
