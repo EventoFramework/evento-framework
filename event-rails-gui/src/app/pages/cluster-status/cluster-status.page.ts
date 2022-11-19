@@ -33,7 +33,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
     this.viewSubscription = this.clusterStatusService.getView().subscribe(viewUpdate => {
       const view = viewUpdate.view;
       if (viewUpdate.type === 'current') {
-        const upNodes = view.map(n => n.nodeName);
+        const upNodes = view.map(n => n.bundleId);
         this.externalView = [...new Set(upNodes.filter(n => !this.attendedView.includes(n)))]
         for (let node of this.externalView) {
           if(!this.view[node]) {
@@ -48,10 +48,10 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
         }
         for (let node of this.attendedView.concat(this.externalView)) {
           this.view[node].isOnline = upNodes.includes(node);
-          this.view[node].replicas = view.filter(n => n.nodeName === node).reduce((a, e) => {
+          this.view[node].replicas = view.filter(n => n.bundleId === node).reduce((a, e) => {
             a[e.nodeId] = {
               nodeId: e.nodeId,
-              nodeName: e.nodeName,
+              bundleId: e.bundleId,
               isAvailable: this.view[node]?.replicas[e.nodeId]?.isAvailable
             };
             return a;
@@ -60,7 +60,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
           this.view[node].replicaCount = upNodes.filter(n => n === node).length
         }
       } else {
-        const availableNodes = view.map(n => n.nodeName);
+        const availableNodes = view.map(n => n.bundleId);
         for (let node of this.attendedView.concat(this.externalView)) {
           this.view[node].isAvailable = availableNodes.includes(node);
           for (let replica of this.view[node].replicasKeys) {
@@ -80,7 +80,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
     this.view[node].replicasKeys.push('pending')
     this.view[node].replicas['pending'] = {
       nodeId: 'pending',
-      nodeName: 'pending'
+      bundleId: 'pending'
     }
   }
 

@@ -21,16 +21,16 @@ public class LocalDockerBundleDeployService extends BundleDeployService {
 
 	@Override
 	protected void spawn(Bundle bundle) throws Exception {
-		LOGGER.info("Spawning bundle {}", bundle.getName());
+		LOGGER.info("Spawning bundle {}", bundle.getId());
 		var cmd = new ArrayList<String>();
 		cmd.add("docker");
 		cmd.add("run");
 		cmd.add("--name");
-		cmd.add(bundle.getName() + "-" + Instant.now().toEpochMilli());
+		cmd.add(bundle.getId() + "-" + Instant.now().toEpochMilli());
 		cmd.add("-d");
 		cmd.add("--rm");
 		cmd.add("-e");
-		cmd.add("APP_JAR_URL=http://host.docker.internal:3000/asset/bundle/" + bundle.getName());
+		cmd.add("APP_JAR_URL=http://host.docker.internal:3000/asset/bundle/" + bundle.getId());
 		bundle.getEnvironment().forEach((k, v) -> {
 			cmd.add("-e");
 			cmd.add(k + "=" + v);

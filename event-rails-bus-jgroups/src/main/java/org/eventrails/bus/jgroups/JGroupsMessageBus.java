@@ -12,45 +12,53 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class JGroupsMessageBus extends MessageBus implements Receiver{
+public class JGroupsMessageBus extends MessageBus implements Receiver {
 
 	private final Log LOGGER = LogFactory.getLog(JGroupsMessageBus.class);
 	private final JChannel channel;
+	private long bundleVersion;
 
-	protected JGroupsMessageBus(JChannel jChannel,
-							 Consumer<Serializable> messageReceiver,
-							 BiConsumer<Serializable, MessageBusResponseSender> requestReceiver) {
+	protected JGroupsMessageBus(
+			JChannel jChannel,
+			long bundleVersion,
+			Consumer<Serializable> messageReceiver,
+			BiConsumer<Serializable, MessageBusResponseSender> requestReceiver) {
 
 		super(subscriber -> jChannel.setReceiver(new Receiver() {
 
 			private Set<NodeAddress> ov = new HashSet<>();
+
 			@Override
 			public void receive(Message msg) {
-				subscriber.onMessage(new JGroupNodeAddress(msg.getSrc()), ((BytesMessage) msg).getObject(this.getClass().getClassLoader()));
+				subscriber.onMessage(new JGroupNodeAddress(msg.getSrc(), bundleVersion), ((BytesMessage) msg).getObject(this.getClass().getClassLoader()));
 			}
+
 			@Override
 			public synchronized void viewAccepted(View newView) {
-				Set<NodeAddress> nv = newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toSet());
+				Set<NodeAddress> nv = newView.getMembers().stream().map(a -> new JGroupNodeAddress(a, bundleVersion)).collect(Collectors.toSet());
 				subscriber.onViewUpdate(nv, nv.stream().filter(n -> !ov.contains(n)).collect(Collectors.toSet()), ov.stream().filter(n -> !nv.contains(n)).collect(Collectors.toSet()));
 				ov = nv;
 			}
 		}));
 		this.channel = jChannel;
+		this.bundleVersion = bundleVersion;
 		setMessageReceiver(messageReceiver);
 		setRequestReceiver(requestReceiver);
 	}
 
-	protected JGroupsMessageBus(JChannel jChannel) {
+	protected JGroupsMessageBus(JChannel jChannel, long bundleVersion) {
 		super(subscriber -> jChannel.setReceiver(new Receiver() {
 
 			private Set<NodeAddress> ov = new HashSet<>();
+
 			@Override
 			public void receive(Message msg) {
-				subscriber.onMessage(new JGroupNodeAddress(msg.getSrc()), ((BytesMessage) msg).getObject(this.getClass().getClassLoader()));
+				subscriber.onMessage(new JGroupNodeAddress(msg.getSrc(), bundleVersion), ((BytesMessage) msg).getObject(this.getClass().getClassLoader()));
 			}
+
 			@Override
 			public synchronized void viewAccepted(View newView) {
-				Set<NodeAddress> nv = newView.getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toSet());
+				Set<NodeAddress> nv = newView.getMembers().stream().map(a -> new JGroupNodeAddress(a, bundleVersion)).collect(Collectors.toSet());
 				subscriber.onViewUpdate(nv, nv.stream().filter(n -> !ov.contains(n)).collect(Collectors.toSet()), ov.stream().filter(n -> !nv.contains(n)).collect(Collectors.toSet()));
 				ov = nv;
 			}
@@ -59,11 +67,12 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 	}
 
 	public static MessageBus create(
-			String bundleName,
+			String bundleId,
+			long bundleVersion,
 			String channelName) throws Exception {
 		var jChannel = new JChannel();
-		jChannel.setName(bundleName);
-		var bus = new JGroupsMessageBus(jChannel);
+		jChannel.setName(bundleId);
+		var bus = new JGroupsMessageBus(jChannel, bundleVersion);
 		jChannel.connect(channelName);
 		return bus;
 	}
@@ -83,12 +92,12 @@ public class JGroupsMessageBus extends MessageBus implements Receiver{
 
 	@Override
 	public NodeAddress getAddress() {
-		return new JGroupNodeAddress(channel.getAddress());
+		return new JGroupNodeAddress(channel.getAddress(), bundleVersion);
 	}
 
 	@Override
 	public Set<NodeAddress> getCurrentView() {
-		return channel.getView().getMembers().stream().map(JGroupNodeAddress::new).collect(Collectors.toSet());
+		return channel.getView().getMembers().stream().map(a -> new JGroupNodeAddress(a, bundleVersion)).collect(Collectors.toSet());
 	}
 
 

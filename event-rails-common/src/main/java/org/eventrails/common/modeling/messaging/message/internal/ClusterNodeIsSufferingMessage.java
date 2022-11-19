@@ -4,20 +4,20 @@ import java.io.Serializable;
 
 public class ClusterNodeIsSufferingMessage implements Serializable {
 
-	private String bundleName;
+	private String bundleId;
 
 	public ClusterNodeIsSufferingMessage() {
 	}
 
-	public ClusterNodeIsSufferingMessage(String bundleName) {
-		this.bundleName = bundleName;
+	public ClusterNodeIsSufferingMessage(String bundleId) {
+		this.bundleId = bundleId;
 	}
 
-	public String getBundleName() {
-		return bundleName;
+	public String getBundleId() {
+		return bundleId;
 	}
 
-	public void setBundleName(String bundleName) {
-		this.bundleName = bundleName;
+	public void setBundleId(String bundleId) {
+		this.bundleId = bundleId;
 	}
 }

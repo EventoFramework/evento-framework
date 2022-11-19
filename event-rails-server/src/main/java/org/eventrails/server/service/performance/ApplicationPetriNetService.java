@@ -39,7 +39,7 @@ public class ApplicationPetriNetService {
 		
 		for (Bundle bundle : bundleRepository.findAll())
 		{
-			n.instancePost(bundle.getName());
+			n.instancePost(bundle.getId());
 		}
 		n.instancePost(SERVER);
 		n.instancePost(EVENT_STORE);
@@ -47,8 +47,8 @@ public class ApplicationPetriNetService {
 		var handlers = handlerRepository.findAll();
 
 		handlers.stream().filter(h -> h.getHandlerType() == HandlerType.InvocationHandler).forEach(i -> {
-			var sourceQueue = n.post(i.getBundle().getName(), i.getComponentName(), i.getHandledPayload().getName(), 1);
-			var sourceAgent = n.transition(i.getBundle().getName(), i.getComponentName(), i.getHandledPayload().getName());
+			var sourceQueue = n.post(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName(), 1);
+			var sourceAgent = n.transition(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName());
 			sourceQueue.getTarget().add(sourceAgent);
 			sourceAgent.getTarget().add(sourceQueue);
 
@@ -57,14 +57,14 @@ public class ApplicationPetriNetService {
 
 			for (Payload p : i.getInvocations())
 			{
-				var iq = n.post(i.getBundle().getName(), i.getComponentName(), i.getHandledPayload().getName());
+				var iq = n.post(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName());
 				generateInvocationPetriNet(n, handlers, p, sourceAgent, iq);
-				sourceAgent = n.transition(i.getBundle().getName(), i.getComponentName(), i.getHandledPayload().getName());
+				sourceAgent = n.transition(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName());
 				iq.getTarget().add(sourceAgent);
 			}
 
-			var sinkQueue = n.post(i.getBundle().getName(), i.getComponentName(), "Sink", 1);
-			var sinkAgent = n.transition(i.getBundle().getName(), i.getComponentName(), "Sink");
+			var sinkQueue = n.post(i.getBundle().getId(), i.getComponentName(), "Sink", 1);
+			var sinkAgent = n.transition(i.getBundle().getId(), i.getComponentName(), "Sink");
 			sinkQueue.getTarget().add(sinkAgent);
 
 			sourceAgent.getTarget().add(sinkQueue);
@@ -85,8 +85,8 @@ public class ApplicationPetriNetService {
 			serverRequestQueue.getTarget().add(serverRequestAgent);
 			// Server -> Component
 			var handler = p.getHandlers().get(0);
-			var q = n.post(handler.getBundle().getName(), handler.getComponentName(), handler.getHandledPayload().getName());
-			var a = n.transition(handler.getBundle().getName(), handler.getComponentName(), handler.getHandledPayload().getName());
+			var q = n.post(handler.getBundle().getId(), handler.getComponentName(), handler.getHandledPayload().getName());
+			var a = n.transition(handler.getBundle().getId(), handler.getComponentName(), handler.getHandledPayload().getName());
 			serverRequestAgent.getTarget().add(q);
 			q.getTarget().add(a);
 			// Component -> Server
@@ -108,16 +108,16 @@ public class ApplicationPetriNetService {
 				handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
 						.filter(h -> h.getHandledPayload().equals(handler.getReturnType())).forEach(h -> {
 							// ES -> EventHandler
-							var hq = n.post(h.getBundle().getName(),  h.getComponentName(), h.getHandledPayload().getName());
-							var ha = n.transition( h.getBundle().getName(),  h.getComponentName(), h.getHandledPayload().getName());
+							var hq = n.post(h.getBundle().getId(),  h.getComponentName(), h.getHandledPayload().getName());
+							var ha = n.transition( h.getBundle().getId(),  h.getComponentName(), h.getHandledPayload().getName());
 
 							esAgent.getTarget().add(hq);
 							hq.getTarget().add(ha);
 							for (Payload invocation : h.getInvocations())
 							{
-								var iq = n.post(h.getBundle().getName(), h.getComponentName(), h.getHandledPayload().getName());
+								var iq = n.post(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName());
 								generateInvocationPetriNet(n, handlers, invocation, ha, iq);
-								ha = n.transition(h.getBundle().getName(), h.getComponentName(), h.getHandledPayload().getName());
+								ha = n.transition(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName());
 								iq.getTarget().add(ha);
 							}
 
@@ -158,8 +158,8 @@ public class ApplicationPetriNetService {
 			serverRequestQueue.getTarget().add(serverRequestAgent);
 			// Server -> Component
 			var handler = p.getHandlers().get(0);
-			var q = n.post(handler.getBundle().getName() , handler.getComponentName(), handler.getHandledPayload().getName());
-			var a = n.transition(handler.getBundle().getName() , handler.getComponentName(), handler.getHandledPayload().getName());
+			var q = n.post(handler.getBundle().getId() , handler.getComponentName(), handler.getHandledPayload().getName());
+			var a = n.transition(handler.getBundle().getId() , handler.getComponentName(), handler.getHandledPayload().getName());
 			serverRequestAgent.getTarget().add(q);
 			q.getTarget().add(a);
 			// Component -> Server

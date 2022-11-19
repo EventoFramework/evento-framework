@@ -16,8 +16,11 @@ public class RabbitMqMessageBusConfiguration {
 	@Value("${eventrails.cluster.message.channel.name}")
 	private String handlerClusterName;
 
-	@Value("${eventrails.cluster.node.server.name}")
-	private String serverNodeName;
+	@Value("${eventrails.cluster.node.server.id}")
+	private String serverBundleId;
+
+	@Value("${eventrails.cluster.node.server.version}")
+	private long serverBundleVersion;
 
 
 	@Value("${eventrails.message.bus.rabbitmq.host}")
@@ -26,7 +29,8 @@ public class RabbitMqMessageBusConfiguration {
 	@Bean
 	MessageBus messageBus() throws Exception {
 		var messageBus = RabbitMqMessageBus.create(
-				serverNodeName,
+				serverBundleId,
+				serverBundleVersion,
 				handlerClusterName,
 				rabbitHost
 				);

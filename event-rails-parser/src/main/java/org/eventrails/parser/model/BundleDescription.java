@@ -11,9 +11,14 @@ public class BundleDescription implements Serializable {
 	private List<Component> components;
 	private List<PayloadDescription> payloadDescriptions;
 
-	public BundleDescription(List<Component> components, List<PayloadDescription> payloadDescriptions) {
+	private String bundleId;
+	private long bundleVersion;
+
+	public BundleDescription(String bundleId, long bundleVersion, List<Component> components, List<PayloadDescription> payloadDescriptions) {
 		this.components = components;
 		this.payloadDescriptions = payloadDescriptions;
+		this.bundleId = bundleId;
+		this.bundleVersion = bundleVersion;
 	}
 
 	public BundleDescription() {
@@ -25,5 +30,13 @@ public class BundleDescription implements Serializable {
 
 	public List<PayloadDescription> getPayloadDescriptions() {
 		return payloadDescriptions;
+	}
+
+	public String getBundleId() {
+		return bundleId;
+	}
+
+	public long getBundleVersion() {
+		return bundleVersion;
 	}
 }

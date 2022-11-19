@@ -19,10 +19,9 @@ import static org.eventrails.common.serialization.ObjectMapperUtils.getPayloadOb
 
 
 public class Main {
-	public static void main(String[] args) throws IOException {
-		String bundleName = args[0];
-		String bundlePath = args[1];
-		String serverUrl = args[2];
+	public static void main(String[] args) throws Exception {
+		String bundlePath = args[0];
+		String serverUrl = args[1];
 
 		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
 				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
@@ -37,7 +36,7 @@ public class Main {
 		System.out.println("JSON created");
 
 		new File(bundlePath + "/build/bundle-dist/" ).mkdir();
-		var bundleFile = bundlePath + "/build/bundle-dist/" + bundleName + ".bundle";
+		var bundleFile = bundlePath + "/build/bundle-dist/" + components.getBundleId() + ".bundle";
 		final ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(
 				bundleFile
 		));
@@ -59,7 +58,7 @@ public class Main {
 		Request request = new Request.Builder()
 				.url(serverUrl + "/api/bundle/")
 				.post(new MultipartBody.Builder().setType(MultipartBody.FORM)
-						.addFormDataPart("bundle", bundleName, RequestBody.create(new File(bundleFile), null))
+						.addFormDataPart("bundle", components.getBundleId(), RequestBody.create(new File(bundleFile), null))
 						.build())
 				.build();
 		client.newCall(request).execute();

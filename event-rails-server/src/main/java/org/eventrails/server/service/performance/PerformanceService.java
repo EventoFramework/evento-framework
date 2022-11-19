@@ -81,9 +81,9 @@ public class PerformanceService {
     public void updatePerformances(String bundle, String component, String action, Instant startTime) {
        savePerformance(bundle, component, action, startTime);
     }
-    public void updatePerformances(String nodeName, List<String> components, String eventName, Instant startTime) {
+    public void updatePerformances(String bundleId, List<String> components, String eventName, Instant startTime) {
         for (String component : components) {
-            updatePerformances(nodeName, component, eventName, startTime);
+            updatePerformances(bundleId, component, eventName, startTime);
         }
     }
 

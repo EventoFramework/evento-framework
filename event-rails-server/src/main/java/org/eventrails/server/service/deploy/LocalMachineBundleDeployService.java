@@ -1,14 +1,10 @@
 package org.eventrails.server.service.deploy;
 
 import org.eventrails.common.messaging.bus.MessageBus;
-import org.eventrails.common.modeling.annotations.component.Service;
 import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.service.BundleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Conditional;
 import org.springframework.integration.support.locks.LockRegistry;
 
 import java.io.BufferedReader;
@@ -30,7 +26,7 @@ public class LocalMachineBundleDeployService extends BundleDeployService{
 	}
 
 	protected void spawn(Bundle bundle) throws Exception {
-		LOGGER.info("Spawning bundle {}", bundle.getName());
+		LOGGER.info("Spawning bundle {}", bundle.getId());
 		switch (bundle.getBucketType())
 		{
 			case LocalFilesystem ->
@@ -49,7 +45,7 @@ public class LocalMachineBundleDeployService extends BundleDeployService{
 						{
 							throw new RuntimeException(e);
 						}
-						LOGGER.debug("[" + bundle.getName() + " (" + p.pid() + ")]: " + line);
+						LOGGER.debug("[" + bundle.getId() + " (" + p.pid() + ")]: " + line);
 					}
 				});
 				var t2 = new Thread(() -> {
@@ -64,7 +60,7 @@ public class LocalMachineBundleDeployService extends BundleDeployService{
 						{
 							throw new RuntimeException(e);
 						}
-						LOGGER.error("[" + bundle.getName() + " (" + p.pid() + ")]: " + line);
+						LOGGER.error("[" + bundle.getId() + " (" + p.pid() + ")]: " + line);
 					}
 				});
 				t1.start();
@@ -75,10 +71,10 @@ public class LocalMachineBundleDeployService extends BundleDeployService{
 						int exitCode = p.waitFor();
 						if (exitCode != 0)
 						{
-							LOGGER.error("[" + bundle.getName() + " (" + p.pid() + ")]: TERMINATED WITH ERROR");
+							LOGGER.error("[" + bundle.getId() + " (" + p.pid() + ")]: TERMINATED WITH ERROR");
 						} else
 						{
-							LOGGER.debug("[" + bundle.getName() + " (" + p.pid() + ")]: TERMINATED GRACEFULLY");
+							LOGGER.debug("[" + bundle.getId() + " (" + p.pid() + ")]: TERMINATED GRACEFULLY");
 						}
 					} catch (InterruptedException e)
 					{

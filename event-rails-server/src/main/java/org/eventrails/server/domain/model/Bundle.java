@@ -17,7 +17,8 @@ import java.util.Objects;
 public class Bundle {
 
 	@Id
-	private String name;
+	private String id;
+	private long version;
 	@Enumerated(EnumType.STRING)
 	private BucketType bucketType;
 	private String artifactCoordinates;
@@ -33,11 +34,11 @@ public class Bundle {
 		if (this == o) return true;
 		if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
 		Bundle that = (Bundle) o;
-		return name != null && Objects.equals(name, that.name);
+		return id != null && Objects.equals(id, that.id);
 	}
 
 	@Override
 	public int hashCode() {
-		return name.hashCode();
+		return id.hashCode();
 	}
 }

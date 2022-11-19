@@ -14,7 +14,7 @@ import java.util.List;
 
 public interface HandlerRepository extends JpaRepository<Handler, Bundle> {
 
-	public void deleteAllByBundle_Name(String bundleName);
+	public void deleteAllByBundle_Id(String bunleId);
 
 	public Handler findByHandledPayload_Name(String name);
 
@@ -25,10 +25,10 @@ public interface HandlerRepository extends JpaRepository<Handler, Bundle> {
 	List<Handler> findAllByBundleAndHandlerType(Bundle bundle, HandlerType handlerType);
 	List<Handler> findAllByBundleAndHandlerTypeIn(Bundle bundle, Collection<HandlerType> handlerType);
 	List<Handler> findAllByBundle(Bundle bundle);
-	List<Handler> findAllByBundle_Name(String bundle);
+	List<Handler> findAllByBundle_Id(String id);
 
 	Collection<Handler> findAllByBundleAndHandledPayload_Name(Bundle bundle, String payloadName);
 
-	@Query("select count(h) > 0 from Handler h where h.bundle.name = ?1 and h.componentType = ?2 and h.componentName = ?3 and h.handlerType = ?4 and h.handledPayload.name = ?5" )
-	boolean exists(String bundleName, ComponentType componentType, String componentName, HandlerType handlerType, String handledPayload);
+	@Query("select count(h) > 0 from Handler h where h.bundle.id = ?1 and h.componentType = ?2 and h.componentName = ?3 and h.handlerType = ?4 and h.handledPayload.name = ?5" )
+	boolean exists(String bundleId, ComponentType componentType, String componentName, HandlerType handlerType, String handledPayload);
 }

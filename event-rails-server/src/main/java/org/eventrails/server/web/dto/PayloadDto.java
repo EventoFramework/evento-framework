@@ -33,7 +33,7 @@ public class PayloadDto implements Serializable {
 	@NoArgsConstructor
 	public static class HandlerDto implements Serializable {
 		private String uuid;
-		private String bundleName;
+		private String bundleId;
 		private String componentName;
 		private String returnTypeName;
 		private ComponentType componentType;

@@ -1,6 +1,5 @@
 package org.eventrails.server.web;
 
-import org.eventrails.server.domain.model.Payload;
 import org.eventrails.server.domain.repository.PayloadRepository;
 import org.eventrails.server.web.dto.PayloadDto;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +25,7 @@ public class LibraryController {
 		return ResponseEntity.ok(payloadRepository.findAll().stream().map(p ->
 			new PayloadDto(p.getName(),
 					p.getHandlers().stream().map(h ->
-							new PayloadDto.HandlerDto(h.getUuid(),h.getBundle().getName(),
+							new PayloadDto.HandlerDto(h.getUuid(),h.getBundle().getId(),
 									h.getComponentName(),
 									h.getReturnType() == null ? null : h.getReturnType().getName(),
 									h.getComponentType(),  h.getHandlerType(),

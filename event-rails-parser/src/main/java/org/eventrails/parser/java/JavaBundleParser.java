@@ -20,12 +20,16 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JavaBundleParser implements BundleParser {
 
-	public BundleDescription parseDirectory(File file) throws IOException {
+	public static final String EVENTRAILS_BUNDLE_VERSION_PROPERTY = "eventrails.bundle.version";
+	public static final String EVENTRAILS_BUNDLE_NAME_PROPERTY = "eventrails.bundle.id";
+
+	public BundleDescription parseDirectory(File file) throws Exception {
 		LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
 		Parser parser = java.getParser(java.getDefaultParserOptions());
 		if (!file.isDirectory()) throw new RuntimeException("error.not.dir");
@@ -71,7 +75,36 @@ public class JavaBundleParser implements BundleParser {
 						.map(p -> new PayloadDescription(p.getName(), "Invocation", "{}"))
 		).collect(Collectors.toList());
 
-		return new BundleDescription(components, payloads);
+		var bundleVersion = Files.walk(file.toPath())
+				.filter(p -> p.toString().endsWith(".properties"))
+				.mapToInt(p -> {
+					try
+					{
+						var prop = new Properties();
+						prop.load(new FileReader(p.toFile()));
+						return Integer.parseInt(prop.getProperty(EVENTRAILS_BUNDLE_VERSION_PROPERTY, "-1"));
+					} catch (Exception e)
+					{
+						return -1;
+					}
+				}).filter(v -> v >= 0).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_VERSION_PROPERTY)));
+
+		var bundleId = Files.walk(file.toPath())
+				.filter(p -> p.toString().endsWith(".properties"))
+				.map(p -> {
+					try
+					{
+						var prop = new Properties();
+						prop.load(new FileReader(p.toFile()));
+						return prop.getProperty(EVENTRAILS_BUNDLE_NAME_PROPERTY, null);
+					} catch (Exception e)
+					{
+						return null;
+					}
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
+
+
+		return new BundleDescription(bundleId, bundleVersion, components, payloads);
 	}
 
 	private Component toComponent(Node node) throws Exception {

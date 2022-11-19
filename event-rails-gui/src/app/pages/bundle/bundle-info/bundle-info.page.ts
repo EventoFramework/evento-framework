@@ -10,7 +10,7 @@ import {NavController} from "@ionic/angular";
   styleUrls: ['./bundle-info.page.scss'],
 })
 export class BundleInfoPage implements OnInit {
-  bundleName: string;
+  bundleId: string;
   bundle;
   componentHandlers: {}
   components: string[] = [];
@@ -20,8 +20,8 @@ export class BundleInfoPage implements OnInit {
   constructor(private route: ActivatedRoute, private bundleService: BundleService, private navController: NavController) { }
 
   async ngOnInit() {
-    this.bundleName = this.route.snapshot.params.identifier;
-    this.bundle = await this.bundleService.find(this.bundleName);
+    this.bundleId = this.route.snapshot.params.identifier;
+    this.bundle = await this.bundleService.find(this.bundleId);
     this.bundle.handlers.sort((a,b) => (a.componentName + a.handlerType).localeCompare(b.componentName + b.handlerType))
     this.componentHandlers = this.bundle.handlers.reduce((c, h) => {
       if(!c[h.componentName]){
@@ -36,28 +36,28 @@ export class BundleInfoPage implements OnInit {
   }
 
   putEnv(key, value) {
-    this.bundleService.putEnv(this.bundleName, key, value).finally();
+    this.bundleService.putEnv(this.bundleId, key, value).finally();
     this.bundle.environment[key] = value;
     this.environmentKeys = Object.keys(this.bundle.environment);
   }
   removeEnv(key) {
-    this.bundleService.removeEnv(this.bundleName, key).finally();
+    this.bundleService.removeEnv(this.bundleId, key).finally();
     delete this.bundle.environment[key];
     this.environmentKeys = Object.keys(this.bundle.environment);
   }
   putVmOption(key, value) {
-    this.bundleService.putVmOption(this.bundleName, key, value).finally();
+    this.bundleService.putVmOption(this.bundleId, key, value).finally();
     this.bundle.vmOptions[key] = value;
     this.vmOptionsKeys = Object.keys(this.bundle.vmOptionsKeys);
   }
   removeVmOption(key) {
-    this.bundleService.removeVmOption(this.bundleName, key).finally();
+    this.bundleService.removeVmOption(this.bundleId, key).finally();
     delete this.bundle.vmOptions[key];
     this.vmOptionsKeys = Object.keys(this.bundle.vmOptionsKeys);
   }
 
   async unregister() {
-    await this.bundleService.unregister(this.bundleName);
+    await this.bundleService.unregister(this.bundleId);
     await this.navController.navigateBack('/bundle-list')
 
   }

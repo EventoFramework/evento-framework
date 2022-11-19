@@ -43,7 +43,8 @@ public class EventRailsMessageBus extends MessageBus {
 
 
     public static EventRailsMessageBus create(
-            String bundleName,
+            String bundleId,
+            long bundleVersion,
             String host,
             int port) throws Exception {
         logger.info("Creating socket connection to %s:%d".formatted(host, port));
@@ -51,8 +52,8 @@ public class EventRailsMessageBus extends MessageBus {
         logger.info("Connected!");
         DataInputStream dataInputStream = new DataInputStream(s.getInputStream());
         DataOutputStream dataOutputStream = new DataOutputStream(s.getOutputStream());
-        var nodeId = bundleName + "-" + Instant.now().toEpochMilli();
-        var address = new EventRailsNodeAddress(bundleName, s.getInetAddress().toString(), nodeId);
+        var nodeId = bundleId + ":" + bundleVersion + "-" + Instant.now().toEpochMilli();
+        var address = new EventRailsNodeAddress(bundleId, bundleVersion, s.getInetAddress().toString(), nodeId);
         dataOutputStream.writeUTF(EventRailsMessage.joinMessage(address));
 
         return new EventRailsMessageBus(

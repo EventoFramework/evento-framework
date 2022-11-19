@@ -5,10 +5,8 @@ import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.service.BundleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 
-import java.io.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -29,39 +27,39 @@ public abstract class BundleDeployService {
 		this.lockRegistry = lockRegistry;
 		this.bundleService = bundleService;
 		messageBus.addJoinListener(bundle -> {
-			var s = semaphoreMap.get(bundle.getNodeName());
+			var s = semaphoreMap.get(bundle.getBundleId());
 			if (s != null)
 				s.release();
 		});
 	}
 
-	public void waitUntilAvailable(String bundleName) {
+	public void waitUntilAvailable(String bundleId) {
 
-		if (!messageBus.isBundleAvailable(bundleName))
+		if (!messageBus.isBundleAvailable(bundleId))
 		{
-			LOGGER.info("Bundle %s not available, spawning a new one".formatted(bundleName));
-			var bundle = bundleService.findByName(bundleName);
-			var lock = lockRegistry.obtain("BUNDLE:" + bundleName);
+			LOGGER.info("Bundle %s not available, spawning a new one".formatted(bundleId));
+			var bundle = bundleService.findByName(bundleId);
+			var lock = lockRegistry.obtain("BUNDLE:" + bundleId);
 			try
 			{
 				lock.lock();
-				var semaphore = semaphoreMap.getOrDefault(bundleName, new Semaphore(0));
-				semaphoreMap.put(bundleName, semaphore);
-				if(messageBus.isBundleAvailable(bundleName)) return;
+				var semaphore = semaphoreMap.getOrDefault(bundleId, new Semaphore(0));
+				semaphoreMap.put(bundleId, semaphore);
+				if(messageBus.isBundleAvailable(bundleId)) return;
 				spawn(bundle);
 				if (!semaphore.tryAcquire(120, TimeUnit.SECONDS))
 				{
 					throw new IllegalStateException("Bundle Cannot Start");
 				}
-				LOGGER.info("New %s bundle spawned".formatted(bundleName));
+				LOGGER.info("New %s bundle spawned".formatted(bundleId));
 
 			} catch (Exception e)
 			{
-				LOGGER.error("Spawning for %s bundle failed".formatted(bundleName), e);
+				LOGGER.error("Spawning for %s bundle failed".formatted(bundleId), e);
 				throw new RuntimeException(e);
 			} finally
 			{
-				semaphoreMap.remove(bundleName);
+				semaphoreMap.remove(bundleId);
 				lock.unlock();
 			}
 		}
@@ -69,8 +67,8 @@ public abstract class BundleDeployService {
 
 	protected abstract void spawn(Bundle bundle) throws Exception;
 
-	public void spawn(String bundleName) throws Exception {
-		spawn(bundleService.findByName(bundleName));
+	public void spawn(String bundleId) throws Exception {
+		spawn(bundleService.findByName(bundleId));
 	}
 
 	public void kill(String nodeId) throws Exception {

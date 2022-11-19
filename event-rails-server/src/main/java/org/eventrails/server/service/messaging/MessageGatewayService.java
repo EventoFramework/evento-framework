@@ -14,7 +14,6 @@ import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.deploy.BundleDeployService;
 import org.eventrails.server.service.HandlerService;
 import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
-import org.eventrails.server.service.performance.Action;
 import org.eventrails.server.service.performance.PerformanceService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
@@ -45,7 +44,8 @@ public class MessageGatewayService {
 	private final ThreadCountAutoscalingProtocol threadCountAutoscalingProtocol;
 	private final int minNodes;
 	private final boolean autoscalingEnabled;
-	private final String serverNodeName;
+	private final String serverId;
+	private final long serverVersion;
 
 	private final PerformanceService performanceService;
 
@@ -55,7 +55,8 @@ public class MessageGatewayService {
 			EventStore eventStore,
 			MessageBus messageBus,
 			BundleDeployService bundleDeployService,
-			@Value("${eventrails.cluster.node.server.name}") String serverNodeName,
+			@Value("${eventrails.cluster.node.server.id}") String serverId,
+			@Value("${eventrails.cluster.node.server.version}") long serverVersion,
 			@Value("${eventrails.cluster.autoscaling.max.threads}") int maxThreads,
 			@Value("${eventrails.cluster.autoscaling.max.overflow}") int maxOverflow,
 			@Value("${eventrails.cluster.autoscaling.min.threads}") int minThreads,
@@ -65,7 +66,8 @@ public class MessageGatewayService {
 			PerformanceService performanceService) {
 		this.handlerService = handlerService;
 		this.lockRegistry = lockRegistry;
-		this.serverNodeName = serverNodeName;
+		this.serverId = serverId;
+		this.serverVersion = serverVersion;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
@@ -73,8 +75,8 @@ public class MessageGatewayService {
 		this.performanceService = performanceService;
 
 		this.threadCountAutoscalingProtocol = new ThreadCountAutoscalingProtocol(
-				serverNodeName,
-				serverNodeName,
+				this.serverId,
+				this.serverId,
 				messageBus,
 				maxThreads,
 				minThreads,
@@ -90,21 +92,22 @@ public class MessageGatewayService {
 	private void messageHandler(Serializable request) {
 		try
 		{
-			if(this.autoscalingEnabled)
+			if (this.autoscalingEnabled)
 			{
 				if (request instanceof ClusterNodeIsSufferingMessage m)
 				{
-					bundleDeployService.spawn(m.getBundleName());
+					bundleDeployService.spawn(m.getBundleId());
 				} else if (request instanceof ClusterNodeIsBoredMessage m)
 				{
-					var nodes = messageBus.findAllNodeAddresses(m.getBundleName());
+					var nodes = messageBus.findAllNodeAddresses(m.getBundleId());
 					if (nodes.size() > minNodes)
 					{
 						messageBus.sendKill(m.getNodeId());
 					}
 				}
 			}
-		}catch (Exception e){
+		} catch (Exception e)
+		{
 			e.printStackTrace();
 		}
 	}
@@ -116,14 +119,14 @@ public class MessageGatewayService {
 			if (request instanceof DomainCommandMessage c)
 			{
 				var handler = handlerService.findByPayloadName(c.getCommandName());
-				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
+				bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
 				var start = PerformanceService.now();
 
 				var lock = lockRegistry.obtain(AGGREGATE_LOCK_PREFIX + c.getAggregateId());
 				lock.lock();
 				var semaphore = new Semaphore(0);
 
-				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
+				var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
 
 				try
 				{
@@ -157,7 +160,7 @@ public class MessageGatewayService {
 							invocation,
 							resp -> {
 								performanceService.updatePerformances(
-										dest.getNodeName(),
+										dest.getBundleId(),
 										handler.getComponentName(),
 										c.getCommandName(),
 										invocationStart
@@ -166,7 +169,8 @@ public class MessageGatewayService {
 								var cr = (DomainCommandResponseMessage) resp;
 								var esStoreStart = PerformanceService.now();
 								var aggregateSequenceNumber = eventStore.publishEvent(cr.getDomainEventMessage(), c.getAggregateId());
-								if(cr.getSerializedAggregateState() != null){
+								if (cr.getSerializedAggregateState() != null)
+								{
 									eventStore.saveSnapshot(
 											c.getAggregateId(),
 											aggregateSequenceNumber,
@@ -185,7 +189,7 @@ public class MessageGatewayService {
 							},
 							error -> {
 								performanceService.updatePerformances(
-										dest.getNodeName(),
+										dest.getBundleId(),
 										handler.getComponentName(),
 										c.getCommandName(),
 										invocationStart
@@ -196,10 +200,11 @@ public class MessageGatewayService {
 							}
 
 					);
-				}catch (Exception e){
+				} catch (Exception e)
+				{
 					semaphore.release();
 					throw e;
-				}finally
+				} finally
 				{
 					semaphore.acquire();
 					lock.unlock();
@@ -208,20 +213,21 @@ public class MessageGatewayService {
 			} else if (request instanceof ServiceCommandMessage c)
 			{
 				var handler = handlerService.findByPayloadName(c.getCommandName());
-				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
-				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
+				bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
+				var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
 				var invocationStart = PerformanceService.now();
 				messageBus.request(
 						dest,
 						c,
 						resp -> {
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handler.getComponentName(),
 									c.getCommandName(),
 									invocationStart
 							);
-							if (resp != null && ((EventMessage<?>) resp).getType() != null){
+							if (resp != null && ((EventMessage<?>) resp).getType() != null)
+							{
 								var esStoreStart = PerformanceService.now();
 								eventStore.publishEvent((EventMessage<?>) resp);
 								performanceService.updatePerformances(
@@ -237,7 +243,7 @@ public class MessageGatewayService {
 						error -> {
 							response.sendError(error.toThrowable());
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handler.getComponentName(),
 									c.getCommandName(),
 									invocationStart
@@ -249,15 +255,15 @@ public class MessageGatewayService {
 			} else if (request instanceof QueryMessage<?> q)
 			{
 				var handler = handlerService.findByPayloadName(q.getQueryName());
-				bundleDeployService.waitUntilAvailable(handler.getBundle().getName());
-				var dest = addressPicker.pickNodeAddress(handler.getBundle().getName());
+				bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
+				var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
 				var invocationStart = PerformanceService.now();
 				messageBus.request(
 						dest,
 						q,
 						resp -> {
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handler.getComponentName(),
 									q.getQueryName(),
 									invocationStart
@@ -266,7 +272,7 @@ public class MessageGatewayService {
 						},
 						error -> {
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handler.getComponentName(),
 									q.getQueryName(),
 									invocationStart
@@ -275,10 +281,10 @@ public class MessageGatewayService {
 						}
 				);
 
-			} else if (request instanceof ClusterNodeApplicationDiscoveryRequest d){
-				response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(serverNodeName, new ArrayList<>()));
-			}
-			else
+			} else if (request instanceof ClusterNodeApplicationDiscoveryRequest d)
+			{
+				response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(serverId, serverVersion, new ArrayList<>()));
+			} else
 			{
 				throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
 			}
@@ -286,7 +292,7 @@ public class MessageGatewayService {
 		{
 			e.printStackTrace();
 			response.sendError(e);
-		}finally
+		} finally
 		{
 			this.threadCountAutoscalingProtocol.departure();
 		}
