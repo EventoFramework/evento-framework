@@ -6,6 +6,7 @@ import org.jgroups.*;
 import org.jgroups.logging.Log;
 import org.jgroups.logging.LogFactory;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -101,4 +102,8 @@ public class JGroupsMessageBus extends MessageBus implements Receiver {
 	}
 
 
+	@Override
+	protected void disconnect() {
+		channel.close();
+	}
 }

@@ -21,7 +21,10 @@ import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.service.HandlerService;
 import org.eventrails.server.service.deploy.BundleDeployService;
 import org.eventrails.server.service.performance.PerformanceService;
+import org.springframework.beans.factory.BeanCreationNotAllowedException;
+import org.springframework.beans.factory.UnsatisfiedDependencyException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationPropertiesBindException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -54,6 +57,7 @@ public class EventDispatcher {
 	private final BundleDeployService bundleDeployService;
 
 	private final PerformanceService performanceService;
+	private boolean isShuttingDown = false;
 
 
 	public EventDispatcher(
@@ -76,6 +80,9 @@ public class EventDispatcher {
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
 		this.performanceService = performanceService;
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			this.isShuttingDown = true;
+		}));
 		eventConsumer();
 	}
 
@@ -133,12 +140,35 @@ public class EventDispatcher {
 	private void retryBlock(CodeBlock runnable) {
 		while (true)
 		{
+			if (this.isShuttingDown) return;
 			//var t = transactionManager.getTransaction(null);
 			try
 			{
 				runnable.run();
 				//transactionManager.commit(t);
 				return;
+			} catch (ConfigurationPropertiesBindException
+					 | UnsatisfiedDependencyException |
+					 BeanCreationNotAllowedException e)
+			{
+				for (int i = 0; i < 5; i++)
+				{
+					try
+					{
+						Thread.sleep(3000);
+						if (this.isShuttingDown) return;
+					} catch (InterruptedException ignored)
+					{
+					}
+				}
+				e.printStackTrace();
+				try
+				{
+					Thread.sleep(3 * 1000);
+				} catch (InterruptedException ignored)
+				{
+				}
+
 			} catch (Exception e)
 			{
 				e.printStackTrace();
@@ -146,7 +176,8 @@ public class EventDispatcher {
 				{
 					Thread.sleep(3 * 1000);
 				} catch (InterruptedException ignored)
-				{}
+				{
+				}
 				//transactionManager.rollback(t);
 			}
 		}
@@ -164,14 +195,15 @@ public class EventDispatcher {
 		retryBlock(() -> {
 			while (events.isEmpty())
 			{
+				if (this.isShuttingDown) return;
 				Thread.sleep(1000);
 				var state = repository
 						.findById(sagaName)
 						.orElseGet(() ->
-							repository.save(new EventConsumerState(
-									sagaName,
-									bundleId,
-									eventStore.getLastEventSequenceNumber()))
+								repository.save(new EventConsumerState(
+										sagaName,
+										bundleId,
+										eventStore.getLastEventSequenceNumber()))
 						);
 				events.addAll(eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList());
 			}
@@ -275,6 +307,7 @@ public class EventDispatcher {
 		retryBlock(() -> {
 			while (events.isEmpty())
 			{
+				if (this.isShuttingDown) return;
 				Thread.sleep(1000);
 				var state = componentEventConsumingStateRepository
 						.findById(projectorName)

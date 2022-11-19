@@ -1,7 +1,7 @@
 package org.eventrails.server.service.discovery;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.modeling.bundle.types.PayloadType;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
@@ -47,6 +47,7 @@ public class AutoDiscoveryService {
     }
 
     private void onNodeJoin(NodeAddress node) {
+        if(node.equals(messageBus.getAddress())) return;
         try {
             messageBus.request(node, new ClusterNodeApplicationDiscoveryRequest(), response -> {
                 var lock = lockRegistry.obtain("DISCOVERY:" + node.getNodeId());
@@ -146,6 +147,7 @@ public class AutoDiscoveryService {
     }
 
     public void onNodeLeave(NodeAddress node) {
+        if(node.equals(messageBus.getAddress())) return;
         var lock = lockRegistry.obtain("DISCOVERY:" + node.getNodeId());
         lock.lock();
         try {
