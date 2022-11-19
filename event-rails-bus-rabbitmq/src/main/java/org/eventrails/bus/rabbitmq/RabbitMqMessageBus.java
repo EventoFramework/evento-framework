@@ -77,7 +77,6 @@ public class RabbitMqMessageBus extends MessageBus {
                     }
                 }, consumerTag -> {
                 });
-                subscriber.onViewUpdate(view, Set.of(), Set.of());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

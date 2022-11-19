@@ -44,7 +44,7 @@ public class Handler implements Serializable {
 
 	@ManyToMany
 	@ToString.Exclude
-	@JoinTable(name = "core__handler_invocation")
+	@JoinTable(name = "core__handler__invocation")
 	private Set<Payload> invocations;
 
 	private String associationProperty;

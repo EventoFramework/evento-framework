@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class BundleService {
@@ -43,15 +44,22 @@ public class BundleService {
             String bundleDeploymentArtifactCoordinates,
             String jarOriginalName,
             BundleDescription bundleDescription) {
-        Bundle bundle = bundleRepository.save(new Bundle(
-                bundleId,
-                bundleDescription.getBundleVersion(),
-                bundleDeploymentBucketType,
-                bundleDeploymentArtifactCoordinates,
-                jarOriginalName,
-                bundleDescription.getComponents().size() > 0,
-                new HashMap<>(),
-                new HashMap<>()));
+        AtomicBoolean isNew = new AtomicBoolean(false);
+        var bundle = bundleRepository.findById(bundleId).orElseGet(() -> {
+            isNew.set(true);
+            return bundleRepository.save(new Bundle(
+                    bundleId,
+                    bundleDescription.getBundleVersion(),
+                    bundleDeploymentBucketType,
+                    bundleDeploymentArtifactCoordinates,
+                    jarOriginalName,
+                    bundleDescription.getComponents().size() > 0,
+                    new HashMap<>(),
+                    new HashMap<>()));
+        });
+        if(!isNew.get() && bundle.getVersion() <= bundleDescription.getBundleVersion())
+            throw new IllegalArgumentException("Bundle " + bundleId + " with version " + bundle.getVersion() + " exists!");
+
         for (PayloadDescription payloadDescription : bundleDescription.getPayloadDescriptions()) {
             var payload = new Payload();
             payload.setName(payloadDescription.getName());
@@ -61,6 +69,8 @@ public class BundleService {
             payload.setRegisteredIn(bundle.getId());
             payloadRepository.save(payload);
         }
+
+        Bundle finalBundle = bundle;
         for (Component component : bundleDescription.getComponents()) {
             if (component instanceof Aggregate a) {
                 for (AggregateCommandHandler aggregateCommandHandler : a.getAggregateCommandHandlers()) {
@@ -85,7 +95,7 @@ public class BundleService {
                                         payload.setJsonSchema("null");
                                         payload.setType(PayloadType.DomainCommand);
                                         payload.setUpdatedAt(Instant.now());
-                                        payload.setRegisteredIn(bundle.getId());
+                                        payload.setRegisteredIn(finalBundle.getId());
                                         return payloadRepository.save(payload);
                                     }
                             ));

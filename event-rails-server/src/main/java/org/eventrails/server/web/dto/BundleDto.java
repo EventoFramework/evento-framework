@@ -21,6 +21,8 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 public class BundleDto implements Serializable {
 	private String id;
+
+	private long version;
 	private BucketType bucketType;
 	private String artifactCoordinates;
 	private String artifactOriginalName;
@@ -31,6 +33,7 @@ public class BundleDto implements Serializable {
 
 	public BundleDto(Bundle bundle, List<Handler> handlers) {
 		this.id = bundle.getId();
+		this.version = bundle.getVersion();
 		this.bucketType = bundle.getBucketType();
 		this.artifactCoordinates = bundle.getArtifactCoordinates();
 		this.artifactOriginalName = bundle.getArtifactOriginalName();

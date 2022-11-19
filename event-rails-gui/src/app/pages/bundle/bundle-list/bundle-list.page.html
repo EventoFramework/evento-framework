@@ -8,10 +8,11 @@
   <ion-list>
     <ion-list-header>
       <ion-grid>
-        <ion-row>
+        <ion-row class="ion-padding-end ion-margin-end">
           <ion-col size="4"><ion-label translate="bundle.id"></ion-label></ion-col>
+          <ion-col size="2"><ion-label translate="bundle.version"></ion-label></ion-col>
           <ion-col size="4"><ion-label translate="bundle.artifact.coordinates"></ion-label></ion-col>
-          <ion-col size="4"><ion-label translate="bundle.bucket.type"></ion-label></ion-col>
+          <ion-col size="2"><ion-label translate="bundle.bucket.type"></ion-label></ion-col>
         </ion-row>
       </ion-grid>
     </ion-list-header>
@@ -19,8 +20,9 @@
       <ion-grid>
         <ion-row>
           <ion-col size="4"><ion-label>{{bundle.id}}</ion-label></ion-col>
+          <ion-col size="2"><ion-label>{{bundle.version}}</ion-label></ion-col>
           <ion-col size="4"><ion-label>{{bundle.artifactOriginalName ? bundle.artifactOriginalName : ' - '}}</ion-label></ion-col>
-          <ion-col size="4"><ion-label>{{bundle.bucketType}}</ion-label></ion-col>
+          <ion-col size="2"><ion-label>{{bundle.bucketType}}</ion-label></ion-col>
         </ion-row>
       </ion-grid>
     </ion-item>
