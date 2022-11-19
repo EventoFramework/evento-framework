@@ -16,6 +16,8 @@ public class PerformanceService {
 
     public static final String EVENT_STORE = "event-store";
     public static final String EVENT_STORE_COMPONENT = "EventStore";
+
+    public static final String DISPATCHER = "dispatcher";
     public static final String GATEWAY_COMPONENT = "Gateway";
     public static final String SERVER = "server";
 
