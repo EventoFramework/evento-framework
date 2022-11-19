@@ -17,7 +17,6 @@ import org.eventrails.server.domain.repository.HandlerRepository;
 import org.eventrails.server.domain.repository.PayloadRepository;
 import org.springframework.stereotype.Service;
 
-import javax.transaction.Transactional;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,13 +38,14 @@ public class BundleService {
 
 
     public void register(
-            String bundleDeploymentName,
+            String bundleId,
             BucketType bundleDeploymentBucketType,
             String bundleDeploymentArtifactCoordinates,
             String jarOriginalName,
             BundleDescription bundleDescription) {
         Bundle bundle = bundleRepository.save(new Bundle(
-                bundleDeploymentName,
+                bundleId,
+                bundleDescription.getBundleVersion(),
                 bundleDeploymentBucketType,
                 bundleDeploymentArtifactCoordinates,
                 jarOriginalName,
@@ -58,7 +58,7 @@ public class BundleService {
             payload.setJsonSchema(payloadDescription.getSchema().toString());
             payload.setType(PayloadType.valueOf(payloadDescription.getType()));
             payload.setUpdatedAt(Instant.now());
-            payload.setRegisteredIn(bundle.getName());
+            payload.setRegisteredIn(bundle.getId());
             payloadRepository.save(payload);
         }
         for (Component component : bundleDescription.getComponents()) {
@@ -85,7 +85,7 @@ public class BundleService {
                                         payload.setJsonSchema("null");
                                         payload.setType(PayloadType.DomainCommand);
                                         payload.setUpdatedAt(Instant.now());
-                                        payload.setRegisteredIn(bundle.getName());
+                                        payload.setRegisteredIn(bundle.getId());
                                         return payloadRepository.save(payload);
                                     }
                             ));
@@ -105,7 +105,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.DomainEvent);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -134,7 +134,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.DomainEvent);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -158,7 +158,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.Event);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -174,7 +174,7 @@ public class BundleService {
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
-                                    payload.setRegisteredIn(bundle.getName());
+                                    payload.setRegisteredIn(bundle.getId());
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -187,7 +187,7 @@ public class BundleService {
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
-                                    payload.setRegisteredIn(bundle.getName());
+                                    payload.setRegisteredIn(bundle.getId());
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -210,7 +210,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.Query);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -222,7 +222,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.View);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -245,7 +245,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.Event);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -260,7 +260,7 @@ public class BundleService {
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
-                                    payload.setRegisteredIn(bundle.getName());
+                                    payload.setRegisteredIn(bundle.getId());
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -292,7 +292,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.ServiceCommand);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -312,7 +312,7 @@ public class BundleService {
                                 payload.setJsonSchema("null");
                                 payload.setType(PayloadType.ServiceEvent);
                                 payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getName());
+                                payload.setRegisteredIn(bundle.getId());
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -325,7 +325,7 @@ public class BundleService {
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
-                                    payload.setRegisteredIn(bundle.getName());
+                                    payload.setRegisteredIn(bundle.getId());
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -338,7 +338,7 @@ public class BundleService {
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
-                                    payload.setRegisteredIn(bundle.getName());
+                                    payload.setRegisteredIn(bundle.getId());
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -375,7 +375,7 @@ public class BundleService {
     public void unregister(
             String bundleDeploymentName) {
         for (Handler handler : handlerRepository.findAll()) {
-            if (!handler.getBundle().getName().equals(bundleDeploymentName)) continue;
+            if (!handler.getBundle().getId().equals(bundleDeploymentName)) continue;
             handlerRepository.delete(handler);
             handler.getHandledPayload().getHandlers().remove(handler);
         }
@@ -394,30 +394,30 @@ public class BundleService {
         return bundleRepository.findAll();
     }
 
-    public Bundle findByName(String bundleName) {
-        return bundleRepository.findById(bundleName).orElseThrow();
+    public Bundle findByName(String bundleId) {
+        return bundleRepository.findById(bundleId).orElseThrow();
     }
 
-    public void putEnv(String bundleName, String key, String value) {
-        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+    public void putEnv(String bundleId, String key, String value) {
+        var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().put(key, value);
         bundleRepository.save(bundle);
     }
 
-    public void removeEnv(String bundleName, String key) {
-        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+    public void removeEnv(String bundleId, String key) {
+        var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().remove(key);
         bundleRepository.save(bundle);
     }
 
-    public void putVmOption(String bundleName, String key, String value) {
-        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+    public void putVmOption(String bundleId, String key, String value) {
+        var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().put(key, value);
         bundleRepository.save(bundle);
     }
 
-    public void removeVmOption(String bundleName, String key) {
-        var bundle = bundleRepository.findById(bundleName).orElseThrow();
+    public void removeVmOption(String bundleId, String key) {
+        var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().remove(key);
         bundleRepository.save(bundle);
     }

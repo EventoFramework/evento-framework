@@ -21,19 +21,19 @@ export class ApplicationMapPage implements OnInit {
     const bundles = {};
 
     for (let handler of handlers) {
-      if (!bundles[handler.bundleName]) {
-        bundles[handler.bundleName] = {
+      if (!bundles[handler.bundleId]) {
+        bundles[handler.bundleId] = {
           components: {}
         }
       }
-      if (!bundles[handler.bundleName].components[handler.componentName]) {
-        bundles[handler.bundleName].components[handler.componentName] = {
+      if (!bundles[handler.bundleId].components[handler.componentName]) {
+        bundles[handler.bundleId].components[handler.componentName] = {
           handlers: {},
           componentType: handler.componentType
         }
       }
 
-      bundles[handler.bundleName].components[handler.componentName].handlers[handler.handledPayload.name] = {
+      bundles[handler.bundleId].components[handler.componentName].handlers[handler.handledPayload.name] = {
         messageType: handler.handledPayload.type,
         handlerType: handler.handlerType,
         returnType: handler.returnType,
@@ -44,7 +44,7 @@ export class ApplicationMapPage implements OnInit {
 
     for (let handler of handlers) {
 
-      const h = bundles[handler.bundleName].components[handler.componentName].handlers[handler.handledPayload.name];
+      const h = bundles[handler.bundleId].components[handler.componentName].handlers[handler.handledPayload.name];
       h.responseHandeledBy = [];
       h.invoke = [];
       if (handler.returnType) {

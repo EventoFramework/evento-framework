@@ -7,8 +7,8 @@ import org.jgroups.util.UUID;
 
 public class JGroupNodeAddress extends NodeAddress {
 
-	public JGroupNodeAddress(Address address) {
-		super(address.toString(), address, addressToId(address));
+	public JGroupNodeAddress(Address address, long bundleVersion) {
+		super(address.toString(), bundleVersion, address, addressToId(address));
 	}
 
 	private static String addressToId(Address address) {

@@ -1,7 +1,6 @@
 package org.eventrails.bus.rabbitmq;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.common.serialization.ObjectMapperUtils;
 
 import java.io.IOException;
@@ -9,13 +8,15 @@ import java.io.Serializable;
 
 public class RabbitMqMessage implements Serializable {
 	private String sourceNodeId;
-	private String sourceNodeName;
+	private String sourceBundleId;
+	private long sourceBundleVersion;
 	private Serializable sourceNodeAddress;
 	private Serializable message;
 
 	public RabbitMqMessage(RabbitMqNodeAddress source, Serializable message) {
 		this.sourceNodeAddress = source.getAddress();
-		this.sourceNodeName = source.getNodeName();
+		this.sourceBundleId = source.getBundleId();
+		this.sourceBundleVersion = source.getBundleVersion();
 		this.sourceNodeId = source.getNodeId();
 		this.message = message;
 	}
@@ -34,7 +35,7 @@ public class RabbitMqMessage implements Serializable {
 	}
 
 	public RabbitMqNodeAddress getSource(){
-		return new RabbitMqNodeAddress(sourceNodeName, sourceNodeAddress, sourceNodeId);
+		return new RabbitMqNodeAddress(sourceBundleId, sourceBundleVersion, sourceNodeAddress, sourceNodeId);
 	}
 
 	public String getSourceNodeId() {
@@ -45,12 +46,12 @@ public class RabbitMqMessage implements Serializable {
 		this.sourceNodeId = sourceNodeId;
 	}
 
-	public String getSourceNodeName() {
-		return sourceNodeName;
+	public String getSourceBundleId() {
+		return sourceBundleId;
 	}
 
-	public void setSourceNodeName(String sourceNodeName) {
-		this.sourceNodeName = sourceNodeName;
+	public void setSourceBundleId(String sourceBundleId) {
+		this.sourceBundleId = sourceBundleId;
 	}
 
 	public Serializable getSourceNodeAddress() {
@@ -59,6 +60,14 @@ public class RabbitMqMessage implements Serializable {
 
 	public void setSourceNodeAddress(Serializable sourceNodeAddress) {
 		this.sourceNodeAddress = sourceNodeAddress;
+	}
+
+	public long getSourceBundleVersion() {
+		return sourceBundleVersion;
+	}
+
+	public void setSourceBundleVersion(long sourceBundleVersion) {
+		this.sourceBundleVersion = sourceBundleVersion;
 	}
 
 	public Serializable getMessage() {

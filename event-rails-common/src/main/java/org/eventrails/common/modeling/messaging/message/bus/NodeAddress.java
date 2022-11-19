@@ -3,10 +3,12 @@ package org.eventrails.common.modeling.messaging.message.bus;
 public abstract class NodeAddress implements Comparable<NodeAddress> {
 
 	private final Object address;
-	private final String nodeName;
+	private final String bundleId;
+	private final long bundleVersion;
 	private final String nodeId;
-	public NodeAddress(String nodeName, Object address, String nodeId) {
-		this.nodeName = nodeName;
+	public NodeAddress(String bundleId, long bundleVersion, Object address, String nodeId) {
+		this.bundleId = bundleId;
+		this.bundleVersion = bundleVersion;
 		this.address = address;
 		this.nodeId = nodeId;
 	}
@@ -15,17 +17,21 @@ public abstract class NodeAddress implements Comparable<NodeAddress> {
 		return (T) address;
 	}
 
-	public String getNodeName() {
-		return nodeName;
+	public String getBundleId() {
+		return bundleId;
 	}
 
 	public String getNodeId() {
 		return nodeId;
 	}
 
+	public long getBundleVersion() {
+		return bundleVersion;
+	}
+
 	@Override
 	public String toString() {
-		return nodeName;
+		return bundleId;
 	}
 
 	@Override

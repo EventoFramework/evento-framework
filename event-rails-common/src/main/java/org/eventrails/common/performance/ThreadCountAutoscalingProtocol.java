@@ -13,7 +13,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
 
 	private final MessageBus messageBus;
 
-	private final String bundleName;
+	private final String bundleId;
 	private final String serverName;
 
 	private int threadCount = 0;
@@ -23,14 +23,14 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
 	private boolean bored = true;
 
 	public ThreadCountAutoscalingProtocol(
-			String bundleName,
+			String bundleId,
 			String serverName,
 			MessageBus messageBus,
 			int maxThreadCount,
 			int minThreadCount,
 			int maxOverflowCount,
 			int maxUnderflowCount) {
-		this.bundleName = bundleName;
+		this.bundleId = bundleId;
 		this.serverName = serverName;
 		this.messageBus = messageBus;
 		this.maxUnderflowCount = maxUnderflowCount;
@@ -53,7 +53,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
 					{
 						messageBus.cast(
 								messageBus.findNodeAddress(serverName),
-								new ClusterNodeIsSufferingMessage(bundleName)
+								new ClusterNodeIsSufferingMessage(bundleId)
 						);
 					} catch (Exception e)
 					{
@@ -76,7 +76,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
 					{
 						messageBus.cast(
 								messageBus.findNodeAddress(serverName),
-								new ClusterNodeIsBoredMessage(bundleName, messageBus.getAddress().getNodeId())
+								new ClusterNodeIsBoredMessage(bundleId, messageBus.getAddress().getNodeId())
 						);
 					}catch (Exception e){
 						e.printStackTrace();

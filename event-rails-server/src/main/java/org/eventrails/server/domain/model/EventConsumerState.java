@@ -18,7 +18,7 @@ public class EventConsumerState {
 	@Id
 	private String componentName;
 
-	private String bundleName;
+	private String bundleId;
 
 	private Long lastEventSequenceNumber;
 

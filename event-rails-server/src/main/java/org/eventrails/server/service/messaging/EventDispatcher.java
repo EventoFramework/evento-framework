@@ -63,7 +63,7 @@ public class EventDispatcher {
 			MessageBus messageBus,
 			HandlerService handlerService,
 			EventStore eventStore,
-			@Value("${eventrails.cluster.node.server.name}") String serverNodeName, BundleDeployService bundleDeployService, PerformanceService performanceService) {
+			@Value("${eventrails.cluster.node.server.id}") String serverNodeName, BundleDeployService bundleDeployService, PerformanceService performanceService) {
 		this.bundleRepository = bundleRepository;
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
@@ -103,7 +103,7 @@ public class EventDispatcher {
 				if (entry.getValue().get(0).getHandlerType() == HandlerType.EventHandler)
 				{
 					new Thread(() -> processProjectorEvents(
-							bundle.getName(),
+							bundle.getId(),
 							entry.getKey(),
 							new ArrayList<>(),
 							entry.getValue(),
@@ -112,7 +112,7 @@ public class EventDispatcher {
 				} else if (entry.getValue().get(0).getHandlerType() == HandlerType.SagaEventHandler)
 				{
 					new Thread(() -> processSagaEvents(
-							bundle.getName(),
+							bundle.getId(),
 							entry.getKey(),
 							new ArrayList<>(),
 							entry.getValue(),
@@ -152,7 +152,7 @@ public class EventDispatcher {
 
 
 	private void processSagaEvents(
-			String bundleName,
+			String bundleId,
 			String sagaName,
 			List<PublishedEvent> events,
 			List<Handler> handlers,
@@ -168,7 +168,7 @@ public class EventDispatcher {
 						.orElseGet(() ->
 							repository.save(new EventConsumerState(
 									sagaName,
-									bundleName,
+									bundleId,
 									eventStore.getLastEventSequenceNumber()))
 						);
 				events.addAll(eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList());
@@ -182,11 +182,11 @@ public class EventDispatcher {
 				retryBlock(() -> {
 					repository.save(new EventConsumerState(
 							sagaName,
-							bundleName,
+							bundleId,
 							event.getEventSequenceNumber()));
 
 					processSagaEvents(
-							bundleName, sagaName,
+							bundleId, sagaName,
 							events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
 							handlers, eventStore,
 							repository, sagaStateRepository);
@@ -194,7 +194,7 @@ public class EventDispatcher {
 			} else
 			{
 
-				bundleDeployService.waitUntilAvailable(bundleName);
+				bundleDeployService.waitUntilAvailable(bundleId);
 				var startTime = Instant.now();
 				var associationProperty = handler.get().getAssociationProperty();
 				var associationValue = event.getEventMessage().getAssociationValue(associationProperty);
@@ -204,7 +204,7 @@ public class EventDispatcher {
 								associationProperty,
 								associationValue)
 						.orElse(new SagaState(sagaName, new SerializedSagaState<>(null)));
-				var dest = addressPicker.pickNodeAddress(bundleName);
+				var dest = addressPicker.pickNodeAddress(bundleId);
 				messageBus.request(dest,
 						new EventToSagaMessage(event.getEventMessage(),
 								sagaState.getSerializedSagaState(),
@@ -213,7 +213,7 @@ public class EventDispatcher {
 						,
 						resp -> {
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
 									event.getEventName(),
 									startTime
@@ -229,25 +229,25 @@ public class EventDispatcher {
 									sagaStateRepository.delete(sagaState);
 								repository.save(new EventConsumerState(
 										sagaName,
-										bundleName,
+										bundleId,
 										event.getEventSequenceNumber()));
 
 								processSagaEvents(
-										bundleName, sagaName,
+										bundleId, sagaName,
 										events.size() == 1 ? new ArrayList<>() : events.subList(1, events.size()), handlers, eventStore,
 										repository, sagaStateRepository);
 							});
 						},
 						error -> {
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
 									event.getEventName(),
 									startTime
 							);
 							error.toException().printStackTrace();
 							processSagaEvents(
-									bundleName, sagaName, events,
+									bundleId, sagaName, events,
 									handlers, eventStore,
 									repository, sagaStateRepository);
 
@@ -258,7 +258,7 @@ public class EventDispatcher {
 	}
 
 	private void processProjectorEvents(
-			String bundleName,
+			String bundleId,
 			String projectorName,
 			List<PublishedEvent> events,
 			List<Handler> handlers,
@@ -272,7 +272,7 @@ public class EventDispatcher {
 						.findById(projectorName)
 						.orElse(new EventConsumerState(
 								projectorName,
-								bundleName,
+								bundleId,
 								0L));
 				events.addAll(eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList());
 			}
@@ -280,33 +280,33 @@ public class EventDispatcher {
 			if (handlers.stream()
 					.noneMatch(h -> h.getHandledPayload().getName().equals(event.getEventName())))
 			{
-				processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
+				processNextProjectorEvent(bundleId, projectorName, events, handlers, eventStore, repository, event);
 			} else
 			{
 
-				bundleDeployService.waitUntilAvailable(bundleName);
+				bundleDeployService.waitUntilAvailable(bundleId);
 				var startTime = Instant.now();
-				var dest = addressPicker.pickNodeAddress(bundleName);
+				var dest = addressPicker.pickNodeAddress(bundleId);
 				messageBus.request(dest,
 						new EventToProjectorMessage(event.getEventMessage(), projectorName),
 						resp -> {
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
 									event.getEventName(),
 									startTime
 							);
-							processNextProjectorEvent(bundleName, projectorName, events, handlers, eventStore, repository, event);
+							processNextProjectorEvent(bundleId, projectorName, events, handlers, eventStore, repository, event);
 						},
 						err -> {
 							performanceService.updatePerformances(
-									dest.getNodeName(),
+									dest.getBundleId(),
 									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
 									event.getEventName(),
 									startTime
 							);
 							err.toException().printStackTrace();
-							processProjectorEvents(bundleName, projectorName, events, handlers, eventStore, repository);
+							processProjectorEvents(bundleId, projectorName, events, handlers, eventStore, repository);
 						});
 			}
 
@@ -315,18 +315,18 @@ public class EventDispatcher {
 	}
 
 	private void processNextProjectorEvent(
-			String bundleName,
+			String bundleId,
 			String projectorName,
 			List<PublishedEvent> events, List<Handler> handlers, EventStore eventStore,
 			ComponentEventConsumingStateRepository repository, PublishedEvent event) {
 		retryBlock(() -> {
 			repository.save(new EventConsumerState(
 					projectorName,
-					bundleName,
+					bundleId,
 					event.getEventSequenceNumber()));
 
 			processProjectorEvents(
-					bundleName,
+					bundleId,
 					projectorName,
 					events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
 					handlers,

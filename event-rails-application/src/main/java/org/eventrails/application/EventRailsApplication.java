@@ -42,7 +42,7 @@ public class EventRailsApplication {
     private static final Logger logger = LogManager.getLogger(EventRailsApplication.class);
 
     private final String basePackage;
-    private final String bundleName;
+    private final String bundleId;
     private final MessageBus messageBus;
 
     private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
@@ -57,7 +57,8 @@ public class EventRailsApplication {
 
     private EventRailsApplication(
             String basePackage,
-            String bundleName,
+            String bundleId,
+            long bundleVersion,
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol) {
@@ -65,7 +66,7 @@ public class EventRailsApplication {
 
         this.messageBus = messageBus;
         this.basePackage = basePackage;
-        this.bundleName = bundleName;
+        this.bundleId = bundleId;
         this.commandGateway = new CommandGateway(messageBus, serverName);
         this.queryGateway = new QueryGateway(messageBus, serverName);
 
@@ -77,7 +78,7 @@ public class EventRailsApplication {
                             .get(c.getCommandMessage().getCommandName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(c.getCommandMessage().getCommandName(), getBundleName()));
+                                .formatted(c.getCommandMessage().getCommandName(), getBundleId()));
                     var envelope = new AggregateStateEnvelope(c.getSerializedAggregateState().getAggregateState());
                     var event = handler.invoke(
                             c.getCommandMessage(),
@@ -97,7 +98,7 @@ public class EventRailsApplication {
                     var handler = getServiceMessageHandlers().get(c.getCommandName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(c.getCommandName(), getBundleName()));
+                                .formatted(c.getCommandName(), getBundleId()));
                     var event = handler.invoke(
                             c,
                             commandGateway,
@@ -107,7 +108,7 @@ public class EventRailsApplication {
                 } else if (request instanceof QueryMessage<?> q) {
                     var handler = getProjectionMessageHandlers().get(q.getQueryName());
                     if (handler == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleName()));
+                        throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));
                     var result = handler.invoke(
                             q,
                             commandGateway,
@@ -119,13 +120,13 @@ public class EventRailsApplication {
                             .get(m.getEventMessage().getEventName());
                     if (handlers == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleName()));
+                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
 
 
                     var handler = handlers.getOrDefault(m.getProjectorName(), null);
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleName()));
+                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
 
                     handler.begin();
                     handler.invoke(
@@ -140,13 +141,13 @@ public class EventRailsApplication {
                             .get(m.getEventMessage().getEventName());
                     if (handlers == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleName()));
+                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
 
 
                     var handler = handlers.getOrDefault(m.getSagaName(), null);
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleName()));
+                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
 
 
                     var state = handler.invoke(
@@ -246,7 +247,8 @@ public class EventRailsApplication {
                     });
                     handlers.addAll(invocationHandlers);
                     response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
-                            bundleName,
+                            bundleId,
+                            bundleVersion,
                             handlers
                     ));
                 } else {
@@ -264,16 +266,18 @@ public class EventRailsApplication {
 
     public static EventRailsApplication start(
             String basePackage,
-            String bundleName,
+            String bundleId,
+            long bundleVersion,
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol) {
-       return start(basePackage, bundleName, serverName, messageBus,autoscalingProtocol, clz->null);
+       return start(basePackage, bundleId, bundleVersion, serverName, messageBus,autoscalingProtocol, clz->null);
     }
 
     public static EventRailsApplication start(
             String basePackage,
-            String bundleName,
+            String bundleId,
+            long bundleVersion,
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
@@ -281,10 +285,10 @@ public class EventRailsApplication {
 
 
         try {
-            logger.info("Starting EventRailsApplication %s".formatted(bundleName));
+            logger.info("Starting EventRailsApplication %s".formatted(bundleId));
             logger.info("Used message bus: %s".formatted(messageBus.getClass().getName()));
             logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
-            EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleName, serverName, messageBus, autoscalingProtocol);
+            EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol);
             eventRailsApplication.parsePackage(findInjectableObject);
             logger.info("Enabling message bus");
             messageBus.enableBus();
@@ -407,8 +411,8 @@ public class EventRailsApplication {
         return basePackage;
     }
 
-    public String getBundleName() {
-        return bundleName;
+    public String getBundleId() {
+        return bundleId;
     }
 
     public void gracefulShutdown() {
@@ -417,7 +421,7 @@ public class EventRailsApplication {
 
     public static class ApplicationInfo {
         public String basePackage;
-        public String bundleName;
+        public String bundleId;
         public String clusterName;
 
         public Set<String> aggregateMessageHandlers;
@@ -430,7 +434,7 @@ public class EventRailsApplication {
     public ApplicationInfo getAppInfo() {
         var info = new ApplicationInfo();
         info.basePackage = basePackage;
-        info.bundleName = bundleName;
+        info.bundleId = bundleId;
         info.aggregateMessageHandlers = aggregateMessageHandlers.keySet();
         info.serviceMessageHandlers = serviceMessageHandlers.keySet();
         info.projectionMessageHandlers = projectionMessageHandlers.keySet();

@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 public class HandlerDto implements Serializable {
 	private String uuid;
 	private PayloadDto handledPayload;
-	private String bundleName;
+	private String bundleId;
 	private String componentName;
 	private PayloadDto returnType;
 	private ComponentType componentType;
@@ -32,7 +32,7 @@ public class HandlerDto implements Serializable {
 
 	public HandlerDto(Handler handler) {
 		this.uuid = handler.getUuid();
-		this.bundleName = handler.getBundle().getName();
+		this.bundleId = handler.getBundle().getId();
 		this.componentName = handler.getComponentName();
 		this.componentType = handler.getComponentType();
 		this.handlerType = handler.getHandlerType();

@@ -4,24 +4,24 @@ import java.io.Serializable;
 
 public class ClusterNodeIsBoredMessage implements Serializable {
 
-	private String bundleName;
+	private String bundleId;
 
 	private String nodeId;
 
 	public ClusterNodeIsBoredMessage() {
 	}
 
-	public ClusterNodeIsBoredMessage(String bundleName, String nodeId) {
-		this.bundleName = bundleName;
+	public ClusterNodeIsBoredMessage(String bundleId, String nodeId) {
+		this.bundleId = bundleId;
 		this.nodeId = nodeId;
 	}
 
-	public String getBundleName() {
-		return bundleName;
+	public String getBundleId() {
+		return bundleId;
 	}
 
-	public void setBundleName(String bundleName) {
-		this.bundleName = bundleName;
+	public void setBundleId(String bundleId) {
+		this.bundleId = bundleId;
 	}
 
 	public String getNodeId() {

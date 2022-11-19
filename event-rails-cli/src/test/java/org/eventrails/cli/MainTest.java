@@ -12,13 +12,14 @@ import static org.junit.jupiter.api.Assertions.*;
 class MainTest {
 
 	@Test
-	public void test() throws IOException {
-		Main.main(new String[]{"event-rails-bundle-demo-api", "../event-rails-demo/event-rails-demo-api", "http://localhost:3000"});
-		Main.main(new String[]{"event-rails-bundle-demo-command", "../event-rails-demo/event-rails-demo-command", "http://localhost:3000"});
-		Main.main(new String[]{"event-rails-bundle-demo-query", "../event-rails-demo/event-rails-demo-query", "http://localhost:3000"});
-		Main.main(new String[]{"event-rails-bundle-demo-saga", "../event-rails-demo/event-rails-demo-saga", "http://localhost:3000"});
-		Main.main(new String[]{"event-rails-bundle-demo-web-domain", "../event-rails-demo/event-rails-demo-web-domain", "http://localhost:3000"});
-		Main.main(new String[]{"event-rails-bundle-demo-agent", "../event-rails-demo/event-rails-demo-agent", "http://localhost:3000"});
+	public void test() throws Exception {
+		var serverUrl = "http://localhost:3000";
+		Main.main(new String[]{ "../event-rails-demo/event-rails-demo-api", serverUrl});
+		Main.main(new String[]{ "../event-rails-demo/event-rails-demo-command", serverUrl});
+		Main.main(new String[]{ "../event-rails-demo/event-rails-demo-query", serverUrl});
+		Main.main(new String[]{ "../event-rails-demo/event-rails-demo-saga", serverUrl});
+		Main.main(new String[]{"../event-rails-demo/event-rails-demo-web-domain", serverUrl});
+		Main.main(new String[]{ "../event-rails-demo/event-rails-demo-agent", serverUrl});
 	}
 
 
