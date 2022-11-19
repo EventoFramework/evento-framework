@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import {ActivatedRoute} from "@angular/router";
 import {BundleService} from "../../../services/bundle.service";
 import {bundle} from "@angular-devkit/build-angular/src/builders/browser-esbuild/esbuild";
+import {NavController} from "@ionic/angular";
 
 @Component({
   selector: 'app-bundle-info',
@@ -16,7 +17,7 @@ export class BundleInfoPage implements OnInit {
   environmentKeys: string[] = [];
   vmOptionsKeys: string[] = [];
 
-  constructor(private route: ActivatedRoute, private bundleService: BundleService) { }
+  constructor(private route: ActivatedRoute, private bundleService: BundleService, private navController: NavController) { }
 
   async ngOnInit() {
     this.bundleName = this.route.snapshot.params.identifier;
@@ -53,5 +54,11 @@ export class BundleInfoPage implements OnInit {
     this.bundleService.removeVmOption(this.bundleName, key).finally();
     delete this.bundle.vmOptions[key];
     this.vmOptionsKeys = Object.keys(this.bundle.vmOptionsKeys);
+  }
+
+  async unregister() {
+    await this.bundleService.unregister(this.bundleName);
+    await this.navController.navigateBack('/bundle-list')
+
   }
 }

@@ -16,7 +16,10 @@ export class BundleListPage implements OnInit {
               private toastController: ToastController) {
   }
 
-  async ngOnInit() {
+  ngOnInit() {
+  }
+
+  async ionViewWillEnter(){
     this.elements = await this.bundleService.findAll();
   }
 

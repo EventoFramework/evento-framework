@@ -3,6 +3,7 @@ package org.eventrails.server.service.performance;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.performance.HandlerPerformances;
+import org.eventrails.server.domain.performance.modeling.Performance;
 import org.eventrails.server.domain.repository.HandlerPerformancesRepository;
 import org.springframework.stereotype.Service;
 
@@ -18,22 +19,6 @@ public class PerformanceService {
     public static final String GATEWAY_COMPONENT = "Gateway";
     public static final String SERVER = "server";
 
-    /*
-
-    select *,
-       ifnull((last_throughput * 1000) * (250 / (250 + departures)) +
-              departures / ((UNIX_TIMESTAMP(updated_at) - UNIX_TIMESTAMP(last_throughput_updated_at))) *
-              (departures / (250 + departures)),
-              departures / ((UNIX_TIMESTAMP(updated_at) - UNIX_TIMESTAMP(created_at))))
-                                                                                                as 'c_t',
-       ifnull((last_throughput * 1000) * (250 / (250 + departures)) +
-              departures / ((UNIX_TIMESTAMP(updated_at) - UNIX_TIMESTAMP(last_throughput_updated_at))) *
-              (departures / (250 + departures)),
-              departures / ((UNIX_TIMESTAMP(updated_at) - UNIX_TIMESTAMP(created_at)))) * (mean_service_time/1000) as 'u',
-       departures / ((UNIX_TIMESTAMP(updated_at) - UNIX_TIMESTAMP(last_throughput_updated_at))) as 't'
-from performance__handler ph inner join core__handler h on h.uuid = ph.handler_id;
-     */
-
     private final HandlerPerformancesRepository handlerPerformancesRepository;
     public static final double ALPHA = 0.9;
     public static final int MAX_DEPARTURES = 200;
@@ -44,6 +29,11 @@ from performance__handler ph inner join core__handler h on h.uuid = ph.handler_i
         return Instant.now();
     }
 
+    public Performance getPerformance(String bundle, String component, String action) {
+       return handlerPerformancesRepository.findById(bundle + "_" + component + "_" + action).map(
+               p -> p.toPerformance(MAX_DEPARTURES)
+       ).orElse(new Performance(null, null));
+    }
 
 
     private static record PerformanceLog(NodeAddress dest, Handler handler, Instant startTime){}

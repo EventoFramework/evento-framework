@@ -12,12 +12,18 @@ public class TransitionDto {
 	private String component;
 	private String action;
 	private Set<Long> target;
+
+	private Double meanServiceTime;
+
+	private Double meanThroughput;
 	public TransitionDto(Transition transition){
 		id = transition.getId();
 		bundle = transition.getBundle();
 		component = transition.getComponent();
 		action = transition.getAction();
 		target = transition.getTarget().stream().map(Post::getId).collect(Collectors.toSet());
+		meanThroughput = transition.getMeanThroughput();
+		meanServiceTime = transition.getMeanServiceTime();
 	}
 
 	public TransitionDto() {
@@ -61,5 +67,21 @@ public class TransitionDto {
 
 	public void setAction(String action) {
 		this.action = action;
+	}
+
+	public Double getMeanServiceTime() {
+		return meanServiceTime;
+	}
+
+	public void setMeanServiceTime(Double meanServiceTime) {
+		this.meanServiceTime = meanServiceTime;
+	}
+
+	public Double getMeanThroughput() {
+		return meanThroughput;
+	}
+
+	public void setMeanThroughput(Double meanThroughput) {
+		this.meanThroughput = meanThroughput;
 	}
 }

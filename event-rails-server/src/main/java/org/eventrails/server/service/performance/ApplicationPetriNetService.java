@@ -5,9 +5,7 @@ import org.eventrails.server.domain.model.Handler;
 import org.eventrails.server.domain.model.Payload;
 import org.eventrails.common.modeling.bundle.types.HandlerType;
 import org.eventrails.common.modeling.bundle.types.PayloadType;
-import org.eventrails.server.domain.performance.modeling.Network;
-import org.eventrails.server.domain.performance.modeling.Post;
-import org.eventrails.server.domain.performance.modeling.Transition;
+import org.eventrails.server.domain.performance.modeling.*;
 import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.domain.repository.HandlerRepository;
 import org.springframework.stereotype.Service;
@@ -24,17 +22,20 @@ public class ApplicationPetriNetService {
 
 	private final HandlerRepository handlerRepository;
 
+	private final PerformanceService performanceService;
+
 	public ApplicationPetriNetService(
 			BundleRepository bundleRepository,
-			HandlerRepository handlerRepository) {
+			HandlerRepository handlerRepository, PerformanceService performanceService) {
 		this.bundleRepository = bundleRepository;
 		this.handlerRepository = handlerRepository;
+		this.performanceService = performanceService;
 	}
 	
 	public Network toPetriNet() {
 
 
-		var n = new Network();
+		var n = new Network(performanceService::getPerformance);
 		
 		for (Bundle bundle : bundleRepository.findAll())
 		{

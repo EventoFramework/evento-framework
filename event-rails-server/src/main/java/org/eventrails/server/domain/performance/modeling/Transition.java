@@ -12,12 +12,19 @@ public class Transition {
     private String action;
     private Set<Post> target;
 
-    public Transition(long id, String bundle,String component,String action) {
+    private Double meanServiceTime;
+
+    private Double meanThroughput;
+
+
+    public Transition(long id, String bundle,String component,String action, Double meanServiceTime, Double meanThroughput) {
         this.id = id;
         this.bundle = bundle;
         this.component = component;
         this.action = action;
         target = new HashSet<>();
+        this.meanServiceTime = meanServiceTime;
+        this.meanThroughput = meanThroughput;
     }
 
     public long getId() {
@@ -58,6 +65,22 @@ public class Transition {
 
     public void setTarget(Set<Post> target) {
         this.target = target;
+    }
+
+    public Double getMeanServiceTime() {
+        return meanServiceTime;
+    }
+
+    public void setMeanServiceTime(Double meanServiceTime) {
+        this.meanServiceTime = meanServiceTime;
+    }
+
+    public Double getMeanThroughput() {
+        return meanThroughput;
+    }
+
+    public void setMeanThroughput(Double meanThroughput) {
+        this.meanThroughput = meanThroughput;
     }
 
     @Override
