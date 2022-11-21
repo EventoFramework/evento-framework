@@ -10,23 +10,23 @@ import org.eventrails.common.modeling.annotations.component.Projector;
 import org.eventrails.common.messaging.gateway.QueryGateway;
 import org.eventrails.common.modeling.bundle.TransactionalProjector;
 import org.eventrails.demo.api.utils.Utils;
-import org.eventrails.demo.query.domain.Demo;
-import org.eventrails.demo.query.domain.DemoRepository;
+import org.eventrails.demo.query.domain.mongo.DemoMongo;
+import org.eventrails.demo.query.domain.mongo.DemoMongoRepository;
 
 import java.time.Instant;
 
 @Projector
-public class DemoProjector implements TransactionalProjector {
+public class DemoMongoProjector implements TransactionalProjector {
 
 
 	@Inject
-	private DemoRepository demoRepository;
+	private DemoMongoRepository demoMongoRepository;
 
 	@EventHandler
 	void on(DemoCreatedEvent event, QueryGateway queryGateway, EventMessage eventMessage){
 		Utils.logMethodFlow(this,"on", event, "BEGIN");
 		var now = Instant.now();
-		demoRepository.save(new Demo(event.getDemoId(), event.getName(), event.getValue(),now, now ));
+		demoMongoRepository.save(new DemoMongo(event.getDemoId(), event.getName(), event.getValue(),now, now, null ));
 		Utils.logMethodFlow(this,"on", event, "END");
 
 
@@ -35,11 +35,11 @@ public class DemoProjector implements TransactionalProjector {
 	@EventHandler
 	void on(DemoUpdatedEvent event){
 		Utils.logMethodFlow(this,"on", event, "BEGIN");
-		demoRepository.findById(event.getDemoId()).ifPresent(d -> {
+		demoMongoRepository.findById(event.getDemoId()).ifPresent(d -> {
 			d.setName(event.getName());
 			d.setValue(event.getValue());
 			d.setUpdatedAt(Instant.now());
-			demoRepository.save(d);
+			demoMongoRepository.save(d);
 		});
 		Utils.logMethodFlow(this,"on", event, "END");
 
@@ -48,7 +48,10 @@ public class DemoProjector implements TransactionalProjector {
 	@EventHandler
 	void on(DemoDeletedEvent event){
 		Utils.logMethodFlow(this,"on", event, "BEGIN");
-		demoRepository.deleteById(event.getDemoId());
+		demoMongoRepository.findById(event.getDemoId()).ifPresent(d -> {
+			d.setDeletedAt(Instant.now());
+			demoMongoRepository.save(d);
+		});
 		Utils.logMethodFlow(this,"on", event, "END");
 
 	}

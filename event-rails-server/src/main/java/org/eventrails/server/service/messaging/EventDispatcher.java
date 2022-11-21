@@ -1,5 +1,6 @@
 package org.eventrails.server.service.messaging;
 
+import org.eventrails.common.modeling.bundle.types.ComponentType;
 import org.eventrails.common.modeling.messaging.dto.PublishedEvent;
 import org.eventrails.common.modeling.messaging.message.application.EventToProjectorMessage;
 import org.eventrails.common.modeling.messaging.message.application.EventToSagaMessage;
@@ -7,6 +8,10 @@ import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.common.messaging.utils.AddressPicker;
 import org.eventrails.common.messaging.utils.RoundRobinAddressPicker;
+import org.eventrails.common.modeling.messaging.message.bus.ResponseSender;
+import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventLockAlreadyAcquiredException;
+import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventRequest;
+import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventResponse;
 import org.eventrails.common.modeling.state.SerializedSagaState;
 import org.eventrails.server.domain.model.EventConsumerState;
 import org.eventrails.server.domain.model.Handler;
@@ -25,6 +30,7 @@ import org.springframework.beans.factory.BeanCreationNotAllowedException;
 import org.springframework.beans.factory.UnsatisfiedDependencyException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationPropertiesBindException;
+import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -32,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -39,6 +46,7 @@ import static java.util.stream.Collectors.groupingBy;
 @Service
 public class EventDispatcher {
 
+	private static final String CONSUMER_LOCK_PREFIX = "CONSUMER:";
 	private final BundleRepository bundleRepository;
 
 	private final SagaStateRepository sagaStateRepository;
@@ -52,11 +60,9 @@ public class EventDispatcher {
 	private final EventStore eventStore;
 	private final String serverNodeName;
 
-	private final AddressPicker addressPicker;
-
-	private final BundleDeployService bundleDeployService;
-
 	private final PerformanceService performanceService;
+	private final LockRegistry lockRegistry;
+
 	private boolean isShuttingDown = false;
 
 
@@ -68,8 +74,8 @@ public class EventDispatcher {
 			HandlerService handlerService,
 			EventStore eventStore,
 			@Value("${eventrails.cluster.node.server.id}") String serverNodeName,
-			BundleDeployService bundleDeployService,
-			PerformanceService performanceService) {
+			PerformanceService performanceService,
+			LockRegistry lockRegistry) {
 		this.bundleRepository = bundleRepository;
 		this.sagaStateRepository = sagaStateRepository;
 		this.componentEventConsumingStateRepository = componentEventConsumingStateRepository;
@@ -77,311 +83,200 @@ public class EventDispatcher {
 		this.handlerService = handlerService;
 		this.eventStore = eventStore;
 		this.serverNodeName = serverNodeName;
-		this.addressPicker = new RoundRobinAddressPicker(messageBus);
-		this.bundleDeployService = bundleDeployService;
 		this.performanceService = performanceService;
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			this.isShuttingDown = true;
-		}));
-		eventConsumer();
+		this.lockRegistry = lockRegistry;
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> isShuttingDown = true));
 	}
 
-	private void eventConsumer() {
-
-		var dispatcherAddresses = fetchDispatcherAddresses().stream().map(NodeAddress::getAddress).toList();
-		var nodeIndex = dispatcherAddresses.indexOf(messageBus.getAddress().getAddress());
-		var nodeCount = dispatcherAddresses.size();
-
-		var bundles = bundleRepository.findAll();
-		var managedBundles = new ArrayList<Bundle>();
-
-		for (int i = 0; i < bundles.size(); i++)
+	public void handleRequest(NodeAddress source, FetchEventRequest d, ResponseSender response) {
+		var consumerId = source.getBundleId() + "_" + source.getBundleVersion() + "_" + d.getComponentName();
+		var lock = lockRegistry.obtain(CONSUMER_LOCK_PREFIX + consumerId);
+		if (lock.tryLock())
 		{
-			if (i % nodeCount == nodeIndex)
-			{
-				managedBundles.add(bundles.get(i));
-			}
-		}
-
-		for (Bundle bundle : managedBundles)
-		{
-			for (Map.Entry<String, List<Handler>> entry : handlerService.findAllEventHandlersByBundle(bundle)
-					.stream().collect(groupingBy(Handler::getComponentName)).entrySet())
-			{
-
-				if (entry.getValue().get(0).getHandlerType() == HandlerType.EventHandler)
-				{
-					new Thread(() -> processProjectorEvents(
-							bundle.getId(),
-							entry.getKey(),
-							new ArrayList<>(),
-							entry.getValue(),
-							eventStore,
-							componentEventConsumingStateRepository), entry.getKey() + " - EventConsumerThread").start();
-				} else if (entry.getValue().get(0).getHandlerType() == HandlerType.SagaEventHandler)
-				{
-					new Thread(() -> processSagaEvents(
-							bundle.getId(),
-							entry.getKey(),
-							new ArrayList<>(),
-							entry.getValue(),
-							eventStore,
-							componentEventConsumingStateRepository,
-							sagaStateRepository), entry.getKey() + " - EventConsumerThread").start();
-				}
-			}
-		}
-	}
-
-	private interface CodeBlock {
-		void run() throws Exception;
-	}
-
-	private void retryBlock(CodeBlock runnable) {
-		while (true)
-		{
-			if (this.isShuttingDown) return;
-			//var t = transactionManager.getTransaction(null);
 			try
 			{
-				runnable.run();
-				//transactionManager.commit(t);
-				return;
-			} catch (ConfigurationPropertiesBindException
-					 | UnsatisfiedDependencyException |
-					 BeanCreationNotAllowedException e)
-			{
-				for (int i = 0; i < 5; i++)
-				{
-					try
-					{
-						Thread.sleep(3000);
-						if (this.isShuttingDown) return;
-					} catch (InterruptedException ignored)
-					{
-					}
-				}
-				e.printStackTrace();
-				try
-				{
-					Thread.sleep(3 * 1000);
-				} catch (InterruptedException ignored)
-				{
-				}
-
+				var state = componentEventConsumingStateRepository
+						.findById(consumerId)
+						.orElseGet(() ->
+								componentEventConsumingStateRepository.save(new EventConsumerState(
+										consumerId,
+										d.getComponentType() == ComponentType.Saga ?
+												eventStore.getLastEventSequenceNumber() : 0))
+						);
+				processEvents(
+						eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList(),
+						consumerId,
+						d.getComponentType(),
+						d.getComponentName(),
+						source,
+						response,
+						lock,
+						0
+				);
 			} catch (Exception e)
 			{
-				e.printStackTrace();
-				try
-				{
-					Thread.sleep(3 * 1000);
-				} catch (InterruptedException ignored)
-				{
-				}
-				//transactionManager.rollback(t);
+				response.sendError(e);
+				lock.unlock();
 			}
+
+		} else
+		{
+			response.sendResponse(new FetchEventResponse(false, 0));
 		}
 	}
 
-
-	private void processSagaEvents(
-			String bundleId,
-			String sagaName,
+	private void processEvents(
 			List<PublishedEvent> events,
-			List<Handler> handlers,
-			EventStore eventStore,
-			ComponentEventConsumingStateRepository repository,
-			SagaStateRepository sagaStateRepository) {
-		retryBlock(() -> {
-			while (events.isEmpty())
-			{
-				if (this.isShuttingDown) return;
-				Thread.sleep(1000);
-				var state = repository
-						.findById(sagaName)
-						.orElseGet(() ->
-								repository.save(new EventConsumerState(
-										sagaName,
-										bundleId,
-										eventStore.getLastEventSequenceNumber()))
-						);
-				events.addAll(eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList());
-			}
-			var event = events.get(0);
+			String consumerId,
+			ComponentType componentType,
+			String componentName,
+			NodeAddress source,
+			ResponseSender response,
+			Lock lock,
+			long count) {
+		if (events.isEmpty() || isShuttingDown)
+		{
+			response.sendResponse(new FetchEventResponse(true, count));
+			lock.unlock();
+			return;
+		}
+		var event = events.get(0);
 
-			var handler = handlers.stream()
-					.filter(h -> h.getHandledPayload().getName().equals(event.getEventName())).findFirst();
-			if (handler.isEmpty())
-			{
-				retryBlock(() -> {
-					repository.save(new EventConsumerState(
-							sagaName,
-							bundleId,
-							event.getEventSequenceNumber()));
+		performanceService.updatePerformances(
+				PerformanceService.DISPATCHER,
+				componentName,
+				event.getEventName(),
+				Instant.ofEpochMilli(event.getCreatedAt())
+		);
 
-					processSagaEvents(
-							bundleId, sagaName,
-							events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
-							handlers, eventStore,
-							repository, sagaStateRepository);
-				});
-			} else
-			{
+		try
+		{
+			var oHandler = handlerService.findById(
+					Handler.generateId(
+							source.getBundleId(),
+							componentName,
+							componentType,
+							event.getEventName()
+					)
+			);
 
-				bundleDeployService.waitUntilAvailable(bundleId);
-				performanceService.updatePerformances(
-						PerformanceService.DISPATCHER,
-						handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
-						event.getEventName(),
-						Instant.ofEpochMilli(event.getCreatedAt())
-				);
+			if (oHandler.isPresent())
+			{
 				var startTime = Instant.now();
-				var associationProperty = handler.get().getAssociationProperty();
-				var associationValue = event.getEventMessage().getAssociationValue(associationProperty);
 
-				var sagaState = sagaStateRepository.getLastStatus(
-								sagaName,
-								associationProperty,
-								associationValue)
-						.orElse(new SagaState(sagaName, new SerializedSagaState<>(null)));
-				var dest = addressPicker.pickNodeAddress(bundleId);
-				messageBus.request(dest,
-						new EventToSagaMessage(event.getEventMessage(),
-								sagaState.getSerializedSagaState(),
-								sagaName
-						)
-						,
-						resp -> {
-							performanceService.updatePerformances(
-									dest.getBundleId(),
-									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
-									event.getEventName(),
-									startTime
-							);
-							retryBlock(() -> {
-								if (!((SerializedSagaState<?>) resp).isEnded())
-									sagaStateRepository.save(new SagaState(
-											sagaState.getId(),
-											sagaState.getSagaName(),
-											(SerializedSagaState<?>) resp
-									));
-								else
-									sagaStateRepository.delete(sagaState);
-								repository.save(new EventConsumerState(
-										sagaName,
-										bundleId,
-										event.getEventSequenceNumber()));
-
-								processSagaEvents(
-										bundleId, sagaName,
-										events.size() == 1 ? new ArrayList<>() : events.subList(1, events.size()), handlers, eventStore,
-										repository, sagaStateRepository);
+				if (componentType == ComponentType.Projector)
+				{
+					messageBus.request(source,
+							new EventToProjectorMessage(event.getEventMessage(), componentName),
+							resp -> {
+								try
+								{
+									componentEventConsumingStateRepository.save(new EventConsumerState(
+											consumerId,
+											event.getEventSequenceNumber()));
+									performanceService.updatePerformances(
+											source.getBundleId(),
+											componentName,
+											event.getEventName(),
+											startTime
+									);
+									processEvents(events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
+											consumerId,
+											componentType,
+											componentName,
+											source,
+											response,
+											lock,
+											count + 1);
+								} catch (Exception e)
+								{
+									response.sendError(e);
+									lock.unlock();
+								}
+							},
+							err -> {
+								response.sendError(err.toThrowable());
+								lock.unlock();
 							});
-						},
-						error -> {
-							performanceService.updatePerformances(
-									dest.getBundleId(),
-									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
-									event.getEventName(),
-									startTime
-							);
-							error.toException().printStackTrace();
-							processSagaEvents(
-									bundleId, sagaName, events,
-									handlers, eventStore,
-									repository, sagaStateRepository);
+				} else if (componentType == ComponentType.Saga)
+				{
+					var associationProperty = oHandler.get().getAssociationProperty();
+					var associationValue = event.getEventMessage().getAssociationValue(associationProperty);
 
-						});
-			}
-		});
+					var sagaState = sagaStateRepository.getLastStatus(
+									componentName,
+									associationProperty,
+									associationValue)
+							.orElse(new SagaState(componentName, new SerializedSagaState<>(null)));
+					messageBus.request(source,
+							new EventToSagaMessage(event.getEventMessage(),
+									sagaState.getSerializedSagaState(),
+									componentName
+							)
+							,
+							resp -> {
+								try
+								{
+									if (!((SerializedSagaState<?>) resp).isEnded())
+										sagaStateRepository.save(new SagaState(
+												sagaState.getId(),
+												sagaState.getSagaName(),
+												(SerializedSagaState<?>) resp
+										));
+									else
+										sagaStateRepository.delete(sagaState);
+									componentEventConsumingStateRepository.save(new EventConsumerState(
+											consumerId,
+											event.getEventSequenceNumber()));
 
-	}
+									performanceService.updatePerformances(
+											source.getBundleId(),
+											componentName,
+											event.getEventName(),
+											startTime
+									);
 
-	private void processProjectorEvents(
-			String bundleId,
-			String projectorName,
-			List<PublishedEvent> events,
-			List<Handler> handlers,
-			EventStore eventStore,
-			ComponentEventConsumingStateRepository repository) {
-		retryBlock(() -> {
-			while (events.isEmpty())
-			{
-				if (this.isShuttingDown) return;
-				Thread.sleep(1000);
-				var state = componentEventConsumingStateRepository
-						.findById(projectorName)
-						.orElse(new EventConsumerState(
-								projectorName,
-								bundleId,
-								0L));
-				events.addAll(eventStore.fetchEvents(state.getLastEventSequenceNumber()).stream().map(EventStoreEntry::toPublishedEvent).toList());
-			}
-			var event = events.get(0);
-			if (handlers.stream()
-					.noneMatch(h -> h.getHandledPayload().getName().equals(event.getEventName())))
-			{
-				processNextProjectorEvent(bundleId, projectorName, events, handlers, eventStore, repository, event);
+									processEvents(events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
+											consumerId,
+											componentType,
+											componentName,
+											source,
+											response,
+											lock,
+											count + 1);
+								} catch (Exception e)
+								{
+									response.sendError(e);
+									lock.unlock();
+								}
+							},
+							error -> {
+								response.sendError(error.toThrowable());
+								lock.unlock();
+							});
+				}
 			} else
 			{
-
-				bundleDeployService.waitUntilAvailable(bundleId);
-				performanceService.updatePerformances(
-						PerformanceService.DISPATCHER,
-						handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
-						event.getEventName(),
-						Instant.ofEpochMilli(event.getCreatedAt())
-				);
-				var startTime = Instant.now();
-				var dest = addressPicker.pickNodeAddress(bundleId);
-				messageBus.request(dest,
-						new EventToProjectorMessage(event.getEventMessage(), projectorName),
-						resp -> {
-							performanceService.updatePerformances(
-									dest.getBundleId(),
-									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
-									event.getEventName(),
-									startTime
-							);
-							processNextProjectorEvent(bundleId, projectorName, events, handlers, eventStore, repository, event);
-						},
-						err -> {
-							performanceService.updatePerformances(
-									dest.getBundleId(),
-									handlers.stream().map(Handler::getComponentName).distinct().collect(Collectors.toList()),
-									event.getEventName(),
-									startTime
-							);
-							err.toException().printStackTrace();
-							processProjectorEvents(bundleId, projectorName, events, handlers, eventStore, repository);
-						});
+				componentEventConsumingStateRepository.save(new EventConsumerState(
+						consumerId,
+						event.getEventSequenceNumber()));
+				processEvents(events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
+						consumerId,
+						componentType,
+						componentName,
+						source,
+						response,
+						lock,
+						count + 1);
 			}
 
 
-		});
+		} catch (Exception e)
+		{
+			response.sendError(e);
+			lock.unlock();
+		}
 	}
-
-	private void processNextProjectorEvent(
-			String bundleId,
-			String projectorName,
-			List<PublishedEvent> events, List<Handler> handlers, EventStore eventStore,
-			ComponentEventConsumingStateRepository repository, PublishedEvent event) {
-		retryBlock(() -> {
-			repository.save(new EventConsumerState(
-					projectorName,
-					bundleId,
-					event.getEventSequenceNumber()));
-
-			processProjectorEvents(
-					bundleId,
-					projectorName,
-					events.size() == 1 ? new ArrayList<PublishedEvent>() : events.subList(1, events.size()),
-					handlers,
-					eventStore,
-					repository);
-		});
-	}
-
 
 	private Set<NodeAddress> fetchDispatcherAddresses() {
 		return this.messageBus.findAllNodeAddresses(serverNodeName);
