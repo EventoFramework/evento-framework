@@ -12,7 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.Collection;
 import java.util.List;
 
-public interface HandlerRepository extends JpaRepository<Handler, Bundle> {
+public interface HandlerRepository extends JpaRepository<Handler, String> {
 
 	public void deleteAllByBundle_Id(String bunleId);
 
@@ -31,4 +31,5 @@ public interface HandlerRepository extends JpaRepository<Handler, Bundle> {
 
 	@Query("select count(h) > 0 from Handler h where h.bundle.id = ?1 and h.componentType = ?2 and h.componentName = ?3 and h.handlerType = ?4 and h.handledPayload.name = ?5" )
 	boolean exists(String bundleId, ComponentType componentType, String componentName, HandlerType handlerType, String handledPayload);
+
 }

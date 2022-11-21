@@ -14,6 +14,9 @@ import org.eventrails.common.modeling.exceptions.HandlerNotFoundException;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
+import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventLockAlreadyAcquiredException;
+import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventRequest;
+import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventResponse;
 import org.eventrails.common.modeling.messaging.payload.DomainEvent;
 import org.eventrails.common.modeling.messaging.query.Multiple;
 import org.eventrails.common.modeling.messaging.query.SerializedQueryResponse;
@@ -44,6 +47,7 @@ public class EventRailsApplication {
     private final String basePackage;
     private final String bundleId;
     private final MessageBus messageBus;
+    private final String serverName;
 
     private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
     private HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
@@ -54,6 +58,10 @@ public class EventRailsApplication {
     private final List<RegisteredHandler> invocationHandlers = new ArrayList<>();
     private transient CommandGateway commandGateway;
     private transient QueryGateway queryGateway;
+    private List<ProjectorReference> projectors = new ArrayList<>();
+    private List<SagaReference> sagas = new ArrayList<>();
+
+    private boolean isShuttingDown = false;
 
     private EventRailsApplication(
             String basePackage,
@@ -69,8 +77,9 @@ public class EventRailsApplication {
         this.bundleId = bundleId;
         this.commandGateway = new CommandGateway(messageBus, serverName);
         this.queryGateway = new QueryGateway(messageBus, serverName);
+        this.serverName = serverName;
 
-        messageBus.setRequestReceiver((request, response) -> {
+        messageBus.setRequestReceiver((src, request, response) -> {
             try {
                 autoscalingProtocol.arrival();
                 if (request instanceof DecoratedDomainCommandMessage c) {
@@ -115,7 +124,8 @@ public class EventRailsApplication {
                             queryGateway
                     );
                     response.sendResponse(new SerializedQueryResponse<>(result));
-                } else if (request instanceof EventToProjectorMessage m) {
+                }
+                else if (request instanceof EventToProjectorMessage m) {
                     var handlers = getProjectorMessageHandlers()
                             .get(m.getEventMessage().getEventName());
                     if (handlers == null)
@@ -262,6 +272,8 @@ public class EventRailsApplication {
 
         });
 
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> this.isShuttingDown = true));
+
     }
 
     public static EventRailsApplication start(
@@ -295,6 +307,7 @@ public class EventRailsApplication {
             logger.info("Message bus enabled");
             logger.info("Wait for discovery");
             Thread.sleep(3000);
+            eventRailsApplication.startEventConsumers();
             logger.info("Application Started!");
             return eventRailsApplication;
         } catch (Exception e) {
@@ -330,6 +343,7 @@ public class EventRailsApplication {
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projector.class)) {
             var projectorReference = new ProjectorReference(createComponentInstance(aClass, findInjectableObject));
+            projectors.add(projectorReference);
             for (String event : projectorReference.getRegisteredEvents()) {
                 var hl = projectorMessageHandlers.getOrDefault(event, new HashMap<>());
                 hl.put(aClass.getSimpleName(), projectorReference);
@@ -339,6 +353,7 @@ public class EventRailsApplication {
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Saga.class)) {
             var sagaReference = new SagaReference(createComponentInstance(aClass, findInjectableObject));
+            sagas.add(sagaReference);
             for (String event : sagaReference.getRegisteredEvents()) {
                 var hl = sagaMessageHandlers.getOrDefault(event, new HashMap<>());
                 hl.put(aClass.getSimpleName(), sagaReference);
@@ -366,6 +381,40 @@ public class EventRailsApplication {
             }
         }
         logger.info("Discovery Complete");
+    }
+
+    public void startEventConsumers(){
+        logger.info("Checking for event consumers");
+        for (ProjectorReference projector : projectors)
+        {
+            logger.info("Starting event consumer for %s".formatted(projector.getRef().getClass().getName()));
+            new Thread(() -> {
+                while (!isShuttingDown)
+                {
+                    try
+                    {
+                        var resp = (FetchEventResponse) messageBus.request(messageBus.findNodeAddress(serverName),
+                                new FetchEventRequest(
+                                        ComponentType.Projector,
+                                        projector.getRef().getClass().getSimpleName())).join();
+                        if(!resp.getDone() || resp.getCount() < 5){
+                            Thread.sleep(2500);
+                        }
+                    } catch (Exception e)
+                    {
+                        logger.error(e);
+                        try
+                        {
+                            Thread.sleep(2500);
+                        } catch (InterruptedException ex)
+                        {
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                }
+
+            }).start();
+        }
     }
 
     private Object createComponentInstance(Class<?> aClass, Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
