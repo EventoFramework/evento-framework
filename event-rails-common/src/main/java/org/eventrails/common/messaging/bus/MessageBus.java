@@ -3,6 +3,7 @@ package org.eventrails.common.messaging.bus;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.TriConsumer;
 import org.eventrails.common.modeling.exceptions.NodeNotFoundException;
 import org.eventrails.common.modeling.exceptions.ThrowableWrapper;
 import org.eventrails.common.modeling.messaging.message.bus.BusEventPublisher;
@@ -16,6 +17,7 @@ import org.eventrails.common.modeling.messaging.message.internal.CorrelatedMessa
 import java.io.Closeable;
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -25,9 +27,9 @@ import java.util.stream.Collectors;
 public abstract class MessageBus {
 
 	private static Logger logger = LogManager.getLogger(MessageBus.class);
-	private Consumer<Serializable> messageReceiver = object -> {
+	private BiConsumer<NodeAddress, Serializable> messageReceiver = (address, object) -> {
 	};
-	private BiConsumer<Serializable, MessageBusResponseSender> requestReceiver = (request, response) -> {
+	private TriConsumer<NodeAddress, Serializable, MessageBusResponseSender> requestReceiver = (address, request, response) -> {
 	};
 
 	private boolean enabled = false;
@@ -110,11 +112,11 @@ public abstract class MessageBus {
 	private record Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {
 	}
 
-	public void setMessageReceiver(Consumer<Serializable> messageReceiver) {
+	public void setMessageReceiver(BiConsumer<NodeAddress, Serializable> messageReceiver) {
 		this.messageReceiver = messageReceiver;
 	}
 
-	public void setRequestReceiver(BiConsumer<Serializable, MessageBusResponseSender> requestReceiver) {
+	public void setRequestReceiver(TriConsumer<NodeAddress, Serializable, MessageBusResponseSender> requestReceiver) {
 		this.requestReceiver = requestReceiver;
 	}
 
@@ -167,6 +169,12 @@ public abstract class MessageBus {
 			messageCorrelationMap.remove(correlationId);
 			throw e;
 		}
+	}
+
+	public final CompletableFuture<Serializable> request(NodeAddress address, Serializable message) throws Exception {
+		var future = new CompletableFuture<Serializable>();
+		request(address, message, future::complete, error -> future.completeExceptionally(error.toThrowable()));
+		return future;
 	}
 
 	public void request(NodeAddress address, Serializable message, Consumer<Serializable> responseHandler) throws Exception {
@@ -285,7 +293,7 @@ public abstract class MessageBus {
 							cm.getCorrelationId());
 					try
 					{
-						requestReceiver.accept(cm.getBody(), resp);
+						requestReceiver.accept(src, cm.getBody(), resp);
 					} catch (Exception e)
 					{
 						e.printStackTrace();
@@ -332,7 +340,7 @@ public abstract class MessageBus {
 				gracefulShutdown();
 			} else
 			{
-				messageReceiver.accept(message);
+				messageReceiver.accept(src, message);
 			}
 		}).start();
 	}

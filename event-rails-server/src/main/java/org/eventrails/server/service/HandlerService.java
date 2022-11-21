@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class HandlerService {
@@ -48,5 +49,9 @@ public class HandlerService {
 
 	public List<Handler> findAllByBundleId(String name) {
 		return handlerRepository.findAllByBundle_Id(name);
+	}
+
+	public Optional<Handler> findById(String handlerId) {
+		return handlerRepository.findById(handlerId);
 	}
 }

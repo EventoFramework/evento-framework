@@ -1,5 +1,6 @@
 package org.eventrails.bus.jgroups;
 
+import org.apache.logging.log4j.util.TriConsumer;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.jgroups.*;
@@ -22,8 +23,8 @@ public class JGroupsMessageBus extends MessageBus implements Receiver {
 	protected JGroupsMessageBus(
 			JChannel jChannel,
 			long bundleVersion,
-			Consumer<Serializable> messageReceiver,
-			BiConsumer<Serializable, MessageBusResponseSender> requestReceiver) {
+			BiConsumer<NodeAddress, Serializable> messageReceiver,
+			TriConsumer<NodeAddress, Serializable, MessageBusResponseSender> requestReceiver) {
 
 		super(subscriber -> jChannel.setReceiver(new Receiver() {
 

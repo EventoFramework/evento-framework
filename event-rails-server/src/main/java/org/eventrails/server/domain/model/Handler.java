@@ -10,6 +10,7 @@ import javax.persistence.*;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.Set;
 
@@ -70,7 +71,13 @@ public class Handler implements Serializable {
 
 	@SneakyThrows
 	public void generateId() throws HibernateException {
-		var str = this.getBundle() + this.getComponentName() + this.getComponentType() + this.getHandledPayload();
+		setUuid(generateId(
+				this.getBundle().getId(), this.getComponentName(), this.getComponentType(), this.getHandledPayload().getName()
+		));
+	}
+
+	public static String generateId(String bundleId, String componentName, ComponentType componentType, String handledPayloadName) throws NoSuchAlgorithmException {
+		var str = bundleId + componentName + componentType.name() + handledPayloadName;
 		MessageDigest digest = MessageDigest.getInstance("SHA-256");
 		byte[] hash = digest.digest(
 				str.getBytes(StandardCharsets.UTF_8));
@@ -84,7 +91,7 @@ public class Handler implements Serializable {
 			}
 			hexString.append(hex);
 		}
-		setUuid(hexString.toString());
+		return hexString.toString();
 	}
 
 

@@ -16,9 +16,7 @@ import javax.persistence.*;
 public class EventConsumerState {
 
 	@Id
-	private String componentName;
-
-	private String bundleId;
+	private String consumerId;
 
 	private Long lastEventSequenceNumber;
 

@@ -1,6 +1,7 @@
 package org.eventrails.server.service.messaging;
 
 import org.eventrails.common.modeling.messaging.message.application.*;
+import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.common.modeling.messaging.message.bus.ResponseSender;
 import org.eventrails.common.modeling.messaging.message.internal.*;
 import org.eventrails.common.messaging.bus.MessageBus;
@@ -8,6 +9,7 @@ import org.eventrails.common.messaging.utils.AddressPicker;
 import org.eventrails.common.messaging.utils.RoundRobinAddressPicker;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
+import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventRequest;
 import org.eventrails.common.modeling.state.SerializedAggregateState;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
@@ -48,6 +50,7 @@ public class MessageGatewayService {
 	private final long serverVersion;
 
 	private final PerformanceService performanceService;
+	private final EventDispatcher eventDispatcher;
 
 	public MessageGatewayService(
 			HandlerService handlerService,
@@ -63,13 +66,15 @@ public class MessageGatewayService {
 			@Value("${eventrails.cluster.autoscaling.max.underflow}") int maxUnderflow,
 			@Value("${eventrails.cluster.autoscaling.min.nodes}") int minNodes,
 			@Value("${eventrails.cluster.autoscaling.enabled}") boolean autoscalingEnabled,
-			PerformanceService performanceService) {
+			PerformanceService performanceService,
+			EventDispatcher eventDispatcher) {
 		this.handlerService = handlerService;
 		this.lockRegistry = lockRegistry;
 		this.serverId = serverId;
 		this.serverVersion = serverVersion;
 		this.eventStore = eventStore;
 		this.messageBus = messageBus;
+		this.eventDispatcher = eventDispatcher;
 		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.bundleDeployService = bundleDeployService;
 		this.performanceService = performanceService;
@@ -89,7 +94,7 @@ public class MessageGatewayService {
 		messageBus.setMessageReceiver(this::messageHandler);
 	}
 
-	private void messageHandler(Serializable request) {
+	private void messageHandler(NodeAddress source, Serializable request) {
 		try
 		{
 			if (this.autoscalingEnabled)
@@ -112,7 +117,7 @@ public class MessageGatewayService {
 		}
 	}
 
-	private void requestHandler(Serializable request, ResponseSender response) {
+	private void requestHandler(NodeAddress source, Serializable request, ResponseSender response) {
 		try
 		{
 			this.threadCountAutoscalingProtocol.arrival();
@@ -284,7 +289,10 @@ public class MessageGatewayService {
 			} else if (request instanceof ClusterNodeApplicationDiscoveryRequest d)
 			{
 				response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(serverId, serverVersion, new ArrayList<>()));
-			} else
+			} else if (request instanceof FetchEventRequest d){
+				eventDispatcher.handleRequest(source, d, response);
+			}
+			else
 			{
 				throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
 			}
