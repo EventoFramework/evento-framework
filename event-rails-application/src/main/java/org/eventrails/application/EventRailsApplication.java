@@ -3,6 +3,8 @@ package org.eventrails.application;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eventrails.application.reference.*;
+import org.eventrails.common.messaging.consumer.ConsumerStateStore;
+import org.eventrails.common.messaging.consumer.impl.InMemoryConsumerStateStore;
 import org.eventrails.common.modeling.annotations.component.*;
 import org.eventrails.common.modeling.annotations.handler.InvocationHandler;
 import org.eventrails.common.modeling.annotations.handler.SagaEventHandler;
@@ -14,9 +16,6 @@ import org.eventrails.common.modeling.exceptions.HandlerNotFoundException;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
 import org.eventrails.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
-import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventLockAlreadyAcquiredException;
-import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventRequest;
-import org.eventrails.common.modeling.messaging.message.internal.processor.FetchEventResponse;
 import org.eventrails.common.modeling.messaging.payload.DomainEvent;
 import org.eventrails.common.modeling.messaging.query.Multiple;
 import org.eventrails.common.modeling.messaging.query.SerializedQueryResponse;
@@ -48,6 +47,8 @@ public class EventRailsApplication {
     private final String bundleId;
     private final MessageBus messageBus;
     private final String serverName;
+    private final ConsumerStateStore consumerStateStore;
+    private final long bundleVersion;
 
     private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
     private HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
@@ -69,7 +70,9 @@ public class EventRailsApplication {
             long bundleVersion,
             String serverName,
             MessageBus messageBus,
-            AutoscalingProtocol autoscalingProtocol) {
+            AutoscalingProtocol autoscalingProtocol,
+            ConsumerStateStore consumerStateStore
+    ) {
 
 
         this.messageBus = messageBus;
@@ -78,6 +81,8 @@ public class EventRailsApplication {
         this.commandGateway = new CommandGateway(messageBus, serverName);
         this.queryGateway = new QueryGateway(messageBus, serverName);
         this.serverName = serverName;
+        this.consumerStateStore = consumerStateStore;
+        this.bundleVersion = bundleVersion;
 
         messageBus.setRequestReceiver((src, request, response) -> {
             try {
@@ -124,49 +129,6 @@ public class EventRailsApplication {
                             queryGateway
                     );
                     response.sendResponse(new SerializedQueryResponse<>(result));
-                }
-                else if (request instanceof EventToProjectorMessage m) {
-                    var handlers = getProjectorMessageHandlers()
-                            .get(m.getEventMessage().getEventName());
-                    if (handlers == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
-
-
-                    var handler = handlers.getOrDefault(m.getProjectorName(), null);
-                    if (handler == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
-
-                    handler.begin();
-                    handler.invoke(
-                            m.getEventMessage(),
-                            commandGateway,
-                            queryGateway
-                    );
-                    handler.commit();
-                    response.sendResponse(null);
-                } else if (request instanceof EventToSagaMessage m) {
-                    var handlers = getSagaMessageHandlers()
-                            .get(m.getEventMessage().getEventName());
-                    if (handlers == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
-
-
-                    var handler = handlers.getOrDefault(m.getSagaName(), null);
-                    if (handler == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(m.getEventMessage().getEventName(), getBundleId()));
-
-
-                    var state = handler.invoke(
-                            m.getEventMessage(),
-                            m.getSerializedSagaState().getSagaState(),
-                            commandGateway,
-                            queryGateway
-                    );
-                    response.sendResponse(new SerializedSagaState<>(state));
                 } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
                     var handlers = new ArrayList<RegisteredHandler>();
                     aggregateMessageHandlers.forEach((k, v) -> {
@@ -185,7 +147,7 @@ public class EventRailsApplication {
                         if (esh != null) {
                             handlers.add(new RegisteredHandler(
                                     ComponentType.Aggregate,
-									v.getRef().getClass().getSimpleName(),
+                                    v.getRef().getClass().getSimpleName(),
                                     HandlerType.EventSourcingHandler,
                                     PayloadType.DomainEvent,
                                     r,
@@ -201,7 +163,7 @@ public class EventRailsApplication {
                         var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
                         handlers.add(new RegisteredHandler(
                                 ComponentType.Service,
-								v.getRef().getClass().getSimpleName(),
+                                v.getRef().getClass().getSimpleName(),
                                 HandlerType.CommandHandler,
                                 PayloadType.ServiceCommand,
                                 k,
@@ -214,7 +176,7 @@ public class EventRailsApplication {
                         v.forEach((k1, v1) -> {
                             handlers.add(new RegisteredHandler(
                                     ComponentType.Projector,
-									v1.getRef().getClass().getSimpleName(),
+                                    v1.getRef().getClass().getSimpleName(),
                                     HandlerType.EventHandler,
                                     v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
                                     k,
@@ -230,7 +192,7 @@ public class EventRailsApplication {
                         v.forEach((k1, v1) -> {
                             handlers.add(new RegisteredHandler(
                                     ComponentType.Saga,
-									v1.getRef().getClass().getSimpleName(),
+                                    v1.getRef().getClass().getSimpleName(),
                                     HandlerType.SagaEventHandler,
                                     v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
                                     k,
@@ -246,7 +208,7 @@ public class EventRailsApplication {
                         var r = v.getQueryHandler(k).getReturnType();
                         handlers.add(new RegisteredHandler(
                                 ComponentType.Projection,
-								v.getRef().getClass().getSimpleName(),
+                                v.getRef().getClass().getSimpleName(),
                                 HandlerType.QueryHandler,
                                 PayloadType.Query,
                                 k,
@@ -282,8 +244,29 @@ public class EventRailsApplication {
             long bundleVersion,
             String serverName,
             MessageBus messageBus,
+            AutoscalingProtocol autoscalingProtocol,
+            ConsumerStateStore consumerStateStore) {
+        return start(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore, clz -> null);
+    }
+
+    public static EventRailsApplication start(
+            String basePackage,
+            String bundleId,
+            long bundleVersion,
+            String serverName,
+            MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol) {
-       return start(basePackage, bundleId, bundleVersion, serverName, messageBus,autoscalingProtocol, clz->null);
+        return start(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), clz -> null);
+    }
+    public static EventRailsApplication start(
+            String basePackage,
+            String bundleId,
+            long bundleVersion,
+            String serverName,
+            MessageBus messageBus,
+            AutoscalingProtocol autoscalingProtocol,
+            Function<Class<?>, Object> findInjectableObject) {
+        return start(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), findInjectableObject);
     }
 
     public static EventRailsApplication start(
@@ -293,6 +276,7 @@ public class EventRailsApplication {
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
+            ConsumerStateStore consumerStateStore,
             Function<Class<?>, Object> findInjectableObject) {
 
 
@@ -300,7 +284,7 @@ public class EventRailsApplication {
             logger.info("Starting EventRailsApplication %s".formatted(bundleId));
             logger.info("Used message bus: %s".formatted(messageBus.getClass().getName()));
             logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
-            EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol);
+            EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore);
             eventRailsApplication.parsePackage(findInjectableObject);
             logger.info("Enabling message bus");
             messageBus.enableBus();
@@ -363,7 +347,7 @@ public class EventRailsApplication {
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Invoker.class)) {
             for (Method declaredMethod : aClass.getDeclaredMethods()) {
-                if(declaredMethod.getAnnotation(InvocationHandler.class)!=null){
+                if (declaredMethod.getAnnotation(InvocationHandler.class) != null) {
                     var payload = aClass.getSimpleName() + "::" + declaredMethod.getName();
                     invocationHandlers.add(new RegisteredHandler(
                             ComponentType.Invoker,
@@ -383,38 +367,106 @@ public class EventRailsApplication {
         logger.info("Discovery Complete");
     }
 
-    public void startEventConsumers(){
+    public void startEventConsumers() {
         logger.info("Checking for event consumers");
-        for (ProjectorReference projector : projectors)
-        {
-            logger.info("Starting event consumer for %s".formatted(projector.getRef().getClass().getName()));
+        for (ProjectorReference projector : projectors) {
+            var projectorName = projector.getRef().getClass().getSimpleName();
+            logger.info("Starting event consumer for Projector %s".formatted(projectorName));
             new Thread(() -> {
-                while (!isShuttingDown)
-                {
-                    try
-                    {
-                        var resp = (FetchEventResponse) messageBus.request(messageBus.findNodeAddress(serverName),
-                                new FetchEventRequest(
-                                        ComponentType.Projector,
-                                        projector.getRef().getClass().getSimpleName())).join();
-                        if(!resp.getDone() || resp.getCount() < 5){
-                            Thread.sleep(2500);
-                        }
-                    } catch (Exception e)
-                    {
+                var fetchSize = 1000;
+                var consumerId = bundleId + "_" + bundleVersion + "_" + projectorName;
+                while (!isShuttingDown) {
+                    var hasError = false;
+                    var consumedEventCount = 0;
+                    try {
+                        consumedEventCount = consumerStateStore.consumeEventsForProjector(
+                                consumerId,
+                                projectorName,
+                                publishedEvent -> {
+                            var handlers = getProjectorMessageHandlers()
+                                    .get(publishedEvent.getEventName());
+                            if (handlers == null) return;
+
+                            var handler = handlers.getOrDefault(projectorName, null);
+                            if (handler == null) return;
+
+                            handler.begin();
+                            handler.invoke(
+                                    publishedEvent.getEventMessage(),
+                                    commandGateway,
+                                    queryGateway
+                            );
+                            handler.commit();
+                        }, fetchSize);
+                    }catch (Throwable e){
                         logger.error(e);
-                        try
-                        {
-                            Thread.sleep(2500);
-                        } catch (InterruptedException ex)
-                        {
-                            throw new RuntimeException(ex);
+                        e.printStackTrace();
+                        hasError = true;
+                    }
+                    if (fetchSize - consumedEventCount > 10) {
+                        try {
+                            Thread.sleep(hasError ? 5000 : fetchSize - consumedEventCount);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
                         }
                     }
                 }
 
             }).start();
         }
+        for (SagaReference saga : sagas) {
+            var sagaName = saga.getRef().getClass().getSimpleName();
+            logger.info("Starting event consumer for Saga %s".formatted(sagaName));
+            new Thread(() -> {
+                var fetchSize = 1000;
+                var consumerId = bundleId + "_" + bundleVersion + "_" + sagaName;
+                while (!isShuttingDown) {
+                    var hasError = false;
+                    var consumedEventCount = 0;
+                    try {
+                        consumedEventCount = consumerStateStore.consumeEventsForSaga(consumerId, sagaName, (sagaStateFetcher, publishedEvent) -> {
+                            var handlers = getSagaMessageHandlers()
+                                    .get(publishedEvent.getEventName());
+                            if (handlers == null) return null;
+
+                            var handler = handlers.getOrDefault(sagaName, null);
+                            if (handler == null) return null;
+
+                            var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName()).getAnnotation(SagaEventHandler.class).associationProperty();
+                            var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
+
+                            var sagaState = sagaStateFetcher.getLastState(
+                                    sagaName,
+                                    associationProperty,
+                                    associationValue
+                            );
+
+
+                            return handler.invoke(
+                                    publishedEvent.getEventMessage(),
+                                    sagaState,
+                                    commandGateway,
+                                    queryGateway
+                            );
+                        }, fetchSize);
+                    }catch (Throwable e){
+                        logger.error(e);
+                        e.printStackTrace();
+                        hasError = true;
+                    }
+                    if (fetchSize - consumedEventCount > 10) {
+                        try {
+                            Thread.sleep(hasError ? 5000 : fetchSize - consumedEventCount);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+
+            }).start();
+        }
+
+
     }
 
     private Object createComponentInstance(Class<?> aClass, Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
@@ -465,7 +517,7 @@ public class EventRailsApplication {
     }
 
     public void gracefulShutdown() {
-       this.messageBus.gracefulShutdown();
+        this.messageBus.gracefulShutdown();
     }
 
     public static class ApplicationInfo {

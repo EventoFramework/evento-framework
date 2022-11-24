@@ -39,10 +39,15 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.integration:spring-integration-jdbc'
+    runtimeOnly 'mysql:mysql-connector-java'
+
 
 
     implementation project(":event-rails-bus-rabbitmq")
     implementation project(":event-rails-application")
+    implementation project(":event-rails-consumer-state-store-mysql")
     implementation project(":event-rails-demo:event-rails-demo-api")
 }
 
