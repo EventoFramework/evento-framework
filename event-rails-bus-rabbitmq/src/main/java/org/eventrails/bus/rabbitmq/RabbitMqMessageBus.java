@@ -48,6 +48,7 @@ public class RabbitMqMessageBus extends MessageBus {
 					} catch (Exception e)
 					{
 						logger.error(e);
+						e.printStackTrace();
 					}
 
 				}, consumerTag -> {
