@@ -3,6 +3,7 @@ package org.eventrails.server.bus;
 import ch.qos.logback.core.encoder.EchoEncoder;
 import org.eventrails.bus.EventRailsMessage;
 import org.eventrails.bus.EventRailsMessageType;
+import org.eventrails.bus.EventRailsNodeAddress;
 import org.eventrails.bus.ViewUpdate;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.common.serialization.ObjectMapperUtils;
@@ -18,8 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MessageBroker {
 
     private ServerSocket serverSocket;
-    private Map<NodeAddress, MessageBrokerConnection> connections = new ConcurrentHashMap<>();
-
+    private ConcurrentHashMap<NodeAddress, MessageBrokerConnection> connections = new ConcurrentHashMap<>();
 
     public void start(int port) throws IOException {
         serverSocket = new ServerSocket(port);
