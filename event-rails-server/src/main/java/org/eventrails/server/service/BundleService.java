@@ -15,6 +15,7 @@ import org.eventrails.common.modeling.bundle.types.PayloadType;
 import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.domain.repository.HandlerRepository;
 import org.eventrails.server.domain.repository.PayloadRepository;
+import org.eventrails.server.service.deploy.BundleDeployService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -31,10 +32,13 @@ public class BundleService {
     private final HandlerRepository handlerRepository;
     private final PayloadRepository payloadRepository;
 
-    public BundleService(BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository) {
+    private final BundleDeployService bundleDeployService;
+
+    public BundleService(BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository, BundleDeployService bundleDeployService) {
         this.bundleRepository = bundleRepository;
         this.handlerRepository = handlerRepository;
         this.payloadRepository = payloadRepository;
+        this.bundleDeployService = bundleDeployService;
     }
 
 
@@ -55,7 +59,10 @@ public class BundleService {
                     jarOriginalName,
                     bundleDescription.getComponents().size() > 0,
                     new HashMap<>(),
-                    new HashMap<>()));
+                    new HashMap<>(),
+                    bundleDescription.getAutorun(),
+                    bundleDescription.getMinInstances(),
+                    bundleDescription.getMaxInstances()));
         });
         if(!isNew.get() && bundle.getVersion() <= bundleDescription.getBundleVersion())
             throw new IllegalArgumentException("Bundle " + bundleId + " with version " + bundle.getVersion() + " exists!");
@@ -380,6 +387,15 @@ public class BundleService {
                 }
             }
         }
+
+        if(bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral){
+            try {
+                bundleDeployService.waitUntilAvailable(bundleId);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 
     public void unregister(

@@ -71,7 +71,10 @@ public class EventRailsApplication {
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
-            ConsumerStateStore consumerStateStore
+            ConsumerStateStore consumerStateStore,
+            boolean autorun,
+            int minInstances,
+            int maxInstances
     ) {
 
 
@@ -221,6 +224,9 @@ public class EventRailsApplication {
                     response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
                             bundleId,
                             bundleVersion,
+                            autorun,
+                            minInstances,
+                            maxInstances,
                             handlers
                     ));
                 } else {
@@ -242,37 +248,49 @@ public class EventRailsApplication {
             String basePackage,
             String bundleId,
             long bundleVersion,
+            boolean autorun,
+            int minInstances,
+            int maxInstances,
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
             ConsumerStateStore consumerStateStore) {
-        return start(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore, clz -> null);
+        return start(basePackage, bundleId, bundleVersion, autorun, minInstances, maxInstances,serverName, messageBus, autoscalingProtocol, consumerStateStore, clz -> null);
     }
 
     public static EventRailsApplication start(
             String basePackage,
             String bundleId,
             long bundleVersion,
+            boolean autorun,
+            int minInstances,
+            int maxInstances,
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol) {
-        return start(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), clz -> null);
+        return start(basePackage, bundleId, bundleVersion, autorun, minInstances, maxInstances, serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), clz -> null);
     }
     public static EventRailsApplication start(
             String basePackage,
             String bundleId,
             long bundleVersion,
+            boolean autorun,
+            int minInstances,
+            int maxInstances,
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
             Function<Class<?>, Object> findInjectableObject) {
-        return start(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), findInjectableObject);
+        return start(basePackage, bundleId, bundleVersion, autorun, minInstances, maxInstances,serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), findInjectableObject);
     }
 
     public static EventRailsApplication start(
             String basePackage,
             String bundleId,
             long bundleVersion,
+            boolean autorun,
+            int minInstances,
+            int maxInstances,
             String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
@@ -284,7 +302,7 @@ public class EventRailsApplication {
             logger.info("Starting EventRailsApplication %s".formatted(bundleId));
             logger.info("Used message bus: %s".formatted(messageBus.getClass().getName()));
             logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
-            EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore);
+            EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore, autorun, minInstances, maxInstances);
             eventRailsApplication.parsePackage(findInjectableObject);
             logger.info("Enabling message bus");
             messageBus.enableBus();
