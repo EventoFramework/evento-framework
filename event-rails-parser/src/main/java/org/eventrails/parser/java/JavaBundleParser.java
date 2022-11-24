@@ -28,6 +28,9 @@ public class JavaBundleParser implements BundleParser {
 
 	public static final String EVENTRAILS_BUNDLE_VERSION_PROPERTY = "eventrails.bundle.version";
 	public static final String EVENTRAILS_BUNDLE_NAME_PROPERTY = "eventrails.bundle.id";
+	public static final String EVENTRAILS_BUNDLE_AUTORUN_PROPERTY = "eventrails.bundle.autorun";
+	public static final String EVENTRAILS_BUNDLE_INSTANCES_MIN_PROPERTY = "eventrails.bundle.instances.min";
+	public static final String EVENTRAILS_BUNDLE_INSTANCES_MAX_PROPERTY = "eventrails.bundle.instances.max";
 
 	public BundleDescription parseDirectory(File file) throws Exception {
 		LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
@@ -103,8 +106,59 @@ public class JavaBundleParser implements BundleParser {
 					}
 				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
 
+		var autorun = Files.walk(file.toPath())
+				.filter(p -> p.toString().endsWith(".properties"))
+				.map(p -> {
+					try
+					{
+						var prop = new Properties();
+						prop.load(new FileReader(p.toFile()));
+						return Boolean.parseBoolean(prop.getProperty(EVENTRAILS_BUNDLE_AUTORUN_PROPERTY, "false"));
+					} catch (Exception e)
+					{
+						return null;
+					}
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
 
-		return new BundleDescription(bundleId, bundleVersion, components, payloads);
+		var minInstances = Files.walk(file.toPath())
+				.filter(p -> p.toString().endsWith(".properties"))
+				.map(p -> {
+					try
+					{
+						var prop = new Properties();
+						prop.load(new FileReader(p.toFile()));
+						var i = Integer.parseInt(prop.getProperty(EVENTRAILS_BUNDLE_INSTANCES_MIN_PROPERTY, "0"));
+						if(i == 0 && autorun) return 1;
+						else return i;
+					} catch (Exception e)
+					{
+						return null;
+					}
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
+
+		var maxInstances = Files.walk(file.toPath())
+				.filter(p -> p.toString().endsWith(".properties"))
+				.map(p -> {
+					try
+					{
+						var prop = new Properties();
+						prop.load(new FileReader(p.toFile()));
+						return Integer.parseInt(prop.getProperty(EVENTRAILS_BUNDLE_INSTANCES_MAX_PROPERTY, "64"));
+					} catch (Exception e)
+					{
+						return null;
+					}
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
+
+
+		return new BundleDescription(
+				bundleId,
+				bundleVersion,
+				autorun,
+				minInstances,
+				maxInstances,
+				components,
+				payloads);
 	}
 
 	private Component toComponent(Node node) throws Exception {

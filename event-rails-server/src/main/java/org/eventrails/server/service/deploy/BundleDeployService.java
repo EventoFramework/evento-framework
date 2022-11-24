@@ -2,6 +2,7 @@ package org.eventrails.server.service.deploy;
 
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.server.domain.model.Bundle;
+import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.service.BundleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,14 +19,14 @@ public abstract class BundleDeployService {
 
 	private final MessageBus messageBus;
 	private final LockRegistry lockRegistry;
-	private final BundleService bundleService;
+	private final BundleRepository bundleRepository;
 
 	private final ConcurrentHashMap<String, Semaphore> semaphoreMap = new ConcurrentHashMap<>();
 
-	public BundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleService bundleService) {
+	public BundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleRepository bundleRepository) {
 		this.messageBus = messageBus;
 		this.lockRegistry = lockRegistry;
-		this.bundleService = bundleService;
+		this.bundleRepository = bundleRepository;
 		messageBus.addJoinListener(bundle -> {
 			var s = semaphoreMap.get(bundle.getBundleId());
 			if (s != null)
@@ -38,7 +39,7 @@ public abstract class BundleDeployService {
 		if (!messageBus.isBundleAvailable(bundleId))
 		{
 			LOGGER.info("Bundle %s not available, spawning a new one".formatted(bundleId));
-			var bundle = bundleService.findByName(bundleId);
+			var bundle = bundleRepository.findById(bundleId).orElseThrow();
 			var lock = lockRegistry.obtain("BUNDLE:" + bundleId);
 			try
 			{
@@ -68,7 +69,7 @@ public abstract class BundleDeployService {
 	protected abstract void spawn(Bundle bundle) throws Exception;
 
 	public void spawn(String bundleId) throws Exception {
-		spawn(bundleService.findByName(bundleId));
+		spawn(bundleRepository.findById(bundleId).orElseThrow());
 	}
 
 	public void kill(String nodeId) throws Exception {

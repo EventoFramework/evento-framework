@@ -66,7 +66,10 @@ public class AutoDiscoveryService {
                                             null,
                                             true,
                                             new HashMap<>(),
-                                            new HashMap<>()));
+                                            new HashMap<>(),
+                                            resp.getAutorun(),
+                                            resp.getMinInstances(),
+                                            resp.getMaxInstances()));
                                 }
                         );
                         for (RegisteredHandler registeredHandler : resp.getHandlers()) {
