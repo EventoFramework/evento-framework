@@ -12,8 +12,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static org.eventrails.server.service.performance.PerformanceService.EVENT_STORE;
-import static org.eventrails.server.service.performance.PerformanceService.SERVER;
+import static org.eventrails.common.performance.PerformanceService.EVENT_STORE;
+import static org.eventrails.common.performance.PerformanceService.SERVER;
+
 
 @Service
 public class ApplicationPetriNetService {
@@ -22,20 +23,20 @@ public class ApplicationPetriNetService {
 
 	private final HandlerRepository handlerRepository;
 
-	private final PerformanceService performanceService;
+	private final PerformanceStoreService performanceStoreService;
 
 	public ApplicationPetriNetService(
 			BundleRepository bundleRepository,
-			HandlerRepository handlerRepository, PerformanceService performanceService) {
+			HandlerRepository handlerRepository, PerformanceStoreService performanceStoreService) {
 		this.bundleRepository = bundleRepository;
 		this.handlerRepository = handlerRepository;
-		this.performanceService = performanceService;
+		this.performanceStoreService = performanceStoreService;
 	}
 	
 	public Network toPetriNet() {
 
 
-		var n = new Network(performanceService::getPerformance);
+		var n = new Network(performanceStoreService::getPerformance);
 		
 		for (Bundle bundle : bundleRepository.findAll())
 		{

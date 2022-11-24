@@ -31,4 +31,5 @@ include 'event-rails-bus-rabbitmq'
 include 'event-rails-bus'
 include 'event-rails-demo:event-rails-demo-agent'
 findProject(':event-rails-demo:event-rails-demo-agent')?.name = 'event-rails-demo-agent'
+include 'event-rails-consumer-state-store-mysql'
 

@@ -4,11 +4,15 @@ import org.eventrails.application.EventRailsApplication;
 import org.eventrails.bus.rabbitmq.RabbitMqMessageBus;
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
+import org.eventrails.consumer.state.store.mysql.MysqlConsumerStateStore;
 import org.eventrails.demo.DemoSagaApplication;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import javax.sql.DataSource;
+import java.sql.DriverManager;
 
 @Configuration
 public class EventRailsConfiguration {
@@ -24,7 +28,10 @@ public class EventRailsConfiguration {
 			@Value("${eventrails.cluster.autoscaling.max.overflow}") int maxOverflow,
 			@Value("${eventrails.cluster.autoscaling.min.threads}") int minThreads,
 			@Value("${eventrails.cluster.autoscaling.max.underflow}") int maxUnderflow,
-			BeanFactory factory
+			BeanFactory factory,
+			@Value("${spring.datasource.url}") String connectionUrl,
+			@Value("${spring.datasource.username}") String username,
+			@Value("${spring.datasource.password}") String password
 	) throws Exception {
 
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
@@ -41,6 +48,8 @@ public class EventRailsConfiguration {
 						minThreads,
 						maxOverflow,
 						maxUnderflow),
+				new MysqlConsumerStateStore(messageBus, bundleId, serverName, DriverManager.getConnection(
+						connectionUrl, username, password)),
 				factory::getBean
 		);
 	}

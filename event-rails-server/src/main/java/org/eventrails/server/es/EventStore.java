@@ -9,6 +9,7 @@ import org.eventrails.server.es.eventstore.EventStoreEntry;
 import org.eventrails.server.es.eventstore.EventStoreRepository;
 import org.eventrails.server.es.snapshot.Snapshot;
 import org.eventrails.server.es.snapshot.SnapshotRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,10 @@ public class EventStore {
 	public List<EventStoreEntry> fetchEvents(Long seq) {
 		if (seq == null) seq = -1L;
 		return eventStoreRepository.findAllByEventSequenceNumberAfterOrderByEventSequenceNumberAsc(seq);
+	}
+	public List<EventStoreEntry> fetchEvents(Long seq, int limit) {
+		if (seq == null) seq = -1L;
+		return eventStoreRepository.findAllByEventSequenceNumberAfterOrderByEventSequenceNumberAsc(seq, PageRequest.of(0,limit));
 	}
 
 	public Snapshot fetchSnapshot(String aggregateId) {
