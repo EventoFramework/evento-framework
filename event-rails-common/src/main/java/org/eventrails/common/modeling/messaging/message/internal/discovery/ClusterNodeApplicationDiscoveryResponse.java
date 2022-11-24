@@ -9,10 +9,25 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
     private long bundleVersion;
     private ArrayList<RegisteredHandler> registeredHandlers;
 
-    public ClusterNodeApplicationDiscoveryResponse(String bundleId, long bundleVersion, ArrayList<RegisteredHandler> registeredHandlers) {
+    private boolean autorun;
+
+    private int minInstances;
+
+    private int maxInstances;
+
+    public ClusterNodeApplicationDiscoveryResponse(
+            String bundleId,
+            long bundleVersion,
+            boolean autorun,
+            int minInstances,
+            int maxInstances,
+            ArrayList<RegisteredHandler> registeredHandlers) {
         this.bundleId = bundleId;
         this.registeredHandlers = registeredHandlers;
         this.bundleVersion = bundleVersion;
+        this.autorun = autorun;
+        this.minInstances = minInstances;
+        this.maxInstances = maxInstances;
     }
 
     public ClusterNodeApplicationDiscoveryResponse() {
@@ -40,5 +55,29 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 
     public void setBundleVersion(long bundleVersion) {
         this.bundleVersion = bundleVersion;
+    }
+
+    public boolean getAutorun() {
+        return autorun;
+    }
+
+    public void setAutorun(boolean autorun) {
+        this.autorun = autorun;
+    }
+
+    public int getMinInstances() {
+        return minInstances;
+    }
+
+    public void setMinInstances(int minInstances) {
+        this.minInstances = minInstances;
+    }
+
+    public int getMaxInstances() {
+        return maxInstances;
+    }
+
+    public void setMaxInstances(int maxInstances) {
+        this.maxInstances = maxInstances;
     }
 }

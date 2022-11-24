@@ -2,6 +2,7 @@ package org.eventrails.server.service.deploy;
 
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.server.domain.model.Bundle;
+import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.service.BundleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,8 +16,8 @@ public class LocalDockerBundleDeployService extends BundleDeployService {
 
 	private final Logger LOGGER = LoggerFactory.getLogger(LocalDockerBundleDeployService.class);
 
-	public LocalDockerBundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleService bundleService) {
-		super(messageBus, lockRegistry, bundleService);
+	public LocalDockerBundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleRepository bundleRepository) {
+		super(messageBus, lockRegistry, bundleRepository);
 	}
 
 	@Override

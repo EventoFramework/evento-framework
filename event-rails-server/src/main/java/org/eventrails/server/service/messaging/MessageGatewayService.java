@@ -14,8 +14,11 @@ import org.eventrails.common.modeling.messaging.message.internal.discovery.Clust
 import org.eventrails.common.modeling.state.SerializedAggregateState;
 import org.eventrails.common.performance.PerformanceMessage;
 import org.eventrails.common.performance.PerformanceService;
+import org.eventrails.server.domain.model.BucketType;
+import org.eventrails.server.domain.model.Bundle;
 import org.eventrails.server.es.EventStore;
 import org.eventrails.server.es.eventstore.EventStoreEntry;
+import org.eventrails.server.service.BundleService;
 import org.eventrails.server.service.deploy.BundleDeployService;
 import org.eventrails.server.service.HandlerService;
 import org.eventrails.common.performance.ThreadCountAutoscalingProtocol;
@@ -24,6 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
@@ -47,13 +51,17 @@ public class MessageGatewayService {
     private final BundleDeployService bundleDeployService;
 
     private final ThreadCountAutoscalingProtocol threadCountAutoscalingProtocol;
-    private final int minNodes;
     private final boolean autoscalingEnabled;
     private final String serverId;
     private final long serverVersion;
 
     private final PerformanceStoreService performanceStoreService;
     private final PerformanceService performanceService;
+
+    private final BundleService bundleService;
+    private final int maxInstances;
+    private final int minInstances;
+    private final boolean autorun;
 
     public MessageGatewayService(
             HandlerService handlerService,
@@ -67,9 +75,11 @@ public class MessageGatewayService {
             @Value("${eventrails.cluster.autoscaling.max.overflow}") int maxOverflow,
             @Value("${eventrails.cluster.autoscaling.min.threads}") int minThreads,
             @Value("${eventrails.cluster.autoscaling.max.underflow}") int maxUnderflow,
-            @Value("${eventrails.cluster.autoscaling.min.nodes}") int minNodes,
+            @Value("${eventrails.bundle.autorun:false}") boolean autorun,
+            @Value("${eventrails.bundle.instances.min:0}") int minInstances,
+            @Value("${eventrails.bundle.instances.max:64}") int maxInstances,
             @Value("${eventrails.cluster.autoscaling.enabled}") boolean autoscalingEnabled,
-            PerformanceStoreService performanceStoreService) {
+            PerformanceStoreService performanceStoreService, BundleService bundleService) {
         this.handlerService = handlerService;
         this.lockRegistry = lockRegistry;
         this.serverId = serverId;
@@ -79,7 +89,11 @@ public class MessageGatewayService {
         this.addressPicker = new RoundRobinAddressPicker(messageBus);
         this.bundleDeployService = bundleDeployService;
         this.performanceStoreService = performanceStoreService;
+        this.bundleService = bundleService;
         this.performanceService = new PerformanceService(messageBus, serverId);
+        this.maxInstances = maxInstances;
+        this.minInstances = minInstances;
+        this.autorun = autorun;
 
         this.threadCountAutoscalingProtocol = new ThreadCountAutoscalingProtocol(
                 this.serverId,
@@ -90,27 +104,40 @@ public class MessageGatewayService {
                 maxOverflow,
                 maxUnderflow
         );
-        this.minNodes = minNodes;
         this.autoscalingEnabled = autoscalingEnabled;
         messageBus.setRequestReceiver(this::requestHandler);
         messageBus.setMessageReceiver(this::messageHandler);
+    }
+
+    @PostConstruct
+    public void init() {
+        new Thread(() -> {
+            for (Bundle bundle : bundleService.findAllBundles()) {
+                if (bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral)
+                    bundleDeployService.waitUntilAvailable(bundle.getId());
+            }
+        }).start();
     }
 
     private void messageHandler(NodeAddress source, Serializable request) {
         try {
             if (this.autoscalingEnabled) {
                 if (request instanceof ClusterNodeIsSufferingMessage m) {
-                    bundleDeployService.spawn(m.getBundleId());
+                    var nodes = messageBus.findAllNodeAddresses(m.getBundleId());
+                    var bundle = bundleService.findByName(m.getBundleId());
+                    if (nodes.size() < bundle.getMaxInstances())
+                        bundleDeployService.spawn(m.getBundleId());
                     return;
                 } else if (request instanceof ClusterNodeIsBoredMessage m) {
                     var nodes = messageBus.findAllNodeAddresses(m.getBundleId());
-                    if (nodes.size() > minNodes) {
+                    var bundle = bundleService.findByName(m.getBundleId());
+                    if (nodes.size() > bundle.getMaxInstances()) {
                         messageBus.sendKill(m.getNodeId());
                     }
                     return;
                 }
             }
-            if(request instanceof PerformanceMessage p){
+            if (request instanceof PerformanceMessage p) {
                 performanceStoreService.savePerformance(
                         p.getBundle(),
                         p.getComponent(),
@@ -214,8 +241,7 @@ public class MessageGatewayService {
                     lock.unlock();
                 }
 
-            }
-			else if (request instanceof ServiceCommandMessage c) {
+            } else if (request instanceof ServiceCommandMessage c) {
                 var handler = handlerService.findByPayloadName(c.getCommandName());
                 bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
                 var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
@@ -255,8 +281,7 @@ public class MessageGatewayService {
 
                 );
 
-            }
-			else if (request instanceof QueryMessage<?> q) {
+            } else if (request instanceof QueryMessage<?> q) {
                 var handler = handlerService.findByPayloadName(q.getQueryName());
                 bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
                 var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
@@ -284,13 +309,18 @@ public class MessageGatewayService {
                         }
                 );
 
-            }
-			else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
-                response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(serverId, serverVersion, new ArrayList<>()));
-            }
-			else if (request instanceof EventFetchRequest f) {
+            } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
+                response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
+                        serverId,
+                        serverVersion,
+                        autorun,
+                        minInstances,
+                        maxInstances,
+                        new ArrayList<>()
+                ));
+            } else if (request instanceof EventFetchRequest f) {
                 var events = eventStore.fetchEvents(f.getLastSequenceNumber(), f.getLimit());
-				response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
+                response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
             } else {
                 throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
             }

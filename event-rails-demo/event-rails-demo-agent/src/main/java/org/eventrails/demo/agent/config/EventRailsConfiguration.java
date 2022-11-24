@@ -25,12 +25,18 @@ public class EventRailsConfiguration {
 			@Value("${eventrails.cluster.autoscaling.max.overflow}") int maxOverflow,
 			@Value("${eventrails.cluster.autoscaling.min.threads}") int minThreads,
 			@Value("${eventrails.cluster.autoscaling.max.underflow}") int maxUnderflow,
+			@Value("${eventrails.bundle.autorun:false}") boolean autorun,
+			@Value("${eventrails.bundle.instances.min:0}") int minInstances,
+			@Value("${eventrails.bundle.instances.max:64}") int maxInstances,
 			BeanFactory factory
 	) throws Exception {
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
 		return EventRailsApplication.start(DemoAgentApplication.class.getPackage().getName(),
 				bundleId,
 				bundleVersion,
+				autorun,
+				minInstances,
+				maxInstances,
 				serverName,
 				messageBus,
 				new ThreadCountAutoscalingProtocol(

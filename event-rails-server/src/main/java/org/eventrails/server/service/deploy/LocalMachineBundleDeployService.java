@@ -2,6 +2,7 @@ package org.eventrails.server.service.deploy;
 
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.server.domain.model.Bundle;
+import org.eventrails.server.domain.repository.BundleRepository;
 import org.eventrails.server.service.BundleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,9 +20,9 @@ public class LocalMachineBundleDeployService extends BundleDeployService{
 
 	private String javaExe;
 
-	public LocalMachineBundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleService bundleService,
+	public LocalMachineBundleDeployService(MessageBus messageBus, LockRegistry lockRegistry, BundleRepository bundleRepository,
 										   String javaExe) {
-		super(messageBus, lockRegistry, bundleService);
+		super(messageBus, lockRegistry, bundleRepository);
 		this.javaExe = javaExe;
 	}
 

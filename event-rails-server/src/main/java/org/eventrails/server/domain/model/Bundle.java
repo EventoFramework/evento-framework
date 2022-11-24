@@ -30,6 +30,9 @@ public class Bundle {
 	@ElementCollection
 	@JoinTable(name = "core__bundle__vm_option")
 	private Map<String, String> vmOptions;
+	private boolean autorun;
+	private int minInstances;
+	private int maxInstances;
 
 	@Override
 	public boolean equals(Object o) {
