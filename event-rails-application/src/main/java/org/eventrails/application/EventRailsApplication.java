@@ -20,7 +20,6 @@ import org.eventrails.common.modeling.messaging.payload.DomainEvent;
 import org.eventrails.common.modeling.messaging.query.Multiple;
 import org.eventrails.common.modeling.messaging.query.SerializedQueryResponse;
 import org.eventrails.common.modeling.state.SerializedAggregateState;
-import org.eventrails.common.modeling.state.SerializedSagaState;
 import org.eventrails.common.messaging.bus.MessageBus;
 import org.eventrails.common.messaging.gateway.CommandGateway;
 import org.eventrails.common.messaging.gateway.QueryGateway;
@@ -37,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 public class EventRailsApplication {
@@ -304,19 +304,33 @@ public class EventRailsApplication {
             logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
             EventRailsApplication eventRailsApplication = new EventRailsApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore, autorun, minInstances, maxInstances);
             eventRailsApplication.parsePackage(findInjectableObject);
-            logger.info("Enabling message bus");
-            messageBus.enableBus();
-            logger.info("Message bus enabled");
-            logger.info("Wait for discovery");
+            logger.info("Starting projector consumers...");
             Thread.sleep(3000);
-            eventRailsApplication.startEventConsumers();
-            logger.info("Application Started!");
+            eventRailsApplication.startProjectorEventConsumers(() -> {
+                try {
+                    logger.info("Projector Consumers head Reached!");
+                    logger.info("Enabling message bus");
+                    messageBus.enableBus();
+                    logger.info("Message bus enabled");
+                    logger.info("Wait for discovery...");
+                    Thread.sleep(3000);
+                    logger.info("Starting saga consumers");
+                    eventRailsApplication.startSagaEventConsumers();
+                    logger.info("Application Started!");
+                }catch (Exception e){
+                    logger.error(e);
+                    System.exit(1);
+                }
+            });
+
             return eventRailsApplication;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
     }
+
+
 
     private void parsePackage(Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
 
@@ -385,59 +399,17 @@ public class EventRailsApplication {
         logger.info("Discovery Complete");
     }
 
-    public void startEventConsumers() {
-        logger.info("Checking for event consumers");
-        for (ProjectorReference projector : projectors) {
-            var projectorName = projector.getRef().getClass().getSimpleName();
-            logger.info("Starting event consumer for Projector %s".formatted(projectorName));
-            new Thread(() -> {
-                var fetchSize = 1000;
-                var consumerId = bundleId + "_" + bundleVersion + "_" + projectorName;
-                while (!isShuttingDown) {
-                    var hasError = false;
-                    var consumedEventCount = 0;
-                    try {
-                        consumedEventCount = consumerStateStore.consumeEventsForProjector(
-                                consumerId,
-                                projectorName,
-                                publishedEvent -> {
-                            var handlers = getProjectorMessageHandlers()
-                                    .get(publishedEvent.getEventName());
-                            if (handlers == null) return;
+    private void startSagaEventConsumers() {
 
-                            var handler = handlers.getOrDefault(projectorName, null);
-                            if (handler == null) return;
-
-                            handler.begin();
-                            handler.invoke(
-                                    publishedEvent.getEventMessage(),
-                                    commandGateway,
-                                    queryGateway
-                            );
-                            handler.commit();
-                        }, fetchSize);
-                    }catch (Throwable e){
-                        logger.error(e);
-                        e.printStackTrace();
-                        hasError = true;
-                    }
-                    if (fetchSize - consumedEventCount > 10) {
-                        try {
-                            Thread.sleep(hasError ? 5000 : fetchSize - consumedEventCount);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-
-            }).start();
-        }
+        logger.info("Checking for saga event consumers");
         for (SagaReference saga : sagas) {
             var sagaName = saga.getRef().getClass().getSimpleName();
+            var sagaVersion = saga.getRef().getClass().getAnnotation(Saga.class).version();
             logger.info("Starting event consumer for Saga %s".formatted(sagaName));
             new Thread(() -> {
+                var headReached = false;
                 var fetchSize = 1000;
-                var consumerId = bundleId + "_" + bundleVersion + "_" + sagaName;
+                var consumerId = bundleId + "_" + sagaVersion + "_" + sagaName;
                 while (!isShuttingDown) {
                     var hasError = false;
                     var consumedEventCount = 0;
@@ -483,7 +455,66 @@ public class EventRailsApplication {
 
             }).start();
         }
+    }
+    public void startProjectorEventConsumers(Runnable onHeadReached) {
+        var counter = new AtomicInteger();
+        logger.info("Checking for projector event consumers");
+        for (ProjectorReference projector : projectors) {
+            var projectorName = projector.getRef().getClass().getSimpleName();
+            var projectorVersion = projector.getRef().getClass().getAnnotation(Projector.class).version();
+            logger.info("Starting event consumer for Projector %s".formatted(projectorName));
+            new Thread(() -> {
+                var headReached = false;
+                var fetchSize = 1000;
+                var consumerId = bundleId + "_" + projectorVersion + "_" + projectorName;
+                while (!isShuttingDown) {
+                    var hasError = false;
+                    var consumedEventCount = 0;
+                    try {
+                        consumedEventCount = consumerStateStore.consumeEventsForProjector(
+                                consumerId,
+                                projectorName,
+                                publishedEvent -> {
+                            var handlers = getProjectorMessageHandlers()
+                                    .get(publishedEvent.getEventName());
+                            if (handlers == null) return;
 
+                            var handler = handlers.getOrDefault(projectorName, null);
+                            if (handler == null) return;
+
+                            handler.begin();
+                            handler.invoke(
+                                    publishedEvent.getEventMessage(),
+                                    commandGateway,
+                                    queryGateway
+                            );
+                            handler.commit();
+                        }, fetchSize);
+                    }catch (Throwable e){
+                        logger.error(e);
+                        e.printStackTrace();
+                        hasError = true;
+                    }
+                    if (fetchSize - consumedEventCount > 10) {
+                        try {
+                            Thread.sleep(hasError ? 5000 : fetchSize - consumedEventCount);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    if(!hasError && !headReached && consumedEventCount >= 0 && consumedEventCount < fetchSize){
+                        headReached = true;
+                        var aligned = counter.incrementAndGet();
+                        if(aligned == projectors.size()){
+                            onHeadReached.run();
+                        }
+                    }
+                }
+
+            }).start();
+        }
+
+        if(projectors.isEmpty()) onHeadReached.run();
 
     }
 

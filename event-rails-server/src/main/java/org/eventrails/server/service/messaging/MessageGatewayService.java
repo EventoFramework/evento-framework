@@ -2,6 +2,8 @@ package org.eventrails.server.service.messaging;
 
 import org.eventrails.common.messaging.consumer.EventFetchRequest;
 import org.eventrails.common.messaging.consumer.EventFetchResponse;
+import org.eventrails.common.messaging.consumer.EventLastSequenceNumberRequest;
+import org.eventrails.common.messaging.consumer.EventLastSequenceNumberResponse;
 import org.eventrails.common.modeling.messaging.message.application.*;
 import org.eventrails.common.modeling.messaging.message.bus.NodeAddress;
 import org.eventrails.common.modeling.messaging.message.bus.ResponseSender;
@@ -131,7 +133,7 @@ public class MessageGatewayService {
                 } else if (request instanceof ClusterNodeIsBoredMessage m) {
                     var nodes = messageBus.findAllNodeAddresses(m.getBundleId());
                     var bundle = bundleService.findByName(m.getBundleId());
-                    if (nodes.size() > bundle.getMaxInstances()) {
+                    if (nodes.size() > bundle.getMinInstances()) {
                         messageBus.sendKill(m.getNodeId());
                     }
                     return;
@@ -281,7 +283,8 @@ public class MessageGatewayService {
 
                 );
 
-            } else if (request instanceof QueryMessage<?> q) {
+            }
+            else if (request instanceof QueryMessage<?> q) {
                 var handler = handlerService.findByPayloadName(q.getQueryName());
                 bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
                 var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
@@ -309,7 +312,8 @@ public class MessageGatewayService {
                         }
                 );
 
-            } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
+            }
+            else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
                 response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
                         serverId,
                         serverVersion,
@@ -318,10 +322,15 @@ public class MessageGatewayService {
                         maxInstances,
                         new ArrayList<>()
                 ));
-            } else if (request instanceof EventFetchRequest f) {
+            }
+            else if (request instanceof EventFetchRequest f) {
                 var events = eventStore.fetchEvents(f.getLastSequenceNumber(), f.getLimit());
                 response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
-            } else {
+            }
+            else if (request instanceof EventLastSequenceNumberRequest r){
+                response.sendResponse(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
+            }
+            else {
                 throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
             }
         } catch (Exception e) {

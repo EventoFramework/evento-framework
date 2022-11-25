@@ -32,9 +32,19 @@ test {
     useJUnitPlatform()
 }
 
+task eventRailsUpdateVersion  {
+    dependsOn 'clean'
+    doLast {
+        org.eventrails.cli.UpdateVersion.main(new String[]{file("./src")})
+    }
+}
 task eventRailsPublish {
     dependsOn 'jar'
     doLast {
-        org.eventrails.cli.Main.main(new String[]{file("."), 'http://localhost:3000'})
+        org.eventrails.cli.PublishBundle.main(new String[]{file("."), 'http://localhost:3000'})
     }
+}
+task eventRailsUpdateVersionAndPublish {
+    dependsOn 'eventRailsUpdateVersion'
+    finalizedBy(eventRailsPublish)
 }

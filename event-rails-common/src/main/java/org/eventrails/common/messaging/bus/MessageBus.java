@@ -109,6 +109,12 @@ public abstract class MessageBus {
 		return this;
 	}
 
+	public NodeAddress getNodeAddress(String bundleId) {
+		return getCurrentView().stream()
+				.filter(address -> bundleId.equals(address.getBundleId()))
+				.findAny().orElseThrow(() -> new NodeNotFoundException("Node %s not found".formatted(bundleId)));
+	}
+
 	private record Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {
 	}
 

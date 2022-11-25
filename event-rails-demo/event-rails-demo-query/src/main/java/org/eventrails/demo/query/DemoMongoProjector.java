@@ -15,7 +15,7 @@ import org.eventrails.demo.query.domain.mongo.DemoMongoRepository;
 
 import java.time.Instant;
 
-@Projector
+@Projector(version = 2)
 public class DemoMongoProjector implements TransactionalProjector {
 
 
