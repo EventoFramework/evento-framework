@@ -70,7 +70,7 @@ export class ApplicationPetriNetPage implements OnInit {
         let height = 90;
         let text = transition.name;
         if (transition.meanServiceTime) {
-          text += "\n\nmst: " + transition.meanServiceTime.toFixed(3) + " [s]"
+          text += "\n\nmst: " + transition.meanServiceTime.toFixed(3) + " [ms]"
           height += 30
         }
         if (transition.bundle === 'event-store' || transition.component === 'SagaStore' || transition.component === 'ProjectorStore') {
