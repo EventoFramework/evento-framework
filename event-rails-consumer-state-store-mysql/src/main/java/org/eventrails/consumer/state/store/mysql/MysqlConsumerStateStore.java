@@ -96,7 +96,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         var stmt = connection.prepareStatement("SELECT lastEventSequenceNumber from " + CONSUMER_STATE_TABLE + " where id = ?");
         stmt.setString(1, consumerId);
         var resultSet = stmt.executeQuery();
-        if(!resultSet.next()) return 0L;
+        if(!resultSet.next()) return null;
         return resultSet.getLong(1);
     }
 

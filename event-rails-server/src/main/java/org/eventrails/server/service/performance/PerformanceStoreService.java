@@ -20,10 +20,10 @@ public class PerformanceStoreService {
         return Instant.now();
     }
 
-    public Performance getPerformance(String bundle, String component, String action) {
+    public Double getMeanServiceTime(String bundle, String component, String action) {
        return handlerPerformancesRepository.findById(bundle + "_" + component + "_" + action).map(
-               p -> p.toPerformance(MAX_DEPARTURES)
-       ).orElse(new Performance(null, null));
+               p -> p.getMeanServiceTime()
+       ).orElse(null);
     }
 
 
@@ -40,22 +40,12 @@ public class PerformanceStoreService {
         var pId = bundle + "_" + component + "_" + action;
         var lock = lockRegistry.obtain(pId);
         if(lock.tryLock()) {
-            var now = Instant.now();
             var hp = handlerPerformancesRepository.findById(pId);
             HandlerPerformances handlerPerformances;
             if (hp.isPresent()) {
                 handlerPerformances = hp.get();
                 handlerPerformances.setMeanServiceTime((((duration) * (1 - ALPHA)) + handlerPerformances.getMeanServiceTime() * ALPHA));
                 handlerPerformances.setLastServiceTime(duration);
-                handlerPerformances.setDepartures(handlerPerformances.getDepartures() + 1);
-                if (handlerPerformances.getDepartures() == MAX_DEPARTURES) {
-                    handlerPerformances.setLastThroughput(
-                            ((double) handlerPerformances.getDepartures()) /
-                                    (now.toEpochMilli() - (handlerPerformances.getLastThroughputUpdatedAt() == null ? handlerPerformances.getCreatedAt().toEpochMilli() : handlerPerformances.getLastThroughputUpdatedAt().toEpochMilli())));
-                    handlerPerformances.setLastThroughputUpdatedAt(now);
-                    handlerPerformances.setDepartures(0);
-                }
-                handlerPerformances.setUpdatedAt(now);
             } else {
                 handlerPerformances = new HandlerPerformances(
                         pId,
@@ -63,12 +53,7 @@ public class PerformanceStoreService {
                         component,
                         action,
                         duration,
-                        duration,
-                        null,
-                        null,
-                        1,
-                        now,
-                        now
+                        duration
                 );
             }
             handlerPerformancesRepository.save(handlerPerformances);

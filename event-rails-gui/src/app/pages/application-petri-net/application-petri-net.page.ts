@@ -73,11 +73,6 @@ export class ApplicationPetriNetPage implements OnInit {
           text += "\n\nmst: " + transition.meanServiceTime.toFixed(3) + " [s]"
           height += 30
         }
-        if (transition.meanThroughput) {
-          console.log(transition)
-          text += "\n\nthr: " + transition.meanThroughput.toFixed(3) + " [r/s]"
-          height += 30
-        }
         if (transition.bundle === 'event-store' || transition.component === 'SagaStore' || transition.component === 'ProjectorStore') {
           additionalStyles += "shape=cylinder;verticalAlign=bottom;spacingBottom=20;"
           height += 70

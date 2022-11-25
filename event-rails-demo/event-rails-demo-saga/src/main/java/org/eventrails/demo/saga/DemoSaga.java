@@ -16,7 +16,7 @@ import org.eventrails.demo.api.utils.Utils;
 
 import java.util.concurrent.ExecutionException;
 
-@Saga
+@Saga(version = 1)
 public class DemoSaga {
 
 	@SagaEventHandler(init = true, associationProperty = "demoId")

@@ -49,7 +49,16 @@ public class BundleService {
             String jarOriginalName,
             BundleDescription bundleDescription) {
         AtomicBoolean isNew = new AtomicBoolean(false);
-        var bundle = bundleRepository.findById(bundleId).orElseGet(() -> {
+        var bundle = bundleRepository.findById(bundleId).map(b -> {
+            b.setVersion(bundleDescription.getBundleVersion());
+            b.setArtifactCoordinates(bundleDeploymentArtifactCoordinates);
+            b.setArtifactOriginalName(jarOriginalName);
+            b.setContainsHandlers(bundleDescription.getComponents().size() > 0);
+            b.setAutorun(bundleDescription.getAutorun());
+            b.setMinInstances(bundleDescription.getMinInstances());
+            b.setMaxInstances(bundleDescription.getMaxInstances());
+            return bundleRepository.save(b);
+        }).orElseGet(() -> {
             isNew.set(true);
             return bundleRepository.save(new Bundle(
                     bundleId,
@@ -64,7 +73,7 @@ public class BundleService {
                     bundleDescription.getMinInstances(),
                     bundleDescription.getMaxInstances()));
         });
-        if(!isNew.get() && bundle.getVersion() <= bundleDescription.getBundleVersion())
+        if (!isNew.get() && bundle.getVersion() > bundleDescription.getBundleVersion())
             throw new IllegalArgumentException("Bundle " + bundleId + " with version " + bundle.getVersion() + " exists!");
 
         for (PayloadDescription payloadDescription : bundleDescription.getPayloadDescriptions()) {
@@ -89,43 +98,43 @@ public class BundleService {
                     handler.setHandledPayload(
                             payloadRepository.findById(aggregateCommandHandler.getPayload().getName())
                                     .map(p -> {
-                                        if(p.getType() != PayloadType.DomainCommand){
+                                        if (p.getType() != PayloadType.DomainCommand) {
                                             p.setType(PayloadType.DomainCommand);
                                             return payloadRepository.save(p);
                                         }
                                         return p;
                                     })
                                     .orElseGet(
-                                    () -> {
-                                        var payload = new Payload();
-                                        payload.setName(aggregateCommandHandler.getPayload().getName());
-                                        payload.setJsonSchema("null");
-                                        payload.setType(PayloadType.DomainCommand);
-                                        payload.setUpdatedAt(Instant.now());
-                                        payload.setRegisteredIn(finalBundle.getId());
-                                        return payloadRepository.save(payload);
-                                    }
-                            ));
+                                            () -> {
+                                                var payload = new Payload();
+                                                payload.setName(aggregateCommandHandler.getPayload().getName());
+                                                payload.setJsonSchema("null");
+                                                payload.setType(PayloadType.DomainCommand);
+                                                payload.setUpdatedAt(Instant.now());
+                                                payload.setRegisteredIn(finalBundle.getId());
+                                                return payloadRepository.save(payload);
+                                            }
+                                    ));
                     handler.setReturnIsMultiple(false);
-                    handler.setReturnType( payloadRepository.findById(aggregateCommandHandler.getProducedEvent().getName())
+                    handler.setReturnType(payloadRepository.findById(aggregateCommandHandler.getProducedEvent().getName())
                             .map(p -> {
-                                if(p.getType() != PayloadType.DomainEvent){
+                                if (p.getType() != PayloadType.DomainEvent) {
                                     p.setType(PayloadType.DomainEvent);
                                     return payloadRepository.save(p);
                                 }
                                 return p;
                             })
                             .orElseGet(
-                            () -> {
-                                var payload = new Payload();
-                                payload.setName(aggregateCommandHandler.getProducedEvent().getName());
-                                payload.setJsonSchema("null");
-                                payload.setType(PayloadType.DomainEvent);
-                                payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getId());
-                                return payloadRepository.save(payload);
-                            }
-                    ));
+                                    () -> {
+                                        var payload = new Payload();
+                                        payload.setName(aggregateCommandHandler.getProducedEvent().getName());
+                                        payload.setJsonSchema("null");
+                                        payload.setType(PayloadType.DomainEvent);
+                                        payload.setUpdatedAt(Instant.now());
+                                        payload.setRegisteredIn(bundle.getId());
+                                        return payloadRepository.save(payload);
+                                    }
+                            ));
                     handler.setInvocations(new HashSet<>());
                     handler.generateId();
                     handlerRepository.save(handler);
@@ -136,25 +145,25 @@ public class BundleService {
                     handler.setComponentName(component.getComponentName());
                     handler.setHandlerType(HandlerType.EventSourcingHandler);
                     handler.setComponentType(ComponentType.Aggregate);
-                    handler.setHandledPayload( payloadRepository.findById(eventSourcingHandler.getPayload().getName())
+                    handler.setHandledPayload(payloadRepository.findById(eventSourcingHandler.getPayload().getName())
                             .map(p -> {
-                                if(p.getType() != PayloadType.DomainEvent){
+                                if (p.getType() != PayloadType.DomainEvent) {
                                     p.setType(PayloadType.DomainEvent);
                                     return payloadRepository.save(p);
                                 }
                                 return p;
                             })
                             .orElseGet(
-                            () -> {
-                                var payload = new Payload();
-                                payload.setName(eventSourcingHandler.getPayload().getName());
-                                payload.setJsonSchema("null");
-                                payload.setType(PayloadType.DomainEvent);
-                                payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getId());
-                                return payloadRepository.save(payload);
-                            }
-                    ));
+                                    () -> {
+                                        var payload = new Payload();
+                                        payload.setName(eventSourcingHandler.getPayload().getName());
+                                        payload.setJsonSchema("null");
+                                        payload.setType(PayloadType.DomainEvent);
+                                        payload.setUpdatedAt(Instant.now());
+                                        payload.setRegisteredIn(bundle.getId());
+                                        return payloadRepository.save(payload);
+                                    }
+                            ));
                     handler.setReturnIsMultiple(false);
                     handler.setReturnType(null);
                     handler.setInvocations(new HashSet<>());
@@ -296,43 +305,43 @@ public class BundleService {
                     handler.setComponentType(ComponentType.Service);
                     handler.setHandledPayload(payloadRepository.findById(commandHandler.getPayload().getName())
                             .map(p -> {
-                                if(p.getType() != PayloadType.ServiceCommand){
+                                if (p.getType() != PayloadType.ServiceCommand) {
                                     p.setType(PayloadType.ServiceCommand);
                                     return payloadRepository.save(p);
                                 }
                                 return p;
                             })
                             .orElseGet(
-                            () -> {
-                                var payload = new Payload();
-                                payload.setName(commandHandler.getPayload().getName());
-                                payload.setJsonSchema("null");
-                                payload.setType(PayloadType.ServiceCommand);
-                                payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getId());
-                                return payloadRepository.save(payload);
-                            }
-                    ));
+                                    () -> {
+                                        var payload = new Payload();
+                                        payload.setName(commandHandler.getPayload().getName());
+                                        payload.setJsonSchema("null");
+                                        payload.setType(PayloadType.ServiceCommand);
+                                        payload.setUpdatedAt(Instant.now());
+                                        payload.setRegisteredIn(bundle.getId());
+                                        return payloadRepository.save(payload);
+                                    }
+                            ));
                     handler.setReturnIsMultiple(false);
                     handler.setReturnType(commandHandler.getProducedEvent() == null ? null : payloadRepository.findById(commandHandler.getProducedEvent().getName())
-                                    .map(p -> {
-                                        if(p.getType() != PayloadType.ServiceEvent){
-                                            p.setType(PayloadType.ServiceEvent);
-                                            return payloadRepository.save(p);
-                                        }
-                                        return p;
-                                    })
+                            .map(p -> {
+                                if (p.getType() != PayloadType.ServiceEvent) {
+                                    p.setType(PayloadType.ServiceEvent);
+                                    return payloadRepository.save(p);
+                                }
+                                return p;
+                            })
                             .orElseGet(
-                            () -> {
-                                var payload = new Payload();
-                                payload.setName(commandHandler.getProducedEvent().getName());
-                                payload.setJsonSchema("null");
-                                payload.setType(PayloadType.ServiceEvent);
-                                payload.setUpdatedAt(Instant.now());
-                                payload.setRegisteredIn(bundle.getId());
-                                return payloadRepository.save(payload);
-                            }
-                    ));
+                                    () -> {
+                                        var payload = new Payload();
+                                        payload.setName(commandHandler.getProducedEvent().getName());
+                                        payload.setJsonSchema("null");
+                                        payload.setType(PayloadType.ServiceEvent);
+                                        payload.setUpdatedAt(Instant.now());
+                                        payload.setRegisteredIn(bundle.getId());
+                                        return payloadRepository.save(payload);
+                                    }
+                            ));
                     var invocations = new HashSet<Payload>();
                     for (Query query : commandHandler.getQueryInvocations()) {
                         invocations.add(payloadRepository.findById(query.getName()).orElseGet(
@@ -376,10 +385,30 @@ public class BundleService {
                     handler.setReturnType(null);
                     var invocations = new HashSet<Payload>();
                     for (Query query : invocationHandler.getQueryInvocations()) {
-                        invocations.add(payloadRepository.getById(query.getName()));
+                        invocations.add(payloadRepository.findById(query.getName()).orElseGet(
+                                () -> {
+                                    var payload = new Payload();
+                                    payload.setName(query.getName());
+                                    payload.setJsonSchema("null");
+                                    payload.setType(PayloadType.Query);
+                                    payload.setUpdatedAt(Instant.now());
+                                    payload.setRegisteredIn(bundle.getId());
+                                    return payloadRepository.save(payload);
+                                }
+                        ));
                     }
                     for (Command command : invocationHandler.getCommandInvocations()) {
-                        invocations.add(payloadRepository.getById(command.getName()));
+                        invocations.add(payloadRepository.findById(command.getName()).orElseGet(
+                                () -> {
+                                    var payload = new Payload();
+                                    payload.setName(command.getName());
+                                    payload.setJsonSchema("null");
+                                    payload.setType(PayloadType.Command);
+                                    payload.setUpdatedAt(Instant.now());
+                                    payload.setRegisteredIn(bundle.getId());
+                                    return payloadRepository.save(payload);
+                                }
+                        ));
                     }
                     handler.setInvocations(invocations);
                     handler.generateId();
@@ -388,9 +417,12 @@ public class BundleService {
             }
         }
 
-        if(bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral){
+        if (bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral) {
             try {
-                bundleDeployService.waitUntilAvailable(bundleId);
+                if (isNew.get())
+                    new Thread(() -> bundleDeployService.waitUntilAvailable(bundleId)).start();
+                else
+                    bundleDeployService.spawn(bundleId);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -409,7 +441,7 @@ public class BundleService {
         bundleRepository.findById(bundleDeploymentName).ifPresent(bundleRepository::delete);
         for (Payload payload : payloadRepository.findAll()) {
             try {
-                if(!bundleRepository.existsById(payload.getRegisteredIn()))
+                if (!bundleRepository.existsById(payload.getRegisteredIn()))
                     payloadRepository.delete(payload);
             } catch (Exception ignored) {
             }

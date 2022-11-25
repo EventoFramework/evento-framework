@@ -17,7 +17,7 @@ import org.eventrails.demo.query.domain.mysql.DemoMysqlRepository;
 
 import java.time.Instant;
 
-@Projector
+@Projector(version =2)
 public class DemoMysqlProjector implements TransactionalProjector {
 	@Inject
 	private DemoMysqlRepository demoMysqlRepository;
