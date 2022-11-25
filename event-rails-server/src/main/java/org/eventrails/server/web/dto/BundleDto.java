@@ -31,6 +31,10 @@ public class BundleDto implements Serializable {
 	private Map<String, String> vmOptions;
 	private Collection<HandlerDto> handlers;
 
+	private boolean autorun;
+	private int minInstances;
+	private int maxInstances;
+
 	public BundleDto(Bundle bundle, List<Handler> handlers) {
 		this.id = bundle.getId();
 		this.version = bundle.getVersion();
@@ -41,5 +45,8 @@ public class BundleDto implements Serializable {
 		this.environment = bundle.getEnvironment();
 		this.vmOptions = bundle.getVmOptions();
 		this.handlers = handlers.stream().map(HandlerDto::new).collect(Collectors.toList());
+		this.autorun = bundle.isAutorun();
+		this.minInstances = bundle.getMinInstances();
+		this.maxInstances = bundle.getMaxInstances();
 	}
 }

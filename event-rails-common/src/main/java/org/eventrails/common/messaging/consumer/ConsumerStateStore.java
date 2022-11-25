@@ -3,24 +3,20 @@ package org.eventrails.common.messaging.consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eventrails.common.messaging.bus.MessageBus;
-import org.eventrails.common.modeling.annotations.component.Saga;
 import org.eventrails.common.modeling.messaging.dto.PublishedEvent;
 import org.eventrails.common.modeling.state.SagaState;
 import org.eventrails.common.performance.PerformanceService;
 
-import java.sql.SQLException;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
 
 public abstract class ConsumerStateStore {
 
     private final Logger logger = LogManager.getLogger(ConsumerStateStore.class);
 
 
-    private final MessageBus messageBus;
-    private final String serverNodeName;
+    protected final MessageBus messageBus;
+    protected final String serverNodeName;
 
     private final PerformanceService performanceService;
     private final String bundleId;
@@ -35,20 +31,15 @@ public abstract class ConsumerStateStore {
     public int consumeEventsForProjector(
             String consumerId,
             String projectorName, ProjectorEventConsumer projectorEventConsumer,
-                                         int fetchSize) throws Throwable {
+            int fetchSize) throws Throwable {
         var consumedEventCount = 0;
         if (enterExclusiveZone(consumerId)) {
             try {
                 var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
-                var resp = ((EventFetchResponse) messageBus.request(messageBus.findNodeAddress(serverNodeName),
+                if(lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
+                var resp = ((EventFetchResponse) messageBus.request(messageBus.getNodeAddress(serverNodeName),
                         new EventFetchRequest(lastEventSequenceNumber, fetchSize)).get());
                 for (PublishedEvent event : resp.getEvents()) {
-                    performanceService.sendPerformances(
-                            PerformanceService.DISPATCHER,
-                            projectorName,
-                            event.getEventName(),
-                            Instant.ofEpochMilli(event.getCreatedAt())
-                    );
                     var start = Instant.now();
                     projectorEventConsumer.consume(event);
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
@@ -63,6 +54,8 @@ public abstract class ConsumerStateStore {
             } finally {
                 leaveExclusiveZone(consumerId);
             }
+        } else {
+            return -1;
         }
         return consumedEventCount;
 
@@ -73,16 +66,10 @@ public abstract class ConsumerStateStore {
         var consumedEventCount = 0;
         if (enterExclusiveZone(consumerId)) {
             try {
-                var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
+                var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
                 var resp = ((EventFetchResponse) messageBus.request(messageBus.findNodeAddress(serverNodeName),
                         new EventFetchRequest(lastEventSequenceNumber, fetchSize)).get());
-                for (PublishedEvent event : resp.getEvents()){
-                    performanceService.sendPerformances(
-                            PerformanceService.DISPATCHER,
-                            sagaName,
-                            event.getEventName(),
-                            Instant.ofEpochMilli(event.getCreatedAt())
-                    );
+                for (PublishedEvent event : resp.getEvents()) {
                     var start = Instant.now();
                     var sagaStateId = new AtomicReference<Long>();
                     var newState = sagaEventConsumer.consume((name, associationProperty, associationValue) -> {
@@ -90,10 +77,10 @@ public abstract class ConsumerStateStore {
                         sagaStateId.set(state.getId());
                         return state.getState();
                     }, event);
-                    if(newState != null) {
-                        if(newState.isEnded()){
+                    if (newState != null) {
+                        if (newState.isEnded()) {
                             removeSagaState(sagaStateId.get());
-                        }else {
+                        } else {
                             setSagaState(sagaStateId.get(), sagaName, newState);
                         }
                     }
@@ -109,8 +96,22 @@ public abstract class ConsumerStateStore {
             } finally {
                 leaveExclusiveZone(consumerId);
             }
+        } else {
+            return -1;
         }
         return consumedEventCount;
+    }
+
+
+
+    protected long getLastEventSequenceNumberSagaOrHead(String consumerId) throws Exception {
+        var last = getLastEventSequenceNumber(consumerId);
+        if (last == null) {
+            var head =  ((EventLastSequenceNumberResponse) this.messageBus.request(messageBus.getNodeAddress(serverNodeName), new EventLastSequenceNumberRequest()).get()).getNumber();
+            setLastEventSequenceNumber(consumerId, head);
+            return head;
+        }
+        return last;
     }
 
     protected abstract void removeSagaState(Long sagaId) throws Exception;
@@ -120,7 +121,10 @@ public abstract class ConsumerStateStore {
     protected abstract boolean enterExclusiveZone(String consumerId) throws Exception;
 
     protected abstract Long getLastEventSequenceNumber(String consumerId) throws Exception;
+
     protected abstract void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) throws Exception;
+
     protected abstract StoredSagaState getSagaState(String sagaName, String associationProperty, String associationValue) throws Exception;
+
     protected abstract void setSagaState(Long sagaId, String sagaName, SagaState sagaState) throws Exception;
 }

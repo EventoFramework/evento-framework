@@ -35,8 +35,8 @@ public class Network {
 	}
 
 	public Transition transition(String bundle, String component, String action) {
-		var p = performanceFetcher.getPerformance(bundle, component, action);
-		var t = new Transition(idGenerator.getAndIncrement(), bundle, component, action, p.meanServiceTime(), p.meanThroughput());
+		var p = performanceFetcher.getMeanServiceTime(bundle, component, action);
+		var t = new Transition(idGenerator.getAndIncrement(), bundle, component, action, p);
 		transitions.add(t);
 		var iq = instancesPosts.get(bundle);
 		iq.getTarget().add(t);

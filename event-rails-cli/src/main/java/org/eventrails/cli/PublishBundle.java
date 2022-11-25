@@ -5,10 +5,6 @@ import org.eventrails.parser.java.JavaBundleParser;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Objects;
@@ -18,7 +14,7 @@ import java.util.zip.ZipOutputStream;
 import static org.eventrails.common.serialization.ObjectMapperUtils.getPayloadObjectMapper;
 
 
-public class Main {
+public class PublishBundle {
 	public static void main(String[] args) throws Exception {
 		String bundlePath = args[0];
 		String serverUrl = args[1];

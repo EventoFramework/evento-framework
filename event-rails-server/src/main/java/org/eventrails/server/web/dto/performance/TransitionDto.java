@@ -15,14 +15,12 @@ public class TransitionDto {
 
 	private Double meanServiceTime;
 
-	private Double meanThroughput;
 	public TransitionDto(Transition transition){
 		id = transition.getId();
 		bundle = transition.getBundle();
 		component = transition.getComponent();
 		action = transition.getAction();
 		target = transition.getTarget().stream().map(Post::getId).collect(Collectors.toSet());
-		meanThroughput = transition.getMeanThroughput();
 		meanServiceTime = transition.getMeanServiceTime();
 	}
 
@@ -75,13 +73,5 @@ public class TransitionDto {
 
 	public void setMeanServiceTime(Double meanServiceTime) {
 		this.meanServiceTime = meanServiceTime;
-	}
-
-	public Double getMeanThroughput() {
-		return meanThroughput;
-	}
-
-	public void setMeanThroughput(Double meanThroughput) {
-		this.meanThroughput = meanThroughput;
 	}
 }

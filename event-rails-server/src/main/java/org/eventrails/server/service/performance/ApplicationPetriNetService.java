@@ -36,7 +36,7 @@ public class ApplicationPetriNetService {
 	public Network toPetriNet() {
 
 
-		var n = new Network(performanceStoreService::getPerformance);
+		var n = new Network(performanceStoreService::getMeanServiceTime);
 		
 		for (Bundle bundle : bundleRepository.findAll())
 		{

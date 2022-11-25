@@ -29,7 +29,7 @@ public abstract class JavaComponentParser<T extends Component> {
 
 
 	public static boolean isSaga(ASTTypeDeclaration classDef) throws JaxenException {
-		return !classDef.findChildNodesWithXPath("//MarkerAnnotation/Name[@Image = \"Saga\"]").isEmpty();
+		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Saga\"]").isEmpty();
 	}
 
 	public static boolean isAggregate(ASTTypeDeclaration classDef) throws JaxenException {
@@ -37,15 +37,15 @@ public abstract class JavaComponentParser<T extends Component> {
 	}
 
 	public static boolean isProjection(ASTTypeDeclaration classDef) throws JaxenException {
-		return !classDef.findChildNodesWithXPath("//MarkerAnnotation/Name[@Image = \"Projection\"]").isEmpty();
+		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Projection\"]").isEmpty();
 	}
 
 	public static boolean isProjector(ASTTypeDeclaration classDef) throws JaxenException {
-		return !classDef.findChildNodesWithXPath("//MarkerAnnotation/Name[@Image = \"Projector\"]").isEmpty();
+		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Projector\"]").isEmpty();
 	}
 
 	public static boolean isService(ASTTypeDeclaration classDef) throws JaxenException {
-		return !classDef.findChildNodesWithXPath("//MarkerAnnotation/Name[@Image = \"Service\"]").isEmpty();
+		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Service\"]").isEmpty();
 	}
 
 	protected String getQueryForAnnotatedMethod(String annotation) {
@@ -57,7 +57,7 @@ public abstract class JavaComponentParser<T extends Component> {
 	}
 
 	public static boolean isInvoker(ASTTypeDeclaration classDef) throws JaxenException {
-		return !classDef.findChildNodesWithXPath("//MarkerAnnotation/Name[@Image = \"Invoker\"]").isEmpty();
+		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Invoker\"]").isEmpty();
 	}
 
 	protected void findCommandInvocations(List<? extends Handler<?>> ehs) throws JaxenException {

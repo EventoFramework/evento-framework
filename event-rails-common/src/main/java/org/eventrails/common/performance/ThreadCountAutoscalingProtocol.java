@@ -1,10 +1,14 @@
 package org.eventrails.common.performance;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeIsBoredMessage;
 import org.eventrails.common.modeling.messaging.message.internal.ClusterNodeIsSufferingMessage;
 import org.eventrails.common.messaging.bus.MessageBus;
 
 public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
+
+	private final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
 	private final int maxThreadCount;
 	private final int minThreadCount;
 	private final int maxOverflowCount;
@@ -55,6 +59,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
 								messageBus.findNodeAddress(serverName),
 								new ClusterNodeIsSufferingMessage(bundleId)
 						);
+						logger.info("ClusterNodeIsSufferingMessage sent");
 					} catch (Exception e)
 					{
 						e.printStackTrace();
@@ -78,6 +83,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
 								messageBus.findNodeAddress(serverName),
 								new ClusterNodeIsBoredMessage(bundleId, messageBus.getAddress().getNodeId())
 						);
+						logger.info("ClusterNodeIsBoredMessage sent");
 					}catch (Exception e){
 						e.printStackTrace();
 					}
