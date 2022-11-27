@@ -1,0 +1,76 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath files('../../evento-cli/build/libs/evento-cli-1.0-SNAPSHOT-all.jar')
+    }
+}
+
+
+plugins {
+    id 'org.springframework.boot' version '2.6.6'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'java'
+}
+
+group 'org.evento'
+version '1.0-SNAPSHOT'
+sourceCompatibility = '17'
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+    compileOnly 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+
+
+    implementation project(":evento-bus-rabbitmq")
+    implementation project(":evento-application")
+    implementation project(":evento-demo:evento-demo-api")
+
+}
+
+
+task prepareKotlinBuildScriptModel {
+
+}
+
+test {
+    useJUnitPlatform()
+}
+
+task eventoUpdateVersion  {
+    dependsOn 'clean'
+    doLast {
+        org.evento.cli.UpdateVersion.main(new String[]{file("./src")})
+    }
+}
+task eventoPublish {
+    dependsOn 'bootJar'
+    doLast {
+        org.evento.cli.PublishBundle.main(new String[]{file("."), 'http://localhost:3000'})
+    }
+}
+task eventoUpdateVersionAndPublish {
+    dependsOn 'eventoUpdateVersion'
+    finalizedBy(eventoPublish)
+}

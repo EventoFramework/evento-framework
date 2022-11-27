@@ -1,7 +1,0 @@
-{
-  "name": "event-rails-gui",
-  "integrations": {
-    "capacitor": {}
-  },
-  "type": "angular"
-}

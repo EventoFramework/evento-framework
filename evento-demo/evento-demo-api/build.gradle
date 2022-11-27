@@ -1,0 +1,50 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath files('../../evento-cli/build/libs/evento-cli-1.0-SNAPSHOT-all.jar')
+    }
+}
+
+
+plugins {
+    id 'java'
+}
+
+group 'org.evento'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+
+    implementation project(":evento-common")
+}
+
+test {
+    useJUnitPlatform()
+}
+
+task eventoUpdateVersion  {
+    dependsOn 'clean'
+    doLast {
+        org.evento.cli.UpdateVersion.main(new String[]{file("./src")})
+    }
+}
+task eventoPublish {
+    dependsOn 'jar'
+    doLast {
+        org.evento.cli.PublishBundle.main(new String[]{file("."), 'http://localhost:3000'})
+    }
+}
+task eventoUpdateVersionAndPublish {
+    dependsOn 'eventoUpdateVersion'
+    finalizedBy(eventoPublish)
+}
