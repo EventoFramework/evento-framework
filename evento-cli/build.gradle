@@ -1,0 +1,35 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+
+group 'org.evento.cli'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+    implementation 'info.picocli:picocli:4.7.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0'
+
+    implementation project(":evento-parser")
+    implementation project(":evento-common")
+
+    implementation("com.squareup.okhttp3:okhttp:4.10.0")
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'org.evento.cli.Main'
+        )
+    }
+}
