@@ -8,10 +8,10 @@ declare var mxHierarchicalLayout: any;
 
 @Component({
   selector: 'app-application-petri-net',
-  templateUrl: './application-petri-net.page.html',
-  styleUrls: ['./application-petri-net.page.scss'],
+  templateUrl: './application-flows-page.component.html',
+  styleUrls: ['./application-flows-page.component.scss'],
 })
-export class ApplicationPetriNetPage implements OnInit {
+export class ApplicationFlowsPage implements OnInit {
 
 
   constructor(private handlerService: HandlerService,
