@@ -6,11 +6,11 @@ import { Component } from '@angular/core';
 })
 export class AppComponent {
   public appPages = [
-    { title: 'evento.application.map', url: '/application-map', icon: 'apps' },
-    { title: 'evento.application.flows', url: '/application-flows', icon: 'git-compare' },
-    { title: 'evento.cluster.status', url: '/cluster-status', icon: 'layers' },
-    { title: 'evento.registered.bundles', url: '/bundle-list', icon: 'cube' },
-    { title: 'evento.library', url: '/library-page', icon: 'book' },
+    { title: 'application.map.title', url: '/application-map', icon: 'apps' },
+    { title: 'application.flows.title', url: '/application-flows', icon: 'git-compare' },
+    { title: 'cluster.status', url: '/cluster-status', icon: 'layers' },
+    { title: 'bundle.list.title', url: '/bundle-list', icon: 'cube' },
+    { title: 'library.title', url: '/library-page', icon: 'book' },
   ];
   constructor() {}
 }
