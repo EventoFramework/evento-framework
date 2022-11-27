@@ -1,0 +1,7 @@
+GET http://localhost:8081/er/info
+
+###
+
+POST http://localhost:8081/er/invoke/domain-command/DemoUpdateCommand
+
+["org.evento.modeling.messaging.message.application.DomainCommandMessage",{"payload":["org.evento.demo.api.command.DemoCreateCommand",{"demoId":"5cf5a9d0-4f1e-4166-8ad3-8ecaf2956692","name":"demo1","value":0}],"aggregateId":"5cf5a9d0-4f1e-4166-8ad3-8ecaf2956692"}]

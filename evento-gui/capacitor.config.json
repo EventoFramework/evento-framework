@@ -1,0 +1,6 @@
+{
+	"appId": "io.ionic.starter",
+	"appName": "evento-gui",
+	"webDir": "www",
+	"bundledWebRuntime": false
+}
