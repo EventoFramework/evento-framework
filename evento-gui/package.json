@@ -30,6 +30,7 @@
     "graphviz-builder": "^0.1.0",
     "graphviz-wasm": "^3.0.0",
     "ionicons": "^6.0.3",
+    "jsdom": "^20.0.3",
     "mxgraph": "^4.2.2",
     "rxjs": "~6.6.0",
     "svg-pan-zoom": "^3.6.1",
