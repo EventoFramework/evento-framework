@@ -50,9 +50,10 @@ public class EventStore {
 		if (seq == null) seq = -1L;
 		return eventStoreRepository.findAllByEventSequenceNumberAfterOrderByEventSequenceNumberAsc(seq);
 	}
+
 	public List<EventStoreEntry> fetchEvents(Long seq, int limit) {
 		if (seq == null) seq = -1L;
-		return eventStoreRepository.findAllByEventSequenceNumberAfterOrderByEventSequenceNumberAsc(seq, PageRequest.of(0,limit));
+		return eventStoreRepository.findAllByEventSequenceNumberAfterOrderByEventSequenceNumberAsc(seq, PageRequest.of(0, limit));
 	}
 
 	public Snapshot fetchSnapshot(String aggregateId) {
@@ -68,8 +69,9 @@ public class EventStore {
 		return snapshotRepository.save(snapshot);
 	}
 
-	public Long getLastEventSequenceNumber() {
-		return eventStoreRepository.getLastEventSequenceNumber();
+	public long getLastEventSequenceNumber() {
+		var v = eventStoreRepository.getLastEventSequenceNumber();
+		return v == null ? 0 : v.longValue();
 	}
 
 	public Long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
@@ -77,7 +79,7 @@ public class EventStore {
 		try
 		{
 			Long aggregateSequenceNumber = (Long) jdbcTemplate.queryForMap("select ifnull(max(aggregate_sequence_number) + 1,1) as a from es__events where aggregate_id = ?", aggregateId)
-						.get("a");
+					.get("a");
 			jdbcTemplate.update(
 					"INSERT INTO es__events " +
 							"(event_id, aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
@@ -88,7 +90,7 @@ public class EventStore {
 					aggregateSequenceNumber,
 					mapper.writeValueAsString(eventMessage),
 					eventMessage.getEventName()
-					);
+			);
 			return aggregateSequenceNumber;
 		} catch (JsonProcessingException e)
 		{

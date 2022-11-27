@@ -24,8 +24,8 @@ const routes: Routes = [
     loadChildren: () => import('./pages/application-map/application-map.module').then( m => m.ApplicationMapPageModule)
   },
   {
-    path: 'application-petri-net',
-    loadChildren: () => import('./pages/application-petri-net/application-petri-net.module').then( m => m.ApplicationPetriNetPageModule)
+    path: 'application-flows',
+    loadChildren: () => import('./pages/application-flows/application-flows.module').then(m => m.ApplicationFlowsPageModule)
   },
   {
     path: 'bundle-info/:identifier',

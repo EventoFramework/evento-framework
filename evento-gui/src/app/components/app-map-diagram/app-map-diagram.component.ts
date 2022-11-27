@@ -7,7 +7,7 @@ declare var mxConstants: any;
 declare var mxUtils: any;
 
 @Component({
-  selector: 'er-app-map-diagram',
+  selector: 'evento-app-map-diagram',
   templateUrl: './app-map-diagram.component.html',
   styleUrls: ['./app-map-diagram.component.scss'],
 })
@@ -263,10 +263,10 @@ export class AppMapDiagramComponent implements OnInit {
           this.addCircle(handlerCircles, (60) + (10 * (h.invoke.length + h.responseHandeledBy.length)), h.uuid, handler);
         }
         componentHandlerCircles[component] = handlerCircles;
-        this.addCircle(componentCircles, (this.diameter(handlerCircles) / 2) + this.padding, component, null)
+        this.addCircle(componentCircles, (this.diameter(handlerCircles) / 2) + this.padding, component, component)
       }
       bundleComponentCircles[bundle] = componentCircles;
-      this.addCircle(bundleCircles, (this.diameter(componentCircles) / 2) + this.padding, bundle, null)
+      this.addCircle(bundleCircles, (this.diameter(componentCircles) / 2) + this.padding, bundle, bundle)
     }
     console.log(bundleCircles);
 
@@ -310,7 +310,7 @@ export class AppMapDiagramComponent implements OnInit {
           x,
           y,
           c.r * 2,
-          c.r * 2, nodeStyle + "strokeColor="+this.bundleColorService.getColorForBundle(c.id));
+          c.r * 2, nodeStyle + "verticalAlign=top;labelBackgroundColor=#ffffff;labelBorderColor="+this.bundleColorService.getColorForBundle(c.id)+";spacingTop=-3;strokeColor="+this.bundleColorService.getColorForBundle(c.id));
         bp.setConnectable(false);
 
         const _minX = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.x - h.r));
@@ -327,7 +327,7 @@ export class AppMapDiagramComponent implements OnInit {
             _x + (_center - (_centralPoint.x - _minX)),
             _y + (_center - (_centralPoint.y - _minY)),
             _c.r * 2,
-            _c.r * 2, nodeStyle + ";fillColor=white");
+            _c.r * 2, nodeStyle + ";verticalAlign=top;fillColor=white;verticalAlign=top;labelBackgroundColor=#ffffff;spacingTop=3;");
           _bp.setConnectable(false);
 
           const __minX = Math.min.apply(null, componentHandlerCircles[_c.id].map(h => h.x - h.r));

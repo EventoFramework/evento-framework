@@ -1,4 +1,4 @@
-CREATE TABLE int_lock  (
+CREATE TABLE IF NOT EXISTS int_lock  (
 						   lock_key CHAR(36) NOT NULL,
 						   region VARCHAR(100) NOT NULL,
 						   client_id CHAR(36),
