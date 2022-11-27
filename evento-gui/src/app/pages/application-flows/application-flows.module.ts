@@ -4,9 +4,9 @@ import { FormsModule } from '@angular/forms';
 
 import { IonicModule } from '@ionic/angular';
 
-import { ApplicationPetriNetPageRoutingModule } from './application-petri-net-routing.module';
+import { ApplicationFlowsPageRoutingModule } from './application-flows-routing.module';
 
-import { ApplicationPetriNetPage } from './application-petri-net.page';
+import { ApplicationFlowsPage } from './application-flows-page.component';
 import {TranslateModule} from "@ngx-translate/core";
 
 @NgModule({
@@ -14,9 +14,9 @@ import {TranslateModule} from "@ngx-translate/core";
         CommonModule,
         FormsModule,
         IonicModule,
-        ApplicationPetriNetPageRoutingModule,
+        ApplicationFlowsPageRoutingModule,
         TranslateModule
     ],
-  declarations: [ApplicationPetriNetPage]
+  declarations: [ApplicationFlowsPage]
 })
-export class ApplicationPetriNetPageModule {}
+export class ApplicationFlowsPageModule {}

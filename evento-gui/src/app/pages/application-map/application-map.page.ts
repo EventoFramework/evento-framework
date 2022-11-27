@@ -90,55 +90,5 @@ export class ApplicationMapPage implements OnInit {
       }
       node.children.push(bundleNode)
     }
-
-    if(true) {
-
-    }else {
-
-      await graphviz.loadWASM();
-
-      const g = digraph('G');
-      g.set("rankdir", "LR")
-      g.set("pad", "0.5")
-      g.set("ranksep", "2")
-      for (const bundle in bundles) {
-        const bundleCluster = g.addCluster("cluster__" + bundle);
-        bundleCluster.set("label", bundle)
-        for (const component in bundles[bundle].components) {
-          const componentCluster = bundleCluster.addCluster("cluster__" + component);
-          for (const handler in bundles[bundle].components[component].handlers) {
-            componentCluster.set("label", component)
-            const h = bundles[bundle].components[component].handlers[handler];
-            if (h.handlerType === 'EventSourcingHandler') {
-              continue;
-            }
-            componentCluster.addNode(h.uuid, {label: handler, shape: 'circle'})
-          }
-        }
-      }
-
-      for (let handler of handlers) {
-
-        if (handler.returnType) {
-          for (const target of handlers.filter(h => h.handledPayload.name === handler.returnType.name && h.handlerType !== 'EventSourcingHandler')) {
-            g.addEdge(handler.uuid, target.uuid)
-          }
-        }
-        for (const invocation of handler.invocations) {
-          for (const target of handlers.filter(h => h.handledPayload.name === invocation.name && h.handlerType !== 'EventSourcingHandler')) {
-            g.addEdge(handler.uuid, target.uuid)
-          }
-        }
-        //g.addNode()
-      }
-
-      const dot = g.to_dot();
-
-      this.svg = graphviz.layout(dot);
-      document.getElementById("graph").innerHTML = this.svg;
-      var panZoomTiger = svgPanZoom(document.getElementById("graph").children.item(0) as any, {
-        contain: true
-      })
-    }
   }
 }
