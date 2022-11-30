@@ -3,10 +3,11 @@ package org.evento.parser.model.handler;
 import org.evento.parser.model.payload.Query;
 
 import java.util.Collection;
+import java.util.Map;
 
 public interface HasQueryInvocations {
 
-	void addQueryInvocation(Query query);
+	void addQueryInvocation(Query query, int line);
 
-	Collection<Query> getQueryInvocations();
+	Map<Integer, Query> getQueryInvocations();
 }

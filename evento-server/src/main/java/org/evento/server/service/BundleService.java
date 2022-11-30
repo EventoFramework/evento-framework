@@ -136,7 +136,7 @@ public class BundleService {
                                         return payloadRepository.save(payload);
                                     }
                             ));
-                    handler.setInvocations(new HashSet<>());
+                    handler.setInvocations(new HashMap<>());
                     handler.generateId();
                     handlerRepository.save(handler);
                 }
@@ -167,7 +167,7 @@ public class BundleService {
                             ));
                     handler.setReturnIsMultiple(false);
                     handler.setReturnType(null);
-                    handler.setInvocations(new HashSet<>());
+                    handler.setInvocations(new HashMap<>());
                     handler.generateId();
                     handlerRepository.save(handler);
                 }
@@ -192,12 +192,14 @@ public class BundleService {
                     handler.setReturnIsMultiple(false);
                     handler.setReturnType(null);
                     handler.setAssociationProperty(sagaEventHandler.getAssociationProperty());
-                    var invocations = new HashSet<Payload>();
-                    for (Command command : sagaEventHandler.getCommandInvocations()) {
-                        invocations.add(payloadRepository.findById(command.getName()).orElseGet(
+                    var invocations = new HashMap<Integer, Payload>();
+                    for (var command : sagaEventHandler.getCommandInvocations().entrySet()) {
+                        invocations.put(
+                                command.getKey(),
+                                payloadRepository.findById(command.getValue().getName()).orElseGet(
                                 () -> {
                                     var payload = new Payload();
-                                    payload.setName(command.getName());
+                                    payload.setName(command.getValue().getName());
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
@@ -206,11 +208,11 @@ public class BundleService {
                                 }
                         ));
                     }
-                    for (Query query : sagaEventHandler.getQueryInvocations()) {
-                        invocations.add(payloadRepository.findById(query.getName()).orElseGet(
+                    for (var query : sagaEventHandler.getQueryInvocations().entrySet()) {
+                        invocations.put(query.getKey(), payloadRepository.findById(query.getValue().getName()).orElseGet(
                                 () -> {
                                     var payload = new Payload();
-                                    payload.setName(query.getName());
+                                    payload.setName(query.getValue().getName());
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
@@ -253,7 +255,7 @@ public class BundleService {
                                 return payloadRepository.save(payload);
                             }
                     ));
-                    handler.setInvocations(new HashSet<>());
+                    handler.setInvocations(new HashMap<>());
                     handler.generateId();
                     handlerRepository.save(handler);
 
@@ -278,12 +280,12 @@ public class BundleService {
                     ));
                     handler.setReturnIsMultiple(false);
                     handler.setReturnType(null);
-                    var invocations = new HashSet<Payload>();
-                    for (Query query : eventHandler.getQueryInvocations()) {
-                        invocations.add(payloadRepository.findById(query.getName()).orElseGet(
+                    var invocations = new HashMap<Integer, Payload>();
+                    for (var query : eventHandler.getQueryInvocations().entrySet()) {
+                        invocations.put(query.getKey(),payloadRepository.findById(query.getValue().getName()).orElseGet(
                                 () -> {
                                     var payload = new Payload();
-                                    payload.setName(query.getName());
+                                    payload.setName(query.getValue().getName());
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
@@ -343,12 +345,12 @@ public class BundleService {
                                         return payloadRepository.save(payload);
                                     }
                             ));
-                    var invocations = new HashSet<Payload>();
-                    for (Query query : commandHandler.getQueryInvocations()) {
-                        invocations.add(payloadRepository.findById(query.getName()).orElseGet(
+                    var invocations = new HashMap<Integer, Payload>();
+                    for (var query : commandHandler.getQueryInvocations().entrySet()) {
+                        invocations.put(query.getKey(), payloadRepository.findById(query.getValue().getName()).orElseGet(
                                 () -> {
                                     var payload = new Payload();
-                                    payload.setName(query.getName());
+                                    payload.setName(query.getValue().getName());
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
@@ -357,11 +359,11 @@ public class BundleService {
                                 }
                         ));
                     }
-                    for (Command command : commandHandler.getCommandInvocations()) {
-                        invocations.add(payloadRepository.findById(command.getName()).orElseGet(
+                    for (var command : commandHandler.getCommandInvocations().entrySet()) {
+                        invocations.put(command.getKey(),payloadRepository.findById(command.getValue().getName()).orElseGet(
                                 () -> {
                                     var payload = new Payload();
-                                    payload.setName(command.getName());
+                                    payload.setName(command.getValue().getName());
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
@@ -384,12 +386,12 @@ public class BundleService {
                     handler.setHandledPayload(payloadRepository.getById(invocationHandler.getPayload().getName()));
                     handler.setReturnIsMultiple(false);
                     handler.setReturnType(null);
-                    var invocations = new HashSet<Payload>();
-                    for (Query query : invocationHandler.getQueryInvocations()) {
-                        invocations.add(payloadRepository.findById(query.getName()).orElseGet(
+                    var invocations = new HashMap<Integer, Payload>();
+                    for (var query : invocationHandler.getQueryInvocations().entrySet()) {
+                        invocations.put(query.getKey(), payloadRepository.findById(query.getValue().getName()).orElseGet(
                                 () -> {
                                     var payload = new Payload();
-                                    payload.setName(query.getName());
+                                    payload.setName(query.getValue().getName());
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
@@ -398,11 +400,13 @@ public class BundleService {
                                 }
                         ));
                     }
-                    for (Command command : invocationHandler.getCommandInvocations()) {
-                        invocations.add(payloadRepository.findById(command.getName()).orElseGet(
+                    for (var command : invocationHandler.getCommandInvocations().entrySet()) {
+                        invocations.put(
+                                command.getKey(),
+                                payloadRepository.findById(command.getValue().getName()).orElseGet(
                                 () -> {
                                     var payload = new Payload();
-                                    payload.setName(command.getName());
+                                    payload.setName(command.getValue().getName());
                                     payload.setJsonSchema("null");
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());

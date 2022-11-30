@@ -10,6 +10,8 @@ import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -28,7 +30,7 @@ public class HandlerDto implements Serializable {
 	private ComponentType componentType;
 	private HandlerType handlerType;
 	private boolean returnIsMultiple;
-	private Set<PayloadDto> invocations;
+	private Map<Integer,PayloadDto> invocations;
 
 	public HandlerDto(Handler handler) {
 		this.uuid = handler.getUuid();
@@ -39,7 +41,10 @@ public class HandlerDto implements Serializable {
 		this.returnIsMultiple = handler.isReturnIsMultiple();
 		this.handledPayload = handler.getHandledPayload() == null ? null : new PayloadDto(handler.getHandledPayload());
 		this.returnType = handler.getReturnType() == null ? null :  new PayloadDto(handler.getReturnType());
-		this.invocations = handler.getInvocations().stream().map(PayloadDto::new).collect(Collectors.toSet());
+		this.invocations = new HashMap<>();
+		for (Map.Entry<Integer, Payload> i : handler.getInvocations().entrySet()) {
+			this.invocations.put(i.getKey(), new PayloadDto(i.getValue()));
+		}
 	}
 
 	/**

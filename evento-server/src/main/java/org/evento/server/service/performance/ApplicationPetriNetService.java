@@ -59,10 +59,10 @@ public class ApplicationPetriNetService {
 			n.addSource(sourceQueue);
 
 
-			for (Payload p : i.getInvocations())
+			for (var p : i.getInvocations().entrySet())
 			{
 				var iq = n.post(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName());
-				generateInvocationPetriNet(n, handlers, p, sourceAgent, iq);
+				generateInvocationPetriNet(n, handlers, p.getValue(), p.getKey(), sourceAgent, iq);
 				sourceAgent = n.transition(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName());
 				iq.getTarget().add(sourceAgent);
 			}
@@ -79,7 +79,7 @@ public class ApplicationPetriNetService {
 		
 	}
 
-	private void generateInvocationPetriNet(Network n, List<Handler> handlers, Payload p, Transition sourceAgent, Post sinkQueue) {
+	private void generateInvocationPetriNet(Network n, List<Handler> handlers, Payload p, int line, Transition sourceAgent, Post sinkQueue) {
 		if (p.getType() == PayloadType.Command || p.getType() == PayloadType.DomainCommand || p.getType() == PayloadType.ServiceCommand)
 		{
 			// Invoker -> Server
@@ -117,10 +117,10 @@ public class ApplicationPetriNetService {
 
 							esAgent.getTarget().add(hq);
 							hq.getTarget().add(ha);
-							for (Payload invocation : h.getInvocations())
+							for (var invocation : h.getInvocations().entrySet())
 							{
 								var iq = n.post(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName());
-								generateInvocationPetriNet(n, handlers, invocation, ha, iq);
+								generateInvocationPetriNet(n, handlers, invocation.getValue(), invocation.getKey(), ha, iq);
 								ha = n.transition(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName());
 								iq.getTarget().add(ha);
 							}
