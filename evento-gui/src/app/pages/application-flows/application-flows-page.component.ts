@@ -2,6 +2,7 @@ import {Component, OnInit} from '@angular/core';
 import {HandlerService} from "../../services/handler.service";
 import {BundleColorService} from "../../services/bundle-color.service";
 import {add} from "ionicons/icons";
+import * as mermaid from 'mermaid';
 
 declare var mxGraph: any;
 declare var mxHierarchicalLayout: any;
@@ -18,10 +19,49 @@ export class ApplicationFlowsPage implements OnInit {
               private bundleColorService: BundleColorService) {
   }
 
+
+
   async ngOnInit() {
 
-    const network = await this.handlerService.getPetriNet();
+
+    const handlers = await this.handlerService.findAll();
+
+    const generateSequence = (handler, parentComponent, previous, parent, sync) => {
+
+      for(const i of handler.invocations){
+        for(const h of handlers.filter(h => h.handledPayload.name === i.name)){
+          previous += handler.componentName + "->>" + h.componentName + ": " + h.handledPayload.name + "\n"
+          previous += generateSequence(h, handler.componentName, "", () => h.componentName + "->>" + handler.componentName + ": \n" +(sync ? handler.componentName + "->>" + parentComponent + ": \n" +  parent() : ""), true)
+        }
+      }
+      if(["InvocationHandler", "CommandHandler", "AggregateCommandHandler", "ServiceCommandHandler", "QueryHandler"].includes(handler.handlerType) && sync) {
+       previous += parent();
+      }
+      if(handler.returnType){
+        for(const h of handlers.filter(h => h.handledPayload.name === handler.returnType.name && h.handlerType !== 'EventSourcingHandler')){
+          previous += handler.componentName + "-->>" + h.componentName + ": " + h.handledPayload.name + "\n"
+          previous += generateSequence(h, handler.componentName, "",() => "", false)
+        }
+      }
+
+      return previous;
+    }
+
+
+    var handler = handlers.filter(h => h.handledPayload.name === 'DemoLifecycleAgent::action')[0];
+    console.log(handler);
     const container = <HTMLElement>document.getElementById('graph');
+    mermaid.default.initialize({});
+    let graphDefinition = generateSequence(handler,"Invoker", "sequenceDiagram\nInvoker->>" + handler.componentName + ": " + handler.handledPayload.name + "\n",
+      () => "", true)
+    console.log(graphDefinition);
+    mermaid.default.render("graphDiv", graphDefinition, (svgCode) => {
+      container.innerHTML = svgCode;
+    });
+    /*
+
+        const network = await this.handlerService.getPetriNet();
+        const container = <HTMLElement>document.getElementById('graph');
 
     const graph = new mxGraph(container)
     const parent = graph.getDefaultParent()
@@ -120,7 +160,7 @@ export class ApplicationFlowsPage implements OnInit {
 
     } finally {
       graph.getModel().endUpdate()
-    }
+    }*/
   }
 
 
