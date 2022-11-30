@@ -4,13 +4,13 @@ import org.evento.parser.model.payload.Command;
 import org.evento.parser.model.payload.Event;
 import org.evento.parser.model.payload.Query;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SagaEventHandler extends Handler<Event> implements HasCommandInvocations, HasQueryInvocations {
 
-	private ArrayList<Command> invokedCommands = new ArrayList<>();
-	private ArrayList<Query> invokedQueries = new ArrayList<>();
+	private HashMap<Integer, Command> invokedCommands = new HashMap<>();
+	private HashMap<Integer, Query> invokedQueries = new HashMap<>();
 
 	private String associationProperty;
 
@@ -23,23 +23,23 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 	}
 
 	@Override
-	public void addCommandInvocation(Command command) {
-		invokedCommands.add(command);
+	public void addCommandInvocation(Command command, int line) {
+		invokedCommands.put(line,command);
 	}
 
 	@Override
-	public Collection<Command> getCommandInvocations() {
+	public Map<Integer, Command> getCommandInvocations() {
 		return invokedCommands;
 	}
 
 	@Override
-	public void addQueryInvocation(Query query) {
-		invokedQueries.add(query);
+	public void addQueryInvocation(Query query, int line) {
+		invokedQueries.put(line, query);
 
 	}
 
 	@Override
-	public Collection<Query> getQueryInvocations() {
+	public Map<Integer, Query> getQueryInvocations() {
 		return invokedQueries;
 	}
 
@@ -47,19 +47,19 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 		return associationProperty;
 	}
 
-	public ArrayList<Command> getInvokedCommands() {
+	public HashMap<Integer, Command> getInvokedCommands() {
 		return invokedCommands;
 	}
 
-	public void setInvokedCommands(ArrayList<Command> invokedCommands) {
+	public void setInvokedCommands(HashMap<Integer, Command> invokedCommands) {
 		this.invokedCommands = invokedCommands;
 	}
 
-	public ArrayList<Query> getInvokedQueries() {
+	public HashMap<Integer, Query> getInvokedQueries() {
 		return invokedQueries;
 	}
 
-	public void setInvokedQueries(ArrayList<Query> invokedQueries) {
+	public void setInvokedQueries(HashMap<Integer, Query> invokedQueries) {
 		this.invokedQueries = invokedQueries;
 	}
 

@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
+import static org.evento.common.serialization.ObjectMapperUtils.getPayloadObjectMapper;
+
 class BundleDescriptionParserTest {
 
    @Test
@@ -12,5 +14,8 @@ class BundleDescriptionParserTest {
        JavaBundleParser applicationParser = new JavaBundleParser();
        var components = applicationParser.parseDirectory(
                new File("../evento-demo/evento-demo-saga"));
+       var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
+
+       System.out.println(components);
     }
 }
