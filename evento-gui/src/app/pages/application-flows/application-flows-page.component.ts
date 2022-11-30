@@ -25,6 +25,7 @@ export class ApplicationFlowsPage implements OnInit {
 
 
     const handlers = await this.handlerService.findAll();
+    /*
     var handler = handlers.filter(h => h.handledPayload.name === 'DemoLifecycleAgent::action')[0];
     console.log(handler);
 
@@ -142,7 +143,7 @@ export class ApplicationFlowsPage implements OnInit {
       container.innerHTML = svgCode;
     });
     /*
-
+*/
         const network = await this.handlerService.getPetriNet();
         const container = <HTMLElement>document.getElementById('graph');
 
@@ -171,7 +172,7 @@ export class ApplicationFlowsPage implements OnInit {
 
     const showPosts = false;
 
-    var layout = new mxHierarchicalLayout(graph, 'west');
+    var layout = new mxHierarchicalLayout(graph, 'north');
     graph.getModel().beginUpdate()
     try {
       const postNodes = {}
@@ -243,7 +244,7 @@ export class ApplicationFlowsPage implements OnInit {
 
     } finally {
       graph.getModel().endUpdate()
-    }*/
+    }
   }
 
 
