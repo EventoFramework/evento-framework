@@ -30,6 +30,7 @@ export class ApplicationFlowsPage implements OnInit {
 
 
 
+
     /*
     const network = await this.handlerService.getPetriNet();
     const posts = {};
