@@ -25,7 +25,89 @@ export class ApplicationFlowsPage implements OnInit {
 
 
     const handlers = await this.handlerService.findAll();
+    var handler = handlers.filter(h => h.handledPayload.name === 'DemoLifecycleAgent::action')[0];
+    console.log(handler);
 
+
+
+    /*
+    const network = await this.handlerService.getPetriNet();
+    const posts = {};
+    for(const p of network.posts){
+      posts[p.id] = p;
+    }
+    const transitions = {};
+    for(const t of network.transitions){
+      transitions[t.id] = t;
+    }
+    var handler = handlers.filter(h => h.handledPayload.name === 'DemoLifecycleAgent::action')[0];
+    var diagram = "sequenceDiagram\n";
+    const manageTransition = (c, t) => {
+      console.log("t", t)
+      const arrow = c == "EventStore" ? "-->>" : "->>"
+      diagram += c+arrow+t.component+": "+t.action+"\n";
+      for(const tt of t.target){
+        console.log("p", posts[tt])
+        if(posts[tt].action === 'Token') {
+          continue;
+        }
+        if(posts[tt].action === 'Sink') {
+          continue;
+        }
+        if(posts[tt].component === 'ProjectorStore') {
+          continue;
+        }
+        if(posts[tt].component === 'SagaStore') {
+          continue;
+        }
+        if(posts[tt].component === t.component && posts[tt].action === t.action){
+          continue;
+        }
+        for(const pt of posts[tt].target){
+          if(transitions[pt].component == 'Gateway'){
+            for(const gp of transitions[pt].target){
+              if(posts[gp].action === 'Token') {
+                continue;
+              }
+              if(posts[gp].action === 'Sink') {
+                continue;
+              }
+              if(posts[gp].component === 'ProjectorStore') {
+                continue;
+              }
+              if(posts[gp].component === 'SagaStore') {
+                continue;
+              }
+              if(posts[gp].component === t.component && posts[gp].action === t.action){
+                continue;
+              }
+              for(const gpt of posts[gp].target){
+                manageTransition(t.component, transitions[gpt]);
+              }
+            }
+          }else {
+            manageTransition(t.component, transitions[pt]);
+          }
+        }
+      }
+    }
+
+    const t = network.transitions.filter(t => t.bundle == handler.bundleId && t.component == handler.componentName && t.action == handler.handledPayload.name)[0];
+
+    manageTransition("Invoker", t);
+
+    mermaid.default.initialize({});
+    const container = <HTMLElement>document.getElementById('graph');
+    console.log(diagram);
+    mermaid.default.render("graphDiv", diagram, (svgCode) => {
+      container.innerHTML = svgCode;
+    });
+
+
+
+
+
+    /*
     const generateSequence = (handler, parentComponent, previous, parent, sync) => {
 
       for(const i of handler.invocations){

@@ -11,6 +11,7 @@ import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -46,7 +47,7 @@ public class Handler implements Serializable {
 	@ManyToMany
 	@ToString.Exclude
 	@JoinTable(name = "core__handler__invocation")
-	private Set<Payload> invocations;
+	private Map<Integer, Payload> invocations;
 
 	private String associationProperty;
 
