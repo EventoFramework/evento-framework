@@ -15,6 +15,8 @@ public class TransitionDto {
 
 	private Double meanServiceTime;
 
+	private boolean async;
+
 	public TransitionDto(Transition transition){
 		id = transition.getId();
 		bundle = transition.getBundle();
@@ -22,6 +24,7 @@ public class TransitionDto {
 		action = transition.getAction();
 		target = transition.getTarget().stream().map(Post::getId).collect(Collectors.toSet());
 		meanServiceTime = transition.getMeanServiceTime();
+		async = transition.getAsync();
 	}
 
 	public TransitionDto() {
@@ -73,5 +76,13 @@ public class TransitionDto {
 
 	public void setMeanServiceTime(Double meanServiceTime) {
 		this.meanServiceTime = meanServiceTime;
+	}
+
+	public boolean getAsync() {
+		return async;
+	}
+
+	public void setAsync(boolean async) {
+		this.async = async;
 	}
 }
