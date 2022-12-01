@@ -48,11 +48,11 @@ export class ApplicationMapPage implements OnInit {
       h.responseHandeledBy = [];
       h.invoke = [];
       if (handler.returnType) {
-        for (const target of handlers.filter(h => h.handledPayload.name === handler.returnType.name && h.handlerType !== 'EventSourcingHandler')) {
+        for (const target of Object.values<any>(handlers).filter(h => h.handledPayload.name === handler.returnType.name && h.handlerType !== 'EventSourcingHandler')) {
           h.responseHandeledBy.push(target.uuid)
         }
       }
-      for(const invocation of handler.invocations){
+      for(const invocation of Object.values<any>(handler.invocations)){
         for (const target of handlers.filter(h => h.handledPayload.name === invocation.name && h.handlerType !== 'EventSourcingHandler')) {
           h.invoke.push(target.uuid)
         }

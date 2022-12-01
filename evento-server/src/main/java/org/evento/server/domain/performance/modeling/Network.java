@@ -34,16 +34,16 @@ public class Network {
 		return posts;
 	}
 
-	public Transition transition(String bundle, String component, String action) {
+	public Transition transition(String bundle, String component, String action, boolean async) {
 		var p = performanceFetcher.getMeanServiceTime(bundle, component, action);
 		var t = new Transition(idGenerator.getAndIncrement(), bundle, component, action, p);
 		transitions.add(t);
 		var iq = instancesPosts.get(bundle);
 		iq.getTarget().add(t);
 		t.getTarget().add(iq);
+		t.setAsync(async);
 		return t;
 	}
-
 	public List<Transition> getTransitions() {
 		return transitions;
 	}
