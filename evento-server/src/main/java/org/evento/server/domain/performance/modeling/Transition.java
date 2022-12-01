@@ -12,6 +12,8 @@ public class Transition {
     private String action;
     private Set<Post> target;
 
+    private boolean async;
+
     private Double meanServiceTime;
 
 
@@ -83,5 +85,13 @@ public class Transition {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    public boolean getAsync() {
+        return async;
+    }
+
+    public void setAsync(boolean async) {
+        this.async = async;
     }
 }
