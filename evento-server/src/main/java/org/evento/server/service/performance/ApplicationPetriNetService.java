@@ -101,6 +101,7 @@ public class ApplicationPetriNetService {
 			var serverResponseAgent = n.transition(SERVER, "Gateway",   handler.getReturnType() == null ? "Void" :handler.getReturnType().getName(), false);
 			serverResponseQueue.getTarget().add(serverResponseAgent);
 
+
 			if (handler.getReturnType() != null)
 			{
 				// Server -> ES
@@ -119,31 +120,31 @@ public class ApplicationPetriNetService {
 
 							esAgent.getTarget().add(hq);
 							hq.getTarget().add(ha);
-							for (var invocation : h.getInvocations().entrySet().stream().sorted((s,b)->b.getKey()-s.getKey()).toList())
+							for (var invocation : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
 							{
 								var iq = n.post(h.getBundle().getId(), h.getComponentName(), "Queue");
 								generateInvocationPetriNet(n, handlers, invocation.getValue(), ha, iq);
-								ha = n.transition(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName(), false);
+								ha = n.transition(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " ["+invocation.getKey()+"]", false);
 								iq.getTarget().add(ha);
 							}
 
 							if(h.getHandlerType() == HandlerType.SagaEventHandler){
-								var ssq = n.post(SERVER,"SagaStore", "Queue");
-								var ssa = n.transition( SERVER,"SagaStore", h.getComponentName(), false);
+								var ssq = n.post(h.getBundle().getId(),"SagaStore", "Queue");
+								var ssa = n.transition( h.getBundle().getId(),"SagaStore", h.getComponentName(), false);
 								ha.getTarget().add(ssq);
 								ssq.getTarget().add(ssa);
-								var ssqOk = n.post(SERVER, "SagaStore", "Sink");
-								var ssaOk = n.transition( SERVER, "SagaStore", "Sink", false);
+								var ssqOk = n.post(h.getBundle().getId(), "SagaStore", "Sink");
+								var ssaOk = n.transition(h.getBundle().getId(), "SagaStore", "Sink", false);
 								ssa.getTarget().add(ssqOk);
 								ssqOk.getTarget().add(ssaOk);
 							} else if (h.getHandlerType() == HandlerType.EventHandler)
 							{
-								var psq = n.post(SERVER,"ProjectorStore","Queue");
-								var psa = n.transition( SERVER,"ProjectorStore",h.getComponentName(), false);
+								var psq = n.post(h.getBundle().getId(), "ProjectorStore","Queue");
+								var psa = n.transition( h.getBundle().getId(),"ProjectorStore",h.getComponentName(), false);
 								ha.getTarget().add(psq);
 								psq.getTarget().add(psa);
-								var psqOk = n.post(SERVER,"ProjectorStore", "Sink");
-								var psaOk = n.transition( SERVER,"ProjectorStore", "Sink", false);
+								var psqOk = n.post(h.getBundle().getId(),"ProjectorStore", "Sink");
+								var psaOk = n.transition( h.getBundle().getId(),"ProjectorStore", "Sink", false);
 								psa.getTarget().add(psqOk);
 								psqOk.getTarget().add(psaOk);
 							}
@@ -200,6 +201,14 @@ public class ApplicationPetriNetService {
 			var sinkAgent = n.transition(i.getBundle().getId(), i.getComponentName(), "Sink", false);
 			sinkQueue.getTarget().add(sinkAgent);
 
+			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+			{
+				var iq = n.post(i.getBundle().getId(), i.getComponentName(), "Queue");
+				generateInvocationPetriNet(n, handlers, p.getValue(), sourceAgent, iq);
+				sourceAgent = n.transition(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName() + " ["+p.getKey()+"]", false);
+				iq.getTarget().add(sourceAgent);
+			}
+
 			if (i.getReturnType() != null)
 			{
 				// Server -> ES
@@ -218,31 +227,32 @@ public class ApplicationPetriNetService {
 
 							esAgent.getTarget().add(hq);
 							hq.getTarget().add(ha);
-							for (var invocation : h.getInvocations().entrySet().stream().sorted((s,b)->b.getKey()-s.getKey()).toList())
+							for (var invocation : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
 							{
 								var iq = n.post(h.getBundle().getId(), h.getComponentName(), "Queue");
 								generateInvocationPetriNet(n, handlers, invocation.getValue(), ha, iq);
-								ha = n.transition(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName(), false);
+								ha = n.transition(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName()+ " ["+invocation.getKey()+"]", false);
 								iq.getTarget().add(ha);
 							}
 
 							if(h.getHandlerType() == HandlerType.SagaEventHandler){
-								var ssq = n.post(SERVER,"SagaStore", "Queue");
-								var ssa = n.transition( SERVER,"SagaStore", h.getComponentName(), false);
+
+								var ssq = n.post(h.getBundle().getId(),"SagaStore", "Queue");
+								var ssa = n.transition( h.getBundle().getId(),"SagaStore", h.getComponentName(), false);
 								ha.getTarget().add(ssq);
 								ssq.getTarget().add(ssa);
-								var ssqOk = n.post(SERVER, "SagaStore", "Sink");
-								var ssaOk = n.transition( SERVER, "SagaStore", "Sink", false);
+								var ssqOk = n.post(h.getBundle().getId(), "SagaStore", "Sink");
+								var ssaOk = n.transition( h.getBundle().getId(), "SagaStore", "Sink", false);
 								ssa.getTarget().add(ssqOk);
 								ssqOk.getTarget().add(ssaOk);
 							} else if (h.getHandlerType() == HandlerType.EventHandler)
 							{
-								var psq = n.post(SERVER,"ProjectorStore","Queue");
-								var psa = n.transition( SERVER,"ProjectorStore",h.getComponentName(), false);
+								var psq = n.post(h.getBundle().getId(),"ProjectorStore","Queue");
+								var psa = n.transition( h.getBundle().getId(),"ProjectorStore",h.getComponentName(), false);
 								ha.getTarget().add(psq);
 								psq.getTarget().add(psa);
-								var psqOk = n.post(SERVER,"ProjectorStore", "Sink");
-								var psaOk = n.transition( SERVER,"ProjectorStore", "Sink", false);
+								var psqOk = n.post(h.getBundle().getId(),"ProjectorStore", "Sink");
+								var psaOk = n.transition( h.getBundle().getId(),"ProjectorStore", "Sink", false);
 								psa.getTarget().add(psqOk);
 								psqOk.getTarget().add(psaOk);
 							}
@@ -259,28 +269,6 @@ public class ApplicationPetriNetService {
 			sourceAgent.getTarget().add(sinkQueue);
 
 
-			/*
-			var sourceQueue = n.post(i.getBundle().getId(), i.getComponentName(), "Queue", 1);
-			var sourceAgent = n.transition(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName(), false);
-			sourceQueue.getTarget().add(sourceAgent);
-			sourceAgent.getTarget().add(sourceQueue);
-
-			n.addSource(sourceQueue);
-
-
-			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
-			{
-				var iq = n.post(i.getBundle().getId(), i.getComponentName(), "Queue");
-				generateInvocationPetriNet(n, handlers, p.getValue(), p.getKey(), sourceAgent, iq);
-				sourceAgent = n.transition(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName() + " ["+p.getKey()+"]", false);
-				iq.getTarget().add(sourceAgent);
-			}
-
-			var sinkQueue = n.post(i.getBundle().getId(), i.getComponentName(), "Sink", 1);
-			var sinkAgent = n.transition(i.getBundle().getId(), i.getComponentName(), "Sink", false);
-			sinkQueue.getTarget().add(sinkAgent);
-
-			sourceAgent.getTarget().add(sinkQueue);*/
 
 		});
 
