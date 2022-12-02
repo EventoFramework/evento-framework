@@ -28,7 +28,7 @@ export class ApplicationFlowsPage implements OnInit {
     const handlerId = this.route.snapshot.params.handlerId;
 
     const network = handlerId === 'all' ? await this.handlerService.getPetriNet() : await this.handlerService.getPetriNet(handlerId) ;
-    const container = <HTMLElement>document.getElementById('graph');
+    const container = document.getElementById('flows');
     container.innerHTML = '';
 
     const graph = new mxGraph(container);

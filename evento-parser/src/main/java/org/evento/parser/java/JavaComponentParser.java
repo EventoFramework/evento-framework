@@ -139,11 +139,11 @@ public abstract class JavaComponentParser<T extends Component> {
 				hs.stream().filter(eh -> eh.getPayload().getName().equals(eName)).forEach(h -> {
 					if (m instanceof Query q && h instanceof HasQueryInvocations qi)
 					{
-						qi.addQueryInvocation(q, methodOrConstructor.getBeginLine());
+						qi.addQueryInvocation(q, expr.peek().getBeginLine());
 					}
 					if (m instanceof Command c && h instanceof HasCommandInvocations ci)
 					{
-						ci.addCommandInvocation(c, methodOrConstructor.getBeginLine());
+						ci.addCommandInvocation(c, expr.peek().getBeginLine());
 					}
 				});
 			}
