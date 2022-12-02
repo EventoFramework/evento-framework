@@ -1,6 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 import {BundleColorService} from '../../services/bundle-color.service';
+import {NavController} from "@ionic/angular";
 
 declare const mxGraph: any;
 declare const mxConstants: any;
@@ -17,7 +18,8 @@ export class AppMapDiagramComponent implements OnInit {
   padding = 20;
 
   constructor(private handlerService: HandlerService,
-              private bundleColorService: BundleColorService) {
+              private bundleColorService: BundleColorService,
+              private navController: NavController) {
   }
 
 
@@ -97,7 +99,7 @@ export class AppMapDiagramComponent implements OnInit {
       bundleComponentCircles[bundle] = componentCircles;
       this.addCircle(bundleCircles, (this.diameter(componentCircles) / 2) + this.padding, bundle, bundle);
     }
-    const container = <HTMLElement>document.getElementById('graph');
+    const container = <HTMLElement>document.getElementById('map');
 
     const graph = new mxGraph(container);
     const parent = graph.getDefaultParent();
@@ -119,6 +121,16 @@ export class AppMapDiagramComponent implements OnInit {
         graph.zoomIn();
       } else {
         graph.zoomOut();
+      }
+    });
+
+    graph.addListener('click', (source, evt) => {
+      const cell = evt.getProperty('cell');
+
+      if (cell != null &&
+        cell.value != null && cell.value.handlerId) {
+
+        this.navController.navigateForward('/application-flows/' + cell.value.handlerId);
       }
     });
 
@@ -167,7 +179,10 @@ export class AppMapDiagramComponent implements OnInit {
           for (const __c of componentHandlerCircles[_c.id]) {
             const __x = __c.x - __c.r - __minX;
             const __y = __c.y - __c.r - __minY;
-            const __bp = graph.insertVertex(_bp, __c.id, __c.n,
+            const __bp = graph.insertVertex(_bp, __c.id, {
+              toString: () => __c.n,
+              handlerId: __c.id
+            },
               __x + (__center - (__centralPoint.x - __minX)),
               __y + (__center - (__centralPoint.y - __minY)),
               __c.r * 2,
