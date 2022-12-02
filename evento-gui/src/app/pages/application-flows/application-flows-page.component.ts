@@ -2,6 +2,7 @@ import {Component, OnInit} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 import {BundleColorService} from '../../services/bundle-color.service';
 import * as mermaid from 'mermaid';
+import {ActivatedRoute} from "@angular/router";
 
 declare let mxGraph: any;
 declare let mxHierarchicalLayout: any;
@@ -12,19 +13,23 @@ declare let mxHierarchicalLayout: any;
   styleUrls: ['./application-flows-page.component.scss'],
 })
 export class ApplicationFlowsPage implements OnInit {
+  private showPosts = false;
 
 
   constructor(private handlerService: HandlerService,
-              private bundleColorService: BundleColorService) {
+              private bundleColorService: BundleColorService,
+              private route: ActivatedRoute) {
   }
 
 
 
   async ngOnInit() {
 
+    const handlerId = this.route.snapshot.params.handlerId;
 
-        const network = await this.handlerService.getPetriNet();
-        const container = <HTMLElement>document.getElementById('graph');
+    const network = handlerId === 'all' ? await this.handlerService.getPetriNet() : await this.handlerService.getPetriNet(handlerId) ;
+    const container = <HTMLElement>document.getElementById('graph');
+    container.innerHTML = '';
 
     const graph = new mxGraph(container);
     const parent = graph.getDefaultParent();
@@ -49,7 +54,8 @@ export class ApplicationFlowsPage implements OnInit {
       }
     });
 
-    const showPosts = false;
+
+    console.log(network);
 
     const layout = new mxHierarchicalLayout(graph, 'west');
     graph.getModel().beginUpdate();
@@ -58,9 +64,9 @@ export class ApplicationFlowsPage implements OnInit {
       const transitionNodes = {};
       const transitionRef = {};
       const postStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent';
-      if (showPosts) {
+      if (this.showPosts) {
         for (const post of network.posts) {
-          postNodes[post.id] = graph.insertVertex(parent, post.id, null, null, null, 50, 50, postStyle);
+          postNodes[post.id] = graph.insertVertex(parent, post.id, post.action, null, null, 50, 50, postStyle);
         }
       }
       const transitionStyle = 'shape=rectangle;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;';
@@ -86,17 +92,19 @@ export class ApplicationFlowsPage implements OnInit {
         transitionRef[transition.id] = transition;
       }
 
-      if (showPosts) {
+
+      const edgeStyle = 'endArrow=classic;html=1;labelBackgroundColor=white;elbow=vertical;edgeStyle=orthogonalEdgeStyle;curved=1;';
+
+      if (this.showPosts) {
         for (const post of network.posts) {
           for (const target of post.target) {
-            graph.insertEdge(parent, null, '', postNodes[post.id], transitionNodes[target]);
+            graph.insertEdge(parent, null, '', postNodes[post.id], transitionNodes[target], edgeStyle);
           }
         }
       }
 
-      const edgeStyle = 'endArrow=classic;html=1;rounded=0;curved=1;labelBackgroundColor=white';
       for (const transition of network.transitions) {
-        if (showPosts) {
+        if (this.showPosts) {
           for (const target of transition.target) {
               graph.insertEdge(parent, null, '', transitionNodes[transition.id], postNodes[target], edgeStyle);
             }
@@ -122,7 +130,6 @@ export class ApplicationFlowsPage implements OnInit {
               transitionNodes[target.id], edgeStyle +';'+ (target.async ? 'dashed=1' : 'dashed=0'));
           }
         }
-
       }
 
       // Executes the layout
@@ -135,4 +142,8 @@ export class ApplicationFlowsPage implements OnInit {
   }
 
 
+  togglePosts($event: any) {
+    this.showPosts = $event.detail.checked;
+    return this.ngOnInit();
+  }
 }
