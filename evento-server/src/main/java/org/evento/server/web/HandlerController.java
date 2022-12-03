@@ -1,9 +1,9 @@
 package org.evento.server.web;
 
 import org.evento.server.service.HandlerService;
-import org.evento.server.service.performance.ApplicationPetriNetService;
+import org.evento.server.service.performance.ApplicationQueueNetService;
 import org.evento.server.web.dto.HandlerDto;
-import org.evento.server.web.dto.performance.NetworkDto;
+import org.evento.server.web.dto.performance.QueueNetworkDTO;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,11 +19,11 @@ public class HandlerController {
 
 	private final HandlerService handlerService;
 
-	private final ApplicationPetriNetService applicationPetriNetService;
+	private final ApplicationQueueNetService applicationQueueNetService;
 
-	public HandlerController(HandlerService handlerService, ApplicationPetriNetService applicationPetriNetService) {
+	public HandlerController(HandlerService handlerService, ApplicationQueueNetService applicationQueueNetService) {
 		this.handlerService = handlerService;
-		this.applicationPetriNetService = applicationPetriNetService;
+		this.applicationQueueNetService = applicationQueueNetService;
 	}
 
 	@GetMapping("/")
@@ -31,13 +31,13 @@ public class HandlerController {
 		return ResponseEntity.ok(handlerService.findAll().stream().map(HandlerDto::new).collect(Collectors.toList()));
 	}
 
-	@GetMapping("/to-petri-net")
-	public ResponseEntity<NetworkDto> toPetriNet(){
-		return ResponseEntity.ok(new NetworkDto(applicationPetriNetService.toPetriNet()));
+	@GetMapping("/to-queue-net")
+	public ResponseEntity<QueueNetworkDTO> toQueueNet(){
+		return ResponseEntity.ok(new QueueNetworkDTO(applicationQueueNetService.toQueueNetwork()));
 	}
 
-	@GetMapping("/to-petri-net/{handlerId}")
-	public ResponseEntity<NetworkDto> toPetriNet(@PathVariable String handlerId){
-		return ResponseEntity.ok(new NetworkDto(applicationPetriNetService.toPetriNet(handlerId)));
+	@GetMapping("/to-queue-net/{handlerId}")
+	public ResponseEntity<QueueNetworkDTO> toQueueNet(@PathVariable String handlerId){
+		return ResponseEntity.ok(new QueueNetworkDTO(applicationQueueNetService.toQueueNetwork(handlerId)));
 	}
 }

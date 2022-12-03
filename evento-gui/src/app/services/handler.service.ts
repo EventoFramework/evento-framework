@@ -12,7 +12,7 @@ export class HandlerService {
     return fetch(environment.erServerUrl + '/api/handler/').then(r => r.json());
   }
 
-  getPetriNet(handlerId = null) {
-    return fetch(environment.erServerUrl + '/api/handler/to-petri-net' + (handlerId ? ('/' + handlerId) : '')).then(r => r.json());
+  getQueueNet(handlerId = null) {
+    return fetch(environment.erServerUrl + '/api/handler/to-queue-net' + (handlerId ? ('/' + handlerId) : '')).then(r => r.json());
   }
 }
