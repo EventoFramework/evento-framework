@@ -2,6 +2,7 @@ package org.evento.server.web.dto.performance;
 
 import org.evento.server.domain.performance.queue.Node;
 import org.evento.server.domain.performance.queue.ServiceStation;
+import org.evento.server.domain.performance.queue.Source;
 
 import java.io.Serializable;
 import java.util.HashSet;
@@ -20,6 +21,7 @@ public class NodeDTO implements Serializable {
 	private Integer numServers;
 	private String type;
 
+	private String name;
 	private Double meanServiceTime;
 
 	public NodeDTO(Node node) {
@@ -33,6 +35,10 @@ public class NodeDTO implements Serializable {
 			this.target = s.getTarget().stream().map(Node::getId).collect(Collectors.toSet());
 			this.numServers = null;
 			this.meanServiceTime = s.getMeanServiceTime();
+		} else if (node instanceof Source s)
+		{
+			this.target = s.getTarget().stream().map(Node::getId).collect(Collectors.toSet());
+			this.name = s.getName();
 		}
 	}
 
@@ -110,5 +116,13 @@ public class NodeDTO implements Serializable {
 
 	public void setMeanServiceTime(Double meanServiceTime) {
 		this.meanServiceTime = meanServiceTime;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
 	}
 }
