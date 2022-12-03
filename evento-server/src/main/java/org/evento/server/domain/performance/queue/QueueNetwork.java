@@ -1,7 +1,6 @@
 package org.evento.server.domain.performance.queue;
 
 import org.evento.server.domain.performance.modeling.PerformanceFetcher;
-import org.evento.server.domain.performance.modeling.Post;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +20,7 @@ public class QueueNetwork {
 		this.performanceFetcher = performanceFetcher;
 	}
 
-	public ServiceStation ss(String bundleId, String componentName, String action, boolean async, Integer numServers) {
+	public ServiceStation station(String bundleId, String componentName, String action, boolean async, Integer numServers) {
 		var p = performanceFetcher.getMeanServiceTime(bundleId, componentName, action);
 		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, action, async, numServers, p);
 		nodes.add(ss);
@@ -40,5 +39,11 @@ public class QueueNetwork {
 
 	public List<Node> getNodes() {
 		return nodes;
+	}
+
+	public Source source(String name) {
+		var source  = new Source(idGenerator.getAndIncrement(), name);
+		nodes.add(source);
+		return source;
 	}
 }
