@@ -71,6 +71,12 @@ export class ApplicationFlowsPage implements OnInit {
             50,
             sinkStyle);
           nodesRef[node.id] = node;
+        }  else if (node.type === 'Source') {
+          var text = node.name;
+          vertexRef[node.id] = graph.insertVertex(parent, node.id, text, null, null, text.length * 10,
+            50,
+            serviceStationStyle);
+          nodesRef[node.id] = node;
         } else {
           node.name = node.bundle + '\n\n' + node.component + '\n\n' + node.action;
           let additionalStyles = 'fillColor=' + this.bundleColorService.getColorForBundle(node.bundle) + ';';
