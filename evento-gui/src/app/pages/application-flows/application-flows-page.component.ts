@@ -13,8 +13,6 @@ declare let mxHierarchicalLayout: any;
   styleUrls: ['./application-flows-page.component.scss'],
 })
 export class ApplicationFlowsPage implements OnInit {
-  private showPosts = false;
-
 
   constructor(private handlerService: HandlerService,
               private bundleColorService: BundleColorService,
@@ -22,12 +20,9 @@ export class ApplicationFlowsPage implements OnInit {
   }
 
 
-
   async ngOnInit() {
 
     const handlerId = this.route.snapshot.params.handlerId;
-
-    const network = handlerId === 'all' ? await this.handlerService.getPetriNet() : await this.handlerService.getPetriNet(handlerId) ;
     const container = document.getElementById('flows');
     container.innerHTML = '';
 
@@ -55,95 +50,70 @@ export class ApplicationFlowsPage implements OnInit {
     });
 
 
+    const network = handlerId === 'all' ? await this.handlerService.getQueueNet() : await this.handlerService.getQueueNet(handlerId);
+
+
     console.log(network);
 
     const layout = new mxHierarchicalLayout(graph, 'west');
     graph.getModel().beginUpdate();
     try {
-      const postNodes = {};
-      const transitionNodes = {};
-      const transitionRef = {};
-      const postStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent';
-      if (this.showPosts) {
-        for (const post of network.posts) {
-          postNodes[post.id] = graph.insertVertex(parent, post.id, post.action, null, null, 50, 50, postStyle);
-        }
-      }
-      const transitionStyle = 'shape=rectangle;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;';
-      for (const transition of network.transitions) {
-        if (transition.action === 'Sink') {continue;}
-        transition.name = transition.bundle + '\n\n' + transition.component + '\n\n' + transition.action;
-        Math.max(transition.bundle.length, transition.component.length, transition.action.length);
-        let additionalStyles = 'fillColor=' + this.bundleColorService.getColorForBundle(transition.bundle) + ';';
-        const width = Math.max(transition.bundle.length, transition.component.length, transition.action.length) * 10;
-        let height = 90;
-        let text = transition.name;
-        if (transition.meanServiceTime) {
-          text += '\n\nmst: ' + transition.meanServiceTime.toFixed(3) + ' [ms]';
-          height += 30;
-        }
-        if (transition.bundle === 'event-store' || transition.component === 'SagaStore' || transition.component === 'ProjectorStore') {
-          additionalStyles += 'shape=cylinder;verticalAlign=bottom;spacingBottom=20;';
-          height += 70;
-        }
-        transitionNodes[transition.id] = graph.insertVertex(parent, transition.id, text, null, null, width,
-          height,
-          transitionStyle + additionalStyles);
-        transitionRef[transition.id] = transition;
-      }
 
+      const nodesRef = {};
+      const vertexRef = {}
+
+      const serviceStationStyle = 'shape=rectangle;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;';
+      const sinkStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent';
+      for (const node of network.nodes) {
+        if (node.type === 'Sink') {
+          node.name = node.type;
+          vertexRef[node.id] = graph.insertVertex(parent, node.id, "Sink", null, null, 50,
+            50,
+            sinkStyle);
+          nodesRef[node.id] = node;
+        } else {
+          node.name = node.bundle + '\n\n' + node.component + '\n\n' + node.action;
+          let additionalStyles = 'fillColor=' + this.bundleColorService.getColorForBundle(node.bundle) + ';';
+          const width = Math.max(node.bundle.length, node.component.length, node.action.length) * 10;
+          let height = 90;
+          let text = node.name;
+          if (node.meanServiceTime) {
+            text += '\n\nmst: ' + node.meanServiceTime.toFixed(3) + ' [ms]';
+            height += 30;
+          }
+          if (node.bundle === 'event-store' || node.component === 'SagaStore' || node.component === 'ProjectorStore') {
+            additionalStyles += 'shape=cylinder;verticalAlign=bottom;spacingBottom=20;';
+            height += 70;
+          }
+          vertexRef[node.id] = graph.insertVertex(parent, node.id, text, null, null, width,
+            height,
+            serviceStationStyle + additionalStyles);
+          nodesRef[node.id] = node;
+        }
+      }
 
       const edgeStyle = 'endArrow=classic;html=1;labelBackgroundColor=white;elbow=vertical;edgeStyle=orthogonalEdgeStyle;curved=1;';
 
-      if (this.showPosts) {
-        for (const post of network.posts) {
-          for (const target of post.target) {
-            graph.insertEdge(parent, null, '', postNodes[post.id], transitionNodes[target], edgeStyle);
-          }
+      for (const node of network.nodes) {
+        const targets = [];
+        for (const t of node.target) {
+          targets.push(nodesRef[t]);
+        }
+        for (const target of targets.sort((a, b) => a?.async - b?.async)) {
+          graph.insertEdge(parent, null, "", vertexRef[node.id],
+            vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0'));
         }
       }
 
-      for (const transition of network.transitions) {
-        if (this.showPosts) {
-          for (const target of transition.target) {
-              graph.insertEdge(parent, null, '', transitionNodes[transition.id], postNodes[target], edgeStyle);
-            }
-        }else{
-          const transitions = [];
-          for (const target of transition.target) {
-            const targetTransition = network.posts.filter(p => p.id === target && p.action !== 'Token')[0];
-            if (targetTransition) {
-              for (const targetTarget of targetTransition.target) {
-                if (transition.id !== targetTarget && transitionNodes[targetTarget]) {
-                  transitions.push(transitionRef[targetTarget]);
-                  }
-              }
-            }
-
-          }
-          for(const target of transitions.sort((a,b) => a?.async - b?.async)){
-            let txt = '';
-            if(target.meanServiceTime && target.meanThroughput){
-              txt = (target.meanServiceTime*target.meanThroughput).toFixed(3) +' [r]';
-            }
-            graph.insertEdge(parent, null, txt, transitionNodes[transition.id],
-              transitionNodes[target.id], edgeStyle +';'+ (target.async ? 'dashed=1' : 'dashed=0'));
-          }
-        }
-      }
 
       // Executes the layout
       layout.execute(parent);
-
-
     } finally {
       graph.getModel().endUpdate();
     }
+
   }
 
 
-  togglePosts($event: any) {
-    this.showPosts = $event.detail.checked;
-    return this.ngOnInit();
-  }
+
 }
