@@ -23,11 +23,11 @@ public class EventStoreEntry {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long eventSequenceNumber;
-
-	private String eventId;
 	private Long aggregateSequenceNumber;
 	private String aggregateId;
-	@Column(columnDefinition = "JSON")
+
+	@Lob
+	@Column(columnDefinition = "BLOB")
 	@Convert( converter = JsonConverter.class)
 	private EventMessage<?> eventMessage;
 	private String eventName;
@@ -42,7 +42,6 @@ public class EventStoreEntry {
 		event.setCreatedAt(getCreatedAt());
 		event.setEventMessage(getEventMessage());
 		event.setEventSequenceNumber(getEventSequenceNumber());
-		event.setEventId(getEventId());
 		event.setEventName(getEventName());
 		return event;
 	}

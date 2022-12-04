@@ -17,9 +17,9 @@ public class EventoMessage implements Serializable {
     public EventoMessage() {
     }
 
-    public static String create(NodeAddress source, NodeAddress dest, Serializable message)  {
+    public static byte[] create(NodeAddress source, NodeAddress dest, Serializable message)  {
         try {
-            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(
+            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(
                     new EventoMessage(source, dest, EventoMessageType.DATA, message)
             );
         } catch (JsonProcessingException e) {
@@ -27,9 +27,9 @@ public class EventoMessage implements Serializable {
         }
     }
 
-    public static String joinMessage(EventoNodeAddress address) {
+    public static byte[] joinMessage(EventoNodeAddress address) {
         try {
-            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(
+            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(
                     new EventoMessage(address, null, EventoMessageType.CONNECT, null)
             );
         } catch (JsonProcessingException e) {
@@ -37,9 +37,9 @@ public class EventoMessage implements Serializable {
         }
     }
 
-    public static String viewUpdateMessage(NodeAddress dest, ViewUpdate viewUpdate){
+    public static byte[] viewUpdateMessage(NodeAddress dest, ViewUpdate viewUpdate){
         try {
-            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(
+            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(
                     new EventoMessage(null, dest, EventoMessageType.VIEW, viewUpdate)
             );
         } catch (JsonProcessingException e) {
@@ -47,13 +47,13 @@ public class EventoMessage implements Serializable {
         }
     }
 
-    public static String killMessage(NodeAddress source, NodeAddress dest) throws JsonProcessingException {
-        return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(
+    public static byte[] killMessage(NodeAddress source, NodeAddress dest) throws JsonProcessingException {
+        return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(
                 new EventoMessage(source, dest, EventoMessageType.KILL, null)
         );
     }
 
-    public static EventoMessage parse(String body) throws IOException {
+    public static EventoMessage parse(byte[] body) throws IOException {
         return ObjectMapperUtils.getPayloadObjectMapper().readValue(body, EventoMessage.class);
     }
 

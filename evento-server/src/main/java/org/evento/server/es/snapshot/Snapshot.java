@@ -15,7 +15,7 @@ public class Snapshot {
 	@Id
 	public String aggregateId;
 	public Long aggregateSequenceNumber;
-	@Column(columnDefinition = "JSON")
+	@Column(columnDefinition = "BLOB")
 	@Convert( converter = JsonConverter.class)
 	public SerializedAggregateState<?> aggregateState;
 

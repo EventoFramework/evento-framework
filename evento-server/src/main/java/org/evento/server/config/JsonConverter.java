@@ -4,13 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import org.evento.common.serialization.ObjectMapperUtils;
 
 import javax.persistence.AttributeConverter;
+import java.io.IOException;
 
-public class JsonConverter implements AttributeConverter<Object, String> {
+public class JsonConverter implements AttributeConverter<Object, byte[]> {
 	@Override
-	public String convertToDatabaseColumn(Object attribute) {
+	public byte[] convertToDatabaseColumn(Object attribute) {
 		try
 		{
-			return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(attribute);
+			return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(attribute);
 		} catch (JsonProcessingException e)
 		{
 			return null;
@@ -18,11 +19,11 @@ public class JsonConverter implements AttributeConverter<Object, String> {
 	}
 
 	@Override
-	public Object convertToEntityAttribute(String dbData) {
+	public Object convertToEntityAttribute(byte[] dbData) {
 		try
 		{
 			return ObjectMapperUtils.getPayloadObjectMapper().readValue(dbData, Object.class);
-		} catch (JsonProcessingException e)
+		} catch (IOException e)
 		{
 			return null;
 		}

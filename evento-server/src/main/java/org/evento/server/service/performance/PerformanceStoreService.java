@@ -11,8 +11,7 @@ import java.time.Instant;
 public class PerformanceStoreService {
 
 
-    public static final double ALPHA = 0.9;
-    public static final int MAX_DEPARTURES = 200;
+    public static final double ALPHA = 0.5;
     private final HandlerPerformancesRepository handlerPerformancesRepository;
     private final LockRegistry lockRegistry;
     public static Instant now() {
@@ -24,9 +23,6 @@ public class PerformanceStoreService {
                p -> p.getMeanServiceTime()
        ).orElse(null);
     }
-
-
-
 
     public PerformanceStoreService(HandlerPerformancesRepository handlerPerformancesRepository, LockRegistry lockRegistry) {
         this.handlerPerformancesRepository = handlerPerformancesRepository;

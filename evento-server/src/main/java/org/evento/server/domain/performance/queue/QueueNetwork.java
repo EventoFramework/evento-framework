@@ -27,6 +27,12 @@ public class QueueNetwork {
 		return ss;
 	}
 
+	public ServiceStation station(String bundleId, String componentName, String action, boolean async, Integer numServers, Double p) {
+		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, action, async, numServers, p);
+		nodes.add(ss);
+		return ss;
+	}
+
 	public Sink sink() {
 		var sink  = new Sink(idGenerator.getAndIncrement());
 		nodes.add(sink);

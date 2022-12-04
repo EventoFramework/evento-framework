@@ -22,7 +22,7 @@ public class EventoMessageBus extends MessageBus {
             new Thread(() -> {
                 while (true) {
                     try {
-                        var message = EventoMessage.parse(dataInputStream.readUTF());
+                        var message = EventoMessage.parse(dataInputStream.readAllBytes());
                         switch (message.getType()) {
                             case DATA -> subscriber.onMessage(message.getSource(), message.getMessage());
                             case VIEW -> {
@@ -54,7 +54,7 @@ public class EventoMessageBus extends MessageBus {
         DataOutputStream dataOutputStream = new DataOutputStream(s.getOutputStream());
         var nodeId = bundleId + ":" + bundleVersion + "-" + Instant.now().toEpochMilli();
         var address = new EventoNodeAddress(bundleId, bundleVersion, s.getInetAddress().toString(), nodeId);
-        dataOutputStream.writeUTF(EventoMessage.joinMessage(address));
+        dataOutputStream.write(EventoMessage.joinMessage(address));
 
         return new EventoMessageBus(
                 address,
@@ -65,12 +65,12 @@ public class EventoMessageBus extends MessageBus {
 
     @Override
     public void cast(NodeAddress address, Serializable message) throws Exception {
-        outputStream.writeUTF(EventoMessage.create(getAddress(), address, message));
+        outputStream.write(EventoMessage.create(getAddress(), address, message));
     }
 
     @Override
     public void broadcast(Serializable message) throws Exception {
-        outputStream.writeUTF(EventoMessage.create(getAddress(), null, message));
+        outputStream.write(EventoMessage.create(getAddress(), null, message));
     }
 
     @Override

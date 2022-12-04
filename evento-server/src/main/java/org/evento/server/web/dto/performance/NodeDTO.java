@@ -33,7 +33,7 @@ public class NodeDTO implements Serializable {
 			this.action = s.getAction();
 			this.async = s.getAsync();
 			this.target = s.getTarget().stream().map(Node::getId).collect(Collectors.toSet());
-			this.numServers = null;
+			this.numServers = s.getNumServers();
 			this.meanServiceTime = s.getMeanServiceTime();
 		} else if (node instanceof Source s)
 		{
