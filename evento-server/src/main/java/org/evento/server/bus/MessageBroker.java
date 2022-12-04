@@ -40,9 +40,9 @@ public class MessageBroker {
                 out = new DataOutputStream(clientSocket.getOutputStream());
                 in = new DataInputStream(clientSocket.getInputStream());
                 while (true) {
-                    String ori;
+                    byte[] ori;
                     try {
-                        ori = in.readUTF();
+                        ori = in.readAllBytes();
                     }catch (IOException e){
                         onDisconnect(nodeAddress);
                         return;
@@ -63,7 +63,7 @@ public class MessageBroker {
             }
         }
 
-        private void send(NodeAddress dest, String message) {
+        private void send(NodeAddress dest, byte[] message) {
             try {
                 connections.get(dest).down(message);
             } catch (ConnectionInterruptedException e) {
@@ -71,9 +71,9 @@ public class MessageBroker {
             }
         }
 
-        private void down(String message) throws ConnectionInterruptedException {
+        private void down(byte[] message) throws ConnectionInterruptedException {
             try {
-                out.writeUTF(message);
+                out.write(message);
             } catch (IOException e) {
                 throw new ConnectionInterruptedException();
             }

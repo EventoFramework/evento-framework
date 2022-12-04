@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class EventStore {
@@ -74,24 +73,20 @@ public class EventStore {
 		return v == null ? 0 : v.longValue();
 	}
 
-	public Long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
+	public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
 		try
 		{
-			Long aggregateSequenceNumber = (Long) jdbcTemplate.queryForMap("select ifnull(max(aggregate_sequence_number) + 1,1) as a from es__events where aggregate_id = ?", aggregateId)
-					.get("a");
 			jdbcTemplate.update(
 					"INSERT INTO es__events " +
-							"(event_id, aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
-							"select  ?, ?, ?, " +
+							"(aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
+							"select  ?, (select ifnull(max(aggregate_sequence_number) + 1,1) as a from es__events where aggregate_id = ?), " +
 							"ROUND(UNIX_TIMESTAMP(CURTIME(4)) * 1000),?,?",
-					UUID.randomUUID().toString(),
 					aggregateId,
-					aggregateSequenceNumber,
-					mapper.writeValueAsString(eventMessage),
+					aggregateId,
+					mapper.writeValueAsBytes(eventMessage),
 					eventMessage.getEventName()
 			);
-			return aggregateSequenceNumber;
 		} catch (JsonProcessingException e)
 		{
 			throw new RuntimeException(e);
@@ -103,18 +98,21 @@ public class EventStore {
 		{
 			jdbcTemplate.update(
 					"INSERT INTO es__events " +
-							"(event_id, aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
+							"(aggregate_id, aggregate_sequence_number, created_at, event_message, event_name) " +
 							"select  ?, ?, ?, " +
 							"ROUND(UNIX_TIMESTAMP(CURTIME(4)) * 1000),?,?",
-					UUID.randomUUID().toString(),
 					null,
 					null,
-					mapper.writeValueAsString(eventMessage),
+					mapper.writeValueAsBytes(eventMessage),
 					eventMessage.getEventName()
 			);
 		} catch (JsonProcessingException e)
 		{
 			throw new RuntimeException(e);
 		}
+	}
+
+	public Long getLastAggregateSequenceNumber(String aggregateId) {
+		return eventStoreRepository.getLastAggregateSequenceNumber(aggregateId);
 	}
 }

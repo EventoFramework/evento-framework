@@ -7,21 +7,12 @@ import java.io.Serializable;
 
 
 public class PublishedEvent implements Serializable {
-	private String eventId;
 	private Long eventSequenceNumber;
 	private Long aggregateSequenceNumber;
 	private String aggregateId;
 	private EventMessage<?> eventMessage;
 	private String eventName;
 	private Long createdAt;
-
-	public String getEventId() {
-		return eventId;
-	}
-
-	public void setEventId(String eventId) {
-		this.eventId = eventId;
-	}
 
 	public Long getEventSequenceNumber() {
 		return eventSequenceNumber;

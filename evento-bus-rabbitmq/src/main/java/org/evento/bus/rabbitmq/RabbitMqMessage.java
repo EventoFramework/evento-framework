@@ -25,9 +25,9 @@ public class RabbitMqMessage implements Serializable {
 	}
 
 	public static byte[] create(RabbitMqNodeAddress address, Serializable message) throws JsonProcessingException {
-		return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(
+		return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(
 				new RabbitMqMessage(address, message)
-		).getBytes();
+		);
 	}
 
 	public static RabbitMqMessage parse(byte[] body) throws IOException {

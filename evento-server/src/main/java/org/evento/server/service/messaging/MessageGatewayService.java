@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
@@ -206,11 +207,12 @@ public class MessageGatewayService {
 
                                 var cr = (DomainCommandResponseMessage) resp;
                                 var esStoreStart = PerformanceStoreService.now();
-                                var aggregateSequenceNumber = eventStore.publishEvent(cr.getDomainEventMessage(), c.getAggregateId());
+                                eventStore.publishEvent(cr.getDomainEventMessage(), c.getAggregateId());
+                                System.out.println("Event store ("+cr.getDomainEventMessage().getEventName()+") write in: " + (Instant.now().toEpochMilli() - esStoreStart.toEpochMilli()));
                                 if (cr.getSerializedAggregateState() != null) {
                                     eventStore.saveSnapshot(
                                             c.getAggregateId(),
-                                            aggregateSequenceNumber,
+                                            eventStore.getLastAggregateSequenceNumber(c.getAggregateId()),
                                             cr.getSerializedAggregateState()
                                     );
                                 }

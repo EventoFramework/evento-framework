@@ -13,6 +13,18 @@ services:
     volumes:
       - ./data/mysql:/var/lib/mysql
 
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=secret
+      - ROOT_PASSWORD=secret
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
   mongo:
     image: mongo
     restart: always
