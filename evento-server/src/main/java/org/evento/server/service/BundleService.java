@@ -52,6 +52,7 @@ public class BundleService {
         AtomicBoolean isNew = new AtomicBoolean(false);
         var bundle = bundleRepository.findById(bundleId).map(b -> {
             b.setVersion(bundleDescription.getBundleVersion());
+            b.setBucketType(bundleDeploymentBucketType);
             b.setArtifactCoordinates(bundleDeploymentArtifactCoordinates);
             b.setArtifactOriginalName(jarOriginalName);
             b.setContainsHandlers(bundleDescription.getComponents().size() > 0);

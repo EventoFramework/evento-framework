@@ -32,6 +32,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -304,11 +305,13 @@ public class EventoApplication {
             logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
             EventoApplication eventoApplication = new EventoApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore, autorun, minInstances, maxInstances);
             eventoApplication.parsePackage(findInjectableObject);
-            logger.info("Starting projector consumers...");
+            logger.info("Sleeping for alignment...");
             Thread.sleep(3000);
+            logger.info("Starting projector consumers...");
+            var start = Instant.now();
             eventoApplication.startProjectorEventConsumers(() -> {
                 try {
-                    logger.info("Projector Consumers head Reached!");
+                    logger.info("Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
                     logger.info("Enabling message bus");
                     messageBus.enableBus();
                     logger.info("Message bus enabled");
