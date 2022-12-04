@@ -9,12 +9,12 @@ import java.time.Instant;
 @Entity
 @Table(name = "es__snapshot", indexes = {
 		@Index(name = "aggregate_index", columnList = "aggregateId"),
-		@Index(name = "aggregate_sequence_index", columnList = "aggregateSequenceNumber")
+		@Index(name = "event_sequence_number_index", columnList = "eventSequenceNumber"),
 })
 public class Snapshot {
 	@Id
 	public String aggregateId;
-	public Long aggregateSequenceNumber;
+	public Long eventSequenceNumber;
 	@Column(columnDefinition = "BLOB")
 	@Convert( converter = JsonConverter.class)
 	public SerializedAggregateState<?> aggregateState;
@@ -29,12 +29,12 @@ public class Snapshot {
 		this.aggregateId = aggregateId;
 	}
 
-	public Long getAggregateSequenceNumber() {
-		return aggregateSequenceNumber;
+	public Long getEventSequenceNumber() {
+		return eventSequenceNumber;
 	}
 
-	public void setAggregateSequenceNumber(Long aggregateSequenceNumber) {
-		this.aggregateSequenceNumber = aggregateSequenceNumber;
+	public void setEventSequenceNumber(Long eventSequenceNumber) {
+		this.eventSequenceNumber = eventSequenceNumber;
 	}
 
 	public SerializedAggregateState<?> getAggregateState() {

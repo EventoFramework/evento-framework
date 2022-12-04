@@ -8,7 +8,6 @@ import java.io.Serializable;
 
 public class PublishedEvent implements Serializable {
 	private Long eventSequenceNumber;
-	private Long aggregateSequenceNumber;
 	private String aggregateId;
 	private EventMessage<?> eventMessage;
 	private String eventName;
@@ -20,14 +19,6 @@ public class PublishedEvent implements Serializable {
 
 	public void setEventSequenceNumber(Long eventSequenceNumber) {
 		this.eventSequenceNumber = eventSequenceNumber;
-	}
-
-	public Long getAggregateSequenceNumber() {
-		return aggregateSequenceNumber;
-	}
-
-	public void setAggregateSequenceNumber(Long aggregateSequenceNumber) {
-		this.aggregateSequenceNumber = aggregateSequenceNumber;
 	}
 
 	public String getAggregateId() {
