@@ -10,8 +10,7 @@ import javax.persistence.*;
 @Entity
 @Table(name = "es__events", indexes = {
 		@Index(name="aggregate_index", columnList = "aggregateId"),
-		@Index(name="event_sequence_index", columnList = "eventSequenceNumber"),
-		@Index(name="aggregate_sequence_index", columnList = "aggregateSequenceNumber")
+		@Index(name="event_sequence_index", columnList = "eventSequenceNumber")
 })
 @Getter
 @Setter
@@ -19,11 +18,8 @@ import javax.persistence.*;
 @NoArgsConstructor
 public class EventStoreEntry {
 
-
 	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long eventSequenceNumber;
-	private Long aggregateSequenceNumber;
 	private String aggregateId;
 
 	@Lob
@@ -38,7 +34,6 @@ public class EventStoreEntry {
 	public PublishedEvent toPublishedEvent(){
 		var event = new PublishedEvent();
 		event.setAggregateId(getAggregateId());
-		event.setAggregateSequenceNumber(getAggregateSequenceNumber());
 		event.setCreatedAt(getCreatedAt());
 		event.setEventMessage(getEventMessage());
 		event.setEventSequenceNumber(getEventSequenceNumber());
