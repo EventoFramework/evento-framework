@@ -37,7 +37,7 @@ public class DemoLifecycleAgent {
 			System.out.println("[" + i + "] - " + resp);
 			try {
 				var updateAtStart = Instant.now().toEpochMilli();
-				var r = new Random().nextInt(6, 11);
+				var r = 16;
 				for (int j = 1; j < r; j++) {
 					resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, j));
 					System.out.println("[" + i + "] - " + resp);

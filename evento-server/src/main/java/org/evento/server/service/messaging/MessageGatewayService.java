@@ -33,7 +33,6 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.Serializable;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
@@ -182,7 +181,7 @@ public class MessageGatewayService {
                         invocation.setSerializedAggregateState(new SerializedAggregateState<>(null));
                     } else {
                         invocation.setEventStream(eventStore.fetchAggregateStory(c.getAggregateId(),
-                                        snapshot.getAggregateSequenceNumber())
+                                        snapshot.getEventSequenceNumber())
                                 .stream().map(EventStoreEntry::getEventMessage)
                                 .map(e -> ((DomainEventMessage) e)).collect(Collectors.toList()));
                         invocation.setSerializedAggregateState(snapshot.getAggregateState());
@@ -208,7 +207,6 @@ public class MessageGatewayService {
                                 var cr = (DomainCommandResponseMessage) resp;
                                 var esStoreStart = PerformanceStoreService.now();
                                 eventStore.publishEvent(cr.getDomainEventMessage(), c.getAggregateId());
-                                System.out.println("Event store ("+cr.getDomainEventMessage().getEventName()+") write in: " + (Instant.now().toEpochMilli() - esStoreStart.toEpochMilli()));
                                 if (cr.getSerializedAggregateState() != null) {
                                     eventStore.saveSnapshot(
                                             c.getAggregateId(),

@@ -24,11 +24,11 @@ public class DemoSaga {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							EventMessage<?> message) {
-		Utils.logMethodFlow(this,"on", event, "BEGIN");
+		Utils.logMethodFlow(this, "on", event, "BEGIN");
 		DemoSagaState demoSagaState = new DemoSagaState();
 		demoSagaState.setAssociation("demoId", event.getDemoId());
 		demoSagaState.setLastValue(event.getValue());
-		Utils.logMethodFlow(this,"on", event, "END");
+		Utils.logMethodFlow(this, "on", event, "END");
 		return demoSagaState;
 	}
 
@@ -38,14 +38,14 @@ public class DemoSaga {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							EventMessage<?> message) throws ExecutionException, InterruptedException {
-		Utils.logMethodFlow(this,"on", event, "BEGIN");
+		Utils.logMethodFlow(this, "on", event, "BEGIN");
 		if (event.getValue() - demoSagaState.getLastValue() > 10)
 		{
 			var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
 			System.out.println(jump(commandGateway, demo.toString()));
 		}
 		demoSagaState.setLastValue(event.getValue());
-		Utils.logMethodFlow(this,"on", event, "END");
+		Utils.logMethodFlow(this, "on", event, "END");
 		return demoSagaState;
 	}
 
@@ -55,24 +55,21 @@ public class DemoSaga {
 							CommandGateway commandGateway,
 							QueryGateway queryGateway,
 							EventMessage<?> message) throws ExecutionException, InterruptedException {
-		Utils.logMethodFlow(this,"on", event, "BEGIN");
+		Utils.logMethodFlow(this, "on", event, "BEGIN");
 		System.out.println(this.getClass() + " - on(DemoDeletedEvent)");
-		try {
-			var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
-			var resp = commandGateway.send(new NotificationSendSilentCommand("lol" + demo.getData().getDemoId())).get();
-			System.out.println(resp);
-		}catch (Exception e) {
-			e.printStackTrace();
-		}
+		var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
+		var resp = commandGateway.send(new NotificationSendSilentCommand("lol" + demo.getData().getDemoId())).get();
+		System.out.println(resp);
 		demoSagaState.setEnded(true);
-		Utils.logMethodFlow(this,"on", event, "END");
+		Utils.logMethodFlow(this, "on", event, "END");
 		return demoSagaState;
 	}
+
 	public NotificationSentEvent jump(CommandGateway commandGateway, String msg) {
 		return sendNotification(commandGateway, msg);
 	}
 
-	public NotificationSentEvent sendNotification(CommandGateway commandGateway, String msg){
+	public NotificationSentEvent sendNotification(CommandGateway commandGateway, String msg) {
 		return commandGateway.sendAndWait(new NotificationSendCommand(msg));
 	}
 
