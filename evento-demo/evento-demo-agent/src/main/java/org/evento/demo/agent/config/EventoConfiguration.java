@@ -7,14 +7,17 @@ import org.evento.common.performance.ThreadCountAutoscalingProtocol;
 import org.evento.demo.agent.DemoAgentApplication;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Scope;
 
 @Configuration
 public class EventoConfiguration {
 
 
 	@Bean
+	@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 	public EventoApplication eventoApplication(
 			@Value("${evento.cluster.message.channel.name}") String channelName,
 			@Value("${evento.cluster.node.server.id}") String serverName,

@@ -33,6 +33,7 @@ public class DemoMysqlProjector implements TransactionalProjector {
 	@EventHandler
 	void on(DemoUpdatedEvent event){
 		Utils.logMethodFlow(this,"on", event, "BEGIN");
+		var now = Instant.now();
 		demoMysqlRepository.findById(event.getDemoId()).ifPresent(d -> {
 			d.setName(event.getName());
 			d.setValue(event.getValue());
@@ -40,6 +41,7 @@ public class DemoMysqlProjector implements TransactionalProjector {
 			demoMysqlRepository.save(d);
 		});
 		Utils.logMethodFlow(this,"on", event, "END");
+		System.out.println("Getch and save in " + (Instant.now().toEpochMilli() - now.toEpochMilli()));
 
 	}
 

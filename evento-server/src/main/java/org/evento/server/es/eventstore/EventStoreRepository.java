@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
-public interface EventStoreRepository extends JpaRepository<EventStoreEntry, String> {
+public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Long> {
 
 	List<EventStoreEntry> findAllByAggregateIdOrderByAggregateSequenceNumberAsc(String aggregateId);
 

@@ -112,7 +112,7 @@ export class AppMapDiagramComponent implements OnInit {
     graph.panningHandler.ignoreCell = true;
     graph.container.style.cursor = 'move';
     graph.setPanning(true);
-    graph.resizeContainer = true;
+    graph.resizeContainer = false;
 
     container.addEventListener('wheel', (e: any) => {
       e.preventDefault();

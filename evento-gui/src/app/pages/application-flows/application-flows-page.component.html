@@ -4,8 +4,88 @@
       <ion-back-button defaultHref="/"></ion-back-button>
     </ion-buttons>
     <ion-title translate="application.flows.title"></ion-title>
+    <ion-label slot="end" class="ion-margin-end" translate="application.flows.performance.analysis"></ion-label>
+    <ion-toggle slot="end" (ionChange)="togglePerformanceAnalysis($event)" [value]="performanceAnalysis"></ion-toggle>
   </ion-toolbar>
+
 </ion-header>
 <ion-content>
-  <div id="flows"></div>
+  <div style="position: absolute; background: url('https://jgraph.github.io/mxgraph/javascript/examples/editors/images/grid.gif');
+  height: 100%; width: 100%; overflow: hidden" id="flows"></div>
+  <ion-card *ngIf="performanceAnalysis" style="position: absolute; top: 0; bottom: 0; width: 20vw">
+    <ion-card-header>
+      <ion-card-title translate="performance.analysis.source.service.time">
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-list>
+        <ion-item *ngFor="let source of sources">
+          <ion-label position="stacked">{{source.name}} [r/ms]</ion-label>
+          <ion-input [(ngModel)]="source.throughtput" name="serviceTime" type="number">
+          </ion-input>
+          <ion-note slot="helper">{{source.throughtput * 1000}} [r/s]</ion-note>
+
+        </ion-item>
+      </ion-list>
+
+    </ion-card-content>
+    <div style="position: absolute; bottom: 0; left: 0; right: 0;">
+      <ion-button class="ion-margin" expand="block" (click)="runAnalysis()">
+        <span translate="performance.analysis.run" class="ion-margin-end"></span>
+        <ion-icon name="play-outline"></ion-icon>
+      </ion-button>
+    </div>
+
+
+  </ion-card>
+  <ion-card *ngIf="performanceAnalysis" style="position: absolute; right: 0; bottom: 0; left: 21vw; height: 30vh">
+    <ion-card-header>
+      <ion-card-title translate="performance.analysis.results">
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content style="overflow: scroll; height: 100%">
+      <ion-segment #segment value="concurrent.requests">
+        <ion-segment-button value="concurrent.requests">
+          <ion-label translate="performance.analysis.concurrent.requests"></ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="max.throughput">
+          <ion-label translate="performance.analysis.max.throughput"></ion-label>
+        </ion-segment-button>
+      </ion-segment>
+      <ion-list *ngIf="segment.value === 'concurrent.requests'">
+        <ion-list-header>
+          <ion-grid class="ion-no-padding">
+            <ion-row>
+              <ion-col translate="common.bundle"></ion-col>
+              <ion-col class="ion-text-end" translate="performance.analysis.concurrent.requests"></ion-col>
+            </ion-row>
+          </ion-grid>
+
+        </ion-list-header>
+        <ion-item *ngFor="let bundle of bundles">
+          <ion-label>{{bundle}}</ion-label>
+          <ion-label slot="end">{{bundleActiveThreads[bundle] | number:'.4'}}</ion-label>
+        </ion-item>
+      </ion-list>
+      <ion-list *ngIf="segment.value == 'max.throughput'">
+        <ion-list-header>
+          <ion-grid class="ion-no-padding">
+            <ion-row>
+              <ion-col translate="common.flow"></ion-col>
+              <ion-col class="ion-text-end" translate="performance.analysis.max.throughput"></ion-col>
+            </ion-row>
+          </ion-grid>
+
+        </ion-list-header>
+        <ion-item *ngFor="let source of sources">
+          <ion-label>{{source.name}}</ion-label>
+          <ion-label class="ion-text-end" slot="end">{{maxFlowThroughput[source.id].throughtput*1000 | number:'.4'}} [r/s] <br/>   <ion-note slot="end">{{maxFlowThroughput[source.id].name}}</ion-note></ion-label>
+
+        </ion-item>
+
+      </ion-list>
+      <div style="height: 150px"></div>
+
+    </ion-card-content>
+  </ion-card>
 </ion-content>
