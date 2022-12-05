@@ -77,7 +77,7 @@ public class ApplicationQueueNetService {
 			if (handler.getReturnType() != null)
 			{
 				// Server -> ES
-				var esAgent = n.station("event-store", "EventStore", handler.getReturnType().getName(), false, 1);
+				var esAgent = n.station("event-store", "EventStore", handler.getReturnType().getName(), false, null);
 				serverResponseAgent.getTarget().add(esAgent);
 
 				// ES -> Invoker
