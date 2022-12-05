@@ -59,7 +59,7 @@ export class ApplicationFlowsPage implements OnInit {
 
     for(const block in tMap){
       for(const node of tMap[block]){
-        // node.numServers = node.numServers / tMap[block].length;
+        node.numServers = node.numServers / tMap[block].length;
       }
     }
 
@@ -156,11 +156,12 @@ export class ApplicationFlowsPage implements OnInit {
               this.bundles.push(node.bundle);
             }
           }
+          node.isBottleneck = false;
           if(!this.maxFlowThroughput[node.flow]){
             this.maxFlowThroughput[node.flow] = node;
             node.isBottleneck = true;
-          }else if(this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
-            this.maxFlowThroughput[node.flow].isBottleneck = false;
+          }else if(nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
+            //this.maxFlowThroughput[node.flow].isBottleneck = false;
             this.maxFlowThroughput[node.flow] = node;
             node.isBottleneck = true;
           }
