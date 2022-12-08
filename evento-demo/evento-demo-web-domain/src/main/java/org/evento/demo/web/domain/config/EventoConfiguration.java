@@ -1,6 +1,6 @@
 package org.evento.demo.web.domain.config;
 
-import org.evento.application.EventoApplication;
+import org.evento.application.EventoBundle;
 import org.evento.bus.rabbitmq.RabbitMqMessageBus;
 import org.evento.demo.web.domain.DemoWebApplication;
 import org.evento.common.messaging.bus.MessageBus;
@@ -17,7 +17,7 @@ public class EventoConfiguration {
 
 	@Bean
 	@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-	public EventoApplication eventoApplication(
+	public EventoBundle eventoApplication(
 			@Value("${evento.cluster.message.channel.name}") String channelName,
 			@Value("${evento.cluster.node.server.id}") String serverName,
 			@Value("${evento.bundle.id}") String bundleId,
@@ -34,7 +34,7 @@ public class EventoConfiguration {
 	) throws Exception {
 
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
-		return EventoApplication.start(DemoWebApplication.class.getPackage().getName(),
+		return EventoBundle.start(DemoWebApplication.class.getPackage().getName(),
 				bundleId,
 				bundleVersion,
 				autorun,

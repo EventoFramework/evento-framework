@@ -40,9 +40,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class EventoApplication {
+public class EventoBundle {
 
-    private static final Logger logger = LogManager.getLogger(EventoApplication.class);
+    private static final Logger logger = LogManager.getLogger(EventoBundle.class);
 
     private final String basePackage;
     private final String bundleId;
@@ -65,7 +65,7 @@ public class EventoApplication {
 
     private boolean isShuttingDown = false;
 
-    private EventoApplication(
+    private EventoBundle(
             String basePackage,
             String bundleId,
             long bundleVersion,
@@ -245,7 +245,7 @@ public class EventoApplication {
 
     }
 
-    public static EventoApplication start(
+    public static EventoBundle start(
             String basePackage,
             String bundleId,
             long bundleVersion,
@@ -259,7 +259,7 @@ public class EventoApplication {
         return start(basePackage, bundleId, bundleVersion, autorun, minInstances, maxInstances,serverName, messageBus, autoscalingProtocol, consumerStateStore, clz -> null);
     }
 
-    public static EventoApplication start(
+    public static EventoBundle start(
             String basePackage,
             String bundleId,
             long bundleVersion,
@@ -271,7 +271,7 @@ public class EventoApplication {
             AutoscalingProtocol autoscalingProtocol) {
         return start(basePackage, bundleId, bundleVersion, autorun, minInstances, maxInstances, serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), clz -> null);
     }
-    public static EventoApplication start(
+    public static EventoBundle start(
             String basePackage,
             String bundleId,
             long bundleVersion,
@@ -285,7 +285,7 @@ public class EventoApplication {
         return start(basePackage, bundleId, bundleVersion, autorun, minInstances, maxInstances,serverName, messageBus, autoscalingProtocol, new InMemoryConsumerStateStore(messageBus, bundleId, serverName), findInjectableObject);
     }
 
-    public static EventoApplication start(
+    public static EventoBundle start(
             String basePackage,
             String bundleId,
             long bundleVersion,
@@ -303,13 +303,13 @@ public class EventoApplication {
             logger.info("Starting EventoApplication %s".formatted(bundleId));
             logger.info("Used message bus: %s".formatted(messageBus.getClass().getName()));
             logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
-            EventoApplication eventoApplication = new EventoApplication(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore, autorun, minInstances, maxInstances);
-            eventoApplication.parsePackage(findInjectableObject);
+            EventoBundle eventoBundle = new EventoBundle(basePackage, bundleId, bundleVersion, serverName, messageBus, autoscalingProtocol, consumerStateStore, autorun, minInstances, maxInstances);
+            eventoBundle.parsePackage(findInjectableObject);
             logger.info("Sleeping for alignment...");
             Thread.sleep(3000);
             logger.info("Starting projector consumers...");
             var start = Instant.now();
-            eventoApplication.startProjectorEventConsumers(() -> {
+            eventoBundle.startProjectorEventConsumers(() -> {
                 try {
                     logger.info("Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
                     logger.info("Enabling message bus");
@@ -318,7 +318,7 @@ public class EventoApplication {
                     logger.info("Wait for discovery...");
                     Thread.sleep(3000);
                     logger.info("Starting saga consumers");
-                    eventoApplication.startSagaEventConsumers();
+                    eventoBundle.startSagaEventConsumers();
                     logger.info("Application Started!");
                 }catch (Exception e){
                     logger.error(e);
@@ -326,7 +326,7 @@ public class EventoApplication {
                 }
             });
 
-            return eventoApplication;
+            return eventoBundle;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
