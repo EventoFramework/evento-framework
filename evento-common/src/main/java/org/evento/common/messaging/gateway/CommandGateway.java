@@ -1,6 +1,8 @@
 package org.evento.common.messaging.gateway;
 
 import org.evento.common.modeling.messaging.message.application.DomainCommandMessage;
+import org.evento.common.modeling.messaging.message.application.EventMessage;
+import org.evento.common.modeling.messaging.message.application.SerializedPayload;
 import org.evento.common.modeling.messaging.message.application.ServiceCommandMessage;
 import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
@@ -57,7 +59,7 @@ public class CommandGateway {
 			messageBus.request(address,message,
 					response -> {
 						try{
-							future.complete((R) response);
+							future.complete((R) ((EventMessage<?>) response).getSerializedPayload().getObject());
 						}catch (Exception e){
 							future.completeExceptionally(e);
 						}

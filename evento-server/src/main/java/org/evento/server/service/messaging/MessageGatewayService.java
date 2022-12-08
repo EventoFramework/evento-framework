@@ -18,6 +18,7 @@ import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNo
 import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.performance.PerformanceMessage;
 import org.evento.common.performance.PerformanceService;
+import org.evento.server.domain.repository.HandlerRepository;
 import org.evento.server.service.deploy.BundleDeployService;
 import org.evento.server.service.performance.PerformanceStoreService;
 import org.evento.server.domain.model.BucketType;
@@ -66,6 +67,7 @@ public class MessageGatewayService {
     private final int maxInstances;
     private final int minInstances;
     private final boolean autorun;
+    private final HandlerRepository handlerRepository;
 
     public MessageGatewayService(
             HandlerService handlerService,
@@ -83,7 +85,8 @@ public class MessageGatewayService {
             @Value("${evento.bundle.instances.min:0}") int minInstances,
             @Value("${evento.bundle.instances.max:64}") int maxInstances,
             @Value("${evento.cluster.autoscaling.enabled}") boolean autoscalingEnabled,
-            PerformanceStoreService performanceStoreService, BundleService bundleService) {
+            PerformanceStoreService performanceStoreService, BundleService bundleService,
+            HandlerRepository handlerRepository) {
         this.handlerService = handlerService;
         this.lockRegistry = lockRegistry;
         this.serverId = serverId;
@@ -111,6 +114,7 @@ public class MessageGatewayService {
         this.autoscalingEnabled = autoscalingEnabled;
         messageBus.setRequestReceiver(this::requestHandler);
         messageBus.setMessageReceiver(this::messageHandler);
+        this.handlerRepository = handlerRepository;
     }
 
     @PostConstruct
@@ -220,7 +224,7 @@ public class MessageGatewayService {
                                         cr.getDomainEventMessage().getEventName(),
                                         esStoreStart
                                 );
-                                response.sendResponse(resp);
+                                response.sendResponse(cr.getDomainEventMessage());
                                 semaphore.release();
 
                             },
@@ -326,7 +330,11 @@ public class MessageGatewayService {
                 ));
             }
             else if (request instanceof EventFetchRequest f) {
-                var events = eventStore.fetchEvents(f.getLastSequenceNumber(), f.getLimit());
+                var events = f.getComponentName() == null ? eventStore.fetchEvents(
+                        f.getLastSequenceNumber(),
+                        f.getLimit()) : eventStore.fetchEvents(
+                        f.getLastSequenceNumber(),
+                        f.getLimit(), handlerRepository.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
                 response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
             }
             else if (request instanceof EventLastSequenceNumberRequest r){

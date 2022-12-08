@@ -22,8 +22,7 @@ public class DemoAggregate {
 	DemoCreatedEvent handle(DemoCreateCommand command,
 							DemoAggregateState state,
 							CommandGateway commandGateway,
-							QueryGateway queryGateway,
-							CommandMessage commandMessage){
+							CommandMessage<DemoCreateCommand> commandMessage){
 		Utils.logMethodFlow(this,"handle", command, "BEGIN");
 		Utils.doWork(1200);
 		Utils.logMethodFlow(this,"handle", command, "END");
@@ -34,7 +33,9 @@ public class DemoAggregate {
 	}
 
 	@EventSourcingHandler
-	DemoAggregateState on(DemoCreatedEvent event, DemoAggregateState state, EventMessage<DemoCreatedEvent> eventMessage){
+	DemoAggregateState on(DemoCreatedEvent event,
+						  DemoAggregateState state,
+						  EventMessage<DemoCreatedEvent> eventMessage){
 		Utils.logMethodFlow(this,"on", event, "ES");
 		return new DemoAggregateState(event.getValue());
 	}
@@ -45,7 +46,8 @@ public class DemoAggregate {
 
 		Utils.logMethodFlow(this,"handle", command, "BEGIN");
 		Utils.doWork(1100);
-		if(state.getValue() >= command.getValue()) throw new RuntimeException("error.invalid.value");
+		if(state.getValue() >= command.getValue())
+			throw new RuntimeException("error.invalid.value");
 		Utils.logMethodFlow(this,"handle", command, "END");
 		return new DemoUpdatedEvent(
 				command.getDemoId(),

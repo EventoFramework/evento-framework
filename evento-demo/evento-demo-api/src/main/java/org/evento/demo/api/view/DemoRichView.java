@@ -9,16 +9,9 @@ public class DemoRichView extends View {
 	private String demoId;
 	private String name;
 	private Long value;
-	private Instant createdAt;
-	private Instant updatedAt;
-
-	public DemoRichView(String demoId, String name, long value, Instant createdAt, Instant updatedAt) {
-		this.demoId = demoId;
-		this.name = name;
-		this.value = value;
-		this.createdAt = createdAt;
-		this.updatedAt = updatedAt;
-	}
+	private long createdAt;
+	private long updatedAt;
+	private Long deletedAt;
 
 	public DemoRichView() {
 	}
@@ -47,19 +40,43 @@ public class DemoRichView extends View {
 		this.value = value;
 	}
 
-	public Instant getCreatedAt() {
+	public void setValue(Long value) {
+		this.value = value;
+	}
+
+	public long getCreatedAt() {
 		return createdAt;
 	}
 
-	public void setCreatedAt(Instant createdAt) {
+	public void setCreatedAt(long createdAt) {
 		this.createdAt = createdAt;
 	}
 
-	public Instant getUpdatedAt() {
+	public long getUpdatedAt() {
 		return updatedAt;
 	}
 
-	public void setUpdatedAt(Instant updatedAt) {
+	public void setUpdatedAt(long updatedAt) {
 		this.updatedAt = updatedAt;
+	}
+
+	public long getDeletedAt() {
+		return deletedAt;
+	}
+
+	public void setDeletedAt(Long deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
+	@Override
+	public String toString() {
+		return "DemoRichView{" +
+				"demoId='" + demoId + '\'' +
+				", name='" + name + '\'' +
+				", value=" + value +
+				", createdAt=" + createdAt +
+				", updatedAt=" + updatedAt +
+				", deletedAt=" + deletedAt +
+				'}';
 	}
 }
