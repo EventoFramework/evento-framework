@@ -1,6 +1,6 @@
 package org.evento.demo.web.domain.web;
 
-import org.evento.application.EventoApplication;
+import org.evento.application.EventoBundle;
 import org.evento.demo.api.command.DemoCreateCommand;
 import org.evento.demo.api.command.DemoDeleteCommand;
 import org.evento.demo.api.command.DemoUpdateCommand;
@@ -28,9 +28,9 @@ public class DemoController {
 	private final CommandGateway commandGateway;
 	private final QueryGateway queryGateway;
 
-	public DemoController(EventoApplication eventoApplication) {
-		this.commandGateway = eventoApplication.getCommandGateway();
-		this.queryGateway = eventoApplication.getQueryGateway();
+	public DemoController(EventoBundle eventoBundle) {
+		this.commandGateway = eventoBundle.getCommandGateway();
+		this.queryGateway = eventoBundle.getQueryGateway();
 	}
 
 	@GetMapping("/")

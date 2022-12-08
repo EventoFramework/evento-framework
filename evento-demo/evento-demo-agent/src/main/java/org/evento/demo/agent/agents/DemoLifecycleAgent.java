@@ -1,6 +1,6 @@
 package org.evento.demo.agent.agents;
 
-import org.evento.application.EventoApplication;
+import org.evento.application.EventoBundle;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.annotations.component.Invoker;
@@ -10,7 +10,6 @@ import org.evento.demo.api.command.DemoDeleteCommand;
 import org.evento.demo.api.command.DemoUpdateCommand;
 
 import java.time.Instant;
-import java.util.Random;
 import java.util.UUID;
 
 @Invoker
@@ -19,9 +18,9 @@ public class DemoLifecycleAgent {
 	private final CommandGateway commandGateway;
 	private final QueryGateway queryGateway;
 
-	public DemoLifecycleAgent(EventoApplication eventoApplication) {
-		commandGateway = eventoApplication.getCommandGateway();
-		queryGateway = eventoApplication.getQueryGateway();
+	public DemoLifecycleAgent(EventoBundle eventoBundle) {
+		commandGateway = eventoBundle.getCommandGateway();
+		queryGateway = eventoBundle.getQueryGateway();
 	}
 
 

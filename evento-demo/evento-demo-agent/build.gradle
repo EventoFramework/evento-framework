@@ -44,7 +44,7 @@ dependencies {
 
 
     implementation project(":evento-bus-rabbitmq")
-    implementation project(":evento-application")
+    implementation project(":evento-bundle")
     implementation project(":evento-demo:evento-demo-api")
 
 }
