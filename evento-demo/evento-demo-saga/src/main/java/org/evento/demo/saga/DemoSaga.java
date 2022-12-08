@@ -6,6 +6,7 @@ import org.evento.demo.api.event.DemoCreatedEvent;
 import org.evento.demo.api.event.DemoDeletedEvent;
 import org.evento.demo.api.event.DemoUpdatedEvent;
 import org.evento.demo.api.event.NotificationSentEvent;
+import org.evento.demo.api.query.DemoRichViewFindByIdQuery;
 import org.evento.demo.api.query.DemoViewFindByIdQuery;
 import org.evento.common.modeling.annotations.component.Saga;
 import org.evento.common.modeling.annotations.handler.SagaEventHandler;
@@ -39,10 +40,10 @@ public class DemoSaga {
 							QueryGateway queryGateway,
 							EventMessage<?> message) throws ExecutionException, InterruptedException {
 		Utils.logMethodFlow(this, "on", event, "BEGIN");
-		if (event.getValue() - demoSagaState.getLastValue() > 10)
+		if (event.getValue() == 12)
 		{
-			var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
-			System.out.println(jump(commandGateway, demo.toString()));
+			var demo = queryGateway.query(new DemoRichViewFindByIdQuery(event.getDemoId())).get();
+			System.out.println(jump(commandGateway, demo.getData().toString()));
 		}
 		demoSagaState.setLastValue(event.getValue());
 		Utils.logMethodFlow(this, "on", event, "END");
@@ -57,8 +58,8 @@ public class DemoSaga {
 							EventMessage<?> message) throws ExecutionException, InterruptedException {
 		Utils.logMethodFlow(this, "on", event, "BEGIN");
 		System.out.println(this.getClass() + " - on(DemoDeletedEvent)");
-		var demo = queryGateway.query(new DemoViewFindByIdQuery(event.getDemoId())).get();
-		var resp = commandGateway.send(new NotificationSendSilentCommand("lol" + demo.getData().getDemoId())).get();
+		var demo = queryGateway.query(new DemoRichViewFindByIdQuery(event.getDemoId())).get();
+		var resp = commandGateway.send(new NotificationSendSilentCommand("lol" + demo.getData().toString())).get();
 		System.out.println(resp);
 		demoSagaState.setEnded(true);
 		Utils.logMethodFlow(this, "on", event, "END");

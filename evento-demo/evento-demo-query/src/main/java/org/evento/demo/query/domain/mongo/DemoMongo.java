@@ -34,8 +34,9 @@ public class DemoMongo {
         view.setDemoId(this.getId());
         view.setName(this.getName());
         view.setValue(this.getValue());
-        view.setCreatedAt(this.getCreatedAt());
-        view.setUpdatedAt(this.getUpdatedAt());
+        view.setCreatedAt(this.getCreatedAt().toEpochMilli());
+        view.setUpdatedAt(this.getUpdatedAt().toEpochMilli());
+        view.setDeletedAt(this.getDeletedAt() == null?  null : this.getDeletedAt().toEpochMilli());
         return view;
     }
 }

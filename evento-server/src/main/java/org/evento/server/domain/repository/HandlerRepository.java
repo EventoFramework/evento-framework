@@ -19,6 +19,9 @@ public interface HandlerRepository extends JpaRepository<Handler, String> {
 	Collection<Handler> findAllByHandledPayload_Name(String payloadName);
 	List<Handler> findAllByHandlerTypeOrderByUuid(HandlerType handlerType);
 
+	@Query("select distinct h.handledPayload.name from Handler h where h.componentName = ?1")
+	List<String> findAllHandledPayloadsNameByComponentName(String componentName);
+
 	boolean existsByBundleAndHandledPayload_NameAndHandlerType(Bundle bundle, String payloadName, HandlerType handlerType);
 	List<Handler> findAllByBundleAndHandlerType(Bundle bundle, HandlerType handlerType);
 	List<Handler> findAllByBundleAndHandlerTypeIn(Bundle bundle, Collection<HandlerType> handlerType);

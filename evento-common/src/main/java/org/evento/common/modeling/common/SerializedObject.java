@@ -18,6 +18,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 				this.objectClass = object.getClass().toString();
 		} catch (JsonProcessingException e)
 		{
+			e.printStackTrace();
 			this.serializedObject = null;
 		}
 	}

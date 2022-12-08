@@ -15,6 +15,7 @@ public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Lon
 
 
 	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndCreatedAtBeforeOrderByEventSequenceNumberAsc(Long seq, Long timestamp, Pageable pageable);
+	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndCreatedAtBeforeAndEventNameInOrderByEventSequenceNumberAsc(Long seq, Long timestamp, List<String> eventNames,Pageable pageable);
 
 	@Query("select max(e.eventSequenceNumber) from EventStoreEntry e")
 	Long getLastEventSequenceNumber();

@@ -18,7 +18,6 @@ import java.time.Instant;
 @Projector(version = 2)
 public class DemoMongoProjector implements TransactionalProjector {
 
-
 	@Inject
 	private DemoMongoRepository demoMongoRepository;
 
@@ -26,10 +25,10 @@ public class DemoMongoProjector implements TransactionalProjector {
 	void on(DemoCreatedEvent event, QueryGateway queryGateway, EventMessage eventMessage){
 		Utils.logMethodFlow(this,"on", event, "BEGIN");
 		var now = Instant.now();
-		demoMongoRepository.save(new DemoMongo(event.getDemoId(), event.getName(), event.getValue(),now, now, null ));
+		demoMongoRepository.save(new DemoMongo(event.getDemoId(),
+				event.getName(),
+				event.getValue(),now, now, null ));
 		Utils.logMethodFlow(this,"on", event, "END");
-
-
 	}
 
 	@EventHandler
@@ -42,7 +41,6 @@ public class DemoMongoProjector implements TransactionalProjector {
 			demoMongoRepository.save(d);
 		});
 		Utils.logMethodFlow(this,"on", event, "END");
-
 	}
 
 	@EventHandler

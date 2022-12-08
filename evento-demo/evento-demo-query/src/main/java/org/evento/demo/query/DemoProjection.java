@@ -18,14 +18,14 @@ import org.evento.demo.query.domain.mongo.DemoMongoRepository;
 
 @Projection
 public class DemoProjection {
-
 	@Inject
 	private DemoMongoRepository demoMongoRepository;
 
 	@QueryHandler
 	Single<DemoView> query(DemoViewFindByIdQuery query, QueryMessage<DemoViewFindByIdQuery> queryMessage) {
 		Utils.logMethodFlow(this,"query", query, "BEGIN");
-		var result = demoMongoRepository.findById(query.getDemoId()).filter(d -> d.getDeletedAt() != null).orElseThrow().toDemoView();
+		var result = demoMongoRepository.findById(query.getDemoId())
+				.filter(d -> d.getDeletedAt() != null).orElseThrow().toDemoView();
 		Utils.logMethodFlow(this,"query", query, "END");
 		return Single.of(result);
 	}
@@ -33,7 +33,7 @@ public class DemoProjection {
 	@QueryHandler
 	Single<DemoRichView> queryRich(DemoRichViewFindByIdQuery query) {
 		Utils.logMethodFlow(this,"query", query, "BEGIN");
-		var result = demoMongoRepository.findById(query.getDemoId()).filter(d -> d.getDeletedAt() != null).orElseThrow().toDemoRichView();
+		var result = demoMongoRepository.findById(query.getDemoId()).orElseThrow().toDemoRichView();
 		Utils.logMethodFlow(this,"query", query, "END");
 		return Single.of(result);
 	}
@@ -49,7 +49,7 @@ public class DemoProjection {
 	@QueryHandler
 	Multiple<DemoRichView> queryRich(DemoRichViewFindAllQuery query) {
 		Utils.logMethodFlow(this,"query", query, "BEGIN");
-		var result = demoMongoRepository.findAll().stream().filter(d -> d.getDeletedAt() != null).map(DemoMongo::toDemoRichView).toList();
+		var result = demoMongoRepository.findAll().stream().map(DemoMongo::toDemoRichView).toList();
 		Utils.logMethodFlow(this,"query", query, "END");
 		return Multiple.of(result);
 	}
