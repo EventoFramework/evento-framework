@@ -38,7 +38,10 @@ public abstract class ConsumerStateStore {
                 var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
                 if(lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
                 var resp = ((EventFetchResponse) messageBus.request(messageBus.getNodeAddress(serverNodeName),
-                        new EventFetchRequest(lastEventSequenceNumber, fetchSize)).get());
+                        new EventFetchRequest(
+                                lastEventSequenceNumber,
+                                fetchSize,
+                                projectorName)).get());
                 for (PublishedEvent event : resp.getEvents()) {
                     var start = Instant.now();
                     projectorEventConsumer.consume(event);
@@ -68,7 +71,7 @@ public abstract class ConsumerStateStore {
             try {
                 var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
                 var resp = ((EventFetchResponse) messageBus.request(messageBus.findNodeAddress(serverNodeName),
-                        new EventFetchRequest(lastEventSequenceNumber, fetchSize)).get());
+                        new EventFetchRequest(lastEventSequenceNumber, fetchSize, sagaName)).get());
                 for (PublishedEvent event : resp.getEvents()) {
                     var start = Instant.now();
                     var sagaStateId = new AtomicReference<Long>();

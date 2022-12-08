@@ -162,7 +162,9 @@ export class ApplicationFlowsPage implements OnInit {
             node.isBottleneck = true;
           }else if(nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
             //this.maxFlowThroughput[node.flow].isBottleneck = false;
-            this.maxFlowThroughput[node.flow] = node;
+            if(this.maxFlowThroughput[node.flow].throughtput >  node.throughtput) {
+              this.maxFlowThroughput[node.flow] = node;
+            }
             node.isBottleneck = true;
           }
         }

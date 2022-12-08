@@ -51,12 +51,15 @@ public class DemoLifecycleAgent {
 					System.out.println("[" + i + "] - END");
 					return new Report(id, createTime, updateMeanTime, deleteTime, true);
 				}catch (Exception e){
+					e.printStackTrace();
 					return new Report(id, createTime, updateMeanTime, 0, false);
 				}
 			}catch (Exception e){
+				e.printStackTrace();
 				return new Report(id, createTime, 0, 0, false);
 			}
 		}catch (Exception e){
+			e.printStackTrace();
 			return new Report(id, 0, 0, 0, false);
 		}
 	}

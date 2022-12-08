@@ -15,15 +15,13 @@ import org.evento.demo.external.ExternalNotificationService;
 @Service
 public class NotificationService {
 
-
 	@Inject
 	private ExternalNotificationService service;
 
 	@CommandHandler
 	NotificationSentEvent handle(NotificationSendCommand command,
 								 CommandGateway commandGateway,
-								 QueryGateway queryGateway,
-								 CommandMessage commandMessage){
+								 CommandMessage<NotificationSendCommand> commandMessage){
 		Utils.logMethodFlow(this,"handle", command, "BEGIN");
 		String notificationId = service.send(command.getBody());
 		Utils.logMethodFlow(this,"handle", command, "END");

@@ -38,5 +38,13 @@
 	"library.title":"Library",
 	"library.payload.name":"Payload Name",
 	"library.payload.type":"Payload Type",
-  "application.flows.show.posts": "Show Posts"
+	"application.flows.show.posts":"Show Posts",
+	"application.flows.performance.analysis":"Performance Analysis",
+	"performance.analysis.source.service.time":"Service ime",
+	"performance.analysis.run":"Run",
+	"performance.analysis.results":"Results",
+	"performance.analysis.concurrent.requests":"Concurrent Requests",
+	"performance.analysis.max.throughput":"Max Throughput",
+	"common.bundle":"Bundle",
+	"common.flow":"Flow"
 }

@@ -9,14 +9,13 @@ public class PerformanceService {
 
     public static final String EVENT_STORE = "event-store";
     public static final String EVENT_STORE_COMPONENT = "EventStore";
-    public static final String DISPATCHER = "dispatcher";
     public static final String GATEWAY_COMPONENT = "Gateway";
     public static final String SERVER = "server";
     private final MessageBus messageBus;
     private final String serverNodeName;
 
     private final Random random = new Random();
-    private static double performanceRate = 0.5;
+    private static double performanceRate = 1;
 
     public PerformanceService(MessageBus messageBus,
                               String serverNodeName) {

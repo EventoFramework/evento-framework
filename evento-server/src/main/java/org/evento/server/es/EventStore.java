@@ -48,7 +48,15 @@ public class EventStore {
 
 	public List<EventStoreEntry> fetchEvents(Long seq, int limit) {
 		if (seq == null) seq = -1L;
-		return eventStoreRepository.findAllByEventSequenceNumberAfterAndCreatedAtBeforeOrderByEventSequenceNumberAsc(seq, Instant.now().minus(150, ChronoUnit.MILLIS).toEpochMilli(), PageRequest.of(0, limit));
+		return eventStoreRepository.findAllByEventSequenceNumberAfterAndCreatedAtBeforeOrderByEventSequenceNumberAsc(seq,
+				Instant.now().minus(69, ChronoUnit.MILLIS).toEpochMilli(), PageRequest.of(0, limit));
+	}
+
+	public List<EventStoreEntry> fetchEvents(Long seq, int limit, List<String> eventNames) {
+		if (seq == null) seq = -1L;
+		return eventStoreRepository.findAllByEventSequenceNumberAfterAndCreatedAtBeforeAndEventNameInOrderByEventSequenceNumberAsc(
+				seq, Instant.now().minus(69, ChronoUnit.MILLIS).toEpochMilli(),
+				eventNames, PageRequest.of(0, limit));
 	}
 
 	public Snapshot fetchSnapshot(String aggregateId) {
