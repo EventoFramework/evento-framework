@@ -1,9 +1,8 @@
 package org.evento.demo.agent;
 
-import org.evento.application.EventoApplication;
+import org.evento.application.EventoBundle;
 import org.evento.demo.agent.agents.DemoLifecycleAgent;
 import org.evento.demo.agent.agents.Report;
-import org.evento.demo.api.command.NotificationSendCommand;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -13,17 +12,17 @@ import java.util.stream.IntStream;
 public class AgentDispatcher implements CommandLineRunner {
 
 
-	private final EventoApplication eventoApplication;
+	private final EventoBundle eventoBundle;
 
-	public AgentDispatcher(EventoApplication eventoApplication) {
-		this.eventoApplication = eventoApplication;
+	public AgentDispatcher(EventoBundle eventoBundle) {
+		this.eventoBundle = eventoBundle;
 	}
 
 	@Override
 	public void run(String... args) throws Exception {
 
 
-		var demoLifecycleAgent = new DemoLifecycleAgent(eventoApplication);
+		var demoLifecycleAgent = new DemoLifecycleAgent(eventoBundle);
 
 
 
@@ -48,7 +47,7 @@ public class AgentDispatcher implements CommandLineRunner {
 
 		//eventoApplication.shutdown();
 		*/
-		eventoApplication.gracefulShutdown();
+		eventoBundle.gracefulShutdown();
 
 	}
 }
