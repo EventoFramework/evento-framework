@@ -403,14 +403,12 @@ public class EventoBundle {
     }
 
     private void startSagaEventConsumers() {
-
         logger.info("Checking for saga event consumers");
         for (SagaReference saga : sagas) {
             var sagaName = saga.getRef().getClass().getSimpleName();
             var sagaVersion = saga.getRef().getClass().getAnnotation(Saga.class).version();
             logger.info("Starting event consumer for Saga %s".formatted(sagaName));
             new Thread(() -> {
-                var headReached = false;
                 var fetchSize = 1000;
                 var consumerId = bundleId + "_" + sagaVersion + "_" + sagaName;
                 while (!isShuttingDown) {
@@ -425,7 +423,8 @@ public class EventoBundle {
                             var handler = handlers.getOrDefault(sagaName, null);
                             if (handler == null) return null;
 
-                            var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName()).getAnnotation(SagaEventHandler.class).associationProperty();
+                            var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName())
+                                    .getAnnotation(SagaEventHandler.class).associationProperty();
                             var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
 
                             var sagaState = sagaStateFetcher.getLastState(
@@ -433,8 +432,6 @@ public class EventoBundle {
                                     associationProperty,
                                     associationValue
                             );
-
-
                             return handler.invoke(
                                     publishedEvent.getEventMessage(),
                                     sagaState,
