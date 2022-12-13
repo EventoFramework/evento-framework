@@ -59,10 +59,9 @@ export class ApplicationFlowsPage implements OnInit {
 
     for(const block in tMap){
       for(const node of tMap[block]){
-        node.numServers = node.numServers ; /// tMap[block].length;
+        node.numServers = node.numServers / tMap[block].length;
       }
     }
-    console.log(tMap);
 
 
     this.drawGraph(container);
