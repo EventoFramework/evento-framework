@@ -20,16 +20,12 @@ import static org.evento.common.performance.PerformanceService.SERVER;
 @Service
 public class ApplicationQueueNetService {
 
-	private final BundleRepository bundleRepository;
-
 	private final HandlerRepository handlerRepository;
 
 	private final PerformanceStoreService performanceStoreService;
 
 	public ApplicationQueueNetService(
-			BundleRepository bundleRepository,
 			HandlerRepository handlerRepository, PerformanceStoreService performanceStoreService) {
-		this.bundleRepository = bundleRepository;
 		this.handlerRepository = handlerRepository;
 		this.performanceStoreService = performanceStoreService;
 	}
@@ -91,7 +87,8 @@ public class ApplicationQueueNetService {
 							{
 								var ih = i.getValue().getHandlers().get(0);
 								var st = performanceStoreService.getMeanServiceTime(ih.getBundle().getId(), ih.getComponentName(), ih.getHandledPayload().getName());
-								sum += st;
+								if(st != null)
+									sum += st;
 							}
 							perf = perf == null ? null :  Math.max(perf, sum);
 							var ha = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName(), true, 1, perf);
@@ -100,7 +97,7 @@ public class ApplicationQueueNetService {
 							{
 								var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + i.getKey() + "]",
 										false,
-										null, perf);
+										null, null);
 								generateInvocationQueueNet(n, handlers, i.getValue(), ha, iq);
 								ha = iq;
 							}
