@@ -10,7 +10,7 @@ import javax.persistence.*;
 @Entity
 @Table(name = "es__events", indexes = {
 		@Index(name="aggregate_index", columnList = "aggregateId"),
-		@Index(name="event_sequence_index", columnList = "eventSequenceNumber")
+		@Index(name="temporal_index", columnList = "createdAt")
 })
 @Getter
 @Setter
