@@ -10,7 +10,6 @@ import java.time.Instant;
 @Service
 public class PerformanceStoreService {
 
-
     public static final double ALPHA = 0.5;
     private final HandlerPerformancesRepository handlerPerformancesRepository;
     private final LockRegistry lockRegistry;
@@ -20,7 +19,7 @@ public class PerformanceStoreService {
 
     public Double getMeanServiceTime(String bundle, String component, String action) {
        return handlerPerformancesRepository.findById(bundle + "_" + component + "_" + action).map(
-               p -> p.getMeanServiceTime()
+               HandlerPerformances::getMeanServiceTime
        ).orElse(null);
     }
 

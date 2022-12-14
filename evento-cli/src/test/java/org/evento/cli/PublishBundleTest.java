@@ -17,7 +17,7 @@ class PublishBundleTest {
 
 	@Test
 	public void versionUpdateTest() throws Exception {
-		UpdateVersion.main(new String[]{ "../evento-demo/evento-demo-api/src"});
+		UpdateVersion.main(new String[]{ "../evento-demo/evento-demo-agent/src"});
 	}
 
 
