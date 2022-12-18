@@ -25,6 +25,9 @@ public abstract class JavaComponentParser<T extends Component> {
 		this.node = node;
 	}
 
+	public static boolean isObserver(ASTTypeDeclaration classDef) throws JaxenException {
+		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Observer\"]").isEmpty();
+	}
 
 
 	public abstract  T parse() throws Exception;

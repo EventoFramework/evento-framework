@@ -1,5 +1,6 @@
 package org.evento.server.service.performance;
 
+import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.server.domain.model.Handler;
@@ -90,7 +91,7 @@ public class ApplicationQueueNetService {
                             sum += st;
                     }
                     perf = perf == null ? null : Math.max(perf, sum);
-                    var ha = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName(), true, 1, perf);
+                    var ha = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName(), true, h.getComponentType() == ComponentType.Observer ? null : 1, perf);
                     esAgent.getTarget().add(ha);
                     for (var i : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
                         generateInvocationQueueNet(n, handlers, i.getValue(), ha, null);
