@@ -45,14 +45,12 @@ public class ApplicationQueueNetService {
 
             source.getTarget().add(s);
 
-            var sink = n.sink();
+
 
             for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-                generateInvocationQueueNet(n, handlers, p.getValue(), s, sink);
+                generateInvocationQueueNet(n, handlers, p.getValue(), s, null);
             }
-            if (i.getInvocations().isEmpty()) {
-                s.getTarget().add(sink);
-            }
+
             //
 
         });
@@ -78,7 +76,8 @@ public class ApplicationQueueNetService {
                 var esAgent = n.station("event-store", "EventStore", handler.getReturnType().getName(), false, null);
                 serverResponseAgent.getTarget().add(esAgent);
 
-                esAgent.getTarget().add(dest);
+                if(dest != null)
+                    esAgent.getTarget().add(dest);
                 handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
                         .filter(h -> h.getHandledPayload().equals(handler.getReturnType())).forEach(h -> {
                     // ES -> EventHandler
@@ -102,7 +101,8 @@ public class ApplicationQueueNetService {
                     }
                 });
             } else {
-                serverResponseAgent.getTarget().add(dest);
+                if(dest != null)
+                    serverResponseAgent.getTarget().add(dest);
             }
 
         } else if (p.getType() == PayloadType.Query) {
@@ -118,7 +118,8 @@ public class ApplicationQueueNetService {
             a.getTarget().add(serverResponseAgent);
 
             // Server -> Invoker
-            serverResponseAgent.getTarget().add(dest);
+            if(dest != null)
+                serverResponseAgent.getTarget().add(dest);
 
         }
     }
@@ -136,15 +137,12 @@ public class ApplicationQueueNetService {
 
             source.getTarget().add(s);
 
-            var sink = n.sink();
 
             for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-                generateInvocationQueueNet(n, handlers, p.getValue(), s, sink);
+                generateInvocationQueueNet(n, handlers, p.getValue(), s, null);
             }
 
-            if(i.getInvocations().isEmpty() && i.getReturnType() == null){
-                s.getTarget().add(sink);
-            }
+
 
             if (i.getReturnType() != null) {
 
@@ -161,10 +159,7 @@ public class ApplicationQueueNetService {
 
                             for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
                                 //var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-                                generateInvocationQueueNet(n, handlers, j.getValue(), ha, sink);
-                            }
-                            if (h.getInvocations().isEmpty()) {
-                                ha.getTarget().add(sink);
+                                generateInvocationQueueNet(n, handlers, j.getValue(), ha, null);
                             }
                         });
             }
