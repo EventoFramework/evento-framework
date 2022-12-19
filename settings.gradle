@@ -30,6 +30,7 @@ include 'evento-bus-jgroups'
 include 'evento-bus-rabbitmq'
 include 'evento-bus'
 include 'evento-demo:evento-demo-agent'
+include 'evento-demo:evento-demo-observer'
 findProject(':evento-demo:evento-demo-agent')?.name = 'evento-demo-agent'
 include 'evento-consumer-state-store-mysql'
 

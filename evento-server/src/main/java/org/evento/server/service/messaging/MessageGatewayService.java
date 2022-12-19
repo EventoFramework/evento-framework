@@ -4,6 +4,7 @@ import org.evento.common.messaging.consumer.EventFetchRequest;
 import org.evento.common.messaging.consumer.EventFetchResponse;
 import org.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
 import org.evento.common.messaging.consumer.EventLastSequenceNumberResponse;
+import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.message.internal.ClusterNodeIsBoredMessage;
 import org.evento.common.modeling.messaging.message.internal.ClusterNodeIsSufferingMessage;
@@ -18,6 +19,7 @@ import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNo
 import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.performance.PerformanceMessage;
 import org.evento.common.performance.PerformanceService;
+import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.repository.HandlerRepository;
 import org.evento.server.service.deploy.BundleDeployService;
 import org.evento.server.service.performance.PerformanceStoreService;
@@ -226,6 +228,7 @@ public class MessageGatewayService {
                                 );
                                 response.sendResponse(cr.getDomainEventMessage());
                                 semaphore.release();
+                                sendEventToObservers(cr.getDomainEventMessage());
 
                             },
                             error -> {
@@ -275,7 +278,9 @@ public class MessageGatewayService {
                                 );
                             }
                             response.sendResponse(resp);
-
+                            if (resp != null && ((EventMessage<?>) resp).getType() != null) {
+                                sendEventToObservers((EventMessage<?>) resp);
+                            }
                         },
                         error -> {
                             response.sendError(error.toThrowable());
@@ -289,8 +294,7 @@ public class MessageGatewayService {
 
                 );
 
-            }
-            else if (request instanceof QueryMessage<?> q) {
+            } else if (request instanceof QueryMessage<?> q) {
                 var handler = handlerService.findByPayloadName(q.getQueryName());
                 bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
                 var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
@@ -318,8 +322,7 @@ public class MessageGatewayService {
                         }
                 );
 
-            }
-            else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
+            } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
                 response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
                         serverId,
                         serverVersion,
@@ -328,19 +331,16 @@ public class MessageGatewayService {
                         maxInstances,
                         new ArrayList<>()
                 ));
-            }
-            else if (request instanceof EventFetchRequest f) {
+            } else if (request instanceof EventFetchRequest f) {
                 var events = f.getComponentName() == null ? eventStore.fetchEvents(
                         f.getLastSequenceNumber(),
                         f.getLimit()) : eventStore.fetchEvents(
                         f.getLastSequenceNumber(),
                         f.getLimit(), handlerRepository.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
                 response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
-            }
-            else if (request instanceof EventLastSequenceNumberRequest r){
+            } else if (request instanceof EventLastSequenceNumberRequest r) {
                 response.sendResponse(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
-            }
-            else {
+            } else {
                 throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
             }
         } catch (Exception e) {
@@ -348,6 +348,20 @@ public class MessageGatewayService {
             response.sendError(e);
         } finally {
             this.threadCountAutoscalingProtocol.departure();
+        }
+    }
+
+    private void sendEventToObservers(EventMessage<?> eventMessage) {
+        for (Handler h : handlerService.findAllByPayloadName(eventMessage.getEventName())) {
+            if (h.getComponentType() == ComponentType.Observer) {
+                try {
+                    bundleDeployService.waitUntilAvailable(h.getBundle().getId());
+                    var d = addressPicker.pickNodeAddress(h.getBundle().getId());
+                    messageBus.cast(d, eventMessage);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 

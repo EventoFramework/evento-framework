@@ -175,6 +175,9 @@ public class JavaBundleParser implements BundleParser {
 		} else if (JavaComponentParser.isProjector(classDef))
 		{
 			return new JavaProjectorParser(node).parse();
+		}else if (JavaComponentParser.isObserver(classDef))
+		{
+			return new JavaObserverParser(node).parse();
 		} else if (JavaComponentParser.isService(classDef))
 		{
 			return new JavaServiceParser(node).parse();
