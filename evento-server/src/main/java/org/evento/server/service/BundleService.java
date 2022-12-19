@@ -300,6 +300,58 @@ public class BundleService {
                     handlerRepository.save(handler);
 
                 }
+            } else if (component instanceof Observer o) {
+                for (EventHandler eventHandler : o.getEventHandlers()) {
+                    var handler = new org.evento.server.domain.model.Handler();
+                    handler.setBundle(bundle);
+                    handler.setComponentName(component.getComponentName());
+                    handler.setHandlerType(HandlerType.EventHandler);
+                    handler.setComponentType(ComponentType.Observer);
+                    handler.setHandledPayload(payloadRepository.findById(eventHandler.getPayload().getName()).orElseGet(
+                            () -> {
+                                var payload = new Payload();
+                                payload.setName(eventHandler.getPayload().getName());
+                                payload.setJsonSchema("null");
+                                payload.setType(PayloadType.Event);
+                                payload.setUpdatedAt(Instant.now());
+                                payload.setRegisteredIn(bundle.getId());
+                                return payloadRepository.save(payload);
+                            }
+                    ));
+                    handler.setReturnIsMultiple(false);
+                    handler.setReturnType(null);
+                    var invocations = new HashMap<Integer, Payload>();
+                    for (var query : eventHandler.getQueryInvocations().entrySet()) {
+                        invocations.put(query.getKey(),payloadRepository.findById(query.getValue().getName()).orElseGet(
+                                () -> {
+                                    var payload = new Payload();
+                                    payload.setName(query.getValue().getName());
+                                    payload.setJsonSchema("null");
+                                    payload.setType(PayloadType.Query);
+                                    payload.setUpdatedAt(Instant.now());
+                                    payload.setRegisteredIn(bundle.getId());
+                                    return payloadRepository.save(payload);
+                                }
+                        ));
+                    }
+                    for (var command : eventHandler.getCommandInvocations().entrySet()) {
+                        invocations.put(command.getKey(),payloadRepository.findById(command.getValue().getName()).orElseGet(
+                                () -> {
+                                    var payload = new Payload();
+                                    payload.setName(command.getValue().getName());
+                                    payload.setJsonSchema("null");
+                                    payload.setType(PayloadType.Command);
+                                    payload.setUpdatedAt(Instant.now());
+                                    payload.setRegisteredIn(bundle.getId());
+                                    return payloadRepository.save(payload);
+                                }
+                        ));
+                    }
+                    handler.setInvocations(invocations);
+                    handler.generateId();
+                    handlerRepository.save(handler);
+
+                }
             } else if (component instanceof org.evento.parser.model.component.Service s) {
                 for (ServiceCommandHandler commandHandler : s.getCommandHandlers()) {
                     var handler = new org.evento.server.domain.model.Handler();

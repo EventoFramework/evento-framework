@@ -3,6 +3,7 @@ package org.evento.common.messaging.consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
+import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.messaging.bus.MessageBus;
@@ -130,4 +131,5 @@ public abstract class ConsumerStateStore {
     protected abstract StoredSagaState getSagaState(String sagaName, String associationProperty, String associationValue) throws Exception;
 
     protected abstract void setSagaState(Long sagaId, String sagaName, SagaState sagaState) throws Exception;
+
 }

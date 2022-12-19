@@ -24,6 +24,7 @@ import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.performance.AutoscalingProtocol;
+import org.evento.common.performance.PerformanceService;
 import org.evento.common.utils.Inject;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
@@ -50,17 +51,20 @@ public class EventoBundle {
     private final String serverName;
     private final ConsumerStateStore consumerStateStore;
     private final long bundleVersion;
+    private final PerformanceService performanceService;
 
     private HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
     private HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
     private HashMap<String, ProjectionReference> projectionMessageHandlers = new HashMap<>();
     private HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers = new HashMap<>();
+    private HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers = new HashMap<>();
     private HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers = new HashMap<>();
 
     private final List<RegisteredHandler> invocationHandlers = new ArrayList<>();
     private transient CommandGateway commandGateway;
     private transient QueryGateway queryGateway;
     private List<ProjectorReference> projectors = new ArrayList<>();
+    private List<ObserverReference> observers = new ArrayList<>();
     private List<SagaReference> sagas = new ArrayList<>();
 
     private boolean isShuttingDown = false;
@@ -75,13 +79,13 @@ public class EventoBundle {
             ConsumerStateStore consumerStateStore,
             boolean autorun,
             int minInstances,
-            int maxInstances
-    ) {
+            int maxInstances) {
 
 
         this.messageBus = messageBus;
         this.basePackage = basePackage;
         this.bundleId = bundleId;
+        this.performanceService = new PerformanceService(messageBus, serverName);
         this.commandGateway = new CommandGateway(messageBus, serverName);
         this.queryGateway = new QueryGateway(messageBus, serverName);
         this.serverName = serverName;
@@ -112,7 +116,8 @@ public class EventoBundle {
                                             new SerializedAggregateState<>(envelope.getAggregateState()) : null
                             )
                     );
-                } else if (request instanceof ServiceCommandMessage c) {
+                }
+                else if (request instanceof ServiceCommandMessage c) {
                     var handler = getServiceMessageHandlers().get(c.getCommandName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
@@ -123,7 +128,8 @@ public class EventoBundle {
                             queryGateway
                     );
                     response.sendResponse(new ServiceEventMessage(event));
-                } else if (request instanceof QueryMessage<?> q) {
+                }
+                else if (request instanceof QueryMessage<?> q) {
                     var handler = getProjectionMessageHandlers().get(q.getQueryName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));
@@ -133,7 +139,8 @@ public class EventoBundle {
                             queryGateway
                     );
                     response.sendResponse(new SerializedQueryResponse<>(result));
-                } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
+                }
+                else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
                     var handlers = new ArrayList<RegisteredHandler>();
                     aggregateMessageHandlers.forEach((k, v) -> {
                         var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
@@ -192,6 +199,20 @@ public class EventoBundle {
 
 
                     });
+                    observerMessageHandlers.forEach((k, v) -> {
+                        v.forEach((k1, v1) -> {
+                            handlers.add(new RegisteredHandler(
+                                    ComponentType.Observer,
+                                    v1.getRef().getClass().getSimpleName(),
+                                    HandlerType.EventHandler,
+                                    v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                                    k,
+                                    null,
+                                    false,
+                                    null
+                            ));
+                        });
+                    });
                     sagaMessageHandlers.forEach((k, v) -> {
                         v.forEach((k1, v1) -> {
                             handlers.add(new RegisteredHandler(
@@ -239,6 +260,25 @@ public class EventoBundle {
                 autoscalingProtocol.departure();
             }
 
+        });
+
+        messageBus.setMessageReceiver((src, request) -> {
+            try {
+                if (request instanceof EventMessage<?> e) {
+                    for (ObserverReference observerReference : observerMessageHandlers.get(e.getEventName()).values()) {
+                        var start = Instant.now();
+                        observerReference.invoke(e, commandGateway, queryGateway);
+                        this.performanceService.sendPerformances(
+                                bundleId,
+                                observerReference.getRef().getClass().getSimpleName(),
+                                e.getEventName(),
+                                start
+                        );
+                    }
+                }
+            }catch (Throwable e){
+                e.printStackTrace();
+            }
         });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> this.isShuttingDown = true));
@@ -368,6 +408,16 @@ public class EventoBundle {
                 hl.put(aClass.getSimpleName(), projectorReference);
                 projectorMessageHandlers.put(event, hl);
                 logger.info("Projector event handler for %s found in %s".formatted(event, projectorReference.getRef().getClass().getName()));
+            }
+        }
+        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Observer.class)) {
+            var observerReference = new ObserverReference(createComponentInstance(aClass, findInjectableObject));
+            observers.add(observerReference);
+            for (String event : observerReference.getRegisteredEvents()) {
+                var hl = observerMessageHandlers.getOrDefault(event, new HashMap<>());
+                hl.put(aClass.getSimpleName(), observerReference);
+                observerMessageHandlers.put(event, hl);
+                logger.info("Observer event handler for %s found in %s".formatted(event, observerReference.getRef().getClass().getName()));
             }
         }
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Saga.class)) {
