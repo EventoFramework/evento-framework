@@ -25,6 +25,7 @@ import java.util.UUID;
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class EventStore {
 
+	private static final long DELAY = 69;
 	private final EventStoreRepository eventStoreRepository;
 	private final SnapshotRepository snapshotRepository;
 	private final JdbcTemplate jdbcTemplate;
@@ -38,6 +39,7 @@ public class EventStore {
 		this.jdbcTemplate = jdbcTemplate;
 	}
 
+
 	public List<EventStoreEntry> fetchAggregateStory(String aggregateId) {
 		return eventStoreRepository.findAllByAggregateIdOrderByEventSequenceNumberAsc(aggregateId);
 	}
@@ -49,13 +51,13 @@ public class EventStore {
 	public List<EventStoreEntry> fetchEvents(Long seq, int limit) {
 		if (seq == null) seq = -1L;
 		return eventStoreRepository.findAllByEventSequenceNumberAfterAndCreatedAtBeforeOrderByEventSequenceNumberAsc(seq,
-				Instant.now().minus(69, ChronoUnit.MILLIS).toEpochMilli(), PageRequest.of(0, limit));
+				Instant.now().minus(DELAY, ChronoUnit.MILLIS).toEpochMilli(), PageRequest.of(0, limit));
 	}
 
 	public List<EventStoreEntry> fetchEvents(Long seq, int limit, List<String> eventNames) {
 		if (seq == null) seq = -1L;
 		return eventStoreRepository.findAllByEventSequenceNumberAfterAndCreatedAtBeforeAndEventNameInOrderByEventSequenceNumberAsc(
-				seq, Instant.now().minus(69, ChronoUnit.MILLIS).toEpochMilli(),
+				seq, Instant.now().minus(DELAY, ChronoUnit.MILLIS).toEpochMilli(),
 				eventNames, PageRequest.of(0, limit));
 	}
 
@@ -89,11 +91,10 @@ public class EventStore {
 							"value  (?, ?, ?, ?, ?)",
 					snowflake.nextId(),
 					aggregateId,
-					Instant.now().toEpochMilli(),
+					time,
 					mapper.writeValueAsBytes(eventMessage),
 					eventMessage.getEventName()
 			);
-			System.out.println("Event store (" + eventMessage.getEventName() + ") write in: " + (Instant.now().toEpochMilli() - time));
 
 		} catch (JsonProcessingException e)
 		{
@@ -104,13 +105,14 @@ public class EventStore {
 	public void publishEvent(EventMessage<?> eventMessage) {
 		try
 		{
+			var time = Instant.now().toEpochMilli();
 			jdbcTemplate.update(
 					"INSERT INTO es__events " +
 							"(event_sequence_number, aggregate_id, created_at, event_message, event_name) " +
 							"value ( ?, ?, ?,?,?)",
 					snowflake.nextId(),
 					null,
-					Instant.now().toEpochMilli(),
+					time,
 					mapper.writeValueAsBytes(eventMessage),
 					eventMessage.getEventName()
 			);
