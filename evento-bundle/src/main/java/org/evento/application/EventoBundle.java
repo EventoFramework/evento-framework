@@ -264,6 +264,7 @@ public class EventoBundle {
 
         messageBus.setMessageReceiver((src, request) -> {
             try {
+                autoscalingProtocol.arrival();
                 if (request instanceof EventMessage<?> e) {
                     for (ObserverReference observerReference : observerMessageHandlers.get(e.getEventName()).values()) {
                         var start = Instant.now();
@@ -278,6 +279,8 @@ public class EventoBundle {
                 }
             }catch (Throwable e){
                 e.printStackTrace();
+            }finally {
+                autoscalingProtocol.departure();
             }
         });
 

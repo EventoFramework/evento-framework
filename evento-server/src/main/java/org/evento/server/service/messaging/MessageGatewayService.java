@@ -332,12 +332,16 @@ public class MessageGatewayService {
                         new ArrayList<>()
                 ));
             } else if (request instanceof EventFetchRequest f) {
-                var events = f.getComponentName() == null ? eventStore.fetchEvents(
-                        f.getLastSequenceNumber(),
-                        f.getLimit()) : eventStore.fetchEvents(
-                        f.getLastSequenceNumber(),
-                        f.getLimit(), handlerRepository.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
-                response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
+                try {
+                    var events = f.getComponentName() == null ? eventStore.fetchEvents(
+                            f.getLastSequenceNumber(),
+                            f.getLimit()) : eventStore.fetchEvents(
+                            f.getLastSequenceNumber(),
+                            f.getLimit(), handlerRepository.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
+                    response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
+                }catch (Exception e){
+                    response.sendError(e);
+                }
             } else if (request instanceof EventLastSequenceNumberRequest r) {
                 response.sendResponse(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
             } else {

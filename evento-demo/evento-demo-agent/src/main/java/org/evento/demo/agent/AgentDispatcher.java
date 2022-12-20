@@ -26,11 +26,22 @@ public class AgentDispatcher implements CommandLineRunner {
 
 
 
+		for(int i = 0; i<150; i++){
+			i++;
+			Thread.sleep(100);
+			int finalI = i;
+			new Thread(() -> {
+				demoLifecycleAgent.action(finalI);
+			}).start();
+		}
+		// eventoBundle.gracefulShutdown();
+
+		/*
 		var listStart = IntStream.range(0, 10).parallel().mapToObj(demoLifecycleAgent::action).toList();
 		System.out.println("listStart (10) MeanCreateTime: "+listStart.stream().filter(Report::success).mapToLong(Report::createTime).average().orElse(0));
 		System.out.println("listStart (10) MeanMeanUpdateTime: "+listStart.stream().filter(Report::success).mapToLong(Report::meanUpdateTime).average().orElse(0));
 		System.out.println("listStart (10) MeanDeleteTime: "+listStart.stream().filter(Report::success).mapToLong(Report::deleteTime).average().orElse(0));
-		listStart.stream().filter(r -> !r.success()).forEach(System.out::println);
+		listStart.stream().filter(r -> !r.success()).forEach(System.out::println);*/
 
 		/*
 		var listMiddle = IntStream.range(0, 30).mapToObj(demoLifecycleAgent::action).toList();
@@ -47,7 +58,7 @@ public class AgentDispatcher implements CommandLineRunner {
 
 		//eventoApplication.shutdown();
 		*/
-		eventoBundle.gracefulShutdown();
+		// eventoBundle.gracefulShutdown();
 
 	}
 }

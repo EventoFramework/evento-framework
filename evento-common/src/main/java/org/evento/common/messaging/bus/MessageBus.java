@@ -70,6 +70,8 @@ public abstract class MessageBus {
 				System.out.println("Graceful Shutdown - Started");
 				System.out.println("Graceful Shutdown - Disabling Bus");
 				disableBus();
+				System.out.println("Waiting for bus disabled propagation...");
+				Thread.sleep(15 * 1000);
 				System.out.println("Graceful Shutdown - Bus Disabled");
 				var retry = 0;
 				while (true)
@@ -77,15 +79,15 @@ public abstract class MessageBus {
 					var keys = messageCorrelationMap.keySet();
 					System.out.println("Graceful Shutdown - Remaining correlations: %d".formatted(keys.size()));
 					System.out.println("Graceful Shutdown - Sleep...");
-					Thread.sleep(5 * 1000);
+					Thread.sleep(15 * 1000);
 					if (messageCorrelationMap.isEmpty())
 					{
 						System.out.println("Graceful Shutdown - No more correlations, bye!");
 						disconnect();
 						return;
-					} else if (keys.containsAll(messageCorrelationMap.keySet()) && retry > 5)
+					} else if (keys.containsAll(messageCorrelationMap.keySet()) && retry > 12)
 					{
-						System.out.println("Graceful Shutdown - Pending correlation after 5 retry... so... bye!");
+						System.out.println("Graceful Shutdown - Pending correlation after 180 sec of retry... so... bye!");
 						disconnect();
 						return;
 					}
