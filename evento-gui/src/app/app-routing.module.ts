@@ -35,6 +35,11 @@ const routes: Routes = [
     path: 'payload-catalog',
     loadChildren: () => import('./pages/catalog/payload-catalog/payload-catalog.module').then( m => m.PayloadCatalogPageModule)
   },
+
+  {
+    path: 'payload-catalog/payload-info/:identifier',
+    loadChildren: () => import('./pages/catalog/payload-catalog/payload-info/payload-info.module').then( m => m.PayloadInfoPageModule)
+  },
   {
     path: 'component-catalog',
     loadChildren: () => import('./pages/catalog/component-catalog/component-catalog.module').then( m => m.ComponentCatalogPageModule)

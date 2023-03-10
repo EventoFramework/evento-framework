@@ -60,5 +60,7 @@
   "payload.invocations": "Producers",
   "payload.returnedBy": "Usage",
   "payload.filter": "Filtered Payloads",
-  "payload.all": "All Payloads"
+  "payload.all": "All Payloads",
+  "common.edit": "Edit",
+  "common.save": "Save"
 }
