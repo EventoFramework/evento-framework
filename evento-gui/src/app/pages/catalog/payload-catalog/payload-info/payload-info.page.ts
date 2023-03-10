@@ -17,6 +17,9 @@ export class PayloadInfoPage implements OnInit {
 
   ngOnInit() {
     this.catalogService.findByName(this.route.snapshot.paramMap.get('identifier')).then(r => {
+      r.subscribers = r.subscribers?.split(',') || [];
+      r.invokers = r.invokers?.split(',') || [];
+      r.returnedBy = r.returnedBy?.split(',') || [];
       this.payload = r;
       console.log(this.payload)
     });

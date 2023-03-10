@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {ActivatedRoute} from "@angular/router";
 import {BundleService} from "../../../services/bundle.service";
-import {bundle} from "@angular-devkit/build-angular/src/builders/browser-esbuild/esbuild";
 import {NavController} from "@ionic/angular";
 
 @Component({

@@ -37,7 +37,7 @@ const routes: Routes = [
   },
 
   {
-    path: 'payload-catalog/payload-info/:identifier',
+    path: 'payload-info/:identifier',
     loadChildren: () => import('./pages/catalog/payload-catalog/payload-info/payload-info.module').then( m => m.PayloadInfoPageModule)
   },
   {
