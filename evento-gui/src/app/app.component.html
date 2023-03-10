@@ -1,4 +1,5 @@
 <ion-app>
+  <!--
   <ion-split-pane contentId="main-content">
     <ion-menu contentId="main-content" type="overlay">
       <ion-content>
@@ -16,6 +17,41 @@
 
       </ion-content>
     </ion-menu>
-    <ion-router-outlet id="main-content"></ion-router-outlet>
+
   </ion-split-pane>
+  -->
+
+  <ion-tabs #tabs (ionTabsWillChange)="selectedTab = $event.tab">
+
+    <ion-tab-bar id="main-header" color="primary" slot="top">
+      <ion-grid>
+        <ion-row>
+          <ion-col size="2"></ion-col>
+          <ion-col size="2">
+            <img id="main-logo" src="assets/img/logo.png">
+          </ion-col>
+          <ion-col size="6" class="ion-text-end">
+            <span class="tab-button" [class.selected]="selectedTab === 'message-catalog'"
+                 (click)="tabs.select('message-catalog')" translate="catalog.message.title"></span>
+            <span class="tab-button" [class.selected]="selectedTab === 'service-catalog'"
+                 (click)="tabs.select('service-catalog')" translate="catalog.service.title"></span>
+            <span class="tab-button" [class.selected]="selectedTab === 'domain-catalog'"
+                 (click)="tabs.select('domain-catalog')" translate="catalog.domain.title"></span>
+            <span class="tab-button" [class.selected]="selectedTab === 'application-flows/all'"
+                 (click)="tabs.select('application-flows/all')" translate="application.flows.title"></span>
+            <span class="tab-button" [class.selected]="selectedTab === 'bundle-list'"
+                 (click)="tabs.select('bundle-list')" translate="bundle.title"></span>
+            <span class="tab-button" [class.selected]="selectedTab === 'cluster-status'"
+                 (click)="tabs.select('cluster-status')" translate="cluster.title"></span>
+            <span class="tab-button" [class.selected]="selectedTab === 'application-map'"
+                 (click)="tabs.select('application-map')" translate="application.map.title"></span>
+
+          </ion-col>
+          <ion-col size="2"></ion-col>
+        </ion-row>
+      </ion-grid>
+
+    </ion-tab-bar>
+
+  </ion-tabs>
 </ion-app>

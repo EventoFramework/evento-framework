@@ -1,7 +1,7 @@
 {
 	"evento.name":"Evento",
 	"evento.description":"Reactive Event Framework",
-	"application.flows.title":"Application Flows",
+	"application.flows.title":"Flows",
 	"application.map.title":"Application Map",
 	"bundle":"Bundles",
 	"bundle.version":"Version",
@@ -46,5 +46,10 @@
 	"performance.analysis.concurrent.requests":"Concurrent Requests",
 	"performance.analysis.max.throughput":"Max Throughput",
 	"common.bundle":"Bundle",
-	"common.flow":"Flow"
+	"common.flow":"Flow",
+  "catalog.message.title": "Messages",
+  "catalog.service.title": "Services",
+  "catalog.domain.title": "Domains",
+  "bundle.title": "Bundles",
+  "cluster.title": "Cluster"
 }
