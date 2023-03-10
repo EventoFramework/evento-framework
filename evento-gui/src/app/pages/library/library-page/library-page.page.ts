@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import {LibraryService} from "../../../services/library.service";
+import {CatalogService} from "../../../services/catalog.service";
 
 @Component({
   selector: 'app-library-page',
@@ -10,7 +10,7 @@ export class LibraryPagePage implements OnInit {
   elements = [];
   element: any;
 
-  constructor(private libraryService: LibraryService) { }
+  constructor(private libraryService: CatalogService) { }
 
   async ngOnInit() {
     this.elements = await this.libraryService.findAll();

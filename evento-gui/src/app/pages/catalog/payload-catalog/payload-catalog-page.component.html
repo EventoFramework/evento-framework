@@ -61,7 +61,7 @@
           </ion-card-subtitle>
           <ion-row>
             <ion-col size="6" *ngFor="let payload of payloads">
-              <ion-card [class]="'payload-type payload-type-' + payload.type">
+              <ion-card [class]="'payload-type payload-type-' + payload.type" routerLink="payload-info/{{payload.name}}">
                 <ion-card-content>
                   <ion-text class="title">{{payload.name}}</ion-text>
                   <ion-text color="dark"><p>{{payload.description}}</p></ion-text>
