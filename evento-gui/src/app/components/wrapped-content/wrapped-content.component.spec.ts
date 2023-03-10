@@ -1,19 +1,19 @@
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 import { IonicModule } from '@ionic/angular';
 
-import { DomainCatalogPage } from './domain-catalog.page';
+import { WrappedContentComponent } from './wrapped-content.component';
 
-describe('DomainCatalogPage', () => {
-  let component: DomainCatalogPage;
-  let fixture: ComponentFixture<DomainCatalogPage>;
+describe('WrappedContentComponent', () => {
+  let component: WrappedContentComponent;
+  let fixture: ComponentFixture<WrappedContentComponent>;
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ DomainCatalogPage ],
+      declarations: [ WrappedContentComponent ],
       imports: [IonicModule.forRoot()]
     }).compileComponents();
 
-    fixture = TestBed.createComponent(DomainCatalogPage);
+    fixture = TestBed.createComponent(WrappedContentComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   }));
