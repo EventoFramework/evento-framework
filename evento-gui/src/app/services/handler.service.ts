@@ -9,10 +9,10 @@ export class HandlerService {
   constructor() { }
 
   findAll(){
-    return fetch(environment.erServerUrl + '/api/handler/').then(r => r.json());
+    return fetch(environment.eventoServerUrl + '/api/handler/').then(r => r.json());
   }
 
   getQueueNet(handlerId = null) {
-    return fetch(environment.erServerUrl + '/api/handler/to-queue-net' + (handlerId ? ('/' + handlerId) : '')).then(r => r.json());
+    return fetch(environment.eventoServerUrl + '/api/handler/to-queue-net' + (handlerId ? ('/' + handlerId) : '')).then(r => r.json());
   }
 }

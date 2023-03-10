@@ -1,5 +1,5 @@
 import {Component, OnInit} from '@angular/core';
-import {LibraryService} from "../../../services/library.service";
+import {CatalogService} from "../../../services/catalog.service";
 
 @Component({
   selector: 'app-payload-catalog',
@@ -19,7 +19,7 @@ export class PayloadCatalogPage implements OnInit {
   selectedDomains = {};
   search = '';
 
-  constructor(private libraryService: LibraryService) {
+  constructor(private libraryService: CatalogService) {
   }
 
   async ngOnInit() {

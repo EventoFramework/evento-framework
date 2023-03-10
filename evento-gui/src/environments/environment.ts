@@ -4,7 +4,7 @@
 
 export const environment = {
   production: false,
-  erServerUrl: 'http://localhost:3000'
+  eventoServerUrl: 'http://localhost:3000'
 };
 
 /*
