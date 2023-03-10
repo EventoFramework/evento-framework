@@ -94,6 +94,22 @@ ion-title {
   border-bottom-width: 1px;
 }
 
+.line-right {
+  --tw-border-opacity: 1;
+
+  padding-right: 26px;
+}
+
+.line-right:before {
+  content : "";
+  position: absolute;
+  right    : 0;
+  bottom  : 0;
+  height  : 80%;
+  width   : 1px;  /* or 100px */
+  border-right:1px solid rgba(229,231,235,var(--tw-border-opacity));
+}
+
 *{
 
   font-family: 'Inter', sans-serif;

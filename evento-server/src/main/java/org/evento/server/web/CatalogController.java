@@ -1,6 +1,7 @@
 package org.evento.server.web;
 
 import org.evento.server.domain.model.Payload;
+import org.evento.server.domain.repository.PayloadListProjection;
 import org.evento.server.domain.repository.PayloadProjection;
 import org.evento.server.domain.repository.PayloadRepository;
 import org.springframework.http.ResponseEntity;
@@ -22,11 +23,11 @@ public class CatalogController {
 	}
 
 	@GetMapping(value = "/", produces = "application/json")
-	public ResponseEntity<List<PayloadProjection>> findAll(){
+	public ResponseEntity<List<PayloadListProjection>> findAll(){
 		return ResponseEntity.ok(payloadRepository.findAllProjection());
 	}
 	@GetMapping(value = "/{payloadName}", produces = "application/json")
-	public ResponseEntity<Payload> findByName(@PathVariable String payloadName){
-		return ResponseEntity.ok(payloadRepository.findById(payloadName).orElseThrow());
+	public ResponseEntity<PayloadProjection> findByName(@PathVariable String payloadName){
+		return ResponseEntity.ok(payloadRepository.findByIdProjection(payloadName).orElseThrow());
 	}
 }

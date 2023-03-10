@@ -20,7 +20,6 @@ import java.util.List;
 @NoArgsConstructor
 public class PayloadDto implements Serializable {
 	private String name;
-
 	private String description;
 
 	private String domain;

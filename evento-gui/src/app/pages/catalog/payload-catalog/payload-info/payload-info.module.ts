@@ -9,6 +9,7 @@ import { PayloadInfoPageRoutingModule } from './payload-info-routing.module';
 import { PayloadInfoPage } from './payload-info.page';
 import {PayloadCatalogPageModule} from "../payload-catalog.module";
 import {TranslateModule} from "@ngx-translate/core";
+import {MarkdownModule} from "ngx-markdown";
 
 @NgModule({
   imports: [
@@ -17,7 +18,8 @@ import {TranslateModule} from "@ngx-translate/core";
     IonicModule,
     PayloadInfoPageRoutingModule,
     PayloadCatalogPageModule,
-    TranslateModule
+    TranslateModule,
+    MarkdownModule
   ],
   declarations: [PayloadInfoPage]
 })

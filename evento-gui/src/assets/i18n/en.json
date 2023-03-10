@@ -56,11 +56,12 @@
   "catalog.payload.type.filter": "Filter By Type",
   "catalog.payload.domain.filter": "Filter By Domain",
   "catalog.payload.component.filter": "Filter By Component",
-  "payload.subscribers": "Subscribers",
-  "payload.invocations": "Producers",
-  "payload.returnedBy": "Usage",
+  "payload.subscribers": "Handlers",
+  "payload.invocations": "Invocations",
+  "payload.returnedBy": "Producers",
   "payload.filter": "Filtered Payloads",
   "payload.all": "All Payloads",
   "common.edit": "Edit",
-  "common.save": "Save"
+  "common.save": "Save",
+  "common.domain": "Domain"
 }

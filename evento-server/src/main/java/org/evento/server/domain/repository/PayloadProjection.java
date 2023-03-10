@@ -1,13 +1,19 @@
 package org.evento.server.domain.repository;
 
+import java.time.Instant;
+
 public interface PayloadProjection {
 	String getName();
-	String getType();
 	String getDescription();
+	String getDetail();
 	String getDomain();
+	String getType();
+	String getJsonSchema();
+	String getRegisteredId();
+	Instant getUpdatedAt();
+
 	String getSubscribers();
-	Integer getSubscriptions();
-	Integer getInvocations();
-	Integer getReturnedBy();
+	String getInvokers();
+	String getReturnedBy();
 
 }

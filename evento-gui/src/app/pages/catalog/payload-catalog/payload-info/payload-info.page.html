@@ -1,25 +1,91 @@
-
-
 <ion-content>
-<app-wrapped-content>
-  <ion-grid *ngIf="payload">
-    <ion-row class="ion-margin-top line-under">
-      <ion-col>
-        <ion-title><h1>{{payload.name}}</h1></ion-title>
-        <div class="ion-margin-top"></div>
-        <ion-text >{{payload.description}}</ion-text>
-      </ion-col>
-      <ion-col size="1">
-        <ion-button fill="outline" color="medium" *ngIf="!isEditing" (click)="isEditing = true">
-          <ion-icon slot="start" name="pencil"></ion-icon>
-          <span translate="common.edit"></span>
-        </ion-button>
-        <ion-button color="primary" *ngIf="isEditing" (click)="save()">
-          <ion-icon slot="start" name="save"></ion-icon>
-          <span translate="common.save"></span>
-        </ion-button>
-      </ion-col>
-    </ion-row>
-  </ion-grid>
-</app-wrapped-content>
+  <app-wrapped-content>
+    <ion-grid *ngIf="payload">
+      <ion-row>
+        <ion-col size="9" class="line-right">
+          <ion-row class="ion-margin-top line-under">
+            <ion-col>
+              <ion-title><h1>{{payload.name}} <ion-chip [class]="'payload-type-' + payload.type">{{payload.type}}</ion-chip></h1> </ion-title>
+              <div class="ion-margin-top"></div>
+              <ion-text *ngIf="!isEditing">{{payload.description}}</ion-text>
+              <textarea class="editor" type="text" *ngIf="isEditing" [(ngModel)]="payload.description"></textarea>
+            </ion-col>
+            <ion-col class="ion-text-end" size="3">
+              <ion-button fill="outline" color="medium" *ngIf="!isEditing" (click)="isEditing = true">
+                <ion-icon slot="start" name="pencil"></ion-icon>
+                <span translate="common.edit"></span>
+              </ion-button>
+              <ion-button color="primary" *ngIf="isEditing" (click)="save()">
+                <ion-icon slot="start" name="save"></ion-icon>
+                <span translate="common.save"></span>
+              </ion-button>
+            </ion-col>
+          </ion-row>
+          <ion-row>
+            <ion-col>
+              <markdown *ngIf="!isEditing" [data]="payload.detail"></markdown>
+              <textarea style="min-height: 350px" class="editor" *ngIf="isEditing"
+                        [(ngModel)]="payload.detail"></textarea>
+            </ion-col>
+          </ion-row>
+        </ion-col>
+        <ion-col size="3" class=" ion-padding-start">
+          <ion-row class="line-under"></ion-row>
+          <ion-row *ngIf="payload.subscribers?.length" class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="tertiary" name="cube"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.subscribers"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let r of payload.subscribers">
+                <ion-chip outline="true"><ion-text color="tertiary">•</ion-text>&nbsp;{{r}}</ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row *ngIf="payload.invokers?.length" class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="success" name="cube"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.invocations"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let r of payload.invokers">
+                <ion-chip outline="true"><ion-text color="success">•</ion-text>&nbsp;{{r}}</ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row *ngIf="payload.returnedBy?.length" class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="secondary" name="cube"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.returnedBy"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let r of payload.returnedBy">
+                <ion-chip outline="true"><ion-text color="secondary">•</ion-text>&nbsp;{{r}}</ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row *ngIf="payload.domain" class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="warning" name="folder-open"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
+                </ion-text>
+              </div>
+              <div>
+                <ion-chip outline="true"><ion-text color="warning">•</ion-text>&nbsp;{{payload.domain}}</ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+        </ion-col>
+      </ion-row>
+
+    </ion-grid>
+  </app-wrapped-content>
 </ion-content>
