@@ -4,7 +4,7 @@ import {PreloadAllModules, RouterModule, Routes} from '@angular/router';
 const routes: Routes = [
   {
     path: '',
-    redirectTo: 'application-map',
+    redirectTo: 'message-catalog',
     pathMatch: 'full'
   },
   {
@@ -30,7 +30,21 @@ const routes: Routes = [
   {
     path: 'bundle-info/:identifier',
     loadChildren: () => import('./pages/bundle/bundle-info/bundle-info.module').then( m => m.BundleInfoPageModule)
+  },
+  {
+    path: 'message-catalog',
+    loadChildren: () => import('./pages/catalog/message-catalog/message-catalog.module').then( m => m.MessageCatalogPageModule)
+  },
+  {
+    path: 'service-catalog',
+    loadChildren: () => import('./pages/catalog/service-catalog/service-catalog.module').then( m => m.ServiceCatalogPageModule)
+  },
+  {
+    path: 'domain-catalog',
+    loadChildren: () => import('./pages/catalog/domain-catalog/domain-catalog.module').then( m => m.DomainCatalogPageModule)
   }
+
+
 
 
 

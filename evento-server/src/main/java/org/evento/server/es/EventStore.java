@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -40,11 +39,11 @@ public class EventStore {
 	}
 
 
-	public List<EventStoreEntry> fetchAggregateStory(String aggregateId) {
+	public List<EventStoreEntry> fetchAggregateState(String aggregateId) {
 		return eventStoreRepository.findAllByAggregateIdOrderByEventSequenceNumberAsc(aggregateId);
 	}
 
-	public List<EventStoreEntry> fetchAggregateStory(String aggregateId, Long seq) {
+	public List<EventStoreEntry> fetchAggregateState(String aggregateId, Long seq) {
 		return eventStoreRepository.findAllByAggregateIdAndEventSequenceNumberAfterOrderByEventSequenceNumberAsc(aggregateId, seq);
 	}
 
@@ -76,7 +75,7 @@ public class EventStore {
 
 	public long getLastEventSequenceNumber() {
 		var v = eventStoreRepository.getLastEventSequenceNumber();
-		return v == null ? 0 : v.longValue();
+		return v == null ? 0 : v;
 	}
 
 	public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {

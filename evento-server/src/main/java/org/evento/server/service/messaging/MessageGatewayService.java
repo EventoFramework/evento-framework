@@ -181,12 +181,12 @@ public class MessageGatewayService {
 
                     var snapshot = eventStore.fetchSnapshot(c.getAggregateId());
                     if (snapshot == null) {
-                        invocation.setEventStream(eventStore.fetchAggregateStory(c.getAggregateId())
+                        invocation.setEventStream(eventStore.fetchAggregateState(c.getAggregateId())
                                 .stream().map(EventStoreEntry::getEventMessage)
                                 .map(e -> ((DomainEventMessage) e)).collect(Collectors.toList()));
                         invocation.setSerializedAggregateState(new SerializedAggregateState<>(null));
                     } else {
-                        invocation.setEventStream(eventStore.fetchAggregateStory(c.getAggregateId(),
+                        invocation.setEventStream(eventStore.fetchAggregateState(c.getAggregateId(),
                                         snapshot.getEventSequenceNumber())
                                 .stream().map(EventStoreEntry::getEventMessage)
                                 .map(e -> ((DomainEventMessage) e)).collect(Collectors.toList()));
