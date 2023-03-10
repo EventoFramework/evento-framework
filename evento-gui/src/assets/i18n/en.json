@@ -47,9 +47,18 @@
 	"performance.analysis.max.throughput":"Max Throughput",
 	"common.bundle":"Bundle",
 	"common.flow":"Flow",
-  "catalog.message.title": "Messages",
-  "catalog.service.title": "Services",
+  "catalog.payload.title": "Payload",
+  "catalog.component.title": "Component",
   "catalog.domain.title": "Domains",
   "bundle.title": "Bundles",
-  "cluster.title": "Cluster"
+  "cluster.title": "Cluster",
+  "catalog.payload.search": "Search Payload",
+  "catalog.payload.type.filter": "Filter By Type",
+  "catalog.payload.domain.filter": "Filter By Domain",
+  "catalog.payload.component.filter": "Filter By Component",
+  "payload.subscribers": "Subscribers",
+  "payload.invocations": "Producers",
+  "payload.returnedBy": "Usage",
+  "payload.filter": "Filtered Payloads",
+  "payload.all": "All Payloads"
 }

@@ -8,6 +8,7 @@ import javax.persistence.*;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Entity
@@ -22,7 +23,13 @@ public class Payload implements Serializable {
 	@Id
 	private String name;
 
+	private String description;
+
+	private String detail;
+
+	private String domain;
 	@OneToMany(mappedBy = "handledPayload")
+	@ToString.Exclude
 	private List<Handler> handlers;
 
 	@Enumerated(EnumType.STRING)

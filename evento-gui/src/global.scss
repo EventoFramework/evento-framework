@@ -26,37 +26,83 @@
 @import "~@ionic/angular/css/flex-utils.css";
 
 @import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
-
-.payload-type-DomainCommand{
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
+.payload-type-DomainCommand {
   --background: #3399fe;
   --color: white;
 }
 
-.payload-type-ServiceCommand{
+.payload-type-ServiceCommand {
   --background: #ff68b9;
   --color: black;
 }
 
 
-.payload-type-DomainEvent{
+.payload-type-DomainEvent {
   --background: #ff992a;
   --color: black;
 }
 
-.payload-type-View{
+.payload-type-ServiceEvent {
+  --background: #cb3234;
+  --color: black;
+}
+
+.payload-type-View {
   --background: #5fc08b;
   --color: white;
 }
 
-.payload-type-Query{
+.payload-type-Invocation {
+  --background: grey;
+  --color: white;
+}
+
+.payload-type-Query {
   --background: gold;
   --color: black;
 }
 
-ion-item{
+ion-item {
   --padding-start: 0;
 }
 
-ion-list-header{
+ion-list-header {
   padding-inline-start: 0
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+ion-title {
+  padding: 0;
+
+  h1 {
+    font-weight: 800 !important;
+    margin: 0;
+  }
+}
+
+
+.line-under {
+  --tw-border-opacity: 1;
+  border: 0 solid rgba(229,231,235,var(--tw-border-opacity));
+  box-sizing: border-box;
+
+  padding-bottom: 26px;
+  border-bottom-width: 1px;
+}
+
+*{
+
+  font-family: 'Inter', sans-serif;
+}
+
+.title {
+  font-weight: 700;
+  font-size: .875rem;
+  line-height: 1.25rem;
+  color: black;
+
 }
