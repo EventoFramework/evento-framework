@@ -58,7 +58,7 @@
         </ion-col>
         <ion-col class="ion-padding-start" size="9">
           <ion-card-subtitle class="ion-padding-vertical">
-            <span>{{(allComponents.length > components.length ? 'payload.filter' : 'payload.all') | translate}}</span> (<span *ngIf="allComponents.length > components.length">{{components.length}}/</span>{{allComponents.length}})
+            <span>{{(allComponents.length > components.length ? 'component.filter' : 'component.all') | translate}}</span> (<span *ngIf="allComponents.length > components.length">{{components.length}}/</span>{{allComponents.length}})
           </ion-card-subtitle>
           <ion-row>
             <ion-col size="6" *ngFor="let component of components">

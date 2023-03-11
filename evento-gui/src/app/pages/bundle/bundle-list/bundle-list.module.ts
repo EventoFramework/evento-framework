@@ -8,6 +8,7 @@ import { BundleListPageRoutingModule } from './bundle-list-routing.module';
 
 import { BundleListPage } from './bundle-list.page';
 import {TranslateModule} from "@ngx-translate/core";
+import {ComponentsModule} from "../../../components/components.module";
 
 @NgModule({
     imports: [
@@ -15,7 +16,8 @@ import {TranslateModule} from "@ngx-translate/core";
         FormsModule,
         IonicModule,
         BundleListPageRoutingModule,
-        TranslateModule
+        TranslateModule,
+        ComponentsModule
     ],
   declarations: [BundleListPage]
 })

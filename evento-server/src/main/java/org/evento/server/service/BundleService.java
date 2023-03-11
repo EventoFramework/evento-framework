@@ -8,6 +8,7 @@ import org.evento.parser.model.payload.MultipleResultQueryReturnType;
 import org.evento.parser.model.payload.PayloadDescription;
 import org.evento.server.domain.model.*;
 import org.evento.server.domain.repository.ComponentRepository;
+import org.evento.server.domain.repository.projection.BundleListProjection;
 import org.evento.server.service.deploy.BundleDeployService;
 import org.evento.server.domain.model.Handler;
 import org.evento.common.modeling.bundle.types.ComponentType;
@@ -66,6 +67,8 @@ public class BundleService {
             return bundleRepository.save(new Bundle(
                     bundleId,
                     bundleDescription.getBundleVersion(),
+                    null,
+                    null,
                     bundleDeploymentBucketType,
                     bundleDeploymentArtifactCoordinates,
                     jarOriginalName,
@@ -74,7 +77,8 @@ public class BundleService {
                     new HashMap<>(),
                     bundleDescription.getAutorun(),
                     bundleDescription.getMinInstances(),
-                    bundleDescription.getMaxInstances()));
+                    bundleDescription.getMaxInstances(),
+                    Instant.now()));
         });
         if (!isNew.get() && bundle.getVersion() > bundleDescription.getBundleVersion())
             throw new IllegalArgumentException("Bundle " + bundleId + " with version " + bundle.getVersion() + " exists!");
@@ -558,6 +562,10 @@ public class BundleService {
 
     public List<Bundle> findAllBundles() {
         return bundleRepository.findAll();
+    }
+
+    public List<BundleListProjection> findAllProjection() {
+        return bundleRepository.findAllProjection();
     }
 
     public Bundle findByName(String bundleId) {

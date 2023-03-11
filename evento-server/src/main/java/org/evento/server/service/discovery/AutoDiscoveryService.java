@@ -66,6 +66,8 @@ public class AutoDiscoveryService {
                                     return bundleRepository.save(new Bundle(
                                             resp.getBundleId(),
                                             resp.getBundleVersion(),
+                                            null,
+                                            null,
                                             BucketType.Ephemeral,
                                             node.getNodeId(),
                                             null,
@@ -74,7 +76,8 @@ public class AutoDiscoveryService {
                                             new HashMap<>(),
                                             resp.getAutorun(),
                                             resp.getMinInstances(),
-                                            resp.getMaxInstances()));
+                                            resp.getMaxInstances(),
+                                            Instant.now()));
                                 }
                         );
                         for (RegisteredHandler registeredHandler : resp.getHandlers()) {
