@@ -28,6 +28,12 @@
                         [(ngModel)]="payload.detail"></textarea>
             </ion-col>
           </ion-row>
+          <ion-row>
+            <ion-col>
+              <ion-title class="ion-padding-bottom"  style="font-weight: bold" translate="payload.invokers.handlers.diagram"></ion-title>
+              <app-invokers-handlers-diagram [payload]="payload"></app-invokers-handlers-diagram>
+            </ion-col>
+          </ion-row>
         </ion-col>
         <ion-col size="3" class=" ion-padding-start">
           <ion-row class="line-under"></ion-row>
@@ -40,7 +46,7 @@
                 </ion-text>
               </div>
               <div *ngFor="let r of payload.subscribers">
-                <ion-chip outline="true"><ion-text color="tertiary">•</ion-text>&nbsp;{{r}}</ion-chip>
+                <ion-chip outline="true"><ion-text class="component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}</ion-chip>
               </div>
             </ion-col>
           </ion-row>
@@ -53,7 +59,7 @@
                 </ion-text>
               </div>
               <div *ngFor="let r of payload.invokers">
-                <ion-chip outline="true"><ion-text color="success">•</ion-text>&nbsp;{{r}}</ion-chip>
+                <ion-chip outline="true"><ion-text class="component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}</ion-chip>
               </div>
             </ion-col>
           </ion-row>
@@ -66,7 +72,7 @@
                 </ion-text>
               </div>
               <div *ngFor="let r of payload.returnedBy">
-                <ion-chip outline="true"><ion-text color="secondary">•</ion-text>&nbsp;{{r}}</ion-chip>
+                <ion-chip outline="true"><ion-text class="component-type-{{r.type}}"  style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}</ion-chip>
               </div>
             </ion-col>
           </ion-row>
@@ -79,12 +85,14 @@
                 </ion-text>
               </div>
               <div>
-                <ion-chip outline="true"><ion-text color="warning">•</ion-text>&nbsp;{{payload.domain}}</ion-chip>
+                <ion-chip outline="true"><ion-text color="warning" style="font-size: 25px">•</ion-text>&nbsp;{{payload.domain}}</ion-chip>
               </div>
             </ion-col>
           </ion-row>
         </ion-col>
       </ion-row>
+
+
 
     </ion-grid>
   </app-wrapped-content>

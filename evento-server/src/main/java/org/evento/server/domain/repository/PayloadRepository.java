@@ -21,11 +21,11 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 	public List<PayloadListProjection> findAllProjection();
 
 	@Query(value = "select p.*,  " +
-			"       group_concat(distinct h.component_name) as subscribers, " +
-			"       group_concat(distinct hi.component_name) as invokers, " +
-			"       group_concat(distinct h2.component_name) as returnedBy " +
+			"       group_concat(distinct concat(h.component_name,':',h.component_type)) as subscribers, " +
+			"       group_concat(distinct concat(hi.component_name,':',hi.component_type)) as invokers, " +
+			"       group_concat(distinct concat(h2.component_name,':',h2.component_type)) as returnedBy " +
 			"from core__payload p " +
-			" left join core__handler h on p.name = h.handled_payload_name " +
+			" left join core__handler h on p.name = h.handled_payload_name and (p.type != 'DomainEvent' || h.component_type <> 'Aggregate') " +
 			"left join core__handler__invocation i on i.invocations_name = p.name " +
 			"left join core__handler hi on hi.uuid = i.handler_uuid " +
 			"left join core__handler h2 on h2.return_type_name = p.name " +

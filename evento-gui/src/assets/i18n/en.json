@@ -63,5 +63,6 @@
   "payload.all": "All Payloads",
   "common.edit": "Edit",
   "common.save": "Save",
-  "common.domain": "Domain"
+  "common.domain": "Domain",
+  "payload.invokers.handlers.diagram": "Invokers/Handlers Diagram"
 }
