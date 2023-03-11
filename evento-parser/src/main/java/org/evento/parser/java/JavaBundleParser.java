@@ -25,11 +25,11 @@ import java.util.stream.Stream;
 
 public class JavaBundleParser implements BundleParser {
 
-	public static final String EVENTRAILS_BUNDLE_VERSION_PROPERTY = "evento.bundle.version";
-	public static final String EVENTRAILS_BUNDLE_NAME_PROPERTY = "evento.bundle.id";
-	public static final String EVENTRAILS_BUNDLE_AUTORUN_PROPERTY = "evento.bundle.autorun";
-	public static final String EVENTRAILS_BUNDLE_INSTANCES_MIN_PROPERTY = "evento.bundle.instances.min";
-	public static final String EVENTRAILS_BUNDLE_INSTANCES_MAX_PROPERTY = "evento.bundle.instances.max";
+	public static final String EVENTO_BUNDLE_VERSION_PROPERTY = "evento.bundle.version";
+	public static final String EVENTO_BUNDLE_NAME_PROPERTY = "evento.bundle.id";
+	public static final String EVENTO_BUNDLE_AUTORUN_PROPERTY = "evento.bundle.autorun";
+	public static final String EVENTO_BUNDLE_INSTANCES_MIN_PROPERTY = "evento.bundle.instances.min";
+	public static final String EVENTO_BUNDLE_INSTANCES_MAX_PROPERTY = "evento.bundle.instances.max";
 
 	public BundleDescription parseDirectory(File file) throws Exception {
 		LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
@@ -84,12 +84,12 @@ public class JavaBundleParser implements BundleParser {
 					{
 						var prop = new Properties();
 						prop.load(new FileReader(p.toFile()));
-						return Integer.parseInt(prop.getProperty(EVENTRAILS_BUNDLE_VERSION_PROPERTY, "-1"));
+						return Integer.parseInt(prop.getProperty(EVENTO_BUNDLE_VERSION_PROPERTY, "-1"));
 					} catch (Exception e)
 					{
 						return -1;
 					}
-				}).filter(v -> v >= 0).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_VERSION_PROPERTY)));
+				}).filter(v -> v >= 0).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_VERSION_PROPERTY)));
 
 		var bundleId = Files.walk(file.toPath())
 				.filter(p -> p.toString().endsWith(".properties"))
@@ -98,12 +98,12 @@ public class JavaBundleParser implements BundleParser {
 					{
 						var prop = new Properties();
 						prop.load(new FileReader(p.toFile()));
-						return prop.getProperty(EVENTRAILS_BUNDLE_NAME_PROPERTY, null);
+						return prop.getProperty(EVENTO_BUNDLE_NAME_PROPERTY, null);
 					} catch (Exception e)
 					{
 						return null;
 					}
-				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
 
 		var autorun = Files.walk(file.toPath())
 				.filter(p -> p.toString().endsWith(".properties"))
@@ -112,12 +112,12 @@ public class JavaBundleParser implements BundleParser {
 					{
 						var prop = new Properties();
 						prop.load(new FileReader(p.toFile()));
-						return Boolean.parseBoolean(prop.getProperty(EVENTRAILS_BUNDLE_AUTORUN_PROPERTY, "false"));
+						return Boolean.parseBoolean(prop.getProperty(EVENTO_BUNDLE_AUTORUN_PROPERTY, "false"));
 					} catch (Exception e)
 					{
 						return null;
 					}
-				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
 
 		var minInstances = Files.walk(file.toPath())
 				.filter(p -> p.toString().endsWith(".properties"))
@@ -126,14 +126,14 @@ public class JavaBundleParser implements BundleParser {
 					{
 						var prop = new Properties();
 						prop.load(new FileReader(p.toFile()));
-						var i = Integer.parseInt(prop.getProperty(EVENTRAILS_BUNDLE_INSTANCES_MIN_PROPERTY, "0"));
+						var i = Integer.parseInt(prop.getProperty(EVENTO_BUNDLE_INSTANCES_MIN_PROPERTY, "0"));
 						if(i == 0 && autorun) return 1;
 						else return i;
 					} catch (Exception e)
 					{
 						return null;
 					}
-				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
 
 		var maxInstances = Files.walk(file.toPath())
 				.filter(p -> p.toString().endsWith(".properties"))
@@ -142,12 +142,12 @@ public class JavaBundleParser implements BundleParser {
 					{
 						var prop = new Properties();
 						prop.load(new FileReader(p.toFile()));
-						return Integer.parseInt(prop.getProperty(EVENTRAILS_BUNDLE_INSTANCES_MAX_PROPERTY, "64"));
+						return Integer.parseInt(prop.getProperty(EVENTO_BUNDLE_INSTANCES_MAX_PROPERTY, "64"));
 					} catch (Exception e)
 					{
 						return null;
 					}
-				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTRAILS_BUNDLE_NAME_PROPERTY)));
+				}).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
 
 
 		return new BundleDescription(
