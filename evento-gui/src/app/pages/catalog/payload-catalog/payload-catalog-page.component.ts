@@ -23,7 +23,7 @@ export class PayloadCatalogPage implements OnInit {
   }
 
   async ngOnInit() {
-    this.allPayloads = await this.libraryService.findAll();
+    this.allPayloads = await this.libraryService.findAllPayload();
     this.types = new Set();
     this.components = new Set();
     this.domains = new Set();
@@ -59,6 +59,5 @@ export class PayloadCatalogPage implements OnInit {
         match = match && this.selectedDomains[p.domain];
       return match;
     });
-    console.log(this.payloads);
   }
 }

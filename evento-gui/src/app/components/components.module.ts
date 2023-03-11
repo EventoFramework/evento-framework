@@ -4,25 +4,29 @@ import {InvokersHandlersDiagramComponent} from "./invokers-handlers-diagram/invo
 import {AppMapDiagramComponent} from "./app-map-diagram/app-map-diagram.component";
 import {AppModule} from "../app.module";
 import {IonicModule} from "@ionic/angular";
+import {ComponentHandlersDiagramComponent} from "./component-handlers-diagram/component-handlers-diagram.component";
 
 
 @NgModule({
-    providers: [
-        WrappedContentComponent,
-        InvokersHandlersDiagramComponent,
-        AppMapDiagramComponent
-    ],
-    exports: [
-        InvokersHandlersDiagramComponent,
-        WrappedContentComponent
-    ],
-    imports: [
-        IonicModule
-    ],
-    declarations: [
-        WrappedContentComponent,
-        InvokersHandlersDiagramComponent,
-        AppMapDiagramComponent]
+  providers: [
+    WrappedContentComponent,
+    InvokersHandlersDiagramComponent,
+    AppMapDiagramComponent,
+    ComponentHandlersDiagramComponent
+  ],
+  exports: [
+    InvokersHandlersDiagramComponent,
+    WrappedContentComponent,
+    ComponentHandlersDiagramComponent,
+  ],
+  imports: [
+    IonicModule
+  ],
+  declarations: [
+    WrappedContentComponent,
+    InvokersHandlersDiagramComponent,
+    ComponentHandlersDiagramComponent,
+    AppMapDiagramComponent]
 })
 export class ComponentsModule {
 }

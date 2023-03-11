@@ -63,7 +63,6 @@ export class ApplicationFlowsPage implements OnInit {
       }
     }
 
-    console.log(this.network);
 
     this.drawGraph(container);
   }
@@ -194,7 +193,6 @@ export class ApplicationFlowsPage implements OnInit {
           node.name = node.bundle + '\n\n' + node.component + '\n\n' + node.action;
           let additionalStyles = 'fillColor=' + this.bundleColorService.getColorForBundle(node.bundle) + ';';
           if(node.isBottleneck){
-            console.log(node)
             additionalStyles += 'strokeColor=#ff0000;strokeWidth=3;'
           }
           const width = Math.max(node.bundle.length, node.component.length, node.action.length, this.performanceAnalysis ? 25 : 0) * 10;

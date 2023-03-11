@@ -64,5 +64,16 @@
   "common.edit": "Edit",
   "common.save": "Save",
   "common.domain": "Domain",
-  "payload.invokers.handlers.diagram": "Invokers/Handlers Diagram"
+  "payload.invokers.handlers.diagram": "Invokers/Handlers Diagram",
+  "payload.structure": "Payload Structure",
+  "common.last.update": "Last update on",
+  "catalog.component.search": "Search Component",
+  "catalog.component.type.filter": "Filter By Type",
+  "catalog.component.domain.filter": "Filter By Domain",
+  "catalog.component.bundle.filter": "Filter By Bundle",
+  "payload.usedBy": "Invokers",
+  "component.handlers": "Handlers",
+  "component.publications": "Publications",
+  "component.invocations": "Invocations",
+  "component.handlers.consume.produce.diagram": "Handlers Consume/Produce Diagram"
 }

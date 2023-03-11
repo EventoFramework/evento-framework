@@ -33,12 +33,11 @@
                   (click)="tabs.select('payload-catalog')" translate="catalog.payload.title"></span>
           <span class="tab-button" [class.selected]="selectedTab === 'component-catalog'"
                 (click)="tabs.select('component-catalog')" translate="catalog.component.title"></span>
-          <span class="tab-button" [class.selected]="selectedTab === 'domain-catalog'"
-                (click)="tabs.select('domain-catalog')" translate="catalog.domain.title"></span>
-          <span class="tab-button" [class.selected]="selectedTab === 'application-flows/all'"
-                (click)="tabs.select('application-flows/all')" translate="application.flows.title"></span>
           <span class="tab-button" [class.selected]="selectedTab === 'bundle-list'"
                 (click)="tabs.select('bundle-list')" translate="bundle.title"></span>
+          <span class="tab-button" [class.selected]="selectedTab === 'application-flows/all'"
+                (click)="tabs.select('application-flows/all')" translate="application.flows.title"></span>
+
           <span class="tab-button" [class.selected]="selectedTab === 'cluster-status'"
                 (click)="tabs.select('cluster-status')" translate="cluster.title"></span>
           <span class="tab-button" [class.selected]="selectedTab === 'application-map'"

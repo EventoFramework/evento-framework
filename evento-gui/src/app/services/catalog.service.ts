@@ -8,25 +8,48 @@ export class CatalogService {
 
   constructor() { }
 
-  async findAll() {
-    return fetch(environment.eventoServerUrl + '/api/catalog/').then(r => r.json());
+  async findAllPayload() {
+    return fetch(environment.eventoServerUrl + '/api/catalog/payload/').then(r => r.json());
   }
 
-  findByName(identifier: string) {
-    return fetch(environment.eventoServerUrl + '/api/catalog/' + identifier).then(r => r.json());
+  findPayloadByName(identifier: string) {
+    return fetch(environment.eventoServerUrl + '/api/catalog/payload/' + identifier).then(r => r.json());
 
   }
 
-  async update(identifier, description, detail) {
-   return  fetch(environment.eventoServerUrl + '/api/catalog/' + identifier, {
+  async updatePayload(identifier, description, detail, domain) {
+   return  fetch(environment.eventoServerUrl + '/api/catalog/payload/' + identifier, {
      method: 'PUT',
      body: JSON.stringify({
        detail,
-       description
+       description,
+       domain
      }),
      headers: {
        'Content-Type': 'application/json'
      }
    });
+  }
+
+  async findAllComponent() {
+    return fetch(environment.eventoServerUrl + '/api/catalog/component/').then(r => r.json());
+  }
+
+  findComponentByName(identifier: string) {
+    return fetch(environment.eventoServerUrl + '/api/catalog/component/' + identifier).then(r => r.json());
+
+  }
+
+  async updateComponent(identifier, description, detail,) {
+    return  fetch(environment.eventoServerUrl + '/api/catalog/component/' + identifier, {
+      method: 'PUT',
+      body: JSON.stringify({
+        detail,
+        description,
+      }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
   }
 }

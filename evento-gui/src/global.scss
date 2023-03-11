@@ -27,6 +27,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
+
 .payload-type-DomainCommand {
   --background: #3399fe;
   --color: white;
@@ -63,31 +64,109 @@
   --color: black;
 }
 
+
+.dot.payload-type-DomainCommand {
+  color: #3399fe;
+}
+
+.dot.payload-type-ServiceCommand {
+  color: #ff68b9;
+}
+
+
+.dot.payload-type-DomainEvent {
+  color: #ff992a;
+}
+
+.dot.payload-type-ServiceEvent {
+  color: #cb3234;
+}
+
+.dot.payload-type-View {
+  color: #5fc08b;
+}
+
+.dot.payload-type-Invocation {
+  color: grey;
+}
+
+.dot.payload-type-Query {
+  color: gold;
+}
+
 .component-type-Aggregate {
-  color: blue;
+  --background: blue;
+  --color: white;
 }
 
 .component-type-Service {
-  color: red;
+  --background: red;
+  --color: white;
 }
 
 .component-type-Projection {
-  color: green;
+  --background: green;
+  --color: white;
 }
+
 .component-type-Projector {
-  color: lightgreen;
+  --background: lightgreen;
 }
 
 .component-type-Saga {
-  color: purple;
+  --background: purple;
+  --color: white;
 }
 
 .component-type-Observer {
-  color: black;
+  --background: black;
+  --color: white;
 }
 
 .component-type-Invoker {
+  --background: gray;
+}
+
+.dot.component-type-Aggregate {
+  color: blue;
+}
+
+.dot.component-type-Service {
+  color: red;
+}
+
+.dot.component-type-Projection {
+  color: green;
+}
+
+.dot.component-type-Projector {
+  color: lightgreen;
+}
+
+.dot.component-type-Saga {
+  color: purple;
+}
+
+.dot.component-type-Observer {
+  color: black;
+}
+
+.dot.component-type-Invoker {
   color: gray;
+}
+
+ion-card.component-type {
+  ion-card-content {
+    background: white;
+    margin-left: 16px;
+  }
+}
+
+ion-card.payload-type {
+  ion-card-content {
+    background: white;
+    margin-left: 16px;
+  }
 }
 
 
@@ -115,7 +194,7 @@ ion-title {
 
 .line-under {
   --tw-border-opacity: 1;
-  border: 0 solid rgba(229,231,235,var(--tw-border-opacity));
+  border: 0 solid rgba(229, 231, 235, var(--tw-border-opacity));
   box-sizing: border-box;
 
   padding-bottom: 26px;
@@ -129,16 +208,16 @@ ion-title {
 }
 
 .line-right:before {
-  content : "";
+  content: "";
   position: absolute;
-  right    : 0;
-  bottom  : 0;
-  height  : 80%;
-  width   : 1px;  /* or 100px */
-  border-right:1px solid rgba(229,231,235,var(--tw-border-opacity));
+  right: 0;
+  bottom: 0;
+  height: 80%;
+  width: 1px; /* or 100px */
+  border-right: 1px solid rgba(229, 231, 235, var(--tw-border-opacity));
 }
 
-*{
+* {
 
   font-family: 'Inter', sans-serif;
 }
@@ -156,8 +235,15 @@ ion-title {
   animation: dash 0.5s linear;
   animation-iteration-count: infinite;
 }
+
 @keyframes dash {
   to {
     stroke-dashoffset: -16;
   }
+}
+
+.editor{
+  width: 100%;
+  min-height: 100px;
+  background: white;
 }

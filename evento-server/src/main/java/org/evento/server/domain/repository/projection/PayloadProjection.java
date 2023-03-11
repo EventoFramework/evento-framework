@@ -1,6 +1,7 @@
-package org.evento.server.domain.repository;
+package org.evento.server.domain.repository.projection;
 
 import java.time.Instant;
+import java.util.Map;
 
 public interface PayloadProjection {
 	String getName();
@@ -15,5 +16,6 @@ public interface PayloadProjection {
 	String getSubscribers();
 	String getInvokers();
 	String getReturnedBy();
+	String getUsedBy();
 
 }

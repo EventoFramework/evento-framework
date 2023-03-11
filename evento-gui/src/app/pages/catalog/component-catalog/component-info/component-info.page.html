@@ -1,0 +1,136 @@
+<ion-content>
+  <app-wrapped-content>
+    <ion-grid *ngIf="component">
+      <ion-row>
+        <ion-col size="9" class="line-right">
+          <ion-row class="ion-margin-top line-under">
+            <ion-col>
+              <ion-title>
+                <h1>{{component.componentName}}
+                  <ion-chip [class]="'component-type-' + component.componentType">{{component.componentType}}</ion-chip>
+                </h1>
+              </ion-title>
+              <div class="ion-margin-top"></div>
+              <ion-text *ngIf="!isEditing">{{component.description}}</ion-text>
+              <textarea class="editor" type="text" *ngIf="isEditing" [(ngModel)]="component.description"></textarea>
+            </ion-col>
+            <ion-col class="ion-text-end" size="3">
+              <ion-button fill="outline" color="medium" *ngIf="!isEditing" (click)="isEditing = true">
+                <ion-icon slot="start" name="pencil"></ion-icon>
+                <span translate="common.edit"></span>
+              </ion-button>
+              <ion-button color="primary" *ngIf="isEditing" (click)="save()">
+                <ion-icon slot="start" name="save"></ion-icon>
+                <span translate="common.save"></span>
+              </ion-button>
+            </ion-col>
+          </ion-row>
+          <ion-row>
+            <ion-col>
+              <markdown *ngIf="!isEditing" [data]="component.detail"></markdown>
+              <textarea style="min-height: 350px" class="editor" *ngIf="isEditing"
+                        [(ngModel)]="component.detail"></textarea>
+            </ion-col>
+          </ion-row>
+          <ion-row>
+            <ion-col>
+              <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                         translate="component.handlers.consume.produce.diagram"></ion-title>
+              <app-component-handlers-diagram [component]="component"></app-component-handlers-diagram>
+            </ion-col>
+          </ion-row>
+
+          <ion-row>
+            <ion-col class="ion-text-end">
+              <ion-note><span translate="common.last.update"></span>: {{component.updatedAt * 1000 | date}}</ion-note>
+            </ion-col>
+          </ion-row>
+        </ion-col>
+        <ion-col size="3" class=" ion-padding-start">
+          <ion-row class="line-under"></ion-row>
+          <ion-row class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="success" name="cube"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="common.bundle"></ion-note>
+                </ion-text>
+              </div>
+              <div>
+                <ion-chip outline="true">
+                  <ion-text [style.color]="component.bundleColor" style="font-size: 25px">•
+                  </ion-text>&nbsp;{{component.bundleId}}</ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="primary" name="at"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="component.handlers"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let h of component.handlers">
+                <ion-chip outline="true" *ngIf="h.handlerType !== 'EventSourcingHandler'"
+                          routerLink="/payload-info/{{h.handledPayload.name}}">
+                  <ion-text class="dot payload-type-{{h.handledPayload.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{h.handledPayload.name}}
+                </ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row class="line-under" *ngIf="['Aggregate','Service'].includes(component.componentType)">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="success" name="mail"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="component.publications"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let h of component.handlers">
+                <ion-chip outline="true" *ngIf="h.returnType" routerLink="/payload-info/{{h.returnType.name}}">
+                  <ion-text class="dot payload-type-{{h.returnType.type}}" style="font-size: 25px">•
+                  </ion-text>&nbsp;{{h.returnType.name}}
+                </ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="secondary" name="cube"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="component.invocations"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let i of component.invocations">
+                <ion-chip outline="true" routerLink="/payload-info/{{i.name}}">
+                  <ion-text class="dot payload-type-{{i.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{i.name}}
+                </ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+
+          <ion-row class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="warning" name="folder-open"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let domain of component.domains">
+                <ion-chip outline="true">
+                  <ion-text color="warning" style="font-size: 25px">•</ion-text>&nbsp;{{domain}}</ion-chip>
+              </div>
+
+            </ion-col>
+          </ion-row>
+        </ion-col>
+      </ion-row>
+
+
+    </ion-grid>
+  </app-wrapped-content>
+
+</ion-content>

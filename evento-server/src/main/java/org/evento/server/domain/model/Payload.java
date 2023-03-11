@@ -36,7 +36,7 @@ public class Payload implements Serializable {
 
 	@Enumerated(EnumType.STRING)
 	private PayloadType type;
-	@Column(columnDefinition = "JSON")
+	@Column(columnDefinition = "LONGTEXT")
 	private String jsonSchema;
 
 	private String registeredIn;

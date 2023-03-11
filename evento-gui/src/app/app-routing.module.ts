@@ -43,7 +43,11 @@ const routes: Routes = [
   {
     path: 'component-catalog',
     loadChildren: () => import('./pages/catalog/component-catalog/component-catalog.module').then( m => m.ComponentCatalogPageModule)
-  }
+  },
+  {
+    path: 'component-info/:identifier',
+    loadChildren: () => import('./pages/catalog/component-catalog/component-info/component-info.module').then( m => m.ComponentInfoPageModule)
+  },
 
 
 
