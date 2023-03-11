@@ -9,8 +9,9 @@ import { AppRoutingModule } from './app-routing.module';
 import {TranslateLoader, TranslateModule} from "@ngx-translate/core";
 import {HttpClient, HttpClientModule} from "@angular/common/http";
 import {TranslateHttpLoader} from "@ngx-translate/http-loader";
-import {PayloadCatalogPageModule} from "./pages/catalog/payload-catalog/payload-catalog.module";
 import {MarkdownModule} from "ngx-markdown";
+import {PayloadCatalogPageModule} from "./pages/catalog/payload-catalog/payload-catalog.module";
+import {ComponentsModule} from "./components/components.module";
 
 export function createTranslateLoader(http: HttpClient) {
   return new TranslateHttpLoader(http, './assets/i18n/', '.json');
@@ -28,7 +29,8 @@ export function createTranslateLoader(http: HttpClient) {
         useFactory: (createTranslateLoader),
         deps: [HttpClient],
       }
-    }), AppRoutingModule, PayloadCatalogPageModule],
+    }),
+    AppRoutingModule, PayloadCatalogPageModule, ComponentsModule],
   providers: [{ provide: RouteReuseStrategy, useClass: IonicRouteStrategy }],
   bootstrap: [AppComponent],
 })

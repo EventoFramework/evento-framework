@@ -10,6 +10,7 @@ import { PayloadInfoPage } from './payload-info.page';
 import {PayloadCatalogPageModule} from "../payload-catalog.module";
 import {TranslateModule} from "@ngx-translate/core";
 import {MarkdownModule} from "ngx-markdown";
+import {ComponentsModule} from "../../../../components/components.module";
 
 @NgModule({
   imports: [
@@ -19,8 +20,9 @@ import {MarkdownModule} from "ngx-markdown";
     PayloadInfoPageRoutingModule,
     PayloadCatalogPageModule,
     TranslateModule,
-    MarkdownModule
+    MarkdownModule,
+    ComponentsModule
   ],
-  declarations: [PayloadInfoPage]
+    declarations: [PayloadInfoPage]
 })
 export class PayloadInfoPageModule {}

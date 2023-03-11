@@ -7,7 +7,6 @@ import { IonicModule } from '@ionic/angular';
 import { ApplicationMapPageRoutingModule } from './application-map-routing.module';
 
 import { ApplicationMapPage } from './application-map.page';
-import {AppMapDiagramComponent} from "../../components/app-map-diagram/app-map-diagram.component";
 import {TranslateModule} from "@ngx-translate/core";
 
 @NgModule({
@@ -18,6 +17,6 @@ import {TranslateModule} from "@ngx-translate/core";
     ApplicationMapPageRoutingModule,
     TranslateModule
   ],
-    declarations: [ApplicationMapPage, AppMapDiagramComponent]
+    declarations: [ApplicationMapPage]
 })
 export class ApplicationMapPageModule {}

@@ -16,4 +16,17 @@ export class CatalogService {
     return fetch(environment.eventoServerUrl + '/api/catalog/' + identifier).then(r => r.json());
 
   }
+
+  async update(identifier, description, detail) {
+   return  fetch(environment.eventoServerUrl + '/api/catalog/' + identifier, {
+     method: 'PUT',
+     body: JSON.stringify({
+       detail,
+       description
+     }),
+     headers: {
+       'Content-Type': 'application/json'
+     }
+   });
+  }
 }

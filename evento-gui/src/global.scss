@@ -63,6 +63,34 @@
   --color: black;
 }
 
+.component-type-Aggregate {
+  color: blue;
+}
+
+.component-type-Service {
+  color: red;
+}
+
+.component-type-Projection {
+  color: green;
+}
+.component-type-Projector {
+  color: lightgreen;
+}
+
+.component-type-Saga {
+  color: purple;
+}
+
+.component-type-Observer {
+  color: black;
+}
+
+.component-type-Invoker {
+  color: gray;
+}
+
+
 ion-item {
   --padding-start: 0;
 }
@@ -121,4 +149,15 @@ ion-title {
   line-height: 1.25rem;
   color: black;
 
+}
+
+.flow {
+  stroke-dasharray: 8;
+  animation: dash 0.5s linear;
+  animation-iteration-count: infinite;
+}
+@keyframes dash {
+  to {
+    stroke-dashoffset: -16;
+  }
 }
