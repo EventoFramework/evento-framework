@@ -63,6 +63,7 @@ export class ApplicationFlowsPage implements OnInit {
       }
     }
 
+    console.log(this.network);
 
     this.drawGraph(container);
   }
