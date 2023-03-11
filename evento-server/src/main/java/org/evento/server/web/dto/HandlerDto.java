@@ -34,9 +34,9 @@ public class HandlerDto implements Serializable {
 
 	public HandlerDto(Handler handler) {
 		this.uuid = handler.getUuid();
-		this.bundleId = handler.getBundle().getId();
-		this.componentName = handler.getComponentName();
-		this.componentType = handler.getComponentType();
+		this.bundleId = handler.getComponent().getBundle().getId();
+		this.componentName = handler.getComponent().getComponentName();
+		this.componentType = handler.getComponent().getComponentType();
 		this.handlerType = handler.getHandlerType();
 		this.returnIsMultiple = handler.isReturnIsMultiple();
 		this.handledPayload = handler.getHandledPayload() == null ? null : new PayloadDto(handler.getHandledPayload());
@@ -57,9 +57,12 @@ public class HandlerDto implements Serializable {
 		private String name;
 		private PayloadType type;
 
+		private String domain;
+
 		public PayloadDto(Payload payload) {
 			this.name = payload.getName();
 			this.type = payload.getType();
+			this.domain = payload.getDomain();
 		}
 
 	}

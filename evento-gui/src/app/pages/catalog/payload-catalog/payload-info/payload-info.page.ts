@@ -11,12 +11,14 @@ export class PayloadInfoPage implements OnInit {
   payload;
   isEditing = false;
 
+  fields = []
+
   constructor(private route: ActivatedRoute,
               private catalogService: CatalogService) {
   }
 
   ngOnInit() {
-    this.catalogService.findByName(this.route.snapshot.paramMap.get('identifier')).then(r => {
+    this.catalogService.findPayloadByName(this.route.snapshot.paramMap.get('identifier')).then(r => {
       r.subscribers = r.subscribers?.split(',')?.map(s => {
         const parts = s.split(':');
         return {
@@ -38,13 +40,21 @@ export class PayloadInfoPage implements OnInit {
           type: parts[1]
         }
       }) || [];
+      r.usedBy = r.usedBy?.split(',')?.map(s => {
+        const parts = s.split(':');
+        return {
+          name: parts[0],
+          type: parts[1]
+        }
+      }) || [];
+      r.jsonSchema = JSON.parse(r.jsonSchema);
+      this.fields = Object.keys(r.jsonSchema || {});
       this.payload = r;
-      console.log(this.payload)
     });
   }
 
   async save() {
     this.isEditing = false;
-    await this.catalogService.update(this.payload.name, this.payload.description, this.payload.detail);
+    await this.catalogService.updatePayload(this.payload.name, this.payload.description, this.payload.detail, this.payload.domain);
   }
 }

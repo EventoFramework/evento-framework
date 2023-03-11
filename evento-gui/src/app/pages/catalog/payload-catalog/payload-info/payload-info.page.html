@@ -5,7 +5,11 @@
         <ion-col size="9" class="line-right">
           <ion-row class="ion-margin-top line-under">
             <ion-col>
-              <ion-title><h1>{{payload.name}} <ion-chip [class]="'payload-type-' + payload.type">{{payload.type}}</ion-chip></h1> </ion-title>
+              <ion-title>
+                <h1>{{payload.name}}
+                  <ion-chip [class]="'payload-type-' + payload.type">{{payload.type}}</ion-chip>
+                </h1>
+              </ion-title>
               <div class="ion-margin-top"></div>
               <ion-text *ngIf="!isEditing">{{payload.description}}</ion-text>
               <textarea class="editor" type="text" *ngIf="isEditing" [(ngModel)]="payload.description"></textarea>
@@ -30,8 +34,33 @@
           </ion-row>
           <ion-row>
             <ion-col>
-              <ion-title class="ion-padding-bottom"  style="font-weight: bold" translate="payload.invokers.handlers.diagram"></ion-title>
+              <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                         translate="payload.invokers.handlers.diagram"></ion-title>
               <app-invokers-handlers-diagram [payload]="payload"></app-invokers-handlers-diagram>
+            </ion-col>
+          </ion-row>
+          <ion-row *ngIf="fields.length">
+            <ion-col>
+              <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                         translate="payload.structure"></ion-title>
+              <div >
+                <ion-grid>
+                  <ion-row *ngFor="let f of fields">
+                    <ion-col>
+                      {{f}}
+                    </ion-col>
+                    <ion-col>
+                      {{payload.jsonSchema[f]}}
+                    </ion-col>
+                  </ion-row>
+                </ion-grid>
+
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row>
+            <ion-col class="ion-text-end">
+             <ion-note><span translate="common.last.update"></span>: {{payload.updatedAt * 1000 | date}}</ion-note>
             </ion-col>
           </ion-row>
         </ion-col>
@@ -46,7 +75,9 @@
                 </ion-text>
               </div>
               <div *ngFor="let r of payload.subscribers">
-                <ion-chip outline="true"><ion-text class="component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}</ion-chip>
+                <ion-chip outline="true"  routerLink="/component-info/{{r.name}}">
+                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                </ion-chip>
               </div>
             </ion-col>
           </ion-row>
@@ -59,7 +90,9 @@
                 </ion-text>
               </div>
               <div *ngFor="let r of payload.invokers">
-                <ion-chip outline="true"><ion-text class="component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}</ion-chip>
+                <ion-chip outline="true" routerLink="/component-info/{{r.name}}">
+                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                </ion-chip>
               </div>
             </ion-col>
           </ion-row>
@@ -72,11 +105,28 @@
                 </ion-text>
               </div>
               <div *ngFor="let r of payload.returnedBy">
-                <ion-chip outline="true"><ion-text class="component-type-{{r.type}}"  style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}</ion-chip>
+                <ion-chip outline="true"  routerLink="/component-info/{{r.name}}">
+                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                </ion-chip>
               </div>
             </ion-col>
           </ion-row>
-          <ion-row *ngIf="payload.domain" class="line-under">
+          <ion-row *ngIf="payload.usedBy?.length" class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="medium" name="cube"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.usedBy"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let r of payload.usedBy">
+                <ion-chip outline="true"  routerLink="/component-info/{{r.name}}">
+                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                </ion-chip>
+              </div>
+            </ion-col>
+          </ion-row>
+          <ion-row *ngIf="payload.domain || isEditing" class="line-under">
             <ion-col>
               <div style="margin: 16px 0 5px 5px">
                 <ion-text>
@@ -84,14 +134,17 @@
                   <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
                 </ion-text>
               </div>
-              <div>
-                <ion-chip outline="true"><ion-text color="warning" style="font-size: 25px">•</ion-text>&nbsp;{{payload.domain}}</ion-chip>
+              <div *ngIf="!isEditing">
+                <ion-chip outline="true">
+                  <ion-text color="warning" style="font-size: 25px">•</ion-text>&nbsp;{{payload.domain}}</ion-chip>
+              </div>
+              <div *ngIf="isEditing">
+                  <textarea class="editor" [(ngModel)]="payload.domain"></textarea>
               </div>
             </ion-col>
           </ion-row>
         </ion-col>
       </ion-row>
-
 
 
     </ion-grid>

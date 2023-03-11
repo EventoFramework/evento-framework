@@ -166,14 +166,14 @@ public class MessageGatewayService {
             this.threadCountAutoscalingProtocol.arrival();
             if (request instanceof DomainCommandMessage c) {
                 var handler = handlerService.findByPayloadName(c.getCommandName());
-                bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
+                bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
                 var start = PerformanceStoreService.now();
 
                 var lock = lockRegistry.obtain(AGGREGATE_LOCK_PREFIX + c.getAggregateId());
                 lock.lock();
                 var semaphore = new Semaphore(0);
 
-                var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
+                var dest = addressPicker.pickNodeAddress(handler.getComponent().getBundle().getId());
 
                 try {
                     var invocation = new DecoratedDomainCommandMessage();
@@ -205,7 +205,7 @@ public class MessageGatewayService {
                             resp -> {
                                 performanceService.sendPerformances(
                                         dest.getBundleId(),
-                                        handler.getComponentName(),
+                                        handler.getComponent().getComponentName(),
                                         c.getCommandName(),
                                         invocationStart
                                 );
@@ -234,7 +234,7 @@ public class MessageGatewayService {
                             error -> {
                                 performanceService.sendPerformances(
                                         dest.getBundleId(),
-                                        handler.getComponentName(),
+                                        handler.getComponent().getComponentName(),
                                         c.getCommandName(),
                                         invocationStart
                                 );
@@ -254,8 +254,8 @@ public class MessageGatewayService {
 
             } else if (request instanceof ServiceCommandMessage c) {
                 var handler = handlerService.findByPayloadName(c.getCommandName());
-                bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
-                var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
+                bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
+                var dest = addressPicker.pickNodeAddress(handler.getComponent().getBundle().getId());
                 var invocationStart = PerformanceStoreService.now();
                 messageBus.request(
                         dest,
@@ -263,7 +263,7 @@ public class MessageGatewayService {
                         resp -> {
                             performanceService.sendPerformances(
                                     dest.getBundleId(),
-                                    handler.getComponentName(),
+                                    handler.getComponent().getComponentName(),
                                     c.getCommandName(),
                                     invocationStart
                             );
@@ -286,7 +286,7 @@ public class MessageGatewayService {
                             response.sendError(error.toThrowable());
                             performanceService.sendPerformances(
                                     dest.getBundleId(),
-                                    handler.getComponentName(),
+                                    handler.getComponent().getComponentName(),
                                     c.getCommandName(),
                                     invocationStart
                             );
@@ -296,8 +296,8 @@ public class MessageGatewayService {
 
             } else if (request instanceof QueryMessage<?> q) {
                 var handler = handlerService.findByPayloadName(q.getQueryName());
-                bundleDeployService.waitUntilAvailable(handler.getBundle().getId());
-                var dest = addressPicker.pickNodeAddress(handler.getBundle().getId());
+                bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
+                var dest = addressPicker.pickNodeAddress(handler.getComponent().getBundle().getId());
                 var invocationStart = PerformanceStoreService.now();
                 messageBus.request(
                         dest,
@@ -305,7 +305,7 @@ public class MessageGatewayService {
                         resp -> {
                             performanceService.sendPerformances(
                                     dest.getBundleId(),
-                                    handler.getComponentName(),
+                                    handler.getComponent().getComponentName(),
                                     q.getQueryName(),
                                     invocationStart
                             );
@@ -314,7 +314,7 @@ public class MessageGatewayService {
                         error -> {
                             performanceService.sendPerformances(
                                     dest.getBundleId(),
-                                    handler.getComponentName(),
+                                    handler.getComponent().getComponentName(),
                                     q.getQueryName(),
                                     invocationStart
                             );
@@ -357,10 +357,10 @@ public class MessageGatewayService {
 
     private void sendEventToObservers(EventMessage<?> eventMessage) {
         for (Handler h : handlerService.findAllByPayloadName(eventMessage.getEventName())) {
-            if (h.getComponentType() == ComponentType.Observer) {
+            if (h.getComponent().getComponentType() == ComponentType.Observer) {
                 try {
-                    bundleDeployService.waitUntilAvailable(h.getBundle().getId());
-                    var d = addressPicker.pickNodeAddress(h.getBundle().getId());
+                    bundleDeployService.waitUntilAvailable(h.getComponent().getBundle().getId());
+                    var d = addressPicker.pickNodeAddress(h.getComponent().getBundle().getId());
                     messageBus.cast(d, eventMessage);
                 } catch (Exception e) {
                     e.printStackTrace();

@@ -13,7 +13,7 @@ export class LibraryPagePage implements OnInit {
   constructor(private libraryService: CatalogService) { }
 
   async ngOnInit() {
-    this.elements = await this.libraryService.findAll();
+    this.elements = await this.libraryService.findAllPayload();
   }
 
 }

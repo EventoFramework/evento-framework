@@ -8,17 +8,16 @@ declare const mxEvent: any;
 declare const mxHierarchicalLayout: any;
 declare const mxOrthogonalLayout: any;
 
-
-
 @Component({
-  selector: 'app-invokers-handlers-diagram',
-  templateUrl: './invokers-handlers-diagram.component.html',
-  styleUrls: ['./invokers-handlers-diagram.component.scss'],
+  selector: 'app-component-handlers-diagram',
+  templateUrl: './component-handlers-diagram.component.html',
+  styleUrls: ['./component-handlers-diagram.component.scss'],
 })
-export class InvokersHandlersDiagramComponent implements OnInit {
+export class ComponentHandlersDiagramComponent implements OnInit {
 
   @Input()
-  payload: any
+  component;
+
 
   @ViewChild('container', {static: true}) container: ElementRef;
 
@@ -26,6 +25,7 @@ export class InvokersHandlersDiagramComponent implements OnInit {
   }
 
   ngOnInit() {
+
 
     const container = this.container.nativeElement;
 
@@ -54,21 +54,51 @@ export class InvokersHandlersDiagramComponent implements OnInit {
     const edges = [];
     const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=block;endFill=1;orthogonal=1;strokeColor=#999999;strokeWidth=1;';
 
-    graph.view.addListener(mxEvent.AFTER_RENDER, function()
-    {
-      for(const e of edges){
+    graph.view.addListener(mxEvent.AFTER_RENDER, function () {
+      for (const e of edges) {
         var state = graph.view.getState(e);
         state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
       }
     });
 
-
     graph.getModel().beginUpdate();
     try {
 
+      for (let h of this.component.handlers) {
+        if(h.handlerType === 'EventSourcingHandler'){
+          continue;
+        }
+        const p = graph.insertVertex(parent, null, this.component.componentName, 0, 0, 250, 50,
+          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[this.component.componentType] + ';fontColor=' + componentColor[this.component.componentType] + ';strokeWidth=4;fontStyle=1;fontSize=14');
+
+        const t = graph.insertVertex(parent, h.handledPayload.name, h.handledPayload.name, 0, 0, 250, 50,
+          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] + ';fontColor=#333333;strokeWidth=3;');
+        edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
+
+        if(h.returnType){
+          const r = graph.insertVertex(parent, h.returnType.name, h.returnType.name, 0, 0, 250, 50,
+            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] + ';fontColor=#333333;strokeWidth=3;');
+          edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
+        }
 
 
-      const p = graph.insertVertex(parent, null, this.payload.name, 0, 0, 250, 50,
+        for(let i of Object.values(h.invocations) as any[]){
+          const ii = graph.insertVertex(parent, i.name, i.name, 0, 0, 250, 50,
+            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[i.type] + ';fontColor=#333333;strokeWidth=3;');
+          edges.push(graph.insertEdge(parent, null, null, p, ii, edgeStyle));
+        }
+      }
+
+      graph.addListener(mxEvent.CLICK, (sender, evt) => {
+        const cell = evt.getProperty('cell'); // Get the cell that was clicked
+        if (cell?.id){
+          return this.navController.navigateForward('/payload-info/' + cell.id);
+        }
+      });
+
+
+      /*
+      const p = graph.insertVertex(parent, this.payload.name, this.payload.name, 0, 0, 250, 50,
         'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor='+payloadColor[this.payload.type]+';fontColor='+payloadColor[this.payload.type]+';strokeWidth=4;fontStyle=1;fontSize=14');
 
       for (const r of this.payload.returnedBy) {
@@ -87,30 +117,17 @@ export class InvokersHandlersDiagramComponent implements OnInit {
         const l = graph.insertVertex(parent, s.name, s.name, 0, 0, 200, 50, 'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor='+componentColor[s.type]+';fontColor=#333333;strokeWidth=3;');
         edges.push(graph.insertEdge(parent, null, null, p, l, edgeStyle));
       }
-
-      /*
-      for (const i of this.payload.usedBy) {
-        const l = graph.insertVertex(parent, i.name, i.name, 0, 0, 200, 50,
-          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor='+componentColor[i.type]+';fontColor=#333333;strokeWidth=3;');
-        edges.push(graph.insertEdge(parent, null, null, p,l, edgeStyle));
-      }*/
+*/
 
     } finally {
       graph.getModel().endUpdate();
     }
 
-    graph.addListener(mxEvent.CLICK, (sender, evt) => {
-      const cell = evt.getProperty('cell'); // Get the cell that was clicked
-      if (cell?.id){
-        return this.navController.navigateForward('/component-info/' + cell.id);
-      }
-    });
-
     const layout = new mxHierarchicalLayout(graph, 'west');
     layout.traverseAncestors = false;
     layout.execute(parent);
 
-    for(const e of edges){
+    for (const e of edges) {
       var state = graph.view.getState(e);
       state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
     }
@@ -122,8 +139,10 @@ export class InvokersHandlersDiagramComponent implements OnInit {
       const height = bounds.height;
       const x = (graph.container.clientWidth - width) / 2;
       const y = (graph.container.clientHeight - height) / 2;
-      graph.view.setTranslate(x,y);
+      graph.view.setTranslate(x, y);
     }, 100);
 
+
   }
+
 }
