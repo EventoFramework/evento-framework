@@ -3,6 +3,7 @@ package org.evento.server.service.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.common.modeling.messaging.message.bus.NodeAddress;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
@@ -13,6 +14,7 @@ import org.evento.server.domain.model.Bundle;
 import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.model.Payload;
 import org.evento.server.domain.repository.BundleRepository;
+import org.evento.server.domain.repository.ComponentRepository;
 import org.evento.server.domain.repository.HandlerRepository;
 import org.evento.server.domain.repository.PayloadRepository;
 import org.evento.server.service.BundleService;
@@ -34,8 +36,10 @@ public class AutoDiscoveryService {
     private final BundleService bundleService;
 
     private final LockRegistry lockRegistry;
+    private final ComponentRepository componentRepository;
 
-    public AutoDiscoveryService(MessageBus messageBus, BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository, BundleService bundleService, LockRegistry lockRegistry) {
+    public AutoDiscoveryService(MessageBus messageBus, BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository, BundleService bundleService, LockRegistry lockRegistry,
+                                ComponentRepository componentRepository) {
         this.messageBus = messageBus;
         this.bundleRepository = bundleRepository;
         this.handlerRepository = handlerRepository;
@@ -44,6 +48,7 @@ public class AutoDiscoveryService {
         this.lockRegistry = lockRegistry;
         messageBus.addJoinListener(this::onNodeJoin);
         messageBus.addLeaveListener(this::onNodeLeave);
+        this.componentRepository = componentRepository;
     }
 
     private void onNodeJoin(NodeAddress node) {
@@ -83,7 +88,15 @@ public class AutoDiscoveryService {
                                 logger.info("Handler not found, creating an ephemeral one:");
                                 logger.info(registeredHandler.toString());
                                 var handler = new Handler();
-                                handler.setBundle(bundle);
+                                handler.setComponent(componentRepository.findById(registeredHandler.getComponentName()).orElseGet(() -> {
+                                    var c = new org.evento.server.domain.model.Component();
+                                    c.setBundle(bundle);
+                                    c.setComponentName(registeredHandler.getComponentName());
+                                    c.setComponentType(registeredHandler.getComponentType());
+                                    c.setUpdatedAt(Instant.now());
+                                    return componentRepository.save(c);
+
+                                }));
                                 handler.setHandledPayload(payloadRepository.findById(registeredHandler.getHandledPayload())
                                         .map(p -> {
                                             if(p.getType() != registeredHandler.getHandledPayloadType()){
@@ -104,7 +117,6 @@ public class AutoDiscoveryService {
                                             return payloadRepository.save(payload);
                                         }
                                 ));
-                                handler.setComponentName(registeredHandler.getComponentName());
                                 var type = switch (registeredHandler.getComponentType()) {
                                     case Aggregate -> PayloadType.DomainEvent;
                                     case Service -> PayloadType.ServiceEvent;
@@ -131,7 +143,6 @@ public class AutoDiscoveryService {
                                             return payloadRepository.save(payload);
                                         }
                                 ));
-                                handler.setComponentType(registeredHandler.getComponentType());
                                 handler.setHandlerType(registeredHandler.getHandlerType());
                                 handler.setReturnIsMultiple(registeredHandler.isReturnIsMultiple());
                                 handler.setAssociationProperty(registeredHandler.getAssociationProperty());

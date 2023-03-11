@@ -3,9 +3,8 @@ package org.evento.server.web.dto;
 import lombok.Data;
 
 @Data
-public class PayloadUpdateDTO {
+public class ComponentUpdateDTO {
 	private String description;
 	private String detail;
 
-	private String domain;
 }

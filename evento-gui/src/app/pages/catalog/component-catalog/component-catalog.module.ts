@@ -7,13 +7,17 @@ import { IonicModule } from '@ionic/angular';
 import { ComponentCatalogPageRoutingModule } from './component-catalog-routing.module';
 
 import { ComponentCatalogPage } from './component-catalog.page';
+import {TranslateModule} from "@ngx-translate/core";
+import {ComponentsModule} from "../../../components/components.module";
 
 @NgModule({
   imports: [
     CommonModule,
     FormsModule,
     IonicModule,
-    ComponentCatalogPageRoutingModule
+    ComponentCatalogPageRoutingModule,
+    TranslateModule,
+    ComponentsModule
   ],
   declarations: [ComponentCatalogPage]
 })

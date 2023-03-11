@@ -42,7 +42,7 @@ public class ApplicationQueueNetService {
         handlers.stream().filter(h -> h.getHandlerType() == HandlerType.InvocationHandler).forEach(i -> {
             var source = n.source(i.getHandledPayload().getName());
 
-            var s = n.station(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName(), false, null);
+            var s = n.station(i.getComponent().getBundle().getId(), i.getComponent().getComponentName(), i.getHandledPayload().getName(), false, null);
 
             source.getTarget().add(s);
 
@@ -67,7 +67,7 @@ public class ApplicationQueueNetService {
             source.getTarget().add(serverRequestAgent);
             // Server -> Component
             var handler = p.getHandlers().get(0);
-            var a = n.station(handler.getBundle().getId(), handler.getComponentName(), handler.getHandledPayload().getName(), false, null);
+            var a = n.station(handler.getComponent().getBundle().getId(), handler.getComponent().getComponentName(), handler.getHandledPayload().getName(), false, null);
             serverRequestAgent.getTarget().add(a);
             // Component -> Server
             var serverResponseAgent = n.station(SERVER, "Gateway", handler.getReturnType() == null ? "Void" : handler.getReturnType().getName(), false, null);
@@ -82,16 +82,16 @@ public class ApplicationQueueNetService {
                 handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
                         .filter(h -> h.getHandledPayload().equals(handler.getReturnType())).forEach(h -> {
                     // ES -> EventHandler
-                    var perf = performanceStoreService.getMeanServiceTime(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName());
+                    var perf = performanceStoreService.getMeanServiceTime(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName());
                     var sum = 0.0;
                     for (var i : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
                         var ih = i.getValue().getHandlers().get(0);
-                        var st = performanceStoreService.getMeanServiceTime(ih.getBundle().getId(), ih.getComponentName(), ih.getHandledPayload().getName());
+                        var st = performanceStoreService.getMeanServiceTime(ih.getComponent().getBundle().getId(), ih.getComponent().getComponentName(), ih.getHandledPayload().getName());
                         if (st != null)
                             sum += st;
                     }
                     perf = perf == null ? null : Math.max(perf, sum);
-                    var ha = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName(), true, h.getComponentType() == ComponentType.Observer ? null : 1, perf);
+                    var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName(), true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf);
                     esAgent.getTarget().add(ha);
                     for (var i : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
                         generateInvocationQueueNet(n, handlers, i.getValue(), ha, null);
@@ -108,7 +108,7 @@ public class ApplicationQueueNetService {
             source.getTarget().add(serverRequestAgent);
             // Server -> Component
             var handler = p.getHandlers().get(0);
-            var a = n.station(handler.getBundle().getId(), handler.getComponentName(), handler.getHandledPayload().getName(), false, null);
+            var a = n.station(handler.getComponent().getBundle().getId(), handler.getComponent().getComponentName(), handler.getHandledPayload().getName(), false, null);
             serverRequestAgent.getTarget().add(a);
             // Component -> Server
             var serverResponseAgent = n.station(SERVER, "Gateway", handler.getReturnType().getName(), false, null);
@@ -130,7 +130,7 @@ public class ApplicationQueueNetService {
 
             var source = n.source(i.getHandledPayload().getName());
 
-            var s = n.station(i.getBundle().getId(), i.getComponentName(), i.getHandledPayload().getName(), false, null);
+            var s = n.station(i.getComponent().getBundle().getId(), i.getComponent().getComponentName(), i.getHandledPayload().getName(), false, null);
 
             source.getTarget().add(s);
 
@@ -151,7 +151,7 @@ public class ApplicationQueueNetService {
                 handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
                         .filter(h -> h.getHandledPayload().equals(i.getReturnType())).forEach(h -> {
                             // ES -> EventHandler
-                            var ha = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName(), true, 1);
+                            var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName(), true, 1);
                             esAgent.getTarget().add(ha);
 
                             for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {

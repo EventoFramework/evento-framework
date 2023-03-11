@@ -1,9 +1,95 @@
-<ion-header>
-  <ion-toolbar>
-    <ion-title>component-catalog</ion-title>
-  </ion-toolbar>
-</ion-header>
 
 <ion-content>
+  <app-wrapped-content>
+    <ion-grid>
+      <ion-row class="ion-margin-top line-under">
+        <ion-col>
+          <ion-title><h1><span translate="catalog.component.title"></span> ({{allComponents.length}})</h1></ion-title>
+        </ion-col>
+      </ion-row>
+      <ion-row>
+        <ion-col size="3">
+          <ion-row class="line-under ion-padding-vertical">
+            <ion-text class="title" translate="catalog.component.search"></ion-text>
+            <ion-searchbar (ionChange)="checkFilters()" [(ngModel)]="search" mode="ios"
+                           class="ion-no-padding"></ion-searchbar>
+          </ion-row>
+          <ion-row class="line-under ion-padding-vertical">
+            <ion-col>
+              <ion-text class="title" translate="catalog.component.type.filter"></ion-text>
+              <div class="ion-margin-top"></div>
+              <ion-item lines="none" *ngFor="let type of types">
+                <ion-label>
+                  <ion-chip class="component-type-{{type}}">{{type}}</ion-chip>
+                </ion-label>
+                <ion-checkbox [(ngModel)]="selectedTypes[type]" (ionChange)="checkFilters()"
+                              slot="start"></ion-checkbox>
+              </ion-item>
 
+            </ion-col>
+
+          </ion-row>
+          <ion-row class="line-under ion-padding-vertical">
+            <ion-col>
+              <ion-text class="title" translate="catalog.component.domain.filter"></ion-text>
+              <div class="ion-margin-top"></div>
+              <ion-item lines="none" *ngFor="let domain of domains">
+                <ion-label>{{domain}}</ion-label>
+                <ion-checkbox [(ngModel)]="selectedDomains[domain]" (ionChange)="checkFilters()"
+                              slot="start"></ion-checkbox>
+              </ion-item>
+
+            </ion-col>
+
+          </ion-row>
+          <ion-row class="line-under ion-padding-vertical">
+            <ion-col>
+              <ion-text class="title" translate="catalog.component.bundle.filter"></ion-text>
+              <div class="ion-margin-top"></div>
+              <ion-item lines="none" *ngFor="let bundle of bundles">
+                <ion-label>{{bundle}}</ion-label>
+                <ion-checkbox [(ngModel)]="selectedBundles[bundle]" (ionChange)="checkFilters()"
+                              slot="start"></ion-checkbox>
+              </ion-item>
+
+            </ion-col>
+
+          </ion-row>
+        </ion-col>
+        <ion-col class="ion-padding-start" size="9">
+          <ion-card-subtitle class="ion-padding-vertical">
+            <span>{{(allComponents.length > components.length ? 'payload.filter' : 'payload.all') | translate}}</span> (<span *ngIf="allComponents.length > components.length">{{components.length}}/</span>{{allComponents.length}})
+          </ion-card-subtitle>
+          <ion-row>
+            <ion-col size="6" *ngFor="let component of components">
+              <ion-card [class]="'component-type component-type-' + component.componentType" routerLink="/component-info/{{component.componentName}}">
+                <ion-card-content>
+                  <ion-text class="title">{{component.componentName}}</ion-text>
+                  <ion-text color="dark"><p>{{component.description}}</p></ion-text>
+                  <ion-chip color="primary">
+                    <ion-icon name="at"></ion-icon>
+                    <ion-label><span translate="component.handlers"></span> ({{component.handledMessages}})</ion-label>
+                  </ion-chip>
+                  <ion-chip color="success" *ngIf="['Aggregate','Service'].includes(component.componentType)">
+                    <ion-icon name="mail"></ion-icon>
+                    <ion-label><span translate="component.publications"></span> ({{component.producedMessages}})</ion-label>
+                  </ion-chip>
+                  <ion-chip color="secondary" *ngIf="component.invocations">
+                    <ion-icon name="cube"></ion-icon>
+                    <ion-label><span translate="component.invocations"></span> ({{component.invocations}})</ion-label>
+                  </ion-chip>
+                  <ion-chip color="warning" *ngFor="let domain of component.domains">
+                    <ion-icon name="folder-open"></ion-icon>
+                    <ion-label>{{domain}}</ion-label>
+                  </ion-chip>
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
+          </ion-row>
+        </ion-col>
+      </ion-row>
+    </ion-grid>
+  </app-wrapped-content>
 </ion-content>
+
+

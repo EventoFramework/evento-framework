@@ -27,11 +27,11 @@ public class HandlerService {
 	}
 
 	public Collection<Handler> findAllByBundleAndPayloadName(Bundle bundle, String payloadName) {
-		return handlerRepository.findAllByBundleAndHandledPayload_Name(bundle, payloadName);
+		return handlerRepository.findAllByComponent_BundleAndHandledPayload_Name(bundle, payloadName);
 	}
 
 	public Collection<Handler> findAllEventHandlersByBundle(Bundle bundle) {
-		return handlerRepository.findAllByBundleAndHandlerTypeIn(bundle, List.of(HandlerType.EventHandler, HandlerType.SagaEventHandler));
+		return handlerRepository.findAllByComponent_BundleAndHandlerTypeIn(bundle, List.of(HandlerType.EventHandler, HandlerType.SagaEventHandler));
 	}
 
 
@@ -40,7 +40,7 @@ public class HandlerService {
 	}
 
 	public boolean hasBundleHandlersForPayload(Bundle bundle, String payloadName){
-		return handlerRepository.existsByBundleAndHandledPayload_NameAndHandlerType(bundle, payloadName, HandlerType.EventHandler);
+		return handlerRepository.existsByComponent_BundleAndHandledPayload_NameAndHandlerType(bundle, payloadName, HandlerType.EventHandler);
 	}
 
 	public List<Handler> findAll() {
@@ -48,7 +48,7 @@ public class HandlerService {
 	}
 
 	public List<Handler> findAllByBundleId(String name) {
-		return handlerRepository.findAllByBundle_Id(name);
+		return handlerRepository.findAllByComponent_Bundle_Id(name);
 	}
 
 	public Optional<Handler> findById(String handlerId) {

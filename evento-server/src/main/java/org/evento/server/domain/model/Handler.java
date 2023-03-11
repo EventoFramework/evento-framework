@@ -28,17 +28,13 @@ public class Handler implements Serializable {
 	@ManyToOne
 	private Payload handledPayload;
 
-	@ManyToOne()
-	private Bundle bundle;
-
-	private String componentName;
 
 	@ManyToOne(fetch = FetchType.EAGER)
 	private Payload returnType;
 
 
-	@Enumerated(EnumType.STRING)
-	private ComponentType componentType;
+	@ManyToOne(fetch = FetchType.EAGER)
+	private Component component;
 
 	@Enumerated(EnumType.STRING)
 	private HandlerType handlerType;
@@ -51,29 +47,24 @@ public class Handler implements Serializable {
 
 	private String associationProperty;
 
+
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
-		if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
-		Handler handler = (Handler) o;
-		return bundle != null && Objects.equals(bundle, handler.bundle)
-				&& componentName != null && Objects.equals(componentName, handler.componentName)
-				&& handledPayload != null && Objects.equals(handledPayload, handler.handledPayload)
-				&& returnType != null && Objects.equals(returnType, handler.returnType);
+		if (!(o instanceof Handler handler)) return false;
+
+		return getUuid() != null ? getUuid().equals(handler.getUuid()) : handler.getUuid() == null;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(bundle,
-				componentName,
-				handledPayload,
-				returnType);
+		return getUuid() != null ? getUuid().hashCode() : 0;
 	}
 
 	@SneakyThrows
 	public void generateId() throws HibernateException {
 		setUuid(generateId(
-				this.getBundle().getId(), this.getComponentName(), this.getComponentType(), this.getHandledPayload().getName()
+				this.getComponent().getBundle().getId(), this.getComponent().getComponentName(), this.getComponent().getComponentType(), this.getHandledPayload().getName()
 		));
 	}
 
