@@ -1,3 +1,71 @@
+<ion-content>
+  <app-wrapped-content>
+    <ion-grid>
+      <ion-row class="ion-margin-top line-under">
+        <ion-col>
+          <ion-title><h1><span translate="bundle.title"></span> ({{allBundles.length}})</h1></ion-title>
+        </ion-col>
+      </ion-row>
+      <ion-row>
+        <ion-col size="3">
+          <ion-row class="line-under ion-padding-vertical">
+            <ion-text class="title" translate="bundle.search"></ion-text>
+            <ion-searchbar (ionChange)="checkFilters()" [(ngModel)]="search" mode="ios"
+                           class="ion-no-padding"></ion-searchbar>
+          </ion-row>
+          <ion-row class="line-under ion-padding-vertical">
+            <ion-col>
+              <ion-text class="title" translate="catalog.component.domain.filter"></ion-text>
+              <div class="ion-margin-top"></div>
+              <ion-item lines="none" *ngFor="let domain of domains">
+                <ion-label>{{domain}}</ion-label>
+                <ion-checkbox [(ngModel)]="selectedDomains[domain]" (ionChange)="checkFilters()"
+                              slot="start"></ion-checkbox>
+              </ion-item>
+
+            </ion-col>
+
+          </ion-row>
+
+        </ion-col>
+        <ion-col class="ion-padding-start" size="9">
+          <ion-card-subtitle class="ion-padding-vertical">
+            <span>{{(allBundles.length > bundles.length ? 'bundle.filter' : 'bundle.all') | translate}}</span> (<span *ngIf="allBundles.length > bundles.length">{{bundles.length}}/</span>{{allBundles.length}})
+          </ion-card-subtitle>
+          <ion-row>
+            <ion-col size="6" *ngFor="let bundle of bundles">
+              <ion-card class="bundle"  routerLink="/bundle-info/{{bundle.id}}" [style.background]="bundle.color">
+                <ion-card-content>
+                  <ion-text class="title">{{bundle.id}} <ion-chip>{{bundle.version}}</ion-chip></ion-text>
+                  <ion-text color="dark"><p>{{bundle.description}}</p></ion-text>
+                  <!--
+                  <ion-chip color="primary">
+                    <ion-icon name="at"></ion-icon>
+                    <ion-label><span translate="component.handlers"></span> ({{component.handledMessages}})</ion-label>
+                  </ion-chip>
+                  <ion-chip color="success" *ngIf="['Aggregate','Service'].includes(component.componentType)">
+                    <ion-icon name="mail"></ion-icon>
+                    <ion-label><span translate="component.publications"></span> ({{component.producedMessages}})</ion-label>
+                  </ion-chip>
+                  <ion-chip color="secondary" *ngIf="component.invocations">
+                    <ion-icon name="cube"></ion-icon>
+                    <ion-label><span translate="component.invocations"></span> ({{component.invocations}})</ion-label>
+                  </ion-chip>
+                  <ion-chip color="warning" *ngFor="let domain of component.domains">
+                    <ion-icon name="folder-open"></ion-icon>
+                    <ion-label>{{domain}}</ion-label>
+                  </ion-chip>
+                  -->
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
+          </ion-row>
+        </ion-col>
+      </ion-row>
+    </ion-grid>
+  </app-wrapped-content>
+</ion-content>
+<!--
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
@@ -44,3 +112,4 @@
   </ion-toolbar>
 
 </ion-footer>
+-->

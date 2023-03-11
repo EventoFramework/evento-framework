@@ -4,6 +4,7 @@ import lombok.*;
 import org.hibernate.Hibernate;
 
 import javax.persistence.*;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
@@ -19,6 +20,13 @@ public class Bundle {
 	@Id
 	private String id;
 	private long version;
+
+	@Column(columnDefinition = "TEXT")
+	private String description;
+
+	@Column(columnDefinition = "LONGTEXT")
+	private String detail;
+
 	@Enumerated(EnumType.STRING)
 	private BucketType bucketType;
 	private String artifactCoordinates;
@@ -33,6 +41,8 @@ public class Bundle {
 	private boolean autorun;
 	private int minInstances;
 	private int maxInstances;
+
+	private Instant updatedAt;
 
 	@Override
 	public boolean equals(Object o) {

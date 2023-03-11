@@ -1,6 +1,8 @@
 import {Component, OnInit} from '@angular/core';
 import {BundleService} from "../../../services/bundle.service";
 import {ToastController} from "@ionic/angular";
+import {CatalogService} from "../../../services/catalog.service";
+import {stringToColour} from "../../../services/utils";
 
 @Component({
   selector: 'app-bundle-list',
@@ -8,46 +10,41 @@ import {ToastController} from "@ionic/angular";
   styleUrls: ['./bundle-list.page.scss'],
 })
 export class BundleListPage implements OnInit {
-  elements: any[] = [];
-  loading: boolean = false; // Flag variable
-  file: File = null; // Variable to store file
+  domains = new Set();
+  selectedDomains = {};
+  search = '';
 
-  constructor(private bundleService: BundleService,
-              private toastController: ToastController) {
+  bundles = [];
+  allBundles = [];
+
+  constructor(private bundleService: BundleService) {
   }
 
-  ngOnInit() {
-  }
-
-  async ionViewWillEnter(){
-    this.elements = await this.bundleService.findAll();
-  }
-
-  async unregister(bundle: any) {
-    await this.bundleService.unregister(bundle.name);
-    this.elements = this.elements.filter(r => r.name != bundle.name)
-  }
-
-
-  // On file Select
-  onChange(event) {
-    this.file = event.target.files[0];
-  }
-
-  // OnClick of button Upload
-  onUpload() {
-    this.loading = !this.loading;
-    this.bundleService.register(this.file).then(
-      (event: any) => {
-        this.loading = false; // Flag variable
-        this.toastController.create({
-          message: "Done!",
-          duration: 1500
-        }).then(t => t.present());
-        this.bundleService.findAll().then(resp => {
-          this.elements = resp;
-        })
+  async ngOnInit() {
+    this.allBundles = await this.bundleService.findAll();
+    this.domains = new Set();
+    for (let b of this.allBundles) {
+      b.color = stringToColour(b.id);
+      b.domains = (b.domains?.split(',') || []);
+      for(const d of b.domains){
+        this.domains.add(d)
       }
-    );
+    }
+
+
+    this.checkFilters();
+  }
+
+  public checkFilters() {
+    const hasSelectedDomains = Object.values(this.selectedDomains).reduce((a, b) => a || b, false);
+    this.bundles = this.allBundles.filter(b => {
+      let match = true;
+      if (this.search.length > 0) {
+        match = match && (b.name.toLowerCase().includes(this.search.toLowerCase()) || b.description.toLowerCase().includes(this.search.toLowerCase()));
+      }
+      if (hasSelectedDomains)
+        match = match && b.domains.filter(h => this.selectedDomains[h]).length > 0;
+      return match;
+    });
   }
 }
