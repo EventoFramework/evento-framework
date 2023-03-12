@@ -1,6 +1,6 @@
 import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
 import {NavController} from "@ionic/angular";
-import {componentColor, payloadColor} from "../../services/utils";
+import {componentColor, graphCenterFit, payloadColor} from "../../services/utils";
 
 declare const mxGraph: any;
 declare const mxConstants: any;
@@ -113,13 +113,9 @@ export class BundleComponentsDiagramComponent implements OnInit {
       }
 
 
-      const bounds = graph.getGraphBounds();
-      const width = bounds.width;
-      const height = bounds.height;
-      const x = (graph.container.clientWidth - width) / 2;
-      const y = (graph.container.clientHeight - height) / 2;
-      graph.view.setTranslate(x, y);
-    }, 100);
+      graphCenterFit(graph, container);
+
+    }, 500);
 
 
   }

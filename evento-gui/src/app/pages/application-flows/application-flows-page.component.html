@@ -1,4 +1,4 @@
-<ion-header>
+<!--<ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/"></ion-back-button>
@@ -9,9 +9,26 @@
   </ion-toolbar>
 
 </ion-header>
+-->
 <ion-content>
-  <div style="position: absolute; background: url('https://jgraph.github.io/mxgraph/javascript/examples/editors/images/grid.gif');
-  height: 100%; width: 100%; overflow: hidden" id="flows"></div>
+  <ion-grid style="height: 100%; width: 100%">
+    <ion-row style="height: 100%; width: 100%">
+      <ion-col size="2">
+        <ion-searchbar mode="ios" [placeholder]="'flows.search' | translate"></ion-searchbar>
+        <ion-card class="bundle" style="background: #3b82f6">
+          <ion-card-content>
+            <ion-text class="title" translate="flows.all"></ion-text>
+            <p translate="flows.all.desc"></p>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+      <ion-col size="10" style="height: 100%">
+        <div style="background: url('https://jgraph.github.io/mxgraph/javascript/examples/editors/images/grid.gif');
+  height: 100%; width: 100%; overflow: hidden"  #container id="container"></div>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+
   <ion-card *ngIf="performanceAnalysis" style="position: absolute; top: 0; bottom: 0; width: 20vw">
     <ion-card-header>
       <ion-card-title translate="performance.analysis.source.service.time">

@@ -14,7 +14,9 @@ public class NodeDTO implements Serializable {
 	private long id;
 	private String bundle;
 	private String component;
+	private String componentType;
 	private String action;
+	private String actionType;
 
 	private boolean async;
 	private Set<Long> target = new HashSet<>();
@@ -27,18 +29,23 @@ public class NodeDTO implements Serializable {
 	public NodeDTO(Node node) {
 		this.id = node.getId();
 		this.type = node.getClass().getSimpleName();
-		if(node instanceof ServiceStation s){
+		if (node instanceof ServiceStation s)
+		{
 			this.bundle = s.getBundle();
 			this.component = s.getComponent();
 			this.action = s.getAction();
 			this.async = s.getAsync();
+			this.actionType = s.getActionType();
 			this.target = s.getTarget().stream().map(Node::getId).collect(Collectors.toSet());
 			this.numServers = s.getNumServers();
 			this.meanServiceTime = s.getMeanServiceTime();
+			this.componentType = s.getComponentType();
 		} else if (node instanceof Source s)
 		{
 			this.target = s.getTarget().stream().map(Node::getId).collect(Collectors.toSet());
 			this.name = s.getName();
+			this.action = s.getName();
+			this.actionType = s.getType();
 		}
 	}
 
@@ -124,5 +131,21 @@ public class NodeDTO implements Serializable {
 
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public String getActionType() {
+		return actionType;
+	}
+
+	public void setActionType(String actionType) {
+		this.actionType = actionType;
+	}
+
+	public String getComponentType() {
+		return componentType;
+	}
+
+	public void setComponentType(String componentType) {
+		this.componentType = componentType;
 	}
 }

@@ -1,5 +1,5 @@
 import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
-import {componentColor, payloadColor} from "../../services/utils";
+import {componentColor, graphCenterFit, payloadColor} from "../../services/utils";
 import {NavController} from "@ionic/angular";
 
 declare const mxGraph: any;
@@ -61,86 +61,60 @@ export class ComponentHandlersDiagramComponent implements OnInit {
       }
     });
 
-    graph.getModel().beginUpdate();
-    try {
-
-      for (let h of this.component.handlers) {
-        if(h.handlerType === 'EventSourcingHandler'){
-          continue;
-        }
-        const p = graph.insertVertex(parent, null, this.component.componentName, 0, 0, 250, 50,
-          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[this.component.componentType] + ';fontColor=' + componentColor[this.component.componentType] + ';strokeWidth=4;fontStyle=1;fontSize=14');
-
-        const t = graph.insertVertex(parent, h.handledPayload.name, h.handledPayload.name, 0, 0, 250, 50,
-          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] + ';fontColor=#333333;strokeWidth=3;');
-        edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
-
-        if(h.returnType){
-          const r = graph.insertVertex(parent, h.returnType.name, h.returnType.name  + (h.returnIsMultiple ? '[]' : ''), 0, 0, 250, 50,
-            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] + ';fontColor=#333333;strokeWidth=3;');
-          edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
-        }
-
-
-        for(let i of Object.values(h.invocations) as any[]){
-          const ii = graph.insertVertex(parent, i.name, i.name, 0, 0, 250, 50,
-            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[i.type] + ';fontColor=#333333;strokeWidth=3;');
-          edges.push(graph.insertEdge(parent, null, null, p, ii, edgeStyle));
-        }
-      }
-
-      graph.addListener(mxEvent.CLICK, (sender, evt) => {
-        const cell = evt.getProperty('cell'); // Get the cell that was clicked
-        if (cell?.id){
-          return this.navController.navigateForward('/payload-info/' + cell.id);
-        }
-      });
-
-
-      /*
-      const p = graph.insertVertex(parent, this.payload.name, this.payload.name, 0, 0, 250, 50,
-        'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor='+payloadColor[this.payload.type]+';fontColor='+payloadColor[this.payload.type]+';strokeWidth=4;fontStyle=1;fontSize=14');
-
-      for (const r of this.payload.returnedBy) {
-        const l = graph.insertVertex(parent, r.name, r.name, 0, 0, 200, 50,
-          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor='+componentColor[r.type]+';fontColor=#333333;strokeWidth=3;');
-        edges.push(graph.insertEdge(parent, null, null, l, p, edgeStyle));
-      }
-
-      for (const i of this.payload.invokers) {
-        const l = graph.insertVertex(parent, i.name, i.name, 0, 0, 200, 50,
-          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor='+componentColor[i.type]+';fontColor=#333333;strokeWidth=3;');
-        edges.push(graph.insertEdge(parent, null, null, l, p, edgeStyle));
-      }
-
-      for (const s of this.payload.subscribers) {
-        const l = graph.insertVertex(parent, s.name, s.name, 0, 0, 200, 50, 'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor='+componentColor[s.type]+';fontColor=#333333;strokeWidth=3;');
-        edges.push(graph.insertEdge(parent, null, null, p, l, edgeStyle));
-      }
-*/
-
-    } finally {
-      graph.getModel().endUpdate();
-    }
-
-    const layout = new mxHierarchicalLayout(graph, 'west');
-    layout.traverseAncestors = false;
-    layout.execute(parent);
-
-    for (const e of edges) {
-      var state = graph.view.getState(e);
-      state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
-    }
-
-
     setTimeout(() => {
-      const bounds = graph.getGraphBounds();
-      const width = bounds.width;
-      const height = bounds.height;
-      const x = (graph.container.clientWidth - width) / 2;
-      const y = (graph.container.clientHeight - height) / 2;
-      graph.view.setTranslate(x, y);
-    }, 100);
+
+      graph.getModel().beginUpdate();
+      try {
+
+        for (let h of this.component.handlers) {
+          if (h.handlerType === 'EventSourcingHandler') {
+            continue;
+          }
+          const p = graph.insertVertex(parent, null, this.component.componentName, 0, 0, 250, 50,
+            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[this.component.componentType] + ';fontColor=' + componentColor[this.component.componentType] + ';strokeWidth=4;fontStyle=1;fontSize=14');
+
+          const t = graph.insertVertex(parent, h.handledPayload.name, h.handledPayload.name, 0, 0, 250, 50,
+            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] + ';fontColor=#333333;strokeWidth=3;');
+          edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
+
+          if (h.returnType) {
+            const r = graph.insertVertex(parent, h.returnType.name, h.returnType.name + (h.returnIsMultiple ? '[]' : ''), 0, 0, 250, 50,
+              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] + ';fontColor=#333333;strokeWidth=3;');
+            edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
+          }
+
+
+          for (let i of Object.values(h.invocations) as any[]) {
+            const ii = graph.insertVertex(parent, i.name, i.name, 0, 0, 250, 50,
+              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[i.type] + ';fontColor=#333333;strokeWidth=3;');
+            edges.push(graph.insertEdge(parent, null, null, p, ii, edgeStyle));
+          }
+        }
+
+        graph.addListener(mxEvent.CLICK, (sender, evt) => {
+          const cell = evt.getProperty('cell'); // Get the cell that was clicked
+          if (cell?.id) {
+            return this.navController.navigateForward('/payload-info/' + cell.id);
+          }
+        });
+
+
+      } finally {
+        graph.getModel().endUpdate();
+      }
+
+      const layout = new mxHierarchicalLayout(graph, 'west');
+      layout.traverseAncestors = false;
+      layout.execute(parent);
+
+      for (const e of edges) {
+        var state = graph.view.getState(e);
+        state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
+      }
+
+
+      graphCenterFit(graph, container);
+    }, 500);
 
 
   }

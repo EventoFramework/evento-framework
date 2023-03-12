@@ -30,3 +30,15 @@ export const payloadColor = {
   'Invocation': 'grey',
   'Query': 'gold',
 }
+
+export const graphCenterFit = (graph, container) => {
+  var bounds = graph.getGraphBounds();
+  graph.fit();
+  var zoom = graph.view.scale;
+  if (bounds.width > container.offsetWidth || bounds.height > container.offsetHeight) {
+    zoom = Math.min(container.offsetWidth / bounds.width, container.offsetHeight / bounds.height);
+  }
+  zoom = zoom * 0.95;
+  graph.zoomTo(zoom);
+  graph.center();
+}
