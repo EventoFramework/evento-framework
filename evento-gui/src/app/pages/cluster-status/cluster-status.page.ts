@@ -1,6 +1,7 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ClusterStatusService} from "../../services/cluster-status.service";
 import {Subscription} from "rxjs";
+import {stringToColour} from "../../services/utils";
 
 @Component({
   selector: 'app-cluster-status',
@@ -13,6 +14,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
   public attendedView = [];
   public externalView = [];
   private viewSubscription: Subscription;
+  bundleColor = {};
   constructor(private clusterStatusService: ClusterStatusService) {
   }
 
@@ -20,6 +22,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
 
     const attendedView = await this.clusterStatusService.getAttendedView();
     for (let node of attendedView) {
+      this.bundleColor[node] = stringToColour(node);
       this.view[node] = {
         isOnline: false,
         isAvailable: false,
@@ -37,6 +40,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
         this.externalView = [...new Set(upNodes.filter(n => !this.attendedView.includes(n)))]
         for (let node of this.externalView) {
           if(!this.view[node]) {
+            this.bundleColor[node] = stringToColour(node);
             this.view[node] = {
               isOnline: false,
               isAvailable: false,
@@ -47,6 +51,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
           }
         }
         for (let node of this.attendedView.concat(this.externalView)) {
+          this.bundleColor[node] = stringToColour(node);
           this.view[node].isOnline = upNodes.includes(node);
           this.view[node].replicas = view.filter(n => n.bundleId === node).reduce((a, e) => {
             a[e.nodeId] = {
@@ -63,6 +68,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
       } else {
         const availableNodes = view.map(n => n.bundleId);
         for (let node of this.attendedView.concat(this.externalView)) {
+          this.bundleColor[node] = stringToColour(node);
           this.view[node].isAvailable = availableNodes.includes(node);
           for (let replica of this.view[node].replicasKeys) {
             this.view[node].replicas[replica].isAvailable = view.map(n => n.nodeId).includes(this.view[node].replicas[replica].nodeId)
