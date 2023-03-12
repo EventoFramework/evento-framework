@@ -36,8 +36,17 @@
             <ion-col size="6" *ngFor="let bundle of bundles">
               <ion-card class="bundle"  routerLink="/bundle-info/{{bundle.id}}" [style.background]="bundle.color">
                 <ion-card-content>
-                  <ion-text class="title">{{bundle.id}} <ion-chip>{{bundle.version}}</ion-chip></ion-text>
+                  <ion-text class="title">{{bundle.id}} (v.{{bundle.version}})</ion-text>
                   <ion-text color="dark"><p>{{bundle.description}}</p></ion-text>
+                  <ion-chip color="success" *ngIf="bundle.components">
+                    <ion-icon name="cube"></ion-icon>
+                    <ion-label><span translate="common.components"></span> ({{bundle.components}})</ion-label>
+                  </ion-chip>
+                  <ion-chip color="warning" *ngFor="let domain of bundle.domains">
+                    <ion-icon name="folder-open"></ion-icon>
+                    <ion-label>{{domain}}</ion-label>
+                  </ion-chip>
+
                   <!--
                   <ion-chip color="primary">
                     <ion-icon name="at"></ion-icon>
@@ -51,10 +60,7 @@
                     <ion-icon name="cube"></ion-icon>
                     <ion-label><span translate="component.invocations"></span> ({{component.invocations}})</ion-label>
                   </ion-chip>
-                  <ion-chip color="warning" *ngFor="let domain of component.domains">
-                    <ion-icon name="folder-open"></ion-icon>
-                    <ion-label>{{domain}}</ion-label>
-                  </ion-chip>
+
                   -->
                 </ion-card-content>
               </ion-card>

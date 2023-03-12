@@ -12,9 +12,10 @@ export class BundleInfoPage implements OnInit {
   bundleId: string;
   bundle;
   componentHandlers: {}
-  components: string[] = [];
+  components = [];
   environmentKeys: string[] = [];
   vmOptionsKeys: string[] = [];
+  isEditing = false;
 
   constructor(private route: ActivatedRoute, private bundleService: BundleService, private navController: NavController) { }
 
@@ -29,7 +30,11 @@ export class BundleInfoPage implements OnInit {
       c[h.componentName].push(h);
       return c
     }, {})
-    this.components = Object.keys(this.componentHandlers);
+    const map = {}
+    for(let h of this.bundle.handlers){
+      map[h.componentName] = {name: h.componentName, type: h.componentType};
+    }
+    this.components = Object.values(map);
     this.environmentKeys = Object.keys(this.bundle.environment);
     this.vmOptionsKeys = Object.keys(this.bundle.vmOptions);
   }
@@ -59,5 +64,10 @@ export class BundleInfoPage implements OnInit {
     await this.bundleService.unregister(this.bundleId);
     await this.navController.navigateBack('/bundle-list')
 
+  }
+
+  save() {
+    this.isEditing = false;
+    return this.bundleService.update(this.bundle.id, this.bundle.description, this.bundle.detail);
   }
 }

@@ -1,206 +1,208 @@
-<ion-header>
-  <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-back-button defaultHref="/"></ion-back-button>
-    </ion-buttons>
-    <ion-title><label translate="bundle"></label>: {{bundleId}}</ion-title>
-  </ion-toolbar>
-</ion-header>
-
 <ion-content>
-  <ng-container *ngIf="bundle">
-    <ion-card>
-      <ion-card-header>
-        <ion-card-title>
-          {{bundle.id}}
-        </ion-card-title>
-      </ion-card-header>
-      <ion-card-content>
-        <ion-grid>
-          <ion-row>
-            <ion-col size="2"><span translate="bundle.version"></span>:</ion-col>
-            <ion-col size="10">{{bundle.version}}</ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col size="2"><span translate="bundle.bucket.type"></span>:</ion-col>
-            <ion-col size="10">{{bundle.bucketType}}</ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col size="2"><span translate="bundle.artifact.coordinates"></span>:</ion-col>
-            <ion-col size="10">{{bundle.artifactCoordinates}}</ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col size="2"><span translate="bundle.artifact.original.name"></span>:</ion-col>
-            <ion-col size="10">{{bundle.artifactOriginalName}}</ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col size="2"><span translate="bundle.autorun"></span>:</ion-col>
-            <ion-col size="10">{{bundle.autorun}}</ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col size="2"><span translate="bundle.instances.min"></span>:</ion-col>
-            <ion-col size="4">{{bundle.minInstances}}</ion-col>
-            <ion-col size="2"><span translate="bundle.instances.max"></span>:</ion-col>
-            <ion-col size="4">{{bundle.maxInstances}}</ion-col>
-          </ion-row>
-        </ion-grid>
-      </ion-card-content>
-      <div class="ion-text-end">
-        <ion-button class="ion-align-self-end" color="danger" fill="clear" (click)="unregister()"><span translate="bundle.unregister"></span>
-          <ion-icon slot="end" name="trash-outline"></ion-icon>
-        </ion-button>
-      </div>
-    </ion-card>
+  <app-wrapped-content>
+    <ion-grid *ngIf="bundle">
+      <ion-row>
+        <ion-col size="9" class="line-right">
+          <ion-row class="ion-margin-top line-under">
+            <ion-col>
+              <ion-title>
+                <h1>{{bundle.id}} (v{{bundle.version}})
 
-    <ion-card>
-      <ion-card-header>
-        <ion-card-title translate="bundle.handlers">
-        </ion-card-title>
-      </ion-card-header>
-      <ion-card-content>
-        <ion-list lines="full">
-          <ion-list-header>
-            <ion-grid>
-              <ion-row>
-                <ion-col translate="handler.component.name"></ion-col>
-                <ion-col translate="handler.component.type"></ion-col>
-                <ion-col translate="handler.handler.type"></ion-col>
-                <ion-col translate="handler.handled.payload"></ion-col>
-                <ion-col translate="handler.return.type"></ion-col>
-              </ion-row>
-            </ion-grid>
-          </ion-list-header>
-          <ion-item *ngFor="let handler of bundle.handlers">
-            <ion-grid>
-              <ion-row>
-                <ion-col>{{handler.componentName}}</ion-col>
-                <ion-col>{{handler.componentType}}</ion-col>
-                <ion-col>{{handler.handlerType}}</ion-col>
-                <ion-col>
-                  <ion-chip
-                    [class]="'payload-type-' + handler.handledPayload.type">{{handler.handledPayload.name}}</ion-chip>
-                </ion-col>
-                <ion-col>
-                  <ion-chip *ngIf="handler.returnType"
-                            [class]="'payload-type-' + handler.returnType?.type">{{handler.returnType?.name}}</ion-chip>
-                </ion-col>
-              </ion-row>
-            </ion-grid>
-          </ion-item>
-        </ion-list>
+                </h1>
+              </ion-title>
+              <div class="ion-margin-top"></div>
+              <ion-text *ngIf="!isEditing">{{bundle.description}}</ion-text>
+              <textarea class="editor" type="text" *ngIf="isEditing" [(ngModel)]="bundle.description"></textarea>
+            </ion-col>
+            <ion-col class="ion-text-end" size="4">
+              <ion-button fill="outline" color="danger" (click)="unregister()">
+                <ion-icon slot="start" name="trash"></ion-icon>
+                <span translate="bundle.unregister"></span>
+              </ion-button>
+              <ion-button fill="outline" color="medium" *ngIf="!isEditing" (click)="isEditing = true">
+                <ion-icon slot="start" name="pencil"></ion-icon>
+                <span translate="common.edit"></span>
+              </ion-button>
+              <ion-button color="primary" *ngIf="isEditing" (click)="save()">
+                <ion-icon slot="start" name="save"></ion-icon>
+                <span translate="common.save"></span>
+              </ion-button>
 
-      </ion-card-content>
-    </ion-card>
-    <ion-card>
-      <ion-accordion-group>
-        <ion-accordion value="first">
-          <ion-item slot="header">
-            <ion-card-header>
-              <ion-card-title translate="bundle.environment"></ion-card-title>
-            </ion-card-header>
+            </ion-col>
+          </ion-row>
+          <ion-row>
+            <ion-col>
+              <markdown *ngIf="!isEditing" [data]="bundle.detail"></markdown>
+              <textarea style="min-height: 350px" class="editor" *ngIf="isEditing"
+                        [(ngModel)]="bundle.detail"></textarea>
+            </ion-col>
+          </ion-row>
 
-          </ion-item>
-          <ion-card-content class="ion-padding" slot="content">
-            <ion-list>
-              <ion-list-header>
-                <ion-grid>
-                  <ion-row>
-                    <ion-col size="5" translate="common.key"></ion-col>
-                    <ion-col size="6" translate="common.value"></ion-col>
-                    <ion-col size="1" translate="common.actions"></ion-col>
-                  </ion-row>
-                </ion-grid>
-              </ion-list-header>
-              <ion-grid>
-                <ion-row>
-                  <ion-col size="5">
-                    <ion-item>
-                      <ion-label translate="common.key"></ion-label>
-                      <ion-input #envKey (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
-                    </ion-item>
-                  </ion-col>
-                  <ion-col size="6">
-                    <ion-item>
-                      <ion-label translate="common.value"></ion-label>
-                      <ion-input #envValue (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
-                    </ion-item>
-                  </ion-col>
-                  <ion-col size="1" class="ion-text-center">
-                    <ion-button (click)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';">
-                      <ion-icon slot="icon-only" name="add-circle"></ion-icon>
-                    </ion-button>
-                  </ion-col>
+          <ion-row>
+            <ion-col>
+              <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                         translate="bundle.services.diagram"></ion-title>
+              <app-bundle-components-diagram [bundle]="bundle"></app-bundle-components-diagram>
+            </ion-col>
+          </ion-row>
+
+          <ion-row>
+            <ion-col>
+              <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                         translate="bundle.settings"></ion-title>
+              <ion-grid class="ion-no-padding">
+                <ion-row class="ion-margin-bottom">
+                  <ion-col size="3"><span translate="bundle.version"></span>:</ion-col>
+                  <ion-col size="9">{{bundle.version}}</ion-col>
                 </ion-row>
-                <ion-row *ngFor="let key of environmentKeys">
-                  <ion-col size="5">{{key}}</ion-col>
-                  <ion-col size="6">{{bundle.environment[key]}}</ion-col>
-                  <ion-col size="1"  class="ion-text-center" >
-                    <ion-button color="danger" (click)="removeEnv(key)">
-                      <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
-                    </ion-button>
-                  </ion-col>
+                <ion-row class="ion-margin-bottom">
+                  <ion-col size="3"><span translate="bundle.bucket.type"></span>:</ion-col>
+                  <ion-col size="9">{{bundle.bucketType}}</ion-col>
+                </ion-row>
+                <ion-row class="ion-margin-bottom">
+                  <ion-col size="3"><span translate="bundle.artifact.coordinates"></span>:</ion-col>
+                  <ion-col size="9">{{bundle.artifactCoordinates}}</ion-col>
+                </ion-row>
+                <ion-row class="ion-margin-bottom">
+                  <ion-col size="3"><span translate="bundle.artifact.original.name"></span>:</ion-col>
+                  <ion-col size="9">{{bundle.artifactOriginalName}}</ion-col>
+                </ion-row>
+                <ion-row class="ion-margin-bottom">
+                  <ion-col size="3"><span translate="bundle.autorun"></span>:</ion-col>
+                  <ion-col size="9">{{bundle.autorun}}</ion-col>
+                </ion-row>
+                <ion-row class="ion-margin-bottom">
+                  <ion-col size="3"><span translate="bundle.instances.min"></span>:</ion-col>
+                  <ion-col size="3">{{bundle.minInstances}}</ion-col>
+                  <ion-col size="3"><span translate="bundle.instances.max"></span>:</ion-col>
+                  <ion-col size="3">{{bundle.maxInstances}}</ion-col>
                 </ion-row>
               </ion-grid>
-            </ion-list>
-          </ion-card-content>
-        </ion-accordion>
-      </ion-accordion-group>
-    </ion-card>
-    <ion-card>
-      <ion-accordion-group>
-        <ion-accordion value="first">
-          <ion-item slot="header">
-            <ion-card-header>
-              <ion-card-title translate="bundle.vm.options"></ion-card-title>
-            </ion-card-header>
+            </ion-col>
+          </ion-row>
 
-          </ion-item>
-          <ion-card-content class="ion-padding" slot="content">
-            <ion-list>
-              <ion-list-header>
-                <ion-grid>
-                  <ion-row>
-                    <ion-col size="5" translate="common.key"></ion-col>
-                    <ion-col size="6" translate="common.value"></ion-col>
-                    <ion-col size="1" translate="common.actions"></ion-col>
-                  </ion-row>
-                </ion-grid>
-              </ion-list-header>
-              <ion-grid>
-                <ion-row>
-                  <ion-col size="5">
-                    <ion-item>
-                      <ion-label translate="common.key"></ion-label>
-                      <ion-input #vmoKey (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
-                    </ion-item>
-                  </ion-col>
-                  <ion-col size="6">
-                    <ion-item>
-                      <ion-label translate="common.value"></ion-label>
-                      <ion-input #vmoValue (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
-                    </ion-item>
-                  </ion-col>
-                  <ion-col size="1" class="ion-text-center">
-                    <ion-button (click)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';">
-                      <ion-icon slot="icon-only" name="add-circle"></ion-icon>
-                    </ion-button>
-                  </ion-col>
-                </ion-row>
-                <ion-row *ngFor="let key of vmOptionsKeys">
-                  <ion-col size="5">{{key}}</ion-col>
-                  <ion-col size="6">{{bundle.vmOptions[key]}}</ion-col>
-                  <ion-col size="1"  class="ion-text-center" >
-                    <ion-button color="danger" (click)="removeVmOption(key)">
-                      <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
-                    </ion-button>
-                  </ion-col>
-                </ion-row>
-              </ion-grid>
-            </ion-list>
-          </ion-card-content>
-        </ion-accordion>
-      </ion-accordion-group>
-    </ion-card>
-  </ng-container>
+          <ion-row>
+            <ion-col>
+              <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                         translate="bundle.environment"></ion-title>
+              <ion-row>
+                <ion-col size="5">
+                  <ion-item>
+                    <ion-label position="floating" translate="common.key"></ion-label>
+                    <ion-input #envKey
+                               (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
+                  </ion-item>
+                </ion-col>
+                <ion-col size="6">
+                  <ion-item>
+                    <ion-label position="floating" translate="common.value"></ion-label>
+                    <ion-input #envValue
+                               (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
+                  </ion-item>
+                </ion-col>
+                <ion-col size="1" class="ion-text-center">
+                  <ion-button (click)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';">
+                    <ion-icon slot="icon-only" name="add-circle"></ion-icon>
+                  </ion-button>
+                </ion-col>
+              </ion-row>
+              <ion-row *ngFor="let key of environmentKeys">
+                <ion-col size="5">{{key}}</ion-col>
+                <ion-col size="6">{{bundle.environment[key]}}</ion-col>
+                <ion-col size="1" class="ion-text-center">
+                  <ion-button color="danger" (click)="removeEnv(key)">
+                    <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
+                  </ion-button>
+                </ion-col>
+              </ion-row>
+
+            </ion-col>
+          </ion-row>
+          <ion-row>
+            <ion-col>
+
+              <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                         translate="bundle.vm.options"></ion-title>
+
+
+              <ion-row>
+                <ion-col size="5">
+                  <ion-item>
+                    <ion-label translate="common.key"></ion-label>
+                    <ion-input #vmoKey
+                               (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
+                  </ion-item>
+                </ion-col>
+                <ion-col size="6">
+                  <ion-item>
+                    <ion-label translate="common.value"></ion-label>
+                    <ion-input #vmoValue
+                               (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
+                  </ion-item>
+                </ion-col>
+                <ion-col size="1" class="ion-text-center">
+                  <ion-button
+                    (click)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';">
+                    <ion-icon slot="icon-only" name="add-circle"></ion-icon>
+                  </ion-button>
+                </ion-col>
+              </ion-row>
+              <ion-row *ngFor="let key of vmOptionsKeys">
+                <ion-col size="5">{{key}}</ion-col>
+                <ion-col size="6">{{bundle.vmOptions[key]}}</ion-col>
+                <ion-col size="1" class="ion-text-center">
+                  <ion-button color="danger" (click)="removeVmOption(key)">
+                    <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
+                  </ion-button>
+                </ion-col>
+              </ion-row>
+            </ion-col>
+          </ion-row>
+
+          <ion-row>
+            <ion-col class="ion-text-end">
+              <ion-note><span translate="common.last.update"></span>: {{bundle.updatedAt * 1000 | date}}</ion-note>
+            </ion-col>
+          </ion-row>
+        </ion-col>
+        <ion-col size="3" class=" ion-padding-start">
+          <ion-row class="line-under"></ion-row>
+          <ion-row class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="primary" name="cube"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="common.components"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let r of components">
+                <ion-chip outline="true"  routerLink="/component-info/{{r.name}}">
+                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                </ion-chip>
+              </div>
+
+            </ion-col>
+          </ion-row>
+          <ion-row class="line-under">
+            <ion-col>
+              <div style="margin: 16px 0 5px 5px">
+                <ion-text>
+                  <ion-icon color="warning" name="folder-open"></ion-icon>
+                  <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
+                </ion-text>
+              </div>
+              <div *ngFor="let domain of bundle.domains">
+                <ion-chip outline="true">
+                  <ion-text color="warning" style="font-size: 25px">•</ion-text>&nbsp;{{domain}}</ion-chip>
+              </div>
+
+            </ion-col>
+          </ion-row>
+        </ion-col>
+      </ion-row>
+
+
+    </ion-grid>
+  </app-wrapped-content>
 
 </ion-content>

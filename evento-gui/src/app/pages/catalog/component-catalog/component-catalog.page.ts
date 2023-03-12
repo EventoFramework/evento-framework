@@ -47,7 +47,7 @@ export class ComponentCatalogPage implements OnInit {
     this.components = this.allComponents.filter(c => {
       let match = true;
       if (this.search.length > 0) {
-        match = match && (c.componentName.toLowerCase().includes(this.search.toLowerCase()) || c.description.toLowerCase().includes(this.search.toLowerCase()));
+        match = match && (c.componentName.toLowerCase().includes(this.search.toLowerCase()) || c.description?.toLowerCase().includes(this.search.toLowerCase()));
       }
       if (hasSelectedTypes)
         match = match && this.selectedTypes[c.componentType];

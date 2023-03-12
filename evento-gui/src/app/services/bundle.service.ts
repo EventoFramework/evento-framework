@@ -66,4 +66,17 @@ export class BundleService {
       method: 'DELETE'
     })
   }
+
+  update(bundleId, description, detail) {
+    return fetch(environment.eventoServerUrl + '/api/bundle/' + bundleId , {
+      method: 'PUT',
+      body:JSON.stringify({
+        description,
+        detail
+      }),
+      headers:{
+        'Content-Type': 'application/json'
+      }
+    })
+  }
 }
