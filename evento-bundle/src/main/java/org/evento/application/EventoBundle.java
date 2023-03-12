@@ -360,7 +360,6 @@ public class EventoBundle {
                     logger.info("Message bus enabled");
                     logger.info("Wait for discovery...");
                     Thread.sleep(3000);
-                    logger.info("Starting saga consumers");
                     eventoBundle.startSagaEventConsumers();
                     logger.info("Application Started!");
                 }catch (Exception e){
@@ -456,6 +455,8 @@ public class EventoBundle {
     }
 
     private void startSagaEventConsumers() {
+        if(sagas.isEmpty()) return;
+        logger.info("Starting saga consumers");
         logger.info("Checking for saga event consumers");
         for (SagaReference saga : sagas) {
             var sagaName = saga.getRef().getClass().getSimpleName();
@@ -510,6 +511,10 @@ public class EventoBundle {
         }
     }
     public void startProjectorEventConsumers(Runnable onHeadReached) {
+        if(projectors.isEmpty()) {
+            onHeadReached.run();
+            return;
+        };
         var counter = new AtomicInteger();
         logger.info("Checking for projector event consumers");
         for (ProjectorReference projector : projectors) {
@@ -566,8 +571,6 @@ public class EventoBundle {
 
             }).start();
         }
-
-        if(projectors.isEmpty()) onHeadReached.run();
 
     }
 
