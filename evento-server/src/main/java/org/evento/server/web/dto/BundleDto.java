@@ -8,9 +8,11 @@ import org.evento.server.domain.model.Bundle;
 import org.evento.server.domain.model.Handler;
 
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -31,9 +33,15 @@ public class BundleDto implements Serializable {
 	private Map<String, String> vmOptions;
 	private Collection<HandlerDto> handlers;
 
+	private String detail;
+	private String description;
+
 	private boolean autorun;
 	private int minInstances;
 	private int maxInstances;
+
+	private Instant updatedAt;
+	private Set<String> domains;
 
 	public BundleDto(Bundle bundle, List<Handler> handlers) {
 		this.id = bundle.getId();
@@ -48,5 +56,9 @@ public class BundleDto implements Serializable {
 		this.autorun = bundle.isAutorun();
 		this.minInstances = bundle.getMinInstances();
 		this.maxInstances = bundle.getMaxInstances();
+		this.description = bundle.getDescription();
+		this.detail = bundle.getDetail();
+		this.updatedAt = bundle.getUpdatedAt();
+		this.domains = handlers.stream().map(h -> h.getHandledPayload().getDomain()).collect(Collectors.toSet());
 	}
 }

@@ -57,7 +57,7 @@
                 </ion-text>
               </div>
               <div>
-                <ion-chip outline="true">
+                <ion-chip outline="true" routerLink="/bundle-info/{{component.bundleId}}">
                   <ion-text [style.color]="component.bundleColor" style="font-size: 25px">•
                   </ion-text>&nbsp;{{component.bundleId}}</ion-chip>
               </div>
@@ -95,7 +95,7 @@
               </div>
             </ion-col>
           </ion-row>
-          <ion-row class="line-under">
+          <ion-row class="line-under" *ngIf="component.invocations.length">
             <ion-col>
               <div style="margin: 16px 0 5px 5px">
                 <ion-text>

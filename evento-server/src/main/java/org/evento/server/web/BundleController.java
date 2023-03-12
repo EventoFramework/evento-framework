@@ -8,6 +8,7 @@ import org.evento.server.service.HandlerService;
 import org.evento.server.web.dto.BundleDto;
 import org.evento.server.domain.model.BucketType;
 import org.evento.server.domain.model.Bundle;
+import org.evento.server.web.dto.BundleUpdateDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.Assert;
@@ -89,6 +90,12 @@ public class BundleController {
 		Assert.isTrue(bundle != null, "error.bundle.is.null");
 		Assert.isTrue(bundle.getBucketType() != BucketType.Ephemeral, "error.bundle.is.epehemeral");
 		bundleService.unregister(bundleId);
+		return ResponseEntity.ok().build();
+	}
+
+	@PutMapping("/{bundleId}")
+	public ResponseEntity<?> update(@PathVariable String bundleId, @RequestBody BundleUpdateDTO dto) {
+		bundleService.update(bundleId, dto.getDescription(), dto.getDetail());
 		return ResponseEntity.ok().build();
 	}
 

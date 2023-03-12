@@ -49,7 +49,7 @@ export class PayloadCatalogPage implements OnInit {
     this.payloads = this.allPayloads.filter(p => {
       let match = true;
       if (this.search.length > 0) {
-        match = match && (p.name.toLowerCase().includes(this.search.toLowerCase()) || p.description.toLowerCase().includes(this.search.toLowerCase()));
+        match = match && (p.name.toLowerCase().includes(this.search.toLowerCase()) || p.description?.toLowerCase().includes(this.search.toLowerCase()));
       }
       if (hasSelectedTypes)
         match = match && this.selectedTypes[p.type];

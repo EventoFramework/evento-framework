@@ -5,6 +5,7 @@ import {AppMapDiagramComponent} from "./app-map-diagram/app-map-diagram.componen
 import {AppModule} from "../app.module";
 import {IonicModule} from "@ionic/angular";
 import {ComponentHandlersDiagramComponent} from "./component-handlers-diagram/component-handlers-diagram.component";
+import {BundleComponentsDiagramComponent} from "./bundle-components-diagram/bundle-components-diagram.component";
 
 
 @NgModule({
@@ -12,12 +13,14 @@ import {ComponentHandlersDiagramComponent} from "./component-handlers-diagram/co
     WrappedContentComponent,
     InvokersHandlersDiagramComponent,
     AppMapDiagramComponent,
-    ComponentHandlersDiagramComponent
+    ComponentHandlersDiagramComponent,
+    BundleComponentsDiagramComponent
   ],
   exports: [
     InvokersHandlersDiagramComponent,
     WrappedContentComponent,
     ComponentHandlersDiagramComponent,
+    BundleComponentsDiagramComponent,
   ],
   imports: [
     IonicModule
@@ -26,6 +29,7 @@ import {ComponentHandlersDiagramComponent} from "./component-handlers-diagram/co
     WrappedContentComponent,
     InvokersHandlersDiagramComponent,
     ComponentHandlersDiagramComponent,
+    BundleComponentsDiagramComponent,
     AppMapDiagramComponent]
 })
 export class ComponentsModule {
