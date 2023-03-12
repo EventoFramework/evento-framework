@@ -84,5 +84,8 @@
   "bundle.settings": "Bundle Settings",
   "bundle.services.diagram": "Bundle Services Diagram",
   "cluster.title": "Cluster Status",
-  "cluster.external": "External bundles"
+  "cluster.external": "External bundles",
+  "flows.search": "Find Payload, Component or Domain",
+  "flows.all": "All Components and Payload",
+  "flows.all.desc": "Diagram that show all flows present in you system"
 }

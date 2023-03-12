@@ -1,5 +1,6 @@
 package org.evento.server.domain.performance.queue;
 
+import org.evento.server.domain.model.Payload;
 import org.evento.server.domain.performance.modeling.PerformanceFetcher;
 
 import java.util.ArrayList;
@@ -20,15 +21,15 @@ public class QueueNetwork {
 		this.performanceFetcher = performanceFetcher;
 	}
 
-	public ServiceStation station(String bundleId, String componentName, String action, boolean async, Integer numServers) {
+	public ServiceStation station(String bundleId, String componentName, String componentType, String action, String actionType, boolean async, Integer numServers) {
 		var p = performanceFetcher.getMeanServiceTime(bundleId, componentName, action);
-		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, action, async, numServers, p);
+		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, componentType, action, actionType, async, numServers, p);
 		nodes.add(ss);
 		return ss;
 	}
 
-	public ServiceStation station(String bundleId, String componentName, String action, boolean async, Integer numServers, Double p) {
-		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, action, async, numServers, p);
+	public ServiceStation station(String bundleId, String componentName, String componentType, String action, String actionType, boolean async, Integer numServers, Double p) {
+		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, componentType, action, actionType, async, numServers, p);
 		nodes.add(ss);
 		return ss;
 	}
@@ -47,8 +48,9 @@ public class QueueNetwork {
 		return nodes;
 	}
 
-	public Source source(String name) {
-		var source  = new Source(idGenerator.getAndIncrement(), name);
+
+	public Source source(Payload handledPayload) {
+		var source = new Source(idGenerator.getAndIncrement(), handledPayload.getName(), handledPayload.getType().toString());
 		nodes.add(source);
 		return source;
 	}
