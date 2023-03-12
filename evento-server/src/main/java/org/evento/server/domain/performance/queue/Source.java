@@ -7,11 +7,13 @@ public class Source extends Node{
 
 
 	private String name;
+	private String type;
 	private Set<Node> target = new HashSet<>();
 
-	public Source(long id, String name) {
+	public Source(long id, String name, String type) {
 		super(id);
 		this.name = name;
+		this.type = type;
 	}
 
 	public Source() {
@@ -31,5 +33,13 @@ public class Source extends Node{
 
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
 	}
 }
