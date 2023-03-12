@@ -80,5 +80,8 @@
   "component.handlers": "Handlers",
   "component.publications": "Publications",
   "component.invocations": "Invocations",
-  "component.handlers.consume.produce.diagram": "Handlers Consume/Produce Diagram"
+  "component.handlers.consume.produce.diagram": "Handlers Consume/Produce Diagram",
+  "common.components": "Components",
+  "bundle.settings": "Bundle Settings",
+  "bundle.services.diagram": "Bundle Services Diagram"
 }

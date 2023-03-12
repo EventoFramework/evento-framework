@@ -39,8 +39,9 @@ export class BundleListPage implements OnInit {
     const hasSelectedDomains = Object.values(this.selectedDomains).reduce((a, b) => a || b, false);
     this.bundles = this.allBundles.filter(b => {
       let match = true;
+      console.log(this.search);
       if (this.search.length > 0) {
-        match = match && (b.name.toLowerCase().includes(this.search.toLowerCase()) || b.description.toLowerCase().includes(this.search.toLowerCase()));
+        match = match && (b.id.toLowerCase().includes(this.search.toLowerCase()) || b.description?.toLowerCase().includes(this.search.toLowerCase()));
       }
       if (hasSelectedDomains)
         match = match && b.domains.filter(h => this.selectedDomains[h]).length > 0;

@@ -575,24 +575,36 @@ public class BundleService {
     public void putEnv(String bundleId, String key, String value) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().put(key, value);
+        bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
     }
 
     public void removeEnv(String bundleId, String key) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().remove(key);
+        bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
     }
 
     public void putVmOption(String bundleId, String key, String value) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().put(key, value);
+        bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
     }
 
     public void removeVmOption(String bundleId, String key) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().remove(key);
+        bundle.setUpdatedAt(Instant.now());
+        bundleRepository.save(bundle);
+    }
+
+    public void update(String bundleId, String description, String detail) {
+        var bundle = bundleRepository.findById(bundleId).orElseThrow();
+        bundle.setDescription(description);
+        bundle.setDetail(detail);
+        bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
     }
 }
