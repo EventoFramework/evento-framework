@@ -13,7 +13,7 @@ class BundleDescriptionParserTest {
     public void test() throws Exception {
        JavaBundleParser applicationParser = new JavaBundleParser();
        var components = applicationParser.parseDirectory(
-               new File("../evento-demo/evento-demo-saga"));
+               new File("../evento-demo/evento-demo-observer"));
        var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
 
        System.out.println(components);
