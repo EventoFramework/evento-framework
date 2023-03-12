@@ -19,25 +19,12 @@ public class HandlerController {
 
 	private final HandlerService handlerService;
 
-	private final ApplicationQueueNetService applicationQueueNetService;
-
-	public HandlerController(HandlerService handlerService, ApplicationQueueNetService applicationQueueNetService) {
+	public HandlerController(HandlerService handlerService) {
 		this.handlerService = handlerService;
-		this.applicationQueueNetService = applicationQueueNetService;
 	}
 
 	@GetMapping("/")
 	public ResponseEntity<List<HandlerDto>> findAllHandlers(){
 		return ResponseEntity.ok(handlerService.findAll().stream().map(HandlerDto::new).collect(Collectors.toList()));
-	}
-
-	@GetMapping("/to-queue-net")
-	public ResponseEntity<QueueNetworkDTO> toQueueNet(){
-		return ResponseEntity.ok(new QueueNetworkDTO(applicationQueueNetService.toQueueNetwork()));
-	}
-
-	@GetMapping("/to-queue-net/{handlerId}")
-	public ResponseEntity<QueueNetworkDTO> toQueueNet(@PathVariable String handlerId){
-		return ResponseEntity.ok(new QueueNetworkDTO(applicationQueueNetService.toQueueNetwork(handlerId)));
 	}
 }

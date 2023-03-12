@@ -13,14 +13,41 @@
 <ion-content>
   <ion-grid style="height: 100%; width: 100%">
     <ion-row style="height: 100%; width: 100%">
-      <ion-col size="2">
-        <ion-searchbar mode="ios" [placeholder]="'flows.search' | translate"></ion-searchbar>
-        <ion-card class="bundle" style="background: #3b82f6">
+      <ion-col size="2" style="overflow-y: scroll; max-height: calc(100vh - 64px)">
+        <ion-searchbar [(ngModel)]="search" (ionChange)="checkFilter()" mode="ios" [placeholder]="'flows.search' | translate"></ion-searchbar>
+        <ion-card class="bundle" style="background: #3b82f6" routerLink="/application-flows">
           <ion-card-content>
             <ion-text class="title" translate="flows.all"></ion-text>
             <p translate="flows.all.desc"></p>
           </ion-card-content>
         </ion-card>
+        <ng-container *ngIf="payloads && payloads.length">
+        <ion-title class="title ion-margin"><span translate="catalog.payload.title"></span> ({{payloads.length}})</ion-title>
+          <ion-card *ngFor="let payload of payloads" [class]="'payload-type payload-type-' + payload.type" routerLink="/application-flows" [queryParams]="{'payload' : payload.name}">
+            <ion-card-content>
+              <ion-text class="title">{{payload.name}}</ion-text>
+              <p>{{payload.description}}</p>
+            </ion-card-content>
+          </ion-card>
+        </ng-container>
+        <ng-container *ngIf="components && components.length">
+          <ion-title class="title ion-margin"><span translate="catalog.component.title"></span> ({{components.length}})</ion-title>
+          <ion-card *ngFor="let component of components" [class]="'component-type component-type-' + component.componentType" routerLink="/application-flows" [queryParams]="{'component' : component.componentName}">
+            <ion-card-content>
+              <ion-text class="title">{{component.componentName}}</ion-text>
+              <p>{{component.description}}</p>
+            </ion-card-content>
+          </ion-card>
+        </ng-container>
+        <ng-container *ngIf="bundleFilter && bundleFilter.length">
+          <ion-title class="title ion-margin"><span translate="bundle.title"></span> ({{bundleFilter.length}})</ion-title>
+          <ion-card *ngFor="let bundle of bundleFilter" class="bundle" [style.background-color]="bundle.color" routerLink="/application-flows" [queryParams]="{'bundle' : bundle.id}">
+            <ion-card-content>
+              <ion-text class="title">{{bundle.id}}</ion-text>
+              <p>{{bundle.description}}</p>
+            </ion-card-content>
+          </ion-card>
+        </ng-container>
       </ion-col>
       <ion-col size="10" style="height: 100%">
         <div style="background: url('https://jgraph.github.io/mxgraph/javascript/examples/editors/images/grid.gif');

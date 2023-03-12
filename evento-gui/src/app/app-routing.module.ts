@@ -24,7 +24,7 @@ const routes: Routes = [
     loadChildren: () => import('./pages/application-map/application-map.module').then( m => m.ApplicationMapPageModule)
   },
   {
-    path: 'application-flows/:handlerId',
+    path: 'application-flows',
     loadChildren: () => import('./pages/application-flows/application-flows.module').then(m => m.ApplicationFlowsPageModule)
   },
   {

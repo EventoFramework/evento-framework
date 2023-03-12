@@ -12,7 +12,11 @@ export class HandlerService {
     return fetch(environment.eventoServerUrl + '/api/handler/').then(r => r.json());
   }
 
-  getQueueNet(handlerId = null) {
-    return fetch(environment.eventoServerUrl + '/api/handler/to-queue-net' + (handlerId ? ('/' + handlerId) : '')).then(r => r.json());
+  getQueueNet() {
+    return fetch(environment.eventoServerUrl + '/api/handler/to-queue-net').then(r => r.json());
+  }
+
+  getQueueNetFilter(filter, value) {
+    return fetch(environment.eventoServerUrl + '/api/handler/to-queue-net/'+filter+'/'+value).then(r => r.json());
   }
 }
