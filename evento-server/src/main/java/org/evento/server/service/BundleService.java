@@ -61,6 +61,7 @@ public class BundleService {
             b.setAutorun(bundleDescription.getAutorun());
             b.setMinInstances(bundleDescription.getMinInstances());
             b.setMaxInstances(bundleDescription.getMaxInstances());
+            b.setUpdatedAt(Instant.now());
             return bundleRepository.save(b);
         }).orElseGet(() -> {
             isNew.set(true);
@@ -211,6 +212,7 @@ public class BundleService {
                                 payload.setType(PayloadType.Event);
                                 payload.setUpdatedAt(Instant.now());
                                 payload.setRegisteredIn(bundle.getId());
+                                payload.setUpdatedAt(Instant.now());
                                 return payloadRepository.save(payload);
                             }
                     ));

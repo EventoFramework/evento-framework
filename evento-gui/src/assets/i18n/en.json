@@ -34,7 +34,7 @@
 	"cluster.node.kill":"Kill",
 	"cluster.node.spawn":"Spawn",
 	"node.external":"External",
-	"status":"Status",
+	"common.status":"Status",
 	"library.title":"Library",
 	"library.payload.name":"Payload Name",
 	"library.payload.type":"Payload Type",
@@ -84,5 +84,5 @@
   "bundle.settings": "Bundle Settings",
   "bundle.services.diagram": "Bundle Services Diagram",
   "cluster.title": "Cluster Status",
-  "cluster.external": "Not registered bundles"
+  "cluster.external": "External bundles"
 }
