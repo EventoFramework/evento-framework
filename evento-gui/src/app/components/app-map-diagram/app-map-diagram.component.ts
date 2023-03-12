@@ -2,10 +2,12 @@ import {Component, OnInit} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 import {BundleColorService} from '../../services/bundle-color.service';
 import {NavController} from "@ionic/angular";
+import {componentColor, graphCenterFit, payloadColor} from "../../services/utils";
 
 declare const mxGraph: any;
 declare const mxConstants: any;
 declare const mxUtils: any;
+declare const mxEvent: any;
 
 @Component({
   // eslint-disable-next-line @angular-eslint/component-selector
@@ -76,6 +78,17 @@ export class AppMapDiagramComponent implements OnInit {
       handler.h = h;
     }
 
+    const components = {};
+    const payloads = {};
+
+    for (let h of handlers) {
+      components[h.componentName] = h.componentType;
+      payloads[h.handledPayload.name] = h.handledPayload.type;
+      if (h.returnType) {
+        payloads[h.returnType.name] = h.returnType.type;
+      }
+    }
+
     const bundleComponentCircles = {};
     const componentHandlerCircles = {};
 
@@ -126,87 +139,109 @@ export class AppMapDiagramComponent implements OnInit {
 
     graph.addListener('click', (source, evt) => {
       const cell = evt.getProperty('cell');
-
+      console.log(cell);
       if (cell != null &&
         cell.value != null && cell.value.handlerId) {
 
-        this.navController.navigateForward('/application-flows/' + cell.value.handlerId);
+        this.navController.navigateForward('/application-flows?handler=' + cell.value.handlerId);
+      }
+      if (cell != null &&
+        cell.value != null && cell.value.componentId) {
+
+        this.navController.navigateForward('/application-flows?component=' + cell.value.componentId);
+      }
+      if (cell != null &&
+        cell.value != null && cell.value.bundleId) {
+
+        this.navController.navigateForward('/application-flows?bundle=' + cell.value.bundleId);
       }
     });
 
-    graph.getModel().beginUpdate();
-    try {
+    setTimeout(() => {
 
-      const nodeStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=white;';
-      const diameter = this.diameter(bundleCircles);
+      graph.getModel().beginUpdate();
+      try {
 
-      const minX = Math.min.apply(null, bundleCircles.map(c => c.x - c.r));
-      const minY = Math.min.apply(null, bundleCircles.map(c => c.y - c.r));
-      for (const c of bundleCircles) {
-        const x = c.x - c.r - minX;
-        const y = c.y - c.r - minY;
-        const bp = graph.insertVertex(parent, null, c.n,
-          x,
-          y,
-          c.r * 2,
-          c.r * 2, nodeStyle + 'verticalAlign=top;labelBackgroundColor=#ffffff;labelBorderColor=' + this.bundleColorService.getColorForBundle(c.id) + ';spacingTop=-3;strokeColor=' + this.bundleColorService.getColorForBundle(c.id));
-        bp.setConnectable(false);
+        const nodeStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;fontColor=black;fillColor=white;';
+        const diameter = this.diameter(bundleCircles);
 
-        const _minX = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.x - h.r));
-        const _minY = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.y - h.r));
-
-        const _diameter = c.r * 2;
-        const _centralPoint = this.getCenter(bundleComponentCircles[c.id]);
-        const _center = (_diameter / 2);
-
-        for (const _c of bundleComponentCircles[c.id]) {
-          const _x = _c.x - _c.r - _minX;
-          const _y = _c.y - _c.r - _minY;
-          const _bp = graph.insertVertex(bp, null, _c.n,
-            _x + (_center - (_centralPoint.x - _minX)),
-            _y + (_center - (_centralPoint.y - _minY)),
-            _c.r * 2,
-            _c.r * 2, nodeStyle + ';verticalAlign=top;fillColor=white;verticalAlign=top;labelBackgroundColor=#ffffff;spacingTop=3;');
-          _bp.setConnectable(false);
-
-          const __minX = Math.min.apply(null, componentHandlerCircles[_c.id].map(h => h.x - h.r));
-          const __minY = Math.min.apply(null, componentHandlerCircles[_c.id].map(h => h.y - h.r));
-
-          const __diameter = _c.r * 2;
-          const __centralPoint = this.getCenter(componentHandlerCircles[_c.id]);
-          const __center = (__diameter / 2);
-
-          for (const __c of componentHandlerCircles[_c.id]) {
-            const __x = __c.x - __c.r - __minX;
-            const __y = __c.y - __c.r - __minY;
-            const __bp = graph.insertVertex(_bp, __c.id, {
-              toString: () => __c.n,
-              handlerId: __c.id
+        const minX = Math.min.apply(null, bundleCircles.map(c => c.x - c.r));
+        const minY = Math.min.apply(null, bundleCircles.map(c => c.y - c.r));
+        for (const c of bundleCircles) {
+          const x = c.x - c.r - minX;
+          const y = c.y - c.r - minY;
+          const bp = graph.insertVertex(parent, null, {
+              toString: () => c.n,
+              bundleId: c.id
             },
-              __x + (__center - (__centralPoint.x - __minX)),
-              __y + (__center - (__centralPoint.y - __minY)),
-              __c.r * 2,
-              __c.r * 2, nodeStyle + ';fillColor=transparent');
-            __bp.setConnectable(true);
+            x,
+            y,
+            c.r * 2,
+            c.r * 2, nodeStyle + 'verticalAlign=top;labelBackgroundColor=#ffffff;labelBorderColor=' + this.bundleColorService.getColorForBundle(c.id) + ';spacingTop=-3;strokeColor=' + this.bundleColorService.getColorForBundle(c.id));
+          bp.setConnectable(false);
+
+          const _minX = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.x - h.r));
+          const _minY = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.y - h.r));
+
+          const _diameter = c.r * 2;
+          const _centralPoint = this.getCenter(bundleComponentCircles[c.id]);
+          const _center = (_diameter / 2);
+
+          for (const _c of bundleComponentCircles[c.id]) {
+            const _x = _c.x - _c.r - _minX;
+            const _y = _c.y - _c.r - _minY;
+            const _bp = graph.insertVertex(bp, null, {
+              toString: () => _c.n,
+              componentId: _c.id
+            },
+              _x + (_center - (_centralPoint.x - _minX)),
+              _y + (_center - (_centralPoint.y - _minY)),
+              _c.r * 2,
+              _c.r * 2, nodeStyle + ';verticalAlign=top;fillColor=white;verticalAlign=top;labelBackgroundColor=#ffffff;spacingTop=3;labelBorderColor=' + componentColor[components[_c.n]] + ';strokeColor=' + componentColor[components[_c.n]]);
+            _bp.setConnectable(false);
+
+            const __minX = Math.min.apply(null, componentHandlerCircles[_c.id].map(h => h.x - h.r));
+            const __minY = Math.min.apply(null, componentHandlerCircles[_c.id].map(h => h.y - h.r));
+
+            const __diameter = _c.r * 2;
+            const __centralPoint = this.getCenter(componentHandlerCircles[_c.id]);
+            const __center = (__diameter / 2);
+
+            for (const __c of componentHandlerCircles[_c.id]) {
+              const __x = __c.x - __c.r - __minX;
+              const __y = __c.y - __c.r - __minY;
+              const __bp = graph.insertVertex(_bp, __c.id, {
+                toString: () => __c.n,
+                handlerId: __c.id
+              },
+                __x + (__center - (__centralPoint.x - __minX)),
+                __y + (__center - (__centralPoint.y - __minY)),
+                __c.r * 2,
+                __c.r * 2, nodeStyle + ';fillColor=transparent;strokeColor=' + payloadColor[payloads[__c.n]]);
+              __bp.setConnectable(true);
+            }
+
           }
-
         }
+
+
+        const edgeStyle = 'opacity=10;strokeColor=#000000;';
+        for (const handler of handlers) {
+          for (const to of handler.h.invoke) {
+            graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle);
+          }
+          for (const to of handler.h.responseHandeledBy) {
+            graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle + 'dashed=1;');
+          }
+        }
+
+      } finally {
+        graph.getModel().endUpdate();
       }
 
+      graphCenterFit(graph, container);
 
-      const edgeStyle = 'opacity=10;strokeColor=#000000;';
-      for (const handler of handlers) {
-        for (const to of handler.h.invoke) {
-          graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle);
-        }
-        for (const to of handler.h.responseHandeledBy) {
-          graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle + 'dashed=1;');
-        }
-      }
-
-    } finally {
-      graph.getModel().endUpdate();
-    }
+    }, 500);
 
 
     const updateStyle = (state, hover) => {
@@ -231,6 +266,7 @@ export class AppMapDiagramComponent implements OnInit {
 
 
     };
+
 
     graph.addMouseListener(
       {
