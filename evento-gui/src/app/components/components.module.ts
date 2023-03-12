@@ -16,12 +16,13 @@ import {BundleComponentsDiagramComponent} from "./bundle-components-diagram/bund
     ComponentHandlersDiagramComponent,
     BundleComponentsDiagramComponent
   ],
-  exports: [
-    InvokersHandlersDiagramComponent,
-    WrappedContentComponent,
-    ComponentHandlersDiagramComponent,
-    BundleComponentsDiagramComponent,
-  ],
+    exports: [
+        InvokersHandlersDiagramComponent,
+        WrappedContentComponent,
+        ComponentHandlersDiagramComponent,
+        BundleComponentsDiagramComponent,
+        AppMapDiagramComponent,
+    ],
   imports: [
     IonicModule
   ],

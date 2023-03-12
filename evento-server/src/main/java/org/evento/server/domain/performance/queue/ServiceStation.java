@@ -7,7 +7,9 @@ public class ServiceStation extends Node{
 
 	private String bundle;
 	private String component;
+	private String componentType;
 	private String action;
+	private String actionType;
 
 	private boolean async;
 	private Set<Node> target = new HashSet<>();
@@ -15,7 +17,8 @@ public class ServiceStation extends Node{
 
 	private Double meanServiceTime;
 
-	public ServiceStation(long id, String bundle, String component, String action,
+	public ServiceStation(long id, String bundle, String component, String componentType, String action,
+						  String actionType,
 						  boolean async,
 						  Integer numServers, Double meanServiceTime) {
 		super(id);
@@ -25,6 +28,8 @@ public class ServiceStation extends Node{
 		this.numServers = numServers;
 		this.async = async;
 		this.meanServiceTime = meanServiceTime;
+		this.actionType = actionType;
+		this.componentType = componentType;
 	}
 
 	public ServiceStation() {
@@ -87,5 +92,21 @@ public class ServiceStation extends Node{
 
 	public void setMeanServiceTime(Double meanServiceTime) {
 		this.meanServiceTime = meanServiceTime;
+	}
+
+	public String getActionType() {
+		return actionType;
+	}
+
+	public void setActionType(String actionType) {
+		this.actionType = actionType;
+	}
+
+	public String getComponentType() {
+		return componentType;
+	}
+
+	public void setComponentType(String componentType) {
+		this.componentType = componentType;
 	}
 }

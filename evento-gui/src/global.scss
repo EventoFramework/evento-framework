@@ -239,19 +239,29 @@ ion-title {
 }
 
 .flow {
-  stroke-dasharray: 8;
+  stroke-dasharray: 6;
   animation: dash 0.5s linear;
   animation-iteration-count: infinite;
 }
 
 @keyframes dash {
   to {
-    stroke-dashoffset: -16;
+    stroke-dashoffset: -12;
   }
 }
+
 
 .editor{
   width: 100%;
   min-height: 100px;
   background: white;
+}
+
+.pipe{
+  background-image: url('assets/img/pipe.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
