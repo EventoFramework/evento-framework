@@ -52,7 +52,6 @@
   "catalog.domain.title": "Domains",
   "bundle.title": "Bundles",
   "bundle.search": "Search Bundles",
-  "cluster.title": "Cluster",
   "catalog.payload.search": "Search Payload",
   "catalog.payload.type.filter": "Filter By Type",
   "catalog.payload.domain.filter": "Filter By Domain",
@@ -83,5 +82,7 @@
   "component.handlers.consume.produce.diagram": "Handlers Consume/Produce Diagram",
   "common.components": "Components",
   "bundle.settings": "Bundle Settings",
-  "bundle.services.diagram": "Bundle Services Diagram"
+  "bundle.services.diagram": "Bundle Services Diagram",
+  "cluster.title": "Cluster Status",
+  "cluster.external": "Not registered bundles"
 }

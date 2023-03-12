@@ -76,7 +76,7 @@ export class ComponentHandlersDiagramComponent implements OnInit {
         edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
 
         if(h.returnType){
-          const r = graph.insertVertex(parent, h.returnType.name, h.returnType.name, 0, 0, 250, 50,
+          const r = graph.insertVertex(parent, h.returnType.name, h.returnType.name  + (h.returnIsMultiple ? '[]' : ''), 0, 0, 250, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] + ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
         }
