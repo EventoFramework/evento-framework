@@ -315,7 +315,7 @@ export class ApplicationFlowsPage implements OnInit {
               var txt = node.throughtput.toFixed(4) + "  [r/ms]";
               txt += "\n" + ql.toFixed(4) + " [ql/ms]";
               graph.insertEdge(parent, null, txt, vertexRef[node.id],
-                vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';strokeWidth=' + (ratio * 20) + ';strokeColor=' + c);
+                vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';strokeWidth=' + (ratio * 5) + ';strokeColor=' + c);
             } else {
               edges.push(graph.insertEdge(parent, null, "", vertexRef[node.id],
                 vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';' + (target.async ? 'strokeColor=#999999' : 'strokeColor=#000')));

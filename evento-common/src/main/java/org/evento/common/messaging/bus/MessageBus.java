@@ -49,7 +49,7 @@ public abstract class MessageBus {
 
 			@Override
 			public void onViewUpdate(Set<NodeAddress> view, Set<NodeAddress> nodeAdded, Set<NodeAddress> nodeRemoved) {
-				logger.debug("View Updated - {}", view.stream().map(NodeAddress::getNodeId).collect(Collectors.joining(" ")));
+				logger.info("View Updated - {}", view.stream().map(NodeAddress::getNodeId).collect(Collectors.joining(" ")));
 				currentView = view;
 				availableNodes.removeAll(nodeRemoved);
 				viewListeners.stream().toList().forEach(l -> l.accept(view));
@@ -63,7 +63,7 @@ public abstract class MessageBus {
 				}
 			}
 		});
-		
+
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
 			try
 			{
@@ -103,10 +103,6 @@ public abstract class MessageBus {
 
 	protected abstract void disconnect();
 
-	public MessageBus enabled() throws Exception {
-		enableBus();
-		return this;
-	}
 
 	public NodeAddress getNodeAddress(String bundleId) {
 		return getCurrentView().stream()
@@ -311,25 +307,22 @@ public abstract class MessageBus {
 				{
 					if (!this.availableNodes.contains(src))
 					{
-
+						this.availableNodes.add(src);
+						try
 						{
-							this.availableNodes.add(src);
-							try
-							{
-								cast(src, new ClusterNodeStatusUpdateMessage(this.enabled));
-								logger.debug("ENABLED " + src.getNodeId());
-							} catch (Exception e)
-							{
-								e.printStackTrace();
-							}
-							joinListeners.stream().toList().forEach(c -> c.accept(src));
-							availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
+							cast(src, new ClusterNodeStatusUpdateMessage(this.enabled));
+							logger.info("ENABLED " + src.getNodeId());
+						} catch (Exception e)
+						{
+							e.printStackTrace();
+						}
+						joinListeners.stream().toList().forEach(c -> c.accept(src));
+						availableViewListeners.stream().toList().forEach(l -> l.accept(availableNodes));
 
-							if (getAddress().getBundleId().equals(src.getBundleId()) && getAddress().getBundleVersion() < src.getBundleVersion())
-							{
-								logger.info("Newer bundle version detected (current: %d -> newer: %d), stepping aside :( ".formatted(getAddress().getBundleVersion(), src.getBundleVersion()));
-								gracefulShutdown();
-							}
+						if (getAddress().getBundleId().equals(src.getBundleId()) && getAddress().getBundleVersion() < src.getBundleVersion())
+						{
+							logger.info("Newer bundle version detected (current: %d -> newer: %d), stepping aside :( ".formatted(getAddress().getBundleVersion(), src.getBundleVersion()));
+							gracefulShutdown();
 						}
 					}
 
