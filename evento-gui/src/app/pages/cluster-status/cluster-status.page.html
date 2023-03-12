@@ -9,15 +9,11 @@
       </ion-row>
       <ion-row class="line-under">
         <ion-col size="6" *ngFor="let component of attendedView">
-          <ion-card>
-            <ion-card-header>
-              <ion-card-title>
-                {{component}}
-                <a routerLink="/bundle-info/{{component}}"><ion-icon name="open-outline"></ion-icon></a>
-              </ion-card-title>
-            </ion-card-header>
+          <ion-card class="bundle"  [style.background]="bundleColor[component]">
             <ion-card-content>
-              <ion-grid>
+              <ion-text class="title">{{component}}
+                <a routerLink="/bundle-info/{{component}}"><ion-icon name="open-outline"></ion-icon></a></ion-text>
+              <ion-grid class="ion-no-padding">
                 <ion-row>
                   <ion-col><span translate="cluster.status"></span>:</ion-col>
                   <ion-col>
@@ -57,9 +53,10 @@
                   </ion-col>
                 </ion-row>
               </ion-grid>
-            </ion-card-content>
               <ion-button fill="clear" color="primary" (click)="spawnBundle(component)"
                           translate="cluster.node.spawn"></ion-button>
+            </ion-card-content>
+
           </ion-card>
         </ion-col>
       </ion-row>
