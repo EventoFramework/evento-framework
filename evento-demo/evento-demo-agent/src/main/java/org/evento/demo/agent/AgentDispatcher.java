@@ -24,6 +24,7 @@ public class AgentDispatcher implements CommandLineRunner {
 
 		var demoLifecycleAgent = new DemoLifecycleAgent(eventoBundle);
 
+		Thread.sleep(3000);
 
 
 		for(int i = 0; i<120; i++){

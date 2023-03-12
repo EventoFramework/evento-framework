@@ -91,7 +91,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
                 }
             }
         }
-        logger.info("ARRIVAL: " + threadCount);
+        logger.debug("ARRIVAL: " + threadCount);
 
     }
 
@@ -116,7 +116,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
             }
         }
         lastDepartureAt = Instant.now().toEpochMilli();
-        logger.info("DEPARTURE: " + threadCount);
+        logger.debug("DEPARTURE: " + threadCount);
 
     }
 }
