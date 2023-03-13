@@ -8,6 +8,8 @@ import org.evento.common.modeling.annotations.handler.InvocationHandler;
 import org.evento.demo.api.command.DemoCreateCommand;
 import org.evento.demo.api.command.DemoDeleteCommand;
 import org.evento.demo.api.command.DemoUpdateCommand;
+import org.evento.demo.api.query.DemoViewFindAllQuery;
+import org.evento.demo.api.query.DemoViewFindByIdQuery;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -39,6 +41,10 @@ public class DemoLifecycleAgent {
 				var r = 2;
 				for (int j = 1; j < r; j++) {
 					resp = commandGateway.sendAndWait(new DemoUpdateCommand(id, id, j));
+					System.out.println("[" + i + "] - " + resp);
+					resp = queryGateway.query(new DemoViewFindByIdQuery(id)).exceptionally(e -> null).get();
+					System.out.println("[" + i + "] - " + resp);
+					resp = queryGateway.query(new DemoViewFindAllQuery(10, 0)).get();
 					System.out.println("[" + i + "] - " + resp);
 				}
 				var updateMeanTime = (Instant.now().toEpochMilli() - updateAtStart) / r;
