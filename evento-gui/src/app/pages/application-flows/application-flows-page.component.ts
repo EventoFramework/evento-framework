@@ -82,7 +82,7 @@ export class ApplicationFlowsPage implements OnInit {
         this.sources.push(node);
       }
       if (!node.meanServiceTime) {
-        node.meanServiceTime = 0.0;
+        node.meanServiceTime = 0;
       }
       if (node.numServers) {
         if (!tMap[node.bundle + node.component + node.numServers]) {
@@ -95,6 +95,7 @@ export class ApplicationFlowsPage implements OnInit {
     for (const block in tMap) {
       for (const node of tMap[block]) {
         node.numServers = node.numServers / tMap[block].length;
+        node.fcr = true;
       }
     }
 
@@ -143,7 +144,8 @@ export class ApplicationFlowsPage implements OnInit {
       graph.getModel().beginUpdate();
       try {
 
-        const nodesRef = {};
+        let nodesRef = {};
+
         for (const node of this.network.nodes) {
           nodesRef[node.id] = node;
           if (node.type != 'Source') {
@@ -154,98 +156,63 @@ export class ApplicationFlowsPage implements OnInit {
 
 
         if (this.performanceAnalysis) {
-          var q = [];
-          for (const s of this.sources) {
-            s.meanServiceTime = 1 / s.throughtput;
-            s.flowThroughtput = s.throughtput;
-            s.flow = s.id;
-            q.push(s);
-          }
-          while (q.length > 0) {
-            const n = q.shift();
-            for (const t of n.target) {
-              var target = nodesRef[t];
-              target.throughtput += n.throughtput;
-              if (target.numServers) {
-                const t = target.numServers / target.meanServiceTime;
-                if (t < target.throughtput) {
-                  target.throughtput = t;
-                }
-              }
-              if (!target.flowThroughtput || (target.flowThroughtput > n.flowThroughtput))
-                target.flowThroughtput = n.flowThroughtput;
-              target.flow = n.flow;
-              q.push(target);
-            }
-          }
-
-          this.bundleActiveThreads = {};
-          this.maxFlowThroughput = {};
-
-          for (const node of this.network.nodes) {
-            const nc = node.throughtput * node.meanServiceTime;
-            node.customers = (node.numServers ? Math.max(node.numServers, nc) : nc);
-            if (node.bundle) {
-              if (!this.bundleActiveThreads[node.bundle]) {
-                this.bundleActiveThreads[node.bundle] = 0;
-              }
-              this.bundleActiveThreads[node.bundle] += node.customers;
-              if (!this.bundles.includes(node.bundle)) {
-                this.bundles.push(node.bundle);
-              }
-            }
-            node.isBottleneck = false;
-            if (!this.maxFlowThroughput[node.flow]) {
-              this.maxFlowThroughput[node.flow] = node;
-              node.isBottleneck = true;
-            } else if (nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
-              //this.maxFlowThroughput[node.flow].isBottleneck = false;
-              if (this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
-                this.maxFlowThroughput[node.flow] = node;
-              }
-              node.isBottleneck = true;
-            }
-          }
+          this.doPerformanceAnalysis(nodesRef);
 
         }
 
 
         const vertexRef = {}
 
-        const serviceStationStyle = 'shape=rectangle;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;verticalAlign=top;horizontal=1;labelPosition=center;verticalLabelPosition=middle;align=center;';
         const sinkStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent';
-        const performanceBoxStyle = '';
         const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;orthogonal=1;strokeWidth=1;';
         for (const node of this.network.nodes) {
+
+          var height = 60;
           if (node.component === 'Gateway') {
 
             vertexRef[node.id] = graph.insertVertex(parent, node.id, `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`, null, null, node.action.length * 10 + 25,
-              60,
+              height,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
 
 
           } else if (node.type === 'Source') {
             var text = node.name;
             vertexRef[node.id] = graph.insertVertex(parent, node.id, `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`, null, null, text.length * 10,
-              60,
+              height,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
           } else if (node.bundle === 'event-store') {
+            height = 80;
             vertexRef[node.id] = graph.insertVertex(parent, node.id, '\n<span class="title">' + node.action + '</span>', null, null, node.action.length * 10 + 30,
-              80,
+              height,
               'shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#333333;strokeWidth=3;');
           } else if (node.type === 'Sink') {
             node.name = node.type;
+            height = 50;
             vertexRef[node.id] = graph.insertVertex(parent, node.id, "Sink", null, null, 50,
-              50,
+              height,
               sinkStyle);
           } else {
+            height = 80;
             vertexRef[node.id] = graph.insertVertex(parent, node.id,
               `<b style="color: ${stringToColour(node.bundle)}">${node.bundle}</b>
-                <span class="title" style="color: ${componentColor[node.componentType]} !important">${node.component}</span>
-              `
+                <span class="title" style="color: ${componentColor[node.componentType]} !important">${node.component}</span>`
               , null, null, Math.max(node.component.length, node.bundle.length) * 10 + 25,
-              80,
+              height,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + stringToColour(node.bundle) + ';fontColor=#333333;strokeWidth=3;');
+          }
+
+          if (node.isBottleneck && node.type !== 'Source') {
+            vertexRef[node.id].style += 'strokeColor=#ff0000;strokeWidth=3;'
+          }
+
+          if (this.performanceAnalysis && node.meanServiceTime) {
+            vertexRef[node.id].value +=
+              `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]<br/>Customers: ${node.customers.toFixed(4) + (node.fcr ? ('/' + 1) : '')} [r]`
+            vertexRef[node.id].geometry.height += 30;
+            if (node.bundle === 'event-store') {
+              vertexRef[node.id].geometry.height += 30;
+              vertexRef[node.id].value = '<br/><br/>' + vertexRef[node.id].value
+            }
           }
           /*
           if (node.type === 'Sink') {
@@ -315,7 +282,7 @@ export class ApplicationFlowsPage implements OnInit {
               var txt = node.throughtput.toFixed(4) + "  [r/ms]";
               txt += "\n" + ql.toFixed(4) + " [ql/ms]";
               graph.insertEdge(parent, null, txt, vertexRef[node.id],
-                vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';strokeWidth=' + (ratio * 5) + ';strokeColor=' + c);
+                vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';strokeWidth=' + (Math.max(1, Math.min(ratio * 5, 10))) + ';strokeColor=' + c);
             } else {
               edges.push(graph.insertEdge(parent, null, "", vertexRef[node.id],
                 vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';' + (target.async ? 'strokeColor=#999999' : 'strokeColor=#000')));
@@ -392,5 +359,116 @@ export class ApplicationFlowsPage implements OnInit {
     this.bundleFilter = this.allBundles.filter(b => {
       return b.id.toLowerCase().includes(this.search.toLowerCase()) || b.description?.toLowerCase().includes(this.search.toLowerCase())
     })
+  }
+
+  private doPerformanceAnalysis(nodesRef) {
+
+    let old = -1;
+    let i = 0;
+
+    while (true) {
+
+      for (const node of this.network.nodes) {
+        nodesRef[node.id] = node;
+        if (node.type != 'Source') {
+          node.throughtput = 0;
+        }
+        node.flowThroughtput = 0;
+      }
+
+      var q = [];
+      for (const s of this.sources) {
+        s.meanServiceTime = 1 / s.throughtput;
+        s.flowThroughtput = s.throughtput;
+        s.flow = s.id;
+        q.push(s);
+      }
+      while (q.length > 0) {
+        const n = q.shift();
+        for (const t of n.target) {
+          var target = nodesRef[t];
+          target.throughtput += n.throughtput;
+          if (target.fcr) {
+            const t = target.numServers / target.meanServiceTime;
+            if (t < target.throughtput) {
+              target.throughtput = t;
+            }
+          }
+          if (!target.flowThroughtput || (target.flowThroughtput > n.flowThroughtput))
+            target.flowThroughtput = n.flowThroughtput;
+          target.flow = n.flow;
+          q.push(target);
+        }
+      }
+
+      this.bundleActiveThreads = {};
+      this.maxFlowThroughput = {};
+
+      for (const node of this.network.nodes) {
+        const nc = node.throughtput * node.meanServiceTime;
+        node.customers = (node.fcr ? Math.max(node.numServers, nc) : nc);
+        if (node.bundle) {
+          if (!this.bundleActiveThreads[node.bundle]) {
+            this.bundleActiveThreads[node.bundle] = 0;
+          }
+          this.bundleActiveThreads[node.bundle] += node.customers;
+          if (!this.bundles.includes(node.bundle)) {
+            this.bundles.push(node.bundle);
+          }
+        }
+        node.isBottleneck = false;
+        if (!this.maxFlowThroughput[node.flow]) {
+          this.maxFlowThroughput[node.flow] = node;
+          node.isBottleneck = true;
+        } else if (nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
+          if (this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
+            this.maxFlowThroughput[node.flow] = node;
+          }
+          node.isBottleneck = true;
+        }
+      }
+
+      let tSum = 0;
+      const tMap = {}
+      for (const node of this.network.nodes) {
+        tSum += node.throughtput;
+        if (node.fcr) {
+          if (!tMap[node.component]) {
+            tMap[node.component] = {
+              t: node.flowThroughtput,
+              s: 0
+            };
+          }
+          tMap[node.component].t = Math.min( tMap[node.component].t,node.flowThroughtput);
+          tMap[node.component].s += node.meanServiceTime
+        }
+      }
+      console.log(tMap);
+      console.log(tSum - old)
+      console.log(i);
+      if (Math.abs(tSum - old) > 0.00001 && i < 10) {
+        old = tSum;
+        i++;
+
+        const nsSum = {}
+        for (const node of this.network.nodes) {
+          if (node.fcr) {
+            node.numServers = (node.flowThroughtput / tMap[node.component].t) * (node.meanServiceTime / tMap[node.component].s);
+            if (!nsSum[node.component]) {
+              nsSum[node.component] = 0;
+            }
+            nsSum[node.component] += node.numServers;
+          }
+        }
+        for (const node of this.network.nodes) {
+          if (node.fcr) {
+            node.numServers = node.numServers / nsSum[node.component];
+          }
+        }
+
+      } else {
+        return;
+      }
+    }
   }
 }

@@ -7,10 +7,7 @@ import javax.persistence.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "es__snapshot", indexes = {
-		@Index(name = "aggregate_index", columnList = "aggregateId"),
-		@Index(name = "event_sequence_number_index", columnList = "eventSequenceNumber"),
-})
+@Table(name = "es__snapshot")
 public class Snapshot {
 	@Id
 	public String aggregateId;
