@@ -37,7 +37,9 @@ public class DemoController {
 	@InvocationHandler
 	public CompletableFuture<Collection<DemoView>> findAll(@RequestParam int page) {
 		Utils.logMethodFlow(this,"findAll", page, "BEGIN");
-		var resp =  queryGateway.query(new DemoViewFindAllQuery(10, page * 10)).thenApply(Multiple::getData);
+		var resp =  queryGateway
+				.query(new DemoViewFindAllQuery(10, page * 10))
+				.thenApply(Multiple::getData);
 		Utils.logMethodFlow(this,"findAll", page, "END");
 		return resp;
 	}
