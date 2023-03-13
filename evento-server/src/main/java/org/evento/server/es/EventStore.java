@@ -49,14 +49,14 @@ public class EventStore {
 
 	public List<EventStoreEntry> fetchEvents(Long seq, int limit) {
 		if (seq == null) seq = -1L;
-		return eventStoreRepository.findAllByEventSequenceNumberAfterAndCreatedAtBeforeOrderByEventSequenceNumberAsc(seq,
-				Instant.now().minus(DELAY, ChronoUnit.MILLIS).toEpochMilli(), PageRequest.of(0, limit));
+		return eventStoreRepository.findAllByEventSequenceNumberAfterAndEventSequenceNumberBeforeOrderByEventSequenceNumberAsc(seq,
+				snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit));
 	}
 
 	public List<EventStoreEntry> fetchEvents(Long seq, int limit, List<String> eventNames) {
 		if (seq == null) seq = -1L;
-		return eventStoreRepository.findAllByEventSequenceNumberAfterAndCreatedAtBeforeAndEventNameInOrderByEventSequenceNumberAsc(
-				seq, Instant.now().minus(DELAY, ChronoUnit.MILLIS).toEpochMilli(),
+		return eventStoreRepository.findAllByEventSequenceNumberAfterAndEventSequenceNumberBeforeAndEventNameInOrderByEventSequenceNumberAsc(
+				seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
 				eventNames, PageRequest.of(0, limit));
 	}
 

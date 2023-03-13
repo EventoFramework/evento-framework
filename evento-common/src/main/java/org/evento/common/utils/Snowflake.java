@@ -130,4 +130,10 @@ public class Snowflake {
                 + ", SEQUENCE_BITS=" + SEQUENCE_BITS + ", CUSTOM_EPOCH=" + customEpoch
                 + ", NodeId=" + nodeId + "]";
     }
+
+    public Long forInstant(Instant minus) {
+        var timestamp = minus.toEpochMilli() - customEpoch;
+        return timestamp << (NODE_ID_BITS + SEQUENCE_BITS)
+                | (0L);
+    }
 }
