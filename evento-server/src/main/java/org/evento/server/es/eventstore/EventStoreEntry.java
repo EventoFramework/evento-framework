@@ -8,10 +8,7 @@ import org.evento.server.config.JsonConverter;
 import javax.persistence.*;
 
 @Entity
-@Table(name = "es__events", indexes = {
-		@Index(name="aggregate_index", columnList = "aggregateId"),
-		@Index(name="temporal_index", columnList = "createdAt")
-})
+@Table(name = "es__events")
 @Getter
 @Setter
 @AllArgsConstructor
