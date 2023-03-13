@@ -24,10 +24,9 @@ public class DemoMysqlProjector implements TransactionalProjector {
 	void on(DemoCreatedEvent event, QueryGateway queryGateway, EventMessage eventMessage){
 		Utils.logMethodFlow(this,"on", event, "BEGIN");
 		var now = Instant.now();
-		demoMysqlRepository.save(new DemoMysql(event.getDemoId(), event.getName(), event.getValue(),now, now , null));
+		demoMysqlRepository.save(new DemoMysql(event.getDemoId(), event.getName(),
+				event.getValue(),now, now , null));
 		Utils.logMethodFlow(this,"on", event, "END");
-
-
 	}
 
 	@EventHandler
