@@ -8,26 +8,21 @@ import lombok.Setter;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
+import java.math.BigInteger;
 
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "performance__handler")
-public class HandlerPerformances {
+@Table(name = "performance__handler_invocation_count")
+public class HandlerInvocationCountPerformance {
 
     @Id
     private String id;
 
-    private String bundle;
+    private int lastCount;
 
-    private String component;
-
-    private String action;
-
-    private double lastServiceTime;
-
-    private double meanServiceTime;
+    private double meanProbability;
 
 }

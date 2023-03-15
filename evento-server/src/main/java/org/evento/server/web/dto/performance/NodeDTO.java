@@ -5,7 +5,9 @@ import org.evento.server.domain.performance.queue.ServiceStation;
 import org.evento.server.domain.performance.queue.Source;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -19,7 +21,7 @@ public class NodeDTO implements Serializable {
 	private String actionType;
 
 	private boolean async;
-	private Set<Long> target = new HashSet<>();
+	private Map<Long, Double> target = new HashMap<>();
 	private Integer numServers;
 	private String type;
 
@@ -36,13 +38,19 @@ public class NodeDTO implements Serializable {
 			this.action = s.getAction();
 			this.async = s.getAsync();
 			this.actionType = s.getActionType();
-			this.target = s.getTarget().stream().map(Node::getId).collect(Collectors.toSet());
+			this.target = new HashMap<>();
+			s.getTarget().forEach((k,v) -> {
+				this.target.put(k.getId(), v);
+			});
 			this.numServers = s.getNumServers();
 			this.meanServiceTime = s.getMeanServiceTime();
 			this.componentType = s.getComponentType();
 		} else if (node instanceof Source s)
 		{
-			this.target = s.getTarget().stream().map(Node::getId).collect(Collectors.toSet());
+			this.target = new HashMap<>();
+			s.getTarget().forEach((k,v) -> {
+				this.target.put(k.getId(), v);
+			});
 			this.name = s.getName();
 			this.action = s.getName();
 			this.actionType = s.getType();
@@ -92,11 +100,11 @@ public class NodeDTO implements Serializable {
 		this.async = async;
 	}
 
-	public Set<Long> getTarget() {
+	public Map<Long, Double> getTarget() {
 		return target;
 	}
 
-	public void setTarget(Set<Long> target) {
+	public void setTarget(Map<Long, Double> target) {
 		this.target = target;
 	}
 

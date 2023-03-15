@@ -22,70 +22,35 @@ import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/demo")
-@Invoker
 public class DemoController {
-
-	private final CommandGateway commandGateway;
-	private final QueryGateway queryGateway;
+	private final DemoInvoker demoInvoker;
 
 	public DemoController(EventoBundle eventoBundle) {
-		this.commandGateway = eventoBundle.getCommandGateway();
-		this.queryGateway = eventoBundle.getQueryGateway();
+		this.demoInvoker = eventoBundle.getInvoker(DemoInvoker.class);
 	}
 
 	@GetMapping("/")
-	@InvocationHandler
 	public CompletableFuture<Collection<DemoView>> findAll(@RequestParam int page) {
-		Utils.logMethodFlow(this,"findAll", page, "BEGIN");
-		var resp =  queryGateway
-				.query(new DemoViewFindAllQuery(10, page * 10))
-				.thenApply(Multiple::getData);
-		Utils.logMethodFlow(this,"findAll", page, "END");
-		return resp;
+		return demoInvoker.findAll(page);
 	}
 
 	@GetMapping("/{identifier}")
-	@InvocationHandler
 	public CompletableFuture<DemoView> findById(@PathVariable String identifier) {
-		Utils.logMethodFlow(this,"findById", identifier, "BEGIN");
-		var resp =  queryGateway.query(new DemoViewFindByIdQuery(identifier)).thenApply(Single::getData);
-		Utils.logMethodFlow(this,"findById", identifier, "END");
-		return resp;
+		return demoInvoker.findById(identifier);
 	}
 
 	@PostMapping("/")
-	@InvocationHandler
-	public CompletableFuture<?> save(@RequestBody DemoPayload demoPayload){
-		Utils.logMethodFlow(this,"save", demoPayload, "BEGIN");
-		return commandGateway.send(new DemoCreateCommand(
-				demoPayload.getDemoId(), demoPayload.getName(), demoPayload.getValue()
-		)).thenApply(o -> {
-			Utils.logMethodFlow(this,"save", demoPayload, "END");
-			return o;
-		});
+	public CompletableFuture<?> save(@RequestBody DemoPayload demoPayload) {
+		return demoInvoker.save(demoPayload);
 	}
 
 	@PutMapping("/{identifier}")
-	@InvocationHandler
-	public CompletableFuture<?> update(@RequestBody DemoPayload demoPayload, @PathVariable String identifier){
-		Utils.logMethodFlow(this,"update", demoPayload, "BEGIN");
-		demoPayload.setDemoId(identifier);
-		return commandGateway.send(new DemoUpdateCommand(
-				demoPayload.getDemoId(), demoPayload.getName(), demoPayload.getValue()
-		)).thenApply(o -> {
-			Utils.logMethodFlow(this,"update", demoPayload, "END");
-			return o;
-		});
+	public CompletableFuture<?> update(@RequestBody DemoPayload demoPayload, @PathVariable String identifier) {
+		return demoInvoker.update(demoPayload, identifier);
 	}
 
 	@DeleteMapping("/{identifier}")
-	@InvocationHandler
-	public CompletableFuture<?> delete(@PathVariable String identifier){
-		Utils.logMethodFlow(this,"delete", identifier, "BEGIN");
-		return commandGateway.send(new DemoDeleteCommand(identifier
-		)).thenApply(o -> {
-			Utils.logMethodFlow(this,"delete", identifier, "END");
-			return o;
-		});
+	public CompletableFuture<?> delete(@PathVariable String identifier) {
+		return demoInvoker.delete(identifier);
 	}
 }

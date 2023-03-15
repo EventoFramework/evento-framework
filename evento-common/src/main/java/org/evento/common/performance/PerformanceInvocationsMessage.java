@@ -1,23 +1,24 @@
 package org.evento.common.performance;
 
 import java.io.Serializable;
+import java.util.HashMap;
 
-public class PerformanceMessage implements Serializable {
+public class PerformanceInvocationsMessage implements Serializable {
 
     private String bundle;
     private String  component;
     private String action;
-    private long duration;
+    private HashMap<String, Integer> invocations;
 
 
-    public PerformanceMessage() {
+    public PerformanceInvocationsMessage() {
     }
 
-    public PerformanceMessage(String bundle, String component, String action, long duration) {
+    public PerformanceInvocationsMessage(String bundle, String component, String action, HashMap<String, Integer> invocations) {
         this.bundle = bundle;
         this.component = component;
         this.action = action;
-        this.duration = duration;
+        this.invocations = invocations;
     }
 
     public String getBundle() {
@@ -44,11 +45,11 @@ public class PerformanceMessage implements Serializable {
         this.action = action;
     }
 
-    public long getDuration() {
-        return duration;
+    public HashMap<String, Integer> getInvocations() {
+        return invocations;
     }
 
-    public void setDuration(long duration) {
-        this.duration = duration;
+    public void setInvocations(HashMap<String, Integer> invocations) {
+        this.invocations = invocations;
     }
 }

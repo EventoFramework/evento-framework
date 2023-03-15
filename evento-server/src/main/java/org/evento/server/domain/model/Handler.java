@@ -64,12 +64,12 @@ public class Handler implements Serializable {
 	@SneakyThrows
 	public void generateId() throws HibernateException {
 		setUuid(generateId(
-				this.getComponent().getBundle().getId(), this.getComponent().getComponentName(), this.getComponent().getComponentType(), this.getHandledPayload().getName()
+				this.getComponent().getBundle().getId(), this.getComponent().getComponentName(), this.getHandledPayload().getName()
 		));
 	}
 
-	public static String generateId(String bundleId, String componentName, ComponentType componentType, String handledPayloadName) throws NoSuchAlgorithmException {
-		var str = bundleId + componentName + componentType.name() + handledPayloadName;
+	public static String generateId(String bundleId, String componentName, String handledPayloadName) throws NoSuchAlgorithmException {
+		var str = bundleId + componentName + handledPayloadName;
 		MessageDigest digest = MessageDigest.getInstance("SHA-256");
 		byte[] hash = digest.digest(
 				str.getBytes(StandardCharsets.UTF_8));
