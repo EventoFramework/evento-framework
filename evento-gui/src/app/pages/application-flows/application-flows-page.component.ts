@@ -270,7 +270,7 @@ export class ApplicationFlowsPage implements OnInit {
 
         for (const node of this.network.nodes) {
           const targets = [];
-          for (const t of node.target) {
+          for (const t of Object.keys(node.target)) {
             targets.push(nodesRef[t]);
           }
           for (const target of targets.sort((a, b) => a?.async - b?.async)) {
@@ -279,8 +279,11 @@ export class ApplicationFlowsPage implements OnInit {
               const ql = (source.throughtput - target.throughtput) * target.meanServiceTime;
               const ratio = source.throughtput / source.flowThroughtput;
               const c = this.perc2color(ratio * 100);
-              var txt = node.throughtput.toFixed(4) + "  [r/ms]";
-              txt += "\n" + ql.toFixed(4) + " [ql/ms]";
+              var txt = (node.throughtput * node.target[target.id]).toFixed(4) + "  [r/ms]";
+              if(target.fcr) {
+                txt += "\n" + ql.toFixed(4) + " [ql/ms]";
+              }
+              txt += "\n" + (node.target[target.id]*100)?.toFixed(1) + " %";
               graph.insertEdge(parent, null, txt, vertexRef[node.id],
                 vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';strokeWidth=' + (Math.max(1, Math.min(ratio * 5, 10))) + ';strokeColor=' + c);
             } else {
@@ -385,9 +388,9 @@ export class ApplicationFlowsPage implements OnInit {
       }
       while (q.length > 0) {
         const n = q.shift();
-        for (const t of n.target) {
+        for (const t of Object.keys(n.target)) {
           var target = nodesRef[t];
-          target.throughtput += n.throughtput;
+          target.throughtput += (n.throughtput * n.target[t]);
           if (target.fcr) {
             const t = target.numServers / target.meanServiceTime;
             if (t < target.throughtput) {
@@ -396,7 +399,11 @@ export class ApplicationFlowsPage implements OnInit {
           }
           if (!target.flowThroughtput || (target.flowThroughtput > n.flowThroughtput))
             target.flowThroughtput = n.flowThroughtput;
-          target.flow = n.flow;
+          if(n.target[t] === 1)
+            target.flow = n.flow;
+          else{
+            target.flow = target.id;
+          }
           q.push(target);
         }
       }

@@ -1,5 +1,6 @@
 package org.evento.server.domain.performance.queue;
 
+import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.model.Payload;
 import org.evento.server.domain.performance.modeling.PerformanceFetcher;
 
@@ -49,8 +50,8 @@ public class QueueNetwork {
 	}
 
 
-	public Source source(Payload handledPayload) {
-		var source = new Source(idGenerator.getAndIncrement(), handledPayload.getName(), handledPayload.getType().toString());
+	public Source source(Handler handler) {
+		var source = new Source(idGenerator.getAndIncrement(),handler.getComponent().getBundle().getId(), handler.getComponent().getComponentName(), handler.getHandledPayload().getName(), handler.getHandledPayload().getType().toString());
 		nodes.add(source);
 		return source;
 	}

@@ -27,4 +27,6 @@ public interface ComponentRepository extends JpaRepository<Component, String> {
 			"order by c.updated_at", nativeQuery = true)
 	List<ComponentListProjection> findAllComponentProjection();
 
+	Optional<Component> findComponentByComponentNameAndBundle_Id(String componentName, String bundleId);
+
 }

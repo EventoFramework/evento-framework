@@ -2,11 +2,8 @@ package org.evento.demo.agent;
 
 import org.evento.application.EventoBundle;
 import org.evento.demo.agent.agents.DemoLifecycleAgent;
-import org.evento.demo.agent.agents.Report;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-
-import java.util.stream.IntStream;
 
 @Component
 public class AgentDispatcher implements CommandLineRunner {
@@ -22,7 +19,7 @@ public class AgentDispatcher implements CommandLineRunner {
 	public void run(String... args) throws Exception {
 
 
-		var demoLifecycleAgent = new DemoLifecycleAgent(eventoBundle);
+		var demoLifecycleAgent = eventoBundle.getInvoker(DemoLifecycleAgent.class);
 
 		Thread.sleep(3000);
 
