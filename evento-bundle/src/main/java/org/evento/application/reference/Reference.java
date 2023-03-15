@@ -12,6 +12,10 @@ public abstract class Reference {
 		return ref;
 	}
 
+	public String getComponentName(){
+		return ref.getClass().getSimpleName();
+	}
+
 
 
 }

@@ -66,7 +66,7 @@ public abstract class JavaComponentParser<T extends Component> {
 	}
 
 	protected void findCommandInvocations(List<? extends Handler<?>> ehs) throws JaxenException {
-		var query = "//PrimaryExpression[PrimaryPrefix/Name[ends-with(@Image,\"send\") or ends-with(@Image,\"sendAndWait\")]]";
+		var query = "//PrimaryExpression[PrimaryPrefix/Name[ends-with(@Image,\"send\") or ends-with(@Image,\"sendAndWait\")]] | //PrimaryExpression[PrimarySuffix[ends-with(@Image,\"send\") or ends-with(@Image,\"sendAndWait\")]]";
 		for (Node n : node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query))
 		{
 			var expr = ((ASTPrimaryExpression) n);
@@ -84,7 +84,7 @@ public abstract class JavaComponentParser<T extends Component> {
 	}
 
 	protected void findQueryInvocations(List<? extends Handler<?>> ehs) throws JaxenException {
-		var query = "//PrimaryExpression[PrimaryPrefix/Name[ends-with(@Image,\"query\")]]";
+		var query = "//PrimaryExpression[PrimaryPrefix/Name[ends-with(@Image,\"query\")]] | //PrimaryExpression[PrimarySuffix[ends-with(@Image,\"query\")]]";
 		for (Node n : node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query))
 		{
 			var expr = ((ASTPrimaryExpression) n);

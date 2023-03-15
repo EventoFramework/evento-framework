@@ -1,7 +1,8 @@
 package org.evento.server.domain.performance.queue;
 
-import java.util.HashSet;
-import java.util.Set;
+import org.evento.server.service.performance.PerformanceStoreService;
+
+import java.util.HashMap;
 
 public class ServiceStation extends Node{
 
@@ -12,7 +13,7 @@ public class ServiceStation extends Node{
 	private String actionType;
 
 	private boolean async;
-	private Set<Node> target = new HashSet<>();
+	private HashMap<Node, Double> target = new HashMap<>();
 	private Integer numServers;
 
 	private Double meanServiceTime;
@@ -61,11 +62,11 @@ public class ServiceStation extends Node{
 		this.action = action;
 	}
 
-	public Set<Node> getTarget() {
+	public HashMap<Node, Double> getTarget() {
 		return target;
 	}
 
-	public void setTarget(Set<Node> target) {
+	public void setTarget(HashMap<Node, Double> target) {
 		this.target = target;
 	}
 
@@ -108,5 +109,13 @@ public class ServiceStation extends Node{
 
 	public void setComponentType(String componentType) {
 		this.componentType = componentType;
+	}
+
+	public void addTarget(Node a, PerformanceStoreService performanceStoreService) {
+		if(a instanceof ServiceStation ss){
+			target.put(a, performanceStoreService.getInvocationProbability(bundle, component, action, ss.action));
+		}else{
+			target.put(a, null);
+		}
 	}
 }

@@ -17,7 +17,8 @@ import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
 import org.evento.common.modeling.state.SerializedAggregateState;
-import org.evento.common.performance.PerformanceMessage;
+import org.evento.common.performance.PerformanceInvocationsMessage;
+import org.evento.common.performance.PerformanceServiceTimeMessage;
 import org.evento.common.performance.PerformanceService;
 import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.repository.HandlerRepository;
@@ -147,13 +148,20 @@ public class MessageGatewayService {
                     return;
                 }
             }
-            if (request instanceof PerformanceMessage p) {
-                performanceStoreService.savePerformance(
+            if (request instanceof PerformanceServiceTimeMessage p) {
+                performanceStoreService.saveServiceTimePerformance(
                         p.getBundle(),
                         p.getComponent(),
                         p.getAction(),
                         p.getDuration()
                 );
+            } else if (request instanceof PerformanceInvocationsMessage p)
+            {
+                performanceStoreService.saveInvocationsPerformance(
+                        p.getBundle(),
+                        p.getComponent(),
+                        p.getAction(),
+                        p.getInvocations()                );
             }
 
         } catch (Exception e) {
