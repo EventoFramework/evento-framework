@@ -284,8 +284,11 @@ export class ApplicationFlowsPage implements OnInit {
                 txt += "\n" + ql.toFixed(4) + " [ql/ms]";
               }
               txt += "\n" + (node.target[target.id]*100)?.toFixed(1) + " %";
+
+              const zz =';strokeWidth=' +new String((Math.max(1, Math.min(ratio * 5, 10)))) + ';' ;
+              const sty =  edgeStyle + zz + ';strokeColor=' + c + ';' + (target.async ? 'dashed=1' : 'dashed=0');
               graph.insertEdge(parent, null, txt, vertexRef[node.id],
-                vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';strokeWidth=' + (Math.max(1, Math.min(ratio * 5, 10))) + ';strokeColor=' + c);
+                vertexRef[target.id], (!!ratio && !!node.target[target.id])   ? sty : (edgeStyle + ';strokeWidth=1;strokeColor=grey' +';' + (target.async ? 'dashed=1' : 'dashed=0')));
             } else {
               edges.push(graph.insertEdge(parent, null, "", vertexRef[node.id],
                 vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';' + (target.async ? 'strokeColor=#999999' : 'strokeColor=#000')));
@@ -398,12 +401,15 @@ export class ApplicationFlowsPage implements OnInit {
             }
           }
           if (!target.flowThroughtput || (target.flowThroughtput > n.flowThroughtput))
-            target.flowThroughtput = n.flowThroughtput;
+            target.flowThroughtput = n.flowThroughtput * n.target[t];
+          target.flow = target.id;
+          /*
           if(n.target[t] === 1)
             target.flow = n.flow;
           else{
             target.flow = target.id;
-          }
+            target.flowThroughtput = (n.throughtput * n.target[t]);
+          }*/
           q.push(target);
         }
       }
@@ -426,12 +432,12 @@ export class ApplicationFlowsPage implements OnInit {
         node.isBottleneck = false;
         if (!this.maxFlowThroughput[node.flow]) {
           this.maxFlowThroughput[node.flow] = node;
-          node.isBottleneck = true;
+          //node.isBottleneck = true;
         } else if (nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
           if (this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
             this.maxFlowThroughput[node.flow] = node;
           }
-          node.isBottleneck = true;
+          //node.isBottleneck = true;
         }
       }
 
