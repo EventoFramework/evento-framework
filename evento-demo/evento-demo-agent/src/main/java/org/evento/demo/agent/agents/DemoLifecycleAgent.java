@@ -35,7 +35,7 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 			try
 			{
 				var updateAtStart = Instant.now().toEpochMilli();
-				var r = 5;
+				var r = 3;
 				for (int j = 1; j < r; j++)
 				{
 					resp = getCommandGateway().sendAndWait(new DemoUpdateCommand(id, id, j));

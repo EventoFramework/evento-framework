@@ -205,7 +205,7 @@ export class ApplicationFlowsPage implements OnInit {
             vertexRef[node.id].style += 'strokeColor=#ff0000;strokeWidth=3;'
           }
 
-          if (this.performanceAnalysis && node.meanServiceTime) {
+          if (this.performanceAnalysis) {
             vertexRef[node.id].value +=
               `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]<br/>Customers: ${node.customers.toFixed(4) + (node.fcr ? ('/' + 1) : '')} [r]`
             vertexRef[node.id].geometry.height += 30;
