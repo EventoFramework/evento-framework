@@ -245,16 +245,27 @@ export class AppMapDiagramComponent implements OnInit {
 
 
     const updateStyle = (state, hover) => {
+      const visited = new Set();
       const q = [state];
       while (q.length > 0) {
         const n = q.shift();
+        if(!n){
+          continue;
+        }
         if (n.cell.edges) {
           for (const e of n.cell.edges) {
+            console.log(e);
+            if(e.id in visited){
+              continue;
+            }
+            visited.add(e.id);
             if (e.source === n.cell) {
               const eState = graph.view.getState(e);
-              eState.style.opacity = hover ? 100 : 10;
-              eState.shape.apply(eState);
-              eState.shape.redraw();
+              if (eState) {
+                eState.style.opacity = hover ? 100 : 10;
+                eState.shape.apply(eState);
+                eState.shape.redraw();
+              }
               q.push(graph.view.getState(e.target));
             }
           }

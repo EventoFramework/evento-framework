@@ -552,6 +552,8 @@ public class BundleService {
             handler.getHandledPayload().getHandlers().remove(handler);
         }
 
+        componentRepository.deleteAll(componentRepository.findAllByBundle_Id(bundleDeploymentName));
+
         bundleRepository.findById(bundleDeploymentName).ifPresent(bundleRepository::delete);
         for (Payload payload : payloadRepository.findAll()) {
             try {

@@ -29,4 +29,5 @@ public interface ComponentRepository extends JpaRepository<Component, String> {
 
 	Optional<Component> findComponentByComponentNameAndBundle_Id(String componentName, String bundleId);
 
+	List<Component> findAllByBundle_Id(String bundleId);
 }

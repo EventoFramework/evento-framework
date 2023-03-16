@@ -70,22 +70,22 @@ export class ComponentHandlersDiagramComponent implements OnInit {
           if (h.handlerType === 'EventSourcingHandler') {
             continue;
           }
-          const p = graph.insertVertex(parent, null, this.component.componentName, 0, 0, 250, 50,
+          const p = graph.insertVertex(parent,'/component-info/' +  this.component.componentName, this.component.componentName, 0, 0, 250, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[this.component.componentType] + ';fontColor=' + componentColor[this.component.componentType] + ';strokeWidth=4;fontStyle=1;fontSize=14');
 
-          const t = graph.insertVertex(parent, h.handledPayload.name, h.handledPayload.name, 0, 0, 250, 50,
+          const t = graph.insertVertex(parent,'/payload-info/' +  h.handledPayload.name, h.handledPayload.name, 0, 0, 250, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] + ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
 
           if (h.returnType) {
-            const r = graph.insertVertex(parent, h.returnType.name, h.returnType.name + (h.returnIsMultiple ? '[]' : ''), 0, 0, 250, 50,
+            const r = graph.insertVertex(parent, '/payload-info/' + h.returnType.name, h.returnType.name + (h.returnIsMultiple ? '[]' : ''), 0, 0, 250, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] + ';fontColor=#333333;strokeWidth=3;');
             edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
           }
 
 
           for (let i of Object.values(h.invocations) as any[]) {
-            const ii = graph.insertVertex(parent, i.name, i.name, 0, 0, 250, 50,
+            const ii = graph.insertVertex(parent, '/payload-info/' + i.name, i.name, 0, 0, 250, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[i.type] + ';fontColor=#333333;strokeWidth=3;');
             edges.push(graph.insertEdge(parent, null, null, p, ii, edgeStyle));
           }
@@ -94,7 +94,7 @@ export class ComponentHandlersDiagramComponent implements OnInit {
         graph.addListener(mxEvent.CLICK, (sender, evt) => {
           const cell = evt.getProperty('cell'); // Get the cell that was clicked
           if (cell?.id) {
-            return this.navController.navigateForward('/payload-info/' + cell.id);
+            return this.navController.navigateForward(cell.id);
           }
         });
 
