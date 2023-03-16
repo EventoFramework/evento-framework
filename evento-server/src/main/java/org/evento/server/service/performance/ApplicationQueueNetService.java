@@ -200,7 +200,8 @@ public class ApplicationQueueNetService {
 		var n = new QueueNetwork(performanceStoreService::getMeanServiceTime);
 		var handlers = handlerRepository.findAll();
 
-		handlers.stream().filter(h ->  h.getReturnType() != null).filter(h -> h.getReturnType().getName().equals("payload"))
+
+		handlers.stream().filter(h -> h.getHandledPayload().getName().equals(payload))
 				.forEach(hh -> {
 					var source = n.source(hh);
 
