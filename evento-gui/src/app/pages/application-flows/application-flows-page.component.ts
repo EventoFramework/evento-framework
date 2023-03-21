@@ -77,8 +77,8 @@ export class ApplicationFlowsPage implements OnInit {
     const tMap = {}
     for (const node of this.network.nodes) {
       if (node.type === 'Source') {
-        node.throughtput = 0.01;
-        node.meanServiceTime = 0.01;
+        node.throughtput = 0.001;
+        node.meanServiceTime = 1000;
         this.sources.push(node);
       }
       if (!node.meanServiceTime) {
@@ -201,7 +201,7 @@ export class ApplicationFlowsPage implements OnInit {
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + stringToColour(node.bundle) + ';fontColor=#333333;strokeWidth=3;');
           }
 
-          if (node.isBottleneck && node.type !== 'Source') {
+          if (this.performanceAnalysis && node.isBottleneck && node.type !== 'Source') {
             vertexRef[node.id].style += 'strokeColor=#ff0000;strokeWidth=3;'
           }
 
@@ -213,58 +213,13 @@ export class ApplicationFlowsPage implements OnInit {
               vertexRef[node.id].geometry.height += 30;
               vertexRef[node.id].value = '<br/><br/>' + vertexRef[node.id].value
             }
+            //vertexRef[node.id].value += "<br/>" +
+
+
           }
-          /*
-          if (node.type === 'Sink') {
-            node.name = node.type;
-            vertexRef[node.id] = graph.insertVertex(parent, node.id, "Sink", null, null, 50,
-              50,
-              sinkStyle);
-          } else if (node.type === 'Source') {
-            var text = '\n' + node.name;
-            vertexRef[node.id] = graph.insertVertex(parent, node.id, text, null, null, text.length * 10,
-              40,
-              serviceStationStyle);
-          } else {
-            node.name = node.bundle + '\n\n' + node.component + '\n\n' + node.action;
-            node.name = node.action;
-            let additionalStyles = 'fillColor=' + this.bundleColorService.getColorForBundle(node.bundle) + ';';
-            if (node.isBottleneck) {
-              additionalStyles += 'strokeColor=#ff0000;strokeWidth=3;'
-            }
-            const width = Math.max(node.bundle.length, node.component.length, node.action.length, this.performanceAnalysis ? 25 : 0) * 10;
-            let height = 90;
-            let text = node.name;
-
-            if (node.bundle === 'event-store' || node.component === 'SagaStore' || node.component === 'ProjectorStore') {
-              additionalStyles += 'shape=cylinder;verticalAlign=bottom;spacingBottom=' + (this.performanceAnalysis ? 100 : 20) + ';';
-              height += 70;
-            }
-            if (node.component === 'Gateway') {
-              additionalStyles += 'shape=cylinder;rotation=90;horizontal=0;spacingBottom=' + (this.performanceAnalysis ? 100 : 20) + ';';
-              height += 70;
-            }
-            const bHeight = height;
-            if (this.performanceAnalysis && node.meanServiceTime) {
-              height += 90;
-            }
-            vertexRef[node.id] = graph.insertVertex(parent, node.id, '\n' + text, null, null, width,
-              height,
-              serviceStationStyle + additionalStyles);
-            if (this.performanceAnalysis && node.meanServiceTime) {
-              let txt = 'Service time: ' + (node.meanServiceTime.toFixed(4)) + ' [ms]';
-              const w = 210;
-              graph.insertVertex(vertexRef[node.id], node.id + '_st', txt, (width / 2) - (w / 2), bHeight + 10, w,
-                30,
-                performanceBoxStyle);
-
-
-              txt = 'Customers: ' + node.customers.toFixed(4) + (node.numServers ? ('/' + node.numServers.toFixed(4)) : '') + ' [r]';
-              graph.insertVertex(vertexRef[node.id], node.id + '_cn', txt, (width / 2) - (w / 2), bHeight + 30 + 15, w,
-                30,
-                performanceBoxStyle);
-            }
-          }*/
+          if(this.performanceAnalysis){
+            // vertexRef[node.id].value += "<br/>" +  JSON.stringify(nodesRef[node.flow].throughtput) + "-" + node.throughtput
+          }
         }
 
 
@@ -393,23 +348,20 @@ export class ApplicationFlowsPage implements OnInit {
         const n = q.shift();
         for (const t of Object.keys(n.target)) {
           var target = nodesRef[t];
-          target.throughtput += (n.throughtput * n.target[t]);
+          target.throughtput = (n.throughtput * n.target[t]);
           if (target.fcr) {
             const t = target.numServers / target.meanServiceTime;
             if (t < target.throughtput) {
               target.throughtput = t;
             }
           }
-          if (!target.flowThroughtput || (target.flowThroughtput > n.flowThroughtput))
-            target.flowThroughtput = n.flowThroughtput * n.target[t];
-          target.flow = target.id;
-          /*
-          if(n.target[t] === 1)
-            target.flow = n.flow;
-          else{
+          if(target.throughtput > n.throughtput || n.target[t] !== 1 ){
+            target.flowThroughtput = target.throughtput;
             target.flow = target.id;
-            target.flowThroughtput = (n.throughtput * n.target[t]);
-          }*/
+          }else {
+            target.flow = n.flow;
+            target.flowThroughtput = n.flowThroughtput;
+          }
           q.push(target);
         }
       }
@@ -437,7 +389,7 @@ export class ApplicationFlowsPage implements OnInit {
           if (this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
             this.maxFlowThroughput[node.flow] = node;
           }
-          //node.isBottleneck = true;
+          node.isBottleneck = true;
         }
       }
 
@@ -475,7 +427,9 @@ export class ApplicationFlowsPage implements OnInit {
         }
         for (const node of this.network.nodes) {
           if (node.fcr) {
-            node.numServers = node.numServers / nsSum[node.component];
+            node.numServers = Math.min(
+              node.numServers / nsSum[node.component],
+              node.flowThroughtput * node.meanServiceTime);
           }
         }
 

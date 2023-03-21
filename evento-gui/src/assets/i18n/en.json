@@ -40,7 +40,7 @@
 	"library.payload.type":"Payload Type",
 	"application.flows.show.posts":"Show Posts",
 	"application.flows.performance.analysis":"Performance Analysis",
-	"performance.analysis.source.service.time":"Service ime",
+	"performance.analysis.source.service.time":"Inter-arrival Time",
 	"performance.analysis.run":"Run",
 	"performance.analysis.results":"Results",
 	"performance.analysis.concurrent.requests":"Concurrent Requests",
