@@ -5,11 +5,11 @@ import {HandlerService} from "../../services/handler.service";
 import * as svgPanZoom from "svg-pan-zoom";
 
 @Component({
-  selector: 'app-application-map',
-  templateUrl: './application-map.page.html',
-  styleUrls: ['./application-map.page.scss'],
+  selector: 'app-application-graph',
+  templateUrl: './application-graph-page.component.html',
+  styleUrls: ['./application-graph-page.component.scss'],
 })
-export class ApplicationMapPage implements OnInit {
+export class ApplicationGraphPage implements OnInit {
   svg: string;
 
   constructor(private handlerService: HandlerService) {
