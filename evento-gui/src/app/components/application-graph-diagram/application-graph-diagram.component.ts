@@ -11,11 +11,11 @@ declare const mxEvent: any;
 
 @Component({
   // eslint-disable-next-line @angular-eslint/component-selector
-  selector: 'evento-app-map-diagram',
-  templateUrl: './app-map-diagram.component.html',
-  styleUrls: ['./app-map-diagram.component.scss'],
+  selector: 'evento-application-graph',
+  templateUrl: './application-graph-diagram.component.html',
+  styleUrls: ['./application-graph-diagram.component.scss'],
 })
-export class AppMapDiagramComponent implements OnInit {
+export class ApplicationGraphDiagramComponent implements OnInit {
 
   padding = 20;
 
