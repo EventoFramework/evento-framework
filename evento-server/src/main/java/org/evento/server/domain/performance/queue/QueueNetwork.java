@@ -55,4 +55,9 @@ public class QueueNetwork {
 		nodes.add(source);
 		return source;
 	}
+	public Source source(String payloadName, String payloadType) {
+		var source = new Source(idGenerator.getAndIncrement(),"server", "server", payloadName, payloadType);
+		nodes.add(source);
+		return source;
+	}
 }

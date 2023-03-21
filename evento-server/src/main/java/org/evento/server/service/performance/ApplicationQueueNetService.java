@@ -199,58 +199,61 @@ public class ApplicationQueueNetService {
 	public QueueNetwork toQueueNetworkFromPayload(String payload) {
 		var n = new QueueNetwork(performanceStoreService::getMeanServiceTime);
 		var handlers = handlerRepository.findAll();
+		var p = payloadRepository.findById(payload).orElseThrow();
+		var source = n.source(p.getName(), p.getType().toString());
+		handlers.stream().filter(h -> h.getHandledPayload().getName().equals(payload) && h.getHandlerType() != HandlerType.EventSourcingHandler).forEach(i -> {
 
+			var s = n.station(i.getComponent().getBundle().getId(), i.getComponent().getComponentName(),
+					i.getComponent().getComponentType().toString(),
+					i.getHandledPayload().getName(), i.getHandledPayload().getType().toString(), false, null);
+
+			source.addTarget(s, performanceStoreService);
+
+
+			for (var pp : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+			{
+				generateInvocationQueueNet(n, handlers, pp.getValue(), s, null);
+			}
+
+
+			if (i.getReturnType() != null && i.getHandlerType() != HandlerType.QueryHandler)
+			{
+
+				// Server -> ES
+				var esAgent = n.station("event-store", "EventStore", "EventStore", i.getReturnType().getName()
+						, i.getHandledPayload().getType().toString(), false, 1);
+				s.addTarget(esAgent, performanceStoreService );
+
+				// ES -> Invoker
+				handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
+						.filter(h -> h.getHandledPayload().equals(i.getReturnType())).forEach(h -> {
+							// ES -> EventHandler
+							var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(),
+									h.getComponent().getComponentType().toString(),
+									h.getHandledPayload().getName(), h.getHandledPayload().getType().toString(),
+									true, 1);
+							esAgent.addTarget(ha, performanceStoreService );
+
+							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+							{
+								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
+								generateInvocationQueueNet(n, handlers, j.getValue(), ha, null);
+							}
+						});
+			}
+
+
+		});
+
+
+		/*
 
 		handlers.stream().filter(h -> h.getHandledPayload().getName().equals(payload))
 				.forEach(hh -> {
 					var source = n.source(hh);
 
-					handlers.stream().filter(h -> h.getHandledPayload().getName().equals(payload) && h.getHandlerType() != HandlerType.EventSourcingHandler).forEach(i -> {
-
-
-						var s = n.station(i.getComponent().getBundle().getId(), i.getComponent().getComponentName(),
-								i.getComponent().getComponentType().toString(),
-								i.getHandledPayload().getName(), i.getHandledPayload().getType().toString(), false, null);
-
-						source.addTarget(s, performanceStoreService);
-
-
-						for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
-						{
-							generateInvocationQueueNet(n, handlers, p.getValue(), s, null);
-						}
-
-
-						if (i.getReturnType() != null && i.getHandlerType() != HandlerType.QueryHandler)
-						{
-
-							// Server -> ES
-							var esAgent = n.station("event-store", "EventStore", "EventStore", i.getReturnType().getName()
-									, i.getHandledPayload().getType().toString(), false, 1);
-							s.addTarget(esAgent, performanceStoreService );
-
-							// ES -> Invoker
-							handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
-									.filter(h -> h.getHandledPayload().equals(i.getReturnType())).forEach(h -> {
-										// ES -> EventHandler
-										var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(),
-												h.getComponent().getComponentType().toString(),
-												h.getHandledPayload().getName(), h.getHandledPayload().getType().toString(),
-												true, 1);
-										esAgent.addTarget(ha, performanceStoreService );
-
-										for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
-										{
-											//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-											generateInvocationQueueNet(n, handlers, j.getValue(), ha, null);
-										}
-									});
-						}
-
-
-					});
 				});
-
+*/
 
 
 
