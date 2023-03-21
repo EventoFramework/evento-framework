@@ -4,9 +4,9 @@ import { FormsModule } from '@angular/forms';
 
 import { IonicModule } from '@ionic/angular';
 
-import { ApplicationMapPageRoutingModule } from './application-map-routing.module';
+import { ApplicationGraphPageRoutingModule } from './application-graph-routing.module';
 
-import { ApplicationMapPage } from './application-map.page';
+import { ApplicationGraphPage } from './application-graph-page.component';
 import {TranslateModule} from "@ngx-translate/core";
 import {ComponentsModule} from "../../components/components.module";
 
@@ -15,10 +15,10 @@ import {ComponentsModule} from "../../components/components.module";
         CommonModule,
         FormsModule,
         IonicModule,
-        ApplicationMapPageRoutingModule,
+        ApplicationGraphPageRoutingModule,
         TranslateModule,
         ComponentsModule
     ],
-    declarations: [ApplicationMapPage]
+    declarations: [ApplicationGraphPage]
 })
-export class ApplicationMapPageModule {}
+export class ApplicationGraphPageModule {}

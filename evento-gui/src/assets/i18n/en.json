@@ -2,7 +2,7 @@
 	"evento.name":"Evento",
 	"evento.description":"Reactive Event Framework",
 	"application.flows.title":"Flows",
-	"application.map.title":"Application Map",
+	"application.graph.title":"Application Graph",
 	"bundle":"Bundles",
 	"bundle.version":"Version",
 	"bundle.bucket.type":"Bucket Type",

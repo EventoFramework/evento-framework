@@ -20,8 +20,8 @@ const routes: Routes = [
     loadChildren: () => import('./pages/cluster-status/cluster-status.module').then( m => m.ClusterStatusPageModule)
   },
   {
-    path: 'application-map',
-    loadChildren: () => import('./pages/application-map/application-map.module').then( m => m.ApplicationMapPageModule)
+    path: 'application-graph',
+    loadChildren: () => import('./pages/application-graph/application-graph.module').then( m => m.ApplicationGraphPageModule)
   },
   {
     path: 'application-flows',
