@@ -1,5 +1,6 @@
 package org.evento.server.domain.repository;
 
+import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.server.domain.model.Payload;
 import org.evento.server.domain.repository.projection.PayloadListProjection;
 import org.evento.server.domain.repository.projection.PayloadProjection;
@@ -7,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface PayloadRepository extends JpaRepository<Payload, String> {
@@ -51,4 +53,8 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"group by p.name " +
 			"order by p.updated_at desc", nativeQuery = true)
 	public Optional<PayloadProjection> findByIdProjection(String name);
+
+	@Query("select p.type as type, count(p) as count from Payload p group by p.type")
+    public List<PayloadTypeCount> countByType();
+
 }
