@@ -1,6 +1,6 @@
 import {Component, OnInit} from '@angular/core';
-import {ActivatedRoute} from "@angular/router";
-import {CatalogService} from "../../../../services/catalog.service";
+import {ActivatedRoute} from '@angular/router';
+import {CatalogService} from '../../../../services/catalog.service';
 
 @Component({
   selector: 'app-payload-info',
@@ -11,7 +11,7 @@ export class PayloadInfoPage implements OnInit {
   payload;
   isEditing = false;
 
-  fields = []
+  fields = [];
 
   constructor(private route: ActivatedRoute,
               private catalogService: CatalogService) {
@@ -24,28 +24,28 @@ export class PayloadInfoPage implements OnInit {
         return {
           name: parts[0],
           type: parts[1]
-        }
+        };
       }) || [];
       r.invokers = r.invokers?.split(',')?.map(s => {
         const parts = s.split(':');
         return {
           name: parts[0],
           type: parts[1]
-        }
+        };
       }) || [];
       r.returnedBy = r.returnedBy?.split(',')?.map(s => {
         const parts = s.split(':');
         return {
           name: parts[0],
           type: parts[1]
-        }
+        };
       }) || [];
       r.usedBy = r.usedBy?.split(',')?.map(s => {
         const parts = s.split(':');
         return {
           name: parts[0],
           type: parts[1]
-        }
+        };
       }) || [];
       r.jsonSchema = JSON.parse(r.jsonSchema);
       this.fields = Object.keys(r.jsonSchema || {});

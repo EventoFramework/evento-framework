@@ -1,13 +1,11 @@
+/* eslint-disable guard-for-in,no-underscore-dangle,@typescript-eslint/naming-convention */
 import {Component, OnInit} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
-import {BundleColorService} from '../../services/bundle-color.service';
-import {NavController} from "@ionic/angular";
-import {componentColor, graphCenterFit, payloadColor} from "../../services/utils";
+import {NavController} from '@ionic/angular';
+import {componentColor, getColorForBundle, graphCenterFit, payloadColor} from '../../services/utils';
 
 declare const mxGraph: any;
 declare const mxConstants: any;
-declare const mxUtils: any;
-declare const mxEvent: any;
 
 @Component({
   // eslint-disable-next-line @angular-eslint/component-selector
@@ -20,7 +18,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
   padding = 20;
 
   constructor(private handlerService: HandlerService,
-              private bundleColorService: BundleColorService,
               private navController: NavController) {
   }
 
@@ -81,7 +78,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
     const components = {};
     const payloads = {};
 
-    for (let h of handlers) {
+    for (const h of handlers) {
       components[h.componentName] = h.componentType;
       payloads[h.handledPayload.name] = h.handledPayload.type;
       if (h.returnType) {
@@ -91,8 +88,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
 
     const bundleComponentCircles = {};
     const componentHandlerCircles = {};
-
-    const fontSize = 1;
 
     const bundleCircles = [];
     for (const bundle in bundles) {
@@ -112,7 +107,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
       bundleComponentCircles[bundle] = componentCircles;
       this.addCircle(bundleCircles, (this.diameter(componentCircles) / 2) + this.padding, bundle, bundle);
     }
-    const container = <HTMLElement>document.getElementById('map');
+    const container = document.getElementById('map');
 
     const graph = new mxGraph(container);
     const parent = graph.getDefaultParent();
@@ -177,7 +172,9 @@ export class ApplicationGraphDiagramComponent implements OnInit {
             x,
             y,
             c.r * 2,
-            c.r * 2, nodeStyle + 'verticalAlign=top;labelBackgroundColor=#ffffff;labelBorderColor=' + this.bundleColorService.getColorForBundle(c.id) + ';spacingTop=-3;strokeColor=' + this.bundleColorService.getColorForBundle(c.id));
+            c.r * 2, nodeStyle + 'verticalAlign=top;labelBackgroundColor=#ffffff;labelBorderColor=' +
+            getColorForBundle(c.id) + ';spacingTop=-3;strokeColor=' +
+            getColorForBundle(c.id));
           bp.setConnectable(false);
 
           const _minX = Math.min.apply(null, bundleComponentCircles[c.id].map(h => h.x - h.r));
@@ -197,7 +194,9 @@ export class ApplicationGraphDiagramComponent implements OnInit {
               _x + (_center - (_centralPoint.x - _minX)),
               _y + (_center - (_centralPoint.y - _minY)),
               _c.r * 2,
-              _c.r * 2, nodeStyle + ';verticalAlign=top;fillColor=white;verticalAlign=top;labelBackgroundColor=#ffffff;spacingTop=3;labelBorderColor=' + componentColor[components[_c.n]] + ';strokeColor=' + componentColor[components[_c.n]]);
+              _c.r * 2, nodeStyle + ';verticalAlign=top;fillColor=white;verticalAlign=top;labelBackgroundColor=#ffffff;' +
+              'spacingTop=3;labelBorderColor=' + componentColor[components[_c.n]] + ';strokeColor=' +
+              componentColor[components[_c.n]]);
             _bp.setConnectable(false);
 
             const __minX = Math.min.apply(null, componentHandlerCircles[_c.id].map(h => h.x - h.r));
@@ -231,7 +230,8 @@ export class ApplicationGraphDiagramComponent implements OnInit {
             graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle);
           }
           for (const to of handler.h.responseHandeledBy) {
-            graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid), graph.getModel().getCell(to), edgeStyle + 'dashed=1;');
+            graph.insertEdge(parent, null, null, graph.getModel().getCell(handler.uuid),
+              graph.getModel().getCell(to), edgeStyle + 'dashed=1;');
           }
         }
 
@@ -249,13 +249,13 @@ export class ApplicationGraphDiagramComponent implements OnInit {
       const q = [state];
       while (q.length > 0) {
         const n = q.shift();
-        if(!n){
+        if (!n) {
           continue;
         }
         if (n.cell.edges) {
           for (const e of n.cell.edges) {
             console.log(e);
-            if(e.id in visited){
+            if (e.id in visited) {
               continue;
             }
             visited.add(e.id);
@@ -290,7 +290,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
           }
         },
         mouseMove(sender, me) {
-          if (this.currentState != null && me.getState() == this.currentState) {
+          if (this.currentState != null && me.getState() === this.currentState) {
             return;
           }
 
@@ -302,7 +302,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
             tmp = null;
           }
 
-          if (tmp != this.currentState) {
+          if (tmp !== this.currentState) {
             if (this.currentState != null) {
               this.dragLeave(me.getEvent(), this.currentState);
             }
@@ -314,15 +314,15 @@ export class ApplicationGraphDiagramComponent implements OnInit {
             }
           }
         },
-        mouseUp(sender, me) {
+        mouseUp: (sender, me) => {
         },
-        dragEnter(evt, state) {
+        dragEnter: (evt, state) => {
           if (state != null) {
 
             updateStyle(state, true);
           }
         },
-        dragLeave(evt, state) {
+        dragLeave: (evt, state) => {
           if (state != null) {
             updateStyle(state, false);
             /*
@@ -386,6 +386,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
       // as per the mathematical convention, instead of "down" as per the computer
       // graphics convention. This doesn't affect the correctness of the result.
       const upperHull = [];
+      // eslint-disable-next-line @typescript-eslint/prefer-for-of
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
         while (upperHull.length >= 2) {
@@ -415,7 +416,8 @@ export class ApplicationGraphDiagramComponent implements OnInit {
         lowerHull.push(p);
       }
       lowerHull.pop();
-      if (upperHull.length == 1 && lowerHull.length == 1 && upperHull[0].x == lowerHull[0].x && upperHull[0].y == lowerHull[0].y) {
+      if (upperHull.length === 1 && lowerHull.length === 1 && upperHull[0].x === lowerHull[0].x
+        && upperHull[0].y === lowerHull[0].y) {
         return upperHull;
       } else {
         return upperHull.concat(lowerHull);

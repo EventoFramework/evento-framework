@@ -12,16 +12,12 @@ const routes: Routes = [
     loadChildren: () => import('./pages/bundle/bundle-list/bundle-list.module').then(m => m.BundleListPageModule)
   },
   {
-    path: 'library-page',
-    loadChildren: () => import('./pages/library/library-page/library-page.module').then( m => m.LibraryPagePageModule)
-  },
-  {
     path: 'cluster-status',
-    loadChildren: () => import('./pages/cluster-status/cluster-status.module').then( m => m.ClusterStatusPageModule)
+    loadChildren: () => import('./pages/cluster-status/cluster-status.module').then(m => m.ClusterStatusPageModule)
   },
   {
     path: 'application-graph',
-    loadChildren: () => import('./pages/application-graph/application-graph.module').then( m => m.ApplicationGraphPageModule)
+    loadChildren: () => import('./pages/application-graph/application-graph.module').then(m => m.ApplicationGraphPageModule)
   },
   {
     path: 'application-flows',
@@ -29,30 +25,26 @@ const routes: Routes = [
   },
   {
     path: 'bundle-info/:identifier',
-    loadChildren: () => import('./pages/bundle/bundle-info/bundle-info.module').then( m => m.BundleInfoPageModule)
+    loadChildren: () => import('./pages/bundle/bundle-info/bundle-info.module').then(m => m.BundleInfoPageModule)
   },
   {
     path: 'payload-catalog',
-    loadChildren: () => import('./pages/catalog/payload-catalog/payload-catalog.module').then( m => m.PayloadCatalogPageModule)
+    loadChildren: () => import('./pages/catalog/payload-catalog/payload-catalog.module').then(m => m.PayloadCatalogPageModule)
   },
 
   {
     path: 'payload-info/:identifier',
-    loadChildren: () => import('./pages/catalog/payload-catalog/payload-info/payload-info.module').then( m => m.PayloadInfoPageModule)
+    loadChildren: () => import('./pages/catalog/payload-catalog/payload-info/payload-info.module').then(m => m.PayloadInfoPageModule)
   },
   {
     path: 'component-catalog',
-    loadChildren: () => import('./pages/catalog/component-catalog/component-catalog.module').then( m => m.ComponentCatalogPageModule)
+    loadChildren: () => import('./pages/catalog/component-catalog/component-catalog.module').then(m => m.ComponentCatalogPageModule)
   },
   {
     path: 'component-info/:identifier',
-    loadChildren: () => import('./pages/catalog/component-catalog/component-info/component-info.module').then( m => m.ComponentInfoPageModule)
+    loadChildren: () => import('./pages/catalog/component-catalog/component-info/component-info.module')
+      .then(m => m.ComponentInfoPageModule)
   },
-
-
-
-
-
 
 ];
 

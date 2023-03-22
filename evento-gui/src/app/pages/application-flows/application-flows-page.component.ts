@@ -1,12 +1,9 @@
 import {Component, ElementRef, OnInit, ViewChild} from '@angular/core';
-import {HandlerService} from '../../services/handler.service';
-import {BundleColorService} from '../../services/bundle-color.service';
-import * as mermaid from 'mermaid';
-import {ActivatedRoute} from "@angular/router";
-import {componentColor, graphCenterFit, payloadColor, stringToColour} from "../../services/utils";
-import {FlowsService} from "../../services/flows.service";
-import {CatalogService} from "../../services/catalog.service";
-import {BundleService} from "../../services/bundle.service";
+import {ActivatedRoute} from '@angular/router';
+import {componentColor, graphCenterFit, payloadColor, stringToColour} from '../../services/utils';
+import {FlowsService} from '../../services/flows.service';
+import {CatalogService} from '../../services/catalog.service';
+import {BundleService} from '../../services/bundle.service';
 
 declare let mxGraph: any;
 declare let mxHierarchicalLayout: any;
@@ -20,11 +17,12 @@ declare let mxEvent: any;
 })
 export class ApplicationFlowsPage implements OnInit {
 
-  performanceAnalysis = false;
-  sources = [];
-  private network: any;
 
   @ViewChild('container', {static: true}) container: ElementRef;
+
+  performanceAnalysis = false;
+  sources = [];
+
   bundleActiveThreads = {};
   maxFlowThroughput = {};
   bundles = [];
@@ -37,12 +35,28 @@ export class ApplicationFlowsPage implements OnInit {
 
   search = '';
 
+
+  private network: any;
+
   constructor(private flowService: FlowsService,
-              private bundleColorService: BundleColorService,
               private catalogService: CatalogService,
               private bundleService: BundleService,
               private route: ActivatedRoute) {
 
+  }
+
+  async ngOnInit() {
+
+    this.allPayloads = await this.catalogService.findAllPayload();
+    this.allPayloads = this.allPayloads.filter(p => p.type !== 'View');
+    this.allComponents = await this.catalogService.findAllComponent();
+    this.allBundles = await this.bundleService.findAll();
+    for (const b of this.allBundles) {
+      b.color = stringToColour(b.id);
+    }
+    this.checkFilter();
+
+    this.route.queryParamMap.subscribe(async q => this.setNetwork(await this.loadNetworkFromQuery(q)));
   }
 
   loadNetworkFromQuery(queryParamMap) {
@@ -74,7 +88,7 @@ export class ApplicationFlowsPage implements OnInit {
     const container = this.container.nativeElement;
     this.network = network;
     this.sources = [];
-    const tMap = {}
+    const tMap = {};
     for (const node of this.network.nodes) {
       if (node.type === 'Source') {
         node.throughtput = 0.001;
@@ -92,6 +106,7 @@ export class ApplicationFlowsPage implements OnInit {
       }
     }
 
+    // eslint-disable-next-line guard-for-in
     for (const block in tMap) {
       for (const node of tMap[block]) {
         node.numServers = node.numServers / tMap[block].length;
@@ -107,6 +122,19 @@ export class ApplicationFlowsPage implements OnInit {
   togglePerformanceAnalysis(event: any) {
     this.performanceAnalysis = event.detail.checked;
     return this.drawGraph(this.container.nativeElement);
+  }
+
+  runAnalysis() {
+    return this.drawGraph(this.container.nativeElement);
+  }
+
+  checkFilter() {
+    this.payloads = this.allPayloads.filter(p => p.name.toLowerCase().includes(this.search.toLowerCase()) ||
+      p.description?.toLowerCase().includes(this.search.toLowerCase()));
+    this.components = this.allComponents.filter(c => c.componentName.toLowerCase().includes(this.search.toLowerCase()) ||
+      c.description?.toLowerCase().includes(this.search.toLowerCase()));
+    this.bundleFilter = this.allBundles.filter(b => b.id.toLowerCase().includes(this.search.toLowerCase()) ||
+      b.description?.toLowerCase().includes(this.search.toLowerCase()));
   }
 
   private drawGraph(container) {
@@ -144,11 +172,11 @@ export class ApplicationFlowsPage implements OnInit {
       graph.getModel().beginUpdate();
       try {
 
-        let nodesRef = {};
+        const nodesRef = {};
 
         for (const node of this.network.nodes) {
           nodesRef[node.id] = node;
-          if (node.type != 'Source') {
+          if (node.type !== 'Source') {
             node.throughtput = 0;
           }
           node.flowThroughtput = 0;
@@ -161,34 +189,44 @@ export class ApplicationFlowsPage implements OnInit {
         }
 
 
-        const vertexRef = {}
+        const vertexRef = {};
 
-        const sinkStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;fontColor=black;fillColor=transparent';
-        const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;orthogonal=1;strokeWidth=1;';
+        const sinkStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;' +
+          'fontColor=black;fillColor=transparent';
+        const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;' +
+          'endArrow=block;endFill=1;orthogonal=1;strokeWidth=1;';
         for (const node of this.network.nodes) {
 
-          var height = 60;
+          let height = 60;
           if (node.component === 'Gateway') {
 
-            vertexRef[node.id] = graph.insertVertex(parent, node.id, `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`, null, null, node.action.length * 10 + 25,
+            vertexRef[node.id] = graph.insertVertex(parent, node.id,
+              `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`,
+              null, null, node.action.length * 10 + 25,
               height,
-              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
+              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' +
+              (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
 
 
           } else if (node.type === 'Source') {
-            var text = node.name;
-            vertexRef[node.id] = graph.insertVertex(parent, node.id, `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`, null, null, text.length * 10,
+            const text = node.name;
+            vertexRef[node.id] = graph.insertVertex(parent, node.id,
+              `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`,
+              null, null, text.length * 10,
               height,
-              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
+              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' +
+              (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
           } else if (node.bundle === 'event-store') {
             height = 80;
-            vertexRef[node.id] = graph.insertVertex(parent, node.id, '\n<span class="title">' + node.action + '</span>', null, null, node.action.length * 10 + 30,
+            vertexRef[node.id] = graph.insertVertex(parent, node.id, '\n<span class="title">' + node.action + '</span>',
+              null, null, node.action.length * 10 + 30,
               height,
-              'shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#333333;strokeWidth=3;');
+              'shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;rounded=1;whiteSpace=wrap;' +
+              'html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#333333;strokeWidth=3;');
           } else if (node.type === 'Sink') {
             node.name = node.type;
             height = 50;
-            vertexRef[node.id] = graph.insertVertex(parent, node.id, "Sink", null, null, 50,
+            vertexRef[node.id] = graph.insertVertex(parent, node.id, 'Sink', null, null, 50,
               height,
               sinkStyle);
           } else {
@@ -198,26 +236,28 @@ export class ApplicationFlowsPage implements OnInit {
                 <span class="title" style="color: ${componentColor[node.componentType]} !important">${node.component}</span>`
               , null, null, Math.max(node.component.length, node.bundle.length) * 10 + 25,
               height,
-              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + stringToColour(node.bundle) + ';fontColor=#333333;strokeWidth=3;');
+              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + stringToColour(node.bundle) +
+              ';fontColor=#333333;strokeWidth=3;');
           }
 
           if (this.performanceAnalysis && node.isBottleneck && node.type !== 'Source') {
-            vertexRef[node.id].style += 'strokeColor=#ff0000;strokeWidth=3;'
+            vertexRef[node.id].style += 'strokeColor=#ff0000;strokeWidth=3;';
           }
 
           if (this.performanceAnalysis) {
             vertexRef[node.id].value +=
-              `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]<br/>Customers: ${node.customers.toFixed(4) + (node.fcr ? ('/' + 1) : '')} [r]`
+              `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]`+
+              `<br/>Customers: ${node.customers.toFixed(4) + (node.fcr ? ('/' + 1) : '')} [r]`;
             vertexRef[node.id].geometry.height += 30;
             if (node.bundle === 'event-store') {
               vertexRef[node.id].geometry.height += 30;
-              vertexRef[node.id].value = '<br/><br/>' + vertexRef[node.id].value
+              vertexRef[node.id].value = '<br/><br/>' + vertexRef[node.id].value;
             }
             //vertexRef[node.id].value += "<br/>" +
 
 
           }
-          if(this.performanceAnalysis){
+          if (this.performanceAnalysis) {
             // vertexRef[node.id].value += "<br/>" +  JSON.stringify(nodesRef[node.flow].throughtput) + "-" + node.throughtput
           }
         }
@@ -234,19 +274,21 @@ export class ApplicationFlowsPage implements OnInit {
               const ql = (source.throughtput - target.throughtput) * target.meanServiceTime;
               const ratio = source.throughtput / source.flowThroughtput;
               const c = this.perc2color(ratio * 100);
-              var txt = (node.throughtput * node.target[target.id]).toFixed(4) + "  [r/ms]";
-              if(target.fcr) {
-                txt += "\n" + ql.toFixed(4) + " [ql/ms]";
+              let txt = (node.throughtput * node.target[target.id]).toFixed(4) + '  [r/ms]';
+              if (target.fcr) {
+                txt += '\n' + ql.toFixed(4) + ' [ql/ms]';
               }
-              txt += "\n" + (node.target[target.id]*100)?.toFixed(1) + " %";
+              txt += '\n' + (node.target[target.id] * 100)?.toFixed(1) + ' %';
 
-              const zz =';strokeWidth=' +new String((Math.max(1, Math.min(ratio * 5, 10)))) + ';' ;
-              const sty =  edgeStyle + zz + ';strokeColor=' + c + ';' + (target.async ? 'dashed=1' : 'dashed=0');
+              const zz = ';strokeWidth=' + String((Math.max(1, Math.min(ratio * 5, 10)))) + ';';
+              const sty = edgeStyle + zz + ';strokeColor=' + c + ';' + (target.async ? 'dashed=1' : 'dashed=0');
               graph.insertEdge(parent, null, txt, vertexRef[node.id],
-                vertexRef[target.id], (!!ratio && !!node.target[target.id])   ? sty : (edgeStyle + ';strokeWidth=1;strokeColor=grey' +';' + (target.async ? 'dashed=1' : 'dashed=0')));
+                vertexRef[target.id], (!!ratio && !!node.target[target.id]) ? sty :
+                  (edgeStyle + ';strokeWidth=1;strokeColor=grey' + ';' + (target.async ? 'dashed=1' : 'dashed=0')));
             } else {
-              edges.push(graph.insertEdge(parent, null, "", vertexRef[node.id],
-                vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';' + (target.async ? 'strokeColor=#999999' : 'strokeColor=#000')));
+              edges.push(graph.insertEdge(parent, null, '', vertexRef[node.id],
+                vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';' +
+                (target.async ? 'strokeColor=#999999' : 'strokeColor=#000')));
             }
           }
         }
@@ -262,13 +304,13 @@ export class ApplicationFlowsPage implements OnInit {
       graphCenterFit(graph, container);
 
       for (const e of edges) {
-        var state = graph.view.getState(e);
+        const state = graph.view.getState(e);
         state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
       }
 
-      graph.view.addListener(mxEvent.AFTER_RENDER, function () {
+      graph.view.addListener(mxEvent.AFTER_RENDER, () => {
         for (const e of edges) {
-          var state = graph.view.getState(e);
+          const state = graph.view.getState(e);
           state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
         }
       });
@@ -277,24 +319,12 @@ export class ApplicationFlowsPage implements OnInit {
   }
 
 
-  async ngOnInit() {
 
-    this.allPayloads = await this.catalogService.findAllPayload();
-    this.allPayloads = this.allPayloads.filter(p => p.type !== 'View')
-    this.allComponents = await this.catalogService.findAllComponent();
-    this.allBundles = await this.bundleService.findAll();
-    for (let b of this.allBundles) {
-      b.color = stringToColour(b.id);
-    }
-    this.checkFilter();
 
-    this.route.queryParamMap.subscribe(async q => {
-      return this.setNetwork(await this.loadNetworkFromQuery(q));
-    })
-  }
-
-  perc2color(perc) {
-    let r, g, b = 0;
+  private perc2color(perc) {
+    let r;
+    let g;
+    const b = 0;
     if (perc < 50) {
       r = 255;
       g = Math.round(5.1 * perc);
@@ -302,25 +332,11 @@ export class ApplicationFlowsPage implements OnInit {
       g = 255;
       r = Math.round(510 - 5.10 * perc);
     }
-    const h = r * 0x10000 + g * 0x100 + b * 0x1;
+    const h = r * 0x10000 + g * 0x100 + b;
     return '#' + ('000000' + h.toString(16)).slice(-6);
   }
 
-  runAnalysis() {
-    return this.drawGraph(this.container.nativeElement);
-  }
 
-  checkFilter() {
-    this.payloads = this.allPayloads.filter(p => {
-      return p.name.toLowerCase().includes(this.search.toLowerCase()) || p.description?.toLowerCase().includes(this.search.toLowerCase())
-    });
-    this.components = this.allComponents.filter(c => {
-      return c.componentName.toLowerCase().includes(this.search.toLowerCase()) || c.description?.toLowerCase().includes(this.search.toLowerCase())
-    })
-    this.bundleFilter = this.allBundles.filter(b => {
-      return b.id.toLowerCase().includes(this.search.toLowerCase()) || b.description?.toLowerCase().includes(this.search.toLowerCase())
-    })
-  }
 
   private doPerformanceAnalysis(nodesRef) {
 
@@ -331,13 +347,13 @@ export class ApplicationFlowsPage implements OnInit {
 
       for (const node of this.network.nodes) {
         nodesRef[node.id] = node;
-        if (node.type != 'Source') {
+        if (node.type !== 'Source') {
           node.throughtput = 0;
         }
         node.flowThroughtput = 0;
       }
 
-      var q = [];
+      const q = [];
       for (const s of this.sources) {
         s.meanServiceTime = 1 / s.throughtput;
         s.flowThroughtput = s.throughtput;
@@ -347,18 +363,18 @@ export class ApplicationFlowsPage implements OnInit {
       while (q.length > 0) {
         const n = q.shift();
         for (const t of Object.keys(n.target)) {
-          var target = nodesRef[t];
+          const target = nodesRef[t];
           target.throughtput = (n.throughtput * n.target[t]);
           if (target.fcr) {
-            const t = target.numServers / target.meanServiceTime;
-            if (t < target.throughtput) {
-              target.throughtput = t;
+            const tt = target.numServers / target.meanServiceTime;
+            if (tt < target.throughtput) {
+              target.throughtput = tt;
             }
           }
-          if(target.throughtput > n.throughtput || n.target[t] !== 1 ){
+          if (target.throughtput > n.throughtput || n.target[t] !== 1) {
             target.flowThroughtput = target.throughtput;
             target.flow = target.id;
-          }else {
+          } else {
             target.flow = n.flow;
             target.flowThroughtput = n.flowThroughtput;
           }
@@ -394,7 +410,7 @@ export class ApplicationFlowsPage implements OnInit {
       }
 
       let tSum = 0;
-      const tMap = {}
+      const tMap = {};
       for (const node of this.network.nodes) {
         tSum += node.throughtput;
         if (node.fcr) {
@@ -404,18 +420,18 @@ export class ApplicationFlowsPage implements OnInit {
               s: 0
             };
           }
-          tMap[node.component].t = Math.min( tMap[node.component].t,node.flowThroughtput);
-          tMap[node.component].s += node.meanServiceTime
+          tMap[node.component].t = Math.min(tMap[node.component].t, node.flowThroughtput);
+          tMap[node.component].s += node.meanServiceTime;
         }
       }
       console.log(tMap);
-      console.log(tSum - old)
+      console.log(tSum - old);
       console.log(i);
       if (Math.abs(tSum - old) > 0.00001 && i < 10) {
         old = tSum;
         i++;
 
-        const nsSum = {}
+        const nsSum = {};
         for (const node of this.network.nodes) {
           if (node.fcr) {
             node.numServers = (node.flowThroughtput / tMap[node.component].t) * (node.meanServiceTime / tMap[node.component].s);

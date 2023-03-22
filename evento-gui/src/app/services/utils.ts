@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention,no-bitwise */
 export const stringToColour = (str) => {
   let i;
   let hash = 0;
@@ -10,35 +11,46 @@ export const stringToColour = (str) => {
     colour += ('00' + value.toString(16)).substr(-2);
   }
   return colour;
-}
+};
+export const getColorForBundle = (bundle: string) => {
+  if (bundle === 'server') {
+    return 'transparent';
+  }
+  if (bundle === 'event-store') {
+    return 'transparent';
+  }
+  return stringToColour(bundle);
+};
+
 
 export const componentColor = {
-  'Aggregate': 'blue',
-  'Service': 'red',
-  'Projection': 'green',
-  'Projector': 'lightgreen',
-  'Saga': 'purple',
-  'Observer': 'black',
-  'Invoker': 'grey',
-}
+  Aggregate: 'blue',
+  Service: 'red',
+  Projection: 'green',
+  Projector: 'lightgreen',
+  Saga: 'purple',
+  Observer: 'black',
+  Invoker: 'grey',
+};
+
 export const payloadColor = {
-  'DomainCommand': '#3399fe',
-  'ServiceCommand': '#ff68b9',
-  'DomainEvent': '#ff992a',
-  'ServiceEvent': '#cb3234',
-  'View': '#5fc08b',
-  'Invocation': 'grey',
-  'Query': 'gold',
-}
+  DomainCommand: '#3399fe',
+  ServiceCommand: '#ff68b9',
+  DomainEvent: '#ff992a',
+  ServiceEvent: '#cb3234',
+  View: '#5fc08b',
+  Invocation: 'grey',
+  Query: 'gold',
+};
 
 export const graphCenterFit = (graph, container) => {
-  var bounds = graph.getGraphBounds();
+  const bounds = graph.getGraphBounds();
   graph.fit();
-  var zoom = graph.view.scale;
+  let zoom = graph.view.scale;
   if (bounds.width > container.offsetWidth || bounds.height > container.offsetHeight) {
     zoom = Math.min(container.offsetWidth / bounds.width, container.offsetHeight / bounds.height);
   }
   zoom = zoom * 0.95;
   graph.zoomTo(zoom);
   graph.center();
-}
+};

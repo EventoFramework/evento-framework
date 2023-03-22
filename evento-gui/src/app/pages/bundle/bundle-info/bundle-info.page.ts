@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
-import {ActivatedRoute} from "@angular/router";
-import {BundleService} from "../../../services/bundle.service";
-import {NavController} from "@ionic/angular";
+import {ActivatedRoute} from '@angular/router';
+import {BundleService} from '../../../services/bundle.service';
+import {NavController} from '@ionic/angular';
 
 @Component({
   selector: 'app-bundle-info',
@@ -11,7 +11,7 @@ import {NavController} from "@ionic/angular";
 export class BundleInfoPage implements OnInit {
   bundleId: string;
   bundle;
-  componentHandlers: {}
+  componentHandlers: any;
   components = [];
   environmentKeys: string[] = [];
   vmOptionsKeys: string[] = [];
@@ -22,16 +22,16 @@ export class BundleInfoPage implements OnInit {
   async ngOnInit() {
     this.bundleId = this.route.snapshot.params.identifier;
     this.bundle = await this.bundleService.find(this.bundleId);
-    this.bundle.handlers.sort((a,b) => (a.componentName + a.handlerType).localeCompare(b.componentName + b.handlerType))
+    this.bundle.handlers.sort((a,b) => (a.componentName + a.handlerType).localeCompare(b.componentName + b.handlerType));
     this.componentHandlers = this.bundle.handlers.reduce((c, h) => {
       if(!c[h.componentName]){
-        c[h.componentName] = []
+        c[h.componentName] = [];
       }
       c[h.componentName].push(h);
-      return c
-    }, {})
-    const map = {}
-    for(let h of this.bundle.handlers){
+      return c;
+    }, {});
+    const map = {};
+    for(const h of this.bundle.handlers){
       map[h.componentName] = {name: h.componentName, type: h.componentType};
     }
     this.components = Object.values(map);
@@ -62,7 +62,7 @@ export class BundleInfoPage implements OnInit {
 
   async unregister() {
     await this.bundleService.unregister(this.bundleId);
-    await this.navController.navigateBack('/bundle-list')
+    await this.navController.navigateBack('/bundle-list');
 
   }
 

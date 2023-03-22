@@ -1,7 +1,7 @@
 import {Component, OnInit} from '@angular/core';
-import {ActivatedRoute} from "@angular/router";
-import {CatalogService} from "../../../../services/catalog.service";
-import {stringToColour} from "../../../../services/utils";
+import {ActivatedRoute} from '@angular/router';
+import {CatalogService} from '../../../../services/catalog.service';
+import {stringToColour} from '../../../../services/utils';
 
 @Component({
   selector: 'app-component-info',
@@ -25,8 +25,8 @@ export class ComponentInfoPage implements OnInit {
       const invocations = {};
       for (const h of r.handlers) {
         r.domains.add(h.handledPayload.domain);
-        for(const i of Object.values(h.invocations)){
-          invocations[i["name"]] = i;
+        for(const i of Object.values(h.invocations) as any[]){
+          invocations[i.name] = i;
         }
       }
       r.invocations = Object.values(invocations);
