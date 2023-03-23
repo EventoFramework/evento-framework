@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import {environment} from "../../environments/environment";
+import {environment} from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -26,6 +26,7 @@ export class CatalogService {
        domain
      }),
      headers: {
+       // eslint-disable-next-line @typescript-eslint/naming-convention
        'Content-Type': 'application/json'
      }
    });
@@ -48,6 +49,7 @@ export class CatalogService {
         description,
       }),
       headers: {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         'Content-Type': 'application/json'
       }
     });

@@ -119,7 +119,7 @@
           <ion-label slot="end">{{bundleActiveThreads[bundle] | number:'.4'}}</ion-label>
         </ion-item>
       </ion-list>
-      <ion-list *ngIf="segment.value == 'max.throughput'">
+      <ion-list *ngIf="segment.value === 'max.throughput'">
         <ion-list-header>
           <ion-grid class="ion-no-padding">
             <ion-row>

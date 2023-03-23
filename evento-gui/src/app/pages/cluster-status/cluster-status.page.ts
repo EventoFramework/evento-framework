@@ -1,7 +1,7 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
-import {ClusterStatusService} from "../../services/cluster-status.service";
-import {Subscription} from "rxjs";
-import {stringToColour} from "../../services/utils";
+import {ClusterStatusService} from '../../services/cluster-status.service';
+import {Subscription} from 'rxjs';
+import {stringToColour} from '../../services/utils';
 
 @Component({
   selector: 'app-cluster-status',
@@ -10,18 +10,18 @@ import {stringToColour} from "../../services/utils";
 })
 export class ClusterStatusPage implements OnInit, OnDestroy {
 
-  public view = {}
+  bundleColor = {};
+  public view = {};
   public attendedView = [];
   public externalView = [];
   private viewSubscription: Subscription;
-  bundleColor = {};
   constructor(private clusterStatusService: ClusterStatusService) {
   }
 
   async ngOnInit() {
 
     const attendedView = await this.clusterStatusService.getAttendedView();
-    for (let node of attendedView) {
+    for (const node of attendedView) {
       this.bundleColor[node] = stringToColour(node);
       this.view[node] = {
         isOnline: false,
@@ -29,7 +29,7 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
         replicas: {},
         replicaCount: 0,
         external: false
-      }
+      };
     }
     this.attendedView = attendedView;
 
@@ -37,8 +37,8 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
       const view = viewUpdate.view;
       if (viewUpdate.type === 'current') {
         const upNodes = view.map(n => n.bundleId);
-        this.externalView = [...new Set(upNodes.filter(n => !this.attendedView.includes(n)))]
-        for (let node of this.externalView) {
+        this.externalView = [...new Set(upNodes.filter(n => !this.attendedView.includes(n)))];
+        for (const node of this.externalView) {
           if(!this.view[node]) {
             this.bundleColor[node] = stringToColour(node);
             this.view[node] = {
@@ -47,10 +47,10 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
               replicas: {},
               replicaCount: 0,
               external: true
-            }
+            };
           }
         }
-        for (let node of this.attendedView.concat(this.externalView)) {
+        for (const node of this.attendedView.concat(this.externalView)) {
           this.bundleColor[node] = stringToColour(node);
           this.view[node].isOnline = upNodes.includes(node);
           this.view[node].replicas = view.filter(n => n.bundleId === node).reduce((a, e) => {
@@ -61,21 +61,21 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
               isAvailable: this.view[node]?.replicas[e.nodeId]?.isAvailable
             };
             return a;
-          }, {})
+          }, {});
           this.view[node].replicasKeys = Object.keys(this.view[node].replicas);
-          this.view[node].replicaCount = upNodes.filter(n => n === node).length
+          this.view[node].replicaCount = upNodes.filter(n => n === node).length;
         }
       } else {
         const availableNodes = view.map(n => n.bundleId);
-        for (let node of this.attendedView.concat(this.externalView)) {
+        for (const node of this.attendedView.concat(this.externalView)) {
           this.bundleColor[node] = stringToColour(node);
           this.view[node].isAvailable = availableNodes.includes(node);
-          for (let replica of this.view[node].replicasKeys) {
-            this.view[node].replicas[replica].isAvailable = view.map(n => n.nodeId).includes(this.view[node].replicas[replica].nodeId)
+          for (const replica of this.view[node].replicasKeys) {
+            this.view[node].replicas[replica].isAvailable = view.map(n => n.nodeId).includes(this.view[node].replicas[replica].nodeId);
           }
         }
       }
-    })
+    });
   }
 
 
@@ -84,11 +84,11 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
     await this.clusterStatusService.spawn(node);
     this.view[node].isOnline = true;
     this.view[node].replicaCount++;
-    this.view[node].replicasKeys.push('pending')
-    this.view[node].replicas['pending'] = {
+    this.view[node].replicasKeys.push('pending');
+    this.view[node].replicas.pending = {
       nodeId: 'pending',
       bundleId: 'pending'
-    }
+    };
   }
 
   async kill(replica: any) {
