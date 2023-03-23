@@ -4,7 +4,7 @@ import {PreloadAllModules, RouterModule, Routes} from '@angular/router';
 const routes: Routes = [
   {
     path: '',
-    redirectTo: 'payload-catalog',
+    redirectTo: 'dashboard',
     pathMatch: 'full'
   },
   {
@@ -45,6 +45,11 @@ const routes: Routes = [
     loadChildren: () => import('./pages/catalog/component-catalog/component-info/component-info.module')
       .then(m => m.ComponentInfoPageModule)
   },
+  {
+    path: 'dashboard',
+    loadChildren: () => import('./pages/dashboard/dashboard.module').then( m => m.DashboardPageModule)
+  },
+
 
 ];
 

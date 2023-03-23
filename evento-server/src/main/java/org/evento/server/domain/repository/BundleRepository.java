@@ -16,4 +16,7 @@ public interface BundleRepository extends JpaRepository<Bundle, String> {
 			"group by b.id " +
 			"order by b.updated_at;", nativeQuery = true)
 	List<BundleListProjection> findAllProjection();
+
+	@Query("select count(b) from Bundle b where b.containsHandlers = true")
+	Long countDeployable();
 }
