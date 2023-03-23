@@ -13,6 +13,7 @@ import org.evento.server.es.snapshot.SnapshotRepository;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -123,5 +124,13 @@ public class EventStore {
 
 	public Long getLastAggregateSequenceNumber(String aggregateId) {
 		return eventStoreRepository.getLastAggregateSequenceNumber(aggregateId);
+	}
+
+	public Long getSize() {
+		return eventStoreRepository.count();
+	}
+
+	public Double getRecentPublicationRation() {
+		return eventStoreRepository.getPublicationRatio();
 	}
 }
