@@ -246,7 +246,7 @@ export class ApplicationFlowsPage implements OnInit {
 
           if (this.performanceAnalysis) {
             vertexRef[node.id].value +=
-              `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]`+
+              `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]` +
               `<br/>Customers: ${node.customers.toFixed(4) + (node.fcr ? ('/' + 1) : '')} [r]`;
             vertexRef[node.id].geometry.height += 30;
             if (node.bundle === 'event-store') {
@@ -319,8 +319,6 @@ export class ApplicationFlowsPage implements OnInit {
   }
 
 
-
-
   private perc2color(perc) {
     let r;
     let g;
@@ -335,7 +333,6 @@ export class ApplicationFlowsPage implements OnInit {
     const h = r * 0x10000 + g * 0x100 + b;
     return '#' + ('000000' + h.toString(16)).slice(-6);
   }
-
 
 
   private doPerformanceAnalysis(nodesRef) {
@@ -409,47 +406,26 @@ export class ApplicationFlowsPage implements OnInit {
         }
       }
 
-      let tSum = 0;
-      const tMap = {};
+      i++;
+      const nsSum = {};
       for (const node of this.network.nodes) {
-        tSum += node.throughtput;
         if (node.fcr) {
-          if (!tMap[node.component]) {
-            tMap[node.component] = {
-              t: node.flowThroughtput,
-              s: 0
-            };
+          if (!nsSum[node.component]) {
+            nsSum[node.component] = 0;
           }
-          tMap[node.component].t = Math.min(tMap[node.component].t, node.flowThroughtput);
-          tMap[node.component].s += node.meanServiceTime;
+          nsSum[node.component] += node.flowThroughtput * node.meanServiceTime;
         }
       }
-      console.log(tMap);
-      console.log(tSum - old);
-      console.log(i);
-      if (Math.abs(tSum - old) > 0.00001 && i < 10) {
-        old = tSum;
-        i++;
-
-        const nsSum = {};
-        for (const node of this.network.nodes) {
-          if (node.fcr) {
-            node.numServers = (node.flowThroughtput / tMap[node.component].t) * (node.meanServiceTime / tMap[node.component].s);
-            if (!nsSum[node.component]) {
-              nsSum[node.component] = 0;
-            }
-            nsSum[node.component] += node.numServers;
-          }
+      let diff = 0;
+      for (const node of this.network.nodes) {
+        if (node.fcr) {
+          const o = node.numServers;
+          node.numServers = node.flowThroughtput * node.meanServiceTime / Math.max(1, nsSum[node.component]);
+          diff += Math.abs(o - node.numServers);
         }
-        for (const node of this.network.nodes) {
-          if (node.fcr) {
-            node.numServers = Math.min(
-              node.numServers / nsSum[node.component],
-              node.flowThroughtput * node.meanServiceTime);
-          }
-        }
-
-      } else {
+      }
+      if(i > 10 || diff < 0.0001){
+        console.log({i, diff});
         return;
       }
     }
