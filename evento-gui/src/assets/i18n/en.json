@@ -87,5 +87,7 @@
   "cluster.external": "External bundles",
   "flows.search": "Find Payload, Component or Domain",
   "flows.all": "All Components and Payload",
-  "flows.all.desc": "Diagram that show all flows present in you system"
+  "flows.all.desc": "Diagram that show all flows present in you system",
+  "dashboard.server.name": "Server Name",
+  "event.store.title": "Event Store"
 }

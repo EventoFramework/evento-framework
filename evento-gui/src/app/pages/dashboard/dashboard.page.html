@@ -1,6 +1,61 @@
 <ion-content>
 
   <app-wrapped-content>
-    <h1>Server Instance: </h1>
+    <ng-container *ngIf="dashboard">
+      <ion-grid>
+        <ion-row class="ion-margin-top line-under">
+          <ion-col>
+            <ion-title><h1><span translate="dashboard.server.name"></span>:&nbsp;{{dashboard.serverName}}</h1></ion-title>
+          </ion-col>
+        </ion-row>
+        <ion-row>
+          <ion-col>
+            <ion-card routerLink="/payload-catalog">
+              <ion-card-content>
+                <ion-text class="title" ><span translate="catalog.payload.title"></span>&nbsp;({{dashboard.payloadCount}})</ion-text>
+                <br/>
+                <ion-chip class="payload-type-{{p.type}}" *ngFor="let p of dashboard.payloadCountByType">
+                  {{p.type}}&nbsp;({{p.count}})
+                </ion-chip>
+              </ion-card-content>
+            </ion-card>
+          </ion-col>
+          <ion-col>
+            <ion-card routerLink="/component-catalog">
+              <ion-card-content>
+                <ion-text class="title">
+                  <span translate="catalog.component.title"></span>&nbsp;({{dashboard.componentCount}})
+                </ion-text>
+                <br/>
+                <ion-chip class="component-type-{{p.type}}" *ngFor="let p of dashboard.componentCountByType">
+                  {{p.type}}&nbsp;({{p.count}})
+                </ion-chip>
+              </ion-card-content>
+            </ion-card>
+          </ion-col>
+        </ion-row>
+        <ion-row>
+          <ion-col>
+            <ion-card>
+              <ion-card-content>
+                <ion-text class="title">
+                  <span translate="bundle.title"></span>&nbsp;({{dashboard.bundleCount}})
+                </ion-text>
+              </ion-card-content>
+            </ion-card>
+          </ion-col>
+          <ion-col>
+            <ion-card>
+              <ion-card-content>
+                <ion-text class="title">
+                  <span translate="event.store.title"></span>&nbsp;({{dashboard.eventCount}})
+                </ion-text>
+              </ion-card-content>
+            </ion-card>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
+
+    </ng-container>
   </app-wrapped-content>
 </ion-content>
