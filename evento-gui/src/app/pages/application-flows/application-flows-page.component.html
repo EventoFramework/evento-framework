@@ -26,7 +26,7 @@
           <ion-card *ngFor="let payload of payloads" [class]="'payload-type payload-type-' + payload.type" routerLink="/application-flows" [queryParams]="{'payload' : payload.name}">
             <ion-card-content>
               <ion-text class="title">{{payload.name}}</ion-text>
-              <p>{{payload.description}}</p>
+              <ion-text color="dark"><p>{{payload.description}}</p></ion-text>
             </ion-card-content>
           </ion-card>
         </ng-container>
@@ -35,7 +35,7 @@
           <ion-card *ngFor="let component of components" [class]="'component-type component-type-' + component.componentType" routerLink="/application-flows" [queryParams]="{'component' : component.componentName}">
             <ion-card-content>
               <ion-text class="title">{{component.componentName}}</ion-text>
-              <p>{{component.description}}</p>
+              <ion-text color="dark"><p>{{component.description}}</p></ion-text>
             </ion-card-content>
           </ion-card>
         </ng-container>
@@ -44,7 +44,7 @@
           <ion-card *ngFor="let bundle of bundleFilter" class="bundle" [style.background-color]="bundle.color" routerLink="/application-flows" [queryParams]="{'bundle' : bundle.id}">
             <ion-card-content>
               <ion-text class="title">{{bundle.id}}</ion-text>
-              <p>{{bundle.description}}</p>
+              <ion-text color="dark"><p>{{bundle.description}}</p></ion-text>
             </ion-card-content>
           </ion-card>
         </ng-container>
