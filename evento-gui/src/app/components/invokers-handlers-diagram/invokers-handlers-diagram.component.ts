@@ -1,6 +1,6 @@
 import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
-import {componentColor, graphCenterFit, payloadColor} from "../../services/utils";
-import {NavController} from "@ionic/angular";
+import {componentColor, graphCenterFit, payloadColor} from '../../services/utils';
+import {NavController} from '@ionic/angular';
 
 declare const mxGraph: any;
 declare const mxConstants: any;
@@ -17,7 +17,7 @@ declare const mxOrthogonalLayout: any;
 export class InvokersHandlersDiagramComponent implements OnInit {
 
   @Input()
-  payload: any
+  payload: any;
 
   @ViewChild('container', {static: true}) container: ElementRef;
 
@@ -51,11 +51,12 @@ export class InvokersHandlersDiagramComponent implements OnInit {
       }
     });
     const edges = [];
-    const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=block;endFill=1;orthogonal=1;strokeColor=#999999;strokeWidth=1;';
+    const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;' +
+      'endArrow=block;endFill=1;orthogonal=1;strokeColor=#999999;strokeWidth=1;';
 
-    graph.view.addListener(mxEvent.AFTER_RENDER, function () {
+    graph.view.addListener(mxEvent.AFTER_RENDER, () => {
       for (const e of edges) {
-        var state = graph.view.getState(e);
+        const state = graph.view.getState(e);
         state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
       }
     });
@@ -67,22 +68,27 @@ export class InvokersHandlersDiagramComponent implements OnInit {
 
 
         const p = graph.insertVertex(parent,'/payload-info/'+  this.payload.name, this.payload.name, 0, 0, 250, 50,
-          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[this.payload.type] + ';fontColor=' + payloadColor[this.payload.type] + ';strokeWidth=4;fontStyle=1;fontSize=14');
+          'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[this.payload.type] +
+          ';fontColor=' + payloadColor[this.payload.type] + ';strokeWidth=4;fontStyle=1;fontSize=14');
 
         for (const r of this.payload.returnedBy) {
           const l = graph.insertVertex(parent,'/component-info/'+  r.name, r.name, 0, 0, 200, 50,
-            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[r.type] + ';fontColor=#333333;strokeWidth=3;');
+            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[r.type] +
+            ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, l, p, edgeStyle));
         }
 
         for (const i of this.payload.invokers) {
           const l = graph.insertVertex(parent,'/component-info/'+  i.name, i.name, 0, 0, 200, 50,
-            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[i.type] + ';fontColor=#333333;strokeWidth=3;');
+            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[i.type] +
+            ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, l, p, edgeStyle));
         }
 
         for (const s of this.payload.subscribers) {
-          const l = graph.insertVertex(parent,'/component-info/'+ s.name, s.name, 0, 0, 200, 50, 'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[s.type] + ';fontColor=#333333;strokeWidth=3;');
+          const l = graph.insertVertex(parent,'/component-info/'+ s.name, s.name, 0, 0, 200, 50,
+            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[s.type] +
+            ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, p, l, edgeStyle));
         }
 
@@ -103,7 +109,7 @@ export class InvokersHandlersDiagramComponent implements OnInit {
       layout.execute(parent);
 
       for (const e of edges) {
-        var state = graph.view.getState(e);
+        const state = graph.view.getState(e);
         state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
       }
 

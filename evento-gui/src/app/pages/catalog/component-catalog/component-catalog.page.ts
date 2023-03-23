@@ -1,5 +1,5 @@
 import {Component, OnInit} from '@angular/core';
-import {CatalogService} from "../../../services/catalog.service";
+import {CatalogService} from '../../../services/catalog.service';
 
 @Component({
   selector: 'app-component-catalog',
@@ -27,12 +27,12 @@ export class ComponentCatalogPage implements OnInit {
     this.types = new Set();
     this.bundles = new Set();
     this.domains = new Set();
-    for (let msg of this.allComponents) {
+    for (const msg of this.allComponents) {
       msg.domains = (msg.domains?.split(',') || []);
       this.types.add(msg.componentType);
       this.bundles.add(msg.bundleId);
       for(const d of msg.domains){
-        this.domains.add(d)
+        this.domains.add(d);
       }
     }
 
@@ -47,14 +47,15 @@ export class ComponentCatalogPage implements OnInit {
     this.components = this.allComponents.filter(c => {
       let match = true;
       if (this.search.length > 0) {
-        match = match && (c.componentName.toLowerCase().includes(this.search.toLowerCase()) || c.description?.toLowerCase().includes(this.search.toLowerCase()));
+        match = match && (c.componentName.toLowerCase().includes(this.search.toLowerCase())
+          || c.description?.toLowerCase().includes(this.search.toLowerCase()));
       }
       if (hasSelectedTypes)
-        match = match && this.selectedTypes[c.componentType];
+        {match = match && this.selectedTypes[c.componentType];}
       if (hasSelectedDomains)
-        match = match && c.domains.filter(h => this.selectedDomains[h]).length > 0;
+        {match = match && c.domains.filter(h => this.selectedDomains[h]).length > 0;}
       if (hasSelectedBundles)
-        match = match && this.selectedBundles[c.bundleId];
+        {match = match && this.selectedBundles[c.bundleId];}
       return match;
     });
   }

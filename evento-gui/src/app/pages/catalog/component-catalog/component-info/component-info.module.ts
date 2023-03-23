@@ -7,9 +7,9 @@ import { IonicModule } from '@ionic/angular';
 import { ComponentInfoPageRoutingModule } from './component-info-routing.module';
 
 import { ComponentInfoPage } from './component-info.page';
-import {ComponentsModule} from "../../../../components/components.module";
-import {MarkdownModule} from "ngx-markdown";
-import {TranslateModule} from "@ngx-translate/core";
+import {ComponentsModule} from '../../../../components/components.module';
+import {MarkdownModule} from 'ngx-markdown';
+import {TranslateModule} from '@ngx-translate/core';
 
 @NgModule({
   imports: [
