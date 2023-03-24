@@ -179,7 +179,7 @@ public class ApplicationQueueNetService {
 							var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(),
 									h.getComponent().getComponentType().toString(),
 									h.getHandledPayload().getName(), h.getHandledPayload().getType().toString(),
-									true, 1);
+									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1);
 							esAgent.addTarget(ha, performanceStoreService );
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
@@ -231,7 +231,7 @@ public class ApplicationQueueNetService {
 							var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(),
 									h.getComponent().getComponentType().toString(),
 									h.getHandledPayload().getName(), h.getHandledPayload().getType().toString(),
-									true, 1);
+									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1);
 							esAgent.addTarget(ha, performanceStoreService );
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
@@ -297,7 +297,7 @@ public class ApplicationQueueNetService {
 							var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(),
 									h.getComponent().getComponentType().toString(),
 									h.getHandledPayload().getName(), h.getHandledPayload().getType().toString(),
-									true, 1);
+									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1);
 							esAgent.addTarget(ha, performanceStoreService );
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
@@ -350,7 +350,7 @@ public class ApplicationQueueNetService {
 							var ha = n.station(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(),
 									h.getComponent().getComponentType().toString(),
 									h.getHandledPayload().getName(), h.getHandledPayload().getType().toString(),
-									true, 1);
+									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1);
 							esAgent.addTarget(ha, performanceStoreService );
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
