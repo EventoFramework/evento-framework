@@ -89,5 +89,10 @@
   "flows.all": "All Components and Payload",
   "flows.all.desc": "Diagram that show all flows present in you system",
   "dashboard.server.name": "Server Name",
-  "event.store.title": "Event Store"
+  "event.store.title": "Event Store",
+  "dashboard.bundle.count": "Deployable bundles",
+  "dashboard.bundle.view.count": "Bundles in View",
+  "dashboard.node.view.count": "Nodes in View",
+  "dashboard.aggregate.count": "Aggregates",
+  "dashboard.event.publication.frequency": "Event Frequency"
 }
