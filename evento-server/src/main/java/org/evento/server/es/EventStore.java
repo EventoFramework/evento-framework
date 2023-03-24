@@ -133,4 +133,8 @@ public class EventStore {
 	public Double getRecentPublicationRation() {
 		return eventStoreRepository.getPublicationRatio();
 	}
+
+	public Long getAggregateCount() {
+		return eventStoreRepository.getAggregateCount();
+	}
 }

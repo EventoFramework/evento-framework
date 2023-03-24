@@ -24,6 +24,8 @@ public class DashboardDTO {
     private Integer nodeInViewCount;
 
     private Long eventCount;
-    private Double eventPublicationRatio;
+
+    private Long aggregateCount;
+    private Double eventPublicationFrequency;
 
 }

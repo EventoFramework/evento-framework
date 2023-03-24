@@ -57,7 +57,8 @@ public class DashboardController {
         db.setNodeInViewCount(view.size());
 
         db.setEventCount(eventStore.getSize());
-        db.setEventPublicationRatio(eventStore.getRecentPublicationRation());
+        db.setAggregateCount(eventStore.getAggregateCount());
+        db.setEventPublicationFrequency(eventStore.getRecentPublicationRation());
         return db;
     }
 }
