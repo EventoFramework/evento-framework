@@ -10,10 +10,13 @@
         </ion-row>
         <ion-row>
           <ion-col>
-            <ion-card routerLink="/payload-catalog">
+             <ion-card class="dashboard-card"routerLink="/payload-catalog">
+              <ion-card-header>
+                <ion-card-title style="font-weight: 700">
+                  <span translate="catalog.payload.title"></span>&nbsp;({{dashboard.payloadCount}})
+                </ion-card-title>
+              </ion-card-header>
               <ion-card-content>
-                <ion-text class="title" ><span translate="catalog.payload.title"></span>&nbsp;({{dashboard.payloadCount}})</ion-text>
-                <br/>
                 <ion-chip class="payload-type-{{p.type}}" *ngFor="let p of dashboard.payloadCountByType">
                   {{p.type}}&nbsp;({{p.count}})
                 </ion-chip>
@@ -21,12 +24,13 @@
             </ion-card>
           </ion-col>
           <ion-col>
-            <ion-card routerLink="/component-catalog">
-              <ion-card-content>
-                <ion-text class="title">
+             <ion-card class="dashboard-card"routerLink="/component-catalog">
+              <ion-card-header>
+                <ion-card-title style="font-weight: 700">
                   <span translate="catalog.component.title"></span>&nbsp;({{dashboard.componentCount}})
-                </ion-text>
-                <br/>
+                </ion-card-title>
+              </ion-card-header>
+              <ion-card-content>
                 <ion-chip class="component-type-{{p.type}}" *ngFor="let p of dashboard.componentCountByType">
                   {{p.type}}&nbsp;({{p.count}})
                 </ion-chip>
@@ -36,20 +40,52 @@
         </ion-row>
         <ion-row>
           <ion-col>
-            <ion-card>
-              <ion-card-content>
-                <ion-text class="title">
+             <ion-card class="dashboard-card"routerLink="/bundle-list">
+              <ion-card-header>
+                <ion-card-title style="font-weight: 700">
                   <span translate="bundle.title"></span>&nbsp;({{dashboard.bundleCount}})
-                </ion-text>
+                </ion-card-title>
+              </ion-card-header>
+              <ion-card-content>
+                <h1>
+                <ion-grid class="ion-no-padding">
+                  <ion-row>
+                    <ion-col size="8"><span translate="dashboard.bundle.count"></span>:</ion-col>
+                    <ion-col>{{dashboard.deployableBundleCount}}</ion-col>
+                  </ion-row>
+                  <ion-row>
+                    <ion-col size="8"><span translate="dashboard.bundle.view.count"></span>:</ion-col>
+                    <ion-col>{{dashboard.bundleInViewCount}}</ion-col>
+                  </ion-row>
+                  <ion-row>
+                    <ion-col size="8"><span translate="dashboard.node.view.count"></span>:</ion-col>
+                    <ion-col>{{dashboard.nodeInViewCount}}</ion-col>
+                  </ion-row>
+                </ion-grid>
+                </h1>
               </ion-card-content>
             </ion-card>
           </ion-col>
           <ion-col>
-            <ion-card>
-              <ion-card-content>
-                <ion-text class="title">
+             <ion-card class="dashboard-card">
+              <ion-card-header>
+                <ion-card-title style="font-weight: 700">
                   <span translate="event.store.title"></span>&nbsp;({{dashboard.eventCount}})
-                </ion-text>
+                </ion-card-title>
+              </ion-card-header>
+              <ion-card-content>
+                <h1>
+                  <ion-grid  class="ion-no-padding">
+                    <ion-row>
+                      <ion-col size="8"><span translate="dashboard.aggregate.count"></span>:</ion-col>
+                      <ion-col>{{dashboard.aggregateCount}}</ion-col>
+                    </ion-row>
+                    <ion-row>
+                      <ion-col size="8"><span translate="dashboard.event.publication.frequency"></span>:</ion-col>
+                      <ion-col>{{dashboard.eventPublicationFrequency}} [e/s]</ion-col>
+                    </ion-row>
+                  </ion-grid>
+                </h1>
               </ion-card-content>
             </ion-card>
           </ion-col>
