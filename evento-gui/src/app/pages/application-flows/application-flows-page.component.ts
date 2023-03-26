@@ -84,6 +84,7 @@ export class ApplicationFlowsPage implements OnInit {
   }
 
   async setNetwork(network) {
+    console.log(network);
 
     const container = this.container.nativeElement;
     this.network = network;
@@ -340,13 +341,17 @@ export class ApplicationFlowsPage implements OnInit {
     let old = -1;
     let i = 0;
 
+    for (const node of this.network.nodes) {
+      nodesRef[node.id] = node;
+      if (node.type !== 'Source') {
+        node.throughtput = 0;
+      }
+      node.flowThroughtput = 0;
+    }
+
     while (true) {
 
       for (const node of this.network.nodes) {
-        nodesRef[node.id] = node;
-        if (node.type !== 'Source') {
-          node.throughtput = 0;
-        }
         node.flowThroughtput = 0;
       }
 
@@ -417,6 +422,7 @@ export class ApplicationFlowsPage implements OnInit {
         }
       }
       let diff = 0;
+      console.log(nsSum);
       for (const node of this.network.nodes) {
         if (node.fcr) {
           const o = node.numServers;
