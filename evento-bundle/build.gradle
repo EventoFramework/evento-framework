@@ -27,6 +27,7 @@ dependencies {
     implementation 'org.apache.logging.log4j:log4j-api:2.19.0'
 
     implementation 'com.squareup.okhttp3:okhttp:4.10.0'
+    implementation 'com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.0-rc2'
 
 
 
