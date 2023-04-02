@@ -12,6 +12,7 @@ export class PayloadInfoPage implements OnInit {
   isEditing = false;
 
   fields = [];
+  schema = {};
 
   constructor(private route: ActivatedRoute,
               private catalogService: CatalogService) {
@@ -48,10 +49,27 @@ export class PayloadInfoPage implements OnInit {
         };
       }) || [];
       r.jsonSchema = JSON.parse(r.jsonSchema);
-      this.fields = Object.keys(r.jsonSchema || {});
+      if (r.validJsonSchema) {
+        this.schema = this.flattenJSON(r.jsonSchema.properties);
+        this.fields = Object.keys(this.schema);
+      } else {
+        this.schema = r.jsonSchema;
+        this.fields = Object.keys(this.schema || {});
+      }
       this.payload = r;
     });
   }
+
+  private flattenJSON(obj = {}, res = {}, extraKey = '') {
+    for (const key in obj) {
+      if (typeof obj[key] !== 'object') {
+        res[extraKey + key] = obj[key];
+      } else {
+        this.flattenJSON(obj[key], res, `${extraKey}${key}.`);
+      }
+    }
+    return res;
+  };
 
   async save() {
     this.isEditing = false;

@@ -1,5 +1,5 @@
 <div style="background: url('https://jgraph.github.io/mxgraph/javascript/examples/editors/images/grid.gif');
 min-height: 600px; width: 100%; overflow: hidden" #container id="container"></div>
 <div class="ion-text-end ion-margin-top">
-  <ion-note><a href="/application-flows?component={{component.name}}">Open in flows →</a></ion-note>
+  <ion-note><a routerLink="/application-flows" [queryParams]="{component: component.componentName}">Open in flows →</a></ion-note>
 </div>

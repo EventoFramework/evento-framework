@@ -10,6 +10,7 @@ public interface PayloadProjection {
 	String getDomain();
 	String getType();
 	String getJsonSchema();
+	Boolean getValidJsonSchema();
 	String getRegisteredId();
 	Instant getUpdatedAt();
 

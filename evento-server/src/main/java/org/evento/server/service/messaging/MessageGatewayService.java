@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
@@ -337,7 +338,8 @@ public class MessageGatewayService {
                         autorun,
                         minInstances,
                         maxInstances,
-                        new ArrayList<>()
+                        new ArrayList<>(),
+                        new HashMap<>()
                 ));
             } else if (request instanceof EventFetchRequest f) {
                 try {
