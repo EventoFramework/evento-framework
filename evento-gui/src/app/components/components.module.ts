@@ -5,6 +5,8 @@ import {IonicModule} from '@ionic/angular';
 import {ComponentHandlersDiagramComponent} from './component-handlers-diagram/component-handlers-diagram.component';
 import {BundleComponentsDiagramComponent} from './bundle-components-diagram/bundle-components-diagram.component';
 import {ApplicationGraphDiagramComponent} from './application-graph-diagram/application-graph-diagram.component';
+import {JsonPipe} from "@angular/common";
+import {RouterLink} from "@angular/router";
 
 
 @NgModule({
@@ -23,7 +25,9 @@ import {ApplicationGraphDiagramComponent} from './application-graph-diagram/appl
         ApplicationGraphDiagramComponent,
     ],
   imports: [
-    IonicModule
+    IonicModule,
+    JsonPipe,
+    RouterLink
   ],
   declarations: [
     WrappedContentComponent,

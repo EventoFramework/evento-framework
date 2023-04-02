@@ -43,6 +43,8 @@ public class Payload implements Serializable {
 
 	private Instant updatedAt;
 
+	private boolean isValidJsonSchema;
+
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;

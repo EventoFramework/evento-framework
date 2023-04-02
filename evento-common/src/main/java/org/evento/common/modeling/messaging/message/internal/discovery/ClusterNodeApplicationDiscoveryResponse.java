@@ -2,6 +2,8 @@ package org.evento.common.modeling.messaging.message.internal.discovery;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 
@@ -15,19 +17,23 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 
     private int maxInstances;
 
+    private HashMap<String, String> schemas;
+
     public ClusterNodeApplicationDiscoveryResponse(
             String bundleId,
             long bundleVersion,
             boolean autorun,
             int minInstances,
             int maxInstances,
-            ArrayList<RegisteredHandler> registeredHandlers) {
+            ArrayList<RegisteredHandler> registeredHandlers,
+            HashMap<String, String> schemas) {
         this.bundleId = bundleId;
         this.registeredHandlers = registeredHandlers;
         this.bundleVersion = bundleVersion;
         this.autorun = autorun;
         this.minInstances = minInstances;
         this.maxInstances = maxInstances;
+        this.schemas = schemas;
     }
 
     public ClusterNodeApplicationDiscoveryResponse() {
@@ -79,5 +85,13 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 
     public void setMaxInstances(int maxInstances) {
         this.maxInstances = maxInstances;
+    }
+
+    public HashMap<String, String> getSchemas() {
+        return schemas;
+    }
+
+    public void setSchemas(HashMap<String, String> schemas) {
+        this.schemas = schemas;
     }
 }

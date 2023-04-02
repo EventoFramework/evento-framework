@@ -1,5 +1,9 @@
 package org.evento.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
 import org.apache.logging.log4j.LogManager;
@@ -159,6 +163,7 @@ public class EventoBundle {
 				} else if (request instanceof ClusterNodeApplicationDiscoveryRequest d)
 				{
 					var handlers = new ArrayList<RegisteredHandler>();
+					var payloads = new HashSet<Class<?>>();
 					aggregateMessageHandlers.forEach((k, v) -> {
 						var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
 						handlers.add(new RegisteredHandler(
@@ -186,7 +191,8 @@ public class EventoBundle {
 							));
 
 						}
-
+						payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
+						payloads.add(v.getAggregateCommandHandler(k).getReturnType());
 					});
 					serviceMessageHandlers.forEach((k, v) -> {
 						var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
@@ -200,6 +206,8 @@ public class EventoBundle {
 								false,
 								null
 						));
+						payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
+						payloads.add(v.getAggregateCommandHandler(k).getReturnType());
 					});
 					projectorMessageHandlers.forEach((k, v) -> {
 						v.forEach((k1, v1) -> {
@@ -213,6 +221,7 @@ public class EventoBundle {
 									false,
 									null
 							));
+							payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
 						});
 
 
@@ -229,6 +238,7 @@ public class EventoBundle {
 									false,
 									null
 							));
+							payloads.add(v1.getEventHandler(k1).getParameterTypes()[0]);
 						});
 					});
 					sagaMessageHandlers.forEach((k, v) -> {
@@ -243,6 +253,7 @@ public class EventoBundle {
 									false,
 									v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
 							));
+							payloads.add(v1.getSagaEventHandler(k1).getParameterTypes()[0]);
 						});
 
 
@@ -259,15 +270,29 @@ public class EventoBundle {
 								r.isAssignableFrom(Multiple.class),
 								null
 						));
+						payloads.add(v.getQueryHandler(k).getParameterTypes()[0]);
+						payloads.add(((Class<?>) ((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0]));
 					});
 					handlers.addAll(invocationHandlers);
+					ObjectMapper mapper = new ObjectMapper();
+					JsonSchemaGenerator schemaGen = new JsonSchemaGenerator(mapper);
+					var schemas = new HashMap<String, String>();
+					for (Class<?> p : payloads)
+					{
+						if(p == null) continue;
+						try
+						{
+							schemas.put(p.getSimpleName(), mapper.writeValueAsString(schemaGen.generateSchema(p)));
+						}catch (Exception ignored){}
+					}
 					response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
 							bundleId,
 							bundleVersion,
 							autorun,
 							minInstances,
 							maxInstances,
-							handlers
+							handlers,
+							schemas
 					));
 				} else
 				{

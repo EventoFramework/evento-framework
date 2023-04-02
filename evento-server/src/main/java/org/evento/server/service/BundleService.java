@@ -91,6 +91,7 @@ public class BundleService {
             payload.setType(PayloadType.valueOf(payloadDescription.getType()));
             payload.setUpdatedAt(Instant.now());
             payload.setRegisteredIn(bundle.getId());
+            payload.setValidJsonSchema(false);
             payloadRepository.save(payload);
         }
 
@@ -127,6 +128,7 @@ public class BundleService {
                                                 payload.setType(PayloadType.DomainCommand);
                                                 payload.setUpdatedAt(Instant.now());
                                                 payload.setRegisteredIn(finalBundle.getId());
+                                                payload.setValidJsonSchema(false);
                                                 return payloadRepository.save(payload);
                                             }
                                     ));
@@ -147,6 +149,7 @@ public class BundleService {
                                         payload.setType(PayloadType.DomainEvent);
                                         payload.setUpdatedAt(Instant.now());
                                         payload.setRegisteredIn(bundle.getId());
+                                        payload.setValidJsonSchema(false);
                                         return payloadRepository.save(payload);
                                     }
                             ));
@@ -182,6 +185,7 @@ public class BundleService {
                                         payload.setType(PayloadType.DomainEvent);
                                         payload.setUpdatedAt(Instant.now());
                                         payload.setRegisteredIn(bundle.getId());
+                                        payload.setValidJsonSchema(false);
                                         return payloadRepository.save(payload);
                                     }
                             ));
@@ -213,6 +217,7 @@ public class BundleService {
                                 payload.setUpdatedAt(Instant.now());
                                 payload.setRegisteredIn(bundle.getId());
                                 payload.setUpdatedAt(Instant.now());
+                                payload.setValidJsonSchema(false);
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -231,6 +236,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -244,6 +250,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -273,6 +280,7 @@ public class BundleService {
                                 payload.setType(PayloadType.Query);
                                 payload.setUpdatedAt(Instant.now());
                                 payload.setRegisteredIn(bundle.getId());
+                                payload.setValidJsonSchema(false);
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -285,6 +293,7 @@ public class BundleService {
                                 payload.setType(PayloadType.View);
                                 payload.setUpdatedAt(Instant.now());
                                 payload.setRegisteredIn(bundle.getId());
+                                payload.setValidJsonSchema(false);
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -314,6 +323,7 @@ public class BundleService {
                                 payload.setType(PayloadType.Event);
                                 payload.setUpdatedAt(Instant.now());
                                 payload.setRegisteredIn(bundle.getId());
+                                payload.setValidJsonSchema(false);
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -329,6 +339,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -359,6 +370,7 @@ public class BundleService {
                                 payload.setType(PayloadType.Event);
                                 payload.setUpdatedAt(Instant.now());
                                 payload.setRegisteredIn(bundle.getId());
+                                payload.setValidJsonSchema(false);
                                 return payloadRepository.save(payload);
                             }
                     ));
@@ -374,6 +386,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -387,6 +400,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -425,6 +439,7 @@ public class BundleService {
                                         payload.setType(PayloadType.ServiceCommand);
                                         payload.setUpdatedAt(Instant.now());
                                         payload.setRegisteredIn(bundle.getId());
+                                        payload.setValidJsonSchema(false);
                                         return payloadRepository.save(payload);
                                     }
                             ));
@@ -445,6 +460,7 @@ public class BundleService {
                                         payload.setType(PayloadType.ServiceEvent);
                                         payload.setUpdatedAt(Instant.now());
                                         payload.setRegisteredIn(bundle.getId());
+                                        payload.setValidJsonSchema(false);
                                         return payloadRepository.save(payload);
                                     }
                             ));
@@ -458,6 +474,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -471,6 +488,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -505,6 +523,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Query);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
@@ -520,6 +539,7 @@ public class BundleService {
                                     payload.setType(PayloadType.Command);
                                     payload.setUpdatedAt(Instant.now());
                                     payload.setRegisteredIn(bundle.getId());
+                                    payload.setValidJsonSchema(false);
                                     return payloadRepository.save(payload);
                                 }
                         ));
