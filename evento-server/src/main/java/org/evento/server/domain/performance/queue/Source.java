@@ -15,15 +15,17 @@ public class Source extends Node{
 	private String name;
 	private String type;
 
+	private String handlerId;
 
 	private Map<Node, Double> target = new HashMap<>();
 
-	public Source(long id, String bundleId, String componentName, String name, String type) {
+	public Source(long id, String bundleId, String componentName, String name, String type, String handlerId) {
 		super(id);
 		this.name = name;
 		this.type = type;
 		this.bundleId = bundleId;
 		this.componentName = componentName;
+		this.handlerId = handlerId;
 	}
 
 	public Source() {
@@ -61,5 +63,13 @@ public class Source extends Node{
 				s.getAction()
 		));
 
+	}
+
+	public String getHandlerId() {
+		return handlerId;
+	}
+
+	public void setHandlerId(String handlerId) {
+		this.handlerId = handlerId;
 	}
 }

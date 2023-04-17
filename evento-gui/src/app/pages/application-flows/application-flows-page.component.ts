@@ -338,7 +338,6 @@ export class ApplicationFlowsPage implements OnInit {
 
   private doPerformanceAnalysis(nodesRef) {
 
-    let old = -1;
     let i = 0;
 
     for (const node of this.network.nodes) {
@@ -353,6 +352,7 @@ export class ApplicationFlowsPage implements OnInit {
 
       for (const node of this.network.nodes) {
         node.flowThroughtput = 0;
+        console.log(node);
       }
 
       const q = [];

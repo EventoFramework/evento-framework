@@ -22,15 +22,15 @@ public class QueueNetwork {
 		this.performanceFetcher = performanceFetcher;
 	}
 
-	public ServiceStation station(String bundleId, String componentName, String componentType, String action, String actionType, boolean async, Integer numServers) {
+	public ServiceStation station(String bundleId, String componentName, String componentType, String action, String actionType, boolean async, Integer numServers, String handlerId) {
 		var p = performanceFetcher.getMeanServiceTime(bundleId, componentName, action);
-		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, componentType, action, actionType, async, numServers, p);
+		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, componentType, action, actionType, async, numServers, p, handlerId);
 		nodes.add(ss);
 		return ss;
 	}
 
-	public ServiceStation station(String bundleId, String componentName, String componentType, String action, String actionType, boolean async, Integer numServers, Double p) {
-		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, componentType, action, actionType, async, numServers, p);
+	public ServiceStation station(String bundleId, String componentName, String componentType, String action, String actionType, boolean async, Integer numServers, Double p, String handlerId) {
+		var ss  = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName, componentType, action, actionType, async, numServers, p, handlerId);
 		nodes.add(ss);
 		return ss;
 	}
@@ -51,12 +51,12 @@ public class QueueNetwork {
 
 
 	public Source source(Handler handler) {
-		var source = new Source(idGenerator.getAndIncrement(),handler.getComponent().getBundle().getId(), handler.getComponent().getComponentName(), handler.getHandledPayload().getName(), handler.getHandledPayload().getType().toString());
+		var source = new Source(idGenerator.getAndIncrement(),handler.getComponent().getBundle().getId(), handler.getComponent().getComponentName(), handler.getHandledPayload().getName(), handler.getHandledPayload().getType().toString(), handler.getUuid());
 		nodes.add(source);
 		return source;
 	}
 	public Source source(String payloadName, String payloadType) {
-		var source = new Source(idGenerator.getAndIncrement(),"server", "server", payloadName, payloadType);
+		var source = new Source(idGenerator.getAndIncrement(),"server", "server", payloadName, payloadType, "server_" + payloadName);
 		nodes.add(source);
 		return source;
 	}

@@ -28,6 +28,8 @@ public class NodeDTO implements Serializable {
 	private String name;
 	private Double meanServiceTime;
 
+	private String handlerId;
+
 	public NodeDTO(Node node) {
 		this.id = node.getId();
 		this.type = node.getClass().getSimpleName();
@@ -45,6 +47,7 @@ public class NodeDTO implements Serializable {
 			this.numServers = s.getNumServers();
 			this.meanServiceTime = s.getMeanServiceTime();
 			this.componentType = s.getComponentType();
+			this.handlerId = s.getHandlerId();
 		} else if (node instanceof Source s)
 		{
 			this.target = new HashMap<>();
@@ -54,6 +57,7 @@ public class NodeDTO implements Serializable {
 			this.name = s.getName();
 			this.action = s.getName();
 			this.actionType = s.getType();
+			this.handlerId = s.getHandlerId();
 		}
 	}
 
@@ -155,5 +159,13 @@ public class NodeDTO implements Serializable {
 
 	public void setComponentType(String componentType) {
 		this.componentType = componentType;
+	}
+
+	public String getHandlerId() {
+		return handlerId;
+	}
+
+	public void setHandlerId(String handlerId) {
+		this.handlerId = handlerId;
 	}
 }
