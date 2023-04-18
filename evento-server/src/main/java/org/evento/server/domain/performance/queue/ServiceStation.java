@@ -18,10 +18,13 @@ public class ServiceStation extends Node{
 
 	private Double meanServiceTime;
 
+	private String handlerId;
+
 	public ServiceStation(long id, String bundle, String component, String componentType, String action,
 						  String actionType,
 						  boolean async,
-						  Integer numServers, Double meanServiceTime) {
+						  Integer numServers, Double meanServiceTime,
+						  String handlerId) {
 		super(id);
 		this.bundle = bundle;
 		this.component = component;
@@ -31,6 +34,7 @@ public class ServiceStation extends Node{
 		this.meanServiceTime = meanServiceTime;
 		this.actionType = actionType;
 		this.componentType = componentType;
+		this.handlerId = handlerId;
 	}
 
 	public ServiceStation() {
@@ -109,6 +113,14 @@ public class ServiceStation extends Node{
 
 	public void setComponentType(String componentType) {
 		this.componentType = componentType;
+	}
+
+	public String getHandlerId() {
+		return handlerId;
+	}
+
+	public void setHandlerId(String handlerId) {
+		this.handlerId = handlerId;
 	}
 
 	public void addTarget(Node a, PerformanceStoreService performanceStoreService) {
