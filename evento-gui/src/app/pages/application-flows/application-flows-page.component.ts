@@ -8,6 +8,10 @@ import {BundleService} from '../../services/bundle.service';
 declare let mxGraph: any;
 declare let mxHierarchicalLayout: any;
 declare let mxEvent: any;
+declare let mxXmlCanvas2D: any;
+declare let mxUtils: any;
+declare let mxImageExport: any;
+declare let mxXmlRequest: any;
 
 
 @Component({
@@ -32,6 +36,8 @@ export class ApplicationFlowsPage implements OnInit {
   allPayloads;
   allComponents;
   allBundles;
+
+  orientation = true;
 
   search = '';
 
@@ -87,6 +93,10 @@ export class ApplicationFlowsPage implements OnInit {
     console.log(network);
 
     const container = this.container.nativeElement;
+
+    // Disables built-in context menu
+    mxEvent.disableContextMenu(container);
+
     this.network = network;
     this.sources = [];
     const tMap = {};
@@ -119,6 +129,10 @@ export class ApplicationFlowsPage implements OnInit {
     this.drawGraph(container);
   }
 
+  redrawGraph(){
+    const container = this.container.nativeElement;
+    this.drawGraph(container);
+  }
 
   togglePerformanceAnalysis(event: any) {
     this.performanceAnalysis = event.detail.checked;
@@ -168,7 +182,7 @@ export class ApplicationFlowsPage implements OnInit {
 
 
       const edges = [];
-      const layout = new mxHierarchicalLayout(graph, 'west');
+      const layout = new mxHierarchicalLayout(graph, this.orientation ? 'west' : 'north');
       layout.traverseAncestors = false;
       graph.getModel().beginUpdate();
       try {
@@ -272,7 +286,7 @@ export class ApplicationFlowsPage implements OnInit {
           for (const target of targets.sort((a, b) => a?.async - b?.async)) {
             if (this.performanceAnalysis) {
               const source = nodesRef[node.id];
-              const ql = (source.throughtput - target.throughtput) * target.meanServiceTime;
+              const ql = (source.throughtput - target.throughtput);
               const ratio = source.throughtput / source.flowThroughtput;
               const c = this.perc2color(ratio * 100);
               let txt = (node.throughtput * node.target[target.id]).toFixed(4) + '  [r/ms]';
@@ -300,6 +314,32 @@ export class ApplicationFlowsPage implements OnInit {
       } finally {
         graph.getModel().endUpdate();
       }
+
+      // Configures automatic expand on mouseover
+      graph.popupMenuHandler.autoExpand = true;
+      // Installs a popupmenu handler using local function (see below).
+      graph.popupMenuHandler.factoryMethod = function(menu, cell, evt)
+      {
+        console.log('popup');
+        if (cell != null)
+        {
+          menu.addItem('Cell Item', '', function()
+          {
+            alert('MenuItem1');
+          });
+        }
+        else
+        {
+          menu.addItem('Export Graph', '', function()
+          {
+          });
+        }
+        menu.addSeparator();
+        menu.addItem('MenuItem3', '', function()
+        {
+          alert('MenuItem3: '+graph.getSelectionCount()+' selected');
+        });
+      };
 
 
       graphCenterFit(graph, container);

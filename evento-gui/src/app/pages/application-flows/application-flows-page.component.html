@@ -142,4 +142,9 @@
 
     </ion-card-content>
   </ion-card>
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button size="small" color="light" (click)="orientation = !orientation; redrawGraph()">
+      <ion-icon name="sync-circle-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
 </ion-content>
