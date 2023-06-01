@@ -4,6 +4,7 @@ import {componentColor, graphCenterFit, payloadColor, stringToColour} from '../.
 import {FlowsService} from '../../services/flows.service';
 import {CatalogService} from '../../services/catalog.service';
 import {BundleService} from '../../services/bundle.service';
+import {AlertController} from "@ionic/angular";
 
 declare let mxGraph: any;
 declare let mxHierarchicalLayout: any;
@@ -47,7 +48,8 @@ export class ApplicationFlowsPage implements OnInit {
   constructor(private flowService: FlowsService,
               private catalogService: CatalogService,
               private bundleService: BundleService,
-              private route: ActivatedRoute) {
+              private route: ActivatedRoute,
+              private alertController: AlertController) {
 
   }
 
@@ -129,7 +131,7 @@ export class ApplicationFlowsPage implements OnInit {
     this.drawGraph(container);
   }
 
-  redrawGraph(){
+  redrawGraph() {
     const container = this.container.nativeElement;
     this.drawGraph(container);
   }
@@ -214,15 +216,12 @@ export class ApplicationFlowsPage implements OnInit {
 
           let height = 60;
           if (node.component === 'Gateway') {
-
             vertexRef[node.id] = graph.insertVertex(parent, node.id,
               `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`,
               null, null, node.action.length * 10 + 25,
               height,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' +
               (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
-
-
           } else if (node.type === 'Source') {
             const text = node.name;
             vertexRef[node.id] = graph.insertVertex(parent, node.id,
@@ -255,11 +254,14 @@ export class ApplicationFlowsPage implements OnInit {
               ';fontColor=#333333;strokeWidth=3;');
           }
 
+          vertexRef[node.id].nodeId = node.id;
+          vertexRef[node.id].handlerId = node.handlerId;
+
           if (this.performanceAnalysis && node.isBottleneck && node.type !== 'Source') {
             vertexRef[node.id].style += 'strokeColor=#ff0000;strokeWidth=3;';
           }
 
-          if (this.performanceAnalysis) {
+          if (this.performanceAnalysis && node.meanServiceTime) {
             vertexRef[node.id].value +=
               `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]` +
               `<br/>Customers: ${node.customers.toFixed(4) + (node.fcr ? ('/' + 1) : '')} [r]`;
@@ -318,27 +320,99 @@ export class ApplicationFlowsPage implements OnInit {
       // Configures automatic expand on mouseover
       graph.popupMenuHandler.autoExpand = true;
       // Installs a popupmenu handler using local function (see below).
-      graph.popupMenuHandler.factoryMethod = function(menu, cell, evt)
-      {
-        console.log('popup');
-        if (cell != null)
-        {
-          menu.addItem('Cell Item', '', function()
-          {
+      graph.popupMenuHandler.factoryMethod = (menu, cell, evt) => {
+        if (cell?.vertex && this.performanceAnalysis) {
+          const targets = this.network.nodes.filter(n => n.handlerId === cell.handlerId && n.meanServiceTime);
+          if (targets.length) {
+            console.log(targets);
+            menu.addItem('Edit Mean Service Time (' + targets[0].meanServiceTime.toFixed(4) + ' [ms])', '', async () => {
+              const alert = await this.alertController.create({
+                header: 'Edit Mean Service Time',
+                subHeader: targets[0].component + ' - ' + targets[0].action,
+                inputs: [
+                  {
+                    id: 'mst',
+                    name: 'mst',
+                    value: targets[0].meanServiceTime
+                  }
+                ],
+                buttons: [
+                  {
+                    text: 'Cancel',
+                    role: 'cancel',
+                  },
+                  {
+                    text: 'OK',
+                    role: 'confirm',
+                    handler: (e) => {
+                      for (const t of targets) {
+                        t.meanServiceTime = parseFloat(e.mst);
+                      }
+                      this.redrawGraph();
+                    },
+                  },
+                ]
+              });
+              await alert.present();
+            });
+            menu.addSeparator();
+
+            for (const t of Object.keys(targets[0].target)) {
+              const i = this.network.nodes.find(n => parseInt(n.id, 10) === parseInt(t, 10));
+              menu.addItem(i.action + ' (' + targets[0].target[t] + ')', '', async () => {
+                const alert = await this.alertController.create({
+                  header: 'Edit Invocation Frequency',
+                  subHeader: targets[0].component + ' - ' + i.action,
+                  inputs: [
+                    {
+                      id: 'inf',
+                      name: 'inf',
+                      value: targets[0].target[t]
+                    }
+                  ],
+                  buttons: [
+                    {
+                      text: 'Cancel',
+                      role: 'cancel',
+                    },
+                    {
+                      text: 'OK',
+                      role: 'confirm',
+                      handler: (e) => {
+                        for (const tt of targets) {
+                          // eslint-disable-next-line guard-for-in
+                          for (const k in tt.target) {
+                            if (this.network.nodes.find(n => parseInt(n.id, 10) === parseInt(k, 10)).action === i.action) {
+                              tt.target[k] = parseFloat(e.inf);
+                            }
+                          }
+                        }
+                        this.redrawGraph();
+                        //this.redrawGraph();
+                      },
+                    },
+                  ]
+                });
+                await alert.present();
+              });
+
+            }
+          }
+
+        }
+        /*
+        if (cell != null) {
+          menu.addItem('Cell Item', '', function () {
             alert('MenuItem1');
           });
-        }
-        else
-        {
-          menu.addItem('Export Graph', '', function()
-          {
+        } else {
+          menu.addItem('Export Graph', '', function () {
           });
         }
         menu.addSeparator();
-        menu.addItem('MenuItem3', '', function()
-        {
-          alert('MenuItem3: '+graph.getSelectionCount()+' selected');
-        });
+        menu.addItem('MenuItem3', '', function () {
+          alert('MenuItem3: ' + graph.getSelectionCount() + ' selected');
+        });*/
       };
 
 
@@ -392,7 +466,6 @@ export class ApplicationFlowsPage implements OnInit {
 
       for (const node of this.network.nodes) {
         node.flowThroughtput = 0;
-        console.log(node);
       }
 
       const q = [];
@@ -462,7 +535,6 @@ export class ApplicationFlowsPage implements OnInit {
         }
       }
       let diff = 0;
-      console.log(nsSum);
       for (const node of this.network.nodes) {
         if (node.fcr) {
           const o = node.numServers;
@@ -470,8 +542,7 @@ export class ApplicationFlowsPage implements OnInit {
           diff += Math.abs(o - node.numServers);
         }
       }
-      if(i > 10 || diff < 0.0001){
-        console.log({i, diff});
+      if (i > 10 || diff < 0.0001) {
         return;
       }
     }
