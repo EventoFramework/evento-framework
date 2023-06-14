@@ -1,6 +1,7 @@
 package org.evento.common.performance;
 
 import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.modeling.messaging.message.application.Message;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -9,6 +10,9 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PerformanceService {
+
+
+	public static final String EVENTO_TRACING_ID_METADATA = "evento.tracing.id";
 
 	public static final String EVENT_STORE = "event-store";
 	public static final String EVENT_STORE_COMPONENT = "EventStore";
@@ -33,7 +37,13 @@ public class PerformanceService {
 		performanceRate = rate;
 	}
 
-	public final void sendPerformances(String bundle, String component, String action, Instant startTime) {
+	public final void sendServiceTimeMetric(String bundle, String component, Message<?> message, Instant startTime) {
+		var trace = message.getMetadata() == null ? null : message.getMetadata().getOrDefault(EVENTO_TRACING_ID_METADATA, null);
+		sendServiceTimeMetric(bundle, component, message.getPayloadName(), startTime, trace);
+	}
+
+	public final void sendServiceTimeMetric(String bundle, String component, String action, Instant startTime,
+											String trace) {
 		if (random.nextDouble(0.0, 1.0) > performanceRate) return;
 		try
 		{
@@ -56,7 +66,8 @@ public class PerformanceService {
 	}
 
 
-	public final void sendInvocations(String bundle, String component, String action, HashMap<String, AtomicInteger> invocationCounter) {
+	public final void sendInvocationsMetric(String bundle, String component, String action,
+											HashMap<String, AtomicInteger> invocationCounter, String trace) {
 		if (random.nextDouble(0.0, 1.0) > performanceRate) return;
 		try
 		{
