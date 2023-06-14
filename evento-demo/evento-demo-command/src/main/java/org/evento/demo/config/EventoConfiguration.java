@@ -27,30 +27,25 @@ public class EventoConfiguration {
             @Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
             @Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
             @Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
-            @Value("${evento.bundle.autorun:false}") boolean autorun,
-            @Value("${evento.bundle.instances.min:0}") int minInstances,
-            @Value("${evento.bundle.instances.max:64}") int maxInstances,
             BeanFactory factory
     ) throws Exception {
 
         MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
-        return EventoBundle.start(DemoCommandApplication.class.getPackage().getName(),
-                bundleId,
-				bundleVersion,
-                autorun,
-                minInstances,
-                maxInstances,
-                serverName,
-                messageBus,
-                new ThreadCountAutoscalingProtocol(
+        return EventoBundle.Builder.builder()
+                .setBasePackage(DemoCommandApplication.class.getPackage())
+                .setBundleId(bundleId)
+                .setBundleVersion(bundleVersion)
+                .setServerName(serverName)
+                .setMessageBus(messageBus)
+                .setAutoscalingProtocol( new ThreadCountAutoscalingProtocol(
                         bundleId,
                         serverName,
                         messageBus,
                         maxThreads,
                         minThreads,
                         maxOverflow,
-                        maxUnderflow),
-				factory::getBean
-				);
+                        maxUnderflow))
+                .setInjector(factory::getBean)
+                .start();
     }
 }

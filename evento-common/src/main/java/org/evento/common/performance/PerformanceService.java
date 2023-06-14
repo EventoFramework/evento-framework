@@ -18,7 +18,7 @@ public class PerformanceService {
 	private final String serverNodeName;
 
 	private final Random random = new Random();
-	private static double performanceRate = 1;
+	private double performanceRate = 1;
 
 	public PerformanceService(MessageBus messageBus,
 							  String serverNodeName) {
@@ -26,24 +26,37 @@ public class PerformanceService {
 		this.serverNodeName = serverNodeName;
 	}
 
-	public void sendPerformances(String bundle, String component, String action, Instant startTime) {
+	public PerformanceService(MessageBus messageBus,
+							  String serverNodeName,
+							  double rate) {
+		this(messageBus, serverNodeName);
+		performanceRate = rate;
+	}
+
+	public final void sendPerformances(String bundle, String component, String action, Instant startTime) {
 		if (random.nextDouble(0.0, 1.0) > performanceRate) return;
 		try
 		{
+			var st = new PerformanceServiceTimeMessage(bundle, component, action, Instant.now().toEpochMilli() - startTime.toEpochMilli());
 			messageBus.cast(messageBus.findNodeAddress(serverNodeName),
-					new PerformanceServiceTimeMessage(bundle, component, action, Instant.now().toEpochMilli() - startTime.toEpochMilli()));
+					st);
+			onServiceTimeSent(st);
 		} catch (Exception ignored)
 		{
 
 		}
 	}
 
-	public static void setPerformanceRate(double performanceRate) {
-		PerformanceService.performanceRate = performanceRate;
+	public void onServiceTimeSent(PerformanceServiceTimeMessage performanceServiceTimeMessage){
+
+	}
+
+	public void setPerformanceRate(double performanceRate) {
+		this.performanceRate = performanceRate;
 	}
 
 
-	public void sendInvocations(String bundle, String component, String action, HashMap<String, AtomicInteger> invocationCounter) {
+	public final void sendInvocations(String bundle, String component, String action, HashMap<String, AtomicInteger> invocationCounter) {
 		if (random.nextDouble(0.0, 1.0) > performanceRate) return;
 		try
 		{
@@ -53,12 +66,18 @@ public class PerformanceService {
 			{
 				invocations.put(e.getKey(), e.getValue().get());
 			}
+			var pi = new PerformanceInvocationsMessage(bundle, component, action, invocations);
 			messageBus.cast(messageBus.findNodeAddress(serverNodeName),
-					new PerformanceInvocationsMessage(bundle, component, action, invocations));
+					pi);
+			onInvocationSent(pi);
 
 		} catch (Exception ignored)
 		{
 
 		}
+	}
+
+	public void onInvocationSent(PerformanceInvocationsMessage performanceInvocationsMessage){
+
 	}
 }

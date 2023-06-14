@@ -8,7 +8,7 @@ import org.evento.common.messaging.bus.MessageBus;
 
 import java.time.Instant;
 
-public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
+public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 
     private final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
     private final int maxThreadCount;
@@ -16,11 +16,6 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
     private final int maxOverflowCount;
 
     private final int maxUnderflowCount;
-
-    private final MessageBus messageBus;
-
-    private final String bundleId;
-    private final String serverName;
 
     private int threadCount = 0;
     private int overflowCount = 0;
@@ -40,9 +35,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
             int minThreadCount,
             int maxOverflowCount,
             int maxUnderflowCount) {
-        this.bundleId = bundleId;
-        this.serverName = serverName;
-        this.messageBus = messageBus;
+        super(messageBus, bundleId, serverName);
         this.maxUnderflowCount = maxUnderflowCount;
         this.minThreadCount = minThreadCount;
         this.maxThreadCount = maxThreadCount;
@@ -56,12 +49,8 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
                         overflowCount = 0;
                         suffering = false;
                         bored = true;
-                        messageBus.cast(
-                                messageBus.findNodeAddress(serverName),
-                                new ClusterNodeIsBoredMessage(bundleId, messageBus.getAddress().getNodeId())
-                        );
-                        logger.info("ClusterNodeIsBoredMessage sent by timer");
-						boredSentDepartureTime = lastDepartureAt;
+                        sendBoredSignal();
+                        boredSentDepartureTime = lastDepartureAt;
                     }
                     lastDepartureCheck = lastDepartureAt;
                 } catch (Exception e) {
@@ -79,11 +68,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
             if (threadCount > maxThreadCount) {
                 if (++overflowCount >= maxOverflowCount && !suffering) {
                     try {
-                        messageBus.cast(
-                                messageBus.findNodeAddress(serverName),
-                                new ClusterNodeIsSufferingMessage(bundleId)
-                        );
-                        logger.info("ClusterNodeIsSufferingMessage sent");
+                        sendSufferingSignal();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -103,11 +88,7 @@ public class ThreadCountAutoscalingProtocol implements AutoscalingProtocol {
             if (threadCount < minThreadCount) {
                 if (++underflowCount >= maxUnderflowCount && !bored) {
                     try {
-                        messageBus.cast(
-                                messageBus.findNodeAddress(serverName),
-                                new ClusterNodeIsBoredMessage(bundleId, messageBus.getAddress().getNodeId())
-                        );
-                        logger.info("ClusterNodeIsBoredMessage sent");
+                       sendBoredSignal();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

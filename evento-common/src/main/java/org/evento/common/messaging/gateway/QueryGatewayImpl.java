@@ -7,6 +7,7 @@ import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 
 public class QueryGatewayImpl implements QueryGateway {
@@ -21,16 +22,17 @@ public class QueryGatewayImpl implements QueryGateway {
 		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
 	}
 
-
 	@Override
 	@SuppressWarnings("unchecked")
-	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
+	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata) {
 		var future = new CompletableFuture<T>();
 		try
 		{
+			var message = new QueryMessage<>((query));
+			message.setMetadata(metadata);
 			messageBus.request(
 					roundRobinAddressPicker.pickNodeAddress(serverName),
-					new QueryMessage<>((query)),
+					message,
 					response -> {
 						try
 						{
