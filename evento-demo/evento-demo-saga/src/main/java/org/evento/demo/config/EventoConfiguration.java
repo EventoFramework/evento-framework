@@ -30,9 +30,6 @@ public class EventoConfiguration {
 			@Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
 			@Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
 			@Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
-			@Value("${evento.bundle.autorun:false}") boolean autorun,
-			@Value("${evento.bundle.instances.min:0}") int minInstances,
-			@Value("${evento.bundle.instances.max:64}") int maxInstances,
 			BeanFactory factory,
 			@Value("${spring.datasource.url}") String connectionUrl,
 			@Value("${spring.datasource.username}") String username,
@@ -40,25 +37,23 @@ public class EventoConfiguration {
 	) throws Exception {
 
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
-		return EventoBundle.start(DemoSagaApplication.class.getPackage().getName(),
-				bundleId,
-				bundleVersion,
-				autorun,
-				minInstances,
-				maxInstances,
-				serverName,
-				messageBus,
-				new ThreadCountAutoscalingProtocol(
+		return EventoBundle.Builder.builder()
+				.setBasePackage(DemoSagaApplication.class.getPackage())
+				.setBundleId(bundleId)
+				.setBundleVersion(bundleVersion)
+				.setServerName(serverName)
+				.setMessageBus(messageBus)
+				.setAutoscalingProtocol(new ThreadCountAutoscalingProtocol(
 						bundleId,
 						serverName,
 						messageBus,
 						maxThreads,
 						minThreads,
 						maxOverflow,
-						maxUnderflow),
-				new MysqlConsumerStateStore(messageBus, bundleId, serverName, DriverManager.getConnection(
-						connectionUrl, username, password)),
-				factory::getBean
-		);
+						maxUnderflow))
+				.setConsumerStateStore(new MysqlConsumerStateStore(messageBus, bundleId, serverName, DriverManager.getConnection(
+						connectionUrl, username, password)))
+				.setInjector(factory::getBean)
+				.start();
 	}
 }
