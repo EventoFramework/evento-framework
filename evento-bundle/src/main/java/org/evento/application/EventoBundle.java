@@ -321,7 +321,7 @@ public class EventoBundle {
 
     private GatewayTelemetryProxy createGatewayTelemetryProxy(String componentName, Message<?> handledMessage) {
         return new GatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
-                componentName, handledMessage.getPayloadName(), handledMessage);
+                componentName, handledMessage);
     }
 
 

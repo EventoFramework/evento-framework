@@ -2,6 +2,7 @@ package org.evento.common.messaging.gateway;
 
 import org.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
+import org.evento.common.modeling.messaging.message.application.Message;
 import org.evento.common.modeling.messaging.message.application.ServiceCommandMessage;
 import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
@@ -28,10 +29,11 @@ public class CommandGatewayImpl implements CommandGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata,
+							 Message<?> handledMessage) {
 		try
 		{
-			return (R) send(command, metadata).get();
+			return (R) send(command, metadata, handledMessage).get();
 		} catch (InterruptedException | ExecutionException e)
 		{
 			throw new RuntimeException(e);
@@ -39,10 +41,11 @@ public class CommandGatewayImpl implements CommandGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, long timeout, TimeUnit unit) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata,
+							 Message<?> handledMessage, long timeout, TimeUnit unit) {
 		try
 		{
-			return (R) send(command, metadata).get(timeout, unit);
+			return (R) send(command, metadata, handledMessage).get(timeout, unit);
 		} catch (InterruptedException | ExecutionException | TimeoutException e)
 		{
 			throw new RuntimeException(e);
@@ -51,7 +54,8 @@ public class CommandGatewayImpl implements CommandGateway {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata) {
+	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata,
+										 Message<?> handledMessage) {
 		var future = new CompletableFuture<R>();
 		try
 		{
