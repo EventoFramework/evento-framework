@@ -14,7 +14,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.evento.common.performance.PerformanceService.EVENTO_TRACING_ID_METADATA;
 
 public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
@@ -23,7 +22,6 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
 	private final String bundle;
 	private final String componentName;
-	private final String payloadName;
 
 	private final PerformanceService performanceService;
 
@@ -35,22 +33,20 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 								 QueryGateway queryGateway,
 								 String bundle, PerformanceService performanceService,
 								 String componentName,
-								 String payloadName,
 								 Message<?> handledMessage) {
 		this.commandGateway = commandGateway;
 		this.queryGateway = queryGateway;
 		this.bundle = bundle;
 		this.performanceService = performanceService;
 		this.componentName = componentName;
-		this.payloadName = payloadName;
 		this.handledMessage = handledMessage;
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, Message<?> handledMessage) {
 		try
 		{
-			return commandGateway.sendAndWait(command, manageTracing(metadata));
+			return commandGateway.sendAndWait(command, metadata, this.handledMessage);
 		}finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
@@ -58,26 +54,13 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 		}
 	}
 
-	private String getCurrentTrace(){
-		return handledMessage.getMetadata().getOrDefault(EVENTO_TRACING_ID_METADATA, null);
-	}
 
-	private HashMap<String, String> manageTracing(HashMap<String, String> metadata) {
-		if(handledMessage.getMetadata() != null && handledMessage.getMetadata().containsKey(EVENTO_TRACING_ID_METADATA)){
-			if(metadata == null )
-				metadata = new HashMap<>();
-			if(!metadata.containsKey(EVENTO_TRACING_ID_METADATA)){
-				metadata.put(EVENTO_TRACING_ID_METADATA, getCurrentTrace());
-			}
-		}
-		return metadata;
-	}
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, long timeout, TimeUnit unit) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
 		try
 		{
-			return commandGateway.sendAndWait(command, manageTracing(metadata), timeout, unit);
+			return commandGateway.sendAndWait(command, metadata, this.handledMessage, timeout, unit);
 		}finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
@@ -86,10 +69,10 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata) {
+	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata, Message<?> handledMessage) {
 		try
 		{
-			return commandGateway.send(command, manageTracing(metadata));
+			return commandGateway.send(command, metadata, this.handledMessage);
 		}finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
@@ -98,10 +81,10 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata) {
+	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata, Message<?> handledMessage) {
 		try
 		{
-			return queryGateway.query(query, manageTracing(metadata));
+			return queryGateway.query(query, metadata, this.handledMessage);
 		}finally
 		{
 			invocationCounter.putIfAbsent(query.getClass().getSimpleName(), new AtomicInteger());
@@ -113,9 +96,8 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 		performanceService.sendInvocationsMetric(
 				bundle,
 				componentName,
-				payloadName,
-				invocationCounter,
-				getCurrentTrace()
+				handledMessage,
+				invocationCounter
 		);
 
 	}
@@ -124,9 +106,8 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 		this.performanceService.sendServiceTimeMetric(
 				bundle,
 				componentName,
-				payloadName,
-				start,
-				getCurrentTrace()
+				handledMessage,
+				start
 		);
 		sendInvocationsMetric();
 	}

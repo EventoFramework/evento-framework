@@ -11,9 +11,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class PerformanceService {
 
-
-	public static final String EVENTO_TRACING_ID_METADATA = "evento.tracing.id";
-
 	public static final String EVENT_STORE = "event-store";
 	public static final String EVENT_STORE_COMPONENT = "EventStore";
 	public static final String GATEWAY_COMPONENT = "Gateway";
@@ -38,16 +35,11 @@ public class PerformanceService {
 	}
 
 	public final void sendServiceTimeMetric(String bundle, String component, Message<?> message, Instant startTime) {
-		var trace = message.getMetadata() == null ? null : message.getMetadata().getOrDefault(EVENTO_TRACING_ID_METADATA, null);
-		sendServiceTimeMetric(bundle, component, message.getPayloadName(), startTime, trace);
-	}
-
-	public final void sendServiceTimeMetric(String bundle, String component, String action, Instant startTime,
-											String trace) {
 		if (random.nextDouble(0.0, 1.0) > performanceRate) return;
 		try
 		{
-			var st = new PerformanceServiceTimeMessage(bundle, component, action, Instant.now().toEpochMilli() - startTime.toEpochMilli());
+			var st = new PerformanceServiceTimeMessage(bundle, component, message.getPayloadName()
+					, Instant.now().toEpochMilli() - startTime.toEpochMilli());
 			messageBus.cast(messageBus.findNodeAddress(serverNodeName),
 					st);
 			onServiceTimeSent(st);
@@ -66,8 +58,8 @@ public class PerformanceService {
 	}
 
 
-	public final void sendInvocationsMetric(String bundle, String component, String action,
-											HashMap<String, AtomicInteger> invocationCounter, String trace) {
+	public final void sendInvocationsMetric(String bundle, String component, Message<?> action,
+											HashMap<String, AtomicInteger> invocationCounter) {
 		if (random.nextDouble(0.0, 1.0) > performanceRate) return;
 		try
 		{
@@ -77,7 +69,7 @@ public class PerformanceService {
 			{
 				invocations.put(e.getKey(), e.getValue().get());
 			}
-			var pi = new PerformanceInvocationsMessage(bundle, component, action, invocations);
+			var pi = new PerformanceInvocationsMessage(bundle, component, action.getPayloadName(), invocations);
 			messageBus.cast(messageBus.findNodeAddress(serverNodeName),
 					pi);
 			onInvocationSent(pi);
