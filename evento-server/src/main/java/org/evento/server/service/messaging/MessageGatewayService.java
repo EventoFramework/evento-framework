@@ -68,9 +68,6 @@ public class MessageGatewayService {
     private final PerformanceService performanceService;
 
     private final BundleService bundleService;
-    private final int maxInstances;
-    private final int minInstances;
-    private final boolean autorun;
     private final HandlerRepository handlerRepository;
 
     public MessageGatewayService(
@@ -85,9 +82,6 @@ public class MessageGatewayService {
             @Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
             @Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
             @Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
-            @Value("${evento.bundle.autorun:false}") boolean autorun,
-            @Value("${evento.bundle.instances.min:0}") int minInstances,
-            @Value("${evento.bundle.instances.max:64}") int maxInstances,
             @Value("${evento.cluster.autoscaling.enabled}") boolean autoscalingEnabled,
             PerformanceStoreService performanceStoreService, BundleService bundleService,
             HandlerRepository handlerRepository) {
@@ -102,9 +96,6 @@ public class MessageGatewayService {
         this.performanceStoreService = performanceStoreService;
         this.bundleService = bundleService;
         this.performanceService = new PerformanceService(messageBus, serverId);
-        this.maxInstances = maxInstances;
-        this.minInstances = minInstances;
-        this.autorun = autorun;
 
         this.threadCountAutoscalingProtocol = new ThreadCountAutoscalingProtocol(
                 this.serverId,
@@ -335,9 +326,6 @@ public class MessageGatewayService {
                 response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
                         serverId,
                         serverVersion,
-                        autorun,
-                        minInstances,
-                        maxInstances,
                         new ArrayList<>(),
                         new HashMap<>()
                 ));

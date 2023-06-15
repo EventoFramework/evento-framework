@@ -9,6 +9,7 @@ import org.evento.common.modeling.messaging.payload.ServiceCommand;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -27,10 +28,10 @@ public class CommandGatewayImpl implements CommandGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata) {
 		try
 		{
-			return (R) send(command).get();
+			return (R) send(command, metadata).get();
 		} catch (InterruptedException | ExecutionException e)
 		{
 			throw new RuntimeException(e);
@@ -38,10 +39,10 @@ public class CommandGatewayImpl implements CommandGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, long timeout, TimeUnit unit) {
 		try
 		{
-			return (R) send(command).get(timeout, unit);
+			return (R) send(command, metadata).get(timeout, unit);
 		} catch (InterruptedException | ExecutionException | TimeoutException e)
 		{
 			throw new RuntimeException(e);
@@ -50,7 +51,7 @@ public class CommandGatewayImpl implements CommandGateway {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public <R> CompletableFuture<R> send(Command command) {
+	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata) {
 		var future = new CompletableFuture<R>();
 		try
 		{
@@ -58,6 +59,7 @@ public class CommandGatewayImpl implements CommandGateway {
 			var message = command instanceof DomainCommand ?
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
+			message.setMetadata(metadata);
 			messageBus.request(address,message,
 					response -> {
 						try{

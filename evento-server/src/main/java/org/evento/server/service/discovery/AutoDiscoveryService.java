@@ -77,9 +77,9 @@ public class AutoDiscoveryService {
 											true,
 											new HashMap<>(),
 											new HashMap<>(),
-											resp.getAutorun(),
-											resp.getMinInstances(),
-											resp.getMaxInstances(),
+											false,
+											0,
+											1,
 											Instant.now()));
 								}
 						);

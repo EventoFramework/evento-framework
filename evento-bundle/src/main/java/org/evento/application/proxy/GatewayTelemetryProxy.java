@@ -38,10 +38,10 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata) {
 		try
 		{
-			return commandGateway.sendAndWait(command);
+			return commandGateway.sendAndWait(command, metadata);
 		}finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
@@ -50,10 +50,10 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
+	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, long timeout, TimeUnit unit) {
 		try
 		{
-			return commandGateway.sendAndWait(command, timeout, unit);
+			return commandGateway.sendAndWait(command, metadata, timeout, unit);
 		}finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
@@ -62,10 +62,10 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <R> CompletableFuture<R> send(Command command) {
+	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata) {
 		try
 		{
-			return commandGateway.send(command);
+			return commandGateway.send(command, metadata);
 		}finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
@@ -74,10 +74,10 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
+	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata) {
 		try
 		{
-			return queryGateway.query(query);
+			return queryGateway.query(query, metadata);
 		}finally
 		{
 			invocationCounter.putIfAbsent(query.getClass().getSimpleName(), new AtomicInteger());
