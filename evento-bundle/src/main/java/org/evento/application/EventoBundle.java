@@ -70,20 +70,24 @@ public class EventoBundle {
     private final List<ObserverReference> observers = new ArrayList<>();
     private final List<SagaReference> sagas = new ArrayList<>();
 
+    private final int sssFetchSize;
+    private final int sssFetchDelay;
+
     private boolean isShuttingDown = false;
 
     private EventoBundle(
             String basePackage,
             String bundleId,
             long bundleVersion,
-            String serverName,
             MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
             ConsumerStateStore consumerStateStore,
             Function<Class<?>, Object> findInjectableObject,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
-            PerformanceService performanceService
+            PerformanceService performanceService,
+            int sssFetchSize,
+            int sssFetchDelay
 
     ) {
 
@@ -95,6 +99,8 @@ public class EventoBundle {
         this.queryGateway = queryGateway;
         this.consumerStateStore = consumerStateStore;
         this.findInjectableObject = findInjectableObject;
+        this.sssFetchSize = sssFetchSize;
+        this.sssFetchDelay = sssFetchDelay;
 
         messageBus.setRequestReceiver((src, request, response) -> {
             try {
@@ -106,7 +112,9 @@ public class EventoBundle {
                         throw new HandlerNotFoundException("No handler found for %s in %s"
                                 .formatted(c.getCommandMessage().getCommandName(), getBundleId()));
                     var envelope = new AggregateStateEnvelope(c.getSerializedAggregateState().getAggregateState());
-                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), c.getCommandMessage().getCommandName());
+                    var proxy = createGatewayTelemetryProxy(
+                            handler.getComponentName(),
+                            c.getCommandMessage());
                     var event = handler.invoke(
                             c.getCommandMessage(),
                             envelope,
@@ -121,35 +129,35 @@ public class EventoBundle {
                                             new SerializedAggregateState<>(envelope.getAggregateState()) : null
                             )
                     );
-                    proxy.sendPerformance();
+                    proxy.sendInvocationsMetric();
 
                 } else if (request instanceof ServiceCommandMessage c) {
                     var handler = getServiceMessageHandlers().get(c.getCommandName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
                                 .formatted(c.getCommandName(), getBundleId()));
-                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), c.getCommandName());
+                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), c);
                     var event = handler.invoke(
                             c,
                             proxy,
                             proxy
                     );
                     response.sendResponse(new ServiceEventMessage(event));
-                    proxy.sendPerformance();
+                    proxy.sendInvocationsMetric();
 
 
                 } else if (request instanceof QueryMessage<?> q) {
                     var handler = getProjectionMessageHandlers().get(q.getQueryName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));
-                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), q.getQueryName());
+                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), q);
                     var result = handler.invoke(
                             q,
                             proxy,
                             proxy
                     );
                     response.sendResponse(new SerializedQueryResponse<>(result));
-                    proxy.sendPerformance();
+                    proxy.sendInvocationsMetric();
                 } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
                     var handlers = new ArrayList<RegisteredHandler>();
                     var payloads = new HashSet<Class<?>>();
@@ -295,15 +303,9 @@ public class EventoBundle {
                 if (request instanceof EventMessage<?> e) {
                     for (ObserverReference observerReference : observerMessageHandlers.get(e.getEventName()).values()) {
                         var start = Instant.now();
-                        var proxy = createGatewayTelemetryProxy(observerReference.getComponentName(), e.getEventName());
+                        var proxy = createGatewayTelemetryProxy(observerReference.getComponentName(), e);
                         observerReference.invoke(e, proxy, proxy);
-                        proxy.sendPerformance();
-                        this.performanceService.sendPerformances(
-                                bundleId,
-                                observerReference.getRef().getClass().getSimpleName(),
-                                e.getEventName(),
-                                start
-                        );
+                        proxy.sendServiceTimeMetric(start);
                     }
                 }
             } catch (Throwable e) {
@@ -317,8 +319,9 @@ public class EventoBundle {
 
     }
 
-    private GatewayTelemetryProxy createGatewayTelemetryProxy(String componentName, String payloadName) {
-        return new GatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService, componentName, payloadName);
+    private GatewayTelemetryProxy createGatewayTelemetryProxy(String componentName, Message<?> handledMessage) {
+        return new GatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                componentName, handledMessage.getPayloadName(), handledMessage);
     }
 
 
@@ -409,7 +412,6 @@ public class EventoBundle {
             var sagaVersion = saga.getRef().getClass().getAnnotation(Saga.class).version();
             logger.info("Starting event consumer for Saga %s".formatted(sagaName));
             new Thread(() -> {
-                var fetchSize = 1000;
                 var consumerId = bundleId + "_" + sagaVersion + "_" + sagaName;
                 while (!isShuttingDown) {
                     var hasError = false;
@@ -432,24 +434,25 @@ public class EventoBundle {
                                     associationProperty,
                                     associationValue
                             );
-                            var proxy = createGatewayTelemetryProxy(handler.getComponentName(), publishedEvent.getEventMessage().getEventName());
+                            var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
+                                    publishedEvent.getEventMessage());
                             var resp = handler.invoke(
                                     publishedEvent.getEventMessage(),
                                     sagaState,
                                     proxy,
                                     proxy
                             );
-                            proxy.sendPerformance();
+                            proxy.sendInvocationsMetric();
                             return resp;
-                        }, fetchSize);
+                        }, sssFetchSize);
                     } catch (Throwable e) {
                         logger.error(e);
                         e.printStackTrace();
                         hasError = true;
                     }
-                    if (fetchSize - consumedEventCount > 10) {
+                    if (sssFetchSize - consumedEventCount > 10) {
                         try {
-                            Thread.sleep(hasError ? 5000 : fetchSize - consumedEventCount);
+                            Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
@@ -490,7 +493,8 @@ public class EventoBundle {
 
                                     var handler = handlers.getOrDefault(projectorName, null);
                                     if (handler == null) return;
-                                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), publishedEvent.getEventMessage().getEventName());
+                                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
+                                            publishedEvent.getEventMessage());
                                     handler.begin();
                                     handler.invoke(
                                             publishedEvent.getEventMessage(),
@@ -498,7 +502,7 @@ public class EventoBundle {
                                             proxy
                                     );
                                     handler.commit();
-                                    proxy.sendPerformance();
+                                    proxy.sendInvocationsMetric();
                                 }, fetchSize);
                     } catch (Throwable e) {
                         logger.error(e);
@@ -612,14 +616,15 @@ public class EventoBundle {
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             if (method.getDeclaredAnnotation(InvocationHandler.class) != null) {
                 var payload = invoker.getSimpleName() + "::" + method.getName();
-                var gProxy = eventoBundle.createGatewayTelemetryProxy(invoker.getSimpleName(), payload);
+                var gProxy = eventoBundle.createGatewayTelemetryProxy(invoker.getSimpleName(),
+                        new InvocationMessage<>(payload));
                 var target = Proxy.newProxyInstance(
                         invoker.getClassLoader(),
                         new Class[]{invoker},
                         new GatewayInterceptor(gProxy));
                 var start = Instant.now();
                 Object result = method.invoke(target, args);
-                gProxy.sendPerformance(start);
+                gProxy.sendServiceTimeMetric(start);
                 return result;
 
             }
@@ -637,7 +642,8 @@ public class EventoBundle {
 
                 if (method.getDeclaredAnnotation(InvocationHandler.class) != null) {
                     var payload = invokerClass.getSimpleName() + "::" + method.getName();
-                    var gProxy = createGatewayTelemetryProxy(invokerClass.getSimpleName(), payload);
+                    var gProxy = createGatewayTelemetryProxy(invokerClass.getSimpleName(),
+                            new InvocationMessage<>(payload));
                     ProxyFactory factory = new ProxyFactory();
                     factory.setSuperclass(invokerClass);
                     var target = factory.create(new Class<?>[0], new Object[]{},
@@ -652,7 +658,7 @@ public class EventoBundle {
                             });
                     var start = Instant.now();
                     Object result = proceed.invoke(target, args);
-                    gProxy.sendPerformance(start);
+                    gProxy.sendServiceTimeMetric(start);
                     return result;
 
                 }
@@ -718,6 +724,9 @@ public class EventoBundle {
 
         private PerformanceService performanceService;
 
+        private int sssFetchSize = 1000;
+        private int sssFetchDelay = 5000;
+
         private Builder() {
         }
 
@@ -780,6 +789,16 @@ public class EventoBundle {
             return this;
         }
 
+        public Builder setSssFetchSize(int sssFetchSize) {
+            this.sssFetchSize = sssFetchSize;
+            return this;
+        }
+
+        public Builder setSssFetchDelay(int sssFetchDelay) {
+            this.sssFetchDelay = sssFetchDelay;
+            return this;
+        }
+
         public EventoBundle start() {
             if (basePackage == null) {
                 throw new IllegalArgumentException("Invalid basePackage");
@@ -814,14 +833,20 @@ public class EventoBundle {
             if (consumerStateStore == null) {
                 consumerStateStore = new InMemoryConsumerStateStore(messageBus, bundleId, serverName);
             }
-            if(commandGateway == null){
+            if (commandGateway == null) {
                 commandGateway = new CommandGatewayImpl(messageBus, serverName);
             }
-            if(queryGateway == null){
+            if (queryGateway == null) {
                 queryGateway = new QueryGatewayImpl(messageBus, serverName);
             }
-            if(performanceService == null){
+            if (performanceService == null) {
                 performanceService = new PerformanceService(messageBus, serverName);
+            }
+            if (sssFetchSize < 1) {
+                sssFetchSize = 1;
+            }
+            if (sssFetchDelay < 100) {
+                sssFetchDelay = 100;
             }
             try {
                 logger.info("Starting EventoApplication %s".formatted(bundleId));
@@ -831,14 +856,15 @@ public class EventoBundle {
                         basePackage.getName(),
                         bundleId,
                         bundleVersion,
-                        serverName,
                         messageBus,
                         autoscalingProtocol,
                         consumerStateStore,
                         injector,
                         commandGateway,
                         queryGateway,
-                        performanceService);
+                        performanceService,
+                        sssFetchSize,
+                        sssFetchDelay);
                 eventoBundle.parsePackage();
                 logger.info("Sleeping for alignment...");
                 Thread.sleep(3000);

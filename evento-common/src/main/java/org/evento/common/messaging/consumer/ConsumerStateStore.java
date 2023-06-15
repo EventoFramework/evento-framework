@@ -3,7 +3,6 @@ package org.evento.common.messaging.consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
-import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.messaging.bus.MessageBus;
@@ -48,10 +47,10 @@ public abstract class ConsumerStateStore {
                     projectorEventConsumer.consume(event);
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                     consumedEventCount++;
-                    performanceService.sendPerformances(
+                    performanceService.sendServiceTimeMetric(
                             bundleId,
                             projectorName,
-                            event.getEventName(),
+                            event.getEventMessage(),
                             start
                     );
                 }
@@ -90,10 +89,10 @@ public abstract class ConsumerStateStore {
                     }
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                     consumedEventCount++;
-                    performanceService.sendPerformances(
+                    performanceService.sendServiceTimeMetric(
                             bundleId,
                             sagaName,
-                            event.getEventName(),
+                            event.getEventMessage(),
                             start
                     );
                 }

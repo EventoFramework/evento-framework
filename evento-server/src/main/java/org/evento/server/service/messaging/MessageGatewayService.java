@@ -192,10 +192,10 @@ public class MessageGatewayService {
                                 .map(e -> ((DomainEventMessage) e)).collect(Collectors.toList()));
                         invocation.setSerializedAggregateState(snapshot.getAggregateState());
                     }
-                    performanceService.sendPerformances(
+                    performanceService.sendServiceTimeMetric(
                             SERVER,
                             GATEWAY_COMPONENT,
-                            c.getCommandName(),
+                            c,
                             start
                     );
                     var invocationStart = PerformanceStoreService.now();
@@ -203,10 +203,10 @@ public class MessageGatewayService {
                             dest,
                             invocation,
                             resp -> {
-                                performanceService.sendPerformances(
+                                performanceService.sendServiceTimeMetric(
                                         dest.getBundleId(),
                                         handler.getComponent().getComponentName(),
-                                        c.getCommandName(),
+                                        c,
                                         invocationStart
                                 );
 
@@ -220,10 +220,10 @@ public class MessageGatewayService {
                                             cr.getSerializedAggregateState()
                                     );
                                 }
-                                performanceService.sendPerformances(
+                                performanceService.sendServiceTimeMetric(
                                         EVENT_STORE,
                                         EVENT_STORE_COMPONENT,
-                                        cr.getDomainEventMessage().getEventName(),
+                                        cr.getDomainEventMessage(),
                                         esStoreStart
                                 );
                                 response.sendResponse(cr.getDomainEventMessage());
@@ -232,10 +232,10 @@ public class MessageGatewayService {
 
                             },
                             error -> {
-                                performanceService.sendPerformances(
+                                performanceService.sendServiceTimeMetric(
                                         dest.getBundleId(),
                                         handler.getComponent().getComponentName(),
-                                        c.getCommandName(),
+                                        c,
                                         invocationStart
                                 );
                                 response.sendError(error.toThrowable());
@@ -261,19 +261,19 @@ public class MessageGatewayService {
                         dest,
                         c,
                         resp -> {
-                            performanceService.sendPerformances(
+                            performanceService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
-                                    c.getCommandName(),
+                                    c,
                                     invocationStart
                             );
                             if (resp != null && ((EventMessage<?>) resp).getType() != null) {
                                 var esStoreStart = PerformanceStoreService.now();
                                 eventStore.publishEvent((EventMessage<?>) resp);
-                                performanceService.sendPerformances(
+                                performanceService.sendServiceTimeMetric(
                                         EVENT_STORE,
                                         EVENT_STORE_COMPONENT,
-                                        ((EventMessage<?>) resp).getEventName(),
+                                        ((EventMessage<?>) resp),
                                         esStoreStart
                                 );
                             }
@@ -284,10 +284,10 @@ public class MessageGatewayService {
                         },
                         error -> {
                             response.sendError(error.toThrowable());
-                            performanceService.sendPerformances(
+                            performanceService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
-                                    c.getCommandName(),
+                                    c,
                                     invocationStart
                             );
                         }
@@ -303,19 +303,19 @@ public class MessageGatewayService {
                         dest,
                         q,
                         resp -> {
-                            performanceService.sendPerformances(
+                            performanceService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
-                                    q.getQueryName(),
+                                    q,
                                     invocationStart
                             );
                             response.sendResponse(resp);
                         },
                         error -> {
-                            performanceService.sendPerformances(
+                            performanceService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
-                                    q.getQueryName(),
+                                    q,
                                     invocationStart
                             );
                             response.sendError(error.toThrowable());
