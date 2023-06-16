@@ -34,6 +34,7 @@ import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.performance.AutoscalingProtocol;
 import org.evento.common.performance.PerformanceService;
+import org.evento.common.performance.RemotePerformanceService;
 import org.evento.common.utils.Inject;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
@@ -830,9 +831,6 @@ public class EventoBundle {
             if (injector == null) {
                 injector = clz -> null;
             }
-            if (consumerStateStore == null) {
-                consumerStateStore = new InMemoryConsumerStateStore(messageBus, bundleId, serverName);
-            }
             if (commandGateway == null) {
                 commandGateway = new CommandGatewayImpl(messageBus, serverName);
             }
@@ -840,7 +838,10 @@ public class EventoBundle {
                 queryGateway = new QueryGatewayImpl(messageBus, serverName);
             }
             if (performanceService == null) {
-                performanceService = new PerformanceService(messageBus, serverName);
+                performanceService = new RemotePerformanceService(messageBus, serverName);
+            }
+            if (consumerStateStore == null) {
+                consumerStateStore = new InMemoryConsumerStateStore(messageBus, bundleId, serverName, performanceService);
             }
             if (sssFetchSize < 1) {
                 sssFetchSize = 1;

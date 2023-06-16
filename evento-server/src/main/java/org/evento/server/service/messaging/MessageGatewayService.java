@@ -23,6 +23,7 @@ import org.evento.common.performance.PerformanceService;
 import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.repository.HandlerRepository;
 import org.evento.server.service.deploy.BundleDeployService;
+import org.evento.server.service.performance.LocalPerformanceService;
 import org.evento.server.service.performance.PerformanceStoreService;
 import org.evento.server.domain.model.BucketType;
 import org.evento.server.domain.model.Bundle;
@@ -63,9 +64,7 @@ public class MessageGatewayService {
     private final boolean autoscalingEnabled;
     private final String serverId;
     private final long serverVersion;
-
     private final PerformanceStoreService performanceStoreService;
-    private final PerformanceService performanceService;
 
     private final BundleService bundleService;
     private final HandlerRepository handlerRepository;
@@ -95,7 +94,6 @@ public class MessageGatewayService {
         this.bundleDeployService = bundleDeployService;
         this.performanceStoreService = performanceStoreService;
         this.bundleService = bundleService;
-        this.performanceService = new PerformanceService(messageBus, serverId);
 
         this.threadCountAutoscalingProtocol = new ThreadCountAutoscalingProtocol(
                 this.serverId,
@@ -141,19 +139,9 @@ public class MessageGatewayService {
                 }
             }
             if (request instanceof PerformanceServiceTimeMessage p) {
-                performanceStoreService.saveServiceTimePerformance(
-                        p.getBundle(),
-                        p.getComponent(),
-                        p.getAction(),
-                        p.getDuration()
-                );
-            } else if (request instanceof PerformanceInvocationsMessage p)
-            {
-                performanceStoreService.saveInvocationsPerformance(
-                        p.getBundle(),
-                        p.getComponent(),
-                        p.getAction(),
-                        p.getInvocations()                );
+                performanceStoreService.sendServiceTimeMetricMessage(p);
+            } else if (request instanceof PerformanceInvocationsMessage p) {
+                performanceStoreService.sendInvocationMetricMessage(p);
             }
 
         } catch (Exception e) {
@@ -192,7 +180,7 @@ public class MessageGatewayService {
                                 .map(e -> ((DomainEventMessage) e)).collect(Collectors.toList()));
                         invocation.setSerializedAggregateState(snapshot.getAggregateState());
                     }
-                    performanceService.sendServiceTimeMetric(
+                    performanceStoreService.sendServiceTimeMetric(
                             SERVER,
                             GATEWAY_COMPONENT,
                             c,
@@ -203,7 +191,7 @@ public class MessageGatewayService {
                             dest,
                             invocation,
                             resp -> {
-                                performanceService.sendServiceTimeMetric(
+                                performanceStoreService.sendServiceTimeMetric(
                                         dest.getBundleId(),
                                         handler.getComponent().getComponentName(),
                                         c,
@@ -220,7 +208,7 @@ public class MessageGatewayService {
                                             cr.getSerializedAggregateState()
                                     );
                                 }
-                                performanceService.sendServiceTimeMetric(
+                                performanceStoreService.sendServiceTimeMetric(
                                         EVENT_STORE,
                                         EVENT_STORE_COMPONENT,
                                         cr.getDomainEventMessage(),
@@ -232,7 +220,7 @@ public class MessageGatewayService {
 
                             },
                             error -> {
-                                performanceService.sendServiceTimeMetric(
+                                performanceStoreService.sendServiceTimeMetric(
                                         dest.getBundleId(),
                                         handler.getComponent().getComponentName(),
                                         c,
@@ -261,7 +249,7 @@ public class MessageGatewayService {
                         dest,
                         c,
                         resp -> {
-                            performanceService.sendServiceTimeMetric(
+                            performanceStoreService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
                                     c,
@@ -270,7 +258,7 @@ public class MessageGatewayService {
                             if (resp != null && ((EventMessage<?>) resp).getType() != null) {
                                 var esStoreStart = PerformanceStoreService.now();
                                 eventStore.publishEvent((EventMessage<?>) resp);
-                                performanceService.sendServiceTimeMetric(
+                                performanceStoreService.sendServiceTimeMetric(
                                         EVENT_STORE,
                                         EVENT_STORE_COMPONENT,
                                         ((EventMessage<?>) resp),
@@ -284,7 +272,7 @@ public class MessageGatewayService {
                         },
                         error -> {
                             response.sendError(error.toThrowable());
-                            performanceService.sendServiceTimeMetric(
+                            performanceStoreService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
                                     c,
@@ -303,7 +291,7 @@ public class MessageGatewayService {
                         dest,
                         q,
                         resp -> {
-                            performanceService.sendServiceTimeMetric(
+                            performanceStoreService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
                                     q,
@@ -312,7 +300,7 @@ public class MessageGatewayService {
                             response.sendResponse(resp);
                         },
                         error -> {
-                            performanceService.sendServiceTimeMetric(
+                            performanceStoreService.sendServiceTimeMetric(
                                     dest.getBundleId(),
                                     handler.getComponent().getComponentName(),
                                     q,
@@ -337,7 +325,7 @@ public class MessageGatewayService {
                             f.getLastSequenceNumber(),
                             f.getLimit(), handlerRepository.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
                     response.sendResponse(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
-                }catch (Exception e){
+                } catch (Exception e) {
                     response.sendError(e);
                 }
             } else if (request instanceof EventLastSequenceNumberRequest r) {
