@@ -5,6 +5,7 @@ import org.evento.bus.rabbitmq.RabbitMqMessageBus;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
 import org.evento.demo.DemoCommandApplication;
+import org.evento.demo.telemetry.SentryMessageGatewayAndCorrelator;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -27,16 +28,21 @@ public class EventoConfiguration {
             @Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
             @Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
             @Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
+            @Value("${sentry.dns}") String sentryDns,
             BeanFactory factory
     ) throws Exception {
 
         MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
+        var mg = new SentryMessageGatewayAndCorrelator(messageBus, serverName, sentryDns);
         return EventoBundle.Builder.builder()
                 .setBasePackage(DemoCommandApplication.class.getPackage())
                 .setBundleId(bundleId)
                 .setBundleVersion(bundleVersion)
                 .setServerName(serverName)
                 .setMessageBus(messageBus)
+                .setCommandGateway(mg)
+                .setQueryGateway(mg)
+                .setMessageCorrelator(mg)
                 .setAutoscalingProtocol( new ThreadCountAutoscalingProtocol(
                         bundleId,
                         serverName,

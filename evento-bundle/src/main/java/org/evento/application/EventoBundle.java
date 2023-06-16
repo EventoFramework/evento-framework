@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
+import kotlin.Pair;
+import kotlin.jvm.functions.Function2;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.application.proxy.GatewayTelemetryProxy;
@@ -43,6 +45,8 @@ import java.lang.reflect.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class EventoBundle {
@@ -88,7 +92,8 @@ public class EventoBundle {
             QueryGateway queryGateway,
             PerformanceService performanceService,
             int sssFetchSize,
-            int sssFetchDelay
+            int sssFetchDelay,
+            BiConsumer<Message<?>, Message<?>> messageCorrelator
 
     ) {
 
@@ -123,9 +128,10 @@ public class EventoBundle {
                             proxy,
                             proxy
                     );
+                    var em = new DomainEventMessage(event);
+                    messageCorrelator.accept(c.getCommandMessage(), em);
                     response.sendResponse(
-                            new DomainCommandResponseMessage(
-                                    new DomainEventMessage(event),
+                            new DomainCommandResponseMessage(em,
                                     handler.getSnapshotFrequency() <= c.getEventStream().size() ?
                                             new SerializedAggregateState<>(envelope.getAggregateState()) : null
                             )
@@ -143,10 +149,10 @@ public class EventoBundle {
                             proxy,
                             proxy
                     );
-                    response.sendResponse(new ServiceEventMessage(event));
+                    var em = new ServiceEventMessage(event);
+                    messageCorrelator.accept(c, em);
+                    response.sendResponse(em);
                     proxy.sendInvocationsMetric();
-
-
                 } else if (request instanceof QueryMessage<?> q) {
                     var handler = getProjectionMessageHandlers().get(q.getQueryName());
                     if (handler == null)
@@ -157,7 +163,8 @@ public class EventoBundle {
                             proxy,
                             proxy
                     );
-                    response.sendResponse(new SerializedQueryResponse<>(result));
+                    var rm = new SerializedQueryResponse<>(result);
+                    response.sendResponse(rm);
                     proxy.sendInvocationsMetric();
                 } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
                     var handlers = new ArrayList<RegisteredHandler>();
@@ -728,6 +735,8 @@ public class EventoBundle {
         private int sssFetchSize = 1000;
         private int sssFetchDelay = 5000;
 
+        private BiConsumer<Message<?>, Message<?>> messageCorrelator;
+
         private Builder() {
         }
 
@@ -800,6 +809,11 @@ public class EventoBundle {
             return this;
         }
 
+        public Builder setMessageCorrelator(BiConsumer<Message<?>, Message<?>> messageCorrelator) {
+            this.messageCorrelator = messageCorrelator;
+            return this;
+        }
+
         public EventoBundle start() {
             if (basePackage == null) {
                 throw new IllegalArgumentException("Invalid basePackage");
@@ -849,6 +863,9 @@ public class EventoBundle {
             if (sssFetchDelay < 100) {
                 sssFetchDelay = 100;
             }
+            if(messageCorrelator == null){
+                messageCorrelator = (s,d) -> {};
+            }
             try {
                 logger.info("Starting EventoApplication %s".formatted(bundleId));
                 logger.info("Used message bus: %s".formatted(messageBus.getClass().getName()));
@@ -865,7 +882,8 @@ public class EventoBundle {
                         queryGateway,
                         performanceService,
                         sssFetchSize,
-                        sssFetchDelay);
+                        sssFetchDelay,
+                        messageCorrelator);
                 eventoBundle.parsePackage();
                 logger.info("Sleeping for alignment...");
                 Thread.sleep(3000);
