@@ -20,8 +20,17 @@ public class HandlerServiceTimePerformance {
     @Id
     private String id;
 
-    private double lastServiceTime;
+    private double agedMeanServiceTime;
+    private long lastServiceTime;
+    private long maxServiceTime;
+    private long minServiceTime;
 
-    private double meanServiceTime;
+    private double agedMeanArrivalInterval;
+    private long lastArrivalInterval;
+    private long maxArrivalInterval;
+    private long minArrivalInterval;
+
+    private long lastArrival;
+    private long count;
 
 }

@@ -1,23 +1,27 @@
 package org.evento.common.performance;
 
+import org.evento.common.modeling.messaging.message.application.Message;
+
 import java.io.Serializable;
+import java.time.Instant;
 
 public class PerformanceServiceTimeMessage implements Serializable {
 
     private String bundle;
     private String  component;
     private String action;
-    private long duration;
-
+    private long start;
+    private long end;
 
     public PerformanceServiceTimeMessage() {
     }
 
-    public PerformanceServiceTimeMessage(String bundle, String component, String action, long duration) {
+    public PerformanceServiceTimeMessage(String bundle, String component, String action, long start, long end) {
         this.bundle = bundle;
         this.component = component;
         this.action = action;
-        this.duration = duration;
+        this.start = start;
+        this.end = end;
     }
 
     public String getBundle() {
@@ -44,11 +48,21 @@ public class PerformanceServiceTimeMessage implements Serializable {
         this.action = action;
     }
 
-    public long getDuration() {
-        return duration;
+
+    public long getStart() {
+        return start;
     }
 
-    public void setDuration(long duration) {
-        this.duration = duration;
+    public void setStart(long start) {
+        this.start = start;
     }
+
+    public long getEnd() {
+        return end;
+    }
+
+    public void setEnd(long end) {
+        this.end = end;
+    }
+
 }

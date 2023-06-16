@@ -9,28 +9,20 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PerformanceService {
+public abstract class PerformanceService {
 
 	public static final String EVENT_STORE = "event-store";
 	public static final String EVENT_STORE_COMPONENT = "EventStore";
 	public static final String GATEWAY_COMPONENT = "Gateway";
 	public static final String SERVER = "server";
-	private final MessageBus messageBus;
-	private final String serverNodeName;
 
 	private final Random random = new Random();
 	private double performanceRate = 1;
 
-	public PerformanceService(MessageBus messageBus,
-							  String serverNodeName) {
-		this.messageBus = messageBus;
-		this.serverNodeName = serverNodeName;
+	public PerformanceService() {
 	}
 
-	public PerformanceService(MessageBus messageBus,
-							  String serverNodeName,
-							  double rate) {
-		this(messageBus, serverNodeName);
+	public PerformanceService(double rate) {
 		performanceRate = rate;
 	}
 
@@ -39,19 +31,17 @@ public class PerformanceService {
 		try
 		{
 			var st = new PerformanceServiceTimeMessage(bundle, component, message.getPayloadName()
-					, Instant.now().toEpochMilli() - startTime.toEpochMilli());
-			messageBus.cast(messageBus.findNodeAddress(serverNodeName),
-					st);
-			onServiceTimeSent(st);
+					,startTime.toEpochMilli(), Instant.now().toEpochMilli());
+			sendServiceTimeMetricMessage(st);
 		} catch (Exception ignored)
 		{
 
 		}
 	}
 
-	public void onServiceTimeSent(PerformanceServiceTimeMessage performanceServiceTimeMessage){
+	protected abstract void sendServiceTimeMetricMessage(PerformanceServiceTimeMessage message) throws Exception;
 
-	}
+
 
 	public void setPerformanceRate(double performanceRate) {
 		this.performanceRate = performanceRate;
@@ -70,9 +60,7 @@ public class PerformanceService {
 				invocations.put(e.getKey(), e.getValue().get());
 			}
 			var pi = new PerformanceInvocationsMessage(bundle, component, action.getPayloadName(), invocations);
-			messageBus.cast(messageBus.findNodeAddress(serverNodeName),
-					pi);
-			onInvocationSent(pi);
+			sendInvocationMetricMessage(pi);
 
 		} catch (Exception ignored)
 		{
@@ -80,7 +68,6 @@ public class PerformanceService {
 		}
 	}
 
-	public void onInvocationSent(PerformanceInvocationsMessage performanceInvocationsMessage){
+	protected abstract void sendInvocationMetricMessage(PerformanceInvocationsMessage message) throws Exception;
 
-	}
 }

@@ -51,7 +51,7 @@ public class EventoConfiguration {
                         minThreads,
                         maxOverflow,
                         maxUnderflow))
-                .setConsumerStateStore(new MysqlConsumerStateStore(messageBus, bundleId, serverName, DriverManager.getConnection(
+                .setConsumerStateStore(new MysqlConsumerStateStore(messageBus, bundleId, serverName,  DriverManager.getConnection(
                         connectionUrl, username, password)))
                 .setInjector(factory::getBean)
                 .start();

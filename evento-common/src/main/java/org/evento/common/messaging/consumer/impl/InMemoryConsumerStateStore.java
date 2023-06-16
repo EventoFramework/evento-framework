@@ -4,6 +4,7 @@ import org.evento.common.messaging.consumer.StoredSagaState;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
+import org.evento.common.performance.PerformanceService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,8 +18,8 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 
     private final Map<String, SagaState> sagaStateRepository = new HashMap<>();
 
-    public InMemoryConsumerStateStore(MessageBus messageBus, String bundleId, String serverNodeName) {
-        super(messageBus, bundleId, serverNodeName);
+    public InMemoryConsumerStateStore(MessageBus messageBus, String bundleId, String serverNodeName, PerformanceService performanceService) {
+        super(messageBus, bundleId, serverNodeName, performanceService);
     }
 
     @Override

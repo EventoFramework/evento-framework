@@ -21,11 +21,15 @@ public abstract class ConsumerStateStore {
     private final PerformanceService performanceService;
     private final String bundleId;
 
-    protected ConsumerStateStore(MessageBus messageBus, String bundleId, String serverNodeName) {
+    protected ConsumerStateStore(
+            MessageBus messageBus,
+            String bundleId,
+            String serverNodeName,
+            PerformanceService performanceService) {
         this.messageBus = messageBus;
         this.serverNodeName = serverNodeName;
         this.bundleId = bundleId;
-        this.performanceService = new PerformanceService(messageBus, serverNodeName);
+        this.performanceService = performanceService;
     }
 
     public int consumeEventsForProjector(
