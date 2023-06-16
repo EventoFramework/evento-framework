@@ -6,6 +6,7 @@ import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
 import org.evento.consumer.state.store.mysql.MysqlConsumerStateStore;
 import org.evento.demo.DemoQueryApplication;
+import org.evento.demo.telemetry.SentryMessageGatewayAndCorrelator;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -33,16 +34,21 @@ public class EventoConfiguration {
             BeanFactory factory,
             @Value("${spring.datasource.url}") String connectionUrl,
             @Value("${spring.datasource.username}") String username,
-            @Value("${spring.datasource.password}") String password
+            @Value("${spring.datasource.password}") String password,
+            @Value("${sentry.dns}") String sentryDns
     ) throws Exception {
 
         MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
+        var mg = new SentryMessageGatewayAndCorrelator(messageBus, serverName, sentryDns);
         return EventoBundle.Builder.builder()
                 .setBasePackage(DemoQueryApplication.class.getPackage())
                 .setBundleId(bundleId)
                 .setBundleVersion(bundleVersion)
                 .setServerName(serverName)
                 .setMessageBus(messageBus)
+                .setCommandGateway(mg)
+                .setQueryGateway(mg)
+                .setMessageCorrelator(mg)
                 .setAutoscalingProtocol(new ThreadCountAutoscalingProtocol(
                         bundleId,
                         serverName,
