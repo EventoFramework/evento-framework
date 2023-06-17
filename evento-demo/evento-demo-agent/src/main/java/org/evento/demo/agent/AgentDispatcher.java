@@ -24,12 +24,18 @@ public class AgentDispatcher implements CommandLineRunner {
 		Thread.sleep(3000);
 
 
-		for(int i = 0; i<25; i++){
+		for(int i = 0; i<30; i++){
 			i++;
 			Thread.sleep(500);
 			int finalI = i;
 			new Thread(() -> {
-				demoLifecycleAgent.action(finalI);
+				try
+				{
+					demoLifecycleAgent.action(finalI);
+					System.out.println(finalI+"_end");
+				}catch (Exception e){
+					e.printStackTrace();
+				}
 			}).start();
 		}
 		// eventoBundle.gracefulShutdown();

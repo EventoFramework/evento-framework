@@ -16,7 +16,9 @@ public interface TracingAgent {
 		to.setMetadata(correlate(to.getMetadata(), from));
 	}
 
-	default   <T> T  track(Message<?> message, String component, String bundle, long bundleVersion, Transaction<T> transaction)
+	default   <T> T  track(Message<?> message, String component, String bundle, long bundleVersion,
+						   Track trackingAnnotation,
+						   Transaction<T> transaction)
 			throws Throwable{
 		return transaction.run();
 	}
