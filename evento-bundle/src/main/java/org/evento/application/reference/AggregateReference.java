@@ -65,8 +65,8 @@ public class AggregateReference extends Reference {
 		return eventSourcingReferences.get(eventName);
 	}
 
-	public Method getAggregateCommandHandler(String eventName) {
-		return aggregateCommandHandlerReferences.get(eventName);
+	public Method getAggregateCommandHandler(String commandName) {
+		return aggregateCommandHandlerReferences.get(commandName);
 	}
 
 	public Set<String> getRegisteredCommands() {
