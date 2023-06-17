@@ -4,10 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
-import kotlin.Pair;
-import kotlin.jvm.functions.Function2;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.proxy.InvokerWrapper;
 import org.evento.application.reference.*;
@@ -45,8 +44,6 @@ import java.lang.reflect.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class EventoBundle {
@@ -55,6 +52,7 @@ public class EventoBundle {
 
     private final String basePackage;
     private final String bundleId;
+    private final long bundleVersion;
     private final MessageBus messageBus;
     private final ConsumerStateStore consumerStateStore;
     private final PerformanceService performanceService;
@@ -80,6 +78,8 @@ public class EventoBundle {
 
     private boolean isShuttingDown = false;
 
+    private final TracingAgent tracingAgent;
+
     private EventoBundle(
             String basePackage,
             String bundleId,
@@ -93,13 +93,14 @@ public class EventoBundle {
             PerformanceService performanceService,
             int sssFetchSize,
             int sssFetchDelay,
-            BiConsumer<Message<?>, Message<?>> messageCorrelator
+            TracingAgent tracingAgent
 
     ) {
 
         this.messageBus = messageBus;
         this.basePackage = basePackage;
         this.bundleId = bundleId;
+        this.bundleVersion = bundleVersion;
         this.performanceService = performanceService;
         this.commandGateway = commandGateway;
         this.queryGateway = queryGateway;
@@ -107,8 +108,10 @@ public class EventoBundle {
         this.findInjectableObject = findInjectableObject;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
+        this.tracingAgent = tracingAgent;
 
         messageBus.setRequestReceiver((src, request, response) -> {
+            var start = Instant.now().toEpochMilli();
             try {
                 autoscalingProtocol.arrival();
                 if (request instanceof DecoratedDomainCommandMessage c) {
@@ -121,22 +124,30 @@ public class EventoBundle {
                     var proxy = createGatewayTelemetryProxy(
                             handler.getComponentName(),
                             c.getCommandMessage());
-                    var event = handler.invoke(
+                    tracingAgent.track(
                             c.getCommandMessage(),
-                            envelope,
-                            c.getEventStream(),
-                            proxy,
-                            proxy
-                    );
-                    var em = new DomainEventMessage(event);
-                    messageCorrelator.accept(c.getCommandMessage(), em);
-                    response.sendResponse(
-                            new DomainCommandResponseMessage(em,
-                                    handler.getSnapshotFrequency() <= c.getEventStream().size() ?
-                                            new SerializedAggregateState<>(envelope.getAggregateState()) : null
-                            )
-                    );
-                    proxy.sendInvocationsMetric();
+                            handler.getComponentName(),
+                            bundleId,
+                            bundleVersion,
+                            () -> {
+                                var event = handler.invoke(
+                                        c.getCommandMessage(),
+                                        envelope,
+                                        c.getEventStream(),
+                                        proxy,
+                                        proxy
+                                );
+                                var em = new DomainEventMessage(event);
+                                tracingAgent.correlate(c.getCommandMessage(), em);
+                                response.sendResponse(
+                                        new DomainCommandResponseMessage(em,
+                                                handler.getSnapshotFrequency() <= c.getEventStream().size() ?
+                                                        new SerializedAggregateState<>(envelope.getAggregateState()) : null
+                                        )
+                                );
+                                proxy.sendInvocationsMetric();
+                                return null;
+                            });
 
                 } else if (request instanceof ServiceCommandMessage c) {
                     var handler = getServiceMessageHandlers().get(c.getCommandName());
@@ -144,28 +155,35 @@ public class EventoBundle {
                         throw new HandlerNotFoundException("No handler found for %s in %s"
                                 .formatted(c.getCommandName(), getBundleId()));
                     var proxy = createGatewayTelemetryProxy(handler.getComponentName(), c);
-                    var event = handler.invoke(
-                            c,
-                            proxy,
-                            proxy
-                    );
-                    var em = new ServiceEventMessage(event);
-                    messageCorrelator.accept(c, em);
-                    response.sendResponse(em);
-                    proxy.sendInvocationsMetric();
+                    tracingAgent.track(c, handler.getComponentName(), bundleId, bundleVersion,
+                            () -> {
+                                var event = handler.invoke(
+                                        c,
+                                        proxy,
+                                        proxy
+                                );
+                                var em = new ServiceEventMessage(event);
+                                tracingAgent.correlate(c, em);
+                                response.sendResponse(em);
+                                proxy.sendInvocationsMetric();
+                                return null;
+                            });
                 } else if (request instanceof QueryMessage<?> q) {
                     var handler = getProjectionMessageHandlers().get(q.getQueryName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));
                     var proxy = createGatewayTelemetryProxy(handler.getComponentName(), q);
-                    var result = handler.invoke(
-                            q,
-                            proxy,
-                            proxy
-                    );
-                    var rm = new SerializedQueryResponse<>(result);
-                    response.sendResponse(rm);
-                    proxy.sendInvocationsMetric();
+                    tracingAgent.track(q, handler.getComponentName(), bundleId, bundleVersion, () -> {
+                        var result = handler.invoke(
+                                q,
+                                proxy,
+                                proxy
+                        );
+                        var rm = new SerializedQueryResponse<>(result);
+                        response.sendResponse(rm);
+                        proxy.sendInvocationsMetric();
+                        return null;
+                    });
                 } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
                     var handlers = new ArrayList<RegisteredHandler>();
                     var payloads = new HashSet<Class<?>>();
@@ -312,8 +330,11 @@ public class EventoBundle {
                     for (ObserverReference observerReference : observerMessageHandlers.get(e.getEventName()).values()) {
                         var start = Instant.now();
                         var proxy = createGatewayTelemetryProxy(observerReference.getComponentName(), e);
-                        observerReference.invoke(e, proxy, proxy);
-                        proxy.sendServiceTimeMetric(start);
+                        tracingAgent.track(e, observerReference.getComponentName(), bundleId, bundleVersion, () -> {
+                            observerReference.invoke(e, proxy, proxy);
+                            proxy.sendServiceTimeMetric(start);
+                            return null;
+                        });
                     }
                 }
             } catch (Throwable e) {
@@ -329,7 +350,7 @@ public class EventoBundle {
 
     private GatewayTelemetryProxy createGatewayTelemetryProxy(String componentName, Message<?> handledMessage) {
         return new GatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
-                componentName, handledMessage);
+                componentName, handledMessage, tracingAgent);
     }
 
 
@@ -426,6 +447,7 @@ public class EventoBundle {
                     var consumedEventCount = 0;
                     try {
                         consumedEventCount = consumerStateStore.consumeEventsForSaga(consumerId, sagaName, (sagaStateFetcher, publishedEvent) -> {
+                            var start = Instant.now().toEpochMilli();
                             var handlers = getSagaMessageHandlers()
                                     .get(publishedEvent.getEventName());
                             if (handlers == null) return null;
@@ -444,14 +466,17 @@ public class EventoBundle {
                             );
                             var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
                                     publishedEvent.getEventMessage());
-                            var resp = handler.invoke(
-                                    publishedEvent.getEventMessage(),
-                                    sagaState,
-                                    proxy,
-                                    proxy
-                            );
-                            proxy.sendInvocationsMetric();
-                            return resp;
+                            return tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(), bundleId, bundleVersion,
+                                    () -> {
+                                        var resp = handler.invoke(
+                                                publishedEvent.getEventMessage(),
+                                                sagaState,
+                                                proxy,
+                                                proxy
+                                        );
+                                        proxy.sendInvocationsMetric();
+                                        return resp;
+                                    });
                         }, sssFetchSize);
                     } catch (Throwable e) {
                         logger.error(e);
@@ -495,6 +520,7 @@ public class EventoBundle {
                                 consumerId,
                                 projectorName,
                                 publishedEvent -> {
+                                    var start = Instant.now().toEpochMilli();
                                     var handlers = getProjectorMessageHandlers()
                                             .get(publishedEvent.getEventName());
                                     if (handlers == null) return;
@@ -504,13 +530,18 @@ public class EventoBundle {
                                     var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
                                             publishedEvent.getEventMessage());
                                     handler.begin();
-                                    handler.invoke(
-                                            publishedEvent.getEventMessage(),
-                                            proxy,
-                                            proxy
-                                    );
-                                    handler.commit();
-                                    proxy.sendInvocationsMetric();
+                                    tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(), bundleId, bundleVersion,
+                                            () -> {
+                                                handler.invoke(
+                                                        publishedEvent.getEventMessage(),
+                                                        proxy,
+                                                        proxy
+                                                );
+                                                handler.commit();
+                                                proxy.sendInvocationsMetric();
+                                                return null;
+                                            });
+
                                 }, fetchSize);
                     } catch (Throwable e) {
                         logger.error(e);
@@ -649,9 +680,10 @@ public class EventoBundle {
             public Object invoke(Object self, Method method, Method proceed, Object[] args) throws Throwable {
 
                 if (method.getDeclaredAnnotation(InvocationHandler.class) != null) {
-                    var payload = invokerClass.getSimpleName() + "::" + method.getName();
+                    var payload = new InvocationMessage<>(invokerClass.getSimpleName() + "::" + method.getName());
                     var gProxy = createGatewayTelemetryProxy(invokerClass.getSimpleName(),
-                            new InvocationMessage<>(payload));
+                            payload
+                            );
                     ProxyFactory factory = new ProxyFactory();
                     factory.setSuperclass(invokerClass);
                     var target = factory.create(new Class<?>[0], new Object[]{},
@@ -665,10 +697,11 @@ public class EventoBundle {
                                 return p.invoke(s, a);
                             });
                     var start = Instant.now();
-                    Object result = proceed.invoke(target, args);
-                    gProxy.sendServiceTimeMetric(start);
-                    return result;
-
+                    return tracingAgent.track(payload, invokerClass.getSimpleName(), bundleId, bundleVersion, () -> {
+                        Object result = proceed.invoke(target, args);
+                        gProxy.sendServiceTimeMetric(start);
+                        return result;
+                    });
                 }
 
                 return proceed.invoke(self, args);
@@ -735,7 +768,7 @@ public class EventoBundle {
         private int sssFetchSize = 1000;
         private int sssFetchDelay = 5000;
 
-        private BiConsumer<Message<?>, Message<?>> messageCorrelator;
+        private TracingAgent tracingAgent;
 
         private Builder() {
         }
@@ -809,8 +842,8 @@ public class EventoBundle {
             return this;
         }
 
-        public Builder setMessageCorrelator(BiConsumer<Message<?>, Message<?>> messageCorrelator) {
-            this.messageCorrelator = messageCorrelator;
+        public Builder setTracingAgent(TracingAgent tracingAgent) {
+            this.tracingAgent = tracingAgent;
             return this;
         }
 
@@ -863,8 +896,18 @@ public class EventoBundle {
             if (sssFetchDelay < 100) {
                 sssFetchDelay = 100;
             }
-            if(messageCorrelator == null){
-                messageCorrelator = (s,d) -> {};
+            if(tracingAgent == null){
+                tracingAgent = new TracingAgent() {
+                    @Override
+                    public <T> T track(Message<?> message, String component, String bundle, long bundleVersion, Transaction<T> transaction) throws Throwable {
+                        return transaction.run();
+                    }
+
+                    @Override
+                    public HashMap<String, String> correlate(HashMap<String, String> metadata, Message<?> handledMessage) {
+                        return metadata;
+                    }
+                };
             }
             try {
                 logger.info("Starting EventoApplication %s".formatted(bundleId));
@@ -883,7 +926,7 @@ public class EventoBundle {
                         performanceService,
                         sssFetchSize,
                         sssFetchDelay,
-                        messageCorrelator);
+                        tracingAgent);
                 eventoBundle.parsePackage();
                 logger.info("Sleeping for alignment...");
                 Thread.sleep(3000);

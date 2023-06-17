@@ -5,7 +5,7 @@ import org.evento.bus.rabbitmq.RabbitMqMessageBus;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
 import org.evento.demo.DemoObserverApplication;
-import org.evento.demo.telemetry.SentryMessageGatewayAndCorrelator;
+import org.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -33,16 +33,13 @@ public class EventoConfiguration {
 	) throws Exception {
 
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
-		var mg = new SentryMessageGatewayAndCorrelator(messageBus, serverName, sentryDns);
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoObserverApplication.class.getPackage())
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
 				.setServerName(serverName)
 				.setMessageBus(messageBus)
-				.setCommandGateway(mg)
-				.setQueryGateway(mg)
-				.setMessageCorrelator(mg)
+				.setTracingAgent(new SentryTracingAgent(sentryDns))
 				.setAutoscalingProtocol( new ThreadCountAutoscalingProtocol(
 						bundleId,
 						serverName,

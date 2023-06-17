@@ -1,5 +1,6 @@
 package org.evento.application.proxy;
 
+import org.evento.application.performance.TracingAgent;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.messaging.message.application.Message;
@@ -28,24 +29,28 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	private final HashMap<String, AtomicInteger> invocationCounter = new HashMap<>();
 
 	private final Message<?> handledMessage;
+	private final TracingAgent tracingAgent;
 
 	public GatewayTelemetryProxy(CommandGateway commandGateway,
 								 QueryGateway queryGateway,
 								 String bundle, PerformanceService performanceService,
 								 String componentName,
-								 Message<?> handledMessage) {
+								 Message<?> handledMessage,
+								 TracingAgent tracingAgent) {
 		this.commandGateway = commandGateway;
 		this.queryGateway = queryGateway;
 		this.bundle = bundle;
 		this.performanceService = performanceService;
 		this.componentName = componentName;
 		this.handledMessage = handledMessage;
+		this.tracingAgent = tracingAgent;
 	}
 
 	@Override
 	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, Message<?> handledMessage) {
 		try
 		{
+			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.sendAndWait(command, metadata, this.handledMessage);
 		}finally
 		{
@@ -60,6 +65,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
 		try
 		{
+			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.sendAndWait(command, metadata, this.handledMessage, timeout, unit);
 		}finally
 		{
@@ -72,6 +78,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata, Message<?> handledMessage) {
 		try
 		{
+			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.send(command, metadata, this.handledMessage);
 		}finally
 		{
@@ -84,6 +91,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata, Message<?> handledMessage) {
 		try
 		{
+			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return queryGateway.query(query, metadata, this.handledMessage);
 		}finally
 		{
