@@ -68,10 +68,13 @@ public class SentryTracingAgent implements TracingAgent {
 		var action = "invoke";
 		if (message instanceof CommandMessage)
 		{
-			action = "handle";
+			action = "handleCommand";
+		}if (message instanceof QueryMessage)
+		{
+			action = "handleQuery";
 		} else if (message instanceof EventMessage)
 		{
-			action = "on";
+			action = "onEvent";
 		} else if (message instanceof InvocationMessage i)
 		{
 			action = i.getAction();
