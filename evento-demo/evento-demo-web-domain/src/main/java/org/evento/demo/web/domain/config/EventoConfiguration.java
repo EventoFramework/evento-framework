@@ -2,7 +2,7 @@ package org.evento.demo.web.domain.config;
 
 import org.evento.application.EventoBundle;
 import org.evento.bus.rabbitmq.RabbitMqMessageBus;
-import org.evento.demo.telemetry.SentryMessageGatewayAndCorrelator;
+import org.evento.demo.telemetry.SentryTracingAgent;
 import org.evento.demo.web.domain.DemoWebApplication;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
@@ -33,16 +33,13 @@ public class EventoConfiguration {
 	) throws Exception {
 
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
-		var mg = new SentryMessageGatewayAndCorrelator(messageBus, serverName, sentryDns);
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoWebApplication.class.getPackage())
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
 				.setServerName(serverName)
 				.setMessageBus(messageBus)
-				.setCommandGateway(mg)
-				.setQueryGateway(mg)
-				.setMessageCorrelator(mg)
+				.setTracingAgent(new SentryTracingAgent(sentryDns))
 				.setAutoscalingProtocol(new ThreadCountAutoscalingProtocol(
 						bundleId,
 						serverName,
