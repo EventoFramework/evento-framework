@@ -177,10 +177,12 @@ public class AutoDiscoveryService {
 				{
 					lock.unlock();
 				}
-			}, logger::error);
+			}, e -> {
+				logger.error(e.getMessage(),e.toThrowable());
+			});
 		} catch (Exception e)
 		{
-			logger.error(e);
+			logger.error(e.getMessage(), e);
 		}
 	}
 

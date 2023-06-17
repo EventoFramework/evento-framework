@@ -1,6 +1,7 @@
 package org.evento.demo.agent.agents;
 
 import org.evento.application.EventoBundle;
+import org.evento.application.performance.Track;
 import org.evento.application.proxy.InvokerWrapper;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
@@ -15,62 +16,63 @@ import org.evento.demo.api.query.DemoViewFindByIdQuery;
 import java.time.Instant;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 @Invoker
 public class DemoLifecycleAgent extends InvokerWrapper {
 
 
+	@Track
 	@InvocationHandler
-	public Report action(int i) {
+	public Report action(int i) throws ExecutionException, InterruptedException {
 		var random = new Random();
 		String id = UUID.randomUUID().toString();
 
 		System.out.println("[" + i + "] - START");
-		var createdAtStart = Instant.now().toEpochMilli();
-		try
+		var resp = getCommandGateway().sendAndWait(new DemoCreateCommand(id, id, 0));
+		System.out.println("[" + i + "] - DemoCreateCommand: " + resp);
+		var r = 3;
+		for (int j = 1; j < r; j++)
 		{
-			var resp = getCommandGateway().sendAndWait(new DemoCreateCommand(id, id, 0));
-			var createTime = Instant.now().toEpochMilli() - createdAtStart;
-			System.out.println("[" + i + "] - " + resp);
-			try
-			{
-				var updateAtStart = Instant.now().toEpochMilli();
-				var r = 3;
-				for (int j = 1; j < r; j++)
-				{
-					resp = getCommandGateway().sendAndWait(new DemoUpdateCommand(id, id, j));
-					System.out.println("[" + i + "] - " + resp);
-					System.out.println("[" + i + "] - " + resp);
-				}
-				if (random.nextDouble(0, 1) < 0.7)
-					resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> null).get();
-				System.out.println("[" + i + "] - " + resp);
-				if (random.nextDouble(0, 1) < 0.3)
-					resp = getQueryGateway().query(new DemoViewFindAllQuery(10, 0)).get();
-				var updateMeanTime = (Instant.now().toEpochMilli() - updateAtStart) / r;
-				try
-				{
-					var deleteAtStart = Instant.now().toEpochMilli();
-					resp = getCommandGateway().sendAndWait(new DemoDeleteCommand(id));
-					var deleteTime = (Instant.now().toEpochMilli() - deleteAtStart);
-					System.out.println("[" + i + "] - " + resp);
-					System.out.println("[" + i + "] - END");
-					return new Report(id, createTime, updateMeanTime, deleteTime, true);
-				} catch (Exception e)
-				{
-					e.printStackTrace();
-					return new Report(id, createTime, updateMeanTime, 0, false);
-				}
-			} catch (Exception e)
-			{
-				e.printStackTrace();
-				return new Report(id, createTime, 0, 0, false);
-			}
-		} catch (Exception e)
-		{
-			e.printStackTrace();
-			return new Report(id, 0, 0, 0, false);
+			resp = getCommandGateway().sendAndWait(new DemoUpdateCommand(id, id, j));
+			System.out.println("[" + i + "] - DemoUpdateCommand: " + resp);
 		}
+		getCommandGateway().send(new DemoUpdateCommand(id, id, 1)).thenAccept(o -> {
+		}).exceptionally(e -> {
+			e.printStackTrace();
+			return null;
+		});
+		if (random.nextDouble(0, 1) < 0.7)
+		{
+			resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> {
+				e.printStackTrace();
+				return null;
+			}).get();
+			System.out.println("[" + i + "] - DemoViewFindByIdQuery: " + resp);
+			if (resp == null)
+			{
+				Thread.sleep(3000);
+				resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> {
+					e.printStackTrace();
+					return null;
+				}).get();
+				System.out.println("[" + i + "] - DemoViewFindByIdQuery(3000ms): " + resp);
+			}
+		}
+		if (random.nextDouble(0, 1) < 0.3)
+		{
+			resp = getQueryGateway().query(new DemoViewFindAllQuery(10, 0)).get();
+			System.out.println("[" + i + "] - DemoViewFindAllQuery: " + resp);
+		}
+		resp = getCommandGateway().sendAndWait(new DemoDeleteCommand(id));
+		System.out.println("[" + i + "] - DemoDeleteCommand: " + resp);
+		System.out.println("[" + i + "] - END");
+
+		if (random.nextDouble(0, 1) < 0.2)
+		throw new RuntimeException("Demo exception");
+
+		return null;
+
 	}
 
 }

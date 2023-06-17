@@ -287,7 +287,7 @@ export class ApplicationFlowsPage implements OnInit {
           }
           for (const target of targets.sort((a, b) => a?.async - b?.async)) {
             if (this.performanceAnalysis) {
-              const source = nodesRef[node.id];
+              const source = nodesRef[node.id]; 
               const ql = (source.throughtput - target.throughtput);
               const ratio = source.throughtput / source.flowThroughtput;
               const c = this.perc2color(ratio * 100);
