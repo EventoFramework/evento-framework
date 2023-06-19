@@ -1,15 +1,12 @@
 package org.evento.server.web.dto.performance;
 
-import org.evento.server.domain.performance.queue.Node;
-import org.evento.server.domain.performance.queue.ServiceStation;
-import org.evento.server.domain.performance.queue.Source;
+import org.evento.server.domain.performance.model.Node;
+import org.evento.server.domain.performance.model.ServiceStation;
+import org.evento.server.domain.performance.model.Source;
 
 import java.io.Serializable;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class NodeDTO implements Serializable {
 
