@@ -21,6 +21,7 @@ public class SentryTracingAgent implements TracingAgent {
 		Sentry.init(options -> {
 			options.setDsn(sentryDns);
 			options.setEnableTracing(true);
+			options.setDebug(true);
 			options.setTracesSampleRate(1.0);
 		});
 	}
@@ -132,6 +133,7 @@ public class SentryTracingAgent implements TracingAgent {
 			t.setData("Pyload", message.getSerializedPayload().getSerializedObject());
 			t.finish(SpanStatus.INTERNAL_ERROR);
 			Sentry.captureException(tr);
+			System.out.println(t.toSentryTrace().getTraceId());
 			throw tr;
 		}
 	}
