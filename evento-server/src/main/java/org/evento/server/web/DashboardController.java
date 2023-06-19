@@ -16,49 +16,44 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("api/dashboard")
 public class DashboardController {
 
-    @Value("${evento.cluster.node.server.id}")
-    private String serverNodeName;
+	private final PayloadRepository payloadRepository;
+	private final ComponentRepository componentRepository;
+	private final BundleRepository bundleRepository;
+	private final MessageBus messageBus;
+	private final EventStore eventStore;
+	@Value("${evento.cluster.node.server.id}")
+	private String serverNodeName;
 
-    private final PayloadRepository payloadRepository;
+	public DashboardController(PayloadRepository payloadRepository, ComponentRepository componentRepository, BundleRepository bundleRepository, MessageBus messageBus, EventStore eventStore) {
+		this.payloadRepository = payloadRepository;
+		this.componentRepository = componentRepository;
+		this.bundleRepository = bundleRepository;
+		this.messageBus = messageBus;
+		this.eventStore = eventStore;
+	}
 
-    private final ComponentRepository componentRepository;
+	@GetMapping()
+	public DashboardDTO getDashboard() {
+		var db = new DashboardDTO();
 
-    private final BundleRepository bundleRepository;
+		db.setServerName(serverNodeName);
 
-    private final MessageBus messageBus;
+		db.setPayloadCount(payloadRepository.count());
+		db.setPayloadCountByType(payloadRepository.countByType());
 
-    private final EventStore eventStore;
+		db.setComponentCount(componentRepository.count());
+		db.setComponentCountByType(componentRepository.countByType());
 
-    public DashboardController(PayloadRepository payloadRepository, ComponentRepository componentRepository, BundleRepository bundleRepository, MessageBus messageBus, EventStore eventStore) {
-        this.payloadRepository = payloadRepository;
-        this.componentRepository = componentRepository;
-        this.bundleRepository = bundleRepository;
-        this.messageBus = messageBus;
-        this.eventStore = eventStore;
-    }
+		db.setBundleCount(bundleRepository.count());
+		db.setDeployableBundleCount(bundleRepository.countDeployable());
+		var view = messageBus.getCurrentAvailableView();
+		db.setBundleInViewCount(view.stream()
+				.map(NodeAddress::getBundleId).distinct().count());
+		db.setNodeInViewCount(view.size());
 
-    @GetMapping()
-    public DashboardDTO getDashboard() {
-        var db = new DashboardDTO();
-
-        db.setServerName(serverNodeName);
-
-        db.setPayloadCount(payloadRepository.count());
-        db.setPayloadCountByType(payloadRepository.countByType());
-
-        db.setComponentCount(componentRepository.count());
-        db.setComponentCountByType(componentRepository.countByType());
-
-        db.setBundleCount(bundleRepository.count());
-        db.setDeployableBundleCount(bundleRepository.countDeployable());
-        var view = messageBus.getCurrentAvailableView();
-        db.setBundleInViewCount(view.stream()
-                .map(NodeAddress::getBundleId).distinct().count());
-        db.setNodeInViewCount(view.size());
-
-        db.setEventCount(eventStore.getSize());
-        db.setAggregateCount(eventStore.getAggregateCount());
-        db.setEventPublicationFrequency(eventStore.getRecentPublicationRation());
-        return db;
-    }
+		db.setEventCount(eventStore.getSize());
+		db.setAggregateCount(eventStore.getAggregateCount());
+		db.setEventPublicationFrequency(eventStore.getRecentPublicationRation());
+		return db;
+	}
 }

@@ -1,5 +1,10 @@
 package org.evento.demo.saga;
 
+import org.evento.common.messaging.gateway.CommandGateway;
+import org.evento.common.messaging.gateway.QueryGateway;
+import org.evento.common.modeling.annotations.component.Saga;
+import org.evento.common.modeling.annotations.handler.SagaEventHandler;
+import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.demo.api.command.NotificationSendCommand;
 import org.evento.demo.api.command.NotificationSendSilentCommand;
 import org.evento.demo.api.event.DemoCreatedEvent;
@@ -7,12 +12,6 @@ import org.evento.demo.api.event.DemoDeletedEvent;
 import org.evento.demo.api.event.DemoUpdatedEvent;
 import org.evento.demo.api.event.NotificationSentEvent;
 import org.evento.demo.api.query.DemoRichViewFindByIdQuery;
-import org.evento.demo.api.query.DemoViewFindByIdQuery;
-import org.evento.common.modeling.annotations.component.Saga;
-import org.evento.common.modeling.annotations.handler.SagaEventHandler;
-import org.evento.common.messaging.gateway.CommandGateway;
-import org.evento.common.messaging.gateway.QueryGateway;
-import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.demo.api.utils.Utils;
 
 import java.util.concurrent.ExecutionException;

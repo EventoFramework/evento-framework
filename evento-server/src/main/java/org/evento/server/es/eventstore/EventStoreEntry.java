@@ -1,6 +1,9 @@
 package org.evento.server.es.eventstore;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.server.config.JsonConverter;
@@ -21,14 +24,13 @@ public class EventStoreEntry {
 
 	@Lob
 	@Column(columnDefinition = "BLOB")
-	@Convert( converter = JsonConverter.class)
+	@Convert(converter = JsonConverter.class)
 	private EventMessage<?> eventMessage;
 	private String eventName;
 	private Long createdAt;
 
 
-
-	public PublishedEvent toPublishedEvent(){
+	public PublishedEvent toPublishedEvent() {
 		var event = new PublishedEvent();
 		event.setAggregateId(getAggregateId());
 		event.setCreatedAt(getCreatedAt());

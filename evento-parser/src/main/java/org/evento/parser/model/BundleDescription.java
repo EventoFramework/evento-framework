@@ -2,8 +2,6 @@ package org.evento.parser.model;
 
 import org.evento.parser.model.component.Component;
 import org.evento.parser.model.payload.PayloadDescription;
-import org.evento.parser.model.component.*;
-import org.evento.parser.model.payload.*;
 
 import java.io.Serializable;
 import java.util.List;

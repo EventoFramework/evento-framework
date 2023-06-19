@@ -11,7 +11,7 @@ import org.evento.demo.pc.api.PcEvent2;
 public class PcSaga {
 
 	@SagaEventHandler(init = true, associationProperty = "pcId")
-	public PcSagaState on(PcEvent1 event1, PcSagaState state, CommandGateway commandGateway){
+	public PcSagaState on(PcEvent1 event1, PcSagaState state, CommandGateway commandGateway) {
 		var s = new PcSagaState();
 		s.setAssociation("pcId", event1.getPcId());
 		commandGateway.sendAndWait(new PcCommand2(event1.getPcId()));
@@ -19,7 +19,7 @@ public class PcSaga {
 	}
 
 	@SagaEventHandler(init = true, associationProperty = "pcId")
-	public PcSagaState on(PcEvent2 event2, PcSagaState state){
+	public PcSagaState on(PcEvent2 event2, PcSagaState state) {
 		state.setEnded(true);
 		return state;
 	}

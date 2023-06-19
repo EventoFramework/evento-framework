@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 
 
-public class LocalMachineBundleDeployService extends BundleDeployService{
+public class LocalMachineBundleDeployService extends BundleDeployService {
 
 	private final Logger LOGGER = LoggerFactory.getLogger(LocalMachineBundleDeployService.class);
 

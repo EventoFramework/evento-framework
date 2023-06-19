@@ -40,9 +40,8 @@ dependencies {
 
 	implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
-	implementation project(":evento-bus-jgroups")
-	implementation project(":evento-bus-rabbitmq")
-	implementation project(":evento-bus")
+	implementation project(":evento-bus:evento-bus-jgroups")
+	implementation project(":evento-bus:evento-bus-rabbitmq")
 	implementation project(':evento-common')
 	implementation project(':evento-parser')
 }

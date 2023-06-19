@@ -1,12 +1,12 @@
 package org.evento.common.messaging.gateway;
 
+import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 import org.evento.common.modeling.messaging.message.application.Message;
 import org.evento.common.modeling.messaging.message.application.QueryMessage;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
-import org.evento.common.messaging.bus.MessageBus;
-import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
@@ -39,7 +39,8 @@ public class QueryGatewayImpl implements QueryGateway {
 						try
 						{
 							future.complete((T) ((SerializedQueryResponse<?>) response).getObject());
-						}catch (Exception e){
+						} catch (Exception e)
+						{
 							future.completeExceptionally(e);
 						}
 					},

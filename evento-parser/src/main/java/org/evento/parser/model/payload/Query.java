@@ -12,17 +12,17 @@ public class Query extends Payload {
 		super();
 	}
 
-	public void setReturnType(QueryReturnType returnType) {
-		this.returnType = returnType;
-	}
-
 	public QueryReturnType getReturnType() {
 		return returnType;
 	}
 
+	public void setReturnType(QueryReturnType returnType) {
+		this.returnType = returnType;
+	}
+
 	@Override
 	public String toString() {
-		return getName()+":"+returnType;
+		return getName() + ":" + returnType;
 	}
 
 	@Override

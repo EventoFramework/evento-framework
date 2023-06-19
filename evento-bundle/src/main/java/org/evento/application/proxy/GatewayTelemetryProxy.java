@@ -52,13 +52,12 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.sendAndWait(command, metadata, this.handledMessage);
-		}finally
+		} finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
 			invocationCounter.get(command.getClass().getSimpleName()).incrementAndGet();
 		}
 	}
-
 
 
 	@Override
@@ -67,7 +66,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.sendAndWait(command, metadata, this.handledMessage, timeout, unit);
-		}finally
+		} finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
 			invocationCounter.get(command.getClass().getSimpleName()).incrementAndGet();
@@ -80,7 +79,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.send(command, metadata, this.handledMessage);
-		}finally
+		} finally
 		{
 			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
 			invocationCounter.get(command.getClass().getSimpleName()).incrementAndGet();
@@ -93,7 +92,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return queryGateway.query(query, metadata, this.handledMessage);
-		}finally
+		} finally
 		{
 			invocationCounter.putIfAbsent(query.getClass().getSimpleName(), new AtomicInteger());
 			invocationCounter.get(query.getClass().getSimpleName()).incrementAndGet();

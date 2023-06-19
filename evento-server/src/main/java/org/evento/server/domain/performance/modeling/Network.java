@@ -44,6 +44,7 @@ public class Network {
 		t.setAsync(async);
 		return t;
 	}
+
 	public List<Transition> getTransitions() {
 		return transitions;
 	}
@@ -57,7 +58,7 @@ public class Network {
 	}
 
 	public Post instancePost(String bundle) {
-		var instancePost =  post(bundle, "Instance", "Token", 1);
+		var instancePost = post(bundle, "Instance", "Token", 1);
 		instancesPosts.put(bundle, instancePost);
 		return instancePost;
 	}

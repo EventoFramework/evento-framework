@@ -6,12 +6,14 @@ public class SerializedSagaState<T extends SagaState> extends SerializedObject<T
 
 
 	private boolean isEnded;
+
 	public SerializedSagaState(T sagaState) {
 		super(sagaState);
-		if(sagaState == null)
+		if (sagaState == null)
 		{
 			isEnded = false;
-		}else{
+		} else
+		{
 			this.isEnded = sagaState.isEnded();
 		}
 	}

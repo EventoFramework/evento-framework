@@ -1,6 +1,9 @@
 package org.evento.cli;
 
-import okhttp3.*;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
 import org.evento.parser.java.JavaBundleParser;
 
 import java.io.File;
@@ -22,7 +25,7 @@ public class PublishBundle {
 		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
 				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
 				.findFirst().orElseThrow();
-		System.out.println("JAR detected: "+jar.getPath());
+		System.out.println("JAR detected: " + jar.getPath());
 
 		System.out.println("Parsing bundle in: " + bundlePath);
 		JavaBundleParser applicationParser = new JavaBundleParser();
@@ -31,7 +34,7 @@ public class PublishBundle {
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
 		System.out.println("JSON created");
 
-		new File(bundlePath + "/build/bundle-dist/" ).mkdir();
+		new File(bundlePath + "/build/bundle-dist/").mkdir();
 		var bundleFile = bundlePath + "/build/bundle-dist/" + components.getBundleId() + ".bundle";
 		final ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(
 				bundleFile
@@ -58,14 +61,14 @@ public class PublishBundle {
 						.build())
 				.build();
 		var resp = client.newCall(request).execute();
-		if(resp.code() == 200)
+		if (resp.code() == 200)
 		{
 			System.out.println("DONE!");
-		}else{
+		} else
+		{
 			System.err.println("Server Upload Failed");
 			System.err.println(resp.body().string());
 		}
-
 
 
 	}

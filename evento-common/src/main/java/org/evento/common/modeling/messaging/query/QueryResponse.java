@@ -7,6 +7,4 @@ import java.io.Serializable;
 public abstract class QueryResponse<T extends View> implements Serializable {
 
 
-
-
 }

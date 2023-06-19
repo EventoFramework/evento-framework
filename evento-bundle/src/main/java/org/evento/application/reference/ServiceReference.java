@@ -2,9 +2,9 @@ package org.evento.application.reference;
 
 
 import org.evento.application.utils.ReflectionUtils;
-import org.evento.common.modeling.annotations.handler.CommandHandler;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
+import org.evento.common.modeling.annotations.handler.CommandHandler;
 import org.evento.common.modeling.messaging.message.application.CommandMessage;
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
 import org.evento.common.modeling.messaging.payload.ServiceEvent;
@@ -26,7 +26,8 @@ public class ServiceReference extends Reference {
 		{
 
 			var ach = declaredMethod.getAnnotation(CommandHandler.class);
-			if(ach != null){
+			if (ach != null)
+			{
 				serviceCommandHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
 						.filter(ServiceCommand.class::isAssignableFrom)
 						.findFirst()
@@ -36,11 +37,11 @@ public class ServiceReference extends Reference {
 	}
 
 
-	public Method getAggregateCommandHandler(String eventName){
+	public Method getAggregateCommandHandler(String eventName) {
 		return serviceCommandHandlerReferences.get(eventName);
 	}
 
-	public Set<String> getRegisteredCommands(){
+	public Set<String> getRegisteredCommands() {
 		return serviceCommandHandlerReferences.keySet();
 	}
 
@@ -60,8 +61,9 @@ public class ServiceReference extends Reference {
 					queryGateway,
 					cm
 			);
-		}catch (InvocationTargetException e){
-			throw  e.getCause();
+		} catch (InvocationTargetException e)
+		{
+			throw e.getCause();
 		}
 	}
 }

@@ -20,7 +20,7 @@ public class JavaProjectorParser extends JavaComponentParser<Projector> {
 	}
 
 	private List<EventHandler> findEventHandlers() throws JaxenException {
-		var query =  getQueryForAnnotatedMethod("EventHandler");
+		var query = getQueryForAnnotatedMethod("EventHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
 				n -> {
 					var md = (ASTMethodDeclaration) n;

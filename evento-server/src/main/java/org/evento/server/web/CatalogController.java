@@ -2,11 +2,10 @@ package org.evento.server.web;
 
 import org.evento.server.domain.repository.ComponentRepository;
 import org.evento.server.domain.repository.HandlerRepository;
+import org.evento.server.domain.repository.PayloadRepository;
 import org.evento.server.domain.repository.projection.ComponentListProjection;
-import org.evento.server.domain.repository.projection.ComponentProjection;
 import org.evento.server.domain.repository.projection.PayloadListProjection;
 import org.evento.server.domain.repository.projection.PayloadProjection;
-import org.evento.server.domain.repository.PayloadRepository;
 import org.evento.server.web.dto.ComponentDTO;
 import org.evento.server.web.dto.PayloadUpdateDTO;
 import org.springframework.http.ResponseEntity;

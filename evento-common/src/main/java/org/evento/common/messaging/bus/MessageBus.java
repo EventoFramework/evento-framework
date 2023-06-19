@@ -3,6 +3,7 @@ package org.evento.common.messaging.bus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.TriConsumer;
+import org.evento.common.modeling.exceptions.NodeNotFoundException;
 import org.evento.common.modeling.exceptions.ThrowableWrapper;
 import org.evento.common.modeling.messaging.message.bus.BusEventPublisher;
 import org.evento.common.modeling.messaging.message.bus.BusEventSubscriber;
@@ -11,7 +12,6 @@ import org.evento.common.modeling.messaging.message.bus.ResponseSender;
 import org.evento.common.modeling.messaging.message.internal.ClusterNodeKillMessage;
 import org.evento.common.modeling.messaging.message.internal.ClusterNodeStatusUpdateMessage;
 import org.evento.common.modeling.messaging.message.internal.CorrelatedMessage;
-import org.evento.common.modeling.exceptions.NodeNotFoundException;
 
 import java.io.Serializable;
 import java.util.*;
@@ -24,19 +24,17 @@ import java.util.stream.Collectors;
 public abstract class MessageBus {
 
 	private static Logger logger = LogManager.getLogger(MessageBus.class);
-	private BiConsumer<NodeAddress, Serializable> messageReceiver = (address, object) -> {
-	};
-	private TriConsumer<NodeAddress, Serializable, MessageBusResponseSender> requestReceiver = (address, request, response) -> {
-	};
-
-	private boolean enabled = false;
-
 	private final ConcurrentHashMap<String, Handlers> messageCorrelationMap = new ConcurrentHashMap<>();
 	private final HashSet<NodeAddress> availableNodes = new HashSet<>();
 	private final List<Consumer<NodeAddress>> joinListeners = new ArrayList<>();
 	private final List<Consumer<NodeAddress>> leaveListeners = new ArrayList<>();
 	private final List<Consumer<Set<NodeAddress>>> viewListeners = new ArrayList<>();
 	private final List<Consumer<Set<NodeAddress>>> availableViewListeners = new ArrayList<>();
+	private BiConsumer<NodeAddress, Serializable> messageReceiver = (address, object) -> {
+	};
+	private TriConsumer<NodeAddress, Serializable, MessageBusResponseSender> requestReceiver = (address, request, response) -> {
+	};
+	private boolean enabled = false;
 	private Set<NodeAddress> currentView = new HashSet<>();
 
 
@@ -110,9 +108,6 @@ public abstract class MessageBus {
 				.findAny().orElseThrow(() -> new NodeNotFoundException("Node %s not found".formatted(bundleId)));
 	}
 
-	private record Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {
-	}
-
 	public void setMessageReceiver(BiConsumer<NodeAddress, Serializable> messageReceiver) {
 		this.messageReceiver = messageReceiver;
 	}
@@ -120,7 +115,6 @@ public abstract class MessageBus {
 	public void setRequestReceiver(TriConsumer<NodeAddress, Serializable, MessageBusResponseSender> requestReceiver) {
 		this.requestReceiver = requestReceiver;
 	}
-
 
 	/**
 	 * Send a message to an address
@@ -136,7 +130,6 @@ public abstract class MessageBus {
 	 * @param message the message to send
 	 */
 	public abstract void broadcast(Serializable message) throws Exception;
-
 
 	/**
 	 * Send a message to multiple addresses
@@ -215,7 +208,6 @@ public abstract class MessageBus {
 		return enabled;
 	}
 
-
 	public void addJoinListener(Consumer<NodeAddress> onBundleJoin) {
 		this.joinListeners.add(onBundleJoin);
 	}
@@ -240,7 +232,6 @@ public abstract class MessageBus {
 		viewListeners.remove(listener);
 	}
 
-
 	public void removeAvailableViewListener(Consumer<Set<NodeAddress>> listener) {
 		availableViewListeners.remove(listener);
 	}
@@ -263,7 +254,6 @@ public abstract class MessageBus {
 				.filter(a -> a.getBundleId().equals(bundleId))
 				.anyMatch(this.availableNodes::contains);
 	}
-
 
 	private void receive(NodeAddress src, Serializable message) {
 		new Thread(() -> {
@@ -348,6 +338,13 @@ public abstract class MessageBus {
 		cast(address, cm);
 	}
 
+	public Set<NodeAddress> getCurrentView() {
+		return currentView;
+	}
+
+	private record Handlers(Consumer<Serializable> success, Consumer<ThrowableWrapper> fail) {
+	}
+
 	public class MessageBusResponseSender implements ResponseSender {
 
 		private final MessageBus messageBus;
@@ -386,11 +383,6 @@ public abstract class MessageBus {
 				throw new RuntimeException(err);
 			}
 		}
-	}
-
-
-	public Set<NodeAddress> getCurrentView() {
-		return currentView;
 	}
 
 

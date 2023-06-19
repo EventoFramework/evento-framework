@@ -1,68 +1,65 @@
 package org.evento.common.performance;
 
-import org.evento.common.modeling.messaging.message.application.Message;
-
 import java.io.Serializable;
-import java.time.Instant;
 
 public class PerformanceServiceTimeMessage implements Serializable {
 
-    private String bundle;
-    private String  component;
-    private String action;
-    private long start;
-    private long end;
+	private String bundle;
+	private String component;
+	private String action;
+	private long start;
+	private long end;
 
-    public PerformanceServiceTimeMessage() {
-    }
+	public PerformanceServiceTimeMessage() {
+	}
 
-    public PerformanceServiceTimeMessage(String bundle, String component, String action, long start, long end) {
-        this.bundle = bundle;
-        this.component = component;
-        this.action = action;
-        this.start = start;
-        this.end = end;
-    }
+	public PerformanceServiceTimeMessage(String bundle, String component, String action, long start, long end) {
+		this.bundle = bundle;
+		this.component = component;
+		this.action = action;
+		this.start = start;
+		this.end = end;
+	}
 
-    public String getBundle() {
-        return bundle;
-    }
+	public String getBundle() {
+		return bundle;
+	}
 
-    public void setBundle(String bundle) {
-        this.bundle = bundle;
-    }
+	public void setBundle(String bundle) {
+		this.bundle = bundle;
+	}
 
-    public String getComponent() {
-        return component;
-    }
+	public String getComponent() {
+		return component;
+	}
 
-    public void setComponent(String component) {
-        this.component = component;
-    }
+	public void setComponent(String component) {
+		this.component = component;
+	}
 
-    public String getAction() {
-        return action;
-    }
+	public String getAction() {
+		return action;
+	}
 
-    public void setAction(String action) {
-        this.action = action;
-    }
+	public void setAction(String action) {
+		this.action = action;
+	}
 
 
-    public long getStart() {
-        return start;
-    }
+	public long getStart() {
+		return start;
+	}
 
-    public void setStart(long start) {
-        this.start = start;
-    }
+	public void setStart(long start) {
+		this.start = start;
+	}
 
-    public long getEnd() {
-        return end;
-    }
+	public long getEnd() {
+		return end;
+	}
 
-    public void setEnd(long end) {
-        this.end = end;
-    }
+	public void setEnd(long end) {
+		this.end = end;
+	}
 
 }

@@ -1,6 +1,5 @@
 package org.evento.demo.pc.api;
 
-import org.evento.common.modeling.messaging.payload.DomainCommand;
 import org.evento.common.modeling.messaging.payload.DomainEvent;
 
 public class PcEvent1 extends DomainEvent {

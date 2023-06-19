@@ -6,6 +6,7 @@ public abstract class NodeAddress implements Comparable<NodeAddress> {
 	private final String bundleId;
 	private final long bundleVersion;
 	private final String nodeId;
+
 	public NodeAddress(String bundleId, long bundleVersion, Object address, String nodeId) {
 		this.bundleId = bundleId;
 		this.bundleVersion = bundleVersion;
@@ -13,7 +14,7 @@ public abstract class NodeAddress implements Comparable<NodeAddress> {
 		this.nodeId = nodeId;
 	}
 
-	public <T> T getAddress(){
+	public <T> T getAddress() {
 		return (T) address;
 	}
 

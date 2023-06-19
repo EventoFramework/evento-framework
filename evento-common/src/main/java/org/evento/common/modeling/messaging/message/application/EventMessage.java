@@ -7,7 +7,8 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 		super(payload);
 	}
 
-	public EventMessage(){}
+	public EventMessage() {
+	}
 
 	public String getEventName() {
 		return getPayloadName();

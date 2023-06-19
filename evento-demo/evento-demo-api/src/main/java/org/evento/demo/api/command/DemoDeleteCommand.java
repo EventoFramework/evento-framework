@@ -6,6 +6,13 @@ public class DemoDeleteCommand extends DomainCommand {
 
 	private String demoId;
 
+	public DemoDeleteCommand() {
+	}
+
+	public DemoDeleteCommand(String demoId) {
+		this.demoId = demoId;
+	}
+
 	public String getDemoId() {
 		return demoId;
 	}
@@ -17,12 +24,5 @@ public class DemoDeleteCommand extends DomainCommand {
 	@Override
 	public String getAggregateId() {
 		return demoId;
-	}
-
-	public DemoDeleteCommand() {
-	}
-
-	public DemoDeleteCommand(String demoId) {
-		this.demoId = demoId;
 	}
 }

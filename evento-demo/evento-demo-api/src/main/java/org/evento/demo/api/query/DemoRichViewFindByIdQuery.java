@@ -1,13 +1,11 @@
 package org.evento.demo.api.query;
 
-import org.evento.demo.api.view.DemoRichView;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.Single;
+import org.evento.demo.api.view.DemoRichView;
 
 public class DemoRichViewFindByIdQuery extends Query<Single<DemoRichView>> {
 	private String demoId;
-
-
 
 
 	public DemoRichViewFindByIdQuery(String demoId) {

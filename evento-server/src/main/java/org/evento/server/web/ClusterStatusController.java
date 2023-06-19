@@ -2,10 +2,10 @@ package org.evento.server.web;
 
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.modeling.messaging.message.bus.NodeAddress;
-import org.evento.server.service.deploy.BundleDeployService;
 import org.evento.server.domain.model.BucketType;
 import org.evento.server.domain.model.Bundle;
 import org.evento.server.service.BundleService;
+import org.evento.server.service.deploy.BundleDeployService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,13 +25,11 @@ import java.util.stream.Collectors;
 public class ClusterStatusController {
 
 	private final Logger logger = LoggerFactory.getLogger(ClusterStatusController.class);
-
-	@Value("${evento.cluster.node.server.id}")
-	private String serverNodeName;
 	private final MessageBus messageBus;
-
 	private final BundleService bundleService;
 	private final BundleDeployService bundleDeployService;
+	@Value("${evento.cluster.node.server.id}")
+	private String serverNodeName;
 
 	public ClusterStatusController(MessageBus messageBus,
 								   BundleService bundleService, BundleDeployService bundleDeployService) {
@@ -78,6 +76,7 @@ public class ClusterStatusController {
 		});
 		return emitter;
 	}
+
 	@PostMapping(value = "/spawn/{bundleId}")
 	public ResponseEntity<?> spawnBundle(@PathVariable String bundleId) throws Exception {
 		bundleDeployService.spawn(bundleId);
