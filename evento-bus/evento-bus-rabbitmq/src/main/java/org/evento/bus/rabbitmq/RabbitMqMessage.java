@@ -1,6 +1,7 @@
 package org.evento.bus.rabbitmq;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.io.IOException;
@@ -24,14 +25,14 @@ public class RabbitMqMessage implements Serializable {
 	public RabbitMqMessage() {
 	}
 
-	public static byte[] create(RabbitMqNodeAddress address, Serializable message) throws JsonProcessingException {
-		return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(
+	public static byte[] create(RabbitMqNodeAddress address, Serializable message, ObjectMapper objectMapper) throws JsonProcessingException {
+		return objectMapper.writeValueAsBytes(
 				new RabbitMqMessage(address, message)
 		);
 	}
 
-	public static RabbitMqMessage parse(byte[] body) throws IOException {
-		return ObjectMapperUtils.getPayloadObjectMapper().readValue(body, RabbitMqMessage.class);
+	public static RabbitMqMessage parse(byte[] body, ObjectMapper objectMapper) throws IOException {
+		return objectMapper.readValue(body, RabbitMqMessage.class);
 	}
 
 	public RabbitMqNodeAddress getSource() {

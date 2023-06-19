@@ -1,11 +1,13 @@
 package org.evento.bus.rabbitmq;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rabbitmq.client.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.bus.MessageNotReceivedException;
 import org.evento.common.modeling.messaging.message.bus.NodeAddress;
+import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -23,12 +25,23 @@ public class RabbitMqMessageBus extends MessageBus {
 	private static final Logger logger = LogManager.getLogger(RabbitMqMessageBus.class);
 	private static final String CLUSTER_BROADCAST_EXCHANGE = "cluster-broadcast";
 	private static final String CLUSTER_BROADCAST_QUEUE_PREFIX = "broadcast-queue-for-";
+	private static final String SIGNAL_HELLO = "hello";
+	private static final String SIGNAL_JOIN = "join";
+	private static final String SIGNAL_LEAVE = "leave";
 	private final Channel channel;
 	private final RabbitMqNodeAddress address;
 	private final String exchange;
 	private final Runnable close;
+	private final int requestTimeout;
+	private final ObjectMapper objectMapper;
 
-	protected RabbitMqMessageBus(RabbitMqNodeAddress nodeAddress, Channel channel, String exchange, Runnable close) {
+	protected RabbitMqMessageBus(
+			RabbitMqNodeAddress nodeAddress,
+			Channel channel,
+			String exchange,
+			int requestTimeout,
+			ObjectMapper objectMapper,
+			Runnable close) {
 		super(subscriber -> {
 			try
 			{
@@ -43,7 +56,7 @@ public class RabbitMqMessageBus extends MessageBus {
 					// channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
 					try
 					{
-						var rabbitMessage = RabbitMqMessage.parse(delivery.getBody());
+						var rabbitMessage = RabbitMqMessage.parse(delivery.getBody(), objectMapper);
 						subscriber.onMessage(rabbitMessage.getSource(), rabbitMessage.getMessage());
 					} catch (Exception e)
 					{
@@ -57,25 +70,26 @@ public class RabbitMqMessageBus extends MessageBus {
 				channel.basicConsume(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeAddress.getNodeId(), true, (consumerTag, delivery) -> {
 					try
 					{
-						var rabbitMessage = RabbitMqMessage.parse(delivery.getBody());
+						var rabbitMessage = RabbitMqMessage.parse(delivery.getBody(), objectMapper);
 						if (rabbitMessage.getMessage() instanceof String)
 						{
 							String signal = rabbitMessage.getMessage().toString();
 							logger.info("{} from {}", signal.toUpperCase(), rabbitMessage.getSourceNodeId());
-							if (signal.equals("join"))
+							if (signal.equals(SIGNAL_JOIN))
 							{
 								view.add(rabbitMessage.getSource());
 								subscriber.onViewUpdate(view, Set.of(rabbitMessage.getSource()), Set.of());
-								channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(nodeAddress, "hello"));
+								channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null,
+										RabbitMqMessage.create(nodeAddress, SIGNAL_HELLO, objectMapper));
 							}
-							if (signal.equals("hello"))
+							if (signal.equals(SIGNAL_HELLO))
 							{
 								if (!view.contains(rabbitMessage.getSource()))
 								{
 									view.add(rabbitMessage.getSource());
 									subscriber.onViewUpdate(view, Set.of(rabbitMessage.getSource()), Set.of());
 								}
-							} else if (signal.equals("leave"))
+							} else if (signal.equals(SIGNAL_LEAVE))
 							{
 								view.remove(rabbitMessage.getSource());
 								subscriber.onViewUpdate(view, Set.of(), Set.of(rabbitMessage.getSource()));
@@ -100,13 +114,17 @@ public class RabbitMqMessageBus extends MessageBus {
 		this.channel = channel;
 		this.address = nodeAddress;
 		this.exchange = exchange;
+		this.requestTimeout = requestTimeout;
+		this.objectMapper = objectMapper;
 	}
 
 	public static MessageBus create(
 			String bundleId,
 			long bundleVersion,
 			String exchange,
-			String rabbitHost) throws Exception {
+			String rabbitHost,
+			int requestTimeout) throws Exception {
+		var objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 		logger.info("Starting Message Bus for %s".formatted(bundleId));
 		ConnectionFactory factory = new ConnectionFactory();
 		factory.setHost(rabbitHost);
@@ -126,18 +144,19 @@ public class RabbitMqMessageBus extends MessageBus {
 		logger.info("Created broadcast queue: %s".formatted(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId));
 
 		var address = new RabbitMqNodeAddress(bundleId, bundleVersion, connection.getAddress().toString(), nodeId);
-		channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(address, "join"));
+		channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null,
+				RabbitMqMessage.create(address, SIGNAL_JOIN, objectMapper));
 		logger.info("Cluster JOIN Sent");
 
-		return new RabbitMqMessageBus(address, channel, exchange, () -> {
+		return new RabbitMqMessageBus(address, channel, exchange, requestTimeout, objectMapper, () -> {
 			try
 			{
 				channel.queueDelete(CLUSTER_BROADCAST_QUEUE_PREFIX + nodeId);
 				channel.queueDelete(nodeId);
-				channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(address, "leave"));
+				channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null,
+						RabbitMqMessage.create(address, SIGNAL_LEAVE, objectMapper));
 				channel.close();
 				connection.close();
-				System.out.println("Cluster LEAVE Sent");
 				logger.info("Cluster LEAVE Sent");
 			} catch (IOException | TimeoutException ex)
 			{
@@ -169,14 +188,14 @@ public class RabbitMqMessageBus extends MessageBus {
 						.replyTo(replyQueueName)
 						.correlationId(corrId)
 						.build(),
-				RabbitMqMessage.create(this.address, message));
+				RabbitMqMessage.create(this.address, message, objectMapper));
 		try
 		{
-			response.get(120, TimeUnit.SECONDS);
+			response.get(requestTimeout, TimeUnit.SECONDS);
 		} catch (TimeoutException e)
 		{
 			channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null, RabbitMqMessage.create(
-					(RabbitMqNodeAddress) address, "leave"));
+					(RabbitMqNodeAddress) address, SIGNAL_LEAVE, objectMapper));
 			throw new MessageNotReceivedException(address, message);
 		} finally
 		{
@@ -187,7 +206,7 @@ public class RabbitMqMessageBus extends MessageBus {
 	@Override
 	public void broadcast(Serializable message) throws Exception {
 		channel.basicPublish(CLUSTER_BROADCAST_EXCHANGE, "", null,
-				RabbitMqMessage.create(this.address, message));
+				RabbitMqMessage.create(this.address, message, objectMapper));
 	}
 
 	@Override
