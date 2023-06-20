@@ -2,9 +2,9 @@ package org.evento.parser.java;
 
 import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
+import org.evento.parser.model.component.Saga;
 import org.evento.parser.model.handler.SagaEventHandler;
 import org.evento.parser.model.payload.Event;
-import org.evento.parser.model.component.Saga;
 import org.jaxen.JaxenException;
 
 import java.util.List;
@@ -18,7 +18,7 @@ public class JavaSagaParser extends JavaComponentParser<Saga> {
 	}
 
 	private List<SagaEventHandler> findSagaEventHandlers() throws JaxenException {
-		var query =  getQueryForAnnotatedMethod("SagaEventHandler");
+		var query = getQueryForAnnotatedMethod("SagaEventHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
 				n -> {
 					var md = (ASTMethodDeclaration) n;
@@ -28,7 +28,7 @@ public class JavaSagaParser extends JavaComponentParser<Saga> {
 							.stream()
 							.filter(m -> m.getImage().equals("associationProperty"))
 							.findFirst()
-							.map(m -> m.getFirstDescendantOfType(ASTLiteral.class).getImage().replace("\"",""))
+							.map(m -> m.getFirstDescendantOfType(ASTLiteral.class).getImage().replace("\"", ""))
 							.orElseThrow();
 					return new SagaEventHandler(new Event(eventName), associationProperty);
 				}

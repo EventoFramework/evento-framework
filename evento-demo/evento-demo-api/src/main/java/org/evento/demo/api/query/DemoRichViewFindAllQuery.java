@@ -1,15 +1,12 @@
 package org.evento.demo.api.query;
 
+import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.Multiple;
 import org.evento.demo.api.view.DemoRichView;
-import org.evento.common.modeling.messaging.payload.Query;
 
 public class DemoRichViewFindAllQuery extends Query<Multiple<DemoRichView>> {
 	private Integer limit;
 	private Integer offset;
-
-
-
 
 
 	public DemoRichViewFindAllQuery(int limit, int offset) {

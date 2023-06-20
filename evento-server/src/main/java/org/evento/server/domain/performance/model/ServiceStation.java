@@ -4,7 +4,7 @@ import org.evento.server.service.performance.PerformanceStoreService;
 
 import java.util.HashMap;
 
-public class ServiceStation extends Node{
+public class ServiceStation extends Node {
 
 	private String bundle;
 	private String component;
@@ -124,9 +124,11 @@ public class ServiceStation extends Node{
 	}
 
 	public void addTarget(Node a, PerformanceStoreService performanceStoreService) {
-		if(a instanceof ServiceStation ss){
+		if (a instanceof ServiceStation ss)
+		{
 			target.put(a, performanceStoreService.getInvocationProbability(bundle, component, action, ss.action));
-		}else{
+		} else
+		{
 			target.put(a, null);
 		}
 	}

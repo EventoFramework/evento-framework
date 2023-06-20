@@ -32,5 +32,5 @@ public class JGroupMessageBusConfiguration {
 		messageBus.enableBus();
 		return messageBus;
 	}
-	
+
 }

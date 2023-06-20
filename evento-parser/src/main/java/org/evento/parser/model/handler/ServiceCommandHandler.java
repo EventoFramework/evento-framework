@@ -10,6 +10,9 @@ import java.util.Map;
 
 public class ServiceCommandHandler extends Handler<ServiceCommand> implements HasCommandInvocations, HasQueryInvocations {
 	private ServiceEvent producedEvent;
+	private HashMap<Integer, Command> invokedCommands = new HashMap<>();
+	private HashMap<Integer, Query> invokedQueries = new HashMap<>();
+
 	public ServiceCommandHandler(ServiceCommand payload, ServiceEvent producedEvent) {
 		super(payload);
 		this.producedEvent = producedEvent;
@@ -22,13 +25,13 @@ public class ServiceCommandHandler extends Handler<ServiceCommand> implements Ha
 		return producedEvent;
 	}
 
-	private HashMap<Integer,Command> invokedCommands = new HashMap<>();
-	private HashMap<Integer,Query> invokedQueries = new HashMap<>();
-
+	public void setProducedEvent(ServiceEvent producedEvent) {
+		this.producedEvent = producedEvent;
+	}
 
 	@Override
 	public void addCommandInvocation(Command command, int line) {
-		invokedCommands.put(line,command);
+		invokedCommands.put(line, command);
 	}
 
 	@Override
@@ -45,10 +48,6 @@ public class ServiceCommandHandler extends Handler<ServiceCommand> implements Ha
 	@Override
 	public Map<Integer, Query> getQueryInvocations() {
 		return invokedQueries;
-	}
-
-	public void setProducedEvent(ServiceEvent producedEvent) {
-		this.producedEvent = producedEvent;
 	}
 
 	public HashMap<Integer, Command> getInvokedCommands() {

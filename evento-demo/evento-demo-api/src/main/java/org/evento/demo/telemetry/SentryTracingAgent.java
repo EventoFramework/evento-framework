@@ -2,14 +2,12 @@ package org.evento.demo.telemetry;
 
 import io.sentry.*;
 import io.sentry.exception.InvalidSentryTraceHeaderException;
-import org.apache.logging.log4j.core.util.ArrayUtils;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.performance.Track;
 import org.evento.common.modeling.messaging.message.application.*;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.stream.Stream;
 
 import static io.sentry.BaggageHeader.BAGGAGE_HEADER;
@@ -26,36 +24,6 @@ public class SentryTracingAgent implements TracingAgent {
 		});
 	}
 
-	public static class TrackedException extends RuntimeException {
-
-		private String traceRef;
-
-		public TrackedException(ITransaction transaction, Throwable cause) {
-			super(cause + ": " + cause.getMessage() + " (trace:" + transaction.toSentryTrace().getValue() + ")",
-					cause, false, false);
-			this.traceRef = transaction.toSentryTrace().getValue();
-		}
-
-		@Override
-		public StackTraceElement[] getStackTrace() {
-			return Stream.concat(Arrays.stream(super.getStackTrace()),
-					Arrays.stream(getCause().getStackTrace())).toArray(StackTraceElement[]::new);
-		}
-
-		@Override
-		public void printStackTrace() {
-			super.printStackTrace();
-		}
-
-		public String getTraceRef() {
-			return traceRef;
-		}
-
-		public void setTraceRef(String traceRef) {
-			this.traceRef = traceRef;
-		}
-	}
-
 	@Override
 	public <T> T track(Message<?> message, String component, String bundle, long bundleVersion,
 					   Track trackingAnnotation,
@@ -70,7 +38,8 @@ public class SentryTracingAgent implements TracingAgent {
 		if (message instanceof CommandMessage)
 		{
 			action = "handleCommand";
-		}if (message instanceof QueryMessage)
+		}
+		if (message instanceof QueryMessage)
 		{
 			action = "handleQuery";
 		} else if (message instanceof EventMessage)
@@ -159,6 +128,36 @@ public class SentryTracingAgent implements TracingAgent {
 			metadata.put(BAGGAGE_HEADER, handledMessage.getMetadata().get(BAGGAGE_HEADER));
 		}
 		return metadata;
+	}
+
+	public static class TrackedException extends RuntimeException {
+
+		private String traceRef;
+
+		public TrackedException(ITransaction transaction, Throwable cause) {
+			super(cause + ": " + cause.getMessage() + " (trace:" + transaction.toSentryTrace().getValue() + ")",
+					cause, false, false);
+			this.traceRef = transaction.toSentryTrace().getValue();
+		}
+
+		@Override
+		public StackTraceElement[] getStackTrace() {
+			return Stream.concat(Arrays.stream(super.getStackTrace()),
+					Arrays.stream(getCause().getStackTrace())).toArray(StackTraceElement[]::new);
+		}
+
+		@Override
+		public void printStackTrace() {
+			super.printStackTrace();
+		}
+
+		public String getTraceRef() {
+			return traceRef;
+		}
+
+		public void setTraceRef(String traceRef) {
+			this.traceRef = traceRef;
+		}
 	}
 
 

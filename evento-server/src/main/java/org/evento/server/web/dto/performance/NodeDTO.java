@@ -38,7 +38,7 @@ public class NodeDTO implements Serializable {
 			this.async = s.getAsync();
 			this.actionType = s.getActionType();
 			this.target = new HashMap<>();
-			s.getTarget().forEach((k,v) -> {
+			s.getTarget().forEach((k, v) -> {
 				this.target.put(k.getId(), v);
 			});
 			this.numServers = s.getNumServers();
@@ -48,7 +48,7 @@ public class NodeDTO implements Serializable {
 		} else if (node instanceof Source s)
 		{
 			this.target = new HashMap<>();
-			s.getTarget().forEach((k,v) -> {
+			s.getTarget().forEach((k, v) -> {
 				this.target.put(k.getId(), v);
 			});
 			this.name = s.getName();

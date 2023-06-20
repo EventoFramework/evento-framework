@@ -52,10 +52,11 @@ public class ThrowableWrapper implements Serializable {
 	public Throwable toThrowable() {
 		try
 		{
-			Throwable ex  = (Throwable) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
+			Throwable ex = (Throwable) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
 			ex.setStackTrace(stackTrace);
 			return ex;
-		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e)
+		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException |
+				 NoSuchMethodException e)
 		{
 			Throwable ex = new RuntimeException(throwable + ": " + getMessage());
 			ex.setStackTrace(stackTrace);
@@ -66,10 +67,11 @@ public class ThrowableWrapper implements Serializable {
 	public Exception toException() {
 		try
 		{
-			Exception ex  = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
+			Exception ex = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
 			ex.setStackTrace(stackTrace);
 			return ex;
-		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e)
+		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException |
+				 NoSuchMethodException e)
 		{
 			Exception ex = new RuntimeException(throwable + ": " + getMessage());
 			ex.setStackTrace(stackTrace);

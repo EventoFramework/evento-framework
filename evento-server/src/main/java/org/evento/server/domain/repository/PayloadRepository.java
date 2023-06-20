@@ -1,6 +1,5 @@
 package org.evento.server.domain.repository;
 
-import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.server.domain.model.Payload;
 import org.evento.server.domain.repository.projection.PayloadListProjection;
 import org.evento.server.domain.repository.projection.PayloadProjection;
@@ -8,11 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public interface PayloadRepository extends JpaRepository<Payload, String> {
-	
+
 	@Query(value = "select p.name, p.type, p.description, p.domain, count(distinct h.uuid) as subscriptions, " +
 			"       group_concat(distinct h.component_component_name) as subscribers, " +
 			"       count(distinct i.handler_uuid) as invocations, " +
@@ -56,6 +54,6 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 	public Optional<PayloadProjection> findByIdProjection(String name);
 
 	@Query("select p.type as type, count(p) as count from Payload p group by p.type")
-    public List<PayloadTypeCount> countByType();
+	public List<PayloadTypeCount> countByType();
 
 }

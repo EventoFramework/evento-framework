@@ -5,7 +5,6 @@ import net.sourceforge.pmd.lang.java.ast.ASTClassOrInterfaceType;
 import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTTypeDeclaration;
 import org.evento.parser.model.component.Observer;
-import org.evento.parser.model.component.Projector;
 import org.evento.parser.model.handler.EventHandler;
 import org.evento.parser.model.payload.Event;
 import org.jaxen.JaxenException;
@@ -21,7 +20,7 @@ public class JavaObserverParser extends JavaComponentParser<Observer> {
 	}
 
 	private List<EventHandler> findEventHandlers() throws JaxenException {
-		var query =  getQueryForAnnotatedMethod("EventHandler");
+		var query = getQueryForAnnotatedMethod("EventHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
 				n -> {
 					var md = (ASTMethodDeclaration) n;

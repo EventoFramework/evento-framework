@@ -13,48 +13,48 @@ public class InvocationMessage extends Message<Invocation> {
 	public InvocationMessage(Class<?> invoker, Method method, Object[] args) {
 		super(generatePayload(method, args));
 		this.name = invoker.getSimpleName() + "::" + method.getName();
-        this.componentName = invoker.getSimpleName();
-        this.action = method.getName();
+		this.componentName = invoker.getSimpleName();
+		this.action = method.getName();
 
 	}
 
-    private static Invocation generatePayload(Method method, Object[] args) {
-        var i = new Invocation();
-        for (int j = 0; j < method.getParameters().length; j++)
-        {
-            var p = method.getParameters()[j];
-            var a = args[j];
-            i.getArguments().put(p.getName(), a);
-        }
-        return i;
-    }
+	private static Invocation generatePayload(Method method, Object[] args) {
+		var i = new Invocation();
+		for (int j = 0; j < method.getParameters().length; j++)
+		{
+			var p = method.getParameters()[j];
+			var a = args[j];
+			i.getArguments().put(p.getName(), a);
+		}
+		return i;
+	}
 
-    @Override
+	@Override
 	public String getPayloadName() {
 		return "";
 	}
 
-    public String getName() {
-        return name;
-    }
+	public String getName() {
+		return name;
+	}
 
-    public String getComponentName() {
-        return componentName;
-    }
+	public void setName(String name) {
+		this.name = name;
+	}
 
-    public String getAction() {
-        return action;
-    }
+	public String getComponentName() {
+		return componentName;
+	}
 
-    public void setName(String name) {
-        this.name = name;
-    }
+	public void setComponentName(String componentName) {
+		this.componentName = componentName;
+	}
 
-    public void setComponentName(String componentName) {
-        this.componentName = componentName;
-    }
+	public String getAction() {
+		return action;
+	}
 
-    public void setAction(String action) {
-        this.action = action;
-    }
+	public void setAction(String action) {
+		this.action = action;
+	}
 }

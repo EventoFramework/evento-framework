@@ -5,6 +5,7 @@ import java.io.Serializable;
 public abstract class QueryReturnType implements Serializable {
 
 	private String viewName;
+
 	public QueryReturnType(String viewName) {
 		this.viewName = viewName;
 	}

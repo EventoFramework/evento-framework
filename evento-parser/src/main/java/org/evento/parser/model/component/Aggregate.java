@@ -9,19 +9,19 @@ public class Aggregate extends Component {
 	private List<AggregateCommandHandler> aggregateCommandHandlers;
 	private List<EventSourcingHandler> eventSourcingHandlers;
 
-	public void setAggregateCommandHandlers(List<AggregateCommandHandler> aggregateCommandHandlers) {
-		this.aggregateCommandHandlers = aggregateCommandHandlers;
-	}
-
 	public List<AggregateCommandHandler> getAggregateCommandHandlers() {
 		return aggregateCommandHandlers;
 	}
 
-	public void setEventSourcingHandlers(List<EventSourcingHandler> eventSourcingHandlers) {
-		this.eventSourcingHandlers = eventSourcingHandlers;
+	public void setAggregateCommandHandlers(List<AggregateCommandHandler> aggregateCommandHandlers) {
+		this.aggregateCommandHandlers = aggregateCommandHandlers;
 	}
 
 	public List<EventSourcingHandler> getEventSourcingHandlers() {
 		return eventSourcingHandlers;
+	}
+
+	public void setEventSourcingHandlers(List<EventSourcingHandler> eventSourcingHandlers) {
+		this.eventSourcingHandlers = eventSourcingHandlers;
 	}
 }

@@ -8,7 +8,6 @@ import lombok.Setter;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
-import java.math.BigInteger;
 
 @Getter
 @Setter
@@ -18,11 +17,11 @@ import java.math.BigInteger;
 @Table(name = "performance__handler_invocation_count")
 public class HandlerInvocationCountPerformance {
 
-    @Id
-    private String id;
+	@Id
+	private String id;
 
-    private int lastCount;
+	private int lastCount;
 
-    private double meanProbability;
+	private double meanProbability;
 
 }

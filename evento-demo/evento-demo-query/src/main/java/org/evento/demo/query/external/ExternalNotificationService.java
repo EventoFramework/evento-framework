@@ -7,11 +7,11 @@ import java.util.List;
 
 @Service
 public class ExternalNotificationService {
-    public NotificationView findById(String notificationId) {
-        return new NotificationView(notificationId, notificationId);
-    }
+	public NotificationView findById(String notificationId) {
+		return new NotificationView(notificationId, notificationId);
+	}
 
-    public List<NotificationView> findAll() {
-        return List.of(findById("notification1"),findById("notification2"),findById("notification3"));
-    }
+	public List<NotificationView> findAll() {
+		return List.of(findById("notification1"), findById("notification2"), findById("notification3"));
+	}
 }

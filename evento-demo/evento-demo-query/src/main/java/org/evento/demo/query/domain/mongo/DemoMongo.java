@@ -14,29 +14,29 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DemoMongo {
-    private String id;
-    private String name;
-    private Long value;
-    private Instant createdAt;
-    private Instant updatedAt;
-    private Instant deletedAt;
+	private String id;
+	private String name;
+	private Long value;
+	private Instant createdAt;
+	private Instant updatedAt;
+	private Instant deletedAt;
 
-    public DemoView toDemoView() {
-        var view = new DemoView();
-        view.setDemoId(this.getId());
-        view.setName(this.getName());
-        view.setValue(this.getValue());
-        return view;
-    }
+	public DemoView toDemoView() {
+		var view = new DemoView();
+		view.setDemoId(this.getId());
+		view.setName(this.getName());
+		view.setValue(this.getValue());
+		return view;
+	}
 
-    public DemoRichView toDemoRichView() {
-        var view = new DemoRichView();
-        view.setDemoId(this.getId());
-        view.setName(this.getName());
-        view.setValue(this.getValue());
-        view.setCreatedAt(this.getCreatedAt().toEpochMilli());
-        view.setUpdatedAt(this.getUpdatedAt().toEpochMilli());
-        view.setDeletedAt(this.getDeletedAt() == null?  null : this.getDeletedAt().toEpochMilli());
-        return view;
-    }
+	public DemoRichView toDemoRichView() {
+		var view = new DemoRichView();
+		view.setDemoId(this.getId());
+		view.setName(this.getName());
+		view.setValue(this.getValue());
+		view.setCreatedAt(this.getCreatedAt().toEpochMilli());
+		view.setUpdatedAt(this.getUpdatedAt().toEpochMilli());
+		view.setDeletedAt(this.getDeletedAt() == null ? null : this.getDeletedAt().toEpochMilli());
+		return view;
+	}
 }

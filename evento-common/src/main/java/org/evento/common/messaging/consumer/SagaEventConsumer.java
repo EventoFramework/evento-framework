@@ -5,5 +5,5 @@ import org.evento.common.modeling.state.SagaState;
 
 public interface SagaEventConsumer {
 
-    public SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Throwable;
+	public SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Throwable;
 }

@@ -2,10 +2,10 @@ package org.evento.demo.web.domain.config;
 
 import org.evento.application.EventoBundle;
 import org.evento.bus.rabbitmq.RabbitMqMessageBus;
-import org.evento.demo.telemetry.SentryTracingAgent;
-import org.evento.demo.web.domain.DemoWebApplication;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
+import org.evento.demo.telemetry.SentryTracingAgent;
+import org.evento.demo.web.domain.DemoWebApplication;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;

@@ -1,10 +1,7 @@
 package org.evento.demo.agent.agents;
 
-import org.evento.application.EventoBundle;
 import org.evento.application.performance.Track;
 import org.evento.application.proxy.InvokerWrapper;
-import org.evento.common.messaging.gateway.CommandGateway;
-import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.annotations.component.Invoker;
 import org.evento.common.modeling.annotations.handler.InvocationHandler;
 import org.evento.demo.api.command.DemoCreateCommand;
@@ -13,7 +10,6 @@ import org.evento.demo.api.command.DemoUpdateCommand;
 import org.evento.demo.api.query.DemoViewFindAllQuery;
 import org.evento.demo.api.query.DemoViewFindByIdQuery;
 
-import java.time.Instant;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -69,7 +65,7 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 		System.out.println("[" + i + "] - END");
 
 		if (random.nextDouble(0, 1) < 0.2)
-		throw new RuntimeException("Demo exception");
+			throw new RuntimeException("Demo exception");
 
 		return null;
 

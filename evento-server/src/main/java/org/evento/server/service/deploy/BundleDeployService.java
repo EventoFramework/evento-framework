@@ -45,7 +45,7 @@ public abstract class BundleDeployService {
 				lock.lock();
 				var semaphore = semaphoreMap.getOrDefault(bundleId, new Semaphore(0));
 				semaphoreMap.put(bundleId, semaphore);
-				if(messageBus.isBundleAvailable(bundleId)) return;
+				if (messageBus.isBundleAvailable(bundleId)) return;
 				spawn(bundle);
 				if (!semaphore.tryAcquire(120, TimeUnit.SECONDS))
 				{

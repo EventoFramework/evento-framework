@@ -2,8 +2,6 @@ package org.evento.demo.api.view;
 
 import org.evento.common.modeling.messaging.payload.View;
 
-import java.time.Instant;
-
 public class DemoRichView extends View {
 
 	private String demoId;

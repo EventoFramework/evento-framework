@@ -39,7 +39,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
-    implementation project(":evento-bus-rabbitmq")
+    implementation project(":evento-bus:evento-bus-rabbitmq")
     implementation project(":evento-bundle")
     implementation project(":evento-demo:evento-demo-api")
 }

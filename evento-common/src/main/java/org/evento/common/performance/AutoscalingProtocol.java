@@ -20,6 +20,7 @@ public abstract class AutoscalingProtocol {
 	}
 
 	public abstract void arrival();
+
 	public abstract void departure();
 
 	protected void sendBoredSignal() throws Exception {

@@ -7,11 +7,11 @@ import java.util.List;
 public class Observer extends Component {
 	private List<EventHandler> eventHandlers;
 
-	public void setEventHandlers(List<EventHandler> eventHandlers) {
-		this.eventHandlers = eventHandlers;
-	}
-
 	public List<EventHandler> getEventHandlers() {
 		return eventHandlers;
+	}
+
+	public void setEventHandlers(List<EventHandler> eventHandlers) {
+		this.eventHandlers = eventHandlers;
 	}
 }

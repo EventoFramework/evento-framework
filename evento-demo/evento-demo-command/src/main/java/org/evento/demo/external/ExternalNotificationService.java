@@ -8,8 +8,8 @@ import java.util.UUID;
 
 @Service
 public class ExternalNotificationService {
-    public String send(String body) {
-        Utils.doWork(1100);
-        return UUID.randomUUID().toString();
-    }
+	public String send(String body) {
+		Utils.doWork(1100);
+		return UUID.randomUUID().toString();
+	}
 }

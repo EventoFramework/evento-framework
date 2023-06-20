@@ -1,7 +1,5 @@
 package org.evento.parser.model.payload;
 
-import com.google.gson.JsonObject;
-
 import java.io.Serializable;
 
 public class PayloadDescription implements Serializable {

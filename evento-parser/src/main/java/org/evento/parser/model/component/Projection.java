@@ -8,11 +8,11 @@ public class Projection extends Component {
 
 	private List<QueryHandler> queryHandlers;
 
-	public void setQueryHandlers(List<QueryHandler> queryHandlers) {
-		this.queryHandlers = queryHandlers;
-	}
-
 	public List<QueryHandler> getQueryHandlers() {
 		return queryHandlers;
+	}
+
+	public void setQueryHandlers(List<QueryHandler> queryHandlers) {
+		this.queryHandlers = queryHandlers;
 	}
 }

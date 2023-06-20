@@ -12,26 +12,26 @@ import org.evento.demo.pc.api.PcEvent2;
 public class PcAggregate {
 
 	@AggregateCommandHandler(init = true)
-	public PcEvent1 handle(PcCommand1 command1, PcAggregateState state){
+	public PcEvent1 handle(PcCommand1 command1, PcAggregateState state) {
 		var evt = new PcEvent1();
 		evt.setPcId(command1.getPcId());
 		return evt;
 	}
 
 	@EventSourcingHandler
-	public PcAggregateState handle(PcEvent1 event1, PcAggregateState state){
+	public PcAggregateState handle(PcEvent1 event1, PcAggregateState state) {
 		return state;
 	}
 
 	@AggregateCommandHandler
-	public PcEvent2 handle(PcCommand2 command2, PcAggregateState state){
+	public PcEvent2 handle(PcCommand2 command2, PcAggregateState state) {
 		var evt = new PcEvent2();
 		evt.setPcId(command2.getPcId());
 		return evt;
 	}
 
 	@EventSourcingHandler
-	public PcAggregateState handle(PcEvent2 event2, PcAggregateState state){
+	public PcAggregateState handle(PcEvent2 event2, PcAggregateState state) {
 		return state;
 	}
 }

@@ -1,9 +1,9 @@
 package org.evento.application.reference;
 
 import org.evento.application.utils.ReflectionUtils;
-import org.evento.common.modeling.annotations.handler.QueryHandler;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
+import org.evento.common.modeling.annotations.handler.QueryHandler;
 import org.evento.common.modeling.messaging.message.application.QueryMessage;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
-public class ProjectionReference extends Reference{
+public class ProjectionReference extends Reference {
 
 	private HashMap<String, Method> queryHandlerReferences = new HashMap<>();
 
@@ -24,7 +24,8 @@ public class ProjectionReference extends Reference{
 		{
 
 			var ach = declaredMethod.getAnnotation(QueryHandler.class);
-			if(ach != null){
+			if (ach != null)
+			{
 				queryHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
 						.filter(Query.class::isAssignableFrom)
 						.findFirst()
@@ -33,11 +34,11 @@ public class ProjectionReference extends Reference{
 		}
 	}
 
-	public Set<String> getRegisteredQueries(){
+	public Set<String> getRegisteredQueries() {
 		return queryHandlerReferences.keySet();
 	}
 
-	public Method getQueryHandler(String queryName){
+	public Method getQueryHandler(String queryName) {
 		return queryHandlerReferences.get(queryName);
 	}
 
@@ -57,7 +58,8 @@ public class ProjectionReference extends Reference{
 					queryGateway,
 					qm
 			);
-		}catch (InvocationTargetException e){
+		} catch (InvocationTargetException e)
+		{
 			throw e.getCause();
 		}
 	}
