@@ -4,6 +4,7 @@ import org.evento.application.EventoBundle;
 import org.evento.bus.rabbitmq.RabbitMqMessageBus;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
+import org.evento.common.serialization.ObjectMapperUtils;
 import org.evento.demo.DemoObserverApplication;
 import org.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
@@ -32,7 +33,11 @@ public class EventoConfiguration {
 			BeanFactory factory
 	) throws Exception {
 
-		MessageBus messageBus = RabbitMqMessageBus.create(bundleId, bundleVersion, channelName, rabbitHost);
+		MessageBus messageBus = RabbitMqMessageBus.create(bundleId,
+				bundleVersion,
+				channelName,
+				rabbitHost,
+				10);
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoObserverApplication.class.getPackage())
 				.setBundleId(bundleId)
