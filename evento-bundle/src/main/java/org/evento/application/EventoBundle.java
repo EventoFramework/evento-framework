@@ -95,7 +95,6 @@ public class EventoBundle {
 			TracingAgent tracingAgent
 
 	) {
-
 		this.messageBus = messageBus;
 		this.basePackage = basePackage;
 		this.bundleId = bundleId;
@@ -381,7 +380,8 @@ public class EventoBundle {
 		Reflections reflections = new Reflections((new ConfigurationBuilder().forPackages(basePackage)));
 		for (Class<?> aClass : reflections.getTypesAnnotatedWith(Aggregate.class))
 		{
-			var aggregateReference = new AggregateReference(createComponentInstance(aClass, findInjectableObject), aClass.getAnnotation(Aggregate.class).snapshotFrequency());
+			var aggregateReference = new AggregateReference(createComponentInstance(aClass, findInjectableObject),
+					aClass.getAnnotation(Aggregate.class).snapshotFrequency());
 			for (String command : aggregateReference.getRegisteredCommands())
 			{
 				aggregateMessageHandlers.put(command, aggregateReference);
@@ -557,7 +557,6 @@ public class EventoBundle {
 			logger.info("Starting event consumer for Projector %s".formatted(projectorName));
 			new Thread(() -> {
 				var headReached = false;
-				var fetchSize = 1000;
 				var consumerId = bundleId + "_" + projectorVersion + "_" + projectorName;
 				while (!isShuttingDown)
 				{
@@ -591,24 +590,24 @@ public class EventoBundle {
 												return null;
 											});
 
-								}, fetchSize);
+								}, sssFetchSize);
 					} catch (Throwable e)
 					{
 						logger.error(e);
 						e.printStackTrace();
 						hasError = true;
 					}
-					if (fetchSize - consumedEventCount > 10)
+					if (sssFetchSize - consumedEventCount > 10)
 					{
 						try
 						{
-							Thread.sleep(hasError ? 5000 : fetchSize - consumedEventCount);
+							Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
 						} catch (InterruptedException e)
 						{
 							throw new RuntimeException(e);
 						}
 					}
-					if (!hasError && !headReached && consumedEventCount >= 0 && consumedEventCount < fetchSize)
+					if (!hasError && !headReached && consumedEventCount >= 0 && consumedEventCount < sssFetchSize)
 					{
 						headReached = true;
 						var aligned = counter.incrementAndGet();
@@ -751,64 +750,9 @@ public class EventoBundle {
 		return queryGateway;
 	}
 
-	private static class GatewayInterceptor implements java.lang.reflect.InvocationHandler {
-
-		private final GatewayTelemetryProxy proxy;
-
-		private GatewayInterceptor(GatewayTelemetryProxy proxy) {
-			this.proxy = proxy;
-		}
-
-		@Override
-		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-			if (method.getName().equals("getCommandGateway"))
-			{
-				return proxy;
-			}
-			if (method.getName().equals("getQueryGateway"))
-			{
-				return proxy;
-			}
-			return method.invoke(proxy, args);
-		}
-	}
-
-	private static class InvokerInterceptor implements java.lang.reflect.InvocationHandler {
-
-		private final Class<? extends InvokerWrapper> invoker;
-		private final EventoBundle eventoBundle;
-
-
-		private InvokerInterceptor(Class<? extends InvokerWrapper> invoker, EventoBundle eventoBundle) {
-			this.invoker = invoker;
-			this.eventoBundle = eventoBundle;
-		}
-
-		@Override
-		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-			if (method.getDeclaredAnnotation(InvocationHandler.class) != null)
-			{
-				var gProxy = eventoBundle.createGatewayTelemetryProxy(invoker.getSimpleName(),
-						new InvocationMessage(invoker, method, args));
-				var target = Proxy.newProxyInstance(
-						invoker.getClassLoader(),
-						new Class[]{invoker},
-						new GatewayInterceptor(gProxy));
-				var start = Instant.now();
-				Object result = method.invoke(target, args);
-				gProxy.sendServiceTimeMetric(start);
-				return result;
-
-			}
-
-			return method.invoke(proxy, args);
-		}
-	}
-
 	public static class ApplicationInfo {
 		public String basePackage;
 		public String bundleId;
-		public String clusterName;
 
 		public Set<String> aggregateMessageHandlers;
 		public Set<String> serviceMessageHandlers;

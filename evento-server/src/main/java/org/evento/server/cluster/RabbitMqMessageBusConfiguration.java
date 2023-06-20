@@ -2,6 +2,7 @@ package org.evento.server.cluster;
 
 import org.evento.bus.rabbitmq.RabbitMqMessageBus;
 import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.serialization.ObjectMapperUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,7 +34,7 @@ public class RabbitMqMessageBusConfiguration {
 				serverBundleId,
 				serverBundleVersion,
 				handlerClusterName,
-				rabbitHost
+				rabbitHost, 10
 		);
 		messageBus.enableBus();
 		return messageBus;

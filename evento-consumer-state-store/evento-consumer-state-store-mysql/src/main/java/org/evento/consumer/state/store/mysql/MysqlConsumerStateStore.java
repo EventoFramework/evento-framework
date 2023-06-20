@@ -1,11 +1,11 @@
 package org.evento.consumer.state.store.mysql;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.StoredSagaState;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.RemotePerformanceService;
-import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -133,7 +133,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 		stmt.setString(3, associationValue);
 		var resultSet = stmt.executeQuery();
 		if (!resultSet.next()) return new StoredSagaState(null, null);
-		var state = ObjectMapperUtils.getPayloadObjectMapper().readValue(resultSet.getString(2), SagaState.class);
+		var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
 		return new StoredSagaState(resultSet.getLong(1), state);
 
 	}
@@ -144,14 +144,14 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 		{
 			var stmt = connection.prepareStatement("insert into " + SAGA_STATE_TABLE + " (name, state) value (?, ?)");
 			stmt.setString(1, sagaName);
-			var serializedSagaState = ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(sagaState);
+			var serializedSagaState = getObjectMapper().writeValueAsString(sagaState);
 			stmt.setString(2, serializedSagaState);
 			if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state update error");
 		} else
 		{
 			var stmt = connection.prepareStatement("update " + SAGA_STATE_TABLE + " set state = ? where id = ?");
 			stmt.setLong(2, id);
-			var serializedSagaState = ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(sagaState);
+			var serializedSagaState = getObjectMapper().writeValueAsString(sagaState);
 			stmt.setString(1, serializedSagaState);
 			if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state update error");
 		}

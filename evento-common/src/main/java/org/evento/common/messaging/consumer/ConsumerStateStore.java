@@ -1,11 +1,13 @@
 package org.evento.common.messaging.consumer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
+import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,6 +19,7 @@ public abstract class ConsumerStateStore {
 	private final Logger logger = LogManager.getLogger(ConsumerStateStore.class);
 	private final PerformanceService performanceService;
 	private final String bundleId;
+	private final ObjectMapper objectMapper;
 
 	protected ConsumerStateStore(
 			MessageBus messageBus,
@@ -27,6 +30,7 @@ public abstract class ConsumerStateStore {
 		this.serverNodeName = serverNodeName;
 		this.bundleId = bundleId;
 		this.performanceService = performanceService;
+		this.objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 	}
 
 	public int consumeEventsForProjector(
@@ -145,4 +149,7 @@ public abstract class ConsumerStateStore {
 
 	protected abstract void setSagaState(Long sagaId, String sagaName, SagaState sagaState) throws Exception;
 
+	protected ObjectMapper getObjectMapper() {
+		return objectMapper;
+	}
 }
