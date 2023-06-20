@@ -40,7 +40,7 @@ public class EventoConfiguration {
 				.setServerName(serverName)
 				.setMessageBus(messageBus)
 				.setTracingAgent(new SentryTracingAgent(sentryDns))
-				.setAutoscalingProtocol( new ThreadCountAutoscalingProtocol(
+				.setAutoscalingProtocol(new ThreadCountAutoscalingProtocol(
 						bundleId,
 						serverName,
 						messageBus,

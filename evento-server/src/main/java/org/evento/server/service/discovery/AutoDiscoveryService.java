@@ -3,7 +3,6 @@ package org.evento.server.service.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.MessageBus;
-import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.common.modeling.messaging.message.bus.NodeAddress;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
@@ -178,7 +177,7 @@ public class AutoDiscoveryService {
 					lock.unlock();
 				}
 			}, e -> {
-				logger.error(e.getMessage(),e.toThrowable());
+				logger.error(e.getMessage(), e.toThrowable());
 			});
 		} catch (Exception e)
 		{

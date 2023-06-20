@@ -8,21 +8,21 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 public interface CommandGateway {
-	default <R> R sendAndWait(Command command){
+	default <R> R sendAndWait(Command command) {
 		return sendAndWait(command, null);
 	}
 
-	default <R> R sendAndWait(Command command, long timeout, TimeUnit unit){
+	default <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
 		return sendAndWait(command, null, timeout, unit);
 	}
 
 	@SuppressWarnings("unchecked")
-	default <R> CompletableFuture<R> send(Command command){
+	default <R> CompletableFuture<R> send(Command command) {
 		return send(command, null);
 	}
 
 
-	default <R> R sendAndWait(Command command, HashMap<String, String> metadata){
+	default <R> R sendAndWait(Command command, HashMap<String, String> metadata) {
 		return sendAndWait(command, metadata, null);
 	}
 
@@ -31,7 +31,7 @@ public interface CommandGateway {
 	}
 
 	@SuppressWarnings("unchecked")
-	default <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata){
+	default <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata) {
 		return send(command, metadata, null);
 	}
 

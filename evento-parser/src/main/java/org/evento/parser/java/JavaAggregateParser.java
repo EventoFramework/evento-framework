@@ -4,9 +4,9 @@ import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.ASTClassOrInterfaceType;
 import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTTypeDeclaration;
+import org.evento.parser.model.component.Aggregate;
 import org.evento.parser.model.handler.AggregateCommandHandler;
 import org.evento.parser.model.handler.EventSourcingHandler;
-import org.evento.parser.model.component.Aggregate;
 import org.evento.parser.model.payload.DomainCommand;
 import org.evento.parser.model.payload.DomainEvent;
 import org.jaxen.JaxenException;
@@ -22,7 +22,6 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 	}
 
 
-
 	private List<AggregateCommandHandler> findAggregateCommandHandler() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("AggregateCommandHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
@@ -34,6 +33,7 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 				}
 		).collect(Collectors.toList());
 	}
+
 	private List<EventSourcingHandler> findEventSourcingHandlers() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("EventSourcingHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
@@ -53,9 +53,6 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 		aggregate.setEventSourcingHandlers(findEventSourcingHandlers());
 		return aggregate;
 	}
-
-
-
 
 
 }

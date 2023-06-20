@@ -2,7 +2,6 @@ package org.evento.server.domain.repository;
 
 import org.evento.server.domain.model.Component;
 import org.evento.server.domain.repository.projection.ComponentListProjection;
-import org.evento.server.domain.repository.projection.ComponentProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -32,5 +31,5 @@ public interface ComponentRepository extends JpaRepository<Component, String> {
 	List<Component> findAllByBundle_Id(String bundleId);
 
 	@Query("select c.componentType as type, count(c) as count from Component c group by c.componentType")
-    List<ComponentTypeCount> countByType();
+	List<ComponentTypeCount> countByType();
 }

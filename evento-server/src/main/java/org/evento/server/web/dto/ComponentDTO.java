@@ -3,7 +3,6 @@ package org.evento.server.web.dto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.evento.common.modeling.bundle.types.ComponentType;
-import org.evento.server.domain.model.Bundle;
 import org.evento.server.domain.model.Component;
 import org.evento.server.domain.model.Handler;
 

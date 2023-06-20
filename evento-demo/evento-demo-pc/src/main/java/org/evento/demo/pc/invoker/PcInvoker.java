@@ -12,12 +12,12 @@ import java.util.UUID;
 public class PcInvoker extends InvokerWrapper {
 
 	@InvocationHandler
-	public void cmd1(){
+	public void cmd1() {
 		getCommandGateway().sendAndWait(new PcCommand1("pc__" + UUID.randomUUID()));
 	}
 
 	@InvocationHandler
-	public void cmd2(String id){
+	public void cmd2(String id) {
 		getCommandGateway().sendAndWait(new PcCommand2(id));
 	}
 }

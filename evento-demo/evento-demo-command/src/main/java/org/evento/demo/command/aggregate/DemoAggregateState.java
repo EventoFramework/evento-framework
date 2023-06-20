@@ -3,7 +3,7 @@ package org.evento.demo.command.aggregate;
 import org.evento.common.modeling.state.AggregateState;
 
 public class DemoAggregateState extends AggregateState {
-	private  long value;
+	private long value;
 
 
 	public DemoAggregateState(long value) {

@@ -6,6 +6,6 @@ public enum ComponentType {
 	Projector,
 	Projection,
 	Invoker,
-    Observer,
+	Observer,
 	Saga
 }

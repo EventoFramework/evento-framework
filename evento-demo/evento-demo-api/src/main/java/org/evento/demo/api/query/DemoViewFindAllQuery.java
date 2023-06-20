@@ -1,8 +1,8 @@
 package org.evento.demo.api.query;
 
-import org.evento.demo.api.view.DemoView;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.Multiple;
+import org.evento.demo.api.view.DemoView;
 
 public class DemoViewFindAllQuery extends Query<Multiple<DemoView>> {
 	private Integer limit;

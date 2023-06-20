@@ -5,7 +5,7 @@ import org.evento.server.service.performance.PerformanceStoreService;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Source extends Node{
+public class Source extends Node {
 
 
 	private String bundleId;

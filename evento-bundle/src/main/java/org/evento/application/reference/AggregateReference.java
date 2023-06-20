@@ -2,13 +2,13 @@ package org.evento.application.reference;
 
 
 import org.evento.application.utils.ReflectionUtils;
+import org.evento.common.messaging.gateway.CommandGateway;
+import org.evento.common.messaging.gateway.QueryGateway;
+import org.evento.common.modeling.annotations.handler.AggregateCommandHandler;
+import org.evento.common.modeling.annotations.handler.EventSourcingHandler;
 import org.evento.common.modeling.exceptions.AggregateDeletedError;
 import org.evento.common.modeling.exceptions.AggregateInitializedError;
 import org.evento.common.modeling.exceptions.AggregateNotInitializedError;
-import org.evento.common.modeling.annotations.handler.AggregateCommandHandler;
-import org.evento.common.modeling.annotations.handler.EventSourcingHandler;
-import org.evento.common.messaging.gateway.CommandGateway;
-import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import org.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
@@ -85,7 +85,7 @@ public class AggregateReference extends Reference {
 
 		if (eventStream.isEmpty() && envelope.getAggregateState() == null && !isAggregateInitializer(commandHandler))
 			throw AggregateNotInitializedError.build(cm.getAggregateId());
-		if ((!eventStream.isEmpty() || envelope.getAggregateState() != null ) && isAggregateInitializer(commandHandler))
+		if ((!eventStream.isEmpty() || envelope.getAggregateState() != null) && isAggregateInitializer(commandHandler))
 			throw AggregateInitializedError.build(cm.getAggregateId());
 
 		try
@@ -105,7 +105,8 @@ public class AggregateReference extends Reference {
 					queryGateway,
 					cm
 			);
-		}catch (InvocationTargetException e){
+		} catch (InvocationTargetException e)
+		{
 			throw e.getCause();
 		}
 	}

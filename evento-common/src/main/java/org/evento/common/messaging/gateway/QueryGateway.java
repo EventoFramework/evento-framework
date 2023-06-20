@@ -9,11 +9,13 @@ import java.util.concurrent.CompletableFuture;
 
 public interface QueryGateway {
 	@SuppressWarnings("unchecked")
-	default <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query){
+	default <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
 		return query(query, null);
 	}
-	default <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata){
+
+	default <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata) {
 		return query(query, metadata, null);
 	}
+
 	<T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata, Message<?> handledMessage);
 }

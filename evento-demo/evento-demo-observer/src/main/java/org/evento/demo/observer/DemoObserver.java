@@ -11,17 +11,17 @@ import org.evento.demo.api.utils.Utils;
 @Observer
 public class DemoObserver {
 
-    @EventHandler
-    public void on(DemoUpdatedEvent event, CommandGateway commandGateway){
-        Utils.logMethodFlow(this, "on", event, "BEGIN");
-        commandGateway.sendAndWait(new NotificationSendSilentCommand(event.getDemoId()));
-        Utils.logMethodFlow(this,"on", event, "END");
-    }
+	@EventHandler
+	public void on(DemoUpdatedEvent event, CommandGateway commandGateway) {
+		Utils.logMethodFlow(this, "on", event, "BEGIN");
+		commandGateway.sendAndWait(new NotificationSendSilentCommand(event.getDemoId()));
+		Utils.logMethodFlow(this, "on", event, "END");
+	}
 
-    @EventHandler
-    public void on(DemoDeletedEvent event, CommandGateway commandGateway){
-        Utils.logMethodFlow(this, "on", event, "BEGIN");
-        commandGateway.sendAndWait(new NotificationSendSilentCommand(event.getDemoId()));
-        Utils.logMethodFlow(this,"on", event, "END");
-    }
+	@EventHandler
+	public void on(DemoDeletedEvent event, CommandGateway commandGateway) {
+		Utils.logMethodFlow(this, "on", event, "BEGIN");
+		commandGateway.sendAndWait(new NotificationSendSilentCommand(event.getDemoId()));
+		Utils.logMethodFlow(this, "on", event, "END");
+	}
 }

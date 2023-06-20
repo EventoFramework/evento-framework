@@ -35,9 +35,9 @@ public class EventoMessageBusConfiguration {
 				serverBundleVersion,
 				host,
 				port
-				);
+		);
 		messageBus.enableBus();
 		return messageBus;
 	}
-	
+
 }

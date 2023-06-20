@@ -6,7 +6,6 @@ import org.springframework.integration.jdbc.lock.DefaultLockRepository;
 import org.springframework.integration.jdbc.lock.JdbcLockRegistry;
 import org.springframework.integration.jdbc.lock.LockRepository;
 import org.springframework.integration.support.leader.LockRegistryLeaderInitiator;
-import org.springframework.integration.support.locks.DefaultLockRegistry;
 import org.springframework.integration.support.locks.LockRegistry;
 
 import javax.sql.DataSource;
@@ -14,12 +13,12 @@ import javax.sql.DataSource;
 @Configuration
 public class LockConfiguration {
 	@Bean
-	DefaultLockRepository defaultLockRepository(DataSource dataSource){
+	DefaultLockRepository defaultLockRepository(DataSource dataSource) {
 		return new DefaultLockRepository(dataSource);
 	}
 
 	@Bean
-	JdbcLockRegistry jdbcLockRegistry (LockRepository repository){
+	JdbcLockRegistry jdbcLockRegistry(LockRepository repository) {
 		return new JdbcLockRegistry(repository);
 	}
 

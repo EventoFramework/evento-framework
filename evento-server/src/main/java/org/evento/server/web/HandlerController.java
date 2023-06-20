@@ -21,7 +21,7 @@ public class HandlerController {
 	}
 
 	@GetMapping("/")
-	public ResponseEntity<List<HandlerDto>> findAllHandlers(){
+	public ResponseEntity<List<HandlerDto>> findAllHandlers() {
 		return ResponseEntity.ok(handlerService.findAll().stream().map(HandlerDto::new).collect(Collectors.toList()));
 	}
 }

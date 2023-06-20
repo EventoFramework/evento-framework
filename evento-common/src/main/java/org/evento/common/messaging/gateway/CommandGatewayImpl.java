@@ -1,5 +1,7 @@
 package org.evento.common.messaging.gateway;
 
+import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 import org.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.messaging.message.application.Message;
@@ -7,8 +9,6 @@ import org.evento.common.modeling.messaging.message.application.ServiceCommandMe
 import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
-import org.evento.common.messaging.bus.MessageBus;
-import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
@@ -64,11 +64,13 @@ public class CommandGatewayImpl implements CommandGateway {
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
-			messageBus.request(address,message,
+			messageBus.request(address, message,
 					response -> {
-						try{
+						try
+						{
 							future.complete((R) ((EventMessage<?>) response).getSerializedPayload().getObject());
-						}catch (Exception e){
+						} catch (Exception e)
+						{
 							future.completeExceptionally(e);
 						}
 					},

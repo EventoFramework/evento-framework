@@ -1,20 +1,8 @@
 package org.evento.demo.web.domain.web;
 
 import org.evento.application.EventoBundle;
-import org.evento.demo.api.command.DemoCreateCommand;
-import org.evento.demo.api.command.DemoDeleteCommand;
-import org.evento.demo.api.command.DemoUpdateCommand;
-import org.evento.demo.api.query.DemoViewFindAllQuery;
-import org.evento.demo.api.query.DemoViewFindByIdQuery;
-import org.evento.demo.api.utils.Utils;
 import org.evento.demo.api.view.DemoView;
 import org.evento.demo.web.domain.web.payload.DemoPayload;
-import org.evento.common.modeling.annotations.component.Invoker;
-import org.evento.common.modeling.annotations.handler.InvocationHandler;
-import org.evento.common.messaging.gateway.CommandGateway;
-import org.evento.common.messaging.gateway.QueryGateway;
-import org.evento.common.modeling.messaging.query.Multiple;
-import org.evento.common.modeling.messaging.query.Single;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;

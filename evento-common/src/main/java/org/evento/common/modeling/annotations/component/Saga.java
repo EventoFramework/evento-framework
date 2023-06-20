@@ -9,5 +9,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Component
 public @interface Saga {
-    int version();
+	int version();
 }

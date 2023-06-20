@@ -6,6 +6,7 @@ import org.evento.parser.model.payload.DomainEvent;
 public class AggregateCommandHandler extends Handler<DomainCommand> {
 
 	private DomainEvent producedEvent;
+
 	public AggregateCommandHandler(DomainCommand payload, DomainEvent producedEvent) {
 		super(payload);
 		this.producedEvent = producedEvent;

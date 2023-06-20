@@ -3,20 +3,20 @@ package org.evento.common.messaging.consumer;
 import java.io.Serializable;
 
 public class EventLastSequenceNumberResponse implements Serializable {
-    private long number;
+	private long number;
 
-    public EventLastSequenceNumberResponse() {
-    }
+	public EventLastSequenceNumberResponse() {
+	}
 
-    public EventLastSequenceNumberResponse(long number) {
-        this.number = number;
-    }
+	public EventLastSequenceNumberResponse(long number) {
+		this.number = number;
+	}
 
-    public long getNumber() {
-        return number;
-    }
+	public long getNumber() {
+		return number;
+	}
 
-    public void setNumber(long number) {
-        this.number = number;
-    }
+	public void setNumber(long number) {
+		this.number = number;
+	}
 }

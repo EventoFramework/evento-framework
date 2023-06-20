@@ -7,12 +7,12 @@ import net.sourceforge.pmd.lang.Parser;
 import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
 import org.evento.common.modeling.messaging.payload.*;
-import org.evento.parser.model.BundleDescription;
-import org.evento.parser.model.handler.Handler;
-import org.evento.parser.model.payload.PayloadDescription;
 import org.evento.parser.BundleParser;
+import org.evento.parser.model.BundleDescription;
 import org.evento.parser.model.component.Component;
 import org.evento.parser.model.component.Invoker;
+import org.evento.parser.model.handler.Handler;
+import org.evento.parser.model.payload.PayloadDescription;
 
 import java.io.File;
 import java.io.FileReader;
@@ -127,7 +127,7 @@ public class JavaBundleParser implements BundleParser {
 						var prop = new Properties();
 						prop.load(new FileReader(p.toFile()));
 						var i = Integer.parseInt(prop.getProperty(EVENTO_BUNDLE_INSTANCES_MIN_PROPERTY, "0"));
-						if(i == 0 && autorun) return 1;
+						if (i == 0 && autorun) return 1;
 						else return i;
 					} catch (Exception e)
 					{
@@ -175,7 +175,7 @@ public class JavaBundleParser implements BundleParser {
 		} else if (JavaComponentParser.isProjector(classDef))
 		{
 			return new JavaProjectorParser(node).parse();
-		}else if (JavaComponentParser.isObserver(classDef))
+		} else if (JavaComponentParser.isObserver(classDef))
 		{
 			return new JavaObserverParser(node).parse();
 		} else if (JavaComponentParser.isService(classDef))

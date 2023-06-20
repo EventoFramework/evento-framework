@@ -17,20 +17,20 @@ import javax.persistence.Table;
 @Table(name = "performance__handler_service_time")
 public class HandlerServiceTimePerformance {
 
-    @Id
-    private String id;
+	@Id
+	private String id;
 
-    private double agedMeanServiceTime;
-    private long lastServiceTime;
-    private long maxServiceTime;
-    private long minServiceTime;
+	private double agedMeanServiceTime;
+	private long lastServiceTime;
+	private long maxServiceTime;
+	private long minServiceTime;
 
-    private double agedMeanArrivalInterval;
-    private long lastArrivalInterval;
-    private long maxArrivalInterval;
-    private long minArrivalInterval;
+	private double agedMeanArrivalInterval;
+	private long lastArrivalInterval;
+	private long maxArrivalInterval;
+	private long minArrivalInterval;
 
-    private long lastArrival;
-    private long count;
+	private long lastArrival;
+	private long count;
 
 }

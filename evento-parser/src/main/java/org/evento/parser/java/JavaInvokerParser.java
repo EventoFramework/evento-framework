@@ -4,9 +4,9 @@ import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.ASTClassOrInterfaceDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTTypeDeclaration;
+import org.evento.parser.model.component.Invoker;
 import org.evento.parser.model.handler.InvocationHandler;
 import org.evento.parser.model.payload.Invocation;
-import org.evento.parser.model.component.Invoker;
 import org.jaxen.JaxenException;
 
 import java.util.List;
@@ -22,8 +22,8 @@ public class JavaInvokerParser extends JavaComponentParser<Invoker> {
 	private List<InvocationHandler> findInvocationHandlers() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("InvocationHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
-				n ->{
-					var name = n.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() +  "::" + ((ASTMethodDeclaration) n).getName();
+				n -> {
+					var name = n.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() + "::" + ((ASTMethodDeclaration) n).getName();
 					return new InvocationHandler(new Invocation(name));
 				}
 		).collect(Collectors.toList());

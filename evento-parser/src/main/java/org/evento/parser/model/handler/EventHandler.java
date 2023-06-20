@@ -7,17 +7,16 @@ import org.evento.parser.model.payload.Query;
 import java.util.HashMap;
 import java.util.Map;
 
-public class EventHandler extends Handler<Event> implements HasQueryInvocations, HasCommandInvocations{
+public class EventHandler extends Handler<Event> implements HasQueryInvocations, HasCommandInvocations {
+
+	private HashMap<Integer, Query> invokedQueries = new HashMap<>();
+	private HashMap<Integer, Command> invokedCommands = new HashMap<>();
 
 	public EventHandler(Event payload) {
 		super(payload);
 	}
-
 	public EventHandler() {
 	}
-
-	private HashMap<Integer, Query> invokedQueries = new HashMap<>();
-	private HashMap<Integer, Command> invokedCommands = new HashMap<>();
 
 	@Override
 	public void addQueryInvocation(Query query, int line) {

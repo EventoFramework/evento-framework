@@ -11,19 +11,22 @@ import org.evento.application.performance.Track;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.proxy.InvokerWrapper;
 import org.evento.application.reference.*;
-import org.evento.common.messaging.gateway.CommandGatewayImpl;
-import org.evento.common.messaging.gateway.QueryGatewayImpl;
-import org.evento.common.modeling.annotations.component.*;
-import org.evento.common.modeling.annotations.component.Observer;
-import org.evento.common.modeling.messaging.message.application.*;
+import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
+import org.evento.common.messaging.gateway.CommandGateway;
+import org.evento.common.messaging.gateway.CommandGatewayImpl;
+import org.evento.common.messaging.gateway.QueryGateway;
+import org.evento.common.messaging.gateway.QueryGatewayImpl;
+import org.evento.common.modeling.annotations.component.Observer;
+import org.evento.common.modeling.annotations.component.*;
 import org.evento.common.modeling.annotations.handler.InvocationHandler;
 import org.evento.common.modeling.annotations.handler.SagaEventHandler;
 import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.common.modeling.exceptions.HandlerNotFoundException;
+import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
@@ -31,9 +34,6 @@ import org.evento.common.modeling.messaging.payload.DomainEvent;
 import org.evento.common.modeling.messaging.query.Multiple;
 import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
 import org.evento.common.modeling.state.SerializedAggregateState;
-import org.evento.common.messaging.bus.MessageBus;
-import org.evento.common.messaging.gateway.CommandGateway;
-import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.performance.AutoscalingProtocol;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.RemotePerformanceService;
@@ -76,10 +76,8 @@ public class EventoBundle {
 
 	private final int sssFetchSize;
 	private final int sssFetchDelay;
-
-	private boolean isShuttingDown = false;
-
 	private final TracingAgent tracingAgent;
+	private boolean isShuttingDown = false;
 
 	private EventoBundle(
 			String basePackage,
@@ -679,6 +677,80 @@ public class EventoBundle {
 		this.messageBus.gracefulShutdown();
 	}
 
+	public <T extends InvokerWrapper> T getInvoker(Class<T> invokerClass) {
+		ProxyFactory factory = new ProxyFactory();
+		factory.setSuperclass(invokerClass);
+		var h = new MethodHandler() {
+			@Override
+			public Object invoke(Object self, Method method, Method proceed, Object[] args) throws Throwable {
+
+				if (method.getDeclaredAnnotation(InvocationHandler.class) != null)
+				{
+					var payload = new InvocationMessage(
+							invokerClass, method, args
+					);
+					var gProxy = createGatewayTelemetryProxy(invokerClass.getSimpleName(),
+							payload
+					);
+					ProxyFactory factory = new ProxyFactory();
+					factory.setSuperclass(invokerClass);
+					var target = factory.create(new Class<?>[0], new Object[]{},
+							(s, m, p, a) -> {
+								if (m.getName().equals("getCommandGateway"))
+								{
+									return gProxy;
+								}
+								if (m.getName().equals("getQueryGateway"))
+								{
+									return gProxy;
+								}
+								return p.invoke(s, a);
+							});
+					var start = Instant.now();
+					return tracingAgent.track(payload, invokerClass.getSimpleName(), bundleId, bundleVersion,
+							method.getDeclaredAnnotation(Track.class),
+							() -> {
+								Object result = proceed.invoke(target, args);
+								gProxy.sendServiceTimeMetric(start);
+								return result;
+							});
+				}
+
+				return proceed.invoke(self, args);
+			}
+		};
+
+		try
+		{
+			return (T) factory.create(new Class<?>[0], new Object[]{}, h);
+		} catch (NoSuchMethodException | InstantiationException | IllegalAccessException |
+				 InvocationTargetException e)
+		{
+			throw new RuntimeException(e);
+		}
+
+	}
+
+	public ApplicationInfo getAppInfo() {
+		var info = new ApplicationInfo();
+		info.basePackage = basePackage;
+		info.bundleId = bundleId;
+		info.aggregateMessageHandlers = aggregateMessageHandlers.keySet();
+		info.serviceMessageHandlers = serviceMessageHandlers.keySet();
+		info.projectionMessageHandlers = projectionMessageHandlers.keySet();
+		info.projectorMessageHandlers = projectorMessageHandlers.keySet();
+		info.sagaMessageHandlers = sagaMessageHandlers.keySet();
+		return info;
+	}
+
+	public CommandGateway getCommandGateway() {
+		return commandGateway;
+	}
+
+	public QueryGateway getQueryGateway() {
+		return queryGateway;
+	}
+
 	private static class GatewayInterceptor implements java.lang.reflect.InvocationHandler {
 
 		private final GatewayTelemetryProxy proxy;
@@ -733,60 +805,6 @@ public class EventoBundle {
 		}
 	}
 
-	public <T extends InvokerWrapper> T getInvoker(Class<T> invokerClass) {
-		ProxyFactory factory = new ProxyFactory();
-		factory.setSuperclass(invokerClass);
-		var h = new MethodHandler() {
-			@Override
-			public Object invoke(Object self, Method method, Method proceed, Object[] args) throws Throwable {
-
-				if (method.getDeclaredAnnotation(InvocationHandler.class) != null)
-				{
-					var payload = new InvocationMessage(
-                            invokerClass, method, args
-					);
-					var gProxy = createGatewayTelemetryProxy(invokerClass.getSimpleName(),
-							payload
-					);
-					ProxyFactory factory = new ProxyFactory();
-					factory.setSuperclass(invokerClass);
-					var target = factory.create(new Class<?>[0], new Object[]{},
-							(s, m, p, a) -> {
-								if (m.getName().equals("getCommandGateway"))
-								{
-									return gProxy;
-								}
-								if (m.getName().equals("getQueryGateway"))
-								{
-									return gProxy;
-								}
-								return p.invoke(s, a);
-							});
-					var start = Instant.now();
-					return tracingAgent.track(payload, invokerClass.getSimpleName(), bundleId, bundleVersion,
-							method.getDeclaredAnnotation(Track.class),
-							() -> {
-								Object result = proceed.invoke(target, args);
-								gProxy.sendServiceTimeMetric(start);
-								return result;
-							});
-				}
-
-				return proceed.invoke(self, args);
-			}
-		};
-
-		try
-		{
-			return (T) factory.create(new Class<?>[0], new Object[]{}, h);
-		} catch (NoSuchMethodException | InstantiationException | IllegalAccessException |
-				 InvocationTargetException e)
-		{
-			throw new RuntimeException(e);
-		}
-
-	}
-
 	public static class ApplicationInfo {
 		public String basePackage;
 		public String bundleId;
@@ -797,26 +815,6 @@ public class EventoBundle {
 		public Set<String> projectionMessageHandlers;
 		public Set<String> projectorMessageHandlers;
 		public Set<String> sagaMessageHandlers;
-	}
-
-	public ApplicationInfo getAppInfo() {
-		var info = new ApplicationInfo();
-		info.basePackage = basePackage;
-		info.bundleId = bundleId;
-		info.aggregateMessageHandlers = aggregateMessageHandlers.keySet();
-		info.serviceMessageHandlers = serviceMessageHandlers.keySet();
-		info.projectionMessageHandlers = projectionMessageHandlers.keySet();
-		info.projectorMessageHandlers = projectorMessageHandlers.keySet();
-		info.sagaMessageHandlers = sagaMessageHandlers.keySet();
-		return info;
-	}
-
-	public CommandGateway getCommandGateway() {
-		return commandGateway;
-	}
-
-	public QueryGateway getQueryGateway() {
-		return queryGateway;
 	}
 
 	public static class Builder {

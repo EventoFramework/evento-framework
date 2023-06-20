@@ -34,9 +34,9 @@ public class RabbitMqMessageBusConfiguration {
 				serverBundleVersion,
 				handlerClusterName,
 				rabbitHost
-				);
+		);
 		messageBus.enableBus();
 		return messageBus;
 	}
-	
+
 }

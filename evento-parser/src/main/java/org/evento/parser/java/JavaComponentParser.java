@@ -2,14 +2,13 @@ package org.evento.parser.java;
 
 import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
+import org.evento.parser.model.component.Component;
 import org.evento.parser.model.handler.Handler;
 import org.evento.parser.model.handler.HasCommandInvocations;
 import org.evento.parser.model.handler.HasQueryInvocations;
 import org.evento.parser.model.payload.Command;
 import org.evento.parser.model.payload.Payload;
 import org.evento.parser.model.payload.Query;
-import org.evento.parser.model.component.Component;
-import org.evento.parser.model.payload.*;
 import org.jaxen.JaxenException;
 
 import java.util.List;
@@ -28,10 +27,6 @@ public abstract class JavaComponentParser<T extends Component> {
 	public static boolean isObserver(ASTTypeDeclaration classDef) throws JaxenException {
 		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Observer\"]").isEmpty();
 	}
-
-
-	public abstract  T parse() throws Exception;
-
 
 	public static boolean isSaga(ASTTypeDeclaration classDef) throws JaxenException {
 		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Saga\"]").isEmpty();
@@ -53,16 +48,18 @@ public abstract class JavaComponentParser<T extends Component> {
 		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Service\"]").isEmpty();
 	}
 
-	protected String getQueryForAnnotatedMethod(String annotation) {
-		return "//ClassOrInterfaceBodyDeclaration[Annotation//Name[@Image=\""+annotation+"\"] and MethodDeclaration]//MethodDeclaration";
-	}
-
-	protected String getDeclaredClassName(){
-		return node.getFirstDescendantOfType(ASTTypeDeclaration.class).getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName();
-	}
-
 	public static boolean isInvoker(ASTTypeDeclaration classDef) throws JaxenException {
 		return !classDef.findChildNodesWithXPath("//Annotation//Name[@Image = \"Invoker\"]").isEmpty();
+	}
+
+	public abstract T parse() throws Exception;
+
+	protected String getQueryForAnnotatedMethod(String annotation) {
+		return "//ClassOrInterfaceBodyDeclaration[Annotation//Name[@Image=\"" + annotation + "\"] and MethodDeclaration]//MethodDeclaration";
+	}
+
+	protected String getDeclaredClassName() {
+		return node.getFirstDescendantOfType(ASTTypeDeclaration.class).getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName();
 	}
 
 	protected void findCommandInvocations(List<? extends Handler<?>> ehs) throws JaxenException {
@@ -114,18 +111,19 @@ public abstract class JavaComponentParser<T extends Component> {
 	) throws JaxenException {
 		var annot = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceBodyDeclaration.class).findChildNodesWithXPath("Annotation//Name[ends-with(@Image,\"Handler\") and not(starts-with(@Image,'Deadline'))]")
 				.stream().map(Node::getImage).filter(Objects::nonNull).filter(n ->
-					n.equals("AggregateCommandHandler") ||
-					n.equals("CommandHandler") ||
-					n.equals("EventHandler") ||
-					n.equals("EventSourcingHandler") ||
-					n.equals("InvocationHandler") ||
-					n.equals("QueryHandler") ||
-					n.equals("SagaEventHandler")
+						n.equals("AggregateCommandHandler") ||
+								n.equals("CommandHandler") ||
+								n.equals("EventHandler") ||
+								n.equals("EventSourcingHandler") ||
+								n.equals("InvocationHandler") ||
+								n.equals("QueryHandler") ||
+								n.equals("SagaEventHandler")
 				).findFirst();
 		if (annot.isPresent())
 		{
-			if(annot.get().equals("InvocationHandler")){
-				var name = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() +  "::" + ((ASTMethodDeclaration) methodOrConstructor).getName();
+			if (annot.get().equals("InvocationHandler"))
+			{
+				var name = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() + "::" + ((ASTMethodDeclaration) methodOrConstructor).getName();
 				hs.stream().filter(eh -> eh.getPayload().getName().equals(name)).forEach(h -> {
 					if (m instanceof Query q && h instanceof HasQueryInvocations qi)
 					{
@@ -136,7 +134,7 @@ public abstract class JavaComponentParser<T extends Component> {
 						ci.addCommandInvocation(c, expr.peek().getBeginLine());
 					}
 				});
-			}else
+			} else
 			{
 				var eName = methodOrConstructor.getFirstDescendantOfType(ASTFormalParameters.class).getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
 				hs.stream().filter(eh -> eh.getPayload().getName().equals(eName)).forEach(h -> {
@@ -166,8 +164,6 @@ public abstract class JavaComponentParser<T extends Component> {
 		}
 
 	}
-
-
 
 
 }

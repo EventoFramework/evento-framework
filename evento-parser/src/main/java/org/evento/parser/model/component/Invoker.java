@@ -4,7 +4,7 @@ import org.evento.parser.model.handler.InvocationHandler;
 
 import java.util.List;
 
-public class Invoker extends Component{
+public class Invoker extends Component {
 
 	private List<InvocationHandler> invocationHandlers;
 

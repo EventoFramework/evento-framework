@@ -1,7 +1,6 @@
 package org.evento.server.es.eventstore;
 
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,10 +15,12 @@ public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Lon
 
 
 	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndCreatedAtBeforeOrderByEventSequenceNumberAsc(Long seq, Long timestamp, Pageable pageable);
-	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndCreatedAtBeforeAndEventNameInOrderByEventSequenceNumberAsc(Long seq, Long timestamp, List<String> eventNames,Pageable pageable);
+
+	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndCreatedAtBeforeAndEventNameInOrderByEventSequenceNumberAsc(Long seq, Long timestamp, List<String> eventNames, Pageable pageable);
 
 	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndEventSequenceNumberBeforeOrderByEventSequenceNumberAsc(Long seq, Long seqTo, Pageable pageable);
-	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndEventSequenceNumberBeforeAndEventNameInOrderByEventSequenceNumberAsc(Long seq, Long seqTo, List<String> eventNames,Pageable pageable);
+
+	List<EventStoreEntry> findAllByEventSequenceNumberAfterAndEventSequenceNumberBeforeAndEventNameInOrderByEventSequenceNumberAsc(Long seq, Long seqTo, List<String> eventNames, Pageable pageable);
 
 	@Query("select max(e.eventSequenceNumber) from EventStoreEntry e")
 	Long getLastEventSequenceNumber();
@@ -30,7 +31,7 @@ public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Lon
 
 	@Query(value = "select count(*) / ((max(created_at) - min(created_at))/1000) " +
 			"from (select created_at from es__events order by event_sequence_number desc limit 100) r", nativeQuery = true)
-    Double getPublicationRatio();
+	Double getPublicationRatio();
 
 	@Query("select count(distinct e.aggregateId) from EventStoreEntry e")
 	Long getAggregateCount();

@@ -1,8 +1,8 @@
 package org.evento.server.service;
 
-import org.evento.server.domain.model.Handler;
-import org.evento.server.domain.model.Bundle;
 import org.evento.common.modeling.bundle.types.HandlerType;
+import org.evento.server.domain.model.Bundle;
+import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.repository.HandlerRepository;
 import org.springframework.stereotype.Service;
 
@@ -39,7 +39,7 @@ public class HandlerService {
 		return handlerRepository.save(handler);
 	}
 
-	public boolean hasBundleHandlersForPayload(Bundle bundle, String payloadName){
+	public boolean hasBundleHandlersForPayload(Bundle bundle, String payloadName) {
 		return handlerRepository.existsByComponent_BundleAndHandledPayload_NameAndHandlerType(bundle, payloadName, HandlerType.EventHandler);
 	}
 

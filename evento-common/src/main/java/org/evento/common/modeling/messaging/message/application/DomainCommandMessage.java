@@ -10,7 +10,8 @@ public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 		this.aggregateId = command.getAggregateId();
 	}
 
-	public DomainCommandMessage(){}
+	public DomainCommandMessage() {
+	}
 
 	public String getAggregateId() {
 		return aggregateId;

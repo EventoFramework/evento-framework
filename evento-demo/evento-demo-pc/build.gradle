@@ -45,9 +45,9 @@ dependencies {
 
 
 
-	implementation project(":evento-bus-rabbitmq")
+	implementation project(":evento-bus:evento-bus-rabbitmq")
 	implementation project(":evento-bundle")
-	implementation project(":evento-consumer-state-store-mysql")
+	implementation project(":evento-consumer-state-store:evento-consumer-state-store-mysql")
 	implementation project(":evento-demo:evento-demo-api")
 }
 

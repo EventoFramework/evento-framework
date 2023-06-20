@@ -10,7 +10,7 @@ public class AggregateDeletedError extends RuntimeException {
 		super(message);
 	}
 
-	public static AggregateDeletedError build(String aggregateId){
+	public static AggregateDeletedError build(String aggregateId) {
 		return new AggregateDeletedError("The aggregate %s in deleted".formatted(aggregateId));
 	}
 }

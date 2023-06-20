@@ -9,13 +9,13 @@ import static org.evento.common.serialization.ObjectMapperUtils.getPayloadObject
 
 class BundleDescriptionParserTest {
 
-   @Test
-    public void test() throws Exception {
-       JavaBundleParser applicationParser = new JavaBundleParser();
-       var components = applicationParser.parseDirectory(
-               new File("../evento-demo/evento-demo-agent"));
-       var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
+	@Test
+	public void test() throws Exception {
+		JavaBundleParser applicationParser = new JavaBundleParser();
+		var components = applicationParser.parseDirectory(
+				new File("../evento-demo/evento-demo-agent"));
+		var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
 
-       System.out.println(components);
-    }
+		System.out.println(components);
+	}
 }

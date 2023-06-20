@@ -1,6 +1,5 @@
 package org.evento.common.performance;
 
-import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.modeling.messaging.message.application.Message;
 
 import java.time.Instant;
@@ -31,7 +30,7 @@ public abstract class PerformanceService {
 		try
 		{
 			var st = new PerformanceServiceTimeMessage(bundle, component, message.getPayloadName()
-					,startTime.toEpochMilli(), Instant.now().toEpochMilli());
+					, startTime.toEpochMilli(), Instant.now().toEpochMilli());
 			sendServiceTimeMetricMessage(st);
 		} catch (Exception ignored)
 		{
@@ -40,7 +39,6 @@ public abstract class PerformanceService {
 	}
 
 	protected abstract void sendServiceTimeMetricMessage(PerformanceServiceTimeMessage message) throws Exception;
-
 
 
 	public void setPerformanceRate(double performanceRate) {

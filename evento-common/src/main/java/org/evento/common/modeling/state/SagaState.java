@@ -15,11 +15,11 @@ public abstract class SagaState implements Serializable {
 		this.ended = ended;
 	}
 
-	public void setAssociation(String eventFieldName, String value){
+	public void setAssociation(String eventFieldName, String value) {
 		associations.put(eventFieldName, value);
 	}
 
-	public void unsetAssociation(String eventFieldName){
+	public void unsetAssociation(String eventFieldName) {
 		associations.remove(eventFieldName);
 	}
 }

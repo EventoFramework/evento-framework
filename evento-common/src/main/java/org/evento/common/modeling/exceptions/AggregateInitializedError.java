@@ -11,7 +11,7 @@ public class AggregateInitializedError extends RuntimeException {
 		super(message);
 	}
 
-	public static AggregateInitializedError build(String aggregateId){
+	public static AggregateInitializedError build(String aggregateId) {
 		return new AggregateInitializedError("The aggregate %s in initialized".formatted(aggregateId));
 	}
 
