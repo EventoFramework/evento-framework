@@ -43,7 +43,7 @@ export class ApplicationFlowsPage implements OnInit {
   search = '';
 
 
-  private network: any;
+  private model: any;
 
   constructor(private flowService: FlowsService,
               private catalogService: CatalogService,
@@ -64,45 +64,44 @@ export class ApplicationFlowsPage implements OnInit {
     }
     this.checkFilter();
 
-    this.route.queryParamMap.subscribe(async q => this.setNetwork(await this.loadNetworkFromQuery(q)));
+    this.route.queryParamMap.subscribe(async q => this.setModel(await this.loadModelFromQuery(q)));
   }
 
-  loadNetworkFromQuery(queryParamMap) {
+  loadModelFromQuery(queryParamMap) {
     const component = queryParamMap.get('component');
     if (component) {
 
-      return this.flowService.getQueueNetFilter('component', component);
+      return this.flowService.getPerformanceModelFilter('component', component);
     }
     const bundle = queryParamMap.get('bundle');
     if (bundle) {
 
-      return this.flowService.getQueueNetFilter('bundle', bundle);
+      return this.flowService.getPerformanceModelFilter('bundle', bundle);
     }
     const payload = queryParamMap.get('payload');
     if (payload) {
 
-      return this.flowService.getQueueNetFilter('payload', payload);
+      return this.flowService.getPerformanceModelFilter('payload', payload);
     }
     const handler = queryParamMap.get('handler');
     if (handler) {
 
-      return this.flowService.getQueueNetFilter('handler', handler);
+      return this.flowService.getPerformanceModelFilter('handler', handler);
     }
-    return this.flowService.getQueueNet();
+    return this.flowService.getPerformanceModel();
   }
 
-  async setNetwork(network) {
-    console.log(network);
+  async setModel(model) {
 
     const container = this.container.nativeElement;
 
     // Disables built-in context menu
     mxEvent.disableContextMenu(container);
 
-    this.network = network;
+    this.model = model;
     this.sources = [];
     const tMap = {};
-    for (const node of this.network.nodes) {
+    for (const node of this.model.nodes) {
       if (node.type === 'Source') {
         node.throughtput = 0.001;
         node.meanServiceTime = 1000;
@@ -191,7 +190,7 @@ export class ApplicationFlowsPage implements OnInit {
 
         const nodesRef = {};
 
-        for (const node of this.network.nodes) {
+        for (const node of this.model.nodes) {
           nodesRef[node.id] = node;
           if (node.type !== 'Source') {
             node.throughtput = 0;
@@ -212,7 +211,7 @@ export class ApplicationFlowsPage implements OnInit {
           'fontColor=black;fillColor=transparent';
         const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;' +
           'endArrow=block;endFill=1;orthogonal=1;strokeWidth=1;';
-        for (const node of this.network.nodes) {
+        for (const node of this.model.nodes) {
 
           let height = 60;
           if (node.component === 'Gateway') {
@@ -280,14 +279,14 @@ export class ApplicationFlowsPage implements OnInit {
         }
 
 
-        for (const node of this.network.nodes) {
+        for (const node of this.model.nodes) {
           const targets = [];
           for (const t of Object.keys(node.target)) {
             targets.push(nodesRef[t]);
           }
           for (const target of targets.sort((a, b) => a?.async - b?.async)) {
             if (this.performanceAnalysis) {
-              const source = nodesRef[node.id]; 
+              const source = nodesRef[node.id];
               const ql = (source.throughtput - target.throughtput);
               const ratio = source.throughtput / source.flowThroughtput;
               const c = this.perc2color(ratio * 100);
@@ -322,7 +321,7 @@ export class ApplicationFlowsPage implements OnInit {
       // Installs a popupmenu handler using local function (see below).
       graph.popupMenuHandler.factoryMethod = (menu, cell, evt) => {
         if (cell?.vertex && this.performanceAnalysis) {
-          const targets = this.network.nodes.filter(n => n.handlerId === cell.handlerId && n.meanServiceTime);
+          const targets = this.model.nodes.filter(n => n.handlerId === cell.handlerId && n.meanServiceTime);
           if (targets.length) {
             console.log(targets);
             menu.addItem('Edit Mean Service Time (' + targets[0].meanServiceTime.toFixed(4) + ' [ms])', '', async () => {
@@ -358,7 +357,7 @@ export class ApplicationFlowsPage implements OnInit {
             menu.addSeparator();
 
             for (const t of Object.keys(targets[0].target)) {
-              const i = this.network.nodes.find(n => parseInt(n.id, 10) === parseInt(t, 10));
+              const i = this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(t, 10));
               menu.addItem(i.action + ' (' + targets[0].target[t] + ')', '', async () => {
                 const alert = await this.alertController.create({
                   header: 'Edit Invocation Frequency',
@@ -382,7 +381,7 @@ export class ApplicationFlowsPage implements OnInit {
                         for (const tt of targets) {
                           // eslint-disable-next-line guard-for-in
                           for (const k in tt.target) {
-                            if (this.network.nodes.find(n => parseInt(n.id, 10) === parseInt(k, 10)).action === i.action) {
+                            if (this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(k, 10)).action === i.action) {
                               tt.target[k] = parseFloat(e.inf);
                             }
                           }
@@ -454,7 +453,7 @@ export class ApplicationFlowsPage implements OnInit {
 
     let i = 0;
 
-    for (const node of this.network.nodes) {
+    for (const node of this.model.nodes) {
       nodesRef[node.id] = node;
       if (node.type !== 'Source') {
         node.throughtput = 0;
@@ -464,7 +463,7 @@ export class ApplicationFlowsPage implements OnInit {
 
     while (true) {
 
-      for (const node of this.network.nodes) {
+      for (const node of this.model.nodes) {
         node.flowThroughtput = 0;
       }
 
@@ -500,7 +499,7 @@ export class ApplicationFlowsPage implements OnInit {
       this.bundleActiveThreads = {};
       this.maxFlowThroughput = {};
 
-      for (const node of this.network.nodes) {
+      for (const node of this.model.nodes) {
         const nc = node.throughtput * node.meanServiceTime;
         node.customers = (node.fcr ? Math.max(node.numServers, nc) : nc);
         if (node.bundle) {
@@ -526,7 +525,7 @@ export class ApplicationFlowsPage implements OnInit {
 
       i++;
       const nsSum = {};
-      for (const node of this.network.nodes) {
+      for (const node of this.model.nodes) {
         if (node.fcr) {
           if (!nsSum[node.component]) {
             nsSum[node.component] = 0;
@@ -535,7 +534,7 @@ export class ApplicationFlowsPage implements OnInit {
         }
       }
       let diff = 0;
-      for (const node of this.network.nodes) {
+      for (const node of this.model.nodes) {
         if (node.fcr) {
           const o = node.numServers;
           node.numServers = node.flowThroughtput * node.meanServiceTime / Math.max(1, nsSum[node.component]);

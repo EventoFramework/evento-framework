@@ -7,7 +7,6 @@ import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.model.Payload;
 import org.evento.server.domain.performance.HandlerInvocationCountPerformance;
 import org.evento.server.domain.performance.HandlerServiceTimePerformance;
-import org.evento.server.domain.performance.queue.Node;
 import org.evento.server.domain.repository.ComponentRepository;
 import org.evento.server.domain.repository.HandlerInvocationCountPerformanceRepository;
 import org.evento.server.domain.repository.HandlerRepository;
@@ -15,7 +14,6 @@ import org.evento.server.domain.repository.HandlerServiceTimePerformanceReposito
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
-import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HashMap;
