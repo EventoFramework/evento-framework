@@ -1,11 +1,9 @@
-package org.evento.server.domain.performance.queue;
+package org.evento.server.domain.performance.model;
 
 import org.evento.server.service.performance.PerformanceStoreService;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 public class Source extends Node{
 

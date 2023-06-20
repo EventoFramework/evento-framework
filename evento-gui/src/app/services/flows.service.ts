@@ -8,11 +8,11 @@ export class FlowsService {
 
   constructor() { }
 
-  getQueueNet() {
+  getPerformanceModel() {
     return fetch(environment.eventoServerUrl + '/api/flows/').then(r => r.json());
   }
 
-  getQueueNetFilter(filter, value) {
+  getPerformanceModelFilter(filter, value) {
     return fetch(environment.eventoServerUrl + '/api/flows/'+filter+'/'+value).then(r => r.json());
   }
 }

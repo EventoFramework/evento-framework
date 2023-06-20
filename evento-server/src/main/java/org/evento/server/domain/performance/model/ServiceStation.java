@@ -1,4 +1,4 @@
-package org.evento.server.domain.performance.queue;
+package org.evento.server.domain.performance.model;
 
 import org.evento.server.service.performance.PerformanceStoreService;
 

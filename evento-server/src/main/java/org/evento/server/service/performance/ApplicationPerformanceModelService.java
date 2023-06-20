@@ -5,9 +5,9 @@ import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.server.domain.model.Handler;
 import org.evento.server.domain.model.Payload;
-import org.evento.server.domain.performance.queue.Node;
-import org.evento.server.domain.performance.queue.QueueNetwork;
-import org.evento.server.domain.performance.queue.ServiceStation;
+import org.evento.server.domain.performance.model.Node;
+import org.evento.server.domain.performance.model.PerformanceModel;
+import org.evento.server.domain.performance.model.ServiceStation;
 import org.evento.server.domain.repository.HandlerRepository;
 import org.evento.server.domain.repository.PayloadRepository;
 import org.springframework.stereotype.Service;
@@ -20,14 +20,14 @@ import static org.evento.common.performance.PerformanceService.SERVER;
 
 
 @Service
-public class ApplicationQueueNetService {
+public class ApplicationPerformanceModelService {
 
 	private final HandlerRepository handlerRepository;
 
 	private final PerformanceStoreService performanceStoreService;
 	private final PayloadRepository payloadRepository;
 
-	public ApplicationQueueNetService(
+	public ApplicationPerformanceModelService(
 			HandlerRepository handlerRepository, PerformanceStoreService performanceStoreService,
 			PayloadRepository payloadRepository) {
 		this.handlerRepository = handlerRepository;
@@ -35,10 +35,10 @@ public class ApplicationQueueNetService {
 		this.payloadRepository = payloadRepository;
 	}
 
-	public QueueNetwork toQueueNetwork() {
+	public PerformanceModel toPerformanceModel() {
 
 
-		var n = new QueueNetwork(performanceStoreService::getMeanServiceTime);
+		var n = new PerformanceModel(performanceStoreService::getMeanServiceTime);
 		var handlers = handlerRepository.findAll();
 
 		handlers.stream().filter(h -> h.getHandlerType() == HandlerType.InvocationHandler).forEach(i -> {
@@ -53,7 +53,7 @@ public class ApplicationQueueNetService {
 
 
 			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-				generateInvocationQueueNet(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
 			}
 
 			//
@@ -64,7 +64,7 @@ public class ApplicationQueueNetService {
 
 	}
 
-	private void generateInvocationQueueNet(QueueNetwork n, List<Handler> handlers, Payload p, ServiceStation source, Node dest) {
+	private void generateInvocationPerformanceModel(PerformanceModel n, List<Handler> handlers, Payload p, ServiceStation source, Node dest) {
 		if (p.getType() == PayloadType.Command || p.getType() == PayloadType.DomainCommand || p.getType() == PayloadType.ServiceCommand) {
 			// Invoker -> Server
 			var serverRequestAgent = n.station(SERVER, "Gateway", "Gateway", p.getName(), p.getType().toString(), false, null, "Gateway_" + p.getType().toString());
@@ -104,7 +104,7 @@ public class ApplicationQueueNetService {
 									, h.getHandledPayload().getType().toString(), true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService );
 							for (var i : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-								generateInvocationQueueNet(n, handlers, i.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, i.getValue(), ha, null);
 							}
 						});
 			} else {
@@ -135,9 +135,9 @@ public class ApplicationQueueNetService {
 		}
 	}
 
-	public QueueNetwork toQueueNetwork(String handlerId) {
+	public PerformanceModel toPerformanceModel(String handlerId) {
 
-		var n = new QueueNetwork(performanceStoreService::getMeanServiceTime);
+		var n = new PerformanceModel(performanceStoreService::getMeanServiceTime);
 		var handlers = handlerRepository.findAll();
 
 		handlers.stream().filter(h -> h.getUuid().equals(handlerId)).forEach(i -> {
@@ -153,7 +153,7 @@ public class ApplicationQueueNetService {
 
 
 			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-				generateInvocationQueueNet(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
 			}
 
 
@@ -176,7 +176,7 @@ public class ApplicationQueueNetService {
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
 								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationQueueNet(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
 							}
 						});
 			}
@@ -187,8 +187,8 @@ public class ApplicationQueueNetService {
 		return n;
 	}
 
-	public QueueNetwork toQueueNetworkFromPayload(String payload) {
-		var n = new QueueNetwork(performanceStoreService::getMeanServiceTime);
+	public PerformanceModel toPerformanceModelFromPayload(String payload) {
+		var n = new PerformanceModel(performanceStoreService::getMeanServiceTime);
 		var handlers = handlerRepository.findAll();
 		var p = payloadRepository.findById(payload).orElseThrow();
 		var source = n.source(p.getName(), p.getType().toString());
@@ -203,7 +203,7 @@ public class ApplicationQueueNetService {
 
 
 			for (var pp : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-				generateInvocationQueueNet(n, handlers, pp.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, pp.getValue(), s, null);
 			}
 
 
@@ -226,7 +226,7 @@ public class ApplicationQueueNetService {
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
 								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationQueueNet(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
 							}
 						});
 			}
@@ -248,8 +248,8 @@ public class ApplicationQueueNetService {
 		return n;
 	}
 
-	public QueueNetwork toQueueNetworkFromComponent(String component) {
-		var n = new QueueNetwork(performanceStoreService::getMeanServiceTime);
+	public PerformanceModel toPerformanceModelFromComponent(String component) {
+		var n = new PerformanceModel(performanceStoreService::getMeanServiceTime);
 		var handlers = handlerRepository.findAll();
 
 		handlers.stream().filter(h -> h.getComponent().getComponentName().equals(component) && h.getHandlerType() != HandlerType.EventSourcingHandler).forEach(i -> {
@@ -264,7 +264,7 @@ public class ApplicationQueueNetService {
 
 
 			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-				generateInvocationQueueNet(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
 			}
 
 
@@ -287,7 +287,7 @@ public class ApplicationQueueNetService {
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
 								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationQueueNet(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
 							}
 						});
 			}
@@ -298,8 +298,8 @@ public class ApplicationQueueNetService {
 		return n;
 	}
 
-	public QueueNetwork toQueueNetworkFromBundle(String bundle) {
-		var n = new QueueNetwork(performanceStoreService::getMeanServiceTime);
+	public PerformanceModel toPerformanceModelFromBundle(String bundle) {
+		var n = new PerformanceModel(performanceStoreService::getMeanServiceTime);
 		var handlers = handlerRepository.findAll();
 
 		handlers.stream().filter(h -> h.getComponent().getBundle().getId().equals(bundle) && h.getHandlerType() != HandlerType.EventSourcingHandler).forEach(i -> {
@@ -314,7 +314,7 @@ public class ApplicationQueueNetService {
 
 
 			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
-				generateInvocationQueueNet(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
 			}
 
 
@@ -337,7 +337,7 @@ public class ApplicationQueueNetService {
 
 							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList()) {
 								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationQueueNet(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
 							}
 						});
 			}
