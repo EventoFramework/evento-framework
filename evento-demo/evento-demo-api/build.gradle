@@ -10,6 +10,7 @@ buildscript {
 
 plugins {
     id 'java'
+    id 'java-library'
 }
 
 group 'org.evento'
@@ -27,7 +28,7 @@ dependencies {
 
     implementation project(":evento-common")
     implementation project(":evento-bundle")
-    implementation 'io.sentry:sentry:6.23.0'
+    api 'io.sentry:sentry:6.23.0'
 }
 
 test {

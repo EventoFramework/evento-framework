@@ -53,4 +53,5 @@ export const graphCenterFit = (graph, container) => {
   zoom = zoom * 0.95;
   graph.zoomTo(zoom);
   graph.center();
+  container.style.position = "absolute";
 };
