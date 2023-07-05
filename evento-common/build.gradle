@@ -1,9 +1,12 @@
+import org.gradle.api.publish.maven.MavenPublication
+
 plugins {
     id 'java'
     id 'java-library'
+    id 'maven-publish'
 }
 
-group 'org.evento.common'
+group 'com.eventoframework.common'
 version '1.0-SNAPSHOT'
 
 repositories {
@@ -21,4 +24,20 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = 'com.eventoframework'
+            artifactId = 'evento-common'
+            version = version
+            from components.java
+
+            pom {
+                name = 'Evento - Common'
+                description = '...'
+            }
+        }
+    }
 }

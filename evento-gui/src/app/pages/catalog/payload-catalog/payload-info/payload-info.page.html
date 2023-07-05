@@ -4,9 +4,9 @@
       <ion-row>
         <ion-col size="9" class="line-right">
           <ion-row class="ion-margin-top line-under">
-            <ion-col>
+            <ion-col size="10">
               <ion-title>
-                <h1>{{payload.name}}
+                <h1  style="white-space: normal">{{payload.name}}
                   <ion-chip [class]="'payload-type-' + payload.type">{{payload.type}}</ion-chip>
                 </h1>
               </ion-title>
@@ -14,7 +14,7 @@
               <ion-text *ngIf="!isEditing">{{payload.description}}</ion-text>
               <textarea class="editor" type="text" *ngIf="isEditing" [(ngModel)]="payload.description"></textarea>
             </ion-col>
-            <ion-col class="ion-text-end" size="3">
+            <ion-col class="ion-text-end" size="2">
               <ion-button fill="outline" color="medium" *ngIf="!isEditing" (click)="isEditing = true">
                 <ion-icon slot="start" name="pencil"></ion-icon>
                 <span translate="common.edit"></span>

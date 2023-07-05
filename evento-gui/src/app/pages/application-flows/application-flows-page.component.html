@@ -1,47 +1,43 @@
-<!--<ion-header>
-  <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-back-button defaultHref="/"></ion-back-button>
-    </ion-buttons>
-    <ion-title translate="application.flows.title"></ion-title>
-    <ion-label slot="end" class="ion-margin-end" translate="application.flows.performance.analysis"></ion-label>
-    <ion-toggle slot="end" (ionChange)="togglePerformanceAnalysis($event)" [value]="performanceAnalysis"></ion-toggle>
-  </ion-toolbar>
-
-</ion-header>
--->
 <ion-content>
   <ion-grid style="height: 100%; width: 100%">
     <ion-row style="height: 100%; width: 100%">
-      <ion-col size="2" style="overflow-y: scroll; max-height: calc(100vh - 64px)">
-        <ion-searchbar [(ngModel)]="search" (ionChange)="checkFilter()" mode="ios" [placeholder]="'flows.search' | translate"></ion-searchbar>
+      <ion-col style="overflow-y: scroll; max-height: calc(100vh - 64px); max-width: 324px">
+        <ion-searchbar [(ngModel)]="search" (ionChange)="checkFilter()" mode="ios"
+                       [placeholder]="'flows.search' | translate"></ion-searchbar>
         <ion-card class="bundle" style="background: #3b82f6" routerLink="/application-flows">
           <ion-card-content>
             <ion-text class="title" translate="flows.all"></ion-text>
             <p translate="flows.all.desc"></p>
           </ion-card-content>
         </ion-card>
-        <ng-container *ngIf="payloads && payloads.length">
-        <ion-title class="title ion-margin"><span translate="catalog.payload.title"></span> ({{payloads.length}})</ion-title>
-          <ion-card *ngFor="let payload of payloads" [class]="'payload-type payload-type-' + payload.type" routerLink="/application-flows" [queryParams]="{'payload' : payload.name}">
-            <ion-card-content>
-              <ion-text class="title">{{payload.name}}</ion-text>
-              <ion-text color="dark"><p>{{payload.description}}</p></ion-text>
-            </ion-card-content>
-          </ion-card>
-        </ng-container>
         <ng-container *ngIf="components && components.length">
-          <ion-title class="title ion-margin"><span translate="catalog.component.title"></span> ({{components.length}})</ion-title>
-          <ion-card *ngFor="let component of components" [class]="'component-type component-type-' + component.componentType" routerLink="/application-flows" [queryParams]="{'component' : component.componentName}">
+          <ion-title class="title ion-margin"><span translate="catalog.component.title"></span> ({{components.length}})
+          </ion-title>
+          <ion-card *ngFor="let component of components"
+                    [class]="'component-type component-type-' + component.componentType" routerLink="/application-flows"
+                    [queryParams]="{'component' : component.componentName}">
             <ion-card-content>
               <ion-text class="title">{{component.componentName}}</ion-text>
               <ion-text color="dark"><p>{{component.description}}</p></ion-text>
             </ion-card-content>
           </ion-card>
         </ng-container>
+        <ng-container *ngIf="payloads && payloads.length">
+          <ion-title class="title ion-margin"><span translate="catalog.payload.title"></span> ({{payloads.length}})
+          </ion-title>
+          <ion-card *ngFor="let payload of payloads" [class]="'payload-type payload-type-' + payload.type"
+                    routerLink="/application-flows" [queryParams]="{'payload' : payload.name}">
+            <ion-card-content>
+              <ion-text class="title">{{payload.name}}</ion-text>
+              <ion-text color="dark"><p>{{payload.description}}</p></ion-text>
+            </ion-card-content>
+          </ion-card>
+        </ng-container>
         <ng-container *ngIf="bundleFilter && bundleFilter.length">
-          <ion-title class="title ion-margin"><span translate="bundle.title"></span> ({{bundleFilter.length}})</ion-title>
-          <ion-card *ngFor="let bundle of bundleFilter" class="bundle" [style.background-color]="bundle.color" routerLink="/application-flows" [queryParams]="{'bundle' : bundle.id}">
+          <ion-title class="title ion-margin"><span translate="bundle.title"></span> ({{bundleFilter.length}})
+          </ion-title>
+          <ion-card *ngFor="let bundle of bundleFilter" class="bundle" [style.background-color]="bundle.color"
+                    routerLink="/application-flows" [queryParams]="{'bundle' : bundle.id}">
             <ion-card-content>
               <ion-text class="title">{{bundle.id}}</ion-text>
               <ion-text color="dark"><p>{{bundle.description}}</p></ion-text>
@@ -49,7 +45,7 @@
           </ion-card>
         </ng-container>
       </ion-col>
-      <ion-col size="10" style="height: 100%">
+      <ion-col style="height: 100%">
         <ion-card style="position: absolute;    z-index: 99999;    right: 0;">
           <ion-card-content>
             <ion-item lines="none">
@@ -59,7 +55,7 @@
           </ion-card-content>
         </ion-card>
         <div style="background: url('https://jgraph.github.io/mxgraph/javascript/examples/editors/images/grid.gif');
-  height: 100%; width: 100%; overflow: hidden"  #container id="container"></div>
+  height: 100%; width: 100%; overflow: hidden" #container id="container"></div>
       </ion-col>
     </ion-row>
   </ion-grid>
@@ -73,7 +69,8 @@
       <ion-list>
         <ion-item *ngFor="let source of sources">
           <ion-label position="stacked">{{source.name}} [ms]</ion-label>
-          <ion-input [value]="1/source.throughtput" (ionChange)="source.throughtput = 1/$event.target.value" name="serviceTime" type="number">
+          <ion-input [value]="1/source.throughtput" (ionChange)="source.throughtput = 1/$event.target.value"
+                     name="serviceTime" type="number">
           </ion-input>
           <ion-note slot="helper">{{source.throughtput}} [r/ms]</ion-note>
 
@@ -131,9 +128,14 @@
         </ion-list-header>
         <ion-item *ngFor="let source of sources">
           <ion-label>{{source.name}}</ion-label>
-          <ion-label class="ion-text-end" [color]="maxFlowThroughput[source.id].throughtput / source.throughtput < 0.99 ? (maxFlowThroughput[source.id].throughtput / source.throughtput < 0.80 ? 'danger' : 'warning') : 'success'" slot="end">
-            {{maxFlowThroughput[source.id].throughtput | number:'.4'}} / {{source.throughtput | number:'.4'}} [r/ms] ({{1/maxFlowThroughput[source.id].throughtput | number:'.4'}} ms)<br/>
-            <ion-note slot="end">{{maxFlowThroughput[source.id].component}} - {{maxFlowThroughput[source.id].action}}</ion-note></ion-label>
+          <ion-label class="ion-text-end"
+                     [color]="maxFlowThroughput[source.id].throughtput / source.throughtput < 0.99 ? (maxFlowThroughput[source.id].throughtput / source.throughtput < 0.80 ? 'danger' : 'warning') : 'success'"
+                     slot="end">
+            {{maxFlowThroughput[source.id].throughtput | number:'.4'}} / {{source.throughtput | number:'.4'}} [r/ms]
+            ({{1 / maxFlowThroughput[source.id].throughtput | number:'.4'}} ms)<br/>
+            <ion-note slot="end">{{maxFlowThroughput[source.id].component}}
+              - {{maxFlowThroughput[source.id].action}}</ion-note>
+          </ion-label>
 
         </ion-item>
 
