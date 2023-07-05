@@ -170,14 +170,12 @@ export class ApplicationFlowsPage implements OnInit {
 
 
       container.addEventListener('wheel', (e: any) => {
-        if (e.ctrlKey) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (e.wheelDelta > 0) {
-            graph.zoomIn();
-          } else {
-            graph.zoomOut();
-          }
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.wheelDelta > 0) {
+          graph.zoomIn();
+        } else {
+          graph.zoomOut();
         }
       });
 
