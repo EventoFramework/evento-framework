@@ -22,6 +22,7 @@ dependencies {
     implementation 'io.github.classgraph:classgraph:4.8.149'
 
     api 'com.eventoframework:evento-common:+'
+    api 'org.hibernate.validator:hibernate-validator:8.0.0.Final'
 
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0'
 
