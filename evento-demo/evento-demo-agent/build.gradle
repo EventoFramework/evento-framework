@@ -1,9 +1,13 @@
+import org.evento.cli.PublishBundle
+import org.evento.cli.UpdateVersion
+
 buildscript {
     repositories {
         mavenCentral()
+        mavenLocal()
     }
     dependencies {
-        classpath files('../../evento-cli/build/libs/evento-cli-1.0-SNAPSHOT-all.jar')
+        classpath 'com.eventoframework:evento-cli:+'
     }
 }
 
@@ -27,6 +31,7 @@ configurations {
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 dependencies {
@@ -41,16 +46,12 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
-
-
-    implementation project(":evento-bus:evento-bus-rabbitmq")
-    implementation project(":evento-bundle")
     implementation project(":evento-demo:evento-demo-api")
 
 }
 
 
-task prepareKotlinBuildScriptModel {
+tasks.register('prepareKotlinBuildScriptModel') {
 
 }
 
@@ -58,19 +59,19 @@ test {
     useJUnitPlatform()
 }
 
-task eventoUpdateVersion  {
+tasks.register('eventoUpdateVersion') {
     dependsOn 'clean'
     doLast {
-        org.evento.cli.UpdateVersion.main(new String[]{file("./src")})
+        UpdateVersion.run(file("./src").toString())
     }
 }
-task eventoPublish {
+tasks.register('eventoPublish') {
     dependsOn 'bootJar'
     doLast {
-        org.evento.cli.PublishBundle.main(new String[]{file("."), 'http://localhost:3000'})
+        PublishBundle.run(file(".").toString(), 'http://localhost:3000')
     }
 }
-task eventoUpdateVersionAndPublish {
+tasks.register('eventoUpdateVersionAndPublish') {
     dependsOn 'eventoUpdateVersion'
     finalizedBy(eventoPublish)
 }

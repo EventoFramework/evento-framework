@@ -4,8 +4,8 @@ plugins {
     id 'maven-publish'
 }
 
-group 'org.evento.cli'
-version '1.0-SNAPSHOT'
+group 'com.eventoframework'
+version '1.0.1'
 
 repositories {
     mavenCentral()

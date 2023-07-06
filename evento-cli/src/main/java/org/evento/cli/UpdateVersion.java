@@ -11,7 +11,10 @@ import static org.evento.parser.java.JavaBundleParser.EVENTO_BUNDLE_VERSION_PROP
 
 public class UpdateVersion {
 	public static void main(String[] args) throws Exception {
-		String bundlePath = args[0];
+		run(args[0]);
+	}
+
+	public static void run(String bundlePath) throws Exception{
 		if (Files.walk(new File(bundlePath).toPath())
 				.filter(p -> p.toString().endsWith(".properties"))
 				.noneMatch(p -> {
