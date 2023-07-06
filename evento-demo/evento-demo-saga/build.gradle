@@ -1,11 +1,16 @@
+import org.evento.cli.PublishBundle
+import org.evento.cli.UpdateVersion
+
 buildscript {
     repositories {
         mavenCentral()
+        mavenLocal()
     }
     dependencies {
-        classpath files('../../evento-cli/build/libs/evento-cli-1.0-SNAPSHOT-all.jar')
+        classpath 'com.eventoframework:evento-cli:+'
     }
 }
+
 
 plugins {
     id 'org.springframework.boot' version '2.6.6'
@@ -23,11 +28,10 @@ configurations {
     }
 }
 
-
 repositories {
     mavenCentral()
+    mavenLocal()
 }
-
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
@@ -45,13 +49,12 @@ dependencies {
 
 
 
-    implementation project(":evento-bus:evento-bus-rabbitmq")
-    implementation project(":evento-bundle")
-    implementation project(":evento-consumer-state-store:evento-consumer-state-store-mysql")
+
+    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:+'
     implementation project(":evento-demo:evento-demo-api")
 }
 
-task prepareKotlinBuildScriptModel {
+tasks.register('prepareKotlinBuildScriptModel') {
 
 }
 
@@ -59,19 +62,19 @@ test {
     useJUnitPlatform()
 }
 
-task eventoUpdateVersion  {
+tasks.register('eventoUpdateVersion') {
     dependsOn 'clean'
     doLast {
-        org.evento.cli.UpdateVersion.main(new String[]{file("./src")})
+        UpdateVersion.run(file("./src").toString())
     }
 }
-task eventoPublish {
+tasks.register('eventoPublish') {
     dependsOn 'bootJar'
     doLast {
-        org.evento.cli.PublishBundle.main(new String[]{file("."), 'http://localhost:3000'})
+        PublishBundle.run(file(".").toString(), 'http://localhost:3000')
     }
 }
-task eventoUpdateVersionAndPublish {
+tasks.register('eventoUpdateVersionAndPublish') {
     dependsOn 'eventoUpdateVersion'
     finalizedBy(eventoPublish)
 }
