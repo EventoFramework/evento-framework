@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'maven-publish'
 }
 
 group 'org.evento.cli'
@@ -8,6 +9,7 @@ version '1.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 dependencies {
@@ -16,8 +18,8 @@ dependencies {
     implementation 'info.picocli:picocli:4.7.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0'
 
-    implementation project(":evento-parser")
-    implementation project(":evento-common")
+    implementation 'com.eventoframework:evento-parser:+'
+    implementation 'com.eventoframework:evento-common:+'
 
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
 }
@@ -31,5 +33,21 @@ jar {
         attributes(
                 'Main-Class': 'org.evento.cli.Main'
         )
+    }
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = 'com.eventoframework'
+            artifactId = 'evento-cli'
+            version = version
+            from components.java
+
+            pom {
+                name = 'Evento - CLI'
+                description = '...'
+            }
+        }
     }
 }

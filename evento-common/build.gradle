@@ -6,7 +6,7 @@ plugins {
     id 'maven-publish'
 }
 
-group 'com.eventoframework.common'
+group 'com.eventoframework'
 version '1.0-SNAPSHOT'
 
 repositories {
