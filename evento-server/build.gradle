@@ -16,6 +16,7 @@ configurations {
 
 repositories {
 	mavenCentral()
+	mavenLocal()
 }
 
 dependencies {
@@ -39,10 +40,11 @@ dependencies {
 
 	implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
-	implementation project(":evento-bus:evento-bus-jgroups")
-	implementation project(":evento-bus:evento-bus-rabbitmq")
-	implementation project(':evento-common')
-	implementation project(':evento-parser')
+	implementation 'com.eventoframework.bus:evento-bus-jgroups:+'
+	implementation 'com.eventoframework.bus:evento-bus-rabbitmq:+'
+	implementation 'com.eventoframework.bus:evento-bus-rabbitmq:+'
+	implementation 'com.eventoframework:evento-common:+'
+	implementation 'com.eventoframework:evento-parser:+'
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {
