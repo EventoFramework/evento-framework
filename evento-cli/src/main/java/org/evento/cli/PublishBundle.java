@@ -18,10 +18,8 @@ import static org.evento.common.serialization.ObjectMapperUtils.getPayloadObject
 
 
 public class PublishBundle {
-	public static void main(String[] args) throws Exception {
-		String bundlePath = args[0];
-		String serverUrl = args[1];
 
+	public static void run(String bundlePath, String serverUrl) throws Exception {
 		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
 				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
 				.findFirst().orElseThrow();
@@ -69,7 +67,8 @@ public class PublishBundle {
 			System.err.println("Server Upload Failed");
 			System.err.println(resp.body().string());
 		}
-
-
+	}
+	public static void main(String[] args) throws Exception {
+		run(args[0],  args[1]);
 	}
 }
