@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'com.eventoframework.bus'
-version '1.0-SNAPSHOT'
+version '1.0.1'
 
 repositories {
     mavenCentral()
@@ -18,7 +18,7 @@ dependencies {
 
 
     implementation 'com.eventoframework:evento-common:+'
-    implementation group: 'org.jgroups', name: 'jgroups', version:'5.2.7.Final'
+    api group: 'org.jgroups', name: 'jgroups', version:'5.2.7.Final'
 }
 
 test {
