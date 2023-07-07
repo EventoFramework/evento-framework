@@ -1,4 +1,4 @@
-package org.evento.server.domain.performance.modeling;
+package org.evento.server.performance.modeling;
 
 import java.util.ArrayList;
 import java.util.HashMap;

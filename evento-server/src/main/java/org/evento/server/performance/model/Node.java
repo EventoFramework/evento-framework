@@ -1,4 +1,4 @@
-package org.evento.server.domain.performance.model;
+package org.evento.server.performance.model;
 
 public abstract class Node {
 

@@ -87,9 +87,9 @@ public class BundleService {
 
 		for (PayloadDescription payloadDescription : bundleDescription.getPayloadDescriptions())
 		{
-			var payload = new Payload();
+			var payload = payloadRepository.findById(payloadDescription.getName()).orElseGet(Payload::new);
 			payload.setName(payloadDescription.getName());
-			payload.setJsonSchema(payloadDescription.getSchema().toString());
+			payload.setJsonSchema(payloadDescription.getSchema());
 			payload.setType(PayloadType.valueOf(payloadDescription.getType()));
 			payload.setUpdatedAt(Instant.now());
 			payload.setRegisteredIn(bundle.getId());
@@ -97,7 +97,6 @@ public class BundleService {
 			payloadRepository.save(payload);
 		}
 
-		Bundle finalBundle = bundle;
 		for (Component component : bundleDescription.getComponents())
 		{
 			if (component instanceof Aggregate a)
@@ -133,7 +132,7 @@ public class BundleService {
 												payload.setJsonSchema("null");
 												payload.setType(PayloadType.DomainCommand);
 												payload.setUpdatedAt(Instant.now());
-												payload.setRegisteredIn(finalBundle.getId());
+												payload.setRegisteredIn(bundle.getId());
 												payload.setValidJsonSchema(false);
 												return payloadRepository.save(payload);
 											}
