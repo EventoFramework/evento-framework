@@ -1,4 +1,4 @@
-package org.evento.server.domain.performance.model;
+package org.evento.server.performance.model;
 
 public class Sink extends Node {
 

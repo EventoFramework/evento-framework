@@ -1,8 +1,8 @@
 package org.evento.server.web.dto.performance;
 
-import org.evento.server.domain.performance.model.Node;
-import org.evento.server.domain.performance.model.ServiceStation;
-import org.evento.server.domain.performance.model.Source;
+import org.evento.server.performance.model.Node;
+import org.evento.server.performance.model.ServiceStation;
+import org.evento.server.performance.model.Source;
 
 import java.io.Serializable;
 import java.util.HashMap;

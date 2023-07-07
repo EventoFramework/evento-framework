@@ -1,4 +1,4 @@
-package org.evento.server.domain.performance.modeling;
+package org.evento.server.performance.modeling;
 
 public record Performance(Double meanServiceTime, Double meanThroughput) {
 }

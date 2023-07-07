@@ -1,6 +1,6 @@
 package org.evento.server.web.dto.performance;
 
-import org.evento.server.domain.performance.model.PerformanceModel;
+import org.evento.server.performance.model.PerformanceModel;
 
 import java.io.Serializable;
 import java.util.ArrayList;
