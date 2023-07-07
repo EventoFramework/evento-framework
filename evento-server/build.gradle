@@ -31,17 +31,13 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	implementation 'com.google.code.gson:gson:2.10'
 
-
 	runtimeOnly 'com.h2database:h2'
 	runtimeOnly 'mysql:mysql-connector-java'
 
 	testImplementation 'org.flywaydb:flyway-core'
-
-
 	implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
 	implementation 'com.eventoframework.bus:evento-bus-jgroups:+'
-	implementation 'com.eventoframework.bus:evento-bus-rabbitmq:+'
 	implementation 'com.eventoframework.bus:evento-bus-rabbitmq:+'
 	implementation 'com.eventoframework:evento-common:+'
 	implementation 'com.eventoframework:evento-parser:+'
