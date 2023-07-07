@@ -1,12 +1,9 @@
 pluginManagement {
 	repositories {
+		mavenLocal()
 		maven { url 'https://repo.spring.io/release' }
 		mavenCentral()
 		gradlePluginPortal()
-		mavenLocal()
-		maven {
-			url = uri("evento-maven-repo")
-		}
 	}
 }
 
@@ -16,16 +13,12 @@ include 'evento-server'
 include 'evento-cli'
 include 'evento-common'
 include 'evento-bundle'
-
 include 'evento-consumer-state-store:evento-consumer-state-store-mysql'
 
 include 'evento-bus:evento-bus-jgroups'
 include 'evento-bus:evento-bus-rabbitmq'
 
-findProject(':evento-demo:evento-demo-pc')?.name = 'evento-demo-pc'
-findProject(':evento-demo:evento-demo-agent')?.name = 'evento-demo-agent'
-findProject(':evento-demo:evento-demo-web-domain')?.name = 'evento-demo-web-domain'
-findProject(':evento-demo:evento-demo-api')?.name = 'evento-demo-api'
+
 include 'evento-demo:evento-demo-command'
 include 'evento-demo:evento-demo-query'
 include 'evento-demo:evento-demo-saga'
@@ -34,4 +27,3 @@ include 'evento-demo:evento-demo-web-domain'
 include 'evento-demo:evento-demo-pc'
 include 'evento-demo:evento-demo-agent'
 include 'evento-demo:evento-demo-observer'
-

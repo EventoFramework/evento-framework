@@ -8,6 +8,7 @@ import org.evento.common.modeling.messaging.message.application.*;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static io.sentry.BaggageHeader.BAGGAGE_HEADER;
@@ -56,8 +57,8 @@ public class SentryTracingAgent implements TracingAgent {
 				t = Sentry.startTransaction(
 						TransactionContext.fromSentryTrace(
 								component + "." + action + "(" + message.getPayloadName() + ")",
-								"evento"
-								, new SentryTraceHeader(
+								"evento",
+								new SentryTraceHeader(
 										metadata.get(SENTRY_TRACE_HEADER)
 								)
 						)
@@ -81,6 +82,7 @@ public class SentryTracingAgent implements TracingAgent {
 			}
 		}
 		metadata.put(SENTRY_TRACE_HEADER, t.toSentryTrace().getValue());
+		metadata.put(BAGGAGE_HEADER, t.toBaggageHeader(List.of()).getValue());
 		t.setData("Description", t.getName() + " - " + bundle + "@" + bundleVersion);
 		t.setTag("message", message.getPayloadName());
 		t.setTag("component", component);
@@ -128,36 +130,6 @@ public class SentryTracingAgent implements TracingAgent {
 			metadata.put(BAGGAGE_HEADER, handledMessage.getMetadata().get(BAGGAGE_HEADER));
 		}
 		return metadata;
-	}
-
-	public static class TrackedException extends RuntimeException {
-
-		private String traceRef;
-
-		public TrackedException(ITransaction transaction, Throwable cause) {
-			super(cause + ": " + cause.getMessage() + " (trace:" + transaction.toSentryTrace().getValue() + ")",
-					cause, false, false);
-			this.traceRef = transaction.toSentryTrace().getValue();
-		}
-
-		@Override
-		public StackTraceElement[] getStackTrace() {
-			return Stream.concat(Arrays.stream(super.getStackTrace()),
-					Arrays.stream(getCause().getStackTrace())).toArray(StackTraceElement[]::new);
-		}
-
-		@Override
-		public void printStackTrace() {
-			super.printStackTrace();
-		}
-
-		public String getTraceRef() {
-			return traceRef;
-		}
-
-		public void setTraceRef(String traceRef) {
-			this.traceRef = traceRef;
-		}
 	}
 
 

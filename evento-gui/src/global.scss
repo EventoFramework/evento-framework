@@ -50,7 +50,7 @@
 }
 
 .payload-type-View {
-  --background: #5fc08b;
+  --background: #00CC00;
   --color: white;
 }
 
@@ -83,7 +83,7 @@
 }
 
 .dot.payload-type-View {
-  color: #5fc08b;
+  color: #00CC00;
 }
 
 .dot.payload-type-Invocation {
@@ -105,12 +105,12 @@
 }
 
 .component-type-Projection {
-  --background: green;
+  --background: lightgreen;
   --color: white;
 }
 
 .component-type-Projector {
-  --background: lightgreen;
+  --background: green;
 }
 
 .component-type-Saga {
@@ -136,11 +136,11 @@
 }
 
 .dot.component-type-Projection {
-  color: green;
+  color: lightgreen;
 }
 
 .dot.component-type-Projector {
-  color: lightgreen;
+  color: green;
 }
 
 .dot.component-type-Saga {
