@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 
 @Service
@@ -110,9 +111,9 @@ public class PerformanceStoreService extends PerformanceService {
 			{
 				var hId = Handler.generateId(bundle, component, action);
 				var handler = handlerRepository.findById(hId).orElseThrow();
-				for (String payload : handler.getInvocations().values().stream().map(Payload::getName).distinct().toList())
+				for (var payload : new HashSet<>(handler.getInvocations().values()))
 				{
-					var id = bundle + "_" + component + "_" + action + '_' + payload;
+					var id = bundle + "_" + component + "_" + action + '_' + payload.getName();
 					var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(()
 							-> {
 						var hi = new HandlerInvocationCountPerformance();
