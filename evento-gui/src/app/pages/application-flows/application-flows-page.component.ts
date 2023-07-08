@@ -121,7 +121,7 @@ export class ApplicationFlowsPage implements OnInit {
     // eslint-disable-next-line guard-for-in
     for (const block in tMap) {
       for (const node of tMap[block]) {
-        node.numServers = node.numServers / tMap[block].length;
+        //node.numServers = node.numServers / tMap[block].length;
         node.fcr = true;
       }
     }
@@ -193,7 +193,7 @@ export class ApplicationFlowsPage implements OnInit {
           if (node.type !== 'Source') {
             node.throughtput = 0;
           }
-          node.flowThroughtput = 0;
+          node.workload = node.throughtput;
         }
 
 
@@ -286,7 +286,7 @@ export class ApplicationFlowsPage implements OnInit {
             if (this.performanceAnalysis) {
               const source = nodesRef[node.id];
               const ql = (source.throughtput - target.throughtput);
-              const ratio = source.throughtput / source.flowThroughtput;
+              const ratio = source.throughtput / source.workload;
               const c = this.perc2color(ratio * 100);
               let txt = (node.throughtput * node.target[target.id]).toFixed(4) + '  [r/ms]';
               if (target.fcr) {
@@ -321,7 +321,6 @@ export class ApplicationFlowsPage implements OnInit {
         if (cell?.vertex && this.performanceAnalysis) {
           const targets = this.model.nodes.filter(n => n.handlerId === cell.handlerId && n.meanServiceTime);
           if (targets.length) {
-            console.log(targets);
             menu.addItem('Edit Mean Service Time (' + targets[0].meanServiceTime.toFixed(4) + ' [ms])', '', async () => {
               const alert = await this.alertController.create({
                 header: 'Edit Mean Service Time',
@@ -456,19 +455,21 @@ export class ApplicationFlowsPage implements OnInit {
       if (node.type !== 'Source') {
         node.throughtput = 0;
       }
-      node.flowThroughtput = 0;
+      node.workload = node.throughtput;
+      node.mf = 1;
+      node.isBottleneck = false;
+      node.mainBottleneck = null;
     }
 
     while (true) {
 
-      for (const node of this.model.nodes) {
-        node.flowThroughtput = 0;
-      }
+      this.bundleActiveThreads = {};
+      this.maxFlowThroughput = {};
 
       const q = [];
       for (const s of this.sources) {
         s.meanServiceTime = 1 / s.throughtput;
-        s.flowThroughtput = s.throughtput;
+        this.maxFlowThroughput[s.id] = s;
         s.flow = s.id;
         q.push(s);
       }
@@ -476,50 +477,27 @@ export class ApplicationFlowsPage implements OnInit {
         const n = q.shift();
         for (const t of Object.keys(n.target)) {
           const target = nodesRef[t];
-          target.throughtput = (n.throughtput * n.target[t]);
+          target.workload = (n.throughtput * n.target[t]);
+          target.throughtput = target.workload;
           if (target.fcr) {
             const tt = target.numServers / target.meanServiceTime;
-            if (tt < target.throughtput) {
+            if (tt < target.workload) {
               target.throughtput = tt;
+              target.isBottleneck = true;
+            } else {
+              target.isBottleneck = false;
             }
           }
-          if (target.throughtput > n.throughtput || n.target[t] !== 1) {
-            target.flowThroughtput = target.throughtput;
-            target.flow = target.id;
-          } else {
-            target.flow = n.flow;
-            target.flowThroughtput = n.flowThroughtput;
+          target.flow = n.flow;
+          target.mf = n.mf * n.target[t];
+          target.mainBottleneck = n.mainBottleneck;
+          if (n.isBottleneck && !target.mainBottleneck) {
+            target.mainBottleneck = n.id;
           }
           q.push(target);
         }
       }
 
-      this.bundleActiveThreads = {};
-      this.maxFlowThroughput = {};
-
-      for (const node of this.model.nodes) {
-        const nc = node.throughtput * node.meanServiceTime;
-        node.customers = (node.fcr ? Math.max(node.numServers, nc) : nc);
-        if (node.bundle) {
-          if (!this.bundleActiveThreads[node.bundle]) {
-            this.bundleActiveThreads[node.bundle] = 0;
-          }
-          this.bundleActiveThreads[node.bundle] += node.customers;
-          if (!this.bundles.includes(node.bundle)) {
-            this.bundles.push(node.bundle);
-          }
-        }
-        node.isBottleneck = false;
-        if (!this.maxFlowThroughput[node.flow]) {
-          this.maxFlowThroughput[node.flow] = node;
-          //node.isBottleneck = true;
-        } else if (nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
-          if (this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
-            this.maxFlowThroughput[node.flow] = node;
-          }
-          node.isBottleneck = true;
-        }
-      }
 
       i++;
       const nsSum = {};
@@ -528,18 +506,60 @@ export class ApplicationFlowsPage implements OnInit {
           if (!nsSum[node.component]) {
             nsSum[node.component] = 0;
           }
-          nsSum[node.component] += node.flowThroughtput * node.meanServiceTime;
+          nsSum[node.component] += node.workload * node.meanServiceTime;
         }
       }
       let diff = 0;
       for (const node of this.model.nodes) {
         if (node.fcr) {
           const o = node.numServers;
-          node.numServers = node.flowThroughtput * node.meanServiceTime / Math.max(1, nsSum[node.component]);
+          node.numServers = (node.workload * node.meanServiceTime) / Math.max(1, nsSum[node.component]);
           diff += Math.abs(o - node.numServers);
         }
       }
       if (i > 10 || diff < 0.0001) {
+        for (const node of this.model.nodes) {
+          const nc = node.workload * node.meanServiceTime;
+          node.customers = (node.fcr ? Math.min(node.numServers, nc) : nc);
+          if (node.bundle) {
+            if (!this.bundleActiveThreads[node.bundle]) {
+              this.bundleActiveThreads[node.bundle] = 0;
+            }
+            this.bundleActiveThreads[node.bundle] += node.customers;
+            if (!this.bundles.includes(node.bundle)) {
+              this.bundles.push(node.bundle);
+            }
+          }
+          if (node.isBottleneck && !node.mainBottleneck) {
+            const source = nodesRef[node.flow];
+            console.log(this.maxFlowThroughput[node.flow].id === source.id);
+            if (this.maxFlowThroughput[node.flow].id === source.id ||
+              this.maxFlowThroughput[node.flow].numServers < node.numServers
+            ) {
+              this.maxFlowThroughput[node.flow] = node;
+            }
+          }
+          /*
+          node.isBottleneck = false;
+          if (nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
+            console.log(node);
+            let c = node.flow;
+            while (c){
+              console.log(c);
+              console.log(nodesRef[c])
+              if(nodesRef[c]?.flow == c){
+                break;
+              }
+              c = nodesRef[c]?.flow
+            }
+            /*
+            if (this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
+              this.maxFlowThroughput[node.flow] = node;
+            }
+            node.isBottleneck = true;
+          }
+        */
+        }
         return;
       }
     }
