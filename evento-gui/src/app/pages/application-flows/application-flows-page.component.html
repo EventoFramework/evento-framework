@@ -129,10 +129,10 @@
         <ion-item *ngFor="let source of sources">
           <ion-label>{{source.name}}</ion-label>
           <ion-label class="ion-text-end"
-                     [color]="maxFlowThroughput[source.id].throughtput / source.throughtput < 0.99 ? (maxFlowThroughput[source.id].throughtput / source.throughtput < 0.80 ? 'danger' : 'warning') : 'success'"
+                     [color]="maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload < 0.99 ? (maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload < 0.80 ? 'danger' : 'warning') : 'success'"
                      slot="end">
-            {{maxFlowThroughput[source.id].throughtput | number:'.4'}} / {{source.throughtput | number:'.4'}} [r/ms]
-            ({{1 / maxFlowThroughput[source.id].throughtput | number:'.4'}} ms)<br/>
+            {{maxFlowThroughput[source.id].throughtput | number:'.4'}} / {{maxFlowThroughput[source.id].workload | number:'.4'}} [r/ms]
+            ({{1 / (maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload) | number:'.4'}} ms)<br/>
             <ion-note slot="end">{{maxFlowThroughput[source.id].component}}
               - {{maxFlowThroughput[source.id].action}}</ion-note>
           </ion-label>
