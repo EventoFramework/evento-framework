@@ -52,9 +52,9 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+			for (var p : i.getInvocations().values().stream().distinct().toList())
 			{
-				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
 
 			//
@@ -93,9 +93,9 @@ public class ApplicationPerformanceModelService {
 							// ES -> EventHandler
 							var perf = performanceStoreService.getMeanServiceTime(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName());
 							var sum = 0.0;
-							for (var i : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+							for (var i : h.getInvocations().values().stream().distinct().toList())
 							{
-								var ih = i.getValue().getHandlers().get(0);
+								var ih = i.getHandlers().get(0);
 								var st = performanceStoreService.getMeanServiceTime(ih.getComponent().getBundle().getId(), ih.getComponent().getComponentName(), ih.getHandledPayload().getName());
 								if (st != null)
 									sum += st;
@@ -107,9 +107,9 @@ public class ApplicationPerformanceModelService {
 									h.getHandledPayload().getName()
 									, h.getHandledPayload().getType().toString(), true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
-							for (var i : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+							for (var i : h.getInvocations().values().stream().distinct().toList())
 							{
-								generateInvocationPerformanceModel(n, handlers, i.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, i, ha, null);
 							}
 						});
 			} else
@@ -159,9 +159,9 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+			for (var p : i.getInvocations().values().stream().distinct().toList())
 			{
-				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
 
 
@@ -183,10 +183,9 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+							for (var j : h.getInvocations().values().stream().distinct().toList())
 							{
-								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j, ha, null);
 							}
 						});
 			}
@@ -212,9 +211,9 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var pp : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+			for (var pp : i.getInvocations().values().stream().distinct().toList())
 			{
-				generateInvocationPerformanceModel(n, handlers, pp.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, pp, s, null);
 			}
 
 
@@ -236,10 +235,10 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+							for (var j : h.getInvocations().values().stream().distinct().toList())
 							{
 								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j, ha, null);
 							}
 						});
 			}
@@ -276,9 +275,9 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+			for (var p : i.getInvocations().values().stream().distinct().toList())
 			{
-				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
 
 
@@ -300,10 +299,9 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+							for (var j : h.getInvocations().values().stream().distinct().toList())
 							{
-								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j, ha, null);
 							}
 						});
 			}
@@ -329,9 +327,9 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+			for (var p : i.getInvocations().values().stream().distinct().toList())
 			{
-				generateInvocationPerformanceModel(n, handlers, p.getValue(), s, null);
+				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
 
 
@@ -353,10 +351,10 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).toList())
+							for (var j : h.getInvocations().values().stream().distinct().toList())
 							{
 								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
-								generateInvocationPerformanceModel(n, handlers, j.getValue(), ha, null);
+								generateInvocationPerformanceModel(n, handlers, j, ha, null);
 							}
 						});
 			}

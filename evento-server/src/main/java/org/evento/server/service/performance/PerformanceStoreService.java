@@ -110,7 +110,7 @@ public class PerformanceStoreService extends PerformanceService {
 			{
 				var hId = Handler.generateId(bundle, component, action);
 				var handler = handlerRepository.findById(hId).orElseThrow();
-				for (String payload : handler.getInvocations().values().stream().map(Payload::getName).collect(Collectors.toSet()))
+				for (String payload : handler.getInvocations().values().stream().map(Payload::getName).distinct().toList())
 				{
 					var id = bundle + "_" + component + "_" + action + '_' + payload;
 					var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(()
