@@ -13,6 +13,7 @@ import org.evento.server.domain.repository.PayloadRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -52,7 +53,7 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().values().stream().distinct().toList())
+			for (var p : new HashSet<>(i.getInvocations().values()))
 			{
 				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
@@ -93,7 +94,7 @@ public class ApplicationPerformanceModelService {
 							// ES -> EventHandler
 							var perf = performanceStoreService.getMeanServiceTime(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName());
 							var sum = 0.0;
-							for (var i : h.getInvocations().values().stream().distinct().toList())
+							for (var i : new HashSet<>(h.getInvocations().values()))
 							{
 								var ih = i.getHandlers().get(0);
 								var st = performanceStoreService.getMeanServiceTime(ih.getComponent().getBundle().getId(), ih.getComponent().getComponentName(), ih.getHandledPayload().getName());
@@ -107,7 +108,7 @@ public class ApplicationPerformanceModelService {
 									h.getHandledPayload().getName()
 									, h.getHandledPayload().getType().toString(), true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
-							for (var i : h.getInvocations().values().stream().distinct().toList())
+							for (var i : new HashSet<>(h.getInvocations().values()))
 							{
 								generateInvocationPerformanceModel(n, handlers, i, ha, null);
 							}
@@ -159,7 +160,7 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().values().stream().distinct().toList())
+			for (var p : new HashSet<>(i.getInvocations().values()))
 			{
 				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
@@ -183,7 +184,7 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().values().stream().distinct().toList())
+							for (var j : new HashSet<>(h.getInvocations().values()))
 							{
 								generateInvocationPerformanceModel(n, handlers, j, ha, null);
 							}
@@ -211,7 +212,7 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var pp : i.getInvocations().values().stream().distinct().toList())
+			for (var pp : new HashSet<>(i.getInvocations().values()))
 			{
 				generateInvocationPerformanceModel(n, handlers, pp, s, null);
 			}
@@ -235,9 +236,8 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().values().stream().distinct().toList())
+							for (var j :new HashSet<>(h.getInvocations().values()))
 							{
-								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
 								generateInvocationPerformanceModel(n, handlers, j, ha, null);
 							}
 						});
@@ -275,7 +275,7 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().values().stream().distinct().toList())
+			for (var p : new HashSet<>(i.getInvocations().values()))
 			{
 				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
@@ -299,7 +299,7 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().values().stream().distinct().toList())
+							for (var j : new HashSet<>(h.getInvocations().values()))
 							{
 								generateInvocationPerformanceModel(n, handlers, j, ha, null);
 							}
@@ -327,7 +327,7 @@ public class ApplicationPerformanceModelService {
 			source.addTarget(s, performanceStoreService);
 
 
-			for (var p : i.getInvocations().values().stream().distinct().toList())
+			for (var p : new HashSet<>(i.getInvocations().values()))
 			{
 				generateInvocationPerformanceModel(n, handlers, p, s, null);
 			}
@@ -351,7 +351,7 @@ public class ApplicationPerformanceModelService {
 									true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, h.getUuid());
 							esAgent.addTarget(ha, performanceStoreService);
 
-							for (var j : h.getInvocations().values().stream().distinct().toList())
+							for (var j : new HashSet<>(h.getInvocations().values()))
 							{
 								//var iq = n.station(h.getBundle().getId(), h.getComponentName(), h.getHandledPayload().getName() + " [" + j.getKey() + "]", false, null);
 								generateInvocationPerformanceModel(n, handlers, j, ha, null);
