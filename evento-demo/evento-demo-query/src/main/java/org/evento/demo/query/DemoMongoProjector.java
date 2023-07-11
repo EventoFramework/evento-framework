@@ -3,9 +3,7 @@ package org.evento.demo.query;
 import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.annotations.component.Projector;
 import org.evento.common.modeling.annotations.handler.EventHandler;
-import org.evento.common.modeling.bundle.TransactionalProjector;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
-import org.evento.common.utils.Inject;
 import org.evento.demo.api.event.DemoCreatedEvent;
 import org.evento.demo.api.event.DemoDeletedEvent;
 import org.evento.demo.api.event.DemoUpdatedEvent;
@@ -16,13 +14,18 @@ import org.evento.demo.query.domain.mongo.DemoMongoRepository;
 import java.time.Instant;
 
 @Projector(version = 2)
-public class DemoMongoProjector implements TransactionalProjector {
+public class DemoMongoProjector {
 
-	@Inject
-	private DemoMongoRepository demoMongoRepository;
+	private final DemoMongoRepository demoMongoRepository;
+
+	public DemoMongoProjector(DemoMongoRepository demoMongoRepository) {
+		this.demoMongoRepository = demoMongoRepository;
+	}
 
 	@EventHandler
-	void on(DemoCreatedEvent event, QueryGateway queryGateway, EventMessage eventMessage) {
+	void on(DemoCreatedEvent event,
+			QueryGateway queryGateway,
+			EventMessage eventMessage) {
 		Utils.logMethodFlow(this, "on", event, "BEGIN");
 		var now = Instant.now();
 		demoMongoRepository.save(new DemoMongo(event.getDemoId(),
@@ -51,21 +54,6 @@ public class DemoMongoProjector implements TransactionalProjector {
 			demoMongoRepository.save(d);
 		});
 		Utils.logMethodFlow(this, "on", event, "END");
-
-	}
-
-	@Override
-	public void begin() throws Exception {
-
-	}
-
-	@Override
-	public void commit() throws Exception {
-
-	}
-
-	@Override
-	public void rollback() throws Exception {
 
 	}
 }

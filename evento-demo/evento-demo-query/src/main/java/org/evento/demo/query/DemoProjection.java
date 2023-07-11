@@ -5,7 +5,6 @@ import org.evento.common.modeling.annotations.handler.QueryHandler;
 import org.evento.common.modeling.messaging.message.application.QueryMessage;
 import org.evento.common.modeling.messaging.query.Multiple;
 import org.evento.common.modeling.messaging.query.Single;
-import org.evento.common.utils.Inject;
 import org.evento.demo.api.query.DemoRichViewFindAllQuery;
 import org.evento.demo.api.query.DemoRichViewFindByIdQuery;
 import org.evento.demo.api.query.DemoViewFindAllQuery;
@@ -18,14 +17,19 @@ import org.evento.demo.query.domain.mongo.DemoMongoRepository;
 
 @Projection
 public class DemoProjection {
-	@Inject
-	private DemoMongoRepository demoMongoRepository;
+
+	private final DemoMongoRepository demoMongoRepository;
+
+	public DemoProjection(DemoMongoRepository demoMongoRepository) {
+		this.demoMongoRepository = demoMongoRepository;
+	}
 
 	@QueryHandler
 	Single<DemoView> query(DemoViewFindByIdQuery query, QueryMessage<DemoViewFindByIdQuery> queryMessage) {
 		Utils.logMethodFlow(this, "query", query, "BEGIN");
 		var result = demoMongoRepository.findById(query.getDemoId())
-				.filter(d -> d.getDeletedAt() != null).orElseThrow().toDemoView();
+				.filter(d -> d.getDeletedAt() != null)
+				.map(DemoMongo::toDemoView).orElseThrow();
 		Utils.logMethodFlow(this, "query", query, "END");
 		return Single.of(result);
 	}
@@ -33,7 +37,9 @@ public class DemoProjection {
 	@QueryHandler
 	Multiple<DemoView> query(DemoViewFindAllQuery query) {
 		Utils.logMethodFlow(this, "query", query, "BEGIN");
-		var result = demoMongoRepository.findAll().stream().filter(d -> d.getDeletedAt() != null).map(DemoMongo::toDemoView).toList();
+		var result = demoMongoRepository.findAll().stream()
+				.filter(d -> d.getDeletedAt() != null)
+				.map(DemoMongo::toDemoView).toList();
 		Utils.logMethodFlow(this, "query", query, "END");
 		return Multiple.of(result);
 	}
@@ -41,7 +47,8 @@ public class DemoProjection {
 	@QueryHandler
 	Single<DemoRichView> queryRich(DemoRichViewFindByIdQuery query) {
 		Utils.logMethodFlow(this, "query", query, "BEGIN");
-		var result = demoMongoRepository.findById(query.getDemoId()).orElseThrow().toDemoRichView();
+		var result = demoMongoRepository.findById(query.getDemoId())
+				.map(DemoMongo::toDemoRichView).orElseThrow();
 		Utils.logMethodFlow(this, "query", query, "END");
 		return Single.of(result);
 	}

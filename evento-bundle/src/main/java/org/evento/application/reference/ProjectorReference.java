@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
-public class ProjectorReference extends Reference implements TransactionalProjector {
+public class ProjectorReference extends Reference{
 
 	private HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 
@@ -59,21 +59,6 @@ public class ProjectorReference extends Reference implements TransactionalProjec
 		{
 			throw e.getCause();
 		}
-	}
-
-	@Override
-	public void begin() throws Exception {
-
-	}
-
-	@Override
-	public void commit() throws Exception {
-
-	}
-
-	@Override
-	public void rollback() throws Exception {
-
 	}
 
 	public Method getEventHandler(String event) {
