@@ -3,7 +3,7 @@ package org.evento.common.modeling.messaging.message.bus;
 import java.io.Serializable;
 import java.util.Set;
 
-public interface BusEventSubscriber {
+public interface BusMessageSubscriber {
 
 	public void onMessage(NodeAddress address, Serializable message);
 
