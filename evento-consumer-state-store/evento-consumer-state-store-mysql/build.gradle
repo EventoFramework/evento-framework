@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'com.eventoframework.consumer'
-version '1.0-SNAPSHOT'
+version '1.0.11'
 
 repositories {
     mavenCentral()
@@ -39,3 +39,4 @@ publishing {
         }
     }
 }
+

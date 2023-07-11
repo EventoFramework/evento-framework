@@ -7,7 +7,7 @@ plugins {
 }
 
 group 'com.eventoframework'
-version '1.0.1'
+version '1.0.11'
 
 repositories {
     mavenCentral()
@@ -41,3 +41,4 @@ publishing {
         }
     }
 }
+

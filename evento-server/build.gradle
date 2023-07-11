@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'org.evento'
-version = '0.0.1-SNAPSHOT'
+version = '1.0.10'
 sourceCompatibility = '17'
 
 configurations {
@@ -49,4 +49,13 @@ tasks.register('prepareKotlinBuildScriptModel') {
 
 test {
 	useJUnitPlatform()
+}
+
+
+tasks.register('xz61'){
+	String minor=version.substring(version.lastIndexOf('.')+1)
+	int m=minor.toInteger()+1
+	String major=version.substring(0,version.length()-1)
+	String s=buildFile.getText().replaceFirst("version '$version'","version '"+major+m+"'")
+	buildFile.setText(s)
 }

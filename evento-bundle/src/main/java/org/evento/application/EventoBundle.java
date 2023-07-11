@@ -11,6 +11,7 @@ import org.evento.application.performance.Track;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.proxy.InvokerWrapper;
 import org.evento.application.reference.*;
+import org.evento.application.utils.ReflectionUtils;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
@@ -37,7 +38,6 @@ import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.performance.AutoscalingProtocol;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.RemotePerformanceService;
-import org.evento.common.utils.Inject;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
 
@@ -576,7 +576,6 @@ public class EventoBundle {
 									if (handler == null) return;
 									var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
 											publishedEvent.getEventMessage());
-									handler.begin();
 									tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(), bundleId, bundleVersion,
 											null,
 											() -> {
@@ -585,7 +584,6 @@ public class EventoBundle {
 														proxy,
 														proxy
 												);
-												handler.commit();
 												proxy.sendInvocationsMetric();
 												return null;
 											});
@@ -623,19 +621,14 @@ public class EventoBundle {
 
 	}
 
-	private Object createComponentInstance(Class<?> aClass, Function<Class<?>, Object> findInjectableObject) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
-		var ref = aClass.getConstructor().newInstance();
-		for (Field declaredField : aClass.getDeclaredFields())
+	private Object createComponentInstance(Class<?> aClass, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+		var constructor = aClass.getConstructors()[0];
+		var parameters = new Object[constructor.getParameterTypes().length];
+		for (int i = 0; i < parameters.length; i++)
 		{
-			if (declaredField.getAnnotation(Inject.class) != null)
-			{
-				var oldAccessibility = declaredField.canAccess(ref);
-				declaredField.setAccessible(true);
-				declaredField.set(ref, findInjectableObject.apply(declaredField.getType()));
-				declaredField.setAccessible(oldAccessibility);
-			}
+			parameters[i] =  findInjectableObject.apply(constructor.getParameterTypes()[i]);
 		}
-		return ref;
+		return constructor.newInstance(parameters);
 	}
 
 
