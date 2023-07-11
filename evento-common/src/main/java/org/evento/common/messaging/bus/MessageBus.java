@@ -5,8 +5,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.TriConsumer;
 import org.evento.common.modeling.exceptions.NodeNotFoundException;
 import org.evento.common.modeling.exceptions.ThrowableWrapper;
-import org.evento.common.modeling.messaging.message.bus.BusEventPublisher;
-import org.evento.common.modeling.messaging.message.bus.BusEventSubscriber;
+import org.evento.common.modeling.messaging.message.bus.BusMessagePublisher;
+import org.evento.common.modeling.messaging.message.bus.BusMessageSubscriber;
 import org.evento.common.modeling.messaging.message.bus.NodeAddress;
 import org.evento.common.modeling.messaging.message.bus.ResponseSender;
 import org.evento.common.modeling.messaging.message.internal.ClusterNodeKillMessage;
@@ -38,8 +38,8 @@ public abstract class MessageBus {
 	private Set<NodeAddress> currentView = new HashSet<>();
 
 
-	protected MessageBus(BusEventPublisher publisher) {
-		publisher.subscribe(new BusEventSubscriber() {
+	protected MessageBus(BusMessagePublisher publisher) {
+		publisher.subscribe(new BusMessageSubscriber() {
 			@Override
 			public void onMessage(NodeAddress address, Serializable message) {
 				receive(address, message);
