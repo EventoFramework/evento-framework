@@ -2,6 +2,7 @@ package org.evento.common.modeling.messaging.query;
 
 import org.evento.common.modeling.messaging.payload.View;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -14,7 +15,7 @@ public class Multiple<T extends View> extends QueryResponse<T> {
 
 	public static <R extends View> Multiple<R> of(Collection<R> data) {
 		var r = new Multiple<R>();
-		r.setData(data);
+		r.setData(new ArrayList<>(data));
 		return r;
 	}
 
