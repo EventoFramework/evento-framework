@@ -6,6 +6,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+import org.evento.common.modeling.messaging.payload.Payload;
+import org.evento.common.modeling.messaging.query.QueryResponse;
+import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
+
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class ObjectMapperUtils {
 
@@ -16,10 +22,13 @@ public class ObjectMapperUtils {
 		if (instance == null)
 		{
 			PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-					.allowIfSubType("org.evento")
-					.allowIfSubType("java.util.ArrayList")
-					.allowIfSubType("java.util.HashMap")
+					.allowIfSubType(Payload.class)
+					.allowIfSubType(QueryResponse.class)
+					.allowIfSubType(SerializedQueryResponse.class)
+					.allowIfSubType(ArrayList.class)
+					.allowIfSubType(HashMap.class)
 					.allowIfSubType("java.util.ImmutableCollections")
+					.allowIfSubType("org.evento")
 					.build();
 
 			var om = new ObjectMapper();
