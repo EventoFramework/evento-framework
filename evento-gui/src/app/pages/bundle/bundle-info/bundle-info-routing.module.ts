@@ -1,7 +1,7 @@
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router';
+import {NgModule} from '@angular/core';
+import {RouterModule, Routes} from '@angular/router';
 
-import { BundleInfoPage } from './bundle-info.page';
+import {BundleInfoPage} from './bundle-info.page';
 
 const routes: Routes = [
   {

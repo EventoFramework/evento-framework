@@ -1,6 +1,5 @@
 package org.evento.consumer.state.store.mysql;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.StoredSagaState;

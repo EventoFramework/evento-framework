@@ -5,11 +5,11 @@ import org.evento.common.messaging.gateway.QueryGateway;
 
 public abstract class InvokerWrapper {
 
-	public CommandGateway getCommandGateway() {
+	protected CommandGateway getCommandGateway() {
 		throw new RuntimeException();
 	}
 
-	public QueryGateway getQueryGateway() {
+	protected QueryGateway getQueryGateway() {
 		throw new RuntimeException();
 	}
 

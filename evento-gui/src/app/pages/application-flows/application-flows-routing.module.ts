@@ -1,7 +1,7 @@
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router';
+import {NgModule} from '@angular/core';
+import {RouterModule, Routes} from '@angular/router';
 
-import { ApplicationFlowsPage } from './application-flows-page.component';
+import {ApplicationFlowsPage} from './application-flows-page.component';
 
 const routes: Routes = [
   {

@@ -2,7 +2,6 @@ package org.evento.bus.rabbitmq;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.io.IOException;
 import java.io.Serializable;

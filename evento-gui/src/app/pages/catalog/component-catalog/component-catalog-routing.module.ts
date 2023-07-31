@@ -1,7 +1,7 @@
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router';
+import {NgModule} from '@angular/core';
+import {RouterModule, Routes} from '@angular/router';
 
-import { ComponentCatalogPage } from './component-catalog.page';
+import {ComponentCatalogPage} from './component-catalog.page';
 
 const routes: Routes = [
   {
