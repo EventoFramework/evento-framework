@@ -55,5 +55,5 @@ tasks.register('eventoUpdateVersionAndPublish') {
     dependsOn 'eventoUpdateVersion'
     finalizedBy(eventoPublish)
 }
-sourceCompatibility = JavaVersion.VERSION_17
-targetCompatibility = JavaVersion.VERSION_17
+sourceCompatibility = '19'
+targetCompatibility = '19'

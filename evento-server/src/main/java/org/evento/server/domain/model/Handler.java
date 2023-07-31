@@ -43,9 +43,14 @@ public class Handler implements Serializable {
 
 	private String associationProperty;
 
-	public static String generateId(String bundleId, String componentName, String handledPayloadName) throws NoSuchAlgorithmException {
+	public static String generateId(String bundleId, String componentName, String handledPayloadName) throws RuntimeException {
 		var str = bundleId + componentName + handledPayloadName;
-		MessageDigest digest = MessageDigest.getInstance("SHA-256");
+		MessageDigest digest = null;
+		try {
+			digest = MessageDigest.getInstance("SHA-256");
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(e);
+		}
 		byte[] hash = digest.digest(
 				str.getBytes(StandardCharsets.UTF_8));
 		StringBuilder hexString = new StringBuilder(2 * hash.length);
@@ -74,7 +79,7 @@ public class Handler implements Serializable {
 		return getUuid() != null ? getUuid().hashCode() : 0;
 	}
 
-	@SneakyThrows
+
 	public void generateId() throws HibernateException {
 		setUuid(generateId(
 				this.getComponent().getBundle().getId(), this.getComponent().getComponentName(), this.getHandledPayload().getName()

@@ -20,7 +20,7 @@ plugins {
 
 group 'org.evento'
 version '1.0-SNAPSHOT'
-sourceCompatibility = '17'
+sourceCompatibility = '19'
 
 configurations {
     compileOnly {
@@ -35,6 +35,7 @@ repositories {
 }
 
 dependencies {
+    implementation project(path: ':evento-common')
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
 

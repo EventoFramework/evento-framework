@@ -6,7 +6,7 @@ plugins {
 
 group = 'org.evento'
 version = '1.0.12'
-sourceCompatibility = '17'
+sourceCompatibility = '19'
 
 configurations {
 	compileOnly {
