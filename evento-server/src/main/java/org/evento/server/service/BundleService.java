@@ -4,6 +4,8 @@ import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.parser.model.BundleDescription;
+import org.evento.parser.model.component.*;
+import org.evento.parser.model.handler.*;
 import org.evento.parser.model.payload.MultipleResultQueryReturnType;
 import org.evento.parser.model.payload.PayloadDescription;
 import org.evento.server.domain.model.BucketType;

@@ -4,6 +4,7 @@ import io.sentry.*;
 import io.sentry.exception.InvalidSentryTraceHeaderException;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.performance.Track;
+import org.evento.common.modeling.messaging.message.application.*;
 
 import java.util.HashMap;
 import java.util.List;

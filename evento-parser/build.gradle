@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'org.evento.parser'
-version '1.0.18'
+version '1.0.19'
 
 repositories {
     mavenCentral()
