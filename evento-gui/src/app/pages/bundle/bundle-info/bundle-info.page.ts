@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {BundleService} from '../../../services/bundle.service';
 import {NavController} from '@ionic/angular';

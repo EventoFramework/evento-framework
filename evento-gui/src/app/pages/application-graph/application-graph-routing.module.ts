@@ -1,7 +1,7 @@
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router';
+import {NgModule} from '@angular/core';
+import {RouterModule, Routes} from '@angular/router';
 
-import { ApplicationGraphPage } from './application-graph-page.component';
+import {ApplicationGraphPage} from './application-graph-page.component';
 
 const routes: Routes = [
   {
