@@ -4,7 +4,6 @@ import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.modeling.annotations.component.Service;
 import org.evento.common.modeling.annotations.handler.CommandHandler;
 import org.evento.common.modeling.messaging.message.application.CommandMessage;
-import org.evento.common.utils.Inject;
 import org.evento.demo.api.command.NotificationSendCommand;
 import org.evento.demo.api.command.NotificationSendSilentCommand;
 import org.evento.demo.api.event.NotificationSentEvent;
@@ -14,8 +13,11 @@ import org.evento.demo.external.ExternalNotificationService;
 @Service
 public class NotificationService {
 
-	@Inject
-	private ExternalNotificationService service;
+	private final ExternalNotificationService service;
+
+	public NotificationService(ExternalNotificationService service) {
+		this.service = service;
+	}
 
 	@CommandHandler
 	NotificationSentEvent handle(NotificationSendCommand command,
