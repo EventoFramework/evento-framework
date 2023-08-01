@@ -4,12 +4,9 @@ import io.sentry.*;
 import io.sentry.exception.InvalidSentryTraceHeaderException;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.performance.Track;
-import org.evento.common.modeling.messaging.message.application.*;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static io.sentry.BaggageHeader.BAGGAGE_HEADER;
 import static io.sentry.SentryTraceHeader.SENTRY_TRACE_HEADER;

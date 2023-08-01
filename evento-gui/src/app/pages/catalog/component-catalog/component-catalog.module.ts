@@ -1,12 +1,12 @@
-import { NgModule } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import {NgModule} from '@angular/core';
+import {CommonModule} from '@angular/common';
+import {FormsModule} from '@angular/forms';
 
-import { IonicModule } from '@ionic/angular';
+import {IonicModule} from '@ionic/angular';
 
-import { ComponentCatalogPageRoutingModule } from './component-catalog-routing.module';
+import {ComponentCatalogPageRoutingModule} from './component-catalog-routing.module';
 
-import { ComponentCatalogPage } from './component-catalog.page';
+import {ComponentCatalogPage} from './component-catalog.page';
 import {TranslateModule} from '@ngx-translate/core';
 import {ComponentsModule} from '../../../components/components.module';
 

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.evento.common.modeling.messaging.payload.Payload;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
@@ -32,6 +33,7 @@ public class ObjectMapperUtils {
 					.build();
 
 			var om = new ObjectMapper();
+			om.registerModule(new JavaTimeModule());
 			om.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 			om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 			om.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);
