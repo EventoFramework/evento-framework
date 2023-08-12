@@ -30,7 +30,7 @@ public class SentryTracingAgent implements TracingAgent {
 		var metadata = message.getMetadata();
 		if (metadata == null)
 		{
-			metadata = new HashMap<>();
+			metadata = new Metadata();
 		}
 		ITransaction t;
 		var action = "invoke";
@@ -108,14 +108,14 @@ public class SentryTracingAgent implements TracingAgent {
 	}
 
 	@Override
-	public HashMap<String, String> correlate(HashMap<String, String> metadata, Message<?> handledMessage) {
+	public Metadata correlate(Metadata metadata, Message<?> handledMessage) {
 		if (handledMessage == null)
 			return metadata;
 		if (handledMessage.getMetadata() != null && handledMessage.getMetadata().containsKey(SENTRY_TRACE_HEADER))
 		{
 			if (metadata == null)
 			{
-				metadata = new HashMap<>();
+				metadata = new Metadata();
 			}
 			metadata.put(SENTRY_TRACE_HEADER, handledMessage.getMetadata().get(SENTRY_TRACE_HEADER));
 		}
@@ -123,7 +123,7 @@ public class SentryTracingAgent implements TracingAgent {
 		{
 			if (metadata == null)
 			{
-				metadata = new HashMap<>();
+				metadata = new Metadata();
 			}
 			metadata.put(BAGGAGE_HEADER, handledMessage.getMetadata().get(BAGGAGE_HEADER));
 		}

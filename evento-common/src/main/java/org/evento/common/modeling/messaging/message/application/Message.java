@@ -3,16 +3,20 @@ package org.evento.common.modeling.messaging.message.application;
 import org.evento.common.modeling.messaging.payload.Payload;
 
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.HashMap;
 
 public abstract class Message<T extends Payload> implements Serializable {
 
 	private SerializedPayload<T> serializedPayload;
 
-	private HashMap<String, String> metadata;
+	private long timestamp;
+
+	private Metadata metadata;
 
 	public Message(T payload) {
 		this.serializedPayload = new SerializedPayload<>(payload);
+		this.timestamp = Instant.now().toEpochMilli();
 	}
 
 	public Message() {
@@ -34,11 +38,11 @@ public abstract class Message<T extends Payload> implements Serializable {
 		this.serializedPayload = serializedPayload;
 	}
 
-	public HashMap<String, String> getMetadata() {
+	public Metadata getMetadata() {
 		return metadata;
 	}
 
-	public void setMetadata(HashMap<String, String> metadata) {
+	public void setMetadata(Metadata metadata) {
 		this.metadata = metadata;
 	}
 
@@ -51,4 +55,11 @@ public abstract class Message<T extends Payload> implements Serializable {
 		return parts[parts.length - 1];
 	}
 
+	public long getTimestamp() {
+		return timestamp;
+	}
+
+	public void setTimestamp(long timestamp) {
+		this.timestamp = timestamp;
+	}
 }

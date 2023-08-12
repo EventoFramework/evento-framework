@@ -2,15 +2,11 @@ package org.evento.common.messaging.gateway;
 
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.utils.RoundRobinAddressPicker;
-import org.evento.common.modeling.messaging.message.application.DomainCommandMessage;
-import org.evento.common.modeling.messaging.message.application.EventMessage;
-import org.evento.common.modeling.messaging.message.application.Message;
-import org.evento.common.modeling.messaging.message.application.ServiceCommandMessage;
+import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
 
-import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +25,7 @@ public class CommandGatewayImpl implements CommandGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata,
+	public <R> R sendAndWait(Command command, Metadata metadata,
 							 Message<?> handledMessage) {
 		try
 		{
@@ -41,7 +37,7 @@ public class CommandGatewayImpl implements CommandGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata,
+	public <R> R sendAndWait(Command command, Metadata metadata,
 							 Message<?> handledMessage, long timeout, TimeUnit unit) {
 		try
 		{
@@ -54,7 +50,7 @@ public class CommandGatewayImpl implements CommandGateway {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata,
+	public <R> CompletableFuture<R> send(Command command, Metadata metadata,
 										 Message<?> handledMessage) {
 		var future = new CompletableFuture<R>();
 		try

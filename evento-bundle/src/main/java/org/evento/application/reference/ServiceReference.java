@@ -59,7 +59,8 @@ public class ServiceReference extends Reference {
 					cm.getPayload(),
 					commandGateway,
 					queryGateway,
-					cm
+					cm,
+					cm.getMetadata()
 			);
 		} catch (InvocationTargetException e)
 		{

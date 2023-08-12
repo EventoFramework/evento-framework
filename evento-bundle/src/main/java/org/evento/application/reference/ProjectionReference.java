@@ -56,7 +56,8 @@ public class ProjectionReference extends Reference {
 					qm.getPayload(),
 					commandGateway,
 					queryGateway,
-					qm
+					qm,
+					qm.getMetadata()
 			);
 		} catch (InvocationTargetException e)
 		{

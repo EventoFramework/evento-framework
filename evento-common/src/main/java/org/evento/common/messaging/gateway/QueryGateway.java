@@ -1,6 +1,7 @@
 package org.evento.common.messaging.gateway;
 
 import org.evento.common.modeling.messaging.message.application.Message;
+import org.evento.common.modeling.messaging.message.application.Metadata;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 
@@ -13,9 +14,9 @@ public interface QueryGateway {
 		return query(query, null);
 	}
 
-	default <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata) {
+	default <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata) {
 		return query(query, metadata, null);
 	}
 
-	<T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata, Message<?> handledMessage);
+	<T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage);
 }

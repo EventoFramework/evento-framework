@@ -60,7 +60,8 @@ public class SagaReference extends Reference {
 					sagaState,
 					commandGateway,
 					queryGateway,
-					em
+					em,
+					em.getMetadata()
 			);
 		} catch (InvocationTargetException e)
 		{
