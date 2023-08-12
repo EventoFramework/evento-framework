@@ -93,7 +93,7 @@ public class AggregateReference extends Reference {
 			for (var em : eventStream)
 			{
 				var eh = getEventSourcingHandler(em.getEventName());
-				envelope.setAggregateState((AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState()));
+				envelope.setAggregateState((AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState(), em.getMetadata()));
 				if (envelope.getAggregateState().isDeleted())
 					throw AggregateDeletedError.build(cm.getAggregateId());
 			}
@@ -103,7 +103,8 @@ public class AggregateReference extends Reference {
 					envelope.getAggregateState(),
 					commandGateway,
 					queryGateway,
-					cm
+					cm,
+					cm.getMetadata()
 			);
 		} catch (InvocationTargetException e)
 		{

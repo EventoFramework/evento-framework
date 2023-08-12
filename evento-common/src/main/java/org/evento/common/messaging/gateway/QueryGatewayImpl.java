@@ -3,6 +3,7 @@ package org.evento.common.messaging.gateway;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 import org.evento.common.modeling.messaging.message.application.Message;
+import org.evento.common.modeling.messaging.message.application.Metadata;
 import org.evento.common.modeling.messaging.message.application.QueryMessage;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
@@ -25,7 +26,7 @@ public class QueryGatewayImpl implements QueryGateway {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata,
+	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata,
 																   Message<?> handledMessage) {
 		var future = new CompletableFuture<T>();
 		try
