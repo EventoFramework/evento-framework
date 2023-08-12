@@ -925,7 +925,7 @@ public class EventoBundle {
 					}
 
 					@Override
-					public HashMap<String, String> correlate(HashMap<String, String> metadata, Message<?> handledMessage) {
+					public Metadata correlate(Metadata metadata, Message<?> handledMessage) {
 						return metadata;
 					}
 				};

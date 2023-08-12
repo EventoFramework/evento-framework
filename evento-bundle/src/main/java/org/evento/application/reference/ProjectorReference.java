@@ -52,7 +52,8 @@ public class ProjectorReference extends Reference{
 					em.getPayload(),
 					commandGateway,
 					queryGateway,
-					em
+					em,
+					em.getMetadata()
 			);
 		} catch (InvocationTargetException e)
 		{

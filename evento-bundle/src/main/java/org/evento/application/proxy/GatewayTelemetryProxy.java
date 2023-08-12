@@ -4,6 +4,7 @@ import org.evento.application.performance.TracingAgent;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.messaging.message.application.Message;
+import org.evento.common.modeling.messaging.message.application.Metadata;
 import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
@@ -47,7 +48,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, Message<?> handledMessage) {
+	public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) {
 		try
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
@@ -61,7 +62,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
 
 	@Override
-	public <R> R sendAndWait(Command command, HashMap<String, String> metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
+	public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
 		try
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
@@ -74,7 +75,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <R> CompletableFuture<R> send(Command command, HashMap<String, String> metadata, Message<?> handledMessage) {
+	public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
 		try
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
@@ -87,7 +88,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	}
 
 	@Override
-	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, HashMap<String, String> metadata, Message<?> handledMessage) {
+	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
 		try
 		{
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
