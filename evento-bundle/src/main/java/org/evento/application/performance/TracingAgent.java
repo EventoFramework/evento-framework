@@ -3,8 +3,6 @@ package org.evento.application.performance;
 import org.evento.common.modeling.messaging.message.application.Message;
 import org.evento.common.modeling.messaging.message.application.Metadata;
 
-import java.util.HashMap;
-
 public interface TracingAgent {
 
 	public default void correlate(Message<?> from, Message<?> to) {

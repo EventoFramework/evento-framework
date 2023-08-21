@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'com.eventoframework'
-version '1.0.20'
+version '1.0.21'
 
 repositories {
     mavenCentral()
@@ -17,8 +17,8 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
     implementation 'info.picocli:picocli:4.7.0'
 
-    implementation 'com.eventoframework:evento-parser:+'
-    implementation 'com.eventoframework:evento-common:+'
+    implementation 'com.eventoframework:evento-parser:1.0.21'
+    implementation 'com.eventoframework:evento-common:1.0.21'
 
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
 }

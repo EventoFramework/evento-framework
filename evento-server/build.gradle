@@ -37,10 +37,10 @@ dependencies {
 	testImplementation 'org.flywaydb:flyway-core'
 	implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
-	implementation 'com.eventoframework.bus:evento-bus-jgroups:+'
-	implementation 'com.eventoframework.bus:evento-bus-rabbitmq:+'
-	implementation 'com.eventoframework:evento-common:+'
-	implementation 'com.eventoframework:evento-parser:+'
+	implementation 'com.eventoframework.bus:evento-bus-jgroups:1.0.21'
+	implementation 'com.eventoframework.bus:evento-bus-rabbitmq:1.0.21'
+	implementation 'com.eventoframework:evento-common:1.0.21'
+	implementation 'com.eventoframework:evento-parser:1.0.21'
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {
