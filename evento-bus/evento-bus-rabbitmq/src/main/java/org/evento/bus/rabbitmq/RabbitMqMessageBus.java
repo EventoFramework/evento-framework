@@ -122,14 +122,12 @@ public class RabbitMqMessageBus extends MessageBus {
 			String bundleId,
 			long bundleVersion,
 			String exchange,
-			String rabbitHost,
+			ConnectionFactory factory,
 			int requestTimeout) throws Exception {
 		var objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 		logger.info("Starting Message Bus for %s".formatted(bundleId));
-		ConnectionFactory factory = new ConnectionFactory();
-		factory.setHost(rabbitHost);
 		Connection connection = factory.newConnection(bundleId);
-		logger.info("Connected to RabbitMQ @ %s".formatted(rabbitHost));
+		logger.info("Connected to RabbitMQ @ %s".formatted(factory.getHost()));
 		Channel channel = connection.createChannel();
 		var nodeId = bundleId + "-" + Instant.now().toEpochMilli();
 		channel.queueDeclare(nodeId, false, false, false, null);
