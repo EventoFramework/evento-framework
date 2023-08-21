@@ -1,2 +1,40 @@
 group 'org.evento'
 version '1.0-SNAPSHOT'
+
+
+def ordered(String... dependencyPaths) {
+   def dependencies = dependencyPaths.collect { tasks.getByPath(it) }
+   for (int i = 0; i < dependencies.size() - 1; i++) {
+      dependencies[i + 1].mustRunAfter(dependencies[i])
+   }
+   return dependencies
+}
+
+task hello {
+   dependsOn ordered(
+           ':evento-common:clean',
+           ':evento-common:build',
+           ':evento-common:publishToMavenLocal',
+           ':evento-parser:clean',
+           ':evento-parser:build',
+           ':evento-parser:publishToMavenLocal',
+           ':evento-cli:clean',
+           ':evento-cli:build',
+           ':evento-cli:publishToMavenLocal',
+           ':evento-bus:evento-bus-jgroups:clean',
+           ':evento-bus:evento-bus-jgroups:build',
+           ':evento-bus:evento-bus-jgroups:publishToMavenLocal',
+           ':evento-bus:evento-bus-rabbitmq:clean',
+           ':evento-bus:evento-bus-rabbitmq:build',
+           ':evento-bus:evento-bus-rabbitmq:publishToMavenLocal',
+           ':evento-consumer-state-store:evento-consumer-state-store-mysql:clean',
+           ':evento-consumer-state-store:evento-consumer-state-store-mysql:build',
+           ':evento-consumer-state-store:evento-consumer-state-store-mysql:publishToMavenLocal',
+           ':evento-bundle:clean',
+           ':evento-bundle:build',
+           ':evento-bundle:publishToMavenLocal',
+           ':evento-server:clean',
+           ':evento-server:bootJar'
+   )
+
+}
