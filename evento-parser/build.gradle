@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'org.evento.parser'
-version '1.0.21'
+version 'ev1.0.23'
 
 repositories {
     mavenCentral()
@@ -30,7 +30,7 @@ dependencies {
     implementation 'org.ow2.asm:asm:9.2'
 
     implementation 'org.reflections:reflections:0.10.2'
-    implementation 'com.eventoframework:evento-common:1.0.21'
+    implementation project(':evento-common')
 
 }
 

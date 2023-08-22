@@ -10,6 +10,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.evento.common.modeling.messaging.payload.Payload;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
+import org.evento.common.modeling.state.AggregateState;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,6 +26,7 @@ public class ObjectMapperUtils {
 			PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
 					.allowIfSubType(Payload.class)
 					.allowIfSubType(QueryResponse.class)
+					.allowIfSubType(AggregateState.class)
 					.allowIfSubType(SerializedQueryResponse.class)
 					.allowIfSubType(ArrayList.class)
 					.allowIfSubType(HashMap.class)

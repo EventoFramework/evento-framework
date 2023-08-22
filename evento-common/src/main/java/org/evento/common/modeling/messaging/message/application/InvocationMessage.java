@@ -31,7 +31,7 @@ public class InvocationMessage extends Message<Invocation> {
 
 	@Override
 	public String getPayloadName() {
-		return getAction();
+		return name;
 	}
 
 	public String getName() {
