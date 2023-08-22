@@ -142,7 +142,7 @@ public class EventoBundle {
 								tracingAgent.correlate(c.getCommandMessage(), em);
 								response.sendResponse(
 										new DomainCommandResponseMessage(em,
-												handler.getSnapshotFrequency() <= c.getEventStream().size() ?
+												(handler.getSnapshotFrequency() >= 0 & handler.getSnapshotFrequency() <= c.getEventStream().size()) ?
 														new SerializedAggregateState<>(envelope.getAggregateState()) : null
 										)
 								);

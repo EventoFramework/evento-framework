@@ -10,31 +10,52 @@ def ordered(String... dependencyPaths) {
    return dependencies
 }
 
-task hello {
+task buildCommon {
    dependsOn ordered(
            ':evento-common:clean',
            ':evento-common:build',
-           ':evento-common:publishToMavenLocal',
+           ':evento-common:publishToMavenLocal')
+}
+
+task buildParser {
+   dependsOn ordered(
            ':evento-parser:clean',
            ':evento-parser:build',
-           ':evento-parser:publishToMavenLocal',
+           ':evento-parser:publishToMavenLocal')}
+
+task buildCli {
+   dependsOn ordered(
            ':evento-cli:clean',
            ':evento-cli:build',
-           ':evento-cli:publishToMavenLocal',
+           ':evento-cli:publishToMavenLocal',)}
+
+task buildJgroups {
+   dependsOn ordered(
            ':evento-bus:evento-bus-jgroups:clean',
            ':evento-bus:evento-bus-jgroups:build',
-           ':evento-bus:evento-bus-jgroups:publishToMavenLocal',
+           ':evento-bus:evento-bus-jgroups:publishToMavenLocal',)};
+
+task buildRabbit {
+   dependsOn ordered(
            ':evento-bus:evento-bus-rabbitmq:clean',
            ':evento-bus:evento-bus-rabbitmq:build',
-           ':evento-bus:evento-bus-rabbitmq:publishToMavenLocal',
+           ':evento-bus:evento-bus-rabbitmq:publishToMavenLocal',)}
+
+task buildCSS {
+   dependsOn ordered(
            ':evento-consumer-state-store:evento-consumer-state-store-mysql:clean',
            ':evento-consumer-state-store:evento-consumer-state-store-mysql:build',
-           ':evento-consumer-state-store:evento-consumer-state-store-mysql:publishToMavenLocal',
+           ':evento-consumer-state-store:evento-consumer-state-store-mysql:publishToMavenLocal',)}
+
+task buildBundle {
+   dependsOn ordered(
            ':evento-bundle:clean',
            ':evento-bundle:build',
-           ':evento-bundle:publishToMavenLocal',
+           ':evento-bundle:publishToMavenLocal',)}
+
+task buildServer {
+   dependsOn ordered(
            ':evento-server:clean',
            ':evento-server:bootJar'
    )
-
 }
