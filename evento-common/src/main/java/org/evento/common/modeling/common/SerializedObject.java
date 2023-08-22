@@ -49,6 +49,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 			return (T) ObjectMapperUtils.getPayloadObjectMapper().readValue(serializedObject, Object.class);
 		} catch (Exception e)
 		{
+			e.printStackTrace();
 			return null;
 		}
 	}

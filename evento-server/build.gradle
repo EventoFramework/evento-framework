@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'org.evento'
-version = '1.0.12'
+version = '1.0.22'
 sourceCompatibility = '19'
 
 configurations {
@@ -37,10 +37,10 @@ dependencies {
 	testImplementation 'org.flywaydb:flyway-core'
 	implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
-	implementation 'com.eventoframework.bus:evento-bus-jgroups:1.0.21'
-	implementation 'com.eventoframework.bus:evento-bus-rabbitmq:1.0.21'
-	implementation 'com.eventoframework:evento-common:1.0.21'
-	implementation 'com.eventoframework:evento-parser:1.0.21'
+	implementation project(':evento-bus:evento-bus-jgroups')
+	implementation project(':evento-bus:evento-bus-rabbitmq')
+	implementation project(':evento-common')
+	implementation project(':evento-parser')
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {
