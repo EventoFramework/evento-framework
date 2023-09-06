@@ -11,8 +11,8 @@ import java.sql.SQLException;
 
 public class MysqlConsumerStateStore extends ConsumerStateStore {
 
-	private static final String CONSUMER_STATE_TABLE = "er__consumer_state";
-	private static final String SAGA_STATE_TABLE = "er__saga_state";
+	private static final String CONSUMER_STATE_TABLE = "evento__consumer_state";
+	private static final String SAGA_STATE_TABLE = "evento__saga_state";
 
 	private static final String CONSUMER_STATE_DDL = "create table if not exists " + CONSUMER_STATE_TABLE
 			+ " (id varchar(255), lastEventSequenceNumber bigint, primary key (id))";
