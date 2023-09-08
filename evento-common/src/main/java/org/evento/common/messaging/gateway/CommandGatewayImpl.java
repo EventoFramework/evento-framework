@@ -32,9 +32,6 @@ public class CommandGatewayImpl implements CommandGateway {
 			return (R) send(command, metadata, handledMessage).get();
 		} catch (ExecutionException e)
 		{
-			if(e.getCause() instanceof RuntimeException re){
-				throw re;
-			}
 			throw new RuntimeException(e.getCause());
 		}
 		catch (InterruptedException e)
@@ -51,9 +48,6 @@ public class CommandGatewayImpl implements CommandGateway {
 			return (R) send(command, metadata, handledMessage).get(timeout, unit);
 		}catch (ExecutionException e)
 		{
-			if(e.getCause() instanceof RuntimeException re){
-				throw re;
-			}
 			throw new RuntimeException(e.getCause());
 		}
 		catch (InterruptedException | TimeoutException e)
