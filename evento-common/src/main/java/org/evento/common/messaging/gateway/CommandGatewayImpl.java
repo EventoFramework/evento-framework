@@ -30,7 +30,14 @@ public class CommandGatewayImpl implements CommandGateway {
 		try
 		{
 			return (R) send(command, metadata, handledMessage).get();
-		} catch (InterruptedException | ExecutionException e)
+		} catch (ExecutionException e)
+		{
+			if(e.getCause() instanceof RuntimeException re){
+				throw re;
+			}
+			throw new RuntimeException(e.getCause());
+		}
+		catch (InterruptedException e)
 		{
 			throw new RuntimeException(e);
 		}
@@ -42,7 +49,14 @@ public class CommandGatewayImpl implements CommandGateway {
 		try
 		{
 			return (R) send(command, metadata, handledMessage).get(timeout, unit);
-		} catch (InterruptedException | ExecutionException | TimeoutException e)
+		}catch (ExecutionException e)
+		{
+			if(e.getCause() instanceof RuntimeException re){
+				throw re;
+			}
+			throw new RuntimeException(e.getCause());
+		}
+		catch (InterruptedException | TimeoutException e)
 		{
 			throw new RuntimeException(e);
 		}
