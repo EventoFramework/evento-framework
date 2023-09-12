@@ -35,7 +35,9 @@ public abstract class ConsumerStateStore {
 
 	public int consumeEventsForProjector(
 			String consumerId,
-			String projectorName, ProjectorEventConsumer projectorEventConsumer,
+			String projectorName,
+			String context,
+			ProjectorEventConsumer projectorEventConsumer,
 			int fetchSize) throws Throwable {
 		var consumedEventCount = 0;
 		if (enterExclusiveZone(consumerId))
@@ -46,6 +48,7 @@ public abstract class ConsumerStateStore {
 				if (lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
 				var resp = ((EventFetchResponse) messageBus.request(messageBus.getNodeAddress(serverNodeName),
 						new EventFetchRequest(
+								context,
 								lastEventSequenceNumber,
 								fetchSize,
 								projectorName)).get());
@@ -74,7 +77,9 @@ public abstract class ConsumerStateStore {
 
 	}
 
-	public int consumeEventsForSaga(String consumerId, String sagaName, SagaEventConsumer sagaEventConsumer,
+	public int consumeEventsForSaga(String consumerId, String sagaName,
+									String context,
+									SagaEventConsumer sagaEventConsumer,
 									int fetchSize) throws Throwable {
 		var consumedEventCount = 0;
 		if (enterExclusiveZone(consumerId))
@@ -83,7 +88,7 @@ public abstract class ConsumerStateStore {
 			{
 				var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
 				var resp = ((EventFetchResponse) messageBus.request(messageBus.findNodeAddress(serverNodeName),
-						new EventFetchRequest(lastEventSequenceNumber, fetchSize, sagaName)).get());
+						new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName)).get());
 				for (PublishedEvent event : resp.getEvents())
 				{
 					var start = Instant.now();

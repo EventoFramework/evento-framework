@@ -442,64 +442,70 @@ public class EventoBundle {
         logger.info("Starting saga consumers");
         logger.info("Checking for saga event consumers");
         for (SagaReference saga : sagas) {
-            var sagaName = saga.getRef().getClass().getSimpleName();
-            var sagaVersion = saga.getRef().getClass().getAnnotation(Saga.class).version();
-            logger.info("Starting event consumer for Saga %s".formatted(sagaName));
-            new Thread(() -> {
-                var consumerId = bundleId + "_" + sagaVersion + "_" + sagaName;
-                while (!isShuttingDown) {
-                    var hasError = false;
-                    var consumedEventCount = 0;
-                    try {
-                        consumedEventCount = consumerStateStore.consumeEventsForSaga(consumerId, sagaName, (sagaStateFetcher, publishedEvent) -> {
-                            var start = Instant.now().toEpochMilli();
-                            var handlers = getSagaMessageHandlers()
-                                    .get(publishedEvent.getEventName());
-                            if (handlers == null) return null;
-
-                            var handler = handlers.getOrDefault(sagaName, null);
-                            if (handler == null) return null;
-
-                            var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName())
-                                    .getAnnotation(SagaEventHandler.class).associationProperty();
-                            var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
-
-                            var sagaState = sagaStateFetcher.getLastState(
-                                    sagaName,
-                                    associationProperty,
-                                    associationValue
-                            );
-                            var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
-                                    publishedEvent.getEventMessage());
-                            return tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
-                                    bundleId, bundleVersion,
-                                    null,
-                                    () -> {
-                                        var resp = handler.invoke(
-                                                publishedEvent.getEventMessage(),
-                                                sagaState,
-                                                proxy,
-                                                proxy
-                                        );
-                                        proxy.sendInvocationsMetric();
-                                        return resp;
-                                    });
-                        }, sssFetchSize);
-                    } catch (Throwable e) {
-                        logger.error(e);
-                        e.printStackTrace();
-                        hasError = true;
-                    }
-                    if (sssFetchSize - consumedEventCount > 10) {
+            var annotation = saga.getRef().getClass().getAnnotation(Saga.class);
+            for(var c: annotation.context()){
+                var sagaName = saga.getRef().getClass().getSimpleName();
+                var sagaVersion = annotation.version();
+                logger.info("Starting event consumer for Saga: %s - Version: %d - Context: %s"
+                        .formatted(sagaName,sagaVersion,c));
+                new Thread(() -> {
+                    var consumerId = bundleId + "_" + sagaName + "_" + sagaVersion + "_" + c;
+                    while (!isShuttingDown) {
+                        var hasError = false;
+                        var consumedEventCount = 0;
                         try {
-                            Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
+                            consumedEventCount = consumerStateStore.consumeEventsForSaga(consumerId,
+                                    sagaName,
+                                    c,(sagaStateFetcher, publishedEvent) -> {
+                                var handlers = getSagaMessageHandlers()
+                                        .get(publishedEvent.getEventName());
+                                if (handlers == null) return null;
+
+                                var handler = handlers.getOrDefault(sagaName, null);
+                                if (handler == null) return null;
+
+                                var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName())
+                                        .getAnnotation(SagaEventHandler.class).associationProperty();
+                                var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
+
+                                var sagaState = sagaStateFetcher.getLastState(
+                                        sagaName,
+                                        associationProperty,
+                                        associationValue
+                                );
+                                var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
+                                        publishedEvent.getEventMessage());
+                                return tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                                        bundleId, bundleVersion,
+                                        null,
+                                        () -> {
+                                            var resp = handler.invoke(
+                                                    publishedEvent.getEventMessage(),
+                                                    sagaState,
+                                                    proxy,
+                                                    proxy
+                                            );
+                                            proxy.sendInvocationsMetric();
+                                            return resp;
+                                        });
+                            }, sssFetchSize);
+                        } catch (Throwable e) {
+                            logger.error(e);
+                            e.printStackTrace();
+                            hasError = true;
+                        }
+                        if (sssFetchSize - consumedEventCount > 10) {
+                            try {
+                                Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
-                }
 
-            }).start();
+                }).start();
+            }
+
         }
     }
 
@@ -512,63 +518,70 @@ public class EventoBundle {
         var counter = new AtomicInteger();
         logger.info("Checking for projector event consumers");
         for (ProjectorReference projector : projectors) {
-            var projectorName = projector.getRef().getClass().getSimpleName();
-            var projectorVersion = projector.getRef().getClass().getAnnotation(Projector.class).version();
-            logger.info("Starting event consumer for Projector %s".formatted(projectorName));
-            new Thread(() -> {
-                var headReached = false;
-                var consumerId = bundleId + "_" + projectorVersion + "_" + projectorName;
-                while (!isShuttingDown) {
-                    var hasError = false;
-                    var consumedEventCount = 0;
-                    try {
-                        consumedEventCount = consumerStateStore.consumeEventsForProjector(
-                                consumerId,
-                                projectorName,
-                                publishedEvent -> {
-                                    var handlers = getProjectorMessageHandlers()
-                                            .get(publishedEvent.getEventName());
-                                    if (handlers == null) return;
+            var annotation = projector.getRef().getClass().getAnnotation(Projector.class);
+            for(var c: annotation.context()){
+                var projectorName = projector.getRef().getClass().getSimpleName();
+                var projectorVersion = annotation.version();
 
-                                    var handler = handlers.getOrDefault(projectorName, null);
-                                    if (handler == null) return;
-                                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
-                                            publishedEvent.getEventMessage());
-                                    tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(), bundleId, bundleVersion,
-                                            null,
-                                            () -> {
-                                                handler.invoke(
-                                                        publishedEvent.getEventMessage(),
-                                                        proxy,
-                                                        proxy
-                                                );
-                                                proxy.sendInvocationsMetric();
-                                                return null;
-                                            });
-
-                                }, sssFetchSize);
-                    } catch (Throwable e) {
-                        logger.error(e);
-                        e.printStackTrace();
-                        hasError = true;
-                    }
-                    if (sssFetchSize - consumedEventCount > 10) {
+                logger.info("Starting event consumer for Projector: %s - Version: %d - Context: %s"
+                        .formatted(projectorName,projectorVersion,c));
+                new Thread(() -> {
+                    var headReached = false;
+                    var consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + c;
+                    while (!isShuttingDown) {
+                        var hasError = false;
+                        var consumedEventCount = 0;
                         try {
-                            Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                    if (!hasError && !headReached && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
-                        headReached = true;
-                        var aligned = counter.incrementAndGet();
-                        if (aligned == projectors.size()) {
-                            onHeadReached.run();
-                        }
-                    }
-                }
+                            consumedEventCount = consumerStateStore.consumeEventsForProjector(
+                                    consumerId,
+                                    projectorName,
+                                    c,
+                                    publishedEvent -> {
+                                        var handlers = getProjectorMessageHandlers()
+                                                .get(publishedEvent.getEventName());
+                                        if (handlers == null) return;
 
-            }).start();
+                                        var handler = handlers.getOrDefault(projectorName, null);
+                                        if (handler == null) return;
+                                        var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
+                                                publishedEvent.getEventMessage());
+                                        tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(), bundleId, bundleVersion,
+                                                null,
+                                                () -> {
+                                                    handler.invoke(
+                                                            publishedEvent.getEventMessage(),
+                                                            proxy,
+                                                            proxy
+                                                    );
+                                                    proxy.sendInvocationsMetric();
+                                                    return null;
+                                                });
+
+                                    }, sssFetchSize);
+                        } catch (Throwable e) {
+                            logger.error(e);
+                            e.printStackTrace();
+                            hasError = true;
+                        }
+                        if (sssFetchSize - consumedEventCount > 10) {
+                            try {
+                                Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                        if (!hasError && !headReached && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
+                            headReached = true;
+                            var aligned = counter.incrementAndGet();
+                            if (aligned == projectors.size()) {
+                                onHeadReached.run();
+                            }
+                        }
+                    }
+
+                }).start();
+            }
+
         }
 
     }
