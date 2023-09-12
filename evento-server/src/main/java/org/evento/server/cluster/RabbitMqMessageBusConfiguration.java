@@ -26,21 +26,29 @@ public class RabbitMqMessageBusConfiguration {
 	@Value("${evento.message.bus.rabbitmq.host}")
 	private String rabbitHost;
 
-	@Value("${evento.message.bus.rabbitmq.token}")
-	private String rabbitToken;
+	@Value("${evento.message.bus.rabbitmq.user}")
+	private String rabbitUser;
+
+	@Value("${evento.message.bus.rabbitmq.password}")
+	private String rabbitPassword;
+
+	@Value("${evento.message.bus.rabbitmq.timeout}")
+	private int timeout;
+
+
 
 	@Bean
 	@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 	MessageBus messageBus() throws Exception {
 		ConnectionFactory f = new ConnectionFactory();
 		f.setHost(rabbitHost);
-		f.setPassword(rabbitToken);
-		f.setUsername("token");
+		f.setPassword(rabbitPassword);
+		f.setUsername(rabbitUser);
 		var messageBus = RabbitMqMessageBus.create(
 				serverBundleId,
 				serverBundleVersion,
 				handlerClusterName,
-				f, 10
+				f, timeout
 		);
 		messageBus.enableBus();
 		return messageBus;

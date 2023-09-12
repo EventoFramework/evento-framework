@@ -3,6 +3,8 @@ package org.evento.common.messaging.consumer;
 import java.io.Serializable;
 
 public class EventFetchRequest implements Serializable {
+
+	private String context;
 	private long lastSequenceNumber;
 	private int limit;
 
@@ -11,7 +13,8 @@ public class EventFetchRequest implements Serializable {
 	public EventFetchRequest() {
 	}
 
-	public EventFetchRequest(long lastSequenceNumber, int limit, String componentName) {
+	public EventFetchRequest(String context, long lastSequenceNumber, int limit, String componentName) {
+		this.context = context;
 		this.lastSequenceNumber = lastSequenceNumber;
 		this.limit = limit;
 		this.componentName = componentName;
@@ -39,5 +42,13 @@ public class EventFetchRequest implements Serializable {
 
 	public void setComponentName(String componentName) {
 		this.componentName = componentName;
+	}
+
+	public String getContext() {
+		return context;
+	}
+
+	public void setContext(String context) {
+		this.context = context;
 	}
 }

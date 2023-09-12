@@ -14,5 +14,4 @@ public abstract class CommandMessage<T extends Command> extends Message<T> {
 	public String getCommandName() {
 		return super.getPayloadName();
 	}
-
 }

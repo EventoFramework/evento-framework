@@ -40,7 +40,7 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter'
     compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -51,7 +51,7 @@ dependencies {
     runtimeOnly 'mysql:mysql-connector-java'
 
 
-    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:+'
+    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:ev1.1.1'
     implementation project(":evento-demo:evento-demo-api")
 }
 
