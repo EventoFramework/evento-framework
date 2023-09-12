@@ -27,6 +27,7 @@ public class SentryTracingAgent implements TracingAgent {
 	public <T> T track(Message<?> message, String component, String bundle, long bundleVersion,
 					   Track trackingAnnotation,
 					   Transaction<T> transaction) throws Throwable {
+		if(message == null) return transaction.run();
 		var metadata = message.getMetadata();
 		if (metadata == null)
 		{

@@ -18,6 +18,8 @@ import javax.persistence.*;
 @NoArgsConstructor
 public class EventStoreEntry {
 
+	private String context;
+
 	@Id
 	private Long eventSequenceNumber;
 	private String aggregateId;
@@ -28,6 +30,7 @@ public class EventStoreEntry {
 	private EventMessage<?> eventMessage;
 	private String eventName;
 	private Long createdAt;
+	private Long deletedAt;
 
 
 	public PublishedEvent toPublishedEvent() {
