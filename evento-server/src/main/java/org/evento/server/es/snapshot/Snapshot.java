@@ -10,8 +10,6 @@ import java.time.Instant;
 @Table(name = "es__snapshot")
 public class Snapshot {
 	@Id
-	private String snapshotId;
-	private String context;
 	private String aggregateId;
 	private Long eventSequenceNumber;
 	@Column(columnDefinition = "BLOB")
@@ -50,21 +48,5 @@ public class Snapshot {
 
 	public void setUpdatedAt(Instant updatedAt) {
 		this.updatedAt = updatedAt;
-	}
-
-	public String getSnapshotId() {
-		return snapshotId;
-	}
-
-	public void setSnapshotId(String snapshotId) {
-		this.snapshotId = snapshotId;
-	}
-
-	public String getContext() {
-		return context;
-	}
-
-	public void setContext(String context) {
-		this.context = context;
 	}
 }
