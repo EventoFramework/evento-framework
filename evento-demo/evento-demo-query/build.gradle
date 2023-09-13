@@ -51,7 +51,7 @@ dependencies {
     runtimeOnly 'mysql:mysql-connector-java'
 
 
-    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:ev1.1.1'
+    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:ev1.1.2'
     implementation project(":evento-demo:evento-demo-api")
 }
 

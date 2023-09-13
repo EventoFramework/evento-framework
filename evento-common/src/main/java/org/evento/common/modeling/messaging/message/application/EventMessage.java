@@ -1,13 +1,14 @@
 package org.evento.common.modeling.messaging.message.application;
 
 import org.evento.common.modeling.messaging.payload.Event;
+import org.evento.common.utils.Context;
 
 public abstract class EventMessage<T extends Event> extends Message<T> {
 
 	private String context;
 	public EventMessage(T payload) {
 		super(payload);
-		this.context = payload.getContext();
+		this.context = payload == null ? Context.DEFAULT : payload.getContext();
 	}
 
 	public EventMessage() {
