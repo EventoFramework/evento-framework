@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS `es__events`
     `deleted_at`            bigint       DEFAULT NULL
 ) ENGINE = InnoDB;
 
-CREATE index `es__events_context_aggregate_id_event_sequence_number_index`
-    on `es__events` (`context`, `aggregate_id`, `event_sequence_number`) using BTREE;
+CREATE index `es__events_aggregate_id_event_sequence_number_index`
+    on `es__events` (`aggregate_id`, `event_sequence_number`) using BTREE;
 CREATE index `es__events_context_event_name_event_sequence_number_index`
     on `es__events` (`context`, `event_name`, `event_sequence_number`) using BTREE;
 
