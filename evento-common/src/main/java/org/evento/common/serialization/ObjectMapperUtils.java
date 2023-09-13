@@ -12,6 +12,7 @@ import org.evento.common.modeling.messaging.query.QueryResponse;
 import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
 import org.evento.common.modeling.state.AggregateState;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -32,6 +33,7 @@ public class ObjectMapperUtils {
 					.allowIfSubType(HashMap.class)
 					.allowIfSubType("java.util.ImmutableCollections")
 					.allowIfSubType("org.evento")
+					.allowIfSubType(Number.class)
 					.build();
 
 			var om = new ObjectMapper();
