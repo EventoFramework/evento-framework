@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS `int_lock`
 
 CREATE TABLE IF NOT EXISTS `es__events`
 (
-
     `event_sequence_number` bigint       NOT NULL,
     `context`               varchar(100) DEFAULT 'default',
     `aggregate_id`          varchar(100) DEFAULT NULL,
@@ -26,8 +25,6 @@ CREATE index `es__events_context_event_name_event_sequence_number_index`
 
 CREATE TABLE IF NOT EXISTS `es__snapshot`
 (
-    `snapshot_id`           varchar(205) NOT NULL,
-    `context`               varchar(100) NOT NULL,
     `aggregate_id`          varchar(100) NOT NULL,
     `aggregate_state`       blob,
     `event_sequence_number` bigint      DEFAULT NULL,
