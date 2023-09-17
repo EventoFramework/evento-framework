@@ -11,6 +11,7 @@ import org.evento.common.modeling.messaging.payload.Payload;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
 import org.evento.common.modeling.state.AggregateState;
+import org.evento.common.modeling.state.SagaState;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ public class ObjectMapperUtils {
 					.allowIfSubType(Payload.class)
 					.allowIfSubType(QueryResponse.class)
 					.allowIfSubType(AggregateState.class)
+					.allowIfSubType(SagaState.class)
 					.allowIfSubType(SerializedQueryResponse.class)
 					.allowIfSubType(ArrayList.class)
 					.allowIfSubType(HashMap.class)
