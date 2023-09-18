@@ -16,52 +16,44 @@ import java.util.Set;
 
 public class ProjectionReference extends Reference {
 
-	private HashMap<String, Method> queryHandlerReferences = new HashMap<>();
+    private HashMap<String, Method> queryHandlerReferences = new HashMap<>();
 
-	public ProjectionReference(Object ref) {
-		super(ref);
-		for (Method declaredMethod : ref.getClass().getDeclaredMethods())
-		{
+    public ProjectionReference(Object ref) {
+        super(ref);
+        for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
 
-			var ach = declaredMethod.getAnnotation(QueryHandler.class);
-			if (ach != null)
-			{
-				queryHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
-						.filter(Query.class::isAssignableFrom)
-						.findFirst()
-						.map(Class::getSimpleName).orElseThrow(), declaredMethod);
-			}
-		}
-	}
+            var ach = declaredMethod.getAnnotation(QueryHandler.class);
+            if (ach != null) {
+                queryHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
+                        .filter(Query.class::isAssignableFrom)
+                        .findFirst()
+                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+            }
+        }
+    }
 
-	public Set<String> getRegisteredQueries() {
-		return queryHandlerReferences.keySet();
-	}
+    public Set<String> getRegisteredQueries() {
+        return queryHandlerReferences.keySet();
+    }
 
-	public Method getQueryHandler(String queryName) {
-		return queryHandlerReferences.get(queryName);
-	}
+    public Method getQueryHandler(String queryName) {
+        return queryHandlerReferences.get(queryName);
+    }
 
-	public QueryResponse<?> invoke(
-			QueryMessage<?> qm,
-			CommandGateway commandGateway,
-			QueryGateway queryGateway)
-			throws Throwable {
+    public QueryResponse<?> invoke(
+            QueryMessage<?> qm,
+            CommandGateway commandGateway,
+            QueryGateway queryGateway)
+            throws Throwable {
 
-		var handler = queryHandlerReferences.get(qm.getQueryName());
+        var handler = queryHandlerReferences.get(qm.getQueryName());
 
-		try
-		{
-			return (QueryResponse<?>) ReflectionUtils.invoke(getRef(), handler,
-					qm.getPayload(),
-					commandGateway,
-					queryGateway,
-					qm,
-					qm.getMetadata()
-			);
-		} catch (InvocationTargetException e)
-		{
-			throw e.getCause();
-		}
-	}
+        return (QueryResponse<?>) ReflectionUtils.invoke(getRef(), handler,
+                qm.getPayload(),
+                commandGateway,
+                queryGateway,
+                qm,
+                qm.getMetadata()
+        );
+    }
 }
