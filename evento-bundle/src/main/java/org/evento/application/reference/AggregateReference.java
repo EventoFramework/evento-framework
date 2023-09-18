@@ -24,95 +24,89 @@ import java.util.Set;
 
 public class AggregateReference extends Reference {
 
-	private final HashMap<String, Method> eventSourcingReferences = new HashMap<>();
+    private final HashMap<String, Method> eventSourcingReferences = new HashMap<>();
 
-	private final HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
-	private final int snapshotFrequency;
+    private final HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
+    private final int snapshotFrequency;
 
-	public AggregateReference(Object ref, int snapshotFrequency) {
-		super(ref);
-		this.snapshotFrequency = snapshotFrequency;
-		for (Method declaredMethod : ref.getClass().getDeclaredMethods())
-		{
-			var esh = declaredMethod.getAnnotation(EventSourcingHandler.class);
-			if (esh != null)
-			{
-				eventSourcingReferences.put(
-						Arrays.stream(declaredMethod.getParameterTypes())
-								.filter(DomainEvent.class::isAssignableFrom)
-								.findFirst()
-								.map(Class::getSimpleName).orElseThrow(),
-						declaredMethod);
-				continue;
-			}
+    public AggregateReference(Object ref, int snapshotFrequency) {
+        super(ref);
+        this.snapshotFrequency = snapshotFrequency;
+        for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
+            var esh = declaredMethod.getAnnotation(EventSourcingHandler.class);
+            if (esh != null) {
+                eventSourcingReferences.put(
+                        Arrays.stream(declaredMethod.getParameterTypes())
+                                .filter(DomainEvent.class::isAssignableFrom)
+                                .findFirst()
+                                .map(Class::getSimpleName).orElseThrow(),
+                        declaredMethod);
+                continue;
+            }
 
-			var ach = declaredMethod.getAnnotation(AggregateCommandHandler.class);
-			if (ach != null)
-			{
-				aggregateCommandHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
-						.filter(DomainCommand.class::isAssignableFrom)
-						.findFirst()
-						.map(Class::getSimpleName).orElseThrow(), declaredMethod);
-			}
-		}
-	}
+            var ach = declaredMethod.getAnnotation(AggregateCommandHandler.class);
+            if (ach != null) {
+                aggregateCommandHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
+                        .filter(DomainCommand.class::isAssignableFrom)
+                        .findFirst()
+                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+            }
+        }
+    }
 
-	public int getSnapshotFrequency() {
-		return snapshotFrequency;
-	}
+    public int getSnapshotFrequency() {
+        return snapshotFrequency;
+    }
 
-	public Method getEventSourcingHandler(String eventName) {
-		return eventSourcingReferences.get(eventName);
-	}
+    public Method getEventSourcingHandler(String eventName) {
+        return eventSourcingReferences.get(eventName);
+    }
 
-	public Method getAggregateCommandHandler(String commandName) {
-		return aggregateCommandHandlerReferences.get(commandName);
-	}
+    public Method getAggregateCommandHandler(String commandName) {
+        return aggregateCommandHandlerReferences.get(commandName);
+    }
 
-	public Set<String> getRegisteredCommands() {
-		return aggregateCommandHandlerReferences.keySet();
-	}
+    public Set<String> getRegisteredCommands() {
+        return aggregateCommandHandlerReferences.keySet();
+    }
 
-	public DomainEvent invoke(
-			DomainCommandMessage cm,
-			AggregateStateEnvelope envelope,
-			Collection<DomainEventMessage> eventStream,
-			CommandGateway commandGateway,
-			QueryGateway queryGateway)
-			throws Throwable {
+    public DomainEvent invoke(
+            DomainCommandMessage cm,
+            AggregateStateEnvelope envelope,
+            Collection<DomainEventMessage> eventStream,
+            CommandGateway commandGateway,
+            QueryGateway queryGateway)
+            throws Throwable {
 
-		var commandHandler = aggregateCommandHandlerReferences.get(cm.getCommandName());
+        var commandHandler = aggregateCommandHandlerReferences.get(cm.getCommandName());
 
-		if (eventStream.isEmpty() && envelope.getAggregateState() == null && !isAggregateInitializer(commandHandler))
-			throw AggregateNotInitializedError.build(cm.getAggregateId());
-		if ((!eventStream.isEmpty() || envelope.getAggregateState() != null) && isAggregateInitializer(commandHandler))
-			throw AggregateInitializedError.build(cm.getAggregateId());
+        if (eventStream.isEmpty() && envelope.getAggregateState() == null && !isAggregateInitializer(commandHandler))
+            throw AggregateNotInitializedError.build(cm.getAggregateId());
+        if ((!eventStream.isEmpty() || envelope.getAggregateState() != null) && isAggregateInitializer(commandHandler))
+            throw AggregateInitializedError.build(cm.getAggregateId());
 
-		try
-		{
-			for (var em : eventStream)
-			{
-				var eh = getEventSourcingHandler(em.getEventName());
-				envelope.setAggregateState((AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState(), em.getMetadata()));
-				if (envelope.getAggregateState().isDeleted())
-					throw AggregateDeletedError.build(cm.getAggregateId());
-			}
+        for (var em : eventStream) {
+            var eh = getEventSourcingHandler(em.getEventName());
+            var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState(), em.getMetadata());
+            if (state == null) {
+                state = envelope.getAggregateState();
+            }
+            envelope.setAggregateState(state);
+            if (envelope.getAggregateState().isDeleted())
+                throw AggregateDeletedError.build(cm.getAggregateId());
+        }
 
-			return (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
-					cm.getPayload(),
-					envelope.getAggregateState(),
-					commandGateway,
-					queryGateway,
-					cm,
-					cm.getMetadata()
-			);
-		} catch (InvocationTargetException e)
-		{
-			throw e.getCause();
-		}
-	}
+        return (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+                cm.getPayload(),
+                envelope.getAggregateState(),
+                commandGateway,
+                queryGateway,
+                cm,
+                cm.getMetadata()
+        );
+    }
 
-	private boolean isAggregateInitializer(Method commandHandler) {
-		return commandHandler.getAnnotation(AggregateCommandHandler.class).init();
-	}
+    private boolean isAggregateInitializer(Method commandHandler) {
+        return commandHandler.getAnnotation(AggregateCommandHandler.class).init();
+    }
 }

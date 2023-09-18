@@ -17,55 +17,52 @@ import java.util.Set;
 
 public class SagaReference extends Reference {
 
-	private HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
+    private HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
 
-	public SagaReference(Object ref) {
-		super(ref);
-		for (Method declaredMethod : ref.getClass().getDeclaredMethods())
-		{
+    public SagaReference(Object ref) {
+        super(ref);
+        for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
 
-			var ach = declaredMethod.getAnnotation(SagaEventHandler.class);
-			if (ach != null)
-			{
-				sagaEventHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
-						.filter(Event.class::isAssignableFrom)
-						.findFirst()
-						.map(Class::getSimpleName).orElseThrow(), declaredMethod);
-			}
-		}
-	}
+            var ach = declaredMethod.getAnnotation(SagaEventHandler.class);
+            if (ach != null) {
+                sagaEventHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
+                        .filter(Event.class::isAssignableFrom)
+                        .findFirst()
+                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+            }
+        }
+    }
 
 
-	public Method getSagaEventHandler(String eventName) {
-		return sagaEventHandlerReferences.get(eventName);
-	}
+    public Method getSagaEventHandler(String eventName) {
+        return sagaEventHandlerReferences.get(eventName);
+    }
 
-	public Set<String> getRegisteredEvents() {
-		return sagaEventHandlerReferences.keySet();
-	}
+    public Set<String> getRegisteredEvents() {
+        return sagaEventHandlerReferences.keySet();
+    }
 
-	public SagaState invoke(
-			EventMessage<? extends Event> em,
-			SagaState sagaState,
-			CommandGateway commandGateway,
-			QueryGateway queryGateway)
-			throws Throwable {
+    public SagaState invoke(
+            EventMessage<? extends Event> em,
+            SagaState sagaState,
+            CommandGateway commandGateway,
+            QueryGateway queryGateway)
+            throws Throwable {
 
-		var handler = sagaEventHandlerReferences.get(em.getEventName());
+        var handler = sagaEventHandlerReferences.get(em.getEventName());
 
-		try
-		{
-			return (SagaState) ReflectionUtils.invoke(getRef(), handler,
-					em.getPayload(),
-					sagaState,
-					commandGateway,
-					queryGateway,
-					em,
-					em.getMetadata()
-			);
-		} catch (InvocationTargetException e)
-		{
-			throw e.getCause();
-		}
-	}
+        var state = (SagaState) ReflectionUtils.invoke(getRef(), handler,
+                em.getPayload(),
+                sagaState,
+                commandGateway,
+                queryGateway,
+                em,
+                em.getMetadata()
+        );
+        if (state == null) {
+            return sagaState;
+        } else {
+            return state;
+        }
+    }
 }

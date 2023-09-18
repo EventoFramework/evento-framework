@@ -9,10 +9,12 @@ public abstract class Event extends Payload {
         return context;
     }
 
-    public void setContext(String context) {
+    @SuppressWarnings("unchecked")
+    public <T extends Event> T setContext(String context) {
         if(context ==  null){
             throw new IllegalArgumentException();
         }
         this.context = context;
+        return (T) this;
     }
 }
