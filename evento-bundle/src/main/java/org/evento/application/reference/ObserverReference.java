@@ -15,53 +15,45 @@ import java.util.Set;
 
 public class ObserverReference extends Reference {
 
-	private HashMap<String, Method> eventHandlerReferences = new HashMap<>();
+    private HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 
-	public ObserverReference(Object ref) {
-		super(ref);
-		for (Method declaredMethod : ref.getClass().getDeclaredMethods())
-		{
+    public ObserverReference(Object ref) {
+        super(ref);
+        for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
 
-			var ach = declaredMethod.getAnnotation(EventHandler.class);
-			if (ach != null)
-			{
-				eventHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
-						.filter(Event.class::isAssignableFrom)
-						.findFirst()
-						.map(Class::getSimpleName).orElseThrow(), declaredMethod);
-			}
-		}
-	}
+            var ach = declaredMethod.getAnnotation(EventHandler.class);
+            if (ach != null) {
+                eventHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
+                        .filter(Event.class::isAssignableFrom)
+                        .findFirst()
+                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+            }
+        }
+    }
 
-	public Set<String> getRegisteredEvents() {
-		return eventHandlerReferences.keySet();
-	}
+    public Set<String> getRegisteredEvents() {
+        return eventHandlerReferences.keySet();
+    }
 
 
-	public void invoke(
-			EventMessage<? extends Event> em,
-			CommandGateway commandGateway,
-			QueryGateway queryGateway)
-			throws Throwable {
+    public void invoke(
+            EventMessage<? extends Event> em,
+            CommandGateway commandGateway,
+            QueryGateway queryGateway)
+            throws Throwable {
 
-		var handler = eventHandlerReferences.get(em.getEventName());
+        var handler = eventHandlerReferences.get(em.getEventName());
 
-		try
-		{
-			ReflectionUtils.invoke(getRef(), handler,
-					em.getPayload(),
-					commandGateway,
-					queryGateway,
-					em,
-					em.getMetadata()
-			);
-		} catch (InvocationTargetException e)
-		{
-			throw e.getCause();
-		}
-	}
+        ReflectionUtils.invoke(getRef(), handler,
+                em.getPayload(),
+                commandGateway,
+                queryGateway,
+                em,
+                em.getMetadata()
+        );
+    }
 
-	public Method getEventHandler(String event) {
-		return eventHandlerReferences.get(event);
-	}
+    public Method getEventHandler(String event) {
+        return eventHandlerReferences.get(event);
+    }
 }

@@ -18,53 +18,45 @@ import java.util.Set;
 public class ServiceReference extends Reference {
 
 
-	private HashMap<String, Method> serviceCommandHandlerReferences = new HashMap<>();
+    private HashMap<String, Method> serviceCommandHandlerReferences = new HashMap<>();
 
-	public ServiceReference(Object ref) {
-		super(ref);
-		for (Method declaredMethod : ref.getClass().getDeclaredMethods())
-		{
+    public ServiceReference(Object ref) {
+        super(ref);
+        for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
 
-			var ach = declaredMethod.getAnnotation(CommandHandler.class);
-			if (ach != null)
-			{
-				serviceCommandHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
-						.filter(ServiceCommand.class::isAssignableFrom)
-						.findFirst()
-						.map(Class::getSimpleName).orElseThrow(), declaredMethod);
-			}
-		}
-	}
+            var ach = declaredMethod.getAnnotation(CommandHandler.class);
+            if (ach != null) {
+                serviceCommandHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
+                        .filter(ServiceCommand.class::isAssignableFrom)
+                        .findFirst()
+                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+            }
+        }
+    }
 
 
-	public Method getAggregateCommandHandler(String eventName) {
-		return serviceCommandHandlerReferences.get(eventName);
-	}
+    public Method getAggregateCommandHandler(String eventName) {
+        return serviceCommandHandlerReferences.get(eventName);
+    }
 
-	public Set<String> getRegisteredCommands() {
-		return serviceCommandHandlerReferences.keySet();
-	}
+    public Set<String> getRegisteredCommands() {
+        return serviceCommandHandlerReferences.keySet();
+    }
 
-	public ServiceEvent invoke(
-			CommandMessage<? extends ServiceCommand> cm,
-			CommandGateway commandGateway,
-			QueryGateway queryGateway)
-			throws Throwable {
+    public ServiceEvent invoke(
+            CommandMessage<? extends ServiceCommand> cm,
+            CommandGateway commandGateway,
+            QueryGateway queryGateway)
+            throws Throwable {
 
-		var commandHandler = serviceCommandHandlerReferences.get(cm.getCommandName());
+        var commandHandler = serviceCommandHandlerReferences.get(cm.getCommandName());
 
-		try
-		{
-			return (ServiceEvent) ReflectionUtils.invoke(getRef(), commandHandler,
-					cm.getPayload(),
-					commandGateway,
-					queryGateway,
-					cm,
-					cm.getMetadata()
-			);
-		} catch (InvocationTargetException e)
-		{
-			throw e.getCause();
-		}
-	}
+        return (ServiceEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+                cm.getPayload(),
+                commandGateway,
+                queryGateway,
+                cm,
+                cm.getMetadata()
+        );
+    }
 }
