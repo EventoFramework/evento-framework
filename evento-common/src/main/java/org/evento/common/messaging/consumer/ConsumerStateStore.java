@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.messaging.utils.AddressPicker;
+import org.evento.common.messaging.utils.RoundRobinAddressPicker;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
@@ -20,6 +22,7 @@ public abstract class ConsumerStateStore {
 	private final PerformanceService performanceService;
 	private final String bundleId;
 	private final ObjectMapper objectMapper;
+	private final AddressPicker<?> addressPicker;
 
 	protected ConsumerStateStore(
 			MessageBus messageBus,
@@ -30,6 +33,7 @@ public abstract class ConsumerStateStore {
 		this.serverNodeName = serverNodeName;
 		this.bundleId = bundleId;
 		this.performanceService = performanceService;
+		this.addressPicker = new RoundRobinAddressPicker(messageBus);
 		this.objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 	}
 
@@ -46,7 +50,7 @@ public abstract class ConsumerStateStore {
 			{
 				var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
 				if (lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
-				var resp = ((EventFetchResponse) messageBus.request(messageBus.getNodeAddress(serverNodeName),
+				var resp = ((EventFetchResponse) messageBus.request(addressPicker.pickNodeAddress(serverNodeName),
 						new EventFetchRequest(
 								context,
 								lastEventSequenceNumber,
@@ -87,7 +91,7 @@ public abstract class ConsumerStateStore {
 			try
 			{
 				var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
-				var resp = ((EventFetchResponse) messageBus.request(messageBus.findNodeAddress(serverNodeName),
+				var resp = ((EventFetchResponse) messageBus.request(addressPicker.pickNodeAddress(serverNodeName),
 						new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName)).get());
 				for (PublishedEvent event : resp.getEvents())
 				{
@@ -133,7 +137,7 @@ public abstract class ConsumerStateStore {
 		var last = getLastEventSequenceNumber(consumerId);
 		if (last == null)
 		{
-			var head = ((EventLastSequenceNumberResponse) this.messageBus.request(messageBus.getNodeAddress(serverNodeName), new EventLastSequenceNumberRequest()).get()).getNumber();
+			var head = ((EventLastSequenceNumberResponse) this.messageBus.request(addressPicker.pickNodeAddress(serverNodeName), new EventLastSequenceNumberRequest()).get()).getNumber();
 			setLastEventSequenceNumber(consumerId, head);
 			return head;
 		}

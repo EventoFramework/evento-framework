@@ -11,6 +11,7 @@ import org.evento.common.modeling.state.SagaState;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
@@ -57,7 +58,8 @@ public class SagaReference extends Reference {
                 commandGateway,
                 queryGateway,
                 em,
-                em.getMetadata()
+                em.getMetadata(),
+                Instant.ofEpochMilli(em.getTimestamp())
         );
         if (state == null) {
             return sagaState;

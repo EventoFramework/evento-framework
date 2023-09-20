@@ -4,7 +4,7 @@ import java.io.Serializable;
 
 public class ClusterNodeStatusUpdateMessage implements Serializable {
 
-	private boolean newStatus;
+	private Boolean newStatus;
 
 	public ClusterNodeStatusUpdateMessage() {
 	}
@@ -13,11 +13,11 @@ public class ClusterNodeStatusUpdateMessage implements Serializable {
 		this.newStatus = newStatus;
 	}
 
-	public boolean getNewStatus() {
+	public Boolean getNewStatus() {
 		return newStatus;
 	}
 
-	public void setNewStatus(boolean newStatus) {
+	public void setNewStatus(Boolean newStatus) {
 		this.newStatus = newStatus;
 	}
 }
