@@ -37,6 +37,7 @@ import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.performance.AutoscalingProtocol;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.RemotePerformanceService;
+import org.evento.common.utils.ProjectorStatus;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
 
@@ -509,12 +510,15 @@ public class EventoBundle {
         }
     }
 
-    private void startProjectorEventConsumers(Runnable onHeadReached) {
+    private void startProjectorEventConsumers(Runnable onHeadReached) throws Exception {
         if (projectors.isEmpty()) {
             onHeadReached.run();
             return;
         }
-        ;
+        logger.info("Message bus ask enabled");
+        logger.info("Wait for discovery...");
+        messageBus.askStatus();
+        Thread.sleep(3000);
         var counter = new AtomicInteger();
         logger.info("Checking for projector event consumers");
         for (ProjectorReference projector : projectors) {
@@ -526,7 +530,8 @@ public class EventoBundle {
                 logger.info("Starting event consumer for Projector: %s - Version: %d - Context: %s"
                         .formatted(projectorName,projectorVersion,c));
                 new Thread(() -> {
-                    var headReached = false;
+                    var ps = new ProjectorStatus();
+                    ps.setHeadReached(false);
                     var consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + c;
                     while (!isShuttingDown) {
                         var hasError = false;
@@ -551,7 +556,8 @@ public class EventoBundle {
                                                     handler.invoke(
                                                             publishedEvent.getEventMessage(),
                                                             proxy,
-                                                            proxy
+                                                            proxy,
+                                                            ps
                                                     );
                                                     proxy.sendInvocationsMetric();
                                                     return null;
@@ -570,8 +576,8 @@ public class EventoBundle {
                                 throw new RuntimeException(e);
                             }
                         }
-                        if (!hasError && !headReached && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
-                            headReached = true;
+                        if (!hasError && !ps.isHeadReached() && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
+                            ps.setHeadReached(true);
                             var aligned = counter.incrementAndGet();
                             if (aligned == projectors.size()) {
                                 onHeadReached.run();
