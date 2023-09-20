@@ -6,9 +6,11 @@ import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.annotations.handler.EventHandler;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.messaging.payload.Event;
+import org.evento.common.utils.ProjectorStatus;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
@@ -39,7 +41,8 @@ public class ProjectorReference extends Reference {
     public void invoke(
             EventMessage<? extends Event> em,
             CommandGateway commandGateway,
-            QueryGateway queryGateway)
+            QueryGateway queryGateway,
+            ProjectorStatus projectorStatus)
             throws Throwable {
 
         var handler = eventHandlerReferences.get(em.getEventName());
@@ -49,7 +52,9 @@ public class ProjectorReference extends Reference {
                 commandGateway,
                 queryGateway,
                 em,
-                em.getMetadata()
+                em.getMetadata(),
+                projectorStatus,
+                Instant.ofEpochMilli(em.getTimestamp())
         );
     }
 
