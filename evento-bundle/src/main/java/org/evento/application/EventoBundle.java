@@ -11,6 +11,7 @@ import org.evento.application.performance.Track;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.proxy.InvokerWrapper;
 import org.evento.application.reference.*;
+import org.evento.common.documentation.Domain;
 import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
@@ -301,19 +302,25 @@ public class EventoBundle {
                     handlers.addAll(invocationHandlers);
                     ObjectMapper mapper = new ObjectMapper();
                     JsonSchemaGenerator schemaGen = new JsonSchemaGenerator(mapper);
-                    var schemas = new HashMap<String, String>();
+                    var payloadInfo = new HashMap<String, String[]>();
+                    var domains = new HashMap<String, String>();
                     for (Class<?> p : payloads) {
                         if (p == null) continue;
+                        var info = new String[2];
+                        payloadInfo.put(p.getSimpleName(), info);
                         try {
-                            schemas.put(p.getSimpleName(), mapper.writeValueAsString(schemaGen.generateSchema(p)));
+                            info[0] = mapper.writeValueAsString(schemaGen.generateSchema(p));
                         } catch (Exception ignored) {
+                        }
+                        if(p.getAnnotation(Domain.class) != null){
+                            info[1] = p.getAnnotation(Domain.class).name();
                         }
                     }
                     response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
                             bundleId,
                             bundleVersion,
                             handlers,
-                            schemas
+                            payloadInfo
                     ));
                 } else {
                     throw new IllegalArgumentException("Request not found");

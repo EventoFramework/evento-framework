@@ -38,6 +38,7 @@ public class JavaBundleParser implements BundleParser {
 		var components = Files.walk(file.toPath())
 				.filter(p -> p.toString().endsWith(".java"))
 				.filter(p -> !p.toString().toLowerCase().contains("test"))
+				.filter(p -> !p.toString().toLowerCase().contains("package-info"))
 				.map(p -> {
 					try
 					{
@@ -74,7 +75,7 @@ public class JavaBundleParser implements BundleParser {
 						.map(c -> ((Invoker) c))
 						.flatMap(i -> i.getInvocationHandlers().stream())
 						.map(Handler::getPayload).distinct()
-						.map(p -> new PayloadDescription(p.getName(), "Invocation", "{}"))
+						.map(p -> new PayloadDescription(p.getName(), p.getDomain(), "Invocation", "{}"))
 		).collect(Collectors.toList());
 
 		var bundleVersion = Files.walk(file.toPath())
@@ -189,8 +190,6 @@ public class JavaBundleParser implements BundleParser {
 	}
 
 	private PayloadDescription toPayload(net.sourceforge.pmd.lang.ast.Node node) throws Exception {
-
-
 		try
 		{
 			var classDef = node.getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class);
@@ -226,7 +225,16 @@ public class JavaBundleParser implements BundleParser {
 				{
 					addSuperFields(schema, View.class);
 				}
-				return new PayloadDescription(classDef.getSimpleName(), payloadType, schema.toString());
+				String domain = null;
+				try{
+					domain = classDef.getParent().findDescendantsOfType(ASTMemberValuePair.class)
+							.stream().filter(p -> p.getFirstParentOfType(ASTAnnotation.class)
+									.getFirstDescendantOfType(ASTName.class)
+									.getImage().equals("Domain"))
+							.findFirst().orElseThrow().getFirstDescendantOfType(ASTLiteral.class)
+							.getImage().replace("\"","");
+				}catch (Exception ignored){}
+				return new PayloadDescription(classDef.getSimpleName(), domain, payloadType, schema.toString());
 			}
 			return null;
 

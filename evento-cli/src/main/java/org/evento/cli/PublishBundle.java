@@ -27,13 +27,13 @@ public class PublishBundle {
 
 		System.out.println("Parsing bundle in: " + bundlePath);
 		JavaBundleParser applicationParser = new JavaBundleParser();
-		var components = applicationParser.parseDirectory(
+		var bundleDescription = applicationParser.parseDirectory(
 				new File(bundlePath));
-		var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
+		var jsonDescription = getPayloadObjectMapper().writeValueAsString(bundleDescription);
 		System.out.println("JSON created");
 
 		new File(bundlePath + "/build/bundle-dist/").mkdir();
-		var bundleFile = bundlePath + "/build/bundle-dist/" + components.getBundleId() + ".bundle";
+		var bundleFile = bundlePath + "/build/bundle-dist/" + bundleDescription.getBundleId() + ".bundle";
 		final ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(
 				bundleFile
 		));
@@ -55,7 +55,7 @@ public class PublishBundle {
 		Request request = new Request.Builder()
 				.url(serverUrl + "/api/bundle/")
 				.post(new MultipartBody.Builder().setType(MultipartBody.FORM)
-						.addFormDataPart("bundle", components.getBundleId(), RequestBody.create(new File(bundleFile), null))
+						.addFormDataPart("bundle", bundleDescription.getBundleId(), RequestBody.create(new File(bundleFile), null))
 						.build())
 				.build();
 		var resp = client.newCall(request).execute();

@@ -124,13 +124,13 @@ public class MessageGatewayService {
                 if (request instanceof ClusterNodeIsSufferingMessage m) {
                     var nodes = messageBus.findAllNodeAddresses(m.getBundleId());
                     var bundle = bundleService.findByName(m.getBundleId());
-                    if (nodes.size() < bundle.getMaxInstances())
+                    if (bundle.isAutorun() && nodes.size() < bundle.getMaxInstances())
                         bundleDeployService.spawn(m.getBundleId());
                     return;
                 } else if (request instanceof ClusterNodeIsBoredMessage m) {
                     var nodes = messageBus.findAllNodeAddresses(m.getBundleId());
                     var bundle = bundleService.findByName(m.getBundleId());
-                    if (nodes.size() > bundle.getMinInstances()) {
+                    if (bundle.isAutorun() && nodes.size() > bundle.getMinInstances()) {
                         messageBus.sendKill(m.getNodeId());
                     }
                     return;

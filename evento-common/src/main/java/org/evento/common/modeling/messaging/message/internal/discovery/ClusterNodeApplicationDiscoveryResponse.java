@@ -10,17 +10,19 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 	private long bundleVersion;
 	private ArrayList<RegisteredHandler> registeredHandlers;
 
-	private HashMap<String, String> schemas;
+	private HashMap<String, String[]> payloadInfo;
+
 
 	public ClusterNodeApplicationDiscoveryResponse(
 			String bundleId,
 			long bundleVersion,
 			ArrayList<RegisteredHandler> registeredHandlers,
-			HashMap<String, String> schemas) {
+			HashMap<String, String[]> payloadInfo
+			) {
 		this.bundleId = bundleId;
 		this.registeredHandlers = registeredHandlers;
 		this.bundleVersion = bundleVersion;
-		this.schemas = schemas;
+		this.payloadInfo = payloadInfo;
 	}
 
 	public ClusterNodeApplicationDiscoveryResponse() {
@@ -51,11 +53,13 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 	}
 
 
-	public HashMap<String, String> getSchemas() {
-		return schemas;
+	public HashMap<String, String[]> getPayloadInfo() {
+		return payloadInfo;
 	}
 
-	public void setSchemas(HashMap<String, String> schemas) {
-		this.schemas = schemas;
+	public void setPayloadInfo(HashMap<String, String[]> payloadInfo) {
+		this.payloadInfo = payloadInfo;
 	}
+
+
 }
