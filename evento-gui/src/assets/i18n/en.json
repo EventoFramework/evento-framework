@@ -94,5 +94,6 @@
   "dashboard.bundle.view.count": "Bundles in View",
   "dashboard.node.view.count": "Nodes in View",
   "dashboard.aggregate.count": "Aggregates",
-  "dashboard.event.publication.frequency": "Event Frequency"
+  "dashboard.event.publication.frequency": "Event Frequency",
+  "common.open.repository": "Open Repository"
 }

@@ -23,8 +23,11 @@ export class ComponentInfoPage implements OnInit {
       const invocations = {};
       for (const h of r.handlers) {
         r.domains.add(h.handledPayload.domain);
-        for(const i of Object.values(h.invocations) as any[]){
-          invocations[i.name] = i;
+        for(const i of Object.keys(h.invocations) as any[]){
+          if(!invocations[h.invocations[i].name]){
+            invocations[h.invocations[i].name] = {...h.invocations[i], lines: []}
+          }
+          invocations[h.invocations[i].name].lines.push(i);
         }
       }
       r.invocations = Object.values(invocations);
