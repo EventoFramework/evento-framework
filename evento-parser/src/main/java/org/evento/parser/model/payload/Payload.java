@@ -6,6 +6,8 @@ public class Payload implements Serializable {
 
 	private String name;
 
+	private String domain;
+
 	public Payload(String name) {
 		this.name = name;
 	}
@@ -19,6 +21,14 @@ public class Payload implements Serializable {
 
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public String getDomain() {
+		return domain;
+	}
+
+	public void setDomain(String domain) {
+		this.domain = domain;
 	}
 
 	@Override

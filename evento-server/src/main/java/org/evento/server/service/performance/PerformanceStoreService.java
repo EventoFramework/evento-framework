@@ -4,7 +4,6 @@ import org.evento.common.performance.PerformanceInvocationsMessage;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.PerformanceServiceTimeMessage;
 import org.evento.server.domain.model.Handler;
-import org.evento.server.domain.repository.ComponentRepository;
 import org.evento.server.domain.repository.HandlerInvocationCountPerformanceRepository;
 import org.evento.server.domain.repository.HandlerRepository;
 import org.evento.server.domain.repository.HandlerServiceTimePerformanceRepository;
@@ -13,7 +12,6 @@ import org.evento.server.performance.HandlerServiceTimePerformance;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,7 +27,7 @@ public class PerformanceStoreService extends PerformanceService {
 
 	private final LockRegistry lockRegistry;
 
-	public PerformanceStoreService(HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository, HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository, HandlerRepository handlerRepository, ComponentRepository componentRepository, LockRegistry lockRegistry) {
+	public PerformanceStoreService(HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository, HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository, HandlerRepository handlerRepository, LockRegistry lockRegistry) {
 		this.handlerServiceTimePerformanceRepository = handlerServiceTimePerformanceRepository;
 		this.handlerInvocationCountPerformanceRepository = handlerInvocationCountPerformanceRepository;
 		this.handlerRepository = handlerRepository;
@@ -100,7 +98,7 @@ public class PerformanceStoreService extends PerformanceService {
 	}
 
 
-	public void saveInvocationsPerformance(String bundle, String component, String action, HashMap<String, Integer> invocations) throws NoSuchAlgorithmException {
+	public void saveInvocationsPerformance(String bundle, String component, String action, HashMap<String, Integer> invocations) {
 		var pId = "ic__" + bundle + "_" + component + "_" + action;
 		var lock = lockRegistry.obtain(pId);
 		if (lock.tryLock())
@@ -108,23 +106,24 @@ public class PerformanceStoreService extends PerformanceService {
 			try
 			{
 				var hId = Handler.generateId(bundle, component, action);
-				var handler = handlerRepository.findById(hId).orElseThrow();
-				for (var payload : new HashSet<>(handler.getInvocations().values()))
-				{
-					var id = bundle + "_" + component + "_" + action + '_' + payload.getName();
-					var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(()
-							-> {
-						var hi = new HandlerInvocationCountPerformance();
-						hi.setId(id);
-						hi.setLastCount(0);
-						hi.setMeanProbability(0);
-						return handlerInvocationCountPerformanceRepository.save(hi);
-					});
-					hip.setLastCount(invocations.getOrDefault(payload, 0));
-					hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) + (ALPHA * invocations.getOrDefault(payload, 0)));
-					handlerInvocationCountPerformanceRepository.save(hip);
-				}
-
+				handlerRepository.findById(hId).ifPresent(handler -> {
+					for (var payload : new HashSet<>(handler.getInvocations().values()))
+					{
+						var id = bundle + "_" + component + "_" + action + '_' + payload.getName();
+						var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(()
+								-> {
+							var hi = new HandlerInvocationCountPerformance();
+							hi.setId(id);
+							hi.setLastCount(0);
+							hi.setMeanProbability(0);
+							return handlerInvocationCountPerformanceRepository.save(hi);
+						});
+						hip.setLastCount(invocations.getOrDefault(payload.getName(), 0));
+						hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) +
+								(ALPHA * invocations.getOrDefault(payload.getName(), 0)));
+						handlerInvocationCountPerformanceRepository.save(hip);
+					}
+				});
 			} finally
 			{
 				lock.unlock();
@@ -140,7 +139,7 @@ public class PerformanceStoreService extends PerformanceService {
 	}
 
 	@Override
-	public void sendServiceTimeMetricMessage(PerformanceServiceTimeMessage message) throws Exception {
+	public void sendServiceTimeMetricMessage(PerformanceServiceTimeMessage message) {
 		saveServiceTimePerformance(
 				message.getBundle(),
 				message.getComponent(),
@@ -151,7 +150,7 @@ public class PerformanceStoreService extends PerformanceService {
 	}
 
 	@Override
-	public void sendInvocationMetricMessage(PerformanceInvocationsMessage message) throws Exception {
+	public void sendInvocationMetricMessage(PerformanceInvocationsMessage message) {
 		saveInvocationsPerformance(message.getBundle(),
 				message.getComponent(),
 				message.getAction(),
