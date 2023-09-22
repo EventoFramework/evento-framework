@@ -12,10 +12,9 @@ import org.evento.common.modeling.messaging.query.QueryResponse;
 import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
 import org.evento.common.modeling.state.AggregateState;
 import org.evento.common.modeling.state.SagaState;
-
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class ObjectMapperUtils {
 
@@ -31,9 +30,11 @@ public class ObjectMapperUtils {
 					.allowIfSubType(AggregateState.class)
 					.allowIfSubType(SagaState.class)
 					.allowIfSubType(SerializedQueryResponse.class)
-					.allowIfSubType("java.util.")
+					.allowIfSubType(Number.class)
+					.allowIfSubType(List.class)
+					.allowIfSubType(Map.class)
+					.allowIfSubType(Set.class)
 					.allowIfSubType("org.evento.")
-					.allowIfSubType("java.lang.")
 					.build();
 
 			var om = new ObjectMapper();
