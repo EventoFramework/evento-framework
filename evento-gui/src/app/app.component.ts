@@ -7,6 +7,6 @@ import {Component} from '@angular/core';
 })
 export class AppComponent {
 
-  selectedTab: 'payload-catalog';
+  selectedTab = 'payload-catalog';
   constructor() {}
 }

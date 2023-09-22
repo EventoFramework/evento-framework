@@ -8,7 +8,7 @@ import {stringToColour} from '../../../services/utils';
   styleUrls: ['./bundle-list.page.scss'],
 })
 export class BundleListPage implements OnInit {
-  domains = new Set();
+  domains = new Set<any>();
   selectedDomains = {};
   search = '';
 

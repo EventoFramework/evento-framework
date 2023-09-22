@@ -564,4 +564,8 @@ export class ApplicationFlowsPage implements OnInit {
       }
     }
   }
+
+  setTp(source: any, $event: any) {
+    source.throughtput = 1/$event.target.value
+  }
 }
