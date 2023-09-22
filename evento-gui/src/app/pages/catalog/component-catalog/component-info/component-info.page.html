@@ -13,6 +13,15 @@
               <div class="ion-margin-top"></div>
               <ion-text >{{component.description}}</ion-text>
             </ion-col>
+            <ion-col class="ion-text-end" size="2">
+              <ng-container *ngIf="component.path">
+                <ion-buttons class="ion-float-end">
+                  <ion-button href="{{component.path}}#L{{component.line}}" target="_blank">
+                    <ion-icon slot="icon-only" [name]="component.path | repositoryLogo"></ion-icon>
+                  </ion-button>
+                </ion-buttons>
+              </ng-container>
+            </ion-col>
           </ion-row>
           <ion-row>
             <ion-col>
@@ -59,10 +68,18 @@
                 </ion-text>
               </div>
               <div *ngFor="let h of component.handlers">
-                <ion-chip outline="true" *ngIf="h.handlerType !== 'EventSourcingHandler'"
+                <ion-chip [id]="h.uuid" outline="true" *ngIf="h.handlerType !== 'EventSourcingHandler'"
                           routerLink="/payload-info/{{h.handledPayload.name}}">
                   <ion-text class="dot payload-type-{{h.handledPayload.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{h.handledPayload.name}}
                 </ion-chip>
+                <ion-popover *ngIf="h.path" [trigger]="h.uuid" triggerAction="context-menu">
+                  <ng-template>
+                    <ion-item  href="{{h.path}}#L{{h.line}}" target="_blank" tappable="true">
+                      <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                      <ion-icon [name]="h.path | repositoryLogo" slot="end"></ion-icon>
+                    </ion-item>
+                  </ng-template>
+                </ion-popover>
               </div>
             </ion-col>
           </ion-row>
@@ -91,14 +108,22 @@
                 </ion-text>
               </div>
               <div *ngFor="let i of component.invocations">
-                <ion-chip outline="true" routerLink="/payload-info/{{i.name}}">
+                <ion-chip [id]="i.name" outline="true" routerLink="/payload-info/{{i.name}}">
                   <ion-text class="dot payload-type-{{i.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{i.name}}
                 </ion-chip>
+                <ion-popover *ngIf="component.path" [trigger]="i.name" triggerAction="context-menu">
+                  <ng-template>
+                    <ion-item *ngFor="let l of i.lines"  href="{{component.path}}#L{{l}}" target="_blank" tappable="true">
+                      <ion-label style="padding-left: 16px" ><span translate="common.open.repository"></span> ({{l}})</ion-label>
+                      <ion-icon [name]="component.path | repositoryLogo" slot="end"></ion-icon>
+                    </ion-item>
+                  </ng-template>
+                </ion-popover>
               </div>
             </ion-col>
           </ion-row>
 
-          <ion-row class="line-under">
+          <ion-row class="line-under" *ngIf="component.domains.length">
             <ion-col>
               <div style="margin: 16px 0 5px 5px">
                 <ion-text>

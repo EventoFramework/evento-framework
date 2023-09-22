@@ -20,31 +20,39 @@ export class PayloadInfoPage implements OnInit {
   ngOnInit() {
     this.catalogService.findPayloadByName(this.route.snapshot.paramMap.get('identifier')).then(r => {
       r.subscribers = r.subscribers?.split(',')?.map(s => {
-        const parts = s.split(':');
+        const parts = s.split('$$$');
         return {
           name: parts[0],
-          type: parts[1]
+          type: parts[1],
+          path: parts[2],
+          line: parts[3],
         };
       }) || [];
       r.invokers = r.invokers?.split(',')?.map(s => {
-        const parts = s.split(':');
+        const parts = s.split('$$$');
         return {
           name: parts[0],
-          type: parts[1]
+          type: parts[1],
+          path: parts[2],
+          line: parts[3],
         };
       }) || [];
       r.returnedBy = r.returnedBy?.split(',')?.map(s => {
-        const parts = s.split(':');
+        const parts = s.split('$$$');
         return {
           name: parts[0],
-          type: parts[1]
+          type: parts[1],
+          path: parts[2],
+          line: parts[3],
         };
       }) || [];
       r.usedBy = r.usedBy?.split(',')?.map(s => {
-        const parts = s.split(':');
+        const parts = s.split('$$$');
         return {
           name: parts[0],
-          type: parts[1]
+          type: parts[1],
+          path: parts[2],
+          line: parts[3],
         };
       }) || [];
       r.jsonSchema = JSON.parse(r.jsonSchema);
