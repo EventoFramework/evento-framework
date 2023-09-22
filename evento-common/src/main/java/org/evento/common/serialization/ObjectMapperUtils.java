@@ -31,11 +31,9 @@ public class ObjectMapperUtils {
 					.allowIfSubType(AggregateState.class)
 					.allowIfSubType(SagaState.class)
 					.allowIfSubType(SerializedQueryResponse.class)
-					.allowIfSubType(ArrayList.class)
-					.allowIfSubType(HashMap.class)
-					.allowIfSubType("java.util.ImmutableCollections")
-					.allowIfSubType("org.evento")
-					.allowIfSubType(Number.class)
+					.allowIfSubType("java.util.")
+					.allowIfSubType("org.evento.")
+					.allowIfSubType("java.lang.")
 					.build();
 
 			var om = new ObjectMapper();
