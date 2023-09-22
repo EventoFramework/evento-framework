@@ -30,7 +30,7 @@ public class JavaSagaParser extends JavaComponentParser<Saga> {
 							.findFirst()
 							.map(m -> m.getFirstDescendantOfType(ASTLiteral.class).getImage().replace("\"", ""))
 							.orElseThrow();
-					return new SagaEventHandler(new Event(eventName), associationProperty);
+					return new SagaEventHandler(new Event(eventName), associationProperty, n.getBeginLine());
 				}
 		).collect(Collectors.toList());
 	}

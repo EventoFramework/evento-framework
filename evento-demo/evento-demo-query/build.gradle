@@ -7,7 +7,7 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath 'com.eventoframework:evento-cli:+'
+        classpath 'com.eventoframework:evento-cli:ev1.2.1'
     }
 }
 
@@ -51,7 +51,7 @@ dependencies {
     runtimeOnly 'mysql:mysql-connector-java'
 
 
-    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:ev1.1.8'
+    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:ev1.2.1'
     implementation project(":evento-demo:evento-demo-api")
 }
 
@@ -72,7 +72,8 @@ tasks.register('eventoUpdateVersion') {
 tasks.register('eventoPublish') {
     dependsOn 'bootJar'
     doLast {
-        PublishBundle.run(file(".").toString(), 'http://localhost:3000')
+        PublishBundle.run(file(".").toString(), 'http://localhost:3000',
+                'https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-query')
     }
 }
 tasks.register('eventoUpdateVersionAndPublish') {

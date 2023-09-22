@@ -15,7 +15,6 @@ export class BundleInfoPage implements OnInit {
   components = [];
   environmentKeys: string[] = [];
   vmOptionsKeys: string[] = [];
-  isEditing = false;
 
   constructor(private route: ActivatedRoute, private bundleService: BundleService, private navController: NavController) { }
 
@@ -66,8 +65,4 @@ export class BundleInfoPage implements OnInit {
 
   }
 
-  save() {
-    this.isEditing = false;
-    return this.bundleService.update(this.bundle.id, this.bundle.description, this.bundle.detail);
-  }
 }

@@ -11,30 +11,18 @@
                 </h1>
               </ion-title>
               <div class="ion-margin-top"></div>
-              <ion-text *ngIf="!isEditing">{{bundle.description}}</ion-text>
-              <textarea class="editor" type="text" *ngIf="isEditing" [(ngModel)]="bundle.description"></textarea>
+              <ion-text >{{bundle.description}}</ion-text>
             </ion-col>
             <ion-col class="ion-text-end" size="4">
               <ion-button fill="outline" color="danger" (click)="unregister()">
                 <ion-icon slot="start" name="trash"></ion-icon>
                 <span translate="bundle.unregister"></span>
               </ion-button>
-              <ion-button fill="outline" color="medium" *ngIf="!isEditing" (click)="isEditing = true">
-                <ion-icon slot="start" name="pencil"></ion-icon>
-                <span translate="common.edit"></span>
-              </ion-button>
-              <ion-button color="primary" *ngIf="isEditing" (click)="save()">
-                <ion-icon slot="start" name="save"></ion-icon>
-                <span translate="common.save"></span>
-              </ion-button>
-
             </ion-col>
           </ion-row>
           <ion-row>
             <ion-col>
-              <markdown *ngIf="!isEditing" [data]="bundle.detail"></markdown>
-              <textarea style="min-height: 350px" class="editor" *ngIf="isEditing"
-                        [(ngModel)]="bundle.detail"></textarea>
+              <markdown [data]="bundle.detail"></markdown>
             </ion-col>
           </ion-row>
 

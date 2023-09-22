@@ -44,6 +44,9 @@ public class Payload implements Serializable {
 
 	private boolean isValidJsonSchema;
 
+	private String path;
+	private Integer line;
+
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;

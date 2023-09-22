@@ -6,9 +6,10 @@ import java.io.Serializable;
 
 public class Handler<T extends Payload> implements Serializable {
 	private T payload;
+	private int line;
 
-	public Handler(T payload) {
-		this.payload = payload;
+	public Handler(T payload, int line) {
+		this.payload = payload; this.line = line;
 	}
 
 	public Handler() {
@@ -20,5 +21,13 @@ public class Handler<T extends Payload> implements Serializable {
 
 	public void setPayload(T payload) {
 		this.payload = payload;
+	}
+
+	public int getLine() {
+		return line;
+	}
+
+	public void setLine(int line) {
+		this.line = line;
 	}
 }
