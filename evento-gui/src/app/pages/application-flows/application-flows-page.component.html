@@ -69,7 +69,7 @@
       <ion-list>
         <ion-item *ngFor="let source of sources">
           <ion-label position="stacked">{{source.name}} [ms]</ion-label>
-          <ion-input [value]="1/source.throughtput" (ionChange)="source.throughtput = 1/$event.target.value"
+          <ion-input [value]="1/source.throughtput" (ionChange)="setTp(source, $event)"
                      name="serviceTime" type="number">
           </ion-input>
           <ion-note slot="helper">{{source.throughtput}} [r/ms]</ion-note>

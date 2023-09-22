@@ -8,9 +8,9 @@ import {CatalogService} from '../../../services/catalog.service';
 })
 export class ComponentCatalogPage implements OnInit {
 
-  types = new Set();
-  bundles = new Set();
-  domains = new Set();
+  types = new Set<any>();
+  bundles = new Set<any>();
+  domains = new Set<any>();
   selectedTypes = {};
   selectedBundles= {};
   selectedDomains = {};

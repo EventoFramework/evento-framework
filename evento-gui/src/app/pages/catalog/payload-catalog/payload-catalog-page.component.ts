@@ -8,9 +8,9 @@ import {CatalogService} from '../../../services/catalog.service';
 })
 export class PayloadCatalogPage implements OnInit {
 
-  types = new Set();
-  domains = new Set();
-  components = new Set();
+  types = new Set<any>();
+  domains = new Set<any>();
+  components = new Set<any>();
 
   payloads = [];
   allPayloads = [];
