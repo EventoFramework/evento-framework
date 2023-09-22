@@ -98,12 +98,6 @@ public class BundleController {
 		return ResponseEntity.ok().build();
 	}
 
-	@PutMapping("/{bundleId}")
-	public ResponseEntity<?> update(@PathVariable String bundleId, @RequestBody BundleUpdateDTO dto) {
-		bundleService.update(bundleId, dto.getDescription(), dto.getDetail());
-		return ResponseEntity.ok().build();
-	}
-
 	@PostMapping("/{bundleId}/env/{key}")
 	public ResponseEntity<?> putEnv(@PathVariable String bundleId, @PathVariable String key, @RequestBody String value) {
 		bundleService.putEnv(bundleId, key, value);

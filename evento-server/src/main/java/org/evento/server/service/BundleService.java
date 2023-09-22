@@ -62,6 +62,8 @@ public class BundleService {
 			b.setAutorun(bundleDescription.getAutorun());
 			b.setMinInstances(bundleDescription.getMinInstances());
 			b.setMaxInstances(bundleDescription.getMaxInstances());
+			b.setDescription(bundleDescription.getDescription());
+			b.setDetail(bundleDescription.getDetail());
 			b.setUpdatedAt(Instant.now());
 			return bundleRepository.save(b);
 		}).orElseGet(() -> {
@@ -69,8 +71,8 @@ public class BundleService {
 			return bundleRepository.save(new Bundle(
 					bundleId,
 					bundleDescription.getBundleVersion(),
-					null,
-					null,
+					bundleDescription.getDescription(),
+					bundleDescription.getDetail(),
 					bundleDeploymentBucketType,
 					bundleDeploymentArtifactCoordinates,
 					jarOriginalName,
@@ -94,6 +96,10 @@ public class BundleService {
 			payload.setUpdatedAt(Instant.now());
 			payload.setRegisteredIn(bundle.getId());
 			payload.setValidJsonSchema(false);
+			payload.setDescription(payloadDescription.getDescription());
+			payload.setDetail(payloadDescription.getDetail());
+			payload.setPath(payloadDescription.getPath());
+			payload.setLine(payloadDescription.getLine());
 			payload.setDomain(payloadDescription.getDomain());
 			payloadRepository.save(payload);
 		}
@@ -105,11 +111,16 @@ public class BundleService {
 				for (AggregateCommandHandler aggregateCommandHandler : a.getAggregateCommandHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(aggregateCommandHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Aggregate);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 
@@ -167,11 +178,16 @@ public class BundleService {
 				for (EventSourcingHandler eventSourcingHandler : a.getEventSourcingHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(eventSourcingHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Aggregate);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 
@@ -209,11 +225,16 @@ public class BundleService {
 				for (SagaEventHandler sagaEventHandler : s.getSagaEventHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(sagaEventHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Saga);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 
@@ -277,11 +298,16 @@ public class BundleService {
 				for (QueryHandler queryHandler : p.getQueryHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(queryHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Projection);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 
@@ -322,11 +348,16 @@ public class BundleService {
 				for (EventHandler eventHandler : p.getEventHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(eventHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Projector);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 
@@ -372,11 +403,16 @@ public class BundleService {
 				for (EventHandler eventHandler : o.getEventHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(eventHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Observer);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 
@@ -437,11 +473,16 @@ public class BundleService {
 				for (ServiceCommandHandler commandHandler : s.getCommandHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(commandHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Service);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 
@@ -530,11 +571,16 @@ public class BundleService {
 				for (InvocationHandler invocationHandler : i.getInvocationHandlers())
 				{
 					var handler = new org.evento.server.domain.model.Handler();
+					handler.setLine(invocationHandler.getLine());
 					handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
 						var c = new org.evento.server.domain.model.Component();
 						c.setBundle(bundle);
 						c.setComponentName(component.getComponentName());
 						c.setComponentType(ComponentType.Invoker);
+						c.setDescription(component.getDescription());
+						c.setDetail(component.getDetail());
+						c.setPath(component.getPath());
+						c.setLine(component.getLine());
 						c.setUpdatedAt(Instant.now());
 						return componentRepository.save(c);
 

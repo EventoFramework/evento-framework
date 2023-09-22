@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'com.eventoframework.consumer'
-version 'ev1.1.13'
+version 'ev1.2.1'
 
 repositories {
     mavenCentral()

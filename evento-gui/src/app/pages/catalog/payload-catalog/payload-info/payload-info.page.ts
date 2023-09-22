@@ -9,7 +9,6 @@ import {CatalogService} from '../../../../services/catalog.service';
 })
 export class PayloadInfoPage implements OnInit {
   payload;
-  isEditing = false;
 
   fields = [];
   schema = {};
@@ -70,9 +69,4 @@ export class PayloadInfoPage implements OnInit {
     }
     return res;
   };
-
-  async save() {
-    this.isEditing = false;
-    await this.catalogService.updatePayload(this.payload.name, this.payload.description, this.payload.detail, this.payload.domain);
-  }
 }

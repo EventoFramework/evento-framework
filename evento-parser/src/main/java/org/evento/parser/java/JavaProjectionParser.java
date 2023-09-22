@@ -31,7 +31,7 @@ public class JavaProjectionParser extends JavaComponentParser<Projection> {
 					var resultTypeDefinitions = msgRetType.findDescendantsOfType(ASTClassOrInterfaceType.class);
 					var isMultiple = !resultTypeDefinitions.get(0).getImage().equals("Single");
 					var type = isMultiple ? new MultipleResultQueryReturnType(resultTypeDefinitions.get(1).getImage()) : new MonoResultQueryReturnType(resultTypeDefinitions.get(1).getImage());
-					return new QueryHandler(new Query(name, type));
+					return new QueryHandler(new Query(name, type), n.getBeginLine());
 				}
 		).collect(Collectors.toList());
 	}

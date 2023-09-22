@@ -12,8 +12,8 @@ public class EventHandler extends Handler<Event> implements HasQueryInvocations,
 	private HashMap<Integer, Query> invokedQueries = new HashMap<>();
 	private HashMap<Integer, Command> invokedCommands = new HashMap<>();
 
-	public EventHandler(Event payload) {
-		super(payload);
+	public EventHandler(Event payload, int line) {
+		super(payload, line);
 	}
 	public EventHandler() {
 	}

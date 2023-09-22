@@ -29,6 +29,9 @@ public class HandlerDto implements Serializable {
 	private HandlerType handlerType;
 	private boolean returnIsMultiple;
 	private Map<Integer, PayloadDto> invocations;
+	private String path;
+	private Integer line;
+
 
 	public HandlerDto(Handler handler) {
 		this.uuid = handler.getUuid();
@@ -44,6 +47,8 @@ public class HandlerDto implements Serializable {
 		{
 			this.invocations.put(i.getKey(), new PayloadDto(i.getValue()));
 		}
+		this.path = handler.getComponent().getPath();
+		this.line = handler.getLine();
 	}
 
 	/**
