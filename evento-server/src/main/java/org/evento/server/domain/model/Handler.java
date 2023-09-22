@@ -43,6 +43,8 @@ public class Handler implements Serializable {
 
 	private String associationProperty;
 
+	private Integer line;
+
 	public static String generateId(String bundleId, String componentName, String handledPayloadName) throws RuntimeException {
 		var str = bundleId + componentName + handledPayloadName;
 		MessageDigest digest = null;

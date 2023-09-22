@@ -24,7 +24,7 @@ public class JavaInvokerParser extends JavaComponentParser<Invoker> {
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
 				n -> {
 					var name = n.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() + "::" + ((ASTMethodDeclaration) n).getName();
-					return new InvocationHandler(new Invocation(name));
+					return new InvocationHandler(new Invocation(name), n.getBeginLine());
 				}
 		).collect(Collectors.toList());
 	}

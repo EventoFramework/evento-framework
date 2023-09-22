@@ -11,8 +11,6 @@ import {stringToColour} from '../../../../services/utils';
 export class ComponentInfoPage implements OnInit {
 
   component;
-  isEditing = false;
-
 
   constructor(private route: ActivatedRoute,
               private catalogService: CatalogService) {
@@ -32,11 +30,5 @@ export class ComponentInfoPage implements OnInit {
       r.invocations = Object.values(invocations);
       this.component = r;
     });
-  }
-
-
-  save() {
-    this.isEditing = false;
-    return this.catalogService.updateComponent(this.component.componentName, this.component.description, this.component.detail);
   }
 }

@@ -27,6 +27,10 @@ public class ComponentDTO {
 
 	private List<HandlerDto> handlers;
 
+	private String path;
+	private Integer line;
+
+
 	public ComponentDTO(Component c, List<Handler> handlers) {
 		this.componentName = c.getComponentName();
 		this.componentType = c.getComponentType();
@@ -35,5 +39,7 @@ public class ComponentDTO {
 		this.detail = c.getDetail();
 		this.updatedAt = c.getUpdatedAt();
 		this.handlers = handlers.stream().map(HandlerDto::new).toList();
+		this.path = c.getPath();
+		this.line = c.getLine();
 	}
 }

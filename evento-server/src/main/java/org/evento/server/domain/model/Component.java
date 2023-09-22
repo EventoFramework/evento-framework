@@ -31,4 +31,8 @@ public class Component {
 	private String detail;
 
 	private Instant updatedAt;
+
+	private String path;
+	private Integer line;
+
 }

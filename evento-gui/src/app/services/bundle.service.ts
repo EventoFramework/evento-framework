@@ -65,18 +65,4 @@ export class BundleService {
       method: 'DELETE'
     });
   }
-
-  update(bundleId, description, detail) {
-    return fetch(environment.eventoServerUrl + '/api/bundle/' + bundleId , {
-      method: 'PUT',
-      body:JSON.stringify({
-        description,
-        detail
-      }),
-      headers:{
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-Type': 'application/json'
-      }
-    });
-  }
 }

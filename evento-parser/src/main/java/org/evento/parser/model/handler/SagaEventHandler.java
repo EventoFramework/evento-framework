@@ -14,8 +14,8 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 
 	private String associationProperty;
 
-	public SagaEventHandler(Event payload, String associationProperty) {
-		super(payload);
+	public SagaEventHandler(Event payload, String associationProperty, int line) {
+		super(payload, line);
 		this.associationProperty = associationProperty;
 	}
 

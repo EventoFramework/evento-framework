@@ -11,25 +11,12 @@
                 </h1>
               </ion-title>
               <div class="ion-margin-top"></div>
-              <ion-text *ngIf="!isEditing">{{payload.description}}</ion-text>
-              <textarea class="editor" type="text" *ngIf="isEditing" [(ngModel)]="payload.description"></textarea>
-            </ion-col>
-            <ion-col class="ion-text-end" size="2">
-              <ion-button fill="outline" color="medium" *ngIf="!isEditing" (click)="isEditing = true">
-                <ion-icon slot="start" name="pencil"></ion-icon>
-                <span translate="common.edit"></span>
-              </ion-button>
-              <ion-button color="primary" *ngIf="isEditing" (click)="save()">
-                <ion-icon slot="start" name="save"></ion-icon>
-                <span translate="common.save"></span>
-              </ion-button>
+              <ion-text>{{payload.description}}</ion-text>
             </ion-col>
           </ion-row>
           <ion-row>
             <ion-col>
-              <markdown *ngIf="!isEditing" [data]="payload.detail"></markdown>
-              <textarea style="min-height: 350px" class="editor" *ngIf="isEditing"
-                        [(ngModel)]="payload.detail"></textarea>
+              <markdown [data]="payload.detail"></markdown>
             </ion-col>
           </ion-row>
           <ion-row>

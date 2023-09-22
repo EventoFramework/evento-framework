@@ -13,8 +13,8 @@ public class ServiceCommandHandler extends Handler<ServiceCommand> implements Ha
 	private HashMap<Integer, Command> invokedCommands = new HashMap<>();
 	private HashMap<Integer, Query> invokedQueries = new HashMap<>();
 
-	public ServiceCommandHandler(ServiceCommand payload, ServiceEvent producedEvent) {
-		super(payload);
+	public ServiceCommandHandler(ServiceCommand payload, ServiceEvent producedEvent, int line) {
+		super(payload, line);
 		this.producedEvent = producedEvent;
 	}
 

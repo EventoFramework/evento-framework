@@ -27,7 +27,7 @@ public class JavaServiceParser extends JavaComponentParser<Service> {
 					var md = (ASTMethodDeclaration) n;
 					var commandName = md.getFormalParameters().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
 					var eventClass = md.getResultType().getFirstDescendantOfType(ASTClassOrInterfaceType.class);
-					return new ServiceCommandHandler(new ServiceCommand(commandName), eventClass == null ? null : new ServiceEvent(eventClass.getImage()));
+					return new ServiceCommandHandler(new ServiceCommand(commandName), eventClass == null ? null : new ServiceEvent(eventClass.getImage()), n.getBeginLine());
 				}
 		).collect(Collectors.toList());
 	}

@@ -25,7 +25,7 @@ public class JavaObserverParser extends JavaComponentParser<Observer> {
 				n -> {
 					var md = (ASTMethodDeclaration) n;
 					var eventName = md.getFormalParameters().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-					return new EventHandler(new Event(eventName));
+					return new EventHandler(new Event(eventName), n.getBeginLine());
 				}
 		).collect(Collectors.toList());
 	}

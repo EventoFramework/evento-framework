@@ -1,5 +1,6 @@
 package org.evento.demo.config;
 
+import com.rabbitmq.client.ConnectionFactory;
 import org.evento.application.EventoBundle;
 import org.evento.bus.rabbitmq.RabbitMqMessageBus;
 import org.evento.common.messaging.bus.MessageBus;
@@ -32,10 +33,12 @@ public class EventoConfiguration {
 			BeanFactory factory
 	) throws Exception {
 
+		ConnectionFactory f = new ConnectionFactory();
+		f.setHost(rabbitHost);
 		MessageBus messageBus = RabbitMqMessageBus.create(bundleId,
 				bundleVersion,
 				channelName,
-				rabbitHost,
+				f,
 				10);
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoCommandApplication.class.getPackage())

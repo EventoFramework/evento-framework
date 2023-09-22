@@ -7,8 +7,8 @@ public class AggregateCommandHandler extends Handler<DomainCommand> {
 
 	private DomainEvent producedEvent;
 
-	public AggregateCommandHandler(DomainCommand payload, DomainEvent producedEvent) {
-		super(payload);
+	public AggregateCommandHandler(DomainCommand payload, DomainEvent producedEvent, int line) {
+		super(payload, line);
 		this.producedEvent = producedEvent;
 	}
 

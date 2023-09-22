@@ -40,17 +40,6 @@ public class CatalogController {
 		return ResponseEntity.ok(payloadRepository.findByIdProjection(payloadName).orElseThrow());
 	}
 
-	@PutMapping(value = "/payload/{payloadName}", produces = "application/json")
-	public void updatePayload(@PathVariable String payloadName, @RequestBody PayloadUpdateDTO dto) {
-		payloadRepository.findById(payloadName).ifPresent(p -> {
-			p.setDetail(dto.getDetail());
-			p.setDescription(dto.getDescription());
-			p.setDomain(dto.getDomain());
-			p.setUpdatedAt(Instant.now());
-			payloadRepository.save(p);
-		});
-	}
-
 	@GetMapping(value = "/component/", produces = "application/json")
 	public ResponseEntity<List<ComponentListProjection>> findAllComponents() {
 		return ResponseEntity.ok(componentRepository.findAllComponentProjection());
@@ -61,16 +50,6 @@ public class CatalogController {
 		return componentRepository.findById(componentName)
 				.map(c -> ResponseEntity.ok(new ComponentDTO(c, handlerRepository.findAllByComponent(c))))
 				.orElseThrow();
-	}
-
-	@PutMapping(value = "/component/{componentName}", produces = "application/json")
-	public void updateComponent(@PathVariable String componentName, @RequestBody PayloadUpdateDTO dto) {
-		componentRepository.findById(componentName).ifPresent(c -> {
-			c.setDetail(dto.getDetail());
-			c.setDescription(dto.getDescription());
-			c.setUpdatedAt(Instant.now());
-			componentRepository.save(c);
-		});
 	}
 
 }

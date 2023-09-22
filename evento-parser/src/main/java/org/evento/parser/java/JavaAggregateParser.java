@@ -29,7 +29,7 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 					var md = (ASTMethodDeclaration) n;
 					var commandName = md.getFormalParameters().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
 					var eventName = md.getResultType().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-					return new AggregateCommandHandler(new DomainCommand(commandName), new DomainEvent(eventName));
+					return new AggregateCommandHandler(new DomainCommand(commandName), new DomainEvent(eventName), n.getBeginLine());
 				}
 		).collect(Collectors.toList());
 	}
@@ -40,7 +40,7 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 				n -> {
 					var md = (ASTMethodDeclaration) n;
 					var name = md.getFormalParameters().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-					return new EventSourcingHandler(new DomainEvent(name));
+					return new EventSourcingHandler(new DomainEvent(name), n.getBeginLine());
 				}
 		).collect(Collectors.toList());
 	}

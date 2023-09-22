@@ -12,8 +12,8 @@ public class InvocationHandler extends Handler<Invocation> implements HasCommand
 	private HashMap<Integer, Query> invokedQueries = new HashMap<>();
 
 
-	public InvocationHandler(Invocation payload) {
-		super(payload);
+	public InvocationHandler(Invocation payload, int line) {
+		super(payload, line);
 	}
 
 	public InvocationHandler() {
