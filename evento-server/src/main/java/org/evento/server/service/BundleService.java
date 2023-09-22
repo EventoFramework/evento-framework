@@ -58,7 +58,7 @@ public class BundleService {
 			b.setBucketType(bundleDeploymentBucketType);
 			b.setArtifactCoordinates(bundleDeploymentArtifactCoordinates);
 			b.setArtifactOriginalName(jarOriginalName);
-			b.setContainsHandlers(bundleDescription.getComponents().size() > 0);
+			b.setContainsHandlers(!bundleDescription.getComponents().isEmpty());
 			b.setAutorun(bundleDescription.getAutorun());
 			b.setMinInstances(bundleDescription.getMinInstances());
 			b.setMaxInstances(bundleDescription.getMaxInstances());
@@ -74,7 +74,7 @@ public class BundleService {
 					bundleDeploymentBucketType,
 					bundleDeploymentArtifactCoordinates,
 					jarOriginalName,
-					bundleDescription.getComponents().size() > 0,
+                    !bundleDescription.getComponents().isEmpty(),
 					new HashMap<>(),
 					new HashMap<>(),
 					bundleDescription.getAutorun(),
@@ -94,6 +94,7 @@ public class BundleService {
 			payload.setUpdatedAt(Instant.now());
 			payload.setRegisteredIn(bundle.getId());
 			payload.setValidJsonSchema(false);
+			payload.setDomain(payloadDescription.getDomain());
 			payloadRepository.save(payload);
 		}
 

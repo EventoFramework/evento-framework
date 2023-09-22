@@ -85,16 +85,16 @@ public abstract class JavaComponentParser<T extends Component> {
 		for (Node n : node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query))
 		{
 			var expr = ((ASTPrimaryExpression) n);
-			var types = expr.findDescendantsOfType(ASTClassOrInterfaceType.class);
-			var msgArg = types.get(0);
-			var qName = msgArg.getImage();
-			var q = new Query(qName, null);
-			Node methodOrConstructor = expr.getFirstParentOfType(ASTMethodDeclaration.class);
-			if (methodOrConstructor == null)
-			{
-				methodOrConstructor = expr.getFirstParentOfType(ASTConstructorDeclaration.class);
+			var type = expr.getFirstDescendantOfType(ASTClassOrInterfaceType.class);
+			if(type != null) {
+				var qName = type.getImage();
+				var q = new Query(qName, null);
+				Node methodOrConstructor = expr.getFirstParentOfType(ASTMethodDeclaration.class);
+				if (methodOrConstructor == null) {
+					methodOrConstructor = expr.getFirstParentOfType(ASTConstructorDeclaration.class);
+				}
+				manageMessageInvocation(methodOrConstructor, q, ehs, stack(expr));
 			}
-			manageMessageInvocation(methodOrConstructor, q, ehs, stack(expr));
 		}
 	}
 
