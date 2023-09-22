@@ -29,4 +29,7 @@ public interface PayloadProjection {
 
 	String getUsedBy();
 
+	String getPath();
+	Integer getLine();
+
 }
