@@ -9,10 +9,12 @@ import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.demo.api.command.DemoCreateCommand;
 import org.evento.demo.api.command.DemoDeleteCommand;
 import org.evento.demo.api.command.DemoUpdateCommand;
+import org.evento.demo.api.command.NotificationSendCommand;
 import org.evento.demo.api.event.DemoCreatedEvent;
 import org.evento.demo.api.event.DemoDeletedEvent;
 import org.evento.demo.api.event.DemoUpdatedEvent;
 import org.evento.demo.api.utils.Utils;
+import org.springframework.util.Assert;
 
 @Aggregate(snapshotFrequency = 10)
 public class DemoAggregate {
@@ -23,6 +25,10 @@ public class DemoAggregate {
 							CommandGateway commandGateway,
 							CommandMessage<DemoCreateCommand> commandMessage) {
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
+		commandGateway.sendAndWait(new NotificationSendCommand(null));
+		Assert.isTrue(command.getDemoId() != null, "error.command.not.valid.id");
+		Assert.isTrue(command.getName() != null, "error.command.not.valid.name");
+		Assert.isTrue(command.getValue() >= 0, "error.command.not.valid.value");
 		Utils.doWork(1200);
 		Utils.logMethodFlow(this, "handle", command, "END");
 		return new DemoCreatedEvent(

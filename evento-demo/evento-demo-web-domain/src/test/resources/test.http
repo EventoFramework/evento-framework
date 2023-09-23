@@ -1,0 +1,9 @@
+POST http://localhost:9001/api/demo/
+Content-Type: application/json
+
+{
+  "demoId": "000",
+  "name": null,
+  "value": -1
+}
+###

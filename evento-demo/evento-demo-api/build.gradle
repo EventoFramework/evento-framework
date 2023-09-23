@@ -7,7 +7,7 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath 'com.eventoframework:evento-cli:ev1.2.1'
+        classpath 'com.eventoframework:evento-cli:ev1.2.2'
     }
 }
 
@@ -30,8 +30,10 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
 
-    api 'com.eventoframework:evento-bundle:ev1.2.1'
-    api 'com.eventoframework.bus:evento-bus-rabbitmq:ev1.2.1'
+
+    api(project(':evento-bundle'))
+    api(project(':evento-common'))
+    api(project(':evento-bus:evento-bus-rabbitmq'))
     api 'io.sentry:sentry:6.23.0'
 }
 
