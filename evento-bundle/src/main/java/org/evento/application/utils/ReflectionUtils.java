@@ -45,9 +45,9 @@ public class ReflectionUtils {
             method.setAccessible(true);
             return method.invoke(object, buildParameters(method, params));
         } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof RuntimeException re)
+            if (e.getTargetException() instanceof RuntimeException re)
                 throw re;
-            else throw new RuntimeException(e.getCause());
+            else throw new RuntimeException(e.getTargetException());
         } finally {
             method.setAccessible(old);
         }

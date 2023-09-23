@@ -8,6 +8,10 @@ import org.evento.common.modeling.messaging.message.application.*;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 import static io.sentry.BaggageHeader.BAGGAGE_HEADER;
 import static io.sentry.SentryTraceHeader.SENTRY_TRACE_HEADER;
@@ -18,7 +22,6 @@ public class SentryTracingAgent implements TracingAgent {
 		Sentry.init(options -> {
 			options.setDsn(sentryDns);
 			options.setEnableTracing(true);
-			options.setDebug(true);
 			options.setTracesSampleRate(1.0);
 		});
 	}
@@ -77,7 +80,19 @@ public class SentryTracingAgent implements TracingAgent {
 						"evento");
 			} else
 			{
-				return transaction.run();
+				try {
+					return transaction.run();
+				}catch (Exception e){
+					if(e.getCause() instanceof RuntimeException re) {
+						re.setStackTrace(Stream.concat(
+								Stream.of(re.getStackTrace()),
+								Stream.of(new RuntimeException().getStackTrace())
+						).toArray(StackTraceElement[]::new));
+						throw re;
+					}
+					throw e;
+				}
+
 			}
 		}
 		metadata.put(SENTRY_TRACE_HEADER, t.toSentryTrace().getValue());
@@ -95,7 +110,21 @@ public class SentryTracingAgent implements TracingAgent {
 		try
 		{
 			var resp = transaction.run();
-			t.finish(SpanStatus.OK);
+			if(resp instanceof CompletableFuture<?> c){
+				resp = (T) c.thenApply(o -> {
+					t.finish(SpanStatus.OK);
+					return o;
+				}).exceptionally(tr -> {
+					t.setThrowable(tr);
+					t.setData("Pyload", message.getSerializedPayload().getSerializedObject());
+					t.finish(SpanStatus.INTERNAL_ERROR);
+					Sentry.captureException(tr);
+					System.out.println(t.toSentryTrace().getTraceId());
+					throw new CompletionException(tr);
+				});
+			}else{
+				t.finish(SpanStatus.OK);
+			}
 			return resp;
 		} catch (Throwable tr)
 		{

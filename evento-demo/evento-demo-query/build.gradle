@@ -7,7 +7,7 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath 'com.eventoframework:evento-cli:ev1.2.1'
+        classpath 'com.eventoframework:evento-cli:ev1.2.2'
     }
 }
 
@@ -51,7 +51,7 @@ dependencies {
     runtimeOnly 'mysql:mysql-connector-java'
 
 
-    implementation 'com.eventoframework.consumer:evento-consumer-state-store-mysql:ev1.2.1'
+    implementation project(':evento-consumer-state-store:evento-consumer-state-store-mysql')
     implementation project(":evento-demo:evento-demo-api")
 }
 

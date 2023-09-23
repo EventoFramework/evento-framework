@@ -1,5 +1,6 @@
 package org.evento.demo.command.service;
 
+import org.apache.logging.log4j.core.util.Assert;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.modeling.annotations.component.Service;
 import org.evento.common.modeling.annotations.handler.CommandHandler;
@@ -23,6 +24,9 @@ public class NotificationService {
 	NotificationSentEvent handle(NotificationSendCommand command,
 								 CommandGateway commandGateway,
 								 CommandMessage<NotificationSendCommand> commandMessage) {
+		if(command.getBody() == null){
+			throw new RuntimeException("error.body.null");
+		}
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
 		String notificationId = service.send(command.getBody());
 		Utils.logMethodFlow(this, "handle", command, "END");

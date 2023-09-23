@@ -14,6 +14,7 @@ import org.evento.common.modeling.messaging.message.internal.ClusterNodeStatusUp
 import org.evento.common.modeling.messaging.message.internal.CorrelatedMessage;
 
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +38,7 @@ public abstract class MessageBus {
     private boolean enabled = false;
     private Set<NodeAddress> currentView = new HashSet<>();
 
-    private int disableWaitingTime = 15;
+    private int disableWaitingTime = 15000;
     private int disableMaxRetry = 15;
 
 
@@ -69,14 +70,14 @@ public abstract class MessageBus {
                 System.out.println("Graceful Shutdown - Disabling Bus");
                 disableBus();
                 System.out.println("Waiting for bus disabled propagation...");
-                Thread.sleep(disableWaitingTime * 1000);
+                Thread.sleep(disableWaitingTime);
                 System.out.println("Graceful Shutdown - Bus Disabled");
                 var retry = 0;
                 while (true) {
                     var keys = messageCorrelationMap.keySet();
                     System.out.println("Graceful Shutdown - Remaining correlations: %d".formatted(keys.size()));
                     System.out.println("Graceful Shutdown - Sleep...");
-                    Thread.sleep(disableWaitingTime * 1000);
+                    Thread.sleep(disableWaitingTime);
                     if (messageCorrelationMap.isEmpty()) {
                         System.out.println("Graceful Shutdown - No more correlations, bye!");
                         disconnect();
@@ -258,7 +259,6 @@ public abstract class MessageBus {
                         try {
                             messageCorrelationMap.get(cm.getCorrelationId()).success.accept(cm.getBody());
                         } catch (Exception e) {
-                            e.printStackTrace();
                             messageCorrelationMap.get(cm.getCorrelationId()).fail.accept(new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()));
                         }
                     }
@@ -271,7 +271,6 @@ public abstract class MessageBus {
                     try {
                         requestReceiver.accept(src, cm.getBody(), resp);
                     } catch (Exception e) {
-                        e.printStackTrace();
                         resp.sendError(e);
                     }
                 }

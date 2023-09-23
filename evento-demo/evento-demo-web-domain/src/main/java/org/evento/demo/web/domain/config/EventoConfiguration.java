@@ -35,11 +35,15 @@ public class EventoConfiguration {
 
 		ConnectionFactory f = new ConnectionFactory();
 		f.setHost(rabbitHost);
-		MessageBus messageBus = RabbitMqMessageBus.create(bundleId,
-				bundleVersion,
-				channelName,
-				f,
-				10);
+		MessageBus messageBus = RabbitMqMessageBus.Builder.builder()
+				.setBundleId(bundleId)
+				.setBundleVersion(bundleVersion)
+				.setExchange(channelName)
+				.setFactory(f)
+				.setRequestTimeout(10)
+				.setDisableWaitingTime(1000)
+				.setDisableMaxRetry(3)
+				.connect();
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoWebApplication.class.getPackage())
 				.setBundleId(bundleId)
@@ -56,6 +60,7 @@ public class EventoConfiguration {
 						maxOverflow,
 						maxUnderflow))
 				.setInjector(factory::getBean)
+				.setAlignmentDelay(500)
 				.start();
 
 	}

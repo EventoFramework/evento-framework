@@ -115,6 +115,7 @@ public class EventoBundle {
             try {
                 autoscalingProtocol.arrival();
                 if (request instanceof DecoratedDomainCommandMessage c) {
+                    System.out.println("RECEIVE " + c.getCommandMessage().getCommandName() + ": " + Instant.now().toEpochMilli());
                     var handler = getAggregateMessageHandlers()
                             .get(c.getCommandMessage().getCommandName());
                     if (handler == null)
@@ -151,6 +152,7 @@ public class EventoBundle {
                             });
 
                 } else if (request instanceof ServiceCommandMessage c) {
+                    System.out.println("RECEIVE " + c.getCommandName() + ": " + Instant.now().toEpochMilli());
                     var handler = getServiceMessageHandlers().get(c.getCommandName());
                     if (handler == null)
                         throw new HandlerNotFoundException("No handler found for %s in %s"
@@ -498,8 +500,7 @@ public class EventoBundle {
                                         });
                             }, sssFetchSize);
                         } catch (Throwable e) {
-                            logger.error(e);
-                            e.printStackTrace();
+                            logger.error("Error on saga consumer: " + consumerId, e);
                             hasError = true;
                         }
                         if (sssFetchSize - consumedEventCount > 10) {
@@ -572,8 +573,7 @@ public class EventoBundle {
 
                                     }, sssFetchSize);
                         } catch (Throwable e) {
-                            logger.error(e);
-                            e.printStackTrace();
+                            logger.error("Error on projector consumer: " + consumerId, e);
                             hasError = true;
                         }
                         if (sssFetchSize - consumedEventCount > 10) {
@@ -681,7 +681,7 @@ public class EventoBundle {
 									gProxy.sendServiceTimeMetric(start);
 									return result;
                                 } catch (InvocationTargetException e) {
-                                    throw e.getCause();
+                                    throw e.getTargetException();
                                 }
                             });
                 }
@@ -748,6 +748,8 @@ public class EventoBundle {
 
         private int sssFetchSize = 1000;
         private int sssFetchDelay = 1000;
+
+        private int alignmentDelay = 3000;
 
         private TracingAgent tracingAgent;
 
@@ -828,6 +830,15 @@ public class EventoBundle {
             return this;
         }
 
+        public int getAlignmentDelay() {
+            return alignmentDelay;
+        }
+
+        public Builder setAlignmentDelay(int alignmentDelay) {
+            this.alignmentDelay = alignmentDelay;
+            return this;
+        }
+
         public EventoBundle start() {
             if (basePackage == null) {
                 throw new IllegalArgumentException("Invalid basePackage");
@@ -877,6 +888,9 @@ public class EventoBundle {
             if (sssFetchDelay < 100) {
                 sssFetchDelay = 100;
             }
+            if (alignmentDelay < 0) {
+                alignmentDelay = 3000;
+            }
             if (tracingAgent == null) {
                 tracingAgent = new TracingAgent() {
                     @Override
@@ -912,7 +926,7 @@ public class EventoBundle {
                         tracingAgent);
                 eventoBundle.parsePackage();
                 logger.info("Sleeping for alignment...");
-                Thread.sleep(3000);
+                Thread.sleep(alignmentDelay);
                 logger.info("Starting projector consumers...");
                 var start = Instant.now();
                 eventoBundle.startProjectorEventConsumers(() -> {
@@ -922,11 +936,11 @@ public class EventoBundle {
                         messageBus.enableBus();
                         logger.info("Message bus enabled");
                         logger.info("Wait for discovery...");
-                        Thread.sleep(3000);
+                        Thread.sleep(alignmentDelay);
                         eventoBundle.startSagaEventConsumers();
                         logger.info("Application Started!");
                     } catch (Exception e) {
-                        logger.error(e);
+                        logger.error("Error during startup",e);
                         System.exit(1);
                     }
                 });

@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Scope;
 public class RabbitMqMessageBusConfiguration {
 
 	@Value("${evento.cluster.message.channel.name}")
-	private String handlerClusterName;
+	private String exchange;
 
 	@Value("${evento.cluster.node.server.id}")
 	private String serverBundleId;
@@ -35,6 +35,11 @@ public class RabbitMqMessageBusConfiguration {
 	@Value("${evento.message.bus.rabbitmq.timeout}")
 	private int timeout;
 
+	@Value("${evento.message.bus.rabbitmq.disable.waiting.time:15000}")
+	private Integer waitingTime;
+
+	@Value("${evento.message.bus.rabbitmq.disable.max.retry:15}")
+	private Integer maxRetry;
 
 
 	@Bean
@@ -44,12 +49,15 @@ public class RabbitMqMessageBusConfiguration {
 		f.setHost(rabbitHost);
 		f.setPassword(rabbitPassword);
 		f.setUsername(rabbitUser);
-		var messageBus = RabbitMqMessageBus.create(
-				serverBundleId,
-				serverBundleVersion,
-				handlerClusterName,
-				f, timeout
-		);
+		var messageBus = RabbitMqMessageBus.Builder.builder()
+				.setBundleId(serverBundleId)
+				.setBundleVersion(serverBundleVersion)
+				.setExchange(exchange)
+				.setFactory(f)
+				.setRequestTimeout(timeout)
+				.setDisableMaxRetry(maxRetry)
+				.setDisableWaitingTime(waitingTime)
+				.connect();
 		messageBus.enableBus();
 		return messageBus;
 	}

@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS `es__snapshot`
 CREATE TABLE IF NOT EXISTS `performance__handler_service_time`
 (
     `id`                varchar(255) NOT NULL,
-    `last_service_time` double       NOT NULL,
-    `mean_service_time` double       NOT NULL,
+    `last_service_time` double       NOT NULL default 0,
+    `mean_service_time` double       NOT NULL default 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB|
 
@@ -39,8 +39,8 @@ CREATE TABLE IF NOT EXISTS `performance__handler_service_time`
 CREATE TABLE IF NOT EXISTS `performance__handler_invocation_count`
 (
     `id`               varchar(255) NOT NULL,
-    `last_count`       int          NOT NULL,
-    `mean_probability` double       NOT NULL,
+    `last_count`       int          NOT NULL default 0,
+    `mean_probability` double       NOT NULL default 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB|
 
