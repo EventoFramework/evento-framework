@@ -10,6 +10,6 @@ import org.springframework.web.servlet.view.RedirectView;
 public class GuiController {
     @GetMapping("/")
     public RedirectView index() {
-        return new RedirectView("index.html");
+        return new RedirectView("dashboard");
     }
 }

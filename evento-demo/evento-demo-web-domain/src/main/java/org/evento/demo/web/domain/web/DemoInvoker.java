@@ -1,5 +1,6 @@
 package org.evento.demo.web.domain.web;
 
+import org.evento.application.performance.Track;
 import org.evento.application.proxy.InvokerWrapper;
 import org.evento.common.modeling.annotations.component.Invoker;
 import org.evento.common.modeling.annotations.handler.InvocationHandler;
@@ -25,6 +26,7 @@ public class DemoInvoker extends InvokerWrapper {
 
 
 	@InvocationHandler
+	@Track
 	public CompletableFuture<Collection<DemoView>> findAll(@RequestParam int page) {
 		Utils.logMethodFlow(this, "findAll", page, "BEGIN");
 		var resp = getQueryGateway()
@@ -36,6 +38,7 @@ public class DemoInvoker extends InvokerWrapper {
 
 
 	@InvocationHandler
+	@Track
 	public CompletableFuture<DemoView> findById(@PathVariable String identifier) {
 		Utils.logMethodFlow(this, "findById", identifier, "BEGIN");
 		var resp = getQueryGateway().query(new DemoViewFindByIdQuery(identifier)).thenApply(Single::getData);
@@ -45,6 +48,7 @@ public class DemoInvoker extends InvokerWrapper {
 
 
 	@InvocationHandler
+	@Track
 	public CompletableFuture<?> save(@RequestBody DemoPayload demoPayload) {
 		Utils.logMethodFlow(this, "save", demoPayload, "BEGIN");
 		return getCommandGateway().send(new DemoCreateCommand(
@@ -57,6 +61,7 @@ public class DemoInvoker extends InvokerWrapper {
 
 
 	@InvocationHandler
+	@Track
 	public CompletableFuture<?> update(@RequestBody DemoPayload demoPayload, @PathVariable String identifier) {
 		Utils.logMethodFlow(this, "update", demoPayload, "BEGIN");
 		demoPayload.setDemoId(identifier);
@@ -70,6 +75,7 @@ public class DemoInvoker extends InvokerWrapper {
 
 
 	@InvocationHandler
+	@Track
 	public CompletableFuture<?> delete(@PathVariable String identifier) {
 		Utils.logMethodFlow(this, "delete", identifier, "BEGIN");
 		return getCommandGateway().send(new DemoDeleteCommand(identifier

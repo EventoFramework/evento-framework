@@ -154,7 +154,6 @@ public class MessageGatewayService {
                 var handler = handlerService.findByPayloadName(c.getCommandName());
                 bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
                 var start = PerformanceStoreService.now();
-
                 var lock = lockRegistry.obtain(AGGREGATE_LOCK_PREFIX + c.getAggregateId());
                 lock.lock();
                 var semaphore = new Semaphore(0);
