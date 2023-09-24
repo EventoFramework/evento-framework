@@ -10,6 +10,7 @@ import org.evento.server.web.dto.BundleDto;
 import org.evento.server.web.dto.BundleUpdateDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,17 +39,20 @@ public class BundleController {
 
 
 	@GetMapping(value = "/", produces = "application/json")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<List<BundleListProjection>> findAll() {
 		return ResponseEntity.ok(bundleService.findAllProjection());
 	}
 
 	@GetMapping(value = "/{name}", produces = "application/json")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<BundleDto> findByName(@PathVariable String name) {
 		return ResponseEntity.ok(new BundleDto(bundleService.findByName(name),
 				handlerService.findAllByBundleId(name)));
 	}
 
 	@PostMapping(value = "/", produces = "application/json")
+	@Secured("ROLE_PUBLISH")
 	public ResponseEntity<?> registerBundle(@RequestParam("bundle") MultipartFile bundle) throws IOException {
 
 		ZipInputStream zis = new ZipInputStream(bundle.getInputStream());
@@ -90,6 +94,7 @@ public class BundleController {
 	}
 
 	@DeleteMapping(value = "/{bundleId}")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<?> unregisterBundle(@PathVariable String bundleId) {
 		var bundle = bundleService.findByName(bundleId);
 		Assert.isTrue(bundle != null, "error.bundle.is.null");
@@ -99,24 +104,28 @@ public class BundleController {
 	}
 
 	@PostMapping("/{bundleId}/env/{key}")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<?> putEnv(@PathVariable String bundleId, @PathVariable String key, @RequestBody String value) {
 		bundleService.putEnv(bundleId, key, value);
 		return ResponseEntity.ok().build();
 	}
 
 	@DeleteMapping("/{bundleId}/env/{key}")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<?> removeEnv(@PathVariable String bundleId, @PathVariable String key) {
 		bundleService.removeEnv(bundleId, key);
 		return ResponseEntity.ok().build();
 	}
 
 	@PostMapping("/{bundleId}/vm-option/{key}")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<?> putVmOption(@PathVariable String bundleId, @PathVariable String key, @RequestBody String value) {
 		bundleService.putVmOption(bundleId, key, value);
 		return ResponseEntity.ok().build();
 	}
 
 	@DeleteMapping("/{bundleId}/vm-option/{key}")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<?> removeVmOption(@PathVariable String bundleId, @PathVariable String key) {
 		bundleService.removeVmOption(bundleId, key);
 		return ResponseEntity.ok().build();

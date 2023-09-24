@@ -1,6 +1,7 @@
 package org.evento.server.web;
 
 import org.evento.server.service.BundleService;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ public class ArtifactController {
 	}
 
 	@GetMapping(value = "/bundle/{bundleId}", produces = "application/zip")
+	@Secured("ROLE_DEPLOY")
 	public @ResponseBody byte[] getBundleArtifact(@PathVariable String bundleId) throws IOException {
 		var bundle = bundleService.findByName(bundleId);
 		Assert.isTrue(bundle != null, "error.bundle.not.found");
