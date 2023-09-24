@@ -6,6 +6,9 @@ import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.evento.application.consumer.ProjectorEvenConsumer;
+import org.evento.application.consumer.SagaEventConsumer;
+import org.evento.application.manager.*;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.performance.Track;
 import org.evento.application.proxy.GatewayTelemetryProxy;
@@ -26,19 +29,15 @@ import org.evento.common.modeling.annotations.handler.SagaEventHandler;
 import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
-import org.evento.common.modeling.exceptions.HandlerNotFoundException;
 import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
 import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import org.evento.common.modeling.messaging.payload.DomainEvent;
 import org.evento.common.modeling.messaging.query.Multiple;
-import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
-import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.performance.AutoscalingProtocol;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.RemotePerformanceService;
-import org.evento.common.utils.ProjectorStatus;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
 
@@ -53,32 +52,21 @@ import java.util.function.Function;
 public class EventoBundle {
 
     private static final Logger logger = LogManager.getLogger(EventoBundle.class);
-
     private final String basePackage;
     private final String bundleId;
     private final long bundleVersion;
     private final MessageBus messageBus;
-    private final ConsumerStateStore consumerStateStore;
     private final PerformanceService performanceService;
-
     private final Function<Class<?>, Object> findInjectableObject;
-
-    private final HashMap<String, AggregateReference> aggregateMessageHandlers = new HashMap<>();
-    private final HashMap<String, ServiceReference> serviceMessageHandlers = new HashMap<>();
-    private final HashMap<String, ProjectionReference> projectionMessageHandlers = new HashMap<>();
-    private final HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers = new HashMap<>();
-    private final HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers = new HashMap<>();
-    private final HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers = new HashMap<>();
-
-    private final List<RegisteredHandler> invocationHandlers = new ArrayList<>();
+    private final AggregateManager aggregateManager;
+    private final ServiceManager serviceManager;
+    private final ProjectionManager projectionManager;
+    private final ProjectorManager projectorManager;
+    private final SagaManager sagaManager;
+    private final ObserverManager observerManager;
+    private final InvokerManager invokerManager;
     private final transient CommandGateway commandGateway;
     private final transient QueryGateway queryGateway;
-    private final List<ProjectorReference> projectors = new ArrayList<>();
-    private final List<ObserverReference> observers = new ArrayList<>();
-    private final List<SagaReference> sagas = new ArrayList<>();
-
-    private final int sssFetchSize;
-    private final int sssFetchDelay;
     private final TracingAgent tracingAgent;
     private boolean isShuttingDown = false;
 
@@ -105,225 +93,70 @@ public class EventoBundle {
         this.performanceService = performanceService;
         this.commandGateway = commandGateway;
         this.queryGateway = queryGateway;
-        this.consumerStateStore = consumerStateStore;
         this.findInjectableObject = findInjectableObject;
-        this.sssFetchSize = sssFetchSize;
-        this.sssFetchDelay = sssFetchDelay;
         this.tracingAgent = tracingAgent;
-
+        aggregateManager = new AggregateManager(
+                bundleId,
+                this::createGatewayTelemetryProxy,
+                tracingAgent
+        );
+        serviceManager = new ServiceManager(
+                bundleId,
+                this::createGatewayTelemetryProxy,
+                tracingAgent
+        );
+        projectionManager = new ProjectionManager(
+                bundleId,
+                this::createGatewayTelemetryProxy,
+                tracingAgent
+        );
+        projectorManager = new ProjectorManager(
+                bundleId,
+                this::createGatewayTelemetryProxy,
+                tracingAgent,
+                () -> isShuttingDown,
+                consumerStateStore,
+                sssFetchSize,
+                sssFetchDelay
+        );
+        sagaManager = new SagaManager(
+                bundleId,
+                this::createGatewayTelemetryProxy,
+                tracingAgent,
+                () -> isShuttingDown,
+                consumerStateStore,
+                sssFetchSize,
+                sssFetchDelay
+        );
+        observerManager = new ObserverManager(
+                bundleId,
+                this::createGatewayTelemetryProxy,
+                tracingAgent,
+                () -> isShuttingDown,
+                consumerStateStore,
+                sssFetchSize,
+                sssFetchDelay
+        );
+        invokerManager = new InvokerManager();
         messageBus.setRequestReceiver((src, request, response) -> {
             try {
                 autoscalingProtocol.arrival();
                 if (request instanceof DecoratedDomainCommandMessage c) {
-                    System.out.println("RECEIVE " + c.getCommandMessage().getCommandName() + ": " + Instant.now().toEpochMilli());
-                    var handler = getAggregateMessageHandlers()
-                            .get(c.getCommandMessage().getCommandName());
-                    if (handler == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(c.getCommandMessage().getCommandName(), getBundleId()));
-                    var envelope = new AggregateStateEnvelope(c.getSerializedAggregateState().getAggregateState());
-                    var proxy = createGatewayTelemetryProxy(
-                            handler.getComponentName(),
-                            c.getCommandMessage());
-                    tracingAgent.track(
-                            c.getCommandMessage(),
-                            handler.getComponentName(),
-                            bundleId,
-                            bundleVersion,
-                            null,
-                            () -> {
-                                var event = handler.invoke(
-                                        c.getCommandMessage(),
-                                        envelope,
-                                        c.getEventStream(),
-                                        proxy,
-                                        proxy
-                                );
-                                var em = new DomainEventMessage(event);
-                                tracingAgent.correlate(c.getCommandMessage(), em);
-                                response.sendResponse(
-                                        new DomainCommandResponseMessage(em,
-                                                (handler.getSnapshotFrequency() >= 0 & handler.getSnapshotFrequency() <= c.getEventStream().size()) ?
-                                                        new SerializedAggregateState<>(envelope.getAggregateState()) : null
-                                        )
-                                );
-                                proxy.sendInvocationsMetric();
-                                return null;
-                            });
-
+                    aggregateManager.handle(
+                            c,
+                            response);
                 } else if (request instanceof ServiceCommandMessage c) {
-                    System.out.println("RECEIVE " + c.getCommandName() + ": " + Instant.now().toEpochMilli());
-                    var handler = getServiceMessageHandlers().get(c.getCommandName());
-                    if (handler == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s"
-                                .formatted(c.getCommandName(), getBundleId()));
-                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), c);
-                    tracingAgent.track(c, handler.getComponentName(), bundleId, bundleVersion,
-                            null,
-                            () -> {
-                                var event = handler.invoke(
-                                        c,
-                                        proxy,
-                                        proxy
-                                );
-                                var em = new ServiceEventMessage(event);
-                                tracingAgent.correlate(c, em);
-                                response.sendResponse(em);
-                                proxy.sendInvocationsMetric();
-                                return null;
-                            });
+                    serviceManager.handle(
+                            c,
+                            response
+                    );
                 } else if (request instanceof QueryMessage<?> q) {
-                    var handler = getProjectionMessageHandlers().get(q.getQueryName());
-                    if (handler == null)
-                        throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));
-                    var proxy = createGatewayTelemetryProxy(handler.getComponentName(), q);
-                    tracingAgent.track(q, handler.getComponentName(), bundleId, bundleVersion,
-                            null,
-                            () -> {
-                                var result = handler.invoke(
-                                        q,
-                                        proxy,
-                                        proxy
-                                );
-                                var rm = new SerializedQueryResponse<>(result);
-                                response.sendResponse(rm);
-                                proxy.sendInvocationsMetric();
-                                return null;
-                            });
-                } else if (request instanceof ClusterNodeApplicationDiscoveryRequest d) {
-                    var handlers = new ArrayList<RegisteredHandler>();
-                    var payloads = new HashSet<Class<?>>();
-                    aggregateMessageHandlers.forEach((k, v) -> {
-                        var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
-                        handlers.add(new RegisteredHandler(
-                                ComponentType.Aggregate,
-                                v.getRef().getClass().getSimpleName(),
-                                HandlerType.AggregateCommandHandler,
-                                PayloadType.DomainCommand,
-                                k,
-                                r,
-                                false,
-                                null
-                        ));
-                        var esh = v.getEventSourcingHandler(r);
-                        if (esh != null) {
-                            handlers.add(new RegisteredHandler(
-                                    ComponentType.Aggregate,
-                                    v.getRef().getClass().getSimpleName(),
-                                    HandlerType.EventSourcingHandler,
-                                    PayloadType.DomainEvent,
-                                    r,
-                                    null,
-                                    false,
-                                    null
-                            ));
-
-                        }
-                        payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
-                        payloads.add(v.getAggregateCommandHandler(k).getReturnType());
-                    });
-                    serviceMessageHandlers.forEach((k, v) -> {
-                        var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
-                        handlers.add(new RegisteredHandler(
-                                ComponentType.Service,
-                                v.getRef().getClass().getSimpleName(),
-                                HandlerType.CommandHandler,
-                                PayloadType.ServiceCommand,
-                                k,
-                                r.equals("void") ? null : r,
-                                false,
-                                null
-                        ));
-                        payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
-                        payloads.add(v.getAggregateCommandHandler(k).getReturnType());
-                    });
-                    projectorMessageHandlers.forEach((k, v) -> {
-                        v.forEach((k1, v1) -> {
-                            handlers.add(new RegisteredHandler(
-                                    ComponentType.Projector,
-                                    v1.getRef().getClass().getSimpleName(),
-                                    HandlerType.EventHandler,
-                                    v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                                    k,
-                                    null,
-                                    false,
-                                    null
-                            ));
-                            payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-                        });
-
-
-                    });
-                    observerMessageHandlers.forEach((k, v) -> {
-                        v.forEach((k1, v1) -> {
-                            handlers.add(new RegisteredHandler(
-                                    ComponentType.Observer,
-                                    v1.getRef().getClass().getSimpleName(),
-                                    HandlerType.EventHandler,
-                                    v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                                    k,
-                                    null,
-                                    false,
-                                    null
-                            ));
-                            payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-                        });
-                    });
-                    sagaMessageHandlers.forEach((k, v) -> {
-                        v.forEach((k1, v1) -> {
-                            handlers.add(new RegisteredHandler(
-                                    ComponentType.Saga,
-                                    v1.getRef().getClass().getSimpleName(),
-                                    HandlerType.SagaEventHandler,
-                                    v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                                    k,
-                                    null,
-                                    false,
-                                    v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
-                            ));
-                            payloads.add(v1.getSagaEventHandler(k).getParameterTypes()[0]);
-                        });
-
-
-                    });
-                    projectionMessageHandlers.forEach((k, v) -> {
-                        var r = v.getQueryHandler(k).getReturnType();
-                        handlers.add(new RegisteredHandler(
-                                ComponentType.Projection,
-                                v.getRef().getClass().getSimpleName(),
-                                HandlerType.QueryHandler,
-                                PayloadType.Query,
-                                k,
-                                ((Class<?>) (((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0])).getSimpleName(),
-                                r.isAssignableFrom(Multiple.class),
-                                null
-                        ));
-                        payloads.add(v.getQueryHandler(k).getParameterTypes()[0]);
-                        payloads.add(((Class<?>) ((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0]));
-                    });
-                    handlers.addAll(invocationHandlers);
-                    ObjectMapper mapper = new ObjectMapper();
-                    JsonSchemaGenerator schemaGen = new JsonSchemaGenerator(mapper);
-                    var payloadInfo = new HashMap<String, String[]>();
-                    var domains = new HashMap<String, String>();
-                    for (Class<?> p : payloads) {
-                        if (p == null) continue;
-                        var info = new String[2];
-                        payloadInfo.put(p.getSimpleName(), info);
-                        try {
-                            info[0] = mapper.writeValueAsString(schemaGen.generateSchema(p));
-                        } catch (Exception ignored) {
-                        }
-                        if(p.getAnnotation(Domain.class) != null){
-                            info[1] = p.getAnnotation(Domain.class).name();
-                        }
-                    }
-                    response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
-                            bundleId,
-                            bundleVersion,
-                            handlers,
-                            payloadInfo
-                    ));
+                    projectionManager.handle(
+                            q,
+                            response
+                    );
+                } else if (request instanceof ClusterNodeApplicationDiscoveryRequest) {
+                    generateDiscoveryResponse(response);
                 } else {
                     throw new IllegalArgumentException("Request not found");
                 }
@@ -339,20 +172,10 @@ public class EventoBundle {
             try {
                 autoscalingProtocol.arrival();
                 if (request instanceof EventMessage<?> e) {
-                    for (ObserverReference observerReference : observerMessageHandlers.get(e.getEventName()).values()) {
-                        var start = Instant.now();
-                        var proxy = createGatewayTelemetryProxy(observerReference.getComponentName(), e);
-                        tracingAgent.track(e, observerReference.getComponentName(), bundleId, bundleVersion,
-                                null,
-                                () -> {
-                                    observerReference.invoke(e, proxy, proxy);
-                                    proxy.sendServiceTimeMetric(start);
-                                    return null;
-                                });
-                    }
+                    observerManager.handle(e);
                 }
             } catch (Throwable e) {
-                e.printStackTrace();
+                logger.error("Observer consumption failed", e);
             } finally {
                 autoscalingProtocol.departure();
             }
@@ -362,277 +185,163 @@ public class EventoBundle {
 
     }
 
+    private void generateDiscoveryResponse(MessageBus.MessageBusResponseSender response) {
+        var handlers = new ArrayList<RegisteredHandler>();
+        var payloads = new HashSet<Class<?>>();
+        aggregateManager.getHandlers().forEach((k, v) -> {
+            var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
+            handlers.add(new RegisteredHandler(
+                    ComponentType.Aggregate,
+                    v.getRef().getClass().getSimpleName(),
+                    HandlerType.AggregateCommandHandler,
+                    PayloadType.DomainCommand,
+                    k,
+                    r,
+                    false,
+                    null
+            ));
+            var esh = v.getEventSourcingHandler(r);
+            if (esh != null) {
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Aggregate,
+                        v.getRef().getClass().getSimpleName(),
+                        HandlerType.EventSourcingHandler,
+                        PayloadType.DomainEvent,
+                        r,
+                        null,
+                        false,
+                        null
+                ));
+
+            }
+            payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
+            payloads.add(v.getAggregateCommandHandler(k).getReturnType());
+        });
+        serviceManager.getHandlers().forEach((k, v) -> {
+            var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
+            handlers.add(new RegisteredHandler(
+                    ComponentType.Service,
+                    v.getRef().getClass().getSimpleName(),
+                    HandlerType.CommandHandler,
+                    PayloadType.ServiceCommand,
+                    k,
+                    r.equals("void") ? null : r,
+                    false,
+                    null
+            ));
+            payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
+            payloads.add(v.getAggregateCommandHandler(k).getReturnType());
+        });
+        projectorManager.getHandlers().forEach((k, v) -> {
+            v.forEach((k1, v1) -> {
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Projector,
+                        v1.getRef().getClass().getSimpleName(),
+                        HandlerType.EventHandler,
+                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                        k,
+                        null,
+                        false,
+                        null
+                ));
+                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
+            });
+
+
+        });
+        observerManager.getHandlers().forEach((k, v) -> {
+            v.forEach((k1, v1) -> {
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Observer,
+                        v1.getRef().getClass().getSimpleName(),
+                        HandlerType.EventHandler,
+                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                        k,
+                        null,
+                        false,
+                        null
+                ));
+                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
+            });
+        });
+        sagaManager.getHandlers().forEach((k, v) -> {
+            v.forEach((k1, v1) -> {
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Saga,
+                        v1.getRef().getClass().getSimpleName(),
+                        HandlerType.SagaEventHandler,
+                        v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                        k,
+                        null,
+                        false,
+                        v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
+                ));
+                payloads.add(v1.getSagaEventHandler(k).getParameterTypes()[0]);
+            });
+
+
+        });
+        projectionManager.getHandlers().forEach((k, v) -> {
+            var r = v.getQueryHandler(k).getReturnType();
+            handlers.add(new RegisteredHandler(
+                    ComponentType.Projection,
+                    v.getRef().getClass().getSimpleName(),
+                    HandlerType.QueryHandler,
+                    PayloadType.Query,
+                    k,
+                    ((Class<?>) (((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0])).getSimpleName(),
+                    r.isAssignableFrom(Multiple.class),
+                    null
+            ));
+            payloads.add(v.getQueryHandler(k).getParameterTypes()[0]);
+            payloads.add(((Class<?>) ((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0]));
+        });
+        handlers.addAll(invokerManager.getHandlers());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonSchemaGenerator schemaGen = new JsonSchemaGenerator(mapper);
+        var payloadInfo = new HashMap<String, String[]>();
+        for (Class<?> p : payloads) {
+            if (p == null) continue;
+            var info = new String[2];
+            payloadInfo.put(p.getSimpleName(), info);
+            try {
+                info[0] = mapper.writeValueAsString(schemaGen.generateSchema(p));
+            } catch (Exception ignored) {
+            }
+            if (p.getAnnotation(Domain.class) != null) {
+                info[1] = p.getAnnotation(Domain.class).name();
+            }
+        }
+        response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
+                bundleId,
+                bundleVersion,
+                handlers,
+                payloadInfo
+        ));
+    }
+
     private GatewayTelemetryProxy createGatewayTelemetryProxy(String componentName, Message<?> handledMessage) {
         return new GatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
                 componentName, handledMessage, tracingAgent);
     }
 
 
-    private void parsePackage() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    private void parsePackage() throws InvocationTargetException, InstantiationException, IllegalAccessException {
 
         logger.info("Discovery handlers in %s".formatted(basePackage));
         Reflections reflections = new Reflections((new ConfigurationBuilder().forPackages(basePackage)));
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Aggregate.class)) {
-            var aggregateReference = new AggregateReference(createComponentInstance(aClass, findInjectableObject),
-                    aClass.getAnnotation(Aggregate.class).snapshotFrequency());
-            for (String command : aggregateReference.getRegisteredCommands()) {
-                aggregateMessageHandlers.put(command, aggregateReference);
-                logger.info("Aggregate command handler for %s found in %s".formatted(command, aggregateReference.getRef().getClass().getName()));
-            }
-        }
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Service.class)) {
-            var serviceReference = new ServiceReference(createComponentInstance(aClass, findInjectableObject));
-            for (String command : serviceReference.getRegisteredCommands()) {
-                serviceMessageHandlers.put(command, serviceReference);
-                logger.info("Service command handler for %s found in %s".formatted(command, serviceReference.getRef().getClass().getName()));
-            }
-        }
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projection.class)) {
-            var projectionReference = new ProjectionReference(createComponentInstance(aClass, findInjectableObject));
-            for (String query : projectionReference.getRegisteredQueries()) {
-                projectionMessageHandlers.put(query, projectionReference);
-                logger.info("Projection query handler for %s found in %s".formatted(query, projectionReference.getRef().getClass().getName()));
-            }
-        }
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projector.class)) {
-            var projectorReference = new ProjectorReference(createComponentInstance(aClass, findInjectableObject));
-            projectors.add(projectorReference);
-            for (String event : projectorReference.getRegisteredEvents()) {
-                var hl = projectorMessageHandlers.getOrDefault(event, new HashMap<>());
-                hl.put(aClass.getSimpleName(), projectorReference);
-                projectorMessageHandlers.put(event, hl);
-                logger.info("Projector event handler for %s found in %s".formatted(event, projectorReference.getRef().getClass().getName()));
-            }
-        }
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Observer.class)) {
-            var observerReference = new ObserverReference(createComponentInstance(aClass, findInjectableObject));
-            observers.add(observerReference);
-            for (String event : observerReference.getRegisteredEvents()) {
-                var hl = observerMessageHandlers.getOrDefault(event, new HashMap<>());
-                hl.put(aClass.getSimpleName(), observerReference);
-                observerMessageHandlers.put(event, hl);
-                logger.info("Observer event handler for %s found in %s".formatted(event, observerReference.getRef().getClass().getName()));
-            }
-        }
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Saga.class)) {
-            var sagaReference = new SagaReference(createComponentInstance(aClass, findInjectableObject));
-            sagas.add(sagaReference);
-            for (String event : sagaReference.getRegisteredEvents()) {
-                var hl = sagaMessageHandlers.getOrDefault(event, new HashMap<>());
-                hl.put(aClass.getSimpleName(), sagaReference);
-                sagaMessageHandlers.put(event, hl);
-                logger.info("Saga event handler for %s found in %s".formatted(event, sagaReference.getRef().getClass().getName()));
-            }
-        }
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Invoker.class)) {
-            for (Method declaredMethod : aClass.getDeclaredMethods()) {
-                if (declaredMethod.getAnnotation(InvocationHandler.class) != null) {
-                    var payload = aClass.getSimpleName() + "::" + declaredMethod.getName();
-                    invocationHandlers.add(new RegisteredHandler(
-                            ComponentType.Invoker,
-                            aClass.getSimpleName(),
-                            HandlerType.InvocationHandler,
-                            PayloadType.Invocation,
-                            payload,
-                            null,
-                            false,
-                            null
-                    ));
 
-                    logger.info("Invoker invocation handler for %s found in %s".formatted(payload, aClass.getName()));
+        aggregateManager.parse(reflections, findInjectableObject);
+        serviceManager.parse(reflections, findInjectableObject);
+        projectionManager.parse(reflections, findInjectableObject);
+        projectorManager.parse(reflections, findInjectableObject);
+        sagaManager.parse(reflections, findInjectableObject);
+        observerManager.parse(reflections, findInjectableObject);
+        invokerManager.parse(reflections);
 
-                }
-            }
-        }
         logger.info("Discovery Complete");
     }
 
-    private void startSagaEventConsumers() {
-        if (sagas.isEmpty()) return;
-        logger.info("Starting saga consumers");
-        logger.info("Checking for saga event consumers");
-        for (SagaReference saga : sagas) {
-            var annotation = saga.getRef().getClass().getAnnotation(Saga.class);
-            for(var c: annotation.context()){
-                var sagaName = saga.getRef().getClass().getSimpleName();
-                var sagaVersion = annotation.version();
-                logger.info("Starting event consumer for Saga: %s - Version: %d - Context: %s"
-                        .formatted(sagaName,sagaVersion,c));
-                new Thread(() -> {
-                    var consumerId = bundleId + "_" + sagaName + "_" + sagaVersion + "_" + c;
-                    while (!isShuttingDown) {
-                        var hasError = false;
-                        var consumedEventCount = 0;
-                        try {
-                            consumedEventCount = consumerStateStore.consumeEventsForSaga(consumerId,
-                                    sagaName,
-                                    c,(sagaStateFetcher, publishedEvent) -> {
-                                var handlers = getSagaMessageHandlers()
-                                        .get(publishedEvent.getEventName());
-                                if (handlers == null) return null;
-
-                                var handler = handlers.getOrDefault(sagaName, null);
-                                if (handler == null) return null;
-
-                                var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName())
-                                        .getAnnotation(SagaEventHandler.class).associationProperty();
-                                var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
-
-                                var sagaState = sagaStateFetcher.getLastState(
-                                        sagaName,
-                                        associationProperty,
-                                        associationValue
-                                );
-                                var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
-                                        publishedEvent.getEventMessage());
-                                return tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
-                                        bundleId, bundleVersion,
-                                        null,
-                                        () -> {
-                                            var resp = handler.invoke(
-                                                    publishedEvent.getEventMessage(),
-                                                    sagaState,
-                                                    proxy,
-                                                    proxy
-                                            );
-                                            proxy.sendInvocationsMetric();
-                                            return resp;
-                                        });
-                            }, sssFetchSize);
-                        } catch (Throwable e) {
-                            logger.error("Error on saga consumer: " + consumerId, e);
-                            hasError = true;
-                        }
-                        if (sssFetchSize - consumedEventCount > 10) {
-                            try {
-                                Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
-                            } catch (InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    }
-
-                }).start();
-            }
-
-        }
-    }
-
-    private void startProjectorEventConsumers(Runnable onHeadReached) throws Exception {
-        if (projectors.isEmpty()) {
-            onHeadReached.run();
-            return;
-        }
-        logger.info("Message bus ask enabled");
-        logger.info("Wait for discovery...");
-        messageBus.askStatus();
-        Thread.sleep(3000);
-        var counter = new AtomicInteger();
-        logger.info("Checking for projector event consumers");
-        for (ProjectorReference projector : projectors) {
-            var annotation = projector.getRef().getClass().getAnnotation(Projector.class);
-            for(var c: annotation.context()){
-                var projectorName = projector.getRef().getClass().getSimpleName();
-                var projectorVersion = annotation.version();
-
-                logger.info("Starting event consumer for Projector: %s - Version: %d - Context: %s"
-                        .formatted(projectorName,projectorVersion,c));
-                new Thread(() -> {
-                    var ps = new ProjectorStatus();
-                    ps.setHeadReached(false);
-                    var consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + c;
-                    while (!isShuttingDown) {
-                        var hasError = false;
-                        var consumedEventCount = 0;
-                        try {
-                            consumedEventCount = consumerStateStore.consumeEventsForProjector(
-                                    consumerId,
-                                    projectorName,
-                                    c,
-                                    publishedEvent -> {
-                                        var handlers = getProjectorMessageHandlers()
-                                                .get(publishedEvent.getEventName());
-                                        if (handlers == null) return;
-
-                                        var handler = handlers.getOrDefault(projectorName, null);
-                                        if (handler == null) return;
-                                        var proxy = createGatewayTelemetryProxy(handler.getComponentName(),
-                                                publishedEvent.getEventMessage());
-                                        tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(), bundleId, bundleVersion,
-                                                null,
-                                                () -> {
-                                                    handler.invoke(
-                                                            publishedEvent.getEventMessage(),
-                                                            proxy,
-                                                            proxy,
-                                                            ps
-                                                    );
-                                                    proxy.sendInvocationsMetric();
-                                                    return null;
-                                                });
-
-                                    }, sssFetchSize);
-                        } catch (Throwable e) {
-                            logger.error("Error on projector consumer: " + consumerId, e);
-                            hasError = true;
-                        }
-                        if (sssFetchSize - consumedEventCount > 10) {
-                            try {
-                                Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
-                            } catch (InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                        if (!hasError && !ps.isHeadReached() && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
-                            ps.setHeadReached(true);
-                            var aligned = counter.incrementAndGet();
-                            if (aligned == projectors.size()) {
-                                onHeadReached.run();
-                            }
-                        }
-                    }
-
-                }).start();
-            }
-
-        }
-
-    }
-
-    private Object createComponentInstance(Class<?> aClass, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        var constructor = aClass.getConstructors()[0];
-        var parameters = new Object[constructor.getParameterTypes().length];
-        for (int i = 0; i < parameters.length; i++) {
-            parameters[i] = findInjectableObject.apply(constructor.getParameterTypes()[i]);
-        }
-        return constructor.newInstance(parameters);
-    }
-
-
-    public HashMap<String, AggregateReference> getAggregateMessageHandlers() {
-        return aggregateMessageHandlers;
-    }
-
-    public HashMap<String, ServiceReference> getServiceMessageHandlers() {
-        return serviceMessageHandlers;
-    }
-
-    public HashMap<String, ProjectionReference> getProjectionMessageHandlers() {
-        return projectionMessageHandlers;
-    }
-
-
-    public HashMap<String, HashMap<String, ProjectorReference>> getProjectorMessageHandlers() {
-        return projectorMessageHandlers;
-    }
-
-    public HashMap<String, HashMap<String, SagaReference>> getSagaMessageHandlers() {
-        return sagaMessageHandlers;
-    }
-
-    public List<RegisteredHandler> getInvocationHandlers() {
-        return invocationHandlers;
-    }
 
     public String getBasePackage() {
         return basePackage;
@@ -673,13 +382,13 @@ public class EventoBundle {
                                 return p.invoke(s, a);
                             });
                     var start = Instant.now();
-                    return tracingAgent.track(payload, invokerClass.getSimpleName(), bundleId, bundleVersion,
+                    return tracingAgent.track(payload, invokerClass.getSimpleName(),
                             method.getDeclaredAnnotation(Track.class),
                             () -> {
                                 try {
                                     Object result = proceed.invoke(target, args);
-									gProxy.sendServiceTimeMetric(start);
-									return result;
+                                    gProxy.sendServiceTimeMetric(start);
+                                    return result;
                                 } catch (InvocationTargetException e) {
                                     throw e.getTargetException();
                                 }
@@ -703,11 +412,11 @@ public class EventoBundle {
         var info = new ApplicationInfo();
         info.basePackage = basePackage;
         info.bundleId = bundleId;
-        info.aggregateMessageHandlers = aggregateMessageHandlers.keySet();
-        info.serviceMessageHandlers = serviceMessageHandlers.keySet();
-        info.projectionMessageHandlers = projectionMessageHandlers.keySet();
-        info.projectorMessageHandlers = projectorMessageHandlers.keySet();
-        info.sagaMessageHandlers = sagaMessageHandlers.keySet();
+        info.aggregateMessageHandlers = aggregateManager.getHandlers().keySet();
+        info.serviceMessageHandlers = serviceManager.getHandlers().keySet();
+        info.projectionMessageHandlers = projectionManager.getHandlers().keySet();
+        info.projectorMessageHandlers = projectorManager.getHandlers().keySet();
+        info.sagaMessageHandlers = sagaManager.getHandlers().keySet();
         return info;
     }
 
@@ -892,19 +601,7 @@ public class EventoBundle {
                 alignmentDelay = 3000;
             }
             if (tracingAgent == null) {
-                tracingAgent = new TracingAgent() {
-                    @Override
-                    public <T> T track(Message<?> message, String component, String bundle, long bundleVersion,
-                                       Track ht,
-                                       Transaction<T> transaction) throws Throwable {
-                        return transaction.run();
-                    }
-
-                    @Override
-                    public Metadata correlate(Metadata metadata, Message<?> handledMessage) {
-                        return metadata;
-                    }
-                };
+                tracingAgent = new TracingAgent(bundleId, bundleVersion);
             }
             try {
                 logger.info("Starting EventoApplication %s".formatted(bundleId));
@@ -925,6 +622,7 @@ public class EventoBundle {
                         sssFetchDelay,
                         tracingAgent);
                 eventoBundle.parsePackage();
+                messageBus.askStatus();
                 logger.info("Sleeping for alignment...");
                 Thread.sleep(alignmentDelay);
                 logger.info("Starting projector consumers...");
@@ -940,7 +638,7 @@ public class EventoBundle {
                         eventoBundle.startSagaEventConsumers();
                         logger.info("Application Started!");
                     } catch (Exception e) {
-                        logger.error("Error during startup",e);
+                        logger.error("Error during startup", e);
                         System.exit(1);
                     }
                 });
@@ -950,5 +648,13 @@ public class EventoBundle {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    private void startSagaEventConsumers() {
+        sagaManager.startSagaEventConsumers();
+    }
+
+    private void startProjectorEventConsumers(Runnable onHedReached) throws Exception {
+        projectorManager.startEventConsumer(onHedReached);
     }
 }
