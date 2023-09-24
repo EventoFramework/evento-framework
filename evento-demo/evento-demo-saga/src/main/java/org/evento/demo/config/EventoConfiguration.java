@@ -55,7 +55,7 @@ public class EventoConfiguration {
 				.setBundleVersion(bundleVersion)
 				.setServerName(serverName)
 				.setMessageBus(messageBus)
-				.setTracingAgent(new SentryTracingAgent(sentryDns))
+				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
 				.setAutoscalingProtocol(new ThreadCountAutoscalingProtocol(
 						bundleId,
 						serverName,
@@ -65,7 +65,7 @@ public class EventoConfiguration {
 						maxOverflow,
 						maxUnderflow))
 				.setConsumerStateStore(new MysqlConsumerStateStore(messageBus, bundleId, serverName, DriverManager.getConnection(
-						connectionUrl, username, password)))
+						connectionUrl, username, password), 1))
 				.setInjector(factory::getBean)
 				.start();
 	}

@@ -19,7 +19,8 @@ import static org.evento.common.serialization.ObjectMapperUtils.getPayloadObject
 
 public class PublishBundle {
 
-	public static void run(String bundlePath, String serverUrl, String repositoryUrl) throws Exception {
+	public static void run(String bundlePath, String serverUrl, String repositoryUrl,
+						   String token) throws Exception {
 		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
 				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
 				.findFirst().orElseThrow();
@@ -57,6 +58,7 @@ public class PublishBundle {
 				.post(new MultipartBody.Builder().setType(MultipartBody.FORM)
 						.addFormDataPart("bundle", bundleDescription.getBundleId(), RequestBody.create(new File(bundleFile), null))
 						.build())
+				.header("Authorization", "Bearer " + token)
 				.build();
 		var resp = client.newCall(request).execute();
 		if (resp.code() == 200)
@@ -69,6 +71,6 @@ public class PublishBundle {
 		}
 	}
 	public static void main(String[] args) throws Exception {
-		run(args[0],  args[1], args[3]);
+		run(args[0],  args[1], args[2], args[3]);
 	}
 }

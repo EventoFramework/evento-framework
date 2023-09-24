@@ -7,17 +7,11 @@ public class RemotePerformanceService extends PerformanceService {
 	private final MessageBus messageBus;
 	private final String serverNodeName;
 
-	public RemotePerformanceService(MessageBus messageBus,
-									String serverNodeName) {
-		super();
-		this.messageBus = messageBus;
-		this.serverNodeName = serverNodeName;
-	}
 
 	public RemotePerformanceService(MessageBus messageBus,
 									String serverNodeName,
-									double rate) {
-		super(rate);
+									double performanceCaptureRate) {
+		super(performanceCaptureRate);
 		this.messageBus = messageBus;
 		this.serverNodeName = serverNodeName;
 	}

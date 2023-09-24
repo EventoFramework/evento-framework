@@ -586,7 +586,7 @@ public class EventoBundle {
                 queryGateway = new QueryGatewayImpl(messageBus, serverName);
             }
             if (performanceService == null) {
-                performanceService = new RemotePerformanceService(messageBus, serverName);
+                performanceService = new RemotePerformanceService(messageBus, serverName, 0.01);
             }
             if (consumerStateStore == null) {
                 consumerStateStore = new InMemoryConsumerStateStore(messageBus, bundleId, serverName, performanceService);
