@@ -9,23 +9,34 @@ import java.util.List;
 
 public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Long> {
 
-    @Query("select e from EventStoreEntry e where e.aggregateId = ?1 and e.deletedAt is null order by e.eventSequenceNumber asc ")
+    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, uncompress(event_message) as event_message, event_name, deleted_at from es__events " +
+            "where aggregate_id = ?1 and deleted_at is null order by event_sequence_number",
+    nativeQuery = true)
     List<EventStoreEntry> fetchAggregateStory(String aggregateId);
 
-    @Query("select e from EventStoreEntry e where e.aggregateId = ?1 and e.eventSequenceNumber > ?2 and e.deletedAt is null order by e.eventSequenceNumber asc ")
+    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, uncompress(event_message) as event_message, event_name, deleted_at from es__events " +
+            "where aggregate_id = ?1 and es__events.event_sequence_number > ?2 and deleted_at is null order by event_sequence_number",
+            nativeQuery = true)
     List<EventStoreEntry> fetchAggregateStory(String aggregateId, Long seq);
 
-    @Query("select e from EventStoreEntry e where e.context = ?1 and  e.eventSequenceNumber > ?2 and  e.eventSequenceNumber < ?3 and e.deletedAt is null order by e.eventSequenceNumber asc ")
+    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, uncompress(event_message) as event_message, event_name, deleted_at from es__events " +
+            "where aggregate_id = ?1 and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 and deleted_at is null order by event_sequence_number",
+            nativeQuery = true)
     List<EventStoreEntry> fetchEvents(String context, Long seq, Long seqTo, Pageable pageable);
 
-
-    @Query("select e from EventStoreEntry e where e.eventSequenceNumber > ?1 and  e.eventSequenceNumber < ?2 and e.deletedAt is null order by e.eventSequenceNumber asc ")
+    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, uncompress(event_message) as event_message, event_name, deleted_at from es__events " +
+            "where es__events.event_sequence_number > ?1 and event_sequence_number < ?2 and deleted_at is null order by event_sequence_number",
+            nativeQuery = true)
     List<EventStoreEntry> fetchEvents(Long seq, Long seqTo, Pageable pageable);
 
-    @Query("select e from EventStoreEntry e where e.context = ?1 and  e.eventSequenceNumber > ?2 and  e.eventSequenceNumber < ?3 and e.eventName in ?4 and e.deletedAt is null order by e.eventSequenceNumber asc ")
+    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, uncompress(event_message) as event_message, event_name, deleted_at from es__events " +
+            "where context = ?1 and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 and event_name in ?4 and deleted_at is null order by event_sequence_number",
+            nativeQuery = true)
     List<EventStoreEntry> fetchEvents(String context, Long seq, Long seqTo, List<String> eventNames, Pageable pageable);
 
-    @Query("select e from EventStoreEntry e where  e.eventSequenceNumber > ?1 and  e.eventSequenceNumber < ?2 and e.eventName in ?3 and e.deletedAt is null order by e.eventSequenceNumber asc ")
+    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, uncompress(event_message) as event_message, event_name, deleted_at from es__events " +
+            "where es__events.event_sequence_number > ?1 and event_sequence_number < ?2 and event_name in ?3 and deleted_at is null order by event_sequence_number",
+            nativeQuery = true)
     List<EventStoreEntry> fetchEvents(Long seq, Long seqTo, List<String> eventNames, Pageable pageable);
 
     @Query("select max(e.eventSequenceNumber) from EventStoreEntry e")
