@@ -53,7 +53,7 @@ public class JavaBundleParser implements BundleParser {
 							c.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
 									.replace("\\","/"));
                         if(c!=null){
-                            System.out.println("Component found in: " + p.toAbsolutePath());
+                            System.out.println("Component found in: " + p.toAbsolutePath() + " ("+c.getLine()+")");
                         }
                         return c;
 
@@ -79,7 +79,7 @@ public class JavaBundleParser implements BundleParser {
 											.replace("\\", "/"));
 								}
                                 if(pl!=null){
-                                    System.out.println("Payload found in: " + p.toAbsolutePath());
+                                    System.out.println("Payload found in: " + p.toAbsolutePath() + " ("+pl.getLine()+")");
                                 }
                                 return pl;
                             } catch (Exception e) {
@@ -95,6 +95,7 @@ public class JavaBundleParser implements BundleParser {
 								p -> {
 									var pl = new PayloadDescription(p.getPayload().getName(), p.getPayload().getDomain(), "Invocation", "{}", p.getLine());
 									pl.setPath(in.getPath());
+                                    System.out.println("Invocation found in: " + in.getPath() + " ("+p.getLine()+")");
 									return pl;
 								}
 						))
