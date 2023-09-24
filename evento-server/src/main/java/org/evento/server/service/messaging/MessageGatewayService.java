@@ -80,7 +80,8 @@ public class MessageGatewayService {
             @Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
             @Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
             @Value("${evento.cluster.autoscaling.enabled}") boolean autoscalingEnabled,
-            PerformanceStoreService performanceStoreService, BundleService bundleService,
+            PerformanceStoreService performanceStoreService,
+            BundleService bundleService,
             HandlerRepository handlerRepository) {
         this.handlerService = handlerService;
         this.lockRegistry = lockRegistry;

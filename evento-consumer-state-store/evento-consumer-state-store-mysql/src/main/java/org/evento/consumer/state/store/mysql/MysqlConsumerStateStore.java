@@ -24,8 +24,9 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 			MessageBus messageBus,
 			String bundleId,
 			String serverNodeName,
-			Connection connection) {
-		super(messageBus, bundleId, serverNodeName, new RemotePerformanceService(messageBus, serverNodeName));
+			Connection connection, double performanceCaptureRate) {
+		super(messageBus, bundleId, serverNodeName,
+				new RemotePerformanceService(messageBus, serverNodeName, performanceCaptureRate));
 		this.connection = connection;
 		init();
 	}

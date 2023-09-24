@@ -16,9 +16,10 @@ import java.util.stream.Stream;
 import static io.sentry.BaggageHeader.BAGGAGE_HEADER;
 import static io.sentry.SentryTraceHeader.SENTRY_TRACE_HEADER;
 
-public class SentryTracingAgent implements TracingAgent {
+public class SentryTracingAgent extends TracingAgent {
 
-	public SentryTracingAgent(String sentryDns) {
+	public SentryTracingAgent(String bundleId, long bundleVersion, String sentryDns) {
+		super(bundleId, bundleVersion);
 		Sentry.init(options -> {
 			options.setDsn(sentryDns);
 			options.setEnableTracing(true);
@@ -27,7 +28,7 @@ public class SentryTracingAgent implements TracingAgent {
 	}
 
 	@Override
-	public <T> T track(Message<?> message, String component, String bundle, long bundleVersion,
+	public <T> T track(Message<?> message, String component,
 					   Track trackingAnnotation,
 					   Transaction<T> transaction) throws Throwable {
 		if(message == null) return transaction.run();
@@ -97,11 +98,11 @@ public class SentryTracingAgent implements TracingAgent {
 		}
 		metadata.put(SENTRY_TRACE_HEADER, t.toSentryTrace().getValue());
 		metadata.put(BAGGAGE_HEADER, t.toBaggageHeader(List.of()).getValue());
-		t.setData("Description", t.getName() + " - " + bundle + "@" + bundleVersion);
+		t.setData("Description", t.getName() + " - " + getBundleId() + "@" + getBundleVersion());
 		t.setTag("message", message.getPayloadName());
 		t.setTag("component", component);
-		t.setTag("bundle", bundle);
-		t.setTag("bundleVersion", String.valueOf(bundleVersion));
+		t.setTag("bundle", getBundleId());
+		t.setTag("bundleVersion", String.valueOf(getBundleVersion()));
 		if (message instanceof DomainCommandMessage cm)
 		{
 			t.setData("AggregateId", cm.getAggregateId());

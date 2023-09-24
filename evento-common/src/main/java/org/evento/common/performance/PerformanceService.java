@@ -18,9 +18,6 @@ public abstract class PerformanceService {
 	private final Random random = new Random();
 	private double performanceRate = 1;
 
-	public PerformanceService() {
-	}
-
 	public PerformanceService(double rate) {
 		performanceRate = rate;
 	}
