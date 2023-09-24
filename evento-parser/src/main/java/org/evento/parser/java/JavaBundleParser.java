@@ -15,6 +15,7 @@ import org.evento.parser.model.handler.Handler;
 import org.evento.parser.model.handler.InvocationHandler;
 import org.evento.parser.model.payload.PayloadDescription;
 
+import java.io.Console;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -38,6 +39,7 @@ public class JavaBundleParser implements BundleParser {
         LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
         Parser parser = java.getParser(java.getDefaultParserOptions());
         if (!directory.isDirectory()) throw new RuntimeException("error.not.dir");
+        System.out.println("Looking for components...");
         var components = Files.walk(directory.toPath())
                 .filter(p -> p.toString().endsWith(".java"))
                 .filter(p -> !p.toString().toLowerCase().contains("test"))
@@ -45,12 +47,14 @@ public class JavaBundleParser implements BundleParser {
                 .map(p -> {
                     try {
                         var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
-                        System.out.println(p.toAbsolutePath());
 
                         var c = toComponent(node);
                         if (c != null)
 							c.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
 									.replace("\\","/"));
+                        if(c!=null){
+                            System.out.println("Component found in: " + p.toAbsolutePath());
+                        }
                         return c;
 
                     } catch (Exception e) {
@@ -59,22 +63,27 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(Objects::nonNull).toList();
 
+        System.out.println("Total components detected: " + components.size() );
+        System.out.println("Looking for payloads...");
         var payloads = Stream.concat(
                 Files.walk(directory.toPath())
                         .filter(p -> p.toString().endsWith(".java"))
+                        .filter(p -> !p.toString().toLowerCase().contains("package-info"))
                         .filter(p -> !p.toString().toLowerCase().contains("test"))
                         .map(p -> {
                             try {
                                 var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
-                                System.out.println(p.toAbsolutePath());
 								var pl = toPayload(node);
 								if (pl != null) {
 									pl.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
 											.replace("\\", "/"));
 								}
-
+                                if(pl!=null){
+                                    System.out.println("Payload found in: " + p.toAbsolutePath());
+                                }
                                 return pl;
                             } catch (Exception e) {
+                                System.out.println("Error parsing: " + p.toAbsolutePath());
                                 e.printStackTrace();
                                 return null;
                             }
@@ -90,6 +99,7 @@ public class JavaBundleParser implements BundleParser {
 								}
 						))
         ).collect(Collectors.toList());
+        System.out.println("Total payloads detected: " + payloads.size() );
 
         var bundleVersion = Files.walk(directory.toPath())
                 .filter(p -> p.toString().endsWith(".properties"))
@@ -236,10 +246,12 @@ public class JavaBundleParser implements BundleParser {
         return resp;
     }
 
-    private PayloadDescription toPayload(net.sourceforge.pmd.lang.ast.Node node) throws Exception {
-        try {
+    private PayloadDescription toPayload(net.sourceforge.pmd.lang.ast.Node node) {
             var classDef = node.getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class);
-            var payloadType = classDef.getParent().getFirstDescendantOfType(ASTExtendsList.class).getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
+            if(classDef == null) return null;
+            var extendedClass = classDef.getParent().getFirstDescendantOfType(ASTExtendsList.class);
+            if(extendedClass == null) return null;
+            var payloadType = extendedClass.getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
             if (payloadType.equals("DomainCommand") || payloadType.equals("DomainEvent") ||
                     payloadType.equals("ServiceCommand") || payloadType.equals("ServiceEvent") ||
                     payloadType.equals("Query") || payloadType.equals("View")) {
@@ -247,7 +259,8 @@ public class JavaBundleParser implements BundleParser {
                 var fields = node.findDescendantsOfType(ASTFieldDeclaration.class);
                 for (var field : fields) {
                     var name = field.getFirstDescendantOfType(ASTVariableDeclaratorId.class).getName();
-                    var type = field.getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
+                    var t = field.getFirstDescendantOfType(ASTClassOrInterfaceType.class);
+                    var type = t != null ? t.getImage() : field.getFirstDescendantOfType(ASTPrimitiveType.class).getImage();
                     schema.addProperty(name, type);
                 }
                 if (payloadType.equals("DomainCommand")) {
@@ -276,10 +289,6 @@ public class JavaBundleParser implements BundleParser {
                 return new PayloadDescription(classDef.getSimpleName(), domain, payloadType, schema.toString(), classDef.getBeginLine());
             }
             return null;
-
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private void addSuperFields(JsonObject schema, Class<?> clazz) {
