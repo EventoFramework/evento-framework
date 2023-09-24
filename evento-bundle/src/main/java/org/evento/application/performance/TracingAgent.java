@@ -3,25 +3,42 @@ package org.evento.application.performance;
 import org.evento.common.modeling.messaging.message.application.Message;
 import org.evento.common.modeling.messaging.message.application.Metadata;
 
-public interface TracingAgent {
+public class TracingAgent {
 
-	public default void correlate(Message<?> from, Message<?> to) {
-		to.setMetadata(correlate(to.getMetadata(), from));
-	}
+    private final String bundleId;
+    private final long bundleVersion;
 
-	default <T> T track(Message<?> message, String component, String bundle, long bundleVersion,
-						Track trackingAnnotation,
-						Transaction<T> transaction)
-			throws Throwable {
-		return transaction.run();
-	}
+    public TracingAgent(String bundleId, long bundleVersion) {
+        this.bundleId = bundleId;
+        this.bundleVersion = bundleVersion;
+    }
 
-	default Metadata correlate(Metadata metadata, Message<?> handledMessage) {
-		return metadata;
-	}
+    public void correlate(Message<?> from, Message<?> to) {
+        to.setMetadata(correlate(to.getMetadata(), from));
+    }
+
+    public <T> T track(Message<?> message,
+                       String component,
+                       Track trackingAnnotation,
+                       Transaction<T> transaction)
+            throws Throwable {
+        return transaction.run();
+    }
+
+    public Metadata correlate(Metadata metadata, Message<?> handledMessage) {
+        return metadata;
+    }
 
 
-	public static interface Transaction<T> {
-		public T run() throws Throwable;
-	}
+    public static interface Transaction<T> {
+        public T run() throws Throwable;
+    }
+
+    public String getBundleId() {
+        return bundleId;
+    }
+
+    public long getBundleVersion() {
+        return bundleVersion;
+    }
 }

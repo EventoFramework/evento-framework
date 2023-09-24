@@ -334,7 +334,6 @@ public class MessageGatewayService {
                 throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
             }
         } catch (Exception e) {
-            e.printStackTrace();
             response.sendError(e);
         } finally {
             this.threadCountAutoscalingProtocol.departure();
