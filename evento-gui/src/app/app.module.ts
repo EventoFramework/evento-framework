@@ -30,7 +30,10 @@ export const createTranslateLoader = (http: HttpClient) =>
       }
     }),
     AppRoutingModule, PayloadCatalogPageModule, ComponentsModule],
-  providers: [{provide: RouteReuseStrategy, useClass: IonicRouteStrategy}],
+  providers: [{provide: RouteReuseStrategy, useClass: IonicRouteStrategy}
+
+  ],
+
   bootstrap: [AppComponent],
 })
 export class AppModule {
