@@ -46,7 +46,7 @@ public class BundleService {
 	}
 
 
-	public void register(
+	public synchronized void register(
 			String bundleId,
 			BucketType bundleDeploymentBucketType,
 			String bundleDeploymentArtifactCoordinates,
