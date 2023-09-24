@@ -8,6 +8,7 @@ import org.evento.server.domain.repository.PayloadRepository;
 import org.evento.server.es.EventStore;
 import org.evento.server.web.dto.DashboardDTO;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +34,7 @@ public class DashboardController {
 	}
 
 	@GetMapping()
+	@Secured("ROLE_WEB")
 	public DashboardDTO getDashboard() {
 		var db = new DashboardDTO();
 

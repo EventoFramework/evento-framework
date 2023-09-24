@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -39,6 +40,7 @@ public class ClusterStatusController {
 	}
 
 	@GetMapping(value = "/attended-view")
+	@Secured("ROLE_WEB")
 	public ResponseEntity<List<String>> findAllNodes() {
 		var nodes = bundleService.findAllBundles().stream().filter(Bundle::isContainsHandlers)
 				.filter(b -> b.getBucketType() != BucketType.Ephemeral).map(Bundle::getId).collect(Collectors.toList());
@@ -46,6 +48,7 @@ public class ClusterStatusController {
 	}
 
 	@GetMapping(value = "/view")
+	@Secured("ROLE_WEB")
 	public SseEmitter handle() throws IOException {
 		SseEmitter emitter = new SseEmitter(15 * 60 * 1000L);
 		emitter.send(Map.of("type", "current", "view", messageBus.getCurrentView()));
@@ -78,12 +81,14 @@ public class ClusterStatusController {
 	}
 
 	@PostMapping(value = "/spawn/{bundleId}")
+	@Secured("ROLE_DEPLOY")
 	public ResponseEntity<?> spawnBundle(@PathVariable String bundleId) throws Exception {
 		bundleDeployService.spawn(bundleId);
 		return ResponseEntity.ok().build();
 	}
 
 	@DeleteMapping(value = "/kill/{nodeId}")
+	@Secured("ROLE_DEPLOY")
 	public ResponseEntity<?> killNode(@PathVariable String nodeId) throws Exception {
 		bundleDeployService.kill(nodeId);
 		return ResponseEntity.ok().build();

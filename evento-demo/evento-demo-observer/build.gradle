@@ -7,7 +7,7 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath 'com.eventoframework:evento-cli:ev1.2.2'
+        classpath 'com.eventoframework:evento-cli:ev1.2.1'
     }
 }
 
