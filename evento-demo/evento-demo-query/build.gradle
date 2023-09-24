@@ -7,7 +7,7 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath 'com.eventoframework:evento-cli:ev1.2.1'
+        classpath 'com.eventoframework:evento-cli:ev1.2.3'
     }
 }
 
@@ -73,7 +73,8 @@ tasks.register('eventoPublish') {
     dependsOn 'bootJar'
     doLast {
         PublishBundle.run(file(".").toString(), 'http://localhost:3000',
-                'https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-query')
+                'https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-query',
+                'eyJraWQiOiJldmVudG8tc2VydmVyLWF1dGgta2V5IiwidHlwIjoiSldUIiwiYWxnIjoiSFMyNTYifQ.eyJjbGllbnRJZCI6ImRlcGxveUtleSIsInJvbGUiOlsiUk9MRV9QVUJMSVNIIl0sIm5iZiI6MTY5NTU3NjU4MywiaXNzIjoiZXZlbnRvLXNlcnZlciIsImV4cCI6MTcyNzExMjU4NCwiaWF0IjoxNjk1NTc2NTg0LCJqdGkiOiIxYmVjMjY0MC02YzgwLTRkZDctYjc1NC1hMDNmMTIzZjZmNTcifQ.9pY37cPqa55kAzWG8OlqPvObQ6en-f0D45HWRqzZU3E')
     }
 }
 tasks.register('eventoUpdateVersionAndPublish') {
