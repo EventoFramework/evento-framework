@@ -7,6 +7,7 @@ import org.evento.server.performance.model.Source;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 public class NodeDTO implements Serializable {
 
@@ -27,9 +28,14 @@ public class NodeDTO implements Serializable {
 
 	private String handlerId;
 
+	private String path;
+	private List<Integer> lines;
+
 	public NodeDTO(Node node) {
 		this.id = node.getId();
 		this.type = node.getClass().getSimpleName();
+		this.path = node.getPath();
+		this.lines = node.getLines();
 		if (node instanceof ServiceStation s)
 		{
 			this.bundle = s.getBundle();
@@ -164,5 +170,21 @@ public class NodeDTO implements Serializable {
 
 	public void setHandlerId(String handlerId) {
 		this.handlerId = handlerId;
+	}
+
+	public String getPath() {
+		return path;
+	}
+
+	public void setPath(String path) {
+		this.path = path;
+	}
+
+	public List<Integer> getLines() {
+		return lines;
+	}
+
+	public void setLines(List<Integer> lines) {
+		this.lines = lines;
 	}
 }
