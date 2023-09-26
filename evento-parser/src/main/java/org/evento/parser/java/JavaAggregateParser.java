@@ -51,6 +51,8 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 		aggregate.setComponentName(getDeclaredClassName());
 		aggregate.setAggregateCommandHandlers(findAggregateCommandHandler());
 		aggregate.setEventSourcingHandlers(findEventSourcingHandlers());
+		findCommandInvocations(aggregate.getAggregateCommandHandlers());
+		findQueryInvocations(aggregate.getAggregateCommandHandlers());
 		return aggregate;
 	}
 
