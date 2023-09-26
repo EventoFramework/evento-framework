@@ -192,7 +192,38 @@ public class BundleService {
 											return payloadRepository.save(payload);
 										}
 								));
-						handler.setInvocations(new HashMap<>());
+						var invocations = new HashMap<Integer, Payload>();
+						for (var command : aggregateCommandHandler.getCommandInvocations().entrySet()) {
+							invocations.put(
+									command.getKey(),
+									payloadRepository.findById(command.getValue().getName()).orElseGet(
+											() -> {
+												var payload = new Payload();
+												payload.setName(command.getValue().getName());
+												payload.setJsonSchema("null");
+												payload.setType(PayloadType.Command);
+												payload.setUpdatedAt(Instant.now());
+												payload.setRegisteredIn(bundle.getId());
+												payload.setValidJsonSchema(false);
+												return payloadRepository.save(payload);
+											}
+									));
+						}
+						for (var query : aggregateCommandHandler.getQueryInvocations().entrySet()) {
+							invocations.put(query.getKey(), payloadRepository.findById(query.getValue().getName()).orElseGet(
+									() -> {
+										var payload = new Payload();
+										payload.setName(query.getValue().getName());
+										payload.setJsonSchema("null");
+										payload.setType(PayloadType.Query);
+										payload.setUpdatedAt(Instant.now());
+										payload.setRegisteredIn(bundle.getId());
+										payload.setValidJsonSchema(false);
+										return payloadRepository.save(payload);
+									}
+							));
+						}
+						handler.setInvocations(invocations);
 						handler.generateId();
 						handlerRepository.save(handler);
 					}
@@ -351,7 +382,22 @@ public class BundleService {
 									return payloadRepository.save(payload);
 								}
 						));
-						handler.setInvocations(new HashMap<>());
+						var invocations = new HashMap<Integer, Payload>();
+						for (var query : queryHandler.getQueryInvocations().entrySet()) {
+							invocations.put(query.getKey(), payloadRepository.findById(query.getValue().getName()).orElseGet(
+									() -> {
+										var payload = new Payload();
+										payload.setName(query.getValue().getName());
+										payload.setJsonSchema("null");
+										payload.setType(PayloadType.Query);
+										payload.setUpdatedAt(Instant.now());
+										payload.setRegisteredIn(bundle.getId());
+										payload.setValidJsonSchema(false);
+										return payloadRepository.save(payload);
+									}
+							));
+						}
+						handler.setInvocations(invocations);
 						handler.generateId();
 						handlerRepository.save(handler);
 

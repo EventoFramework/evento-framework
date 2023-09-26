@@ -70,18 +70,18 @@ export class ComponentHandlersDiagramComponent implements OnInit {
             continue;
           }
           const p = graph.insertVertex(parent, '/component-info/' + this.component.componentName,
-            this.component.componentName, 0, 0, 250, 50,
+            this.component.componentName, 0, 0, this.component.componentName.length*10, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[this.component.componentType] +
             ';fontColor=' + componentColor[this.component.componentType] + ';strokeWidth=4;fontStyle=1;fontSize=14');
 
-          const t = graph.insertVertex(parent, '/payload-info/' + h.handledPayload.name, h.handledPayload.name, 0, 0, 250, 50,
+          const t = graph.insertVertex(parent, '/payload-info/' + h.handledPayload.name, h.handledPayload.name, 0, 0, h.handledPayload.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] +
             ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
 
           if (h.returnType) {
             const r = graph.insertVertex(parent, '/payload-info/' + h.returnType.name, h.returnType.name +
-              (h.returnIsMultiple ? '[]' : ''), 0, 0, 250, 50,
+              (h.returnIsMultiple ? '[]' : ''), 0, 0, h.returnType.name.length*7, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] +
               ';fontColor=#333333;strokeWidth=3;');
             edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
@@ -89,7 +89,7 @@ export class ComponentHandlersDiagramComponent implements OnInit {
 
 
           for (const i of Object.values(h.invocations) as any[]) {
-            const ii = graph.insertVertex(parent, '/payload-info/' + i.name, i.name, 0, 0, 250, 50,
+            const ii = graph.insertVertex(parent, '/payload-info/' + i.name, i.name, 0, 0, i.name.length*7, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[i.type] +
               ';fontColor=#333333;strokeWidth=3;');
             edges.push(graph.insertEdge(parent, null, null, p, ii, edgeStyle));

@@ -41,6 +41,7 @@ public class JavaProjectionParser extends JavaComponentParser<Projection> {
 		Projection projection = new Projection();
 		projection.setComponentName(getDeclaredClassName());
 		projection.setQueryHandlers(findQueryHandlers());
+		findQueryInvocations(projection.getQueryHandlers());
 		return projection;
 	}
 }

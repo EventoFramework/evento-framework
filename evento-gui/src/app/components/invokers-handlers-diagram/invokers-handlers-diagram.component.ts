@@ -67,26 +67,26 @@ export class InvokersHandlersDiagramComponent implements OnInit {
       try {
 
 
-        const p = graph.insertVertex(parent,'/payload-info/'+  this.payload.name, this.payload.name, 0, 0, 250, 50,
+        const p = graph.insertVertex(parent,'/payload-info/'+  this.payload.name, this.payload.name, 0, 0, this.payload.name.length*10, 50,
           'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[this.payload.type] +
           ';fontColor=' + payloadColor[this.payload.type] + ';strokeWidth=4;fontStyle=1;fontSize=14');
 
         for (const r of this.payload.returnedBy) {
-          const l = graph.insertVertex(parent,'/component-info/'+  r.name, r.name, 0, 0, 200, 50,
+          const l = graph.insertVertex(parent,'/component-info/'+  r.name, r.name, 0, 0,  r.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[r.type] +
             ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, l, p, edgeStyle));
         }
 
         for (const i of this.payload.invokers) {
-          const l = graph.insertVertex(parent,'/component-info/'+  i.name, i.name, 0, 0, 200, 50,
+          const l = graph.insertVertex(parent,'/component-info/'+  i.name, i.name, 0, 0,  i.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[i.type] +
             ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, l, p, edgeStyle));
         }
 
         for (const s of this.payload.subscribers) {
-          const l = graph.insertVertex(parent,'/component-info/'+ s.name, s.name, 0, 0, 200, 50,
+          const l = graph.insertVertex(parent,'/component-info/'+ s.name, s.name, 0, 0, s.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[s.type] +
             ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, p, l, edgeStyle));

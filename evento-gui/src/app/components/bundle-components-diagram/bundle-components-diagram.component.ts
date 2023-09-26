@@ -68,21 +68,21 @@ export class BundleComponentsDiagramComponent implements OnInit {
           }
           if (!components[h.componentName]) {
             components[h.componentName] = graph.insertVertex(parent, '/component-info/' + h.componentName,
-              h.componentName, 0, 0, 250, 50,
+              h.componentName, 0, 0, h.componentName.length*7, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[h.componentType] +
               ';fontColor=#333333;strokeWidth=3;');
 
           }
           const p = components[h.componentName];
           const t = graph.insertVertex(parent, '/payload-info/' + h.handledPayload.name, h.handledPayload.name,
-            0, 0, 250, 50,
+            0, 0, h.handledPayload.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] +
             ';fontColor=#333333;strokeWidth=3;');
           edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
 
           if (h.returnType) {
             const r = graph.insertVertex(parent, '/payload-info/' + h.returnType.name, h.returnType.name  +
-              (h.returnIsMultiple ? '[]' : ''), 0, 0, 250, 50,
+              (h.returnIsMultiple ? '[]' : ''), 0, 0, h.returnType.name.length*7, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] +
               ';fontColor=#333333;strokeWidth=3;');
             edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
@@ -90,7 +90,7 @@ export class BundleComponentsDiagramComponent implements OnInit {
 
 
           for (const i of Object.values(h.invocations) as any[]) {
-            const ii = graph.insertVertex(parent, '/payload-info/' + i.name, i.name, 0, 0, 250, 50,
+            const ii = graph.insertVertex(parent, '/payload-info/' + i.name, i.name, 0, 0, i.name.length*7, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[i.type] +
               ';fontColor=#333333;strokeWidth=3;');
             edges.push(graph.insertEdge(parent, null, null, p, ii, edgeStyle));
