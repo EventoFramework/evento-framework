@@ -79,6 +79,14 @@ public class ApplicationPerformanceModelService {
             // Server -> Component
             var handler = p.getHandlers().get(0);
             var a = n.station(handler, false, null);
+            for (var pp : new HashSet<>(handler.getInvocations().values())) {
+                generateInvocationPerformanceModel(n, handlers, pp, a, null,
+                        handler.getUuid(),
+                        handler.getComponent().getPath(),
+                        handler.getInvocations().entrySet().stream()
+                                .filter(e -> e.getValue().equals(pp))
+                                .map(Map.Entry::getKey).toList());
+            }
             serverRequestAgent.addTarget(a, performanceStoreService);
             // Component -> Server
             var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType() == null ? "Void" : handler.getReturnType().getName(), handler.getReturnType() == null ? null : handler.getReturnType().getType().toString(), false, null, "Gateway_" + handler.getHandledPayload().toString() + "_" + (handler.getReturnType() == null ? "Void" : handler.getReturnType().getName())
@@ -129,6 +137,14 @@ public class ApplicationPerformanceModelService {
             // Server -> Component
             var handler = p.getHandlers().get(0);
             var a = n.station(handler, false, null);
+            for (var pp : new HashSet<>(handler.getInvocations().values())) {
+                generateInvocationPerformanceModel(n, handlers, pp, a, null,
+                        handler.getUuid(),
+                        handler.getComponent().getPath(),
+                        handler.getInvocations().entrySet().stream()
+                                .filter(e -> e.getValue().equals(pp))
+                                .map(Map.Entry::getKey).toList());
+            }
             serverRequestAgent.addTarget(a, performanceStoreService);
             // Component -> Server
             var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType().getName(),
