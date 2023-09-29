@@ -11,6 +11,7 @@ import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -52,7 +53,11 @@ public class PublishBundle {
 		outputStream.close();
 
 		System.out.println("Uploading to server");
-		OkHttpClient client = new OkHttpClient();
+		OkHttpClient client = new OkHttpClient.Builder()
+				.connectTimeout(60, TimeUnit.SECONDS)
+				.readTimeout(60, TimeUnit.SECONDS)
+				.writeTimeout(60 * 5, TimeUnit.SECONDS)
+				.build();
 		Request request = new Request.Builder()
 				.url(serverUrl + "/api/bundle/")
 				.post(new MultipartBody.Builder().setType(MultipartBody.FORM)
