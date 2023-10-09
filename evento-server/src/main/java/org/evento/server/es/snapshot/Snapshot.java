@@ -17,6 +17,7 @@ public class Snapshot {
 	private SerializedAggregateState<?> aggregateState;
 
 	private Instant updatedAt;
+	private Instant deletedAt;
 
 	public String getAggregateId() {
 		return aggregateId;
@@ -48,5 +49,13 @@ public class Snapshot {
 
 	public void setUpdatedAt(Instant updatedAt) {
 		this.updatedAt = updatedAt;
+	}
+
+	public Instant getDeletedAt() {
+		return deletedAt;
+	}
+
+	public void setDeletedAt(Instant deletedAt) {
+		this.deletedAt = deletedAt;
 	}
 }

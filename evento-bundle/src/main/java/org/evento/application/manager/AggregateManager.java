@@ -71,7 +71,8 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                     response.sendResponse(
                             new DomainCommandResponseMessage(em,
                                     (handler.getSnapshotFrequency() >= 0 & handler.getSnapshotFrequency() <= c.getEventStream().size()) ?
-                                            new SerializedAggregateState<>(envelope.getAggregateState()) : null
+                                            new SerializedAggregateState<>(envelope.getAggregateState()) : null,
+                                    envelope.getAggregateState().isDeleted()
                             )
                     );
                     proxy.sendInvocationsMetric();
