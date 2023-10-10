@@ -70,6 +70,8 @@ public class SagaEventConsumer implements Runnable {
 
                             var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName())
                                     .getAnnotation(SagaEventHandler.class).associationProperty();
+                            var isInit = handler.getSagaEventHandler(publishedEvent.getEventName())
+                                    .getAnnotation(SagaEventHandler.class).init();
                             var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
 
                             var sagaState = sagaStateFetcher.getLastState(
@@ -77,6 +79,9 @@ public class SagaEventConsumer implements Runnable {
                                     associationProperty,
                                     associationValue
                             );
+                            if(sagaState == null && !isInit){
+                                return null;
+                            }
                             var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
                                     publishedEvent.getEventMessage());
                             return tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
@@ -89,7 +94,7 @@ public class SagaEventConsumer implements Runnable {
                                                 proxy
                                         );
                                         proxy.sendInvocationsMetric();
-                                        return resp;
+                                        return resp == null ? sagaState : resp;
                                     });
                         }, sssFetchSize);
             } catch (Throwable e) {
