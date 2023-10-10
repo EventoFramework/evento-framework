@@ -207,6 +207,9 @@ public class MessageGatewayService {
                                             cr.getSerializedAggregateState()
                                     );
                                 }
+                                if(cr.isAggregateDeleted()){
+                                    eventStore.deleteAggregate(c.getAggregateId());
+                                }
                                 performanceStoreService.sendServiceTimeMetric(
                                         EVENT_STORE,
                                         EVENT_STORE_COMPONENT,
