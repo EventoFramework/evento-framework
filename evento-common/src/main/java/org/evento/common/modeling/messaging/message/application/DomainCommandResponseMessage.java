@@ -10,13 +10,19 @@ public class DomainCommandResponseMessage implements Serializable {
 	private DomainEventMessage domainEventMessage;
 	private SerializedAggregateState<AggregateState> serializedAggregateState;
 
+	private boolean aggregateDeleted;
+
 	public DomainCommandResponseMessage() {
 
 	}
 
-	public DomainCommandResponseMessage(DomainEventMessage domainEventMessage, SerializedAggregateState<AggregateState> serializedAggregateState) {
+	public DomainCommandResponseMessage(
+			DomainEventMessage domainEventMessage,
+			SerializedAggregateState<AggregateState> serializedAggregateState,
+			boolean aggregateDeleted) {
 		this.domainEventMessage = domainEventMessage;
 		this.serializedAggregateState = serializedAggregateState;
+		this.aggregateDeleted = aggregateDeleted;
 	}
 
 	public DomainEventMessage getDomainEventMessage() {
@@ -33,5 +39,13 @@ public class DomainCommandResponseMessage implements Serializable {
 
 	public void setSerializedAggregateState(SerializedAggregateState<AggregateState> serializedAggregateState) {
 		this.serializedAggregateState = serializedAggregateState;
+	}
+
+	public boolean isAggregateDeleted() {
+		return aggregateDeleted;
+	}
+
+	public void setAggregateDeleted(boolean aggregateDeleted) {
+		this.aggregateDeleted = aggregateDeleted;
 	}
 }

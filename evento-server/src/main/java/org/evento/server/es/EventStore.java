@@ -53,18 +53,18 @@ public class EventStore {
         return Context.ALL.equals(context) ?
                 eventStoreRepository.fetchEvents(
                         seq,
-                        snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit)):
+                        snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit)) :
                 eventStoreRepository.fetchEvents(
-                context,
-                seq,
-                snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit));
+                        context,
+                        seq,
+                        snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit));
     }
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit, List<String> eventNames) {
         if (seq == null) seq = -1L;
         return Context.ALL.equals(context) ? eventStoreRepository.fetchEvents(
                 seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
-                eventNames, PageRequest.of(0, limit)):
+                eventNames, PageRequest.of(0, limit)) :
                 eventStoreRepository.fetchEvents(
                         context,
                         seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
@@ -89,7 +89,7 @@ public class EventStore {
         return v == null ? 0 : v;
     }
 
-    public void publishEvent(EventMessage<?> eventMessage,String aggregateId) {
+    public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
         try {
             var time = Instant.now().toEpochMilli();
@@ -103,7 +103,7 @@ public class EventStore {
                     time,
                     mapper.writeValueAsBytes(eventMessage),
                     eventMessage.getEventName(),
-					eventMessage.getContext()
+                    eventMessage.getContext()
             );
 
         } catch (JsonProcessingException e) {
@@ -123,7 +123,7 @@ public class EventStore {
                     time,
                     mapper.writeValueAsBytes(eventMessage),
                     eventMessage.getEventName(),
-					eventMessage.getContext()
+                    eventMessage.getContext()
             );
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
@@ -144,5 +144,16 @@ public class EventStore {
 
     public Long getAggregateCount() {
         return eventStoreRepository.getAggregateCount();
+    }
+
+    public void deleteAggregate(String aggregateIdentifier) {
+        var time = Instant.now().toEpochMilli();
+        jdbcTemplate.update(
+                "UPDATE es__events " +
+                        "set deleted_at = ? where aggregate_id = ?",
+                time,
+                aggregateIdentifier
+        );
+        snapshotRepository.deleteAggregate(aggregateIdentifier);
     }
 }
