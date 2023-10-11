@@ -27,9 +27,10 @@ public abstract class PerformanceService {
 
     public final void sendServiceTimeMetric(String bundle, String component, Message<?> message, Instant startTime) {
         if (random.nextDouble(0.0, 1.0) > performanceRate) return;
+        var time = Instant.now().toEpochMilli();
         executor.execute(() -> {
             var st = new PerformanceServiceTimeMessage(bundle, component, message.getPayloadName()
-                    , startTime.toEpochMilli(), Instant.now().toEpochMilli());
+                    , startTime.toEpochMilli(), time);
             try {
                 sendServiceTimeMetricMessage(st);
             } catch (Exception e) {
