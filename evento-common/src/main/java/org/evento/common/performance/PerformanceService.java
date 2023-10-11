@@ -19,7 +19,7 @@ public abstract class PerformanceService {
     protected final Executor executor = Executors.newSingleThreadExecutor();
 
     private final Random random = new Random();
-    private double performanceRate = 1;
+    private double performanceRate;
 
     public PerformanceService(double rate) {
         performanceRate = rate;
