@@ -101,7 +101,7 @@ public class EventStore {
                     snowflake.nextId(),
                     aggregateId,
                     time,
-                    mapper.writeValueAsBytes(eventMessage),
+                    mapper.writeValueAsString(eventMessage),
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
@@ -121,7 +121,7 @@ public class EventStore {
                     snowflake.nextId(),
                     null,
                     time,
-                    mapper.writeValueAsBytes(eventMessage),
+                    mapper.writeValueAsString(eventMessage),
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
