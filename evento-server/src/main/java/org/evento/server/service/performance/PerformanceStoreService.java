@@ -149,7 +149,7 @@ public class PerformanceStoreService extends PerformanceService {
     public Double getInvocationProbability(String bundle, String component, String action, String payload) {
         return handlerInvocationCountPerformanceRepository.findById(bundle + "_" + component + "_" + action + "_" + payload).map(
                 HandlerInvocationCountPerformance::getMeanProbability
-        ).orElse(1.0);
+        ).orElse(0.0);
     }
 
     @Override
