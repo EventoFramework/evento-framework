@@ -97,7 +97,7 @@ public class EventStore {
                     "INSERT INTO es__events " +
                             "(event_sequence_number," +
                             "aggregate_id, created_at, event_message, event_name, context) " +
-                            "values  (?, ?, ?, compress(?), ?, ?)",
+                            "values  (?, ?, ?, ?, ?, ?)",
                     snowflake.nextId(),
                     aggregateId,
                     time,
@@ -117,7 +117,7 @@ public class EventStore {
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
                             "(event_sequence_number, aggregate_id, created_at, event_message, event_name, context) values " +
-                            "( ?, ?, ?,compress(?),?,?)",
+                            "( ?, ?, ?,?,?,?)",
                     snowflake.nextId(),
                     null,
                     time,
