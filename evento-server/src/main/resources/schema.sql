@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `es__events`
     `aggregate_id`          varchar(100) DEFAULT NULL,
     `event_name`            varchar(100) NOT NULL,
     `created_at`            bigint       NOT NULL,
-    `event_message`         blob         NOT NULL,
+    `event_message`         json         NOT NULL,
     `deleted_at`            bigint       DEFAULT NULL
 ) ENGINE = InnoDB|
 
