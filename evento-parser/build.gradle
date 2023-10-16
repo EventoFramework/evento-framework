@@ -2,9 +2,10 @@ plugins {
     id 'java'
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
 }
 
-group 'org.evento.parser'
+group 'com.eventoframework'
 version 'ev1.2.18'
 
 repositories {
@@ -34,23 +35,69 @@ dependencies {
 
 }
 
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
 test {
     useJUnitPlatform()
 }
 
 publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId = 'com.eventoframework'
+    publications{
+        mavenJava(MavenPublication){
+            groupId = group
             artifactId = 'evento-parser'
             version = version
             from components.java
-
             pom {
-                name = 'Evento - Parser'
-                description = '...'
+                name = "Evento Frameowrk - Parser"
+                description = "Codebase Parser to detect RECQ Components for Evento Framework"
+                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-parser"
+
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-parser"
+                }
+            }
+
+            repositories {
+                maven {
+                    name = "OSSRH"
+                    url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+                    credentials {
+                        username = project.properties["mavenCentralUsername"]
+                        password = project.properties["mavenCentralPassword"]
+                    }
+                }
             }
         }
     }
 }
 
+signing {
+    sign publishing.publications.mavenJava
+}
+
+javadoc{
+    if(JavaVersion.current().isJava9Compatible()){
+        options.addBooleanOption("html5", true)
+    }
+}

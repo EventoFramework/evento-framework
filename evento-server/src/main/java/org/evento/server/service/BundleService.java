@@ -21,6 +21,7 @@ import org.evento.server.service.deploy.BundleDeployService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.util.Assert;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -131,6 +132,12 @@ public class BundleService {
 			}
 
 			for (Component component : bundleDescription.getComponents()) {
+				componentRepository.findById(component.getComponentName())
+						.ifPresent(c -> {
+							Assert.isTrue(c.getBundle().getId().equals(bundleId),
+									"Component Duplicated: The component %s is already registered in bundle %s"
+									.formatted(component.getComponentName(), bundleId));
+						});
 				if (component instanceof Aggregate a) {
 					for (AggregateCommandHandler aggregateCommandHandler : a.getAggregateCommandHandlers()) {
 						var handler = new org.evento.server.domain.model.Handler();

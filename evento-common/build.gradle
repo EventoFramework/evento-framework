@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
 }
 
 group 'com.eventoframework'
@@ -23,23 +24,69 @@ dependencies {
     api 'org.apache.logging.log4j:log4j-core:2.19.0'
 }
 
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
 test {
     useJUnitPlatform()
 }
 
 publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId = 'com.eventoframework'
+    publications{
+        mavenJava(MavenPublication){
+            groupId = group
             artifactId = 'evento-common'
             version = version
             from components.java
-
             pom {
-                name = 'Evento - Common'
-                description = '...'
+                name = "Evento Frameowrk - Common"
+                description = "Common Library of Object and Algorithms for Evento Framework"
+                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-common"
+
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-common"
+                }
+            }
+
+            repositories {
+                maven {
+                    name = "OSSRH"
+                    url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+                    credentials {
+                        username = project.properties["mavenCentralUsername"]
+                        password = project.properties["mavenCentralPassword"]
+                    }
+                }
             }
         }
     }
 }
 
+signing {
+    sign publishing.publications.mavenJava
+}
+
+javadoc{
+    if(JavaVersion.current().isJava9Compatible()){
+        options.addBooleanOption("html5", true)
+    }
+}
