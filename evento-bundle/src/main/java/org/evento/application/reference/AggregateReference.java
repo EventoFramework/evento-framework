@@ -1,6 +1,5 @@
 package org.evento.application.reference;
 
-
 import org.evento.application.utils.ReflectionUtils;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
@@ -15,20 +14,27 @@ import org.evento.common.modeling.messaging.payload.DomainCommand;
 import org.evento.common.modeling.messaging.payload.DomainEvent;
 import org.evento.common.modeling.state.AggregateState;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Set;
 
+/**
+ * The `AggregateReference` class is responsible for managing aggregate references and handling domain commands and events.
+ */
 public class AggregateReference extends Reference {
 
     private final HashMap<String, Method> eventSourcingReferences = new HashMap<>();
-
     private final HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
     private final int snapshotFrequency;
 
+    /**
+     * Constructs an `AggregateReference`.
+     *
+     * @param ref              The reference to the aggregate.
+     * @param snapshotFrequency The snapshot frequency for the aggregate.
+     */
     public AggregateReference(Object ref, int snapshotFrequency) {
         super(ref);
         this.snapshotFrequency = snapshotFrequency;
@@ -54,22 +60,55 @@ public class AggregateReference extends Reference {
         }
     }
 
+    /**
+     * Get the snapshot frequency for the aggregate.
+     *
+     * @return The snapshot frequency.
+     */
     public int getSnapshotFrequency() {
         return snapshotFrequency;
     }
 
+    /**
+     * Get the event sourcing handler method for a given event name.
+     *
+     * @param eventName The name of the event.
+     * @return The event sourcing handler method.
+     */
     public Method getEventSourcingHandler(String eventName) {
         return eventSourcingReferences.get(eventName);
     }
 
+    /**
+     * Get the aggregate command handler method for a given command name.
+     *
+     * @param commandName The name of the command.
+     * @return The aggregate command handler method.
+     */
     public Method getAggregateCommandHandler(String commandName) {
         return aggregateCommandHandlerReferences.get(commandName);
     }
 
+    /**
+     * Get the set of registered commands associated with this aggregate reference.
+     *
+     * @return A set of registered command names.
+     */
     public Set<String> getRegisteredCommands() {
         return aggregateCommandHandlerReferences.keySet();
     }
 
+    /**
+     * Invoke a domain command on the aggregate and update its state.
+     *
+     * @param cm             The domain command message.
+     * @param envelope       The aggregate state envelope.
+     * @param eventStream    The collection of domain event messages.
+     * @param commandGateway The command gateway for issuing commands.
+     * @param queryGateway   The query gateway for querying data.
+     * @return The domain event resulting from the command execution.
+     * @throws Throwable If there is an error during command handling.
+     */
     public DomainEvent invoke(
             DomainCommandMessage cm,
             AggregateStateEnvelope envelope,
@@ -106,6 +145,12 @@ public class AggregateReference extends Reference {
         );
     }
 
+    /**
+     * Check if the provided command handler is an aggregate initializer.
+     *
+     * @param commandHandler The aggregate command handler method.
+     * @return `true` if it is an initializer, otherwise `false`.
+     */
     private boolean isAggregateInitializer(Method commandHandler) {
         return commandHandler.getAnnotation(AggregateCommandHandler.class).init();
     }

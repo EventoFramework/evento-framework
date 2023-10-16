@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'com.github.johnrengelman.shadow' version '7.1.2'
     id 'maven-publish'
+    id 'signing'
 }
 
 group 'com.eventoframework'
@@ -23,9 +24,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
 }
 
-test {
-    useJUnitPlatform()
-}
 
 jar {
     manifest {
@@ -35,19 +33,71 @@ jar {
     }
 }
 
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+test {
+    useJUnitPlatform()
+}
+
 publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId = 'com.eventoframework'
+    publications{
+        mavenJava(MavenPublication){
+            groupId = group
             artifactId = 'evento-cli'
             version = version
             from components.java
-
             pom {
-                name = 'Evento - CLI'
-                description = '...'
+                name = "Evento Framework - CLI"
+                description = "Command line interface for Evento Framework to Publish and Parse the codebase"
+                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-cli"
+
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-parser"
+                }
+            }
+
+            repositories {
+                maven {
+                    name = "OSSRH"
+                    url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+                    credentials {
+                        username = project.properties["mavenCentralUsername"]
+                        password = project.properties["mavenCentralPassword"]
+                    }
+                }
             }
         }
     }
 }
+
+signing {
+    sign publishing.publications.mavenJava
+}
+
+javadoc{
+    if(JavaVersion.current().isJava9Compatible()){
+        options.addBooleanOption("html5", true)
+    }
+}
+
 
