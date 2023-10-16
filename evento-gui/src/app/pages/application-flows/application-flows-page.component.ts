@@ -286,19 +286,23 @@ export class ApplicationFlowsPage implements OnInit {
             if (this.performanceAnalysis) {
               const source = nodesRef[node.id];
               const ql = (source.throughtput - target.throughtput);
-              const ratio = source.throughtput / source.workload;
-              const c = this.perc2color(ratio * 100);
+              const ratio = source.throughtput === 0 ? 0 : (source.throughtput*1.00) / (source.workload*1.00);
+              const c = this.perc2color(ratio * 100.0);
+              console.log(ratio, c);
+              console.log(source.throughtput, source.workload);
+              console.log(source);
               let txt = (node.throughtput * node.target[target.id]).toFixed(4) + '  [r/ms]';
               if (target.fcr) {
                 txt += '\n' + ql.toFixed(4) + ' [ql/ms]';
               }
               txt += '\n' + (node.target[target.id] * 100)?.toFixed(1) + ' %';
-
               const zz = ';strokeWidth=' + String((Math.max(1, Math.min(ratio * 5, 10)))) + ';';
               const sty = edgeStyle + zz + ';strokeColor=' + c + ';' + (target.async ? 'dashed=1' : 'dashed=0');
+              const defS = (!!ratio && !!node.target[target.id]) ? sty :
+                (edgeStyle + ';strokeWidth=1;strokeColor=grey' + ';' + (target.async ? 'dashed=1' : 'dashed=0'));
+              console.log(defS);
               graph.insertEdge(parent, null, txt, vertexRef[node.id],
-                vertexRef[target.id], (!!ratio && !!node.target[target.id]) ? sty :
-                  (edgeStyle + ';strokeWidth=1;strokeColor=grey' + ';' + (target.async ? 'dashed=1' : 'dashed=0')));
+                vertexRef[target.id],defS );
             } else {
               edges.push(graph.insertEdge(parent, null, '', vertexRef[node.id],
                 vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';' +
@@ -395,7 +399,6 @@ export class ApplicationFlowsPage implements OnInit {
               }
             }
           } else {
-            console.log(cell)
             const targets = this.model.nodes.filter(n => n.handlerId === cell.handlerId);
             if (targets.length) {
               const t = targets[0];
@@ -411,19 +414,6 @@ export class ApplicationFlowsPage implements OnInit {
             }
           }
         }
-        /*
-        if (cell != null) {
-          menu.addItem('Cell Item', '', function () {
-            alert('MenuItem1');
-          });
-        } else {
-          menu.addItem('Export Graph', '', function () {
-          });
-        }
-        menu.addSeparator();
-        menu.addItem('MenuItem3', '', function () {
-          alert('MenuItem3: ' + graph.getSelectionCount() + ' selected');
-        });*/
       };
 
 
