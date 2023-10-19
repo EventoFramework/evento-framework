@@ -126,13 +126,15 @@ public class AggregateReference extends Reference {
 
         for (var em : eventStream) {
             var eh = getEventSourcingHandler(em.getEventName());
-            var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState(), em.getMetadata());
-            if (state == null) {
-                state = envelope.getAggregateState();
+            if(eh != null){
+                var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState(), em.getMetadata());
+                if (state == null) {
+                    state = envelope.getAggregateState();
+                }
+                envelope.setAggregateState(state);
+                if (envelope.getAggregateState().isDeleted())
+                    throw AggregateDeletedError.build(cm.getAggregateId());
             }
-            envelope.setAggregateState(state);
-            if (envelope.getAggregateState().isDeleted())
-                throw AggregateDeletedError.build(cm.getAggregateId());
         }
 
         return (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
