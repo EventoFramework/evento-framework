@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework.bus'
-version 'ev1.2.18'
+version 'ev1.2.19'
 
 repositories {
     mavenCentral()
