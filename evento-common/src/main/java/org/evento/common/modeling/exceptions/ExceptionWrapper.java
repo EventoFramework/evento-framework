@@ -3,18 +3,23 @@ package org.evento.common.modeling.exceptions;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 
-public class ThrowableWrapper implements Serializable {
+public class ExceptionWrapper implements Serializable {
 	public String throwable;
 	public String message;
 	public StackTraceElement[] stackTrace;
+	private ExceptionWrapper cause;
 
-	public ThrowableWrapper(Class<? extends Throwable> throwable, String message, StackTraceElement[] stackTrace) {
-		this.throwable = throwable.getName();
-		this.message = message;
-		this.stackTrace = stackTrace;
+	public ExceptionWrapper(Throwable throwable) {
+		this.throwable = throwable.getClass().getName();
+		this.message = throwable.getMessage();
+		this.stackTrace = throwable.getStackTrace();
+		if(throwable.getCause() != null && throwable.getCause() != throwable){
+			cause = new ExceptionWrapper(throwable.getCause());
+		}
+
 	}
 
-	public ThrowableWrapper() {
+	public ExceptionWrapper() {
 	}
 
 	public String getThrowable() {
@@ -49,27 +54,30 @@ public class ThrowableWrapper implements Serializable {
 		this.stackTrace = stackTrace;
 	}
 
-	public Throwable toThrowable() {
-		try
-		{
-			Throwable ex = (Throwable) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
-			ex.setStackTrace(stackTrace);
-			return ex;
-		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException |
-				 NoSuchMethodException e)
-		{
-			Throwable ex = new RuntimeException(throwable + ": " + getMessage());
-			ex.setStackTrace(stackTrace);
-			return ex;
-		}
+	public ExceptionWrapper getCause() {
+		return cause;
+	}
+
+	public ExceptionWrapper setCause(ExceptionWrapper cause) {
+		this.cause = cause;
+		return this;
 	}
 
 	public Exception toException() {
 		try
 		{
-			Exception ex = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
-			ex.setStackTrace(stackTrace);
-			return ex;
+			if(cause != null){
+				Exception ex = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable)
+						.getConstructor(String.class, Throwable.class)
+						.newInstance(getMessage(), cause.toException());
+				ex.setStackTrace(stackTrace);
+				return ex;
+			}else{
+				Exception ex = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
+				ex.setStackTrace(stackTrace);
+				return ex;
+			}
+
 		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException |
 				 NoSuchMethodException e)
 		{

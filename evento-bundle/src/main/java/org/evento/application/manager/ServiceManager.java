@@ -36,7 +36,7 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
     }
 
     @Override
-    public ServiceEventMessage handle(ServiceCommandMessage c) throws Throwable {
+    public ServiceEventMessage handle(ServiceCommandMessage c) throws Exception {
         var handler = getHandlers().get(c.getCommandName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s"

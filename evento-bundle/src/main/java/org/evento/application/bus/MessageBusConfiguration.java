@@ -10,9 +10,9 @@ public class MessageBusConfiguration {
     private int retryDelayMillis = 500;
 
     private int maxReconnectAttempts = 5;
-    private long reconnectDelayMillis = 2000;
+    private long reconnectDelayMillis = 5000;
 
-    private int maxDisableAttempts;
+    private int maxDisableAttempts = 5;
     private int disableDelayMillis = 5000;
 
 

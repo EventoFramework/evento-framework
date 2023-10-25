@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.bus.SendFailedException;
-import org.evento.common.modeling.exceptions.ThrowableWrapper;
+import org.evento.common.modeling.exceptions.ExceptionWrapper;
 import org.evento.common.modeling.messaging.message.internal.EventoMessage;
 import org.evento.common.modeling.messaging.message.internal.EventoRequest;
 import org.evento.common.modeling.messaging.message.internal.EventoResponse;
@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 
 public class EventoServerClient implements EventoServer {
 
@@ -29,13 +28,13 @@ public class EventoServerClient implements EventoServer {
     private final Map<String, CompletableFuture> correlations = new HashMap<>();
     private ClusterConnection clusterConnection;
 
-    private final Function<Serializable, Serializable> requestHandler;
+    private final RequestHandler requestHandler;
 
     private EventoServerClient(String bundleId,
                                long bundleVersion,
                                String instanceId,
                                ObjectMapper objectMapper,
-                               Function<Serializable, Serializable> requestHandler) {
+                               RequestHandler requestHandler) {
         this.bundleId = bundleId;
         this.bundleVersion = bundleVersion;
         this.instanceId = instanceId;
@@ -43,25 +42,24 @@ public class EventoServerClient implements EventoServer {
         this.objectMapper = objectMapper;
     }
 
-    public void enable(){
+    public void enable() {
         clusterConnection.enable();
     }
 
-    public void disable(){
+    public void disable() {
         clusterConnection.disable();
     }
 
-    public void close(){
+    public void close() {
         clusterConnection.close();
     }
-
 
 
     private void setClusterConnection(ClusterConnection cc) {
         this.clusterConnection = cc;
     }
 
-    private void onMessage(String m, ClusterConnection cc) {
+    private void onMessage(String m, EventoResponseSender responseSender) {
         Serializable message = null;
         try {
             message = objectMapper.readValue(m, Serializable.class);
@@ -70,8 +68,8 @@ public class EventoServerClient implements EventoServer {
         }
         if (message instanceof EventoResponse response) {
             var c = correlations.get(response.getCorrelationId());
-            if (response.getBody() instanceof ThrowableWrapper tw) {
-                c.completeExceptionally(tw.toThrowable());
+            if (response.getBody() instanceof ExceptionWrapper tw) {
+                c.completeExceptionally(tw.toException());
             } else {
                 try {
                     c.complete(response.getBody());
@@ -81,18 +79,17 @@ public class EventoServerClient implements EventoServer {
             }
             correlations.remove(response.getCorrelationId());
         } else if (message instanceof EventoRequest request) {
+            var resp = new EventoResponse();
+            resp.setCorrelationId(request.getCorrelationId());
             try {
-                var resp = new EventoResponse();
-                resp.setCorrelationId(request.getCorrelationId());
                 var body = request.getBody();
-
-                resp.setBody(requestHandler.apply(body));
-
-                clusterConnection.send(objectMapper.writeValueAsString(resp));
+                resp.setBody(requestHandler.handle(body));
+                responseSender.send(resp);
             } catch (Exception e) {
+                resp.setBody(new ExceptionWrapper(e));
                 try {
-                    clusterConnection.send(objectMapper.writeValueAsString(new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace())));
-                } catch (SendFailedException | JsonProcessingException ex) {
+                    responseSender.send(resp);
+                } catch (SendFailedException ex) {
                     throw new RuntimeException(ex);
                 }
             }
@@ -113,9 +110,8 @@ public class EventoServerClient implements EventoServer {
         message.setBody(request);
         correlations.put(message.getCorrelationId(), future);
 
-        future = future.exceptionally(ex -> {
+        future = future.whenComplete((t, throwable) -> {
             correlations.remove(message.getCorrelationId());
-            throw new RuntimeException(ex);
         });
 
         try {
@@ -157,16 +153,16 @@ public class EventoServerClient implements EventoServer {
         private final ObjectMapper objectMapper;
 
         private final List<ClusterNodeAddress> addresses;
-        private final Function<Serializable, Serializable> requestHandler;
+        private final RequestHandler requestHandler;
 
         public Builder(BundleRegistration bundleRegistration, ObjectMapper objectMapper,
                        List<ClusterNodeAddress> addresses,
-                       Function<Serializable,
-                               Serializable> requestHandler) {
+                       RequestHandler requestHandler) {
             this.bundleRegistration = bundleRegistration;
             this.objectMapper = objectMapper;
             this.addresses = addresses;
             this.requestHandler = requestHandler;
+            this.maxRetryAttempts = addresses.size() * 2;
         }
 
 
@@ -174,9 +170,8 @@ public class EventoServerClient implements EventoServer {
         private int retryDelayMillis = 500;
 
 
-        private int maxDisableAttempts;
+        private int maxDisableAttempts = 5;
         private int disableDelayMillis = 5000;
-
 
 
         private int maxReconnectAttempts = 5;
@@ -240,7 +235,7 @@ public class EventoServerClient implements EventoServer {
             this.reconnectDelayMillis = reconnectDelayMillis;
         }
 
-        public EventoServerClient build() {
+        public EventoServerClient connect() throws InterruptedException {
             var bus = new EventoServerClient(
                     bundleRegistration.getBundleId(),
                     bundleRegistration.getBundleVersion(),
@@ -250,7 +245,15 @@ public class EventoServerClient implements EventoServer {
             var cc = new ClusterConnection.Builder(
                     addresses,
                     bundleRegistration,
-                    bus::onMessage
+                    (string, sender) -> {
+                        bus.onMessage(string, r -> {
+                            try {
+                                sender.send(objectMapper.writeValueAsString(r));
+                            } catch (JsonProcessingException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                    }
             ).setMaxReconnectAttempts(maxReconnectAttempts)
                     .setReconnectDelayMillis(reconnectDelayMillis)
                     .setMaxRetryAttempts(maxRetryAttempts)

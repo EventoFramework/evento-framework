@@ -115,23 +115,6 @@ public class EventoBundle {
     }
 
 
-    private void parsePackage() throws InvocationTargetException, InstantiationException, IllegalAccessException {
-
-        logger.info("Discovery handlers in %s".formatted(basePackage));
-        Reflections reflections = new Reflections((new ConfigurationBuilder().forPackages(basePackage)));
-
-        aggregateManager.parse(reflections, findInjectableObject);
-        serviceManager.parse(reflections, findInjectableObject);
-        projectionManager.parse(reflections, findInjectableObject);
-        projectorManager.parse(reflections, findInjectableObject);
-        sagaManager.parse(reflections, findInjectableObject);
-        observerManager.parse(reflections, findInjectableObject);
-        invokerManager.parse(reflections);
-
-        logger.info("Discovery Complete");
-    }
-
-
     public String getBasePackage() {
         return basePackage;
     }
@@ -146,7 +129,7 @@ public class EventoBundle {
         factory.setSuperclass(invokerClass);
         var h = new MethodHandler() {
             @Override
-            public Object invoke(Object self, Method method, Method proceed, Object[] args) throws Throwable {
+            public Object invoke(Object self, Method method, Method proceed, Object[] args) throws Exception {
 
                 if (method.getDeclaredAnnotation(InvocationHandler.class) != null) {
                     var payload = new InvocationMessage(
@@ -177,13 +160,9 @@ public class EventoBundle {
                     return tracingAgent.track(payload, invokerClass.getSimpleName(),
                             method.getDeclaredAnnotation(Track.class),
                             () -> {
-                                try {
-                                    Object result = proceed.invoke(target, args);
-                                    gProxy.sendServiceTimeMetric(start);
-                                    return result;
-                                } catch (InvocationTargetException e) {
-                                    throw e.getTargetException();
-                                }
+                                Object result = proceed.invoke(target, args);
+                                gProxy.sendServiceTimeMetric(start);
+                                return result;
                             });
                 }
 
@@ -409,7 +388,7 @@ public class EventoBundle {
             return this;
         }
 
-        public EventoBundle start() {
+        public EventoBundle start() throws Exception {
             if (basePackage == null) {
                 throw new IllegalArgumentException("Invalid basePackage");
             }
@@ -422,6 +401,27 @@ public class EventoBundle {
             if (messageBusConfiguration == null) {
                 throw new IllegalArgumentException("Invalid messageBusConfiguration");
             }
+
+            if (injector == null) {
+                injector = clz -> null;
+            }
+
+            if (consumerStateStore == null) {
+                consumerStateStore = (es) -> new InMemoryConsumerStateStore(es, performanceService);
+            }
+            if (sssFetchSize < 1) {
+                sssFetchSize = 1;
+            }
+            if (sssFetchDelay < 100) {
+                sssFetchDelay = 100;
+            }
+            if (alignmentDelay < 0) {
+                alignmentDelay = 3000;
+            }
+            if (tracingAgent == null) {
+                tracingAgent = new TracingAgent(bundleId, bundleVersion);
+            }
+
 
             var isShuttingDown = new AtomicBoolean();
 
@@ -473,6 +473,19 @@ public class EventoBundle {
                     sssFetchDelay
             );
             var invokerManager = new InvokerManager();
+
+            logger.info("Discovery handlers in %s".formatted(basePackage));
+            Reflections reflections = new Reflections((new ConfigurationBuilder().forPackages(basePackage.getName())));
+
+            aggregateManager.parse(reflections, injector);
+            serviceManager.parse(reflections, injector);
+            projectionManager.parse(reflections, injector);
+            projectorManager.parse(reflections, injector);
+            sagaManager.parse(reflections, injector);
+            observerManager.parse(reflections, injector);
+            invokerManager.parse(reflections);
+
+            logger.info("Discovery Complete");
 
             var handlers = new ArrayList<RegisteredHandler>();
             var payloads = new HashSet<Class<?>>();
@@ -616,25 +629,21 @@ public class EventoBundle {
                             objectMapper,
                             messageBusConfiguration.getAddresses(),
                             (body) -> {
-                                try {
-                                    if (body instanceof DecoratedDomainCommandMessage cm) {
-                                        return aggregateManager.handle(cm);
-                                    } else if (body instanceof ServiceCommandMessage sm) {
-                                        return serviceManager.handle(sm);
-                                    } else if (body instanceof QueryMessage<?> qm) {
-                                        return projectionManager.handle(qm);
-                                    } else if (body instanceof EventMessage<?> em) {
-                                        observerManager.handle(em);
-                                        return null;
-                                    } else {
-                                        throw new RuntimeException("Invalid request body: " + body);
-                                    }
-                                } catch (Throwable e) {
-                                    throw new RuntimeException(e);
+                                if (body instanceof DecoratedDomainCommandMessage cm) {
+                                    return aggregateManager.handle(cm);
+                                } else if (body instanceof ServiceCommandMessage sm) {
+                                    return serviceManager.handle(sm);
+                                } else if (body instanceof QueryMessage<?> qm) {
+                                    return projectionManager.handle(qm);
+                                } else if (body instanceof EventMessage<?> em) {
+                                    observerManager.handle(em);
+                                    return null;
+                                } else {
+                                    throw new RuntimeException("Invalid request body: " + body);
                                 }
                             }
                     )
-                            .build();
+                            .connect();
 
 
             if (autoscalingProtocol == null) {
@@ -652,9 +661,6 @@ public class EventoBundle {
                     }
                 };
             }
-            if (injector == null) {
-                injector = clz -> null;
-            }
             if (commandGateway == null) {
                 commandGateway = new CommandGatewayImpl(eventoServer);
             }
@@ -664,59 +670,41 @@ public class EventoBundle {
             if (performanceService == null) {
                 performanceService = new RemotePerformanceService(eventoServer, 0.01);
             }
-            if (consumerStateStore == null) {
-                consumerStateStore = (es) -> new InMemoryConsumerStateStore(es, performanceService);
-            }
-            if (sssFetchSize < 1) {
-                sssFetchSize = 1;
-            }
-            if (sssFetchDelay < 100) {
-                sssFetchDelay = 100;
-            }
-            if (alignmentDelay < 0) {
-                alignmentDelay = 3000;
-            }
-            if (tracingAgent == null) {
-                tracingAgent = new TracingAgent(bundleId, bundleVersion);
-            }
-            try {
-                logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
-                var asp = autoscalingProtocol.apply(eventoServer);
-                var css = consumerStateStore.apply(eventoServer);
-                EventoBundle eventoBundle = new EventoBundle(
-                        basePackage.getName(),
-                        bundleId,
-                        bundleVersion,
-                        asp,
-                        css,
-                        bundleInstance,
-                        injector,
-                        aggregateManager, projectionManager, sagaManager, invokerManager, commandGateway,
-                        queryGateway,
-                        performanceService,
-                        sssFetchSize,
-                        sssFetchDelay,
-                        serviceManager, projectorManager, observerManager, tracingAgent);
-                eventoBundle.parsePackage();
-                logger.info("Starting projector consumers...");
-                var start = Instant.now();
-                eventoBundle.startProjectorEventConsumers(() -> {
-                    try {
-                        logger.info("Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
-                        logger.info("Sending registration to enable the Bundle");
-                        eventoServer.enable();
-                        eventoBundle.startSagaEventConsumers(css);
-                        logger.info("Application Started!");
-                    } catch (Exception e) {
-                        logger.error("Error during startup", e);
-                        System.exit(1);
-                    }
-                }, css);
 
-                return eventoBundle;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
+            var asp = autoscalingProtocol.apply(eventoServer);
+            var css = consumerStateStore.apply(eventoServer);
+            EventoBundle eventoBundle = new EventoBundle(
+                    basePackage.getName(),
+                    bundleId,
+                    bundleVersion,
+                    asp,
+                    css,
+                    bundleInstance,
+                    injector,
+                    aggregateManager, projectionManager, sagaManager, invokerManager, commandGateway,
+                    queryGateway,
+                    performanceService,
+                    sssFetchSize,
+                    sssFetchDelay,
+                    serviceManager, projectorManager, observerManager, tracingAgent);
+            logger.info("Starting projector consumers...");
+            var start = Instant.now();
+            eventoBundle.startProjectorEventConsumers(() -> {
+                try {
+                    logger.info("Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
+                    logger.info("Sending registration to enable the Bundle");
+                    eventoServer.enable();
+                    eventoBundle.startSagaEventConsumers(css);
+                    logger.info("Application Started!");
+                } catch (Exception e) {
+                    logger.error("Error during startup", e);
+                    System.exit(1);
+                }
+            }, css);
+
+            return eventoBundle;
+
         }
     }
 
