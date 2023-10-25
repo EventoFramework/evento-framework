@@ -6,11 +6,9 @@ import org.evento.application.performance.TracingAgent;
 import org.evento.application.performance.Track;
 import org.evento.common.modeling.messaging.message.application.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 
 import static io.sentry.BaggageHeader.BAGGAGE_HEADER;
@@ -30,7 +28,7 @@ public class SentryTracingAgent extends TracingAgent {
 	@Override
 	public <T> T track(Message<?> message, String component,
 					   Track trackingAnnotation,
-					   Transaction<T> transaction) throws Throwable {
+					   Transaction<T> transaction) throws Exception {
 		if(message == null) return transaction.run();
 		var metadata = message.getMetadata();
 		if (metadata == null)

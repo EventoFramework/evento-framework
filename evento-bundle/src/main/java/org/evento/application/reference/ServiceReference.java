@@ -9,7 +9,6 @@ import org.evento.common.modeling.messaging.message.application.CommandMessage;
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
 import org.evento.common.modeling.messaging.payload.ServiceEvent;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,7 +46,7 @@ public class ServiceReference extends Reference {
             CommandMessage<? extends ServiceCommand> cm,
             CommandGateway commandGateway,
             QueryGateway queryGateway)
-            throws Throwable {
+            throws Exception {
 
         var commandHandler = serviceCommandHandlerReferences.get(cm.getCommandName());
 

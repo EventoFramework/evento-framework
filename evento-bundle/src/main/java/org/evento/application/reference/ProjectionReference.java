@@ -8,7 +8,6 @@ import org.evento.common.modeling.messaging.message.application.QueryMessage;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -44,7 +43,7 @@ public class ProjectionReference extends Reference {
             QueryMessage<?> qm,
             CommandGateway commandGateway,
             QueryGateway queryGateway)
-            throws Throwable {
+            throws Exception {
 
         var handler = queryHandlerReferences.get(qm.getQueryName());
 

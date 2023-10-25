@@ -21,7 +21,7 @@ public class TracingAgent {
                        String component,
                        Track trackingAnnotation,
                        Transaction<T> transaction)
-            throws Throwable {
+            throws Exception {
         return transaction.run();
     }
 
@@ -31,7 +31,7 @@ public class TracingAgent {
 
 
     public static interface Transaction<T> {
-        public T run() throws Throwable;
+        public T run() throws Exception;
     }
 
     public String getBundleId() {

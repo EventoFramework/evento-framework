@@ -53,9 +53,8 @@ public class DemoInvoker extends InvokerWrapper {
 		Utils.logMethodFlow(this, "save", demoPayload, "BEGIN");
 		return getCommandGateway().send(new DemoCreateCommand(
 				demoPayload.getDemoId(), demoPayload.getName(), demoPayload.getValue()
-		)).thenApply(o -> {
+		)).whenComplete((a,b) -> {
 			Utils.logMethodFlow(this, "save", demoPayload, "END");
-			return o;
 		});
 	}
 

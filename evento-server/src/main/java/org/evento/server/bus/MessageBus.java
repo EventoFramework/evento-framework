@@ -6,24 +6,24 @@ import org.evento.common.messaging.consumer.EventFetchResponse;
 import org.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
 import org.evento.common.messaging.consumer.EventLastSequenceNumberResponse;
 import org.evento.common.modeling.bundle.types.ComponentType;
-import org.evento.common.modeling.exceptions.ThrowableWrapper;
+import org.evento.common.modeling.exceptions.ExceptionWrapper;
 import org.evento.common.modeling.messaging.message.application.*;
-import org.evento.common.modeling.messaging.message.internal.EventoMessage;
-import org.evento.common.modeling.messaging.message.internal.EventoRequest;
-import org.evento.common.modeling.messaging.message.internal.EventoResponse;
-import org.evento.common.modeling.messaging.message.internal.ServerHandleInvocationMessage;
+import org.evento.common.modeling.messaging.message.internal.*;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.serialization.ObjectMapperUtils;
 import org.evento.server.domain.model.BucketType;
 import org.evento.server.domain.model.Bundle;
+import org.evento.server.domain.repository.BundleRepository;
 import org.evento.server.es.EventStore;
 import org.evento.server.es.eventstore.EventStoreEntry;
 import org.evento.server.service.BundleService;
 import org.evento.server.service.HandlerService;
 import org.evento.server.service.deploy.BundleDeployService;
 import org.evento.server.service.performance.PerformanceStoreService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Component;
@@ -36,7 +36,9 @@ import java.io.Serializable;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -44,6 +46,9 @@ import static org.evento.common.performance.PerformanceService.*;
 
 @Component
 public class MessageBus {
+
+
+    private final Logger logger = LoggerFactory.getLogger(MessageBus.class);
     private final int socketPort;
     private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
 
@@ -63,6 +68,10 @@ public class MessageBus {
     private final EventStore eventStore;
 
 
+    private final ConcurrentHashMap<String, Semaphore> semaphoreMap = new ConcurrentHashMap<>();
+    private final BundleRepository bundleRepository;
+
+
     private final PerformanceStoreService performanceStoreService;
 
     private final BundleService bundleService;
@@ -70,12 +79,13 @@ public class MessageBus {
     private final Map<String, Consumer<EventoResponse>> correlations = new HashMap<>();
 
     public MessageBus(
-            @Value("${socket.port}") int socketPort, BundleDeployService bundleDeployService, HandlerService handlerService, LockRegistry lockRegistry, EventStore eventStore, PerformanceStoreService performanceStoreService, BundleService bundleService) {
+            @Value("${socket.port}") int socketPort, BundleDeployService bundleDeployService, HandlerService handlerService, LockRegistry lockRegistry, EventStore eventStore, BundleRepository bundleRepository, PerformanceStoreService performanceStoreService, BundleService bundleService) {
         this.socketPort = socketPort;
         this.bundleDeployService = bundleDeployService;
         this.handlerService = handlerService;
         this.lockRegistry = lockRegistry;
         this.eventStore = eventStore;
+        this.bundleRepository = bundleRepository;
         this.performanceStoreService = performanceStoreService;
         this.bundleService = bundleService;
     }
@@ -86,100 +96,99 @@ public class MessageBus {
         new Thread(() -> {
             for (Bundle bundle : bundleService.findAllBundles()) {
                 if (bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral)
-                    bundleDeployService.waitUntilAvailable(bundle.getId());
+                    waitUntilAvailable(bundle);
             }
         }).start();
 
-        var server = new ServerSocket(socketPort);
-        while (true) {
-            var conn = server.accept();
-            new Thread(() -> {
-                NodeAddress address = null;
-                try {
-                    try {
-                        var in = new DataInputStream(conn.getInputStream());
-                        var out = new DataOutputStream(conn.getOutputStream());
+        new Thread(() -> {
+            try {
+                ServerSocket server = new ServerSocket(socketPort);
+                while (true) {
+                    var conn = server.accept();
+                    logger.info("New connection: " + conn.getInetAddress());
+                    new Thread(() -> {
+                        NodeAddress address = null;
+                        try {
+                            try {
+                                var in = new DataInputStream(conn.getInputStream());
+                                var out = new DataOutputStream(conn.getOutputStream());
 
-                        final var a = join(mapper.readValue(in.readUTF(), BundleRegistration.class), conn);
-                        address = a;
+                                final var a = join(mapper.readValue(in.readUTF(), BundleRegistration.class), conn);
+                                address = a;
 
-                        while (true) {
-                            var message = mapper.readValue(in.readUTF(), Serializable.class);
+                                while (true) {
+                                    var data = in.readUTF();
+                                    logger.info(data);
+                                    var message = mapper.readValue(data, Serializable.class);
 
-                            new Thread(() -> {
-                                try {
-                                    if (message instanceof String s) {
-                                        if ("DISABLE".equals(s)) {
-                                            disable(a);
-                                        } else if ("ENABLE".equals(s)) {
-                                            enable(a);
-                                        }
-                                    } else if (message instanceof EventoRequest r) {
-                                        handleRequest(r, resp -> {
-                                            try {
-                                                out.writeUTF(mapper.writeValueAsString(resp));
-                                            } catch (IOException e) {
-                                                throw new RuntimeException(e);
+                                    new Thread(() -> {
+                                        try {
+                                            if (message instanceof DisableMessage) {
+                                                disable(a);
+                                            } else  if (message instanceof EnableMessage) {
+                                                enable(a);
+                                            } else if (message instanceof EventoRequest r) {
+                                                handleRequest(r, resp -> {
+                                                    try {
+                                                        out.writeUTF(mapper.writeValueAsString(resp));
+                                                    } catch (IOException e) {
+                                                        throw new RuntimeException(e);
+                                                    }
+                                                });
+                                            } else if (message instanceof EventoResponse r) {
+                                                var c = correlations.get(r.getCorrelationId());
+                                                correlations.remove(r.getCorrelationId());
+                                                c.accept(r);
+                                            } else if (message instanceof EventoMessage m) {
+                                                handleMessage(m);
                                             }
-                                        });
-                                    } else if (message instanceof EventoResponse r) {
-                                        var c = correlations.get(r.getCorrelationId());
-                                        correlations.remove(r.getCorrelationId());
-                                        c.accept(r);
-                                    } else if (message instanceof EventoMessage m) {
-                                        handleMessage(m);
-                                    }
-                                } catch (Exception e) {
+                                        } catch (Exception e) {
+                                            throw new RuntimeException(e);
+                                        }
+
+                                    }).start();
+                                }
+                            } catch (IOException e) {
+                                try {
+                                    if (!conn.isClosed())
+                                        conn.close();
+                                } catch (IOException ex) {
+                                    throw new RuntimeException(ex);
+                                }
+                                if(!conn.isClosed()) {
                                     throw new RuntimeException(e);
                                 }
+                            }
+                        } finally {
+                            leave(address);
+                        }
 
-                            }).start();
-                        }
-                    } catch (IOException e) {
-                        try {
-                            if (!conn.isClosed())
-                                conn.close();
-                        } catch (IOException ex) {
-                            throw new RuntimeException(ex);
-                        }
-                        throw new RuntimeException(e);
-                    }
-                } finally {
-                    leave(address);
+
+                    }).start();
                 }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
 
-
-            }).start();
-        }
+        }).start();
     }
 
     private void handleMessage(EventoMessage m) {
 
     }
 
-    private NodeAddress peek(Set<NodeAddress> addresses) {
-        return addresses.stream().skip(new Random().nextInt(addresses.size())).findFirst().orElse(null);
-    }
 
     private void handleRequest(EventoRequest message, Consumer<EventoResponse> sendResponse) {
         try {
             var request = message.getBody();
             if (request instanceof DomainCommandMessage c) {
 
-                var addresses = getEnabledAddressesFormMessage(c.getCommandName());
-                if (addresses == null || addresses.isEmpty()) {
-                    var handler = handlerService.findByPayloadName(c.getCommandName());
-                    if (handler != null) {
-                        bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
-                    }
-                    addresses = getEnabledAddressesFormMessage(c.getCommandName());
-                }
+                var dest = peekMessageHandlerAddress(c.getCommandName());
+
                 var start = PerformanceStoreService.now();
                 var lock = lockRegistry.obtain(AGGREGATE_LOCK_PREFIX + c.getAggregateId());
                 lock.lock();
                 var semaphore = new Semaphore(0);
-
-                var dest = peek(addresses);
 
                 try {
                     var invocation = new DecoratedDomainCommandMessage();
@@ -233,7 +242,7 @@ public class MessageBus {
                                     cr.getDomainEventMessage(),
                                     esStoreStart
                             );
-                            resp.setBody(null);
+                            resp.setBody(cr.getDomainEventMessage());
                         }
                         sendResponse.accept(resp);
                         semaphore.release();
@@ -250,19 +259,13 @@ public class MessageBus {
                 }
 
             } else if (request instanceof ServiceCommandMessage c) {
-                var addresses = getEnabledAddressesFormMessage(c.getCommandName());
-                if (addresses == null || addresses.isEmpty()) {
-                    var handler = handlerService.findByPayloadName(c.getCommandName());
-                    if (handler != null) {
-                        bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
-                    }
-                    addresses = getEnabledAddressesFormMessage(c.getCommandName());
-                }
+
+                var dest = peekMessageHandlerAddress(c.getCommandName());
                 var start = PerformanceStoreService.now();
                 var lock = lockRegistry.obtain(SERVICE_LOCK_PREFIX + c.getLockId());
-                lock.lock();
+                if (c.getLockId() != null)
+                    lock.lock();
                 var semaphore = new Semaphore(0);
-                var dest = peek(addresses);
 
                 try {
                     forward(message, dest, resp -> {
@@ -278,11 +281,10 @@ public class MessageBus {
                             performanceStoreService.sendServiceTimeMetric(
                                     EVENT_STORE,
                                     EVENT_STORE_COMPONENT,
-                                    ((EventMessage<?>) resp.getBody()),
+                                    event,
                                     esStoreStart
                             );
-                            resp.setBody(null);
-
+                            resp.setBody(event);
                         }
                         sendResponse.accept(resp);
                         semaphore.release();
@@ -295,19 +297,12 @@ public class MessageBus {
                     throw e;
                 } finally {
                     semaphore.acquire();
-                    lock.unlock();
+                    if (c.getLockId() != null)
+                        lock.unlock();
                 }
 
             } else if (request instanceof QueryMessage<?> q) {
-                var addresses = getEnabledAddressesFormMessage(q.getQueryName());
-                if (addresses == null || addresses.isEmpty()) {
-                    var handler = handlerService.findByPayloadName(q.getQueryName());
-                    if (handler != null) {
-                        bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
-                    }
-                    addresses = getEnabledAddressesFormMessage(q.getQueryName());
-                }
-                var dest = peek(addresses);
+                var dest = peekMessageHandlerAddress(q.getQueryName());
                 var invocationStart = PerformanceStoreService.now();
                 forward(message, dest,
                         resp -> {
@@ -348,10 +343,27 @@ public class MessageBus {
         }
     }
 
+    private NodeAddress peekMessageHandlerAddress(String messageType) {
+        var addresses = getEnabledAddressesFormMessage(messageType);
+        if (addresses == null || addresses.isEmpty()) {
+            var handler = handlerService.findByPayloadName(messageType);
+            if (handler != null && handler.getComponent().getBundle().isAutorun()) {
+                waitUntilAvailable(handler.getComponent().getBundle());
+            }
+            addresses = getEnabledAddressesFormMessage(messageType);
+        }
+        if(addresses.isEmpty()){
+            throw new RuntimeException("No Bundle available to handle " + messageType);
+        }
+        return addresses.stream().skip(new Random().nextInt(addresses.size()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No Bundle available to handle " + messageType));
+    }
+
     private EventoResponse tw(String ci, Exception e) {
         var resp = new EventoResponse();
         resp.setCorrelationId(ci);
-        resp.setBody(new ThrowableWrapper(e.getClass(), e.getMessage(), e.getStackTrace()));
+        resp.setBody(new ExceptionWrapper(e));
         return resp;
     }
 
@@ -373,8 +385,8 @@ public class MessageBus {
     }
 
 
-
     private final List<Consumer<Set<NodeAddress>>> availableViewListeners = new ArrayList<>();
+
     public void addAvailableViewListener(Consumer<Set<NodeAddress>> listener) {
         availableViewListeners.add(listener);
     }
@@ -386,19 +398,28 @@ public class MessageBus {
     private void enable(NodeAddress address) {
         this.availableView.add(address);
         availableViewListeners.forEach(l -> l.accept(availableView));
+        synchronized (semaphoreMap) {
+            var s = semaphoreMap.get(address.getBundleId());
+            if (s != null)
+                s.release();
+        }
+        logger.info("ENABLED: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
     }
 
     private void disable(NodeAddress address) {
         this.availableView.remove(address);
         availableViewListeners.forEach(l -> l.accept(availableView));
+        logger.info("DISABLED: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
     }
 
 
     private final List<Consumer<BundleRegistration>> joinListeners = new ArrayList<>();
     private final List<Consumer<Set<NodeAddress>>> viewListeners = new ArrayList<>();
+
     public void addViewListener(Consumer<Set<NodeAddress>> listener) {
         viewListeners.add(listener);
     }
+
     public void removeViewListener(Consumer<Set<NodeAddress>> listener) {
         viewListeners.remove(listener);
     }
@@ -416,10 +437,12 @@ public class MessageBus {
                 }
                 var h = handlers.get(handler.getHandledPayload());
                 h.add(a);
+                handlers.put(handler.getHandledPayload(), h);
             }
         }
         joinListeners.forEach(l -> l.accept(registration));
         viewListeners.forEach(l -> l.accept(view.keySet()));
+        logger.info("JOIN: {} (v.{}) {}", registration.getBundleId(), registration.getBundleVersion(), registration.getBundleId());
         return a;
     }
 
@@ -441,6 +464,7 @@ public class MessageBus {
         }
         leaveListeners.forEach(l -> l.accept(address));
         viewListeners.forEach(l -> l.accept(view.keySet()));
+        logger.info("LEAVE: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
     }
 
     public void addLeaveListener(Consumer<NodeAddress> onNodeLeave) {
@@ -475,12 +499,12 @@ public class MessageBus {
     }
 
     private void sendEventToObservers(EventoRequest request, EventMessage<?> eventMessage) {
-        if(getComponent(eventMessage.getEventName())!=null){
+        if (getComponent(eventMessage.getEventName()) != null) {
             var addresses = getEnabledAddressesFormMessage(eventMessage.getEventName());
             if (addresses == null || addresses.isEmpty()) {
                 var handler = handlerService.findByPayloadName(eventMessage.getEventName());
-                if (handler != null) {
-                    bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
+                if (handler != null && handler.getComponent().getBundle().isAutorun()) {
+                    waitUntilAvailable(handler.getComponent().getBundle());
                 }
                 addresses = getEnabledAddressesFormMessage(eventMessage.getEventName());
             }
@@ -502,7 +526,36 @@ public class MessageBus {
     public Set<NodeAddress> getCurrentAvailableView() {
         return availableView;
     }
-    public  Set<NodeAddress>  getCurrentView() {
+
+    public Set<NodeAddress> getCurrentView() {
         return view.keySet();
+    }
+
+
+    public void waitUntilAvailable(Bundle bundle) {
+
+        if (!isBundleAvailable(bundle.getId())) {
+            var bundleId = bundle.getId();
+            logger.info("Bundle %s not available, spawning a new one".formatted(bundleId));
+            var lock = lockRegistry.obtain("BUNDLE:" + bundleId);
+            try {
+                lock.lock();
+                var semaphore = semaphoreMap.getOrDefault(bundleId, new Semaphore(0));
+                semaphoreMap.put(bundleId, semaphore);
+                if (isBundleAvailable(bundleId)) return;
+                bundleDeployService.spawn(bundle);
+                if (!semaphore.tryAcquire(120, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Bundle Cannot Start");
+                }
+                logger.info("New %s bundle spawned".formatted(bundleId));
+
+            } catch (Exception e) {
+                logger.error("Spawning for %s bundle failed".formatted(bundleId), e);
+                throw new RuntimeException(e);
+            } finally {
+                semaphoreMap.remove(bundleId);
+                lock.unlock();
+            }
+        }
     }
 }

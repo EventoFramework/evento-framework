@@ -7,7 +7,6 @@ import org.evento.common.modeling.annotations.handler.EventHandler;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.messaging.payload.Event;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -40,7 +39,7 @@ public class ObserverReference extends Reference {
             EventMessage<? extends Event> em,
             CommandGateway commandGateway,
             QueryGateway queryGateway)
-            throws Throwable {
+            throws Exception {
 
         var handler = eventHandlerReferences.get(em.getEventName());
 

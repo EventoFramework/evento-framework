@@ -3,6 +3,8 @@ package org.evento.application.bus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.SendFailedException;
+import org.evento.common.modeling.messaging.message.internal.DisableMessage;
+import org.evento.common.modeling.messaging.message.internal.EnableMessage;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.evento.common.serialization.ObjectMapperUtils;
 
@@ -10,9 +12,9 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class EventoConnection {
 
@@ -25,7 +27,7 @@ public class EventoConnection {
 
     private final BundleRegistration bundleRegistration;
 
-    private final Consumer<String> handler;
+    private final MessageHandler  handler;
 
     private int reconnectAttempt = 0;
 
@@ -46,7 +48,7 @@ public class EventoConnection {
             int maxReconnectAttempts,
             long reconnectDelayMillis,
             BundleRegistration bundleRegistration,
-            Consumer<String> handler) {
+            MessageHandler handler) {
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
         this.maxReconnectAttempts = maxReconnectAttempts;
@@ -63,7 +65,8 @@ public class EventoConnection {
         }
     }
 
-    private void start() {
+    private void start() throws InterruptedException {
+        var s = new Semaphore(0);
         new Thread(() -> {
             while (!isClosed && reconnectAttempt < maxReconnectAttempts) {
                 logger.info("Socket Connection #{} to {}:{} attempt {}",
@@ -80,11 +83,12 @@ public class EventoConnection {
                     reconnectAttempt = 0;
                     dataOutputStream.writeUTF(ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(bundleRegistration));
                     logger.info("Registration message sent");
-
+                    s.release();
                     while (true) {
-                        String receivedData = dataInputStream.readUTF();
+                        var data = dataInputStream.readUTF();
+                        logger.info(data);
                         new Thread(() -> {
-                            handler.accept(receivedData);
+                            handler.handle(data, this::send);
                         }).start();
                     }
                 } catch (IOException e) {
@@ -98,17 +102,17 @@ public class EventoConnection {
                 }
 
             }
+            s.release();
             logger.error("Server unreachable after {} attempts. Dead socket.", reconnectAttempt);
-        }).
-
-                start();
+        }).start();
+        s.acquire();
     }
 
     public void enable() {
         enabled = true;
         logger.info("Enabling connection #{}", conn);
         try {
-            out.get().writeUTF("ENABLE");
+            out.get().writeUTF(ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(new EnableMessage()));
         } catch (Exception e) {
 
         }
@@ -118,7 +122,7 @@ public class EventoConnection {
         enabled = false;
         logger.info("Disabling connection #{}", conn);
         try {
-            out.get().writeUTF("DISABLE");
+            out.get().writeUTF(ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(new DisableMessage()));
         } catch (Exception e) {
 
         }
@@ -140,12 +144,12 @@ public class EventoConnection {
 
 
         private final BundleRegistration bundleRegistration;
-        private final Consumer<String> handler;
+        private final MessageHandler handler;
 
 
         public Builder(String serverAddress, int serverPort,
                        BundleRegistration bundleRegistration,
-                       Consumer<String> handler) {
+                       MessageHandler handler) {
             this.serverAddress = serverAddress;
             this.serverPort = serverPort;
             this.bundleRegistration = bundleRegistration;
@@ -168,7 +172,7 @@ public class EventoConnection {
         }
 
 
-        public EventoConnection connect() {
+        public EventoConnection connect() throws InterruptedException {
             var s = new EventoConnection(serverAddress,
                     serverPort,
                     maxReconnectAttempts,

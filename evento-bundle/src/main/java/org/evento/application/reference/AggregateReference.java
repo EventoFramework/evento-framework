@@ -115,7 +115,7 @@ public class AggregateReference extends Reference {
             Collection<DomainEventMessage> eventStream,
             CommandGateway commandGateway,
             QueryGateway queryGateway)
-            throws Throwable {
+            throws Exception {
 
         var commandHandler = aggregateCommandHandlerReferences.get(cm.getCommandName());
 
