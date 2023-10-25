@@ -1,17 +1,19 @@
 package org.evento.server.service.deploy;
 
-import org.evento.common.messaging.bus.MessageBus;
+import org.evento.server.bus.MessageBus;
 import org.evento.server.domain.model.Bundle;
 import org.evento.server.domain.repository.BundleRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.integration.support.locks.LockRegistry;
+import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-public abstract class BundleDeployService {
+@Component
+public class BundleDeployService {
 
 	private final Logger LOGGER = LoggerFactory.getLogger(BundleDeployService.class);
 
@@ -27,9 +29,11 @@ public abstract class BundleDeployService {
 		this.lockRegistry = lockRegistry;
 		this.bundleRepository = bundleRepository;
 		messageBus.addJoinListener(bundle -> {
-			var s = semaphoreMap.get(bundle.getBundleId());
-			if (s != null)
-				s.release();
+			synchronized (semaphoreMap) {
+				var s = semaphoreMap.get(bundle.getBundleId());
+				if (s != null)
+					s.release();
+			}
 		});
 	}
 
@@ -65,7 +69,9 @@ public abstract class BundleDeployService {
 		}
 	}
 
-	protected abstract void spawn(Bundle bundle) throws Exception;
+	protected void spawn(Bundle bundle) throws Exception {
+
+	};
 
 	public void spawn(String bundleId) throws Exception {
 		spawn(bundleRepository.findById(bundleId).orElseThrow());

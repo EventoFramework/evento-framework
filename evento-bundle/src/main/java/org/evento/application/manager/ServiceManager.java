@@ -5,7 +5,6 @@ import org.apache.logging.log4j.Logger;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.ServiceReference;
-import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.modeling.annotations.component.Service;
 import org.evento.common.modeling.exceptions.HandlerNotFoundException;
 import org.evento.common.modeling.messaging.message.application.Message;
@@ -37,14 +36,13 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
     }
 
     @Override
-    public void handle(ServiceCommandMessage c,
-                       MessageBus.MessageBusResponseSender response) throws Throwable {
+    public ServiceEventMessage handle(ServiceCommandMessage c) throws Throwable {
         var handler = getHandlers().get(c.getCommandName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s"
                     .formatted(c.getCommandName(), getBundleId()));
         var proxy = getGatewayTelemetryProxy().apply(handler.getComponentName(), c);
-        getTracingAgent().track(c, handler.getComponentName(),
+        return getTracingAgent().track(c, handler.getComponentName(),
                 null,
                 () -> {
                     var event = handler.invoke(
@@ -54,9 +52,8 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
                     );
                     var em = new ServiceEventMessage(event);
                     getTracingAgent().correlate(c, em);
-                    response.sendResponse(em);
                     proxy.sendInvocationsMetric();
-                    return null;
+                    return em;
                 });
     }
 }

@@ -54,4 +54,8 @@ public class HandlerService {
 	public Optional<Handler> findById(String handlerId) {
 		return handlerRepository.findById(handlerId);
 	}
+
+	public List<String> findAllHandledPayloadsNameByComponentName(String componentName) {
+		return handlerRepository.findAllHandledPayloadsNameByComponentName(componentName);
+	}
 }

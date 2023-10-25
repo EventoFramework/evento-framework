@@ -6,38 +6,35 @@ import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.evento.application.consumer.ProjectorEvenConsumer;
-import org.evento.application.consumer.SagaEventConsumer;
+import org.evento.application.bus.EventoServerClient;
+import org.evento.application.bus.MessageBusConfiguration;
 import org.evento.application.manager.*;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.performance.Track;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.proxy.InvokerWrapper;
-import org.evento.application.reference.*;
 import org.evento.common.documentation.Domain;
-import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.CommandGatewayImpl;
 import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.messaging.gateway.QueryGatewayImpl;
-import org.evento.common.modeling.annotations.component.Observer;
-import org.evento.common.modeling.annotations.component.*;
 import org.evento.common.modeling.annotations.handler.InvocationHandler;
 import org.evento.common.modeling.annotations.handler.SagaEventHandler;
 import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
 import org.evento.common.modeling.messaging.message.application.*;
-import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryRequest;
-import org.evento.common.modeling.messaging.message.internal.discovery.ClusterNodeApplicationDiscoveryResponse;
+import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import org.evento.common.modeling.messaging.payload.DomainEvent;
 import org.evento.common.modeling.messaging.query.Multiple;
 import org.evento.common.performance.AutoscalingProtocol;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.RemotePerformanceService;
+import org.evento.common.serialization.ObjectMapperUtils;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
 
@@ -46,7 +43,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 public class EventoBundle {
@@ -55,7 +52,7 @@ public class EventoBundle {
     private final String basePackage;
     private final String bundleId;
     private final long bundleVersion;
-    private final MessageBus messageBus;
+    private final String bundleInstance;
     private final PerformanceService performanceService;
     private final Function<Class<?>, Object> findInjectableObject;
     private final AggregateManager aggregateManager;
@@ -74,253 +71,45 @@ public class EventoBundle {
             String basePackage,
             String bundleId,
             long bundleVersion,
-            MessageBus messageBus,
             AutoscalingProtocol autoscalingProtocol,
             ConsumerStateStore consumerStateStore,
-            Function<Class<?>, Object> findInjectableObject,
-            CommandGateway commandGateway,
+            String bundleInstance, Function<Class<?>, Object> findInjectableObject,
+            AggregateManager aggregateManager, ProjectionManager projectionManager, SagaManager sagaManager, InvokerManager invokerManager, CommandGateway commandGateway,
             QueryGateway queryGateway,
             PerformanceService performanceService,
             int sssFetchSize,
             int sssFetchDelay,
-            TracingAgent tracingAgent
+            ServiceManager serviceManager, ProjectorManager projectorManager, ObserverManager observerManager, TracingAgent tracingAgent
 
     ) {
-        this.messageBus = messageBus;
         this.basePackage = basePackage;
         this.bundleId = bundleId;
         this.bundleVersion = bundleVersion;
+        this.bundleInstance = bundleInstance;
+        this.aggregateManager = aggregateManager;
+        this.projectionManager = projectionManager;
+        this.sagaManager = sagaManager;
+        this.invokerManager = invokerManager;
         this.performanceService = performanceService;
         this.commandGateway = commandGateway;
         this.queryGateway = queryGateway;
         this.findInjectableObject = findInjectableObject;
+        this.serviceManager = serviceManager;
+        this.projectorManager = projectorManager;
+        this.observerManager = observerManager;
         this.tracingAgent = tracingAgent;
-        aggregateManager = new AggregateManager(
-                bundleId,
-                this::createGatewayTelemetryProxy,
-                tracingAgent
-        );
-        serviceManager = new ServiceManager(
-                bundleId,
-                this::createGatewayTelemetryProxy,
-                tracingAgent
-        );
-        projectionManager = new ProjectionManager(
-                bundleId,
-                this::createGatewayTelemetryProxy,
-                tracingAgent
-        );
-        projectorManager = new ProjectorManager(
-                bundleId,
-                this::createGatewayTelemetryProxy,
-                tracingAgent,
-                () -> isShuttingDown,
-                consumerStateStore,
-                sssFetchSize,
-                sssFetchDelay
-        );
-        sagaManager = new SagaManager(
-                bundleId,
-                this::createGatewayTelemetryProxy,
-                tracingAgent,
-                () -> isShuttingDown,
-                consumerStateStore,
-                sssFetchSize,
-                sssFetchDelay
-        );
-        observerManager = new ObserverManager(
-                bundleId,
-                this::createGatewayTelemetryProxy,
-                tracingAgent,
-                () -> isShuttingDown,
-                consumerStateStore,
-                sssFetchSize,
-                sssFetchDelay
-        );
-        invokerManager = new InvokerManager();
-        messageBus.setRequestReceiver((src, request, response) -> {
-            try {
-                autoscalingProtocol.arrival();
-                if (request instanceof DecoratedDomainCommandMessage c) {
-                    aggregateManager.handle(
-                            c,
-                            response);
-                } else if (request instanceof ServiceCommandMessage c) {
-                    serviceManager.handle(
-                            c,
-                            response
-                    );
-                } else if (request instanceof QueryMessage<?> q) {
-                    projectionManager.handle(
-                            q,
-                            response
-                    );
-                } else if (request instanceof ClusterNodeApplicationDiscoveryRequest) {
-                    generateDiscoveryResponse(response);
-                } else {
-                    throw new IllegalArgumentException("Request not found");
-                }
-            } catch (Throwable e) {
-                response.sendError(e);
-            } finally {
-                autoscalingProtocol.departure();
-            }
-
-        });
-
-        messageBus.setMessageReceiver((src, request) -> {
-            try {
-                autoscalingProtocol.arrival();
-                if (request instanceof EventMessage<?> e) {
-                    observerManager.handle(e);
-                }
-            } catch (Throwable e) {
-                logger.error("Observer consumption failed", e);
-            } finally {
-                autoscalingProtocol.departure();
-            }
-        });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> this.isShuttingDown = true));
 
     }
 
-    private void generateDiscoveryResponse(MessageBus.MessageBusResponseSender response) {
-        var handlers = new ArrayList<RegisteredHandler>();
-        var payloads = new HashSet<Class<?>>();
-        aggregateManager.getHandlers().forEach((k, v) -> {
-            var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
-            handlers.add(new RegisteredHandler(
-                    ComponentType.Aggregate,
-                    v.getRef().getClass().getSimpleName(),
-                    HandlerType.AggregateCommandHandler,
-                    PayloadType.DomainCommand,
-                    k,
-                    r,
-                    false,
-                    null
-            ));
-            var esh = v.getEventSourcingHandler(r);
-            if (esh != null) {
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Aggregate,
-                        v.getRef().getClass().getSimpleName(),
-                        HandlerType.EventSourcingHandler,
-                        PayloadType.DomainEvent,
-                        r,
-                        null,
-                        false,
-                        null
-                ));
-
-            }
-            payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
-            payloads.add(v.getAggregateCommandHandler(k).getReturnType());
-        });
-        serviceManager.getHandlers().forEach((k, v) -> {
-            var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
-            handlers.add(new RegisteredHandler(
-                    ComponentType.Service,
-                    v.getRef().getClass().getSimpleName(),
-                    HandlerType.CommandHandler,
-                    PayloadType.ServiceCommand,
-                    k,
-                    r.equals("void") ? null : r,
-                    false,
-                    null
-            ));
-            payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
-            payloads.add(v.getAggregateCommandHandler(k).getReturnType());
-        });
-        projectorManager.getHandlers().forEach((k, v) -> {
-            v.forEach((k1, v1) -> {
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Projector,
-                        v1.getRef().getClass().getSimpleName(),
-                        HandlerType.EventHandler,
-                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                        k,
-                        null,
-                        false,
-                        null
-                ));
-                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-            });
-
-
-        });
-        observerManager.getHandlers().forEach((k, v) -> {
-            v.forEach((k1, v1) -> {
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Observer,
-                        v1.getRef().getClass().getSimpleName(),
-                        HandlerType.EventHandler,
-                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                        k,
-                        null,
-                        false,
-                        null
-                ));
-                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-            });
-        });
-        sagaManager.getHandlers().forEach((k, v) -> {
-            v.forEach((k1, v1) -> {
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Saga,
-                        v1.getRef().getClass().getSimpleName(),
-                        HandlerType.SagaEventHandler,
-                        v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                        k,
-                        null,
-                        false,
-                        v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
-                ));
-                payloads.add(v1.getSagaEventHandler(k).getParameterTypes()[0]);
-            });
-
-
-        });
-        projectionManager.getHandlers().forEach((k, v) -> {
-            var r = v.getQueryHandler(k).getReturnType();
-            handlers.add(new RegisteredHandler(
-                    ComponentType.Projection,
-                    v.getRef().getClass().getSimpleName(),
-                    HandlerType.QueryHandler,
-                    PayloadType.Query,
-                    k,
-                    ((Class<?>) (((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0])).getSimpleName(),
-                    r.isAssignableFrom(Multiple.class),
-                    null
-            ));
-            payloads.add(v.getQueryHandler(k).getParameterTypes()[0]);
-            payloads.add(((Class<?>) ((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0]));
-        });
-        handlers.addAll(invokerManager.getHandlers());
-        ObjectMapper mapper = new ObjectMapper();
-        JsonSchemaGenerator schemaGen = new JsonSchemaGenerator(mapper);
-        var payloadInfo = new HashMap<String, String[]>();
-        for (Class<?> p : payloads) {
-            if (p == null) continue;
-            var info = new String[2];
-            payloadInfo.put(p.getSimpleName(), info);
-            try {
-                info[0] = mapper.writeValueAsString(schemaGen.generateSchema(p));
-            } catch (Exception ignored) {
-            }
-            if (p.getAnnotation(Domain.class) != null) {
-                info[1] = p.getAnnotation(Domain.class).name();
-            }
-        }
-        response.sendResponse(new ClusterNodeApplicationDiscoveryResponse(
-                bundleId,
-                bundleVersion,
-                handlers,
-                payloadInfo
-        ));
-    }
-
-    private GatewayTelemetryProxy createGatewayTelemetryProxy(String componentName, Message<?> handledMessage) {
+    private static GatewayTelemetryProxy createGatewayTelemetryProxy(
+            CommandGateway commandGateway,
+            QueryGateway queryGateway,
+            String bundleId,
+            PerformanceService performanceService,
+            TracingAgent tracingAgent,
+            String componentName, Message<?> handledMessage) {
         return new GatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
                 componentName, handledMessage, tracingAgent);
     }
@@ -351,9 +140,6 @@ public class EventoBundle {
         return bundleId;
     }
 
-    public void gracefulShutdown() {
-        this.messageBus.gracefulShutdown();
-    }
 
     public <T extends InvokerWrapper> T getInvoker(Class<T> invokerClass) {
         ProxyFactory factory = new ProxyFactory();
@@ -366,7 +152,13 @@ public class EventoBundle {
                     var payload = new InvocationMessage(
                             invokerClass, method, args
                     );
-                    var gProxy = createGatewayTelemetryProxy(invokerClass.getSimpleName(),
+                    var gProxy = createGatewayTelemetryProxy(
+                            commandGateway,
+                            queryGateway,
+                            bundleId,
+                            performanceService,
+                            tracingAgent,
+                            invokerClass.getSimpleName(),
                             payload
                     );
                     ProxyFactory factory = new ProxyFactory();
@@ -444,9 +236,8 @@ public class EventoBundle {
         private String bundleId;
         private long bundleVersion = 1;
         private String serverName;
-        private MessageBus messageBus;
-        private AutoscalingProtocol autoscalingProtocol;
-        private ConsumerStateStore consumerStateStore;
+        private Function<EventoServer, AutoscalingProtocol> autoscalingProtocol;
+        private Function<EventoServer, ConsumerStateStore> consumerStateStore;
         private Function<Class<?>, Object> injector;
 
         private CommandGateway commandGateway;
@@ -462,6 +253,10 @@ public class EventoBundle {
 
         private TracingAgent tracingAgent;
 
+        private MessageBusConfiguration messageBusConfiguration;
+
+        private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
+
         private Builder() {
         }
 
@@ -469,9 +264,18 @@ public class EventoBundle {
             return new Builder();
         }
 
+
+        public Package getBasePackage() {
+            return basePackage;
+        }
+
         public Builder setBasePackage(Package basePackage) {
             this.basePackage = basePackage;
             return this;
+        }
+
+        public String getBundleId() {
+            return bundleId;
         }
 
         public Builder setBundleId(String bundleId) {
@@ -479,9 +283,17 @@ public class EventoBundle {
             return this;
         }
 
+        public long getBundleVersion() {
+            return bundleVersion;
+        }
+
         public Builder setBundleVersion(long bundleVersion) {
             this.bundleVersion = bundleVersion;
             return this;
+        }
+
+        public String getServerName() {
+            return serverName;
         }
 
         public Builder setServerName(String serverName) {
@@ -489,14 +301,26 @@ public class EventoBundle {
             return this;
         }
 
-        public Builder setMessageBus(MessageBus messageBus) {
-            this.messageBus = messageBus;
+        public Function<EventoServer, AutoscalingProtocol> getAutoscalingProtocol() {
+            return autoscalingProtocol;
+        }
+
+        public Builder setAutoscalingProtocol(Function<EventoServer, AutoscalingProtocol> autoscalingProtocol) {
+            this.autoscalingProtocol = autoscalingProtocol;
             return this;
         }
 
-        public Builder setAutoscalingProtocol(AutoscalingProtocol autoscalingProtocol) {
-            this.autoscalingProtocol = autoscalingProtocol;
+        public Function<EventoServer, ConsumerStateStore> getConsumerStateStore() {
+            return consumerStateStore;
+        }
+
+        public Builder setConsumerStateStore(Function<EventoServer, ConsumerStateStore> consumerStateStore) {
+            this.consumerStateStore = consumerStateStore;
             return this;
+        }
+
+        public Function<Class<?>, Object> getInjector() {
+            return injector;
         }
 
         public Builder setInjector(Function<Class<?>, Object> injector) {
@@ -504,9 +328,8 @@ public class EventoBundle {
             return this;
         }
 
-        public Builder setConsumerStateStore(ConsumerStateStore consumerStateStore) {
-            this.consumerStateStore = consumerStateStore;
-            return this;
+        public CommandGateway getCommandGateway() {
+            return commandGateway;
         }
 
         public Builder setCommandGateway(CommandGateway commandGateway) {
@@ -514,9 +337,17 @@ public class EventoBundle {
             return this;
         }
 
+        public QueryGateway getQueryGateway() {
+            return queryGateway;
+        }
+
         public Builder setQueryGateway(QueryGateway queryGateway) {
             this.queryGateway = queryGateway;
             return this;
+        }
+
+        public PerformanceService getPerformanceService() {
+            return performanceService;
         }
 
         public Builder setPerformanceService(PerformanceService performanceService) {
@@ -524,18 +355,21 @@ public class EventoBundle {
             return this;
         }
 
+        public int getSssFetchSize() {
+            return sssFetchSize;
+        }
+
         public Builder setSssFetchSize(int sssFetchSize) {
             this.sssFetchSize = sssFetchSize;
             return this;
         }
 
-        public Builder setSssFetchDelay(int sssFetchDelay) {
-            this.sssFetchDelay = sssFetchDelay;
-            return this;
+        public int getSssFetchDelay() {
+            return sssFetchDelay;
         }
 
-        public Builder setTracingAgent(TracingAgent tracingAgent) {
-            this.tracingAgent = tracingAgent;
+        public Builder setSssFetchDelay(int sssFetchDelay) {
+            this.sssFetchDelay = sssFetchDelay;
             return this;
         }
 
@@ -545,6 +379,33 @@ public class EventoBundle {
 
         public Builder setAlignmentDelay(int alignmentDelay) {
             this.alignmentDelay = alignmentDelay;
+            return this;
+        }
+
+        public TracingAgent getTracingAgent() {
+            return tracingAgent;
+        }
+
+        public Builder setTracingAgent(TracingAgent tracingAgent) {
+            this.tracingAgent = tracingAgent;
+            return this;
+        }
+
+        public MessageBusConfiguration getMessageBusConfiguration() {
+            return messageBusConfiguration;
+        }
+
+        public Builder setMessageBusConfiguration(MessageBusConfiguration messageBusConfiguration) {
+            this.messageBusConfiguration = messageBusConfiguration;
+            return this;
+        }
+
+        public ObjectMapper getObjectMapper() {
+            return objectMapper;
+        }
+
+        public Builder setObjectMapper(ObjectMapper objectMapper) {
+            this.objectMapper = objectMapper;
             return this;
         }
 
@@ -558,12 +419,227 @@ public class EventoBundle {
             if (serverName == null || serverName.isBlank() || serverName.isEmpty()) {
                 throw new IllegalArgumentException("Invalid serverName");
             }
-            if (messageBus == null) {
-                throw new IllegalArgumentException("Invalid messageBus");
+            if (messageBusConfiguration == null) {
+                throw new IllegalArgumentException("Invalid messageBusConfiguration");
             }
+
+            var isShuttingDown = new AtomicBoolean();
+
+            String bundleInstance = UUID.randomUUID().toString();
+
+            var aggregateManager = new AggregateManager(
+                    bundleId,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                            tracingAgent, c, p),
+                    tracingAgent
+            );
+            var serviceManager = new ServiceManager(
+                    bundleId,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                            tracingAgent, c, p),
+                    tracingAgent
+            );
+            var projectionManager = new ProjectionManager(
+                    bundleId,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                            tracingAgent, c, p),
+                    tracingAgent
+            );
+            var projectorManager = new ProjectorManager(
+                    bundleId,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                            tracingAgent, c, p),
+                    tracingAgent,
+                    isShuttingDown::get,
+                    sssFetchSize,
+                    sssFetchDelay
+            );
+            var sagaManager = new SagaManager(
+                    bundleId,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                            tracingAgent, c, p),
+                    tracingAgent,
+                    isShuttingDown::get,
+                    sssFetchSize,
+                    sssFetchDelay
+            );
+            var observerManager = new ObserverManager(
+                    bundleId,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                            tracingAgent, c, p),
+                    tracingAgent,
+                    isShuttingDown::get,
+                    sssFetchSize,
+                    sssFetchDelay
+            );
+            var invokerManager = new InvokerManager();
+
+            var handlers = new ArrayList<RegisteredHandler>();
+            var payloads = new HashSet<Class<?>>();
+            aggregateManager.getHandlers().forEach((k, v) -> {
+                var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Aggregate,
+                        v.getRef().getClass().getSimpleName(),
+                        HandlerType.AggregateCommandHandler,
+                        PayloadType.DomainCommand,
+                        k,
+                        r,
+                        false,
+                        null
+                ));
+                var esh = v.getEventSourcingHandler(r);
+                if (esh != null) {
+                    handlers.add(new RegisteredHandler(
+                            ComponentType.Aggregate,
+                            v.getRef().getClass().getSimpleName(),
+                            HandlerType.EventSourcingHandler,
+                            PayloadType.DomainEvent,
+                            r,
+                            null,
+                            false,
+                            null
+                    ));
+
+                }
+                payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
+                payloads.add(v.getAggregateCommandHandler(k).getReturnType());
+            });
+            serviceManager.getHandlers().forEach((k, v) -> {
+                var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Service,
+                        v.getRef().getClass().getSimpleName(),
+                        HandlerType.CommandHandler,
+                        PayloadType.ServiceCommand,
+                        k,
+                        r.equals("void") ? null : r,
+                        false,
+                        null
+                ));
+                payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
+                payloads.add(v.getAggregateCommandHandler(k).getReturnType());
+            });
+            projectorManager.getHandlers().forEach((k, v) -> {
+                v.forEach((k1, v1) -> {
+                    handlers.add(new RegisteredHandler(
+                            ComponentType.Projector,
+                            v1.getRef().getClass().getSimpleName(),
+                            HandlerType.EventHandler,
+                            v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                            k,
+                            null,
+                            false,
+                            null
+                    ));
+                    payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
+                });
+
+
+            });
+            observerManager.getHandlers().forEach((k, v) -> {
+                v.forEach((k1, v1) -> {
+                    handlers.add(new RegisteredHandler(
+                            ComponentType.Observer,
+                            v1.getRef().getClass().getSimpleName(),
+                            HandlerType.EventHandler,
+                            v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                            k,
+                            null,
+                            false,
+                            null
+                    ));
+                    payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
+                });
+            });
+            sagaManager.getHandlers().forEach((k, v) -> {
+                v.forEach((k1, v1) -> {
+                    handlers.add(new RegisteredHandler(
+                            ComponentType.Saga,
+                            v1.getRef().getClass().getSimpleName(),
+                            HandlerType.SagaEventHandler,
+                            v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                            k,
+                            null,
+                            false,
+                            v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
+                    ));
+                    payloads.add(v1.getSagaEventHandler(k).getParameterTypes()[0]);
+                });
+
+
+            });
+            projectionManager.getHandlers().forEach((k, v) -> {
+                var r = v.getQueryHandler(k).getReturnType();
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Projection,
+                        v.getRef().getClass().getSimpleName(),
+                        HandlerType.QueryHandler,
+                        PayloadType.Query,
+                        k,
+                        ((Class<?>) (((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0])).getSimpleName(),
+                        r.isAssignableFrom(Multiple.class),
+                        null
+                ));
+                payloads.add(v.getQueryHandler(k).getParameterTypes()[0]);
+                payloads.add(((Class<?>) ((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0]));
+            });
+            handlers.addAll(invokerManager.getHandlers());
+            ObjectMapper mapper = new ObjectMapper();
+            JsonSchemaGenerator schemaGen = new JsonSchemaGenerator(mapper);
+            var payloadInfo = new HashMap<String, String[]>();
+            for (Class<?> p : payloads) {
+                if (p == null) continue;
+                var info = new String[2];
+                payloadInfo.put(p.getSimpleName(), info);
+                try {
+                    info[0] = mapper.writeValueAsString(schemaGen.generateSchema(p));
+                } catch (Exception ignored) {
+                }
+                if (p.getAnnotation(Domain.class) != null) {
+                    info[1] = p.getAnnotation(Domain.class).name();
+                }
+            }
+            var registration = new BundleRegistration(
+                    bundleId,
+                    bundleVersion,
+                    bundleInstance,
+                    handlers,
+                    payloadInfo
+            );
+
+            logger.info("Starting EventoApplication %s".formatted(bundleId));
+            logger.info("Connecting to Evento Server...");
+            var eventoServer =
+                    new EventoServerClient.Builder(
+                            registration,
+                            objectMapper,
+                            messageBusConfiguration.getAddresses(),
+                            (body) -> {
+                                try {
+                                    if (body instanceof DecoratedDomainCommandMessage cm) {
+                                        return aggregateManager.handle(cm);
+                                    } else if (body instanceof ServiceCommandMessage sm) {
+                                        return serviceManager.handle(sm);
+                                    } else if (body instanceof QueryMessage<?> qm) {
+                                        return projectionManager.handle(qm);
+                                    } else if (body instanceof EventMessage<?> em) {
+                                        observerManager.handle(em);
+                                        return null;
+                                    } else {
+                                        throw new RuntimeException("Invalid request body: " + body);
+                                    }
+                                } catch (Throwable e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                    )
+                            .build();
+
+
             if (autoscalingProtocol == null) {
-                autoscalingProtocol = new AutoscalingProtocol(
-                        messageBus, bundleId, serverName
+                autoscalingProtocol = (e) -> new AutoscalingProtocol(
+                        eventoServer
                 ) {
                     @Override
                     public void arrival() {
@@ -580,16 +656,16 @@ public class EventoBundle {
                 injector = clz -> null;
             }
             if (commandGateway == null) {
-                commandGateway = new CommandGatewayImpl(messageBus, serverName);
+                commandGateway = new CommandGatewayImpl(eventoServer);
             }
             if (queryGateway == null) {
-                queryGateway = new QueryGatewayImpl(messageBus, serverName);
+                queryGateway = new QueryGatewayImpl(eventoServer);
             }
             if (performanceService == null) {
-                performanceService = new RemotePerformanceService(messageBus, serverName, 0.01);
+                performanceService = new RemotePerformanceService(eventoServer, 0.01);
             }
             if (consumerStateStore == null) {
-                consumerStateStore = new InMemoryConsumerStateStore(messageBus, bundleId, serverName, performanceService);
+                consumerStateStore = (es) -> new InMemoryConsumerStateStore(es, performanceService);
             }
             if (sssFetchSize < 1) {
                 sssFetchSize = 1;
@@ -604,44 +680,38 @@ public class EventoBundle {
                 tracingAgent = new TracingAgent(bundleId, bundleVersion);
             }
             try {
-                logger.info("Starting EventoApplication %s".formatted(bundleId));
-                logger.info("Used message bus: %s".formatted(messageBus.getClass().getName()));
                 logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
+                var asp = autoscalingProtocol.apply(eventoServer);
+                var css = consumerStateStore.apply(eventoServer);
                 EventoBundle eventoBundle = new EventoBundle(
                         basePackage.getName(),
                         bundleId,
                         bundleVersion,
-                        messageBus,
-                        autoscalingProtocol,
-                        consumerStateStore,
+                        asp,
+                        css,
+                        bundleInstance,
                         injector,
-                        commandGateway,
+                        aggregateManager, projectionManager, sagaManager, invokerManager, commandGateway,
                         queryGateway,
                         performanceService,
                         sssFetchSize,
                         sssFetchDelay,
-                        tracingAgent);
+                        serviceManager, projectorManager, observerManager, tracingAgent);
                 eventoBundle.parsePackage();
-                messageBus.askStatus();
-                logger.info("Sleeping for alignment...");
-                Thread.sleep(alignmentDelay);
                 logger.info("Starting projector consumers...");
                 var start = Instant.now();
                 eventoBundle.startProjectorEventConsumers(() -> {
                     try {
                         logger.info("Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
-                        logger.info("Enabling message bus");
-                        messageBus.enableBus();
-                        logger.info("Message bus enabled");
-                        logger.info("Wait for discovery...");
-                        Thread.sleep(alignmentDelay);
-                        eventoBundle.startSagaEventConsumers();
+                        logger.info("Sending registration to enable the Bundle");
+                        eventoServer.enable();
+                        eventoBundle.startSagaEventConsumers(css);
                         logger.info("Application Started!");
                     } catch (Exception e) {
                         logger.error("Error during startup", e);
                         System.exit(1);
                     }
-                });
+                }, css);
 
                 return eventoBundle;
             } catch (Exception e) {
@@ -650,11 +720,11 @@ public class EventoBundle {
         }
     }
 
-    private void startSagaEventConsumers() {
-        sagaManager.startSagaEventConsumers();
+    private void startSagaEventConsumers(ConsumerStateStore consumerStateStore) {
+        sagaManager.startSagaEventConsumers(consumerStateStore);
     }
 
-    private void startProjectorEventConsumers(Runnable onHedReached) throws Exception {
-        projectorManager.startEventConsumer(onHedReached);
+    private void startProjectorEventConsumers(Runnable onHedReached, ConsumerStateStore consumerStateStore) throws Exception {
+        projectorManager.startEventConsumer(onHedReached, consumerStateStore);
     }
 }

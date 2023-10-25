@@ -1,6 +1,7 @@
 group 'org.evento'
 version '1.0-SNAPSHOT'
 
+/*
 
 def ordered(String... dependencyPaths) {
    def dependencies = dependencyPaths.collect { tasks.getByPath(it) }
@@ -59,3 +60,4 @@ task buildServer {
            ':evento-server:bootJar'
    )
 }
+*/

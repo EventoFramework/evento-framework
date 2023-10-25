@@ -40,8 +40,6 @@ dependencies {
 	implementation 'com.auth0:java-jwt:4.2.1'
 
 
-	implementation project(':evento-bus:evento-bus-jgroups')
-	implementation project(':evento-bus:evento-bus-rabbitmq')
 	implementation project(':evento-common')
 	implementation project(':evento-parser')
 }

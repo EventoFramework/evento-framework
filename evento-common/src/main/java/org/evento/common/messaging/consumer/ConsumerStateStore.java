@@ -3,9 +3,7 @@ package org.evento.common.messaging.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.evento.common.messaging.bus.MessageBus;
-import org.evento.common.messaging.utils.AddressPicker;
-import org.evento.common.messaging.utils.RoundRobinAddressPicker;
+import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
@@ -16,24 +14,16 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class ConsumerStateStore {
 
-    protected final MessageBus messageBus;
-    protected final String serverNodeName;
     private final Logger logger = LogManager.getLogger(ConsumerStateStore.class);
+    protected final EventoServer eventoServer;
     private final PerformanceService performanceService;
-    private final String bundleId;
     private final ObjectMapper objectMapper;
-    private final AddressPicker<?> addressPicker;
 
     protected ConsumerStateStore(
-            MessageBus messageBus,
-            String bundleId,
-            String serverNodeName,
+            EventoServer eventoServer,
             PerformanceService performanceService) {
-        this.messageBus = messageBus;
-        this.serverNodeName = serverNodeName;
-        this.bundleId = bundleId;
+        this.eventoServer = eventoServer;
         this.performanceService = performanceService;
-        this.addressPicker = new RoundRobinAddressPicker(messageBus);
         this.objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
     }
 
@@ -48,7 +38,7 @@ public abstract class ConsumerStateStore {
             try {
                 var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
                 if (lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
-                var resp = ((EventFetchResponse) messageBus.request(addressPicker.pickNodeAddress(serverNodeName),
+                var resp = ((EventFetchResponse) eventoServer.request(
                         new EventFetchRequest(
                                 context,
                                 lastEventSequenceNumber,
@@ -64,7 +54,7 @@ public abstract class ConsumerStateStore {
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                     consumedEventCount++;
                     performanceService.sendServiceTimeMetric(
-                            bundleId,
+                            eventoServer.getBundleId(),
                             projectorName,
                             event.getEventMessage(),
                             start
@@ -88,7 +78,7 @@ public abstract class ConsumerStateStore {
         if (enterExclusiveZone(consumerId)) {
             try {
                 var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
-                var resp = ((EventFetchResponse) messageBus.request(addressPicker.pickNodeAddress(serverNodeName),
+                var resp = ((EventFetchResponse) eventoServer.request(
                         new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName)).get());
                 for (PublishedEvent event : resp.getEvents()) {
                     var start = Instant.now();
@@ -113,7 +103,7 @@ public abstract class ConsumerStateStore {
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                     consumedEventCount++;
                     performanceService.sendServiceTimeMetric(
-                            bundleId,
+                            eventoServer.getBundleId(),
                             sagaName,
                             event.getEventMessage(),
                             start
@@ -132,7 +122,7 @@ public abstract class ConsumerStateStore {
     protected long getLastEventSequenceNumberSagaOrHead(String consumerId) throws Exception {
         var last = getLastEventSequenceNumber(consumerId);
         if (last == null) {
-            var head = ((EventLastSequenceNumberResponse) this.messageBus.request(addressPicker.pickNodeAddress(serverNodeName), new EventLastSequenceNumberRequest()).get()).getNumber();
+            var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest()).get()).getNumber();
             setLastEventSequenceNumber(consumerId, head);
             return head;
         }
