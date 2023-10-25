@@ -1,6 +1,5 @@
 package org.evento.demo.command.service;
 
-import org.apache.logging.log4j.core.util.Assert;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.modeling.annotations.component.Service;
 import org.evento.common.modeling.annotations.handler.CommandHandler;

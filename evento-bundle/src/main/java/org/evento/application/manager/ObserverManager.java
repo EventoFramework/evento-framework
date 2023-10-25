@@ -37,7 +37,7 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
         }
     }
 
-    public void handle(EventMessage<?> e) throws Throwable {
+    public void handle(EventMessage<?> e) throws Exception {
         for (ObserverReference observerReference : getHandlers().get(e.getEventName()).values()) {
             var start = Instant.now();
             var proxy = getGatewayTelemetryProxy().apply(observerReference.getComponentName(), e);

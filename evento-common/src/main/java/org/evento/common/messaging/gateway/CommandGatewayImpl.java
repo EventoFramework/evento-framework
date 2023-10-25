@@ -6,10 +6,7 @@ import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 public class CommandGatewayImpl implements CommandGateway {
 	private final EventoServer eventoServer;
@@ -24,7 +21,7 @@ public class CommandGatewayImpl implements CommandGateway {
 		try
 		{
 			return (R) send(command, metadata, handledMessage).get();
-		} catch (ExecutionException e)
+		} catch (ExecutionException | CompletionException e )
 		{
 			throw new RuntimeException(e.getCause());
 		}
@@ -40,7 +37,7 @@ public class CommandGatewayImpl implements CommandGateway {
 		try
 		{
 			return (R) send(command, metadata, handledMessage).get(timeout, unit);
-		}catch (ExecutionException e)
+		}catch (ExecutionException | CompletionException e)
 		{
 			throw new RuntimeException(e.getCause());
 		}

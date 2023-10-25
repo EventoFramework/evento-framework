@@ -9,7 +9,6 @@ import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.messaging.payload.Event;
 import org.evento.common.modeling.state.SagaState;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Arrays;
@@ -48,7 +47,7 @@ public class SagaReference extends Reference {
             SagaState sagaState,
             CommandGateway commandGateway,
             QueryGateway queryGateway)
-            throws Throwable {
+            throws Exception {
 
         var handler = sagaEventHandlerReferences.get(em.getEventName());
 

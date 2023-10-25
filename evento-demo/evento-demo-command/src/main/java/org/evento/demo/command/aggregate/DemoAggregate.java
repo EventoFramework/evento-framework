@@ -25,7 +25,7 @@ public class DemoAggregate {
 							CommandGateway commandGateway,
 							CommandMessage<DemoCreateCommand> commandMessage) {
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
-		commandGateway.sendAndWait(new NotificationSendCommand(null));
+		commandGateway.sendAndWait(new NotificationSendCommand(command.getName()));
 		Assert.isTrue(command.getDemoId() != null, "error.command.not.valid.id");
 		Assert.isTrue(command.getName() != null, "error.command.not.valid.name");
 		Assert.isTrue(command.getValue() >= 0, "error.command.not.valid.value");
