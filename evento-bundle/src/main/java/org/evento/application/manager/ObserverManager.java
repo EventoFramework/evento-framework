@@ -5,7 +5,6 @@ import org.apache.logging.log4j.Logger;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.ObserverReference;
-import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.modeling.annotations.component.Observer;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.messaging.message.application.Message;
@@ -20,8 +19,8 @@ import java.util.function.Supplier;
 
 public class ObserverManager extends ConsumerComponentManager<ObserverReference> {
     private static final Logger logger = LogManager.getLogger(ObserverManager.class);
-    public ObserverManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, ConsumerStateStore consumerStateStore, int sssFetchSize, int sssFetchDelay) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, consumerStateStore, sssFetchSize, sssFetchDelay);
+    public ObserverManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
     }
 
     @Override

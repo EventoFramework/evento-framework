@@ -2,7 +2,7 @@ package org.evento.common.performance;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.messaging.bus.EventoServer;
 
 import java.time.Instant;
 
@@ -26,14 +26,12 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 	private long boredSentDepartureTime = -1;
 
 	public ThreadCountAutoscalingProtocol(
-			String bundleId,
-			String serverName,
-			MessageBus messageBus,
+			EventoServer eventoServer,
 			int maxThreadCount,
 			int minThreadCount,
 			int maxOverflowCount,
 			int maxUnderflowCount) {
-		super(messageBus, bundleId, serverName);
+		super(eventoServer);
 		this.maxUnderflowCount = maxUnderflowCount;
 		this.minThreadCount = minThreadCount;
 		this.maxThreadCount = maxThreadCount;

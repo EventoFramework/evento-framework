@@ -15,9 +15,6 @@ include 'evento-common'
 include 'evento-bundle'
 include 'evento-consumer-state-store:evento-consumer-state-store-mysql'
 
-include 'evento-bus:evento-bus-jgroups'
-include 'evento-bus:evento-bus-rabbitmq'
-
 
 include 'evento-demo:evento-demo-command'
 include 'evento-demo:evento-demo-query'

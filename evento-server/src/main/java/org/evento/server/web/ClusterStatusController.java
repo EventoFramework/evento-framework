@@ -1,7 +1,7 @@
 package org.evento.server.web;
 
-import org.evento.common.messaging.bus.MessageBus;
-import org.evento.common.modeling.messaging.message.bus.NodeAddress;
+import org.evento.server.bus.MessageBus;
+import org.evento.server.bus.NodeAddress;
 import org.evento.server.domain.model.BucketType;
 import org.evento.server.domain.model.Bundle;
 import org.evento.server.service.BundleService;

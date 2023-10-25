@@ -1,9 +1,8 @@
 package org.evento.demo.config;
 
-import com.rabbitmq.client.ConnectionFactory;
 import org.evento.application.EventoBundle;
-import org.evento.bus.rabbitmq.RabbitMqMessageBus;
-import org.evento.common.messaging.bus.MessageBus;
+import org.evento.application.bus.ClusterNodeAddress;
+import org.evento.application.bus.MessageBusConfiguration;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
 import org.evento.demo.DemoObserverApplication;
 import org.evento.demo.telemetry.SentryTracingAgent;
@@ -32,29 +31,17 @@ public class EventoConfiguration {
 			@Value("${sentry.dns}") String sentryDns,
 			BeanFactory factory
 	) throws Exception {
-
-		ConnectionFactory f = new ConnectionFactory();
-		f.setHost(rabbitHost);
-		MessageBus messageBus = RabbitMqMessageBus.Builder.builder()
-				.setBundleId(bundleId)
-				.setBundleVersion(bundleVersion)
-				.setExchange(channelName)
-				.setFactory(f)
-				.setRequestTimeout(10)
-				.setDisableWaitingTime(1000)
-				.setDisableMaxRetry(3)
-				.connect();
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoObserverApplication.class.getPackage())
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
 				.setServerName(serverName)
-				.setMessageBus(messageBus)
+				.setMessageBusConfiguration(new MessageBusConfiguration(
+						new ClusterNodeAddress("localhost",3000)
+				).setDisableDelayMillis(1000).setMaxDisableAttempts(3))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
-				.setAutoscalingProtocol(new ThreadCountAutoscalingProtocol(
-						bundleId,
-						serverName,
-						messageBus,
+				.setAutoscalingProtocol((es) -> new ThreadCountAutoscalingProtocol(
+						es,
 						maxThreads,
 						minThreads,
 						maxOverflow,

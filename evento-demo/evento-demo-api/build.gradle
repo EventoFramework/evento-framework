@@ -33,7 +33,6 @@ dependencies {
 
     api(project(':evento-bundle'))
     api(project(':evento-common'))
-    api(project(':evento-bus:evento-bus-rabbitmq'))
     api 'io.sentry:sentry:6.23.0'
 }
 

@@ -6,7 +6,6 @@ import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.AggregateReference;
 import org.evento.application.reference.AggregateStateEnvelope;
-import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.modeling.annotations.component.Aggregate;
 import org.evento.common.modeling.exceptions.HandlerNotFoundException;
 import org.evento.common.modeling.messaging.message.application.DecoratedDomainCommandMessage;
@@ -66,7 +65,7 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
      * @param response The message bus response sender.
      * @throws Throwable If there is an error during command handling.
      */
-    public void handle(DecoratedDomainCommandMessage c, MessageBus.MessageBusResponseSender response) throws Throwable {
+    public DomainCommandResponseMessage handle(DecoratedDomainCommandMessage c) throws Throwable {
         var handler = getHandlers().get(c.getCommandMessage().getCommandName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s"
@@ -75,7 +74,7 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
         var proxy = getGatewayTelemetryProxy().apply(
                 handler.getComponentName(),
                 c.getCommandMessage());
-        getTracingAgent().track(
+        return getTracingAgent().track(
                 c.getCommandMessage(),
                 handler.getComponentName(),
                 null,
@@ -89,16 +88,14 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                     );
                     var em = new DomainEventMessage(event);
                     getTracingAgent().correlate(c.getCommandMessage(), em);
-                    response.sendResponse(
-                            new DomainCommandResponseMessage(em,
-                                    (handler.getSnapshotFrequency() >= 0 & handler.getSnapshotFrequency() <= c.getEventStream().size()) ?
-                                            new SerializedAggregateState<>(envelope.getAggregateState()) : null,
-                                    envelope.getAggregateState() != null
-                                            && envelope.getAggregateState().isDeleted()
-                            )
+                    var resp = new DomainCommandResponseMessage(em,
+                            (handler.getSnapshotFrequency() >= 0 & handler.getSnapshotFrequency() <= c.getEventStream().size()) ?
+                                    new SerializedAggregateState<>(envelope.getAggregateState()) : null,
+                            envelope.getAggregateState() != null
+                                    && envelope.getAggregateState().isDeleted()
                     );
                     proxy.sendInvocationsMetric();
-                    return null;
+                    return resp;
                 });
     }
 }
