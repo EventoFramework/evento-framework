@@ -1,6 +1,6 @@
 package org.evento.common.messaging.consumer.impl;
 
-import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.StoredSagaState;
 import org.evento.common.modeling.state.SagaState;
@@ -18,8 +18,8 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 
 	private final Map<String, SagaState> sagaStateRepository = new HashMap<>();
 
-	public InMemoryConsumerStateStore(MessageBus messageBus, String bundleId, String serverNodeName, PerformanceService performanceService) {
-		super(messageBus, bundleId, serverNodeName, performanceService);
+	public InMemoryConsumerStateStore(EventoServer eventoServer, PerformanceService performanceService) {
+		super(eventoServer, performanceService);
 	}
 
 	@Override

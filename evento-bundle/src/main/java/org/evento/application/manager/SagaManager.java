@@ -20,8 +20,8 @@ import java.util.function.Supplier;
 public class SagaManager extends ConsumerComponentManager<SagaReference> {
 
     private static final Logger logger = LogManager.getLogger(SagaManager.class);
-    public SagaManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, ConsumerStateStore consumerStateStore, int sssFetchSize, int sssFetchDelay) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, consumerStateStore, sssFetchSize, sssFetchDelay);
+    public SagaManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
     }
 
     @Override
@@ -38,7 +38,7 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
         }
     }
 
-    public void startSagaEventConsumers() {
+    public void startSagaEventConsumers(ConsumerStateStore consumerStateStore) {
         if (getReferences().isEmpty()) return;
         logger.info("Starting saga consumers");
         logger.info("Checking for saga event consumers");
@@ -55,7 +55,7 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
                         sagaVersion,
                         c,
                         getIsShuttingDown(),
-                        getConsumerStateStore(),
+                        consumerStateStore,
                         getHandlers(),
                         getTracingAgent(),
                         getGatewayTelemetryProxy(),

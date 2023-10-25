@@ -1,7 +1,6 @@
 package org.evento.common.messaging.gateway;
 
-import org.evento.common.messaging.bus.MessageBus;
-import org.evento.common.messaging.utils.RoundRobinAddressPicker;
+import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
@@ -13,15 +12,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class CommandGatewayImpl implements CommandGateway {
-	private final MessageBus messageBus;
-	private final String serverName;
+	private final EventoServer eventoServer;
 
-	private final RoundRobinAddressPicker roundRobinAddressPicker;
-
-	public CommandGatewayImpl(MessageBus messageBus, String serverName) {
-		this.serverName = serverName;
-		this.messageBus = messageBus;
-		this.roundRobinAddressPicker = new RoundRobinAddressPicker(messageBus);
+	public CommandGatewayImpl(EventoServer eventoServer) {
+		this.eventoServer = eventoServer;
 	}
 
 	@Override
@@ -60,31 +54,16 @@ public class CommandGatewayImpl implements CommandGateway {
 	@SuppressWarnings("unchecked")
 	public <R> CompletableFuture<R> send(Command command, Metadata metadata,
 										 Message<?> handledMessage) {
-		var future = new CompletableFuture<R>();
 		try
 		{
-			var address = roundRobinAddressPicker.pickNodeAddress(serverName);
 			var message = command instanceof DomainCommand ?
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
-			messageBus.request(address, message,
-					response -> {
-						try
-						{
-							future.complete((R) ((EventMessage<?>) response).getSerializedPayload().getObject());
-						} catch (Exception e)
-						{
-							future.completeExceptionally(e);
-						}
-					},
-					error -> {
-						future.completeExceptionally(error.toThrowable());
-					}
-			);
-			return future;
+			return (CompletableFuture<R>) eventoServer.request(message);
 		} catch (Exception e)
 		{
+			var future = new CompletableFuture<R>();
 			future.completeExceptionally(e);
 			return future;
 		}

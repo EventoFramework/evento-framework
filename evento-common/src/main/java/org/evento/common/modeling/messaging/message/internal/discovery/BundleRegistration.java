@@ -4,18 +4,21 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
+public class BundleRegistration implements Serializable {
 
 	private String bundleId;
 	private long bundleVersion;
+
+	private String instanceId;
 	private ArrayList<RegisteredHandler> registeredHandlers;
 
 	private HashMap<String, String[]> payloadInfo;
 
 
-	public ClusterNodeApplicationDiscoveryResponse(
+	public BundleRegistration(
 			String bundleId,
 			long bundleVersion,
+			String instanceId,
 			ArrayList<RegisteredHandler> registeredHandlers,
 			HashMap<String, String[]> payloadInfo
 			) {
@@ -23,9 +26,10 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 		this.registeredHandlers = registeredHandlers;
 		this.bundleVersion = bundleVersion;
 		this.payloadInfo = payloadInfo;
+		this.instanceId = instanceId;
 	}
 
-	public ClusterNodeApplicationDiscoveryResponse() {
+	public BundleRegistration() {
 	}
 
 	public String getBundleId() {
@@ -61,5 +65,19 @@ public class ClusterNodeApplicationDiscoveryResponse implements Serializable {
 		this.payloadInfo = payloadInfo;
 	}
 
+	public String getInstanceId() {
+		return instanceId;
+	}
 
+	public void setInstanceId(String instanceId) {
+		this.instanceId = instanceId;
+	}
+
+	public ArrayList<RegisteredHandler> getRegisteredHandlers() {
+		return registeredHandlers;
+	}
+
+	public void setRegisteredHandlers(ArrayList<RegisteredHandler> registeredHandlers) {
+		this.registeredHandlers = registeredHandlers;
+	}
 }

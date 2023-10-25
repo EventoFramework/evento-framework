@@ -5,7 +5,6 @@ import org.apache.logging.log4j.Logger;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.ProjectionReference;
-import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.modeling.annotations.component.Projection;
 import org.evento.common.modeling.exceptions.HandlerNotFoundException;
 import org.evento.common.modeling.messaging.message.application.Message;
@@ -37,13 +36,12 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
     }
 
     @Override
-    public void handle(QueryMessage<?> q,
-                       MessageBus.MessageBusResponseSender response) throws Throwable {
+    public SerializedQueryResponse handle(QueryMessage<?> q) throws Throwable {
         var handler = getHandlers().get(q.getQueryName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));
         var proxy = getGatewayTelemetryProxy().apply(handler.getComponentName(), q);
-        getTracingAgent().track(q, handler.getComponentName(),
+        return getTracingAgent().track(q, handler.getComponentName(),
                 null,
                 () -> {
                     var result = handler.invoke(
@@ -52,9 +50,8 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
                             proxy
                     );
                     var rm = new SerializedQueryResponse<>(result);
-                    response.sendResponse(rm);
                     proxy.sendInvocationsMetric();
-                    return null;
+                    return rm;
                 });
     }
 }

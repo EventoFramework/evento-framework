@@ -1,30 +1,26 @@
 package org.evento.common.performance;
 
-import org.evento.common.messaging.bus.MessageBus;
-
+import org.evento.common.messaging.bus.EventoServer;
 public class RemotePerformanceService extends PerformanceService {
 
-	private final MessageBus messageBus;
-	private final String serverNodeName;
+	private final EventoServer eventoServer;
 
 
-	public RemotePerformanceService(MessageBus messageBus,
-									String serverNodeName,
+	public RemotePerformanceService(EventoServer eventoServer,
 									double performanceCaptureRate) {
 		super(performanceCaptureRate);
-		this.messageBus = messageBus;
-		this.serverNodeName = serverNodeName;
+		this.eventoServer = eventoServer;
 	}
 
 
 	@Override
 	public void sendServiceTimeMetricMessage(PerformanceServiceTimeMessage message) throws Exception {
-		messageBus.cast(messageBus.findNodeAddress(serverNodeName), message);
+		eventoServer.send(message);
 	}
 
 	@Override
 	public void sendInvocationMetricMessage(PerformanceInvocationsMessage message) throws Exception {
-		messageBus.cast(messageBus.findNodeAddress(serverNodeName), message);
+		eventoServer.send(message);
 	}
 
 

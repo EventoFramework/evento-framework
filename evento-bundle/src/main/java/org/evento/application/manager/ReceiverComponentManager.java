@@ -3,7 +3,6 @@ package org.evento.application.manager;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.Reference;
-import org.evento.common.messaging.bus.MessageBus;
 import org.evento.common.modeling.messaging.message.application.Message;
 
 import java.io.Serializable;
@@ -41,9 +40,8 @@ public abstract class ReceiverComponentManager<M extends Serializable, R extends
      * @param response The message bus response sender.
      * @throws Throwable If there is an error during message handling.
      */
-    abstract public void handle(
-            M c,
-            MessageBus.MessageBusResponseSender response) throws Throwable;
+    abstract public Serializable handle(
+            M c) throws Throwable;
 
     /**
      * Get the handlers associated with this manager.

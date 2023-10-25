@@ -1,6 +1,6 @@
 package org.evento.consumer.state.store.mysql;
 
-import org.evento.common.messaging.bus.MessageBus;
+import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.StoredSagaState;
 import org.evento.common.modeling.state.SagaState;
@@ -21,12 +21,10 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 	private final Connection connection;
 
 	public MysqlConsumerStateStore(
-			MessageBus messageBus,
-			String bundleId,
-			String serverNodeName,
+			EventoServer eventoServer,
 			Connection connection, double performanceCaptureRate) {
-		super(messageBus, bundleId, serverNodeName,
-				new RemotePerformanceService(messageBus, serverNodeName, performanceCaptureRate));
+		super(eventoServer,
+				new RemotePerformanceService(eventoServer, performanceCaptureRate));
 		this.connection = connection;
 		init();
 	}
