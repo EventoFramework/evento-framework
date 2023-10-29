@@ -16,9 +16,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class EventoConnection {
+public class EventoSocketConnection {
 
-    private static final Logger logger = LogManager.getLogger(EventoConnection.class);
+    private static final Logger logger = LogManager.getLogger(EventoSocketConnection.class);
 
     private final String serverAddress;
     private final int serverPort;
@@ -42,7 +42,7 @@ public class EventoConnection {
     private final int conn = instanceCounter.incrementAndGet();
     private boolean isClosed = false;
 
-    private EventoConnection(
+    private EventoSocketConnection(
             String serverAddress,
             int serverPort,
             int maxReconnectAttempts,
@@ -83,6 +83,9 @@ public class EventoConnection {
                     reconnectAttempt = 0;
                     dataOutputStream.writeUTF(ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(bundleRegistration));
                     logger.info("Registration message sent");
+                    if(enabled){
+                        enable();
+                    }
                     s.release();
                     while (true) {
                         var data = dataInputStream.readUTF();
@@ -172,8 +175,8 @@ public class EventoConnection {
         }
 
 
-        public EventoConnection connect() throws InterruptedException {
-            var s = new EventoConnection(serverAddress,
+        public EventoSocketConnection connect() throws InterruptedException {
+            var s = new EventoSocketConnection(serverAddress,
                     serverPort,
                     maxReconnectAttempts,
                     reconnectDelayMillis,

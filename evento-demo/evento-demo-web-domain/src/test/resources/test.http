@@ -2,8 +2,16 @@ PUT http://localhost:9001/api/demo/006
 Content-Type: application/json
 
 {
-  "demoId": "007",
+  "demoId": "001",
+  "name": "aaa",
+  "value": 9
+}
+###
+POST http://localhost:9001/api/demo/
+Content-Type: application/json
+
+{
+  "demoId": "010",
   "name": "aaa",
   "value": 6
 }
-###

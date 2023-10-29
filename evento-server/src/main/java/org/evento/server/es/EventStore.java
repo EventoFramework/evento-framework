@@ -32,7 +32,6 @@ public class EventStore {
     private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
     private final Snowflake snowflake = new Snowflake();
 
-
     public EventStore(EventStoreRepository repository, SnapshotRepository snapshotRepository, JdbcTemplate jdbcTemplate) {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
@@ -93,6 +92,8 @@ public class EventStore {
 
         try {
             var time = Instant.now().toEpochMilli();
+            var serializedMessage = mapper.writeValueAsString(eventMessage);
+            System.out.println("Serialize Event "+eventMessage.getEventName()+":" + (Instant.now().toEpochMilli() - time));
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
                             "(event_sequence_number," +
@@ -101,11 +102,11 @@ public class EventStore {
                     snowflake.nextId(),
                     aggregateId,
                     time,
-                    mapper.writeValueAsString(eventMessage),
+                    serializedMessage,
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
-
+            System.out.println("Write Event "+eventMessage.getEventName()+" ("+serializedMessage.length()+"):"+ (Instant.now().toEpochMilli() - time));
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -114,6 +115,8 @@ public class EventStore {
     public void publishEvent(EventMessage<?> eventMessage) {
         try {
             var time = Instant.now().toEpochMilli();
+            var serializedMessage = mapper.writeValueAsString(eventMessage);
+            System.out.println("Serialize Event "+eventMessage.getEventName()+":" + (Instant.now().toEpochMilli() - time));
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
                             "(event_sequence_number, aggregate_id, created_at, event_message, event_name, context) values " +
@@ -121,10 +124,11 @@ public class EventStore {
                     snowflake.nextId(),
                     null,
                     time,
-                    mapper.writeValueAsString(eventMessage),
+                    serializedMessage,
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
+            System.out.println("Write Event "+eventMessage.getEventName()+" ("+serializedMessage.length()+"):"+ (Instant.now().toEpochMilli() - time));
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

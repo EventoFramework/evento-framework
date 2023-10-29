@@ -19,7 +19,7 @@ public class MessageBusConfiguration {
 
     public MessageBusConfiguration(ClusterNodeAddress... addresses) {
         this.addresses = List.of(addresses);
-        maxReconnectAttempts = addresses.length * 2;
+        maxRetryAttempts = addresses.length * 2;
     }
 
     public List<ClusterNodeAddress> getAddresses() {
