@@ -177,6 +177,41 @@ public class EventoServerClient implements EventoServer {
         private int maxReconnectAttempts = 5;
         private long reconnectDelayMillis = 2000;
 
+
+        public BundleRegistration getBundleRegistration() {
+            return bundleRegistration;
+        }
+
+        public ObjectMapper getObjectMapper() {
+            return objectMapper;
+        }
+
+        public List<ClusterNodeAddress> getAddresses() {
+            return addresses;
+        }
+
+        public RequestHandler getRequestHandler() {
+            return requestHandler;
+        }
+
+        public int getMaxRetryAttempts() {
+            return maxRetryAttempts;
+        }
+
+        public Builder setMaxRetryAttempts(int maxRetryAttempts) {
+            this.maxRetryAttempts = maxRetryAttempts;
+            return this;
+        }
+
+        public int getRetryDelayMillis() {
+            return retryDelayMillis;
+        }
+
+        public Builder setRetryDelayMillis(int retryDelayMillis) {
+            this.retryDelayMillis = retryDelayMillis;
+            return this;
+        }
+
         public int getMaxDisableAttempts() {
             return maxDisableAttempts;
         }
@@ -195,44 +230,22 @@ public class EventoServerClient implements EventoServer {
             return this;
         }
 
-        public ObjectMapper getObjectMapper() {
-            return objectMapper;
-        }
-
-        public List<ClusterNodeAddress> getAddresses() {
-            return addresses;
-        }
-
-        public int getMaxRetryAttempts() {
-            return maxRetryAttempts;
-        }
-
-        public void setMaxRetryAttempts(int maxRetryAttempts) {
-            this.maxRetryAttempts = maxRetryAttempts;
-        }
-
-        public int getRetryDelayMillis() {
-            return retryDelayMillis;
-        }
-
-        public void setRetryDelayMillis(int retryDelayMillis) {
-            this.retryDelayMillis = retryDelayMillis;
-        }
-
         public int getMaxReconnectAttempts() {
             return maxReconnectAttempts;
         }
 
-        public void setMaxReconnectAttempts(int maxReconnectAttempts) {
+        public Builder setMaxReconnectAttempts(int maxReconnectAttempts) {
             this.maxReconnectAttempts = maxReconnectAttempts;
+            return this;
         }
 
         public long getReconnectDelayMillis() {
             return reconnectDelayMillis;
         }
 
-        public void setReconnectDelayMillis(long reconnectDelayMillis) {
+        public Builder setReconnectDelayMillis(long reconnectDelayMillis) {
             this.reconnectDelayMillis = reconnectDelayMillis;
+            return this;
         }
 
         public EventoServerClient connect() throws InterruptedException {
