@@ -643,6 +643,12 @@ public class EventoBundle {
                                 }
                             }
                     )
+                            .setMaxReconnectAttempts(messageBusConfiguration.getMaxReconnectAttempts())
+                            .setReconnectDelayMillis(messageBusConfiguration.getReconnectDelayMillis())
+                            .setMaxDisableAttempts(messageBusConfiguration.getMaxDisableAttempts())
+                            .setDisableDelayMillis(messageBusConfiguration.getDisableDelayMillis())
+                            .setMaxRetryAttempts(messageBusConfiguration.getMaxRetryAttempts())
+                            .setRetryDelayMillis(messageBusConfiguration.getRetryDelayMillis())
                             .connect();
 
 

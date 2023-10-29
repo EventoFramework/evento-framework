@@ -1,11 +1,17 @@
 package org.evento.common.messaging.gateway;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.evento.common.messaging.bus.EventoServer;
-import org.evento.common.modeling.messaging.message.application.*;
+import org.evento.common.modeling.messaging.message.application.DomainCommandMessage;
+import org.evento.common.modeling.messaging.message.application.Message;
+import org.evento.common.modeling.messaging.message.application.Metadata;
+import org.evento.common.modeling.messaging.message.application.ServiceCommandMessage;
 import org.evento.common.modeling.messaging.payload.Command;
 import org.evento.common.modeling.messaging.payload.DomainCommand;
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
+import org.evento.common.serialization.ObjectMapperUtils;
 
+import java.io.Serializable;
 import java.util.concurrent.*;
 
 public class CommandGatewayImpl implements CommandGateway {
@@ -57,7 +63,14 @@ public class CommandGatewayImpl implements CommandGateway {
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
-			return (CompletableFuture<R>) eventoServer.request(message);
+			return (CompletableFuture<R>) eventoServer.request(message).thenApply(e -> {
+				try {
+					return ObjectMapperUtils.getPayloadObjectMapper()
+							.readValue(e.toString(), Serializable.class);
+				} catch (JsonProcessingException ex) {
+					throw new CompletionException(ex);
+				}
+			});
 		} catch (Exception e)
 		{
 			var future = new CompletableFuture<R>();

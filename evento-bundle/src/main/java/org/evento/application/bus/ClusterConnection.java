@@ -16,7 +16,7 @@ public class ClusterConnection {
 
     private final int  maxRetryAttempts;
     private final long retryDelayMillis;
-    private List<EventoConnection> sockets = new ArrayList<>();
+    private List<EventoSocketConnection> sockets = new ArrayList<>();
     private AtomicInteger nextNodeToUse = new AtomicInteger(0);
 
     private ClusterConnection(List<ClusterNodeAddress> addressList, BundleRegistration bundleRegistration, int maxRetryAttempts, long retryDelayMillis) {
@@ -30,7 +30,7 @@ public class ClusterConnection {
     public void send(String message) throws SendFailedException {
         var n = nextNodeToUse.getAndUpdate((o) -> (o + 1) % nodes);
         var attempt = 0;
-        while (attempt < maxRetryAttempts) {
+        while (attempt < (1 + maxRetryAttempts)) {
             try {
                 var socket = sockets.get((n + attempt) % nodes);
                 socket.send(message);
@@ -49,7 +49,7 @@ public class ClusterConnection {
 
     private void connect(int maxReconnectAttempts, long reconnectDelayMillis,MessageHandler handler) throws InterruptedException {
         for (ClusterNodeAddress clusterNodeAddress : addressList) {
-            sockets.add(new EventoConnection.Builder(
+            sockets.add(new EventoSocketConnection.Builder(
                     clusterNodeAddress.getServerAddress(),
                     clusterNodeAddress.getServerPort(),
                     bundleRegistration,
@@ -61,19 +61,19 @@ public class ClusterConnection {
     }
 
     public void enable(){
-        for (EventoConnection socket : sockets) {
+        for (EventoSocketConnection socket : sockets) {
             socket.enable();
         }
     }
 
     public void disable(){
-        for (EventoConnection socket : sockets) {
+        for (EventoSocketConnection socket : sockets) {
             socket.disable();
         }
     }
 
     public void close() {
-        for (EventoConnection socket : sockets) {
+        for (EventoSocketConnection socket : sockets) {
             socket.close();
         }
     }
@@ -121,6 +121,9 @@ public class ClusterConnection {
         }
 
         public ClusterConnection connect() throws InterruptedException {
+            if(maxRetryAttempts<0){
+                throw new IllegalArgumentException("Invalid number of retries");
+            }
             var c = new ClusterConnection(addresses, bundleRegistration, maxRetryAttempts, retryDelayMillis);
             c.connect(maxReconnectAttempts, reconnectDelayMillis, handler);
             return c;

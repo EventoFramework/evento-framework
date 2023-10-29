@@ -125,7 +125,7 @@ public class MessageBus {
                                         try {
                                             if (message instanceof DisableMessage) {
                                                 disable(a);
-                                            } else  if (message instanceof EnableMessage) {
+                                            } else if (message instanceof EnableMessage) {
                                                 enable(a);
                                             } else if (message instanceof EventoRequest r) {
                                                 handleRequest(r, resp -> {
@@ -155,7 +155,7 @@ public class MessageBus {
                                 } catch (IOException ex) {
                                     throw new RuntimeException(ex);
                                 }
-                                if(!conn.isClosed()) {
+                                if (!conn.isClosed()) {
                                     throw new RuntimeException(e);
                                 }
                             }
@@ -242,7 +242,7 @@ public class MessageBus {
                                     cr.getDomainEventMessage(),
                                     esStoreStart
                             );
-                            resp.setBody(cr.getDomainEventMessage());
+                            resp.setBody(cr.getDomainEventMessage().getSerializedPayload().getSerializedObject());
                         }
                         sendResponse.accept(resp);
                         semaphore.release();
@@ -352,7 +352,7 @@ public class MessageBus {
             }
             addresses = getEnabledAddressesFormMessage(messageType);
         }
-        if(addresses.isEmpty()){
+        if (addresses.isEmpty()) {
             throw new RuntimeException("No Bundle available to handle " + messageType);
         }
         return addresses.stream().skip(new Random().nextInt(addresses.size()))
@@ -376,6 +376,11 @@ public class MessageBus {
                         || h.getComponentType() == ComponentType.Observer)
                 .map(RegisteredHandler::getComponentName)
                 .findFirst().orElseThrow();
+    }
+
+    private boolean getObservers(String eventName) {
+        return registrations.values().stream().flatMap(r -> r.getHandlers().stream())
+                .anyMatch(h -> h.getComponentType() == ComponentType.Observer && eventName.equals(h.getHandledPayload()));
     }
 
     private Set<NodeAddress> getEnabledAddressesFormMessage(String commandName) {
@@ -499,7 +504,7 @@ public class MessageBus {
     }
 
     private void sendEventToObservers(EventoRequest request, EventMessage<?> eventMessage) {
-        if (getComponent(eventMessage.getEventName()) != null) {
+        if (getObservers(eventMessage.getEventName())) {
             var addresses = getEnabledAddressesFormMessage(eventMessage.getEventName());
             if (addresses == null || addresses.isEmpty()) {
                 var handler = handlerService.findByPayloadName(eventMessage.getEventName());
@@ -508,7 +513,7 @@ public class MessageBus {
                 }
                 addresses = getEnabledAddressesFormMessage(eventMessage.getEventName());
             }
-            for (NodeAddress address : addresses) {
+            addresses.parallelStream().forEach(address -> {
                 var m = new EventoMessage();
                 m.setBody(eventMessage);
                 m.setSourceBundleId(request.getSourceBundleId());
@@ -519,7 +524,7 @@ public class MessageBus {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-            }
+            });
         }
     }
 

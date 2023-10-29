@@ -38,7 +38,9 @@ public class EventoConfiguration {
 				.setServerName(serverName)
 				.setMessageBusConfiguration(new MessageBusConfiguration(
 						new ClusterNodeAddress("localhost",3030)
-				).setDisableDelayMillis(1000).setMaxDisableAttempts(3))
+				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
+						.setMaxReconnectAttempts(30)
+						.setReconnectDelayMillis(5000))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
 				.setAutoscalingProtocol((es) -> new ThreadCountAutoscalingProtocol(
 						es,
