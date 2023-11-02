@@ -1,6 +1,9 @@
 package org.evento.server.domain.model;
 
-import lombok.*;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.hibernate.HibernateException;
 
