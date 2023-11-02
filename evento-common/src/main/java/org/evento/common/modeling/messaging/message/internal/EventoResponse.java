@@ -7,6 +7,8 @@ public class EventoResponse implements Serializable {
     private String correlationId;
     private Serializable body;
 
+    private long timestamp;
+
     public Serializable getBody() {
         return body;
     }
@@ -21,5 +23,14 @@ public class EventoResponse implements Serializable {
 
     public void setCorrelationId(String correlationId) {
         this.correlationId = correlationId;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public EventoResponse setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+        return this;
     }
 }

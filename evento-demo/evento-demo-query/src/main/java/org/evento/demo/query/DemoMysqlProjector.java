@@ -42,7 +42,6 @@ public class DemoMysqlProjector {
 			demoMysqlRepository.save(d);
 		});
 		Utils.logMethodFlow(this, "on", event, "END");
-		System.out.println("Getch and save in " + (Instant.now().toEpochMilli() - now.toEpochMilli()));
 
 	}
 
