@@ -11,7 +11,6 @@ import javax.annotation.PostConstruct;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class AuthService {

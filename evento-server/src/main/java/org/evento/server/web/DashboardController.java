@@ -1,7 +1,7 @@
 package org.evento.server.web;
 
-import org.evento.server.bus.NodeAddress;
 import org.evento.server.bus.MessageBus;
+import org.evento.server.bus.NodeAddress;
 import org.evento.server.domain.repository.BundleRepository;
 import org.evento.server.domain.repository.ComponentRepository;
 import org.evento.server.domain.repository.PayloadRepository;

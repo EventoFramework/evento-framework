@@ -284,7 +284,7 @@ public class MessageBus {
                                     event,
                                     esStoreStart
                             );
-                            resp.setBody(event);
+                            resp.setBody(event.getSerializedPayload().getSerializedObject());
                         }
                         sendResponse.accept(resp);
                         semaphore.release();

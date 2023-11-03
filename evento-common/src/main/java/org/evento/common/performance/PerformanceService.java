@@ -1,5 +1,7 @@
 package org.evento.common.performance;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.evento.common.modeling.messaging.message.application.Message;
 
 import java.time.Instant;
@@ -11,6 +13,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class PerformanceService {
+
+    private final Logger logger = LogManager.getLogger(PerformanceService.class);
 
     public static final String EVENT_STORE = "event-store";
     public static final String EVENT_STORE_COMPONENT = "EventStore";
@@ -34,7 +38,7 @@ public abstract class PerformanceService {
             try {
                 sendServiceTimeMetricMessage(st);
             } catch (Exception e) {
-                throw new RuntimeException(e);
+               logger.error("Error during performance save", e);
             }
         });
     }

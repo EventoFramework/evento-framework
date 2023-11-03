@@ -7,12 +7,13 @@ import org.evento.server.domain.repository.projection.ComponentListProjection;
 import org.evento.server.domain.repository.projection.PayloadListProjection;
 import org.evento.server.domain.repository.projection.PayloadProjection;
 import org.evento.server.web.dto.ComponentDTO;
-import org.evento.server.web.dto.PayloadUpdateDTO;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.List;
 
 @RestController

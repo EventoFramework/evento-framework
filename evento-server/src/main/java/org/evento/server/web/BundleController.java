@@ -7,7 +7,6 @@ import org.evento.server.domain.repository.projection.BundleListProjection;
 import org.evento.server.service.BundleService;
 import org.evento.server.service.HandlerService;
 import org.evento.server.web.dto.BundleDto;
-import org.evento.server.web.dto.BundleUpdateDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;
