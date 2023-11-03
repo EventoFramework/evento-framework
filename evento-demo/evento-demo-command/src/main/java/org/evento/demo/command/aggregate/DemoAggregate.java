@@ -16,7 +16,7 @@ import org.evento.demo.api.event.DemoUpdatedEvent;
 import org.evento.demo.api.utils.Utils;
 import org.springframework.util.Assert;
 
-@Aggregate(snapshotFrequency = 10)
+@Aggregate(snapshotFrequency = 100)
 public class DemoAggregate {
 
 	@AggregateCommandHandler(init = true)
@@ -51,8 +51,9 @@ public class DemoAggregate {
 
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
 		Utils.doWork(1100);
+		/*
 		if (state.getValue() >= command.getValue())
-			throw new RuntimeException("error.invalid.value");
+			throw new RuntimeException("error.invalid.value");*/
 		Utils.logMethodFlow(this, "handle", command, "END");
 		return new DemoUpdatedEvent(
 				command.getDemoId(),

@@ -1,6 +1,5 @@
 package org.evento.application.bus;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.bus.SendFailedException;
@@ -11,6 +10,7 @@ import org.evento.common.modeling.messaging.message.internal.EventoResponse;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,13 +59,7 @@ public class EventoServerClient implements EventoServer {
         this.clusterConnection = cc;
     }
 
-    private void onMessage(String m, EventoResponseSender responseSender) {
-        Serializable message = null;
-        try {
-            message = objectMapper.readValue(m, Serializable.class);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+    private void onMessage(Serializable message, EventoResponseSender responseSender) {
         if (message instanceof EventoResponse response) {
             var c = correlations.get(response.getCorrelationId());
             if (response.getBody() instanceof ExceptionWrapper tw) {
@@ -94,7 +88,7 @@ public class EventoServerClient implements EventoServer {
                 }
             }
         } else {
-            throw new RuntimeException("Invalid message: " + m);
+            throw new RuntimeException("Invalid message: " + message);
         }
     }
 
@@ -115,10 +109,11 @@ public class EventoServerClient implements EventoServer {
         });
 
         try {
-            clusterConnection.send(objectMapper.writeValueAsString(message));
-        } catch (JsonProcessingException e) {
+            message.setTimestamp(Instant.now().toEpochMilli());
+            clusterConnection.send(message);
+        } catch (Exception e) {
             correlations.remove(message.getCorrelationId());
-            throw new SendFailedException(e);
+            throw e;
         }
 
         return future;
@@ -136,16 +131,12 @@ public class EventoServerClient implements EventoServer {
     }
 
     public void send(Serializable m) throws SendFailedException {
-        try {
-            var message = new EventoMessage();
-            message.setSourceBundleId(bundleId);
-            message.setSourceBundleVersion(bundleVersion);
-            message.setSourceInstanceId(instanceId);
-            message.setBody(m);
-            clusterConnection.send(objectMapper.writeValueAsString(message));
-        } catch (JsonProcessingException e) {
-            throw new SendFailedException(e);
-        }
+        var message = new EventoMessage();
+        message.setSourceBundleId(bundleId);
+        message.setSourceBundleVersion(bundleVersion);
+        message.setSourceInstanceId(instanceId);
+        message.setBody(m);
+        clusterConnection.send(message);
     }
 
     public static class Builder {
@@ -258,13 +249,10 @@ public class EventoServerClient implements EventoServer {
             var cc = new ClusterConnection.Builder(
                     addresses,
                     bundleRegistration,
-                    (string, sender) -> {
-                        bus.onMessage(string, r -> {
-                            try {
-                                sender.send(objectMapper.writeValueAsString(r));
-                            } catch (JsonProcessingException e) {
-                                throw new RuntimeException(e);
-                            }
+                    (message, sender) -> {
+                        bus.onMessage(message, r -> {
+                                r.setTimestamp(Instant.now().toEpochMilli());
+                                sender.send(r);
                         });
                     }
             ).setMaxReconnectAttempts(maxReconnectAttempts)

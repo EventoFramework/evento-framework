@@ -94,8 +94,8 @@ public class MessageGatewayService {
                 var handler = handlerService.findByPayloadName(c.getCommandName());
                 bundleDeployService.waitUntilAvailable(handler.getComponent().getBundle().getId());
                 var start = PerformanceStoreService.now();
-                var lock = lockRegistry.obtain(AGGREGATE_LOCK_PREFIX + c.getAggregateId());
-                lock.lock();
+                var acquire = lockRegistry.obtain(AGGREGATE_LOCK_PREFIX + c.getAggregateId());
+                acquire.acquire();
                 var semaphore = new Semaphore(0);
 
                 var dest = addressPicker.pickNodeAddress(handler.getComponent().getBundle().getId());
@@ -178,7 +178,7 @@ public class MessageGatewayService {
                     throw e;
                 } finally {
                     semaphore.acquire();
-                    lock.unlock();
+                    acquire.release();
                 }
 
             } else if (request instanceof ServiceCommandMessage c) {
