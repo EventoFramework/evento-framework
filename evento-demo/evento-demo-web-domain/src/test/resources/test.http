@@ -1,4 +1,49 @@
-PUT http://localhost:9001/api/demo/006
+POST http://localhost:9001/api/demo/
+Content-Type: application/json
+
+{
+  "demoId": "001",
+  "name": "aaa",
+  "value": 5
+}
+###
+POST http://localhost:9001/api/demo/
+Content-Type: application/json
+
+{
+  "demoId": "002",
+  "name": "aaa",
+  "value": 5
+}
+###
+POST http://localhost:9001/api/demo/
+Content-Type: application/json
+
+{
+  "demoId": "003",
+  "name": "aaa",
+  "value": 5
+}
+###
+POST http://localhost:9001/api/demo/
+Content-Type: application/json
+
+{
+  "demoId": "004",
+  "name": "aaa",
+  "value": 5
+}
+###
+POST http://localhost:9001/api/demo/
+Content-Type: application/json
+
+{
+  "demoId": "005",
+  "name": "aaa",
+  "value": 5
+}
+###
+PUT http://localhost:9001/api/demo/001
 Content-Type: application/json
 
 {
@@ -7,11 +52,40 @@ Content-Type: application/json
   "value": 9
 }
 ###
-POST http://localhost:9001/api/demo/
+
+PUT http://localhost:9001/api/demo/002
 Content-Type: application/json
 
 {
-  "demoId": "010",
+  "demoId": "001",
   "name": "aaa",
-  "value": 6
+  "value": 9
 }
+###
+PUT http://localhost:9001/api/demo/003
+Content-Type: application/json
+
+{
+  "demoId": "001",
+  "name": "aaa",
+  "value": 9
+}
+###
+PUT http://localhost:9001/api/demo/004
+Content-Type: application/json
+
+{
+  "demoId": "001",
+  "name": "aaa",
+  "value": 9
+}
+###
+PUT http://localhost:9001/api/demo/005
+Content-Type: application/json
+
+{
+  "demoId": "001",
+  "name": "aaa",
+  "value": 9
+}
+###

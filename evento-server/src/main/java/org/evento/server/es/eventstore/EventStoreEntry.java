@@ -7,7 +7,6 @@ import lombok.Setter;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.server.config.JsonConverter;
-import org.hibernate.annotations.ColumnTransformer;
 
 import javax.persistence.*;
 
