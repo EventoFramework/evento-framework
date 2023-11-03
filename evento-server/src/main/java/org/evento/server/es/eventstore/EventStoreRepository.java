@@ -9,15 +9,15 @@ import java.util.List;
 
 public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Long> {
 
-    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
+    @Query(value = "select event_message from es__events " +
             "where aggregate_id = ?1 and deleted_at is null order by event_sequence_number",
     nativeQuery = true)
-    List<EventStoreEntry> fetchAggregateStory(String aggregateId);
+    List<String> fetchAggregateStory(String aggregateId);
 
-    @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
+    @Query(value = "select event_message from es__events " +
             "where aggregate_id = ?1 and es__events.event_sequence_number > ?2 and deleted_at is null order by event_sequence_number",
             nativeQuery = true)
-    List<EventStoreEntry> fetchAggregateStory(String aggregateId, Long seq);
+    List<String> fetchAggregateStory(String aggregateId, Long seq);
 
     @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
             "where aggregate_id = ?1 and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 and deleted_at is null order by event_sequence_number",

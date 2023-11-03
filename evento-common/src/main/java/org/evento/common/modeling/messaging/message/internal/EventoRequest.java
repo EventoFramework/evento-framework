@@ -10,6 +10,8 @@ public class EventoRequest implements Serializable {
     private long sourceBundleVersion;
     private Serializable body;
 
+    private long timestamp;
+
     public String getCorrelationId() {
         return correlationId;
     }
@@ -48,5 +50,14 @@ public class EventoRequest implements Serializable {
 
     public void setBody(Serializable body) {
         this.body = body;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public EventoRequest setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+        return this;
     }
 }

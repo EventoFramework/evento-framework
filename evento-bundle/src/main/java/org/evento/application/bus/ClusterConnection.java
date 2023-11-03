@@ -3,6 +3,7 @@ package org.evento.application.bus;
 import org.evento.common.messaging.bus.SendFailedException;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,7 +28,7 @@ public class ClusterConnection {
         this.retryDelayMillis = retryDelayMillis;
     }
 
-    public void send(String message) throws SendFailedException {
+    public void send(Serializable message) throws SendFailedException {
         var n = nextNodeToUse.getAndUpdate((o) -> (o + 1) % nodes);
         var attempt = 0;
         while (attempt < (1 + maxRetryAttempts)) {

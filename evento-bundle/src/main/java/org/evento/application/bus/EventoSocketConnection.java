@@ -6,11 +6,11 @@ import org.evento.common.messaging.bus.SendFailedException;
 import org.evento.common.modeling.messaging.message.internal.DisableMessage;
 import org.evento.common.modeling.messaging.message.internal.EnableMessage;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
-import org.evento.common.serialization.ObjectMapperUtils;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.net.Socket;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,7 +31,7 @@ public class EventoSocketConnection {
 
     private int reconnectAttempt = 0;
 
-    private final AtomicReference<DataOutputStream> out = new AtomicReference<>();
+    private final AtomicReference<ObjectOutputStream> out = new AtomicReference<>();
     private Socket socket;
 
     private boolean enabled;
@@ -57,9 +57,9 @@ public class EventoSocketConnection {
         this.bundleRegistration = bundleRegistration;
     }
 
-    public void send(String message) throws SendFailedException {
+    public void send(Serializable message) throws SendFailedException {
         try {
-            out.get().writeUTF(message);
+            out.get().writeObject(message);
         } catch (Exception e) {
             throw new SendFailedException(e);
         }
@@ -74,27 +74,27 @@ public class EventoSocketConnection {
                         serverAddress,
                         serverPort,
                         reconnectAttempt + 1);
-                try (Socket socket = new Socket(serverAddress, serverPort);
-                     DataInputStream dataInputStream = new DataInputStream(socket.getInputStream());
-                     DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream())) {
+                try (Socket socket = new Socket(serverAddress, serverPort)) {
+                    var dataOutputStream = new ObjectOutputStream(socket.getOutputStream());
                     this.socket = socket;
                     logger.info("Connected to {}:{}", serverAddress, serverPort);
                     out.set(dataOutputStream);
                     reconnectAttempt = 0;
-                    dataOutputStream.writeUTF(ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(bundleRegistration));
+                    dataOutputStream.writeObject(bundleRegistration);
                     logger.info("Registration message sent");
                     if(enabled){
                         enable();
                     }
                     s.release();
+                    var dataInputStream = new ObjectInputStream(socket.getInputStream());
                     while (true) {
-                        var data = dataInputStream.readUTF();
+                        var data = dataInputStream.readObject();
                         logger.info(data);
                         new Thread(() -> {
-                            handler.handle(data, this::send);
+                            handler.handle((Serializable) data, this::send);
                         }).start();
                     }
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Connection error %s:%d".formatted(reconnectAttempt, serverPort), e);
                     try {
                         Thread.sleep(reconnectDelayMillis);
@@ -115,7 +115,7 @@ public class EventoSocketConnection {
         enabled = true;
         logger.info("Enabling connection #{}", conn);
         try {
-            out.get().writeUTF(ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(new EnableMessage()));
+            out.get().writeObject(new EnableMessage());
         } catch (Exception e) {
 
         }
@@ -125,7 +125,7 @@ public class EventoSocketConnection {
         enabled = false;
         logger.info("Disabling connection #{}", conn);
         try {
-            out.get().writeUTF(ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(new DisableMessage()));
+            out.get().writeObject(new DisableMessage());
         } catch (Exception e) {
 
         }

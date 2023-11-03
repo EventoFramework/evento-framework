@@ -17,6 +17,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -31,19 +34,54 @@ public class EventStore {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
     private final Snowflake snowflake = new Snowflake();
+    private final Connection lockConnection;
 
-    public EventStore(EventStoreRepository repository, SnapshotRepository snapshotRepository, JdbcTemplate jdbcTemplate) {
+    public EventStore(EventStoreRepository repository,
+                      SnapshotRepository snapshotRepository,
+                      JdbcTemplate jdbcTemplate,
+                      DataSource dataSource) throws SQLException {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.lockConnection = dataSource.getConnection();
+
+    }
+
+    public void acquire(String string) {
+
+        try (var stmt = this.lockConnection.prepareStatement("SELECT GET_LOCK(?, -1)")) {
+            stmt.setString(1, string);
+            var resultSet = stmt.executeQuery();
+            resultSet.next();
+            if (resultSet.wasNull()) throw new IllegalMonitorStateException();
+            var status = resultSet.getInt(1);
+            if (status != 1) throw new IllegalMonitorStateException();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public void release(String string) {
+
+        try (var stmt = lockConnection.prepareStatement("SELECT RELEASE_LOCK(?)")) {
+            stmt.setString(1, string);
+            var resultSet = stmt.executeQuery();
+            resultSet.next();
+            if (resultSet.wasNull()) throw new IllegalMonitorStateException();
+            var status = resultSet.getInt(1);
+            if (status != 1) throw new IllegalMonitorStateException();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 
-    public List<EventStoreEntry> fetchAggregateState(String aggregateId) {
+    public List<String> fetchAggregateState(String aggregateId) {
         return eventStoreRepository.fetchAggregateStory(aggregateId);
     }
 
-    public List<EventStoreEntry> fetchAggregateState(String aggregateId, Long seq) {
+    public List<String> fetchAggregateState(String aggregateId, Long seq) {
         return eventStoreRepository.fetchAggregateStory(aggregateId, seq);
     }
 
@@ -93,7 +131,6 @@ public class EventStore {
         try {
             var time = Instant.now().toEpochMilli();
             var serializedMessage = mapper.writeValueAsString(eventMessage);
-            System.out.println("Serialize Event "+eventMessage.getEventName()+":" + (Instant.now().toEpochMilli() - time));
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
                             "(event_sequence_number," +
@@ -106,7 +143,6 @@ public class EventStore {
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
-            System.out.println("Write Event "+eventMessage.getEventName()+" ("+serializedMessage.length()+"):"+ (Instant.now().toEpochMilli() - time));
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -116,7 +152,6 @@ public class EventStore {
         try {
             var time = Instant.now().toEpochMilli();
             var serializedMessage = mapper.writeValueAsString(eventMessage);
-            System.out.println("Serialize Event "+eventMessage.getEventName()+":" + (Instant.now().toEpochMilli() - time));
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
                             "(event_sequence_number, aggregate_id, created_at, event_message, event_name, context) values " +
@@ -128,7 +163,6 @@ public class EventStore {
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
-            System.out.println("Write Event "+eventMessage.getEventName()+" ("+serializedMessage.length()+"):"+ (Instant.now().toEpochMilli() - time));
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

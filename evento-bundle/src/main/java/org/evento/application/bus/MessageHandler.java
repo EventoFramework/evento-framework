@@ -1,5 +1,7 @@
 package org.evento.application.bus;
 
+import java.io.Serializable;
+
 public interface MessageHandler {
-    public void handle(String string, ResponseSender sender);
+    public void handle(Serializable message, ResponseSender sender);
 }
