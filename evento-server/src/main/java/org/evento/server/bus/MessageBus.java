@@ -1,6 +1,5 @@
 package org.evento.server.bus;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.consumer.EventFetchRequest;
 import org.evento.common.messaging.consumer.EventFetchResponse;
@@ -12,7 +11,6 @@ import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.message.internal.*;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
-import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.serialization.ObjectMapperUtils;
 import org.evento.server.domain.model.BucketType;
 import org.evento.server.domain.model.Bundle;
@@ -180,30 +178,9 @@ public class MessageBus {
                 try {
                     var invocation = new DecoratedDomainCommandMessage();
                     invocation.setCommandMessage(c);
-
-                    var snapshot = eventStore.fetchSnapshot(c.getAggregateId());
-                    if (snapshot == null) {
-                        invocation.setEventStream(eventStore.fetchAggregateState(c.getAggregateId())
-                                .stream().map(s -> {
-                                    try {
-                                        return mapper.readValue(s, DomainEventMessage.class);
-                                    } catch (JsonProcessingException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                }).collect(Collectors.toList()));
-                        invocation.setSerializedAggregateState(new SerializedAggregateState<>(null));
-                    } else {
-                        invocation.setEventStream(eventStore.fetchAggregateState(c.getAggregateId(),
-                                        snapshot.getEventSequenceNumber())
-                                .stream().map(s -> {
-                                    try {
-                                        return mapper.readValue(s, DomainEventMessage.class);
-                                    } catch (JsonProcessingException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                }).collect(Collectors.toList()));
-                        invocation.setSerializedAggregateState(snapshot.getAggregateState());
-                    }
+                    var story = eventStore.fetchAggregateStory(c.getAggregateId());
+                    invocation.setSerializedAggregateState(story.getState());
+                    invocation.setEventStream(story.getEvents());
                     performanceStoreService.sendServiceTimeMetric(
                             SERVER,
                             GATEWAY_COMPONENT,

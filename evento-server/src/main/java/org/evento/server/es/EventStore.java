@@ -2,6 +2,7 @@ package org.evento.server.es;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.common.serialization.ObjectMapperUtils;
@@ -11,6 +12,7 @@ import org.evento.server.es.eventstore.EventStoreEntry;
 import org.evento.server.es.eventstore.EventStoreRepository;
 import org.evento.server.es.snapshot.Snapshot;
 import org.evento.server.es.snapshot.SnapshotRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.data.domain.PageRequest;
@@ -22,7 +24,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.*;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -36,19 +38,27 @@ public class EventStore {
     private final Snowflake snowflake = new Snowflake();
     private final Connection lockConnection;
 
+    private final LruCache<String, Snapshot> snapshotCache;
+    private final LruCache<String, List<EventStoreEntry>> eventsCache;
+
     public EventStore(EventStoreRepository repository,
                       SnapshotRepository snapshotRepository,
                       JdbcTemplate jdbcTemplate,
-                      DataSource dataSource) throws SQLException {
+                      DataSource dataSource,
+                      @Value("${evento.es.aggregate.state.cache.size:1024}")
+                      int aggregateSnapshotCacheSize,
+                      @Value("${evento.es.aggregate.events.cache.size:1024}")
+                      int aggregateEventsCacheSize) throws SQLException {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.lockConnection = dataSource.getConnection();
-
+        snapshotCache = new LruCache<>(aggregateSnapshotCacheSize);
+        eventsCache = new LruCache<>(aggregateEventsCacheSize);
     }
 
     public void acquire(String string) {
-
+        if (string == null) return;
         try (var stmt = this.lockConnection.prepareStatement("SELECT GET_LOCK(?, -1)")) {
             stmt.setString(1, string);
             var resultSet = stmt.executeQuery();
@@ -63,7 +73,7 @@ public class EventStore {
     }
 
     public void release(String string) {
-
+        if (string == null) return;
         try (var stmt = lockConnection.prepareStatement("SELECT RELEASE_LOCK(?)")) {
             stmt.setString(1, string);
             var resultSet = stmt.executeQuery();
@@ -74,15 +84,6 @@ public class EventStore {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
-    }
-
-
-    public List<String> fetchAggregateState(String aggregateId) {
-        return eventStoreRepository.fetchAggregateStory(aggregateId);
-    }
-
-    public List<String> fetchAggregateState(String aggregateId, Long seq) {
-        return eventStoreRepository.fetchAggregateStory(aggregateId, seq);
     }
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit) {
@@ -108,9 +109,6 @@ public class EventStore {
                         eventNames, PageRequest.of(0, limit));
     }
 
-    public Snapshot fetchSnapshot(String aggregateId) {
-        return snapshotRepository.findById(aggregateId).orElse(null);
-    }
 
     public void saveSnapshot(String aggregateId, Long eventSequenceNumber, SerializedAggregateState<?> aggregateState) {
         var snapshot = new Snapshot();
@@ -119,6 +117,7 @@ public class EventStore {
         snapshot.setAggregateState(aggregateState);
         snapshot.setUpdatedAt(Instant.now());
         snapshotRepository.save(snapshot);
+        snapshotCache.put(aggregateId, snapshot);
     }
 
     public long getLastEventSequenceNumber() {
@@ -129,8 +128,6 @@ public class EventStore {
     public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
         try {
-            var time = Instant.now().toEpochMilli();
-            var serializedMessage = mapper.writeValueAsString(eventMessage);
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
                             "(event_sequence_number," +
@@ -138,8 +135,8 @@ public class EventStore {
                             "values  (?, ?, ?, ?, ?, ?)",
                     snowflake.nextId(),
                     aggregateId,
-                    time,
-                    serializedMessage,
+                    Instant.now().toEpochMilli(),
+                    mapper.writeValueAsString(eventMessage),
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
@@ -193,5 +190,45 @@ public class EventStore {
                 aggregateIdentifier
         );
         snapshotRepository.deleteAggregate(aggregateIdentifier);
+        snapshotCache.remove(aggregateIdentifier);
+        eventsCache.remove(aggregateIdentifier);
+    }
+
+    private static class LruCache<A, B> extends LinkedHashMap<A, B> {
+        private final int maxEntries;
+        public LruCache(final int maxEntries) {
+            super(maxEntries + 1, 1.0f, true);
+            this.maxEntries = maxEntries;
+        }
+        @Override
+        protected boolean removeEldestEntry(final Map.Entry<A, B> eldest) {
+            return super.size() > maxEntries;
+        }
+    }
+
+    public AggregateStory fetchAggregateStory(String aggregateId) {
+        if (!snapshotCache.containsKey(aggregateId)) {
+            snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
+        }
+        var snapshot = snapshotCache.get(aggregateId);
+        var events = eventsCache.getOrDefault(aggregateId, new ArrayList<>());
+        var min = events.isEmpty() ? 0L : events.get(0).getEventSequenceNumber();
+        var max = events.isEmpty() ? 0L : events.get(events.size() - 1).getEventSequenceNumber();
+        var i = 0;
+        for (var e : eventStoreRepository.fetchAggregateStory(aggregateId, min, max)) {
+            if (e.getEventSequenceNumber() > max) {
+                events.add(e);
+            } else {
+                events.add(i++, e);
+            }
+        }
+        eventsCache.put(aggregateId, events);
+        return new AggregateStory(
+                snapshot == null ? new SerializedAggregateState<>(null) : snapshot.getAggregateState(),
+                events.stream()
+                        .filter(e -> snapshot == null || e.getEventSequenceNumber() > snapshot.getEventSequenceNumber())
+                        .map(e -> (DomainEventMessage) e.getEventMessage())
+                        .toList()
+        );
     }
 }
