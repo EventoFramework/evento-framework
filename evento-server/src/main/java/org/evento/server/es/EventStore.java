@@ -24,7 +24,10 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -215,12 +218,32 @@ public class EventStore {
         var min = events.isEmpty() ? 0L : events.get(0).getEventSequenceNumber();
         var max = events.isEmpty() ? 0L : events.get(events.size() - 1).getEventSequenceNumber();
         var i = 0;
-        for (var e : eventStoreRepository.fetchAggregateStory(aggregateId, min, max)) {
-            if (e.getEventSequenceNumber() > max) {
-                events.add(e);
-            } else {
-                events.add(i++, e);
+        var rs = jdbcTemplate.queryForRowSet(
+                "select event_sequence_number, event_message " +
+                        "from es__events " +
+                        "where aggregate_id = ? " +
+                        "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) " +
+                        "and deleted_at is null " +
+                        "order by event_sequence_number",
+                aggregateId,
+                min,
+                max
+        );
+        while (true){
+            try {
+                if (!rs.next()) break;
+                var entry = new EventStoreEntry();
+                entry.setEventSequenceNumber(rs.getLong(1));
+                entry.setEventMessage(mapper.readValue(rs.getString(2), DomainEventMessage.class));
+                if (entry.getEventSequenceNumber() > max) {
+                    events.add(entry);
+                } else {
+                    events.add(i++, entry);
+                }
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
             }
+
         }
         eventsCache.put(aggregateId, events);
         return new AggregateStory(
