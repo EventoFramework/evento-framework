@@ -22,7 +22,6 @@ public class EventoServerClient implements EventoServer {
     private final String bundleId;
     private final long bundleVersion;
     private final String instanceId;
-    private final ObjectMapper objectMapper;
 
 
     private final Map<String, CompletableFuture> correlations = new HashMap<>();
@@ -33,13 +32,11 @@ public class EventoServerClient implements EventoServer {
     private EventoServerClient(String bundleId,
                                long bundleVersion,
                                String instanceId,
-                               ObjectMapper objectMapper,
                                RequestHandler requestHandler) {
         this.bundleId = bundleId;
         this.bundleVersion = bundleVersion;
         this.instanceId = instanceId;
         this.requestHandler = requestHandler;
-        this.objectMapper = objectMapper;
     }
 
     public void enable() {
@@ -244,7 +241,6 @@ public class EventoServerClient implements EventoServer {
                     bundleRegistration.getBundleId(),
                     bundleRegistration.getBundleVersion(),
                     bundleRegistration.getInstanceId(),
-                    objectMapper,
                     requestHandler);
             var cc = new ClusterConnection.Builder(
                     addresses,
