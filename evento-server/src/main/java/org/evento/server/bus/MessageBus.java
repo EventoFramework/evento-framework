@@ -1,6 +1,5 @@
 package org.evento.server.bus;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.consumer.EventFetchRequest;
 import org.evento.common.messaging.consumer.EventFetchResponse;
 import org.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
@@ -11,7 +10,6 @@ import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.message.internal.*;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
-import org.evento.common.serialization.ObjectMapperUtils;
 import org.evento.server.domain.model.BucketType;
 import org.evento.server.domain.model.Bundle;
 import org.evento.server.es.EventStore;
@@ -26,6 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -34,6 +33,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -45,7 +45,6 @@ public class MessageBus {
 
     private final Logger logger = LoggerFactory.getLogger(MessageBus.class);
     private final int socketPort;
-    private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
 
     private final HashMap<NodeAddress, ObjectOutputStream> view = new HashMap<>();
     private final HashMap<NodeAddress, BundleRegistration> registrations = new HashMap<>();
@@ -69,6 +68,8 @@ public class MessageBus {
     private final BundleService bundleService;
 
     private final Map<String, Consumer<EventoResponse>> correlations = new HashMap<>();
+    private boolean isShuttingDown = false;
+    private AtomicInteger pendingRequests = new AtomicInteger();
 
     public MessageBus(
             @Value("${socket.port}") int socketPort, BundleDeployService bundleDeployService, HandlerService handlerService, EventStore eventStore, PerformanceStoreService performanceStoreService, BundleService bundleService) {
@@ -107,7 +108,6 @@ public class MessageBus {
 
                                 while (true) {
                                     var message = in.readObject();
-
                                     new Thread(() -> {
                                         try {
                                             if (message instanceof DisableMessage) {
@@ -121,6 +121,7 @@ public class MessageBus {
                                                     } catch (IOException e) {
                                                         throw new RuntimeException(e);
                                                     }
+                                                    this.pendingRequests.decrementAndGet();
                                                 });
                                             } else if (message instanceof EventoResponse r) {
                                                 var c = correlations.get(r.getCorrelationId());
@@ -132,7 +133,6 @@ public class MessageBus {
                                         } catch (Exception e) {
                                             throw new RuntimeException(e);
                                         }
-
                                     }).start();
                                 }
                             } catch (Exception e) {
@@ -160,6 +160,33 @@ public class MessageBus {
         }).start();
     }
 
+    @PreDestroy
+    public void destroy(){
+        try {
+            var disableDelayMillis = 3000;
+            var maxDisableAttempts = 30;
+            System.out.println("Graceful Shutdown - Started");
+            this.isShuttingDown = true;
+            System.out.println("Graceful Shutdown - Bus Disabled");
+            System.out.println("Graceful Shutdown - Sleep...");
+            Thread.sleep(disableDelayMillis);
+            var retry = 0;
+            while (pendingRequests.get() > 0 && retry < maxDisableAttempts) {
+                System.out.println("Graceful Shutdown - Remaining correlations: %d".formatted(pendingRequests.get()));
+                System.out.println("Graceful Shutdown - Sleep...");
+                Thread.sleep(disableDelayMillis);
+                retry++;
+            }
+            if (pendingRequests.get() == 0) {
+                System.out.println("Graceful Shutdown - No more correlations, bye!");
+            } else {
+                System.out.println("Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " sec of retry... so... bye!");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private void handleMessage(EventoMessage m) {
 
     }
@@ -167,6 +194,10 @@ public class MessageBus {
 
     private void handleRequest(EventoRequest message, Consumer<EventoResponse> sendResponse) {
         try {
+            if(this.isShuttingDown){
+                throw new IllegalStateException("Server is shutting down");
+            }
+            this.pendingRequests.incrementAndGet();
             var request = message.getBody();
             if (request instanceof DomainCommandMessage c) {
 
@@ -235,7 +266,8 @@ public class MessageBus {
                     eventStore.release(lockId);
                     throw e;
                 }
-            } else if (request instanceof ServiceCommandMessage c) {
+            }
+            else if (request instanceof ServiceCommandMessage c) {
 
                 var dest = peekMessageHandlerAddress(c.getCommandName());
                 var start = PerformanceStoreService.now();
@@ -276,7 +308,8 @@ public class MessageBus {
                     eventStore.release(lockId);
                     throw e;
                 }
-            } else if (request instanceof QueryMessage<?> q) {
+            }
+            else if (request instanceof QueryMessage<?> q) {
                 var dest = peekMessageHandlerAddress(q.getQueryName());
                 var invocationStart = PerformanceStoreService.now();
                 forward(message, dest,
@@ -291,8 +324,8 @@ public class MessageBus {
                         }
                 );
 
-            } else if (request instanceof EventFetchRequest f) {
-
+            }
+            else if (request instanceof EventFetchRequest f) {
                 var events = f.getComponentName() == null ? eventStore.fetchEvents(
                         f.getContext(),
                         f.getLastSequenceNumber(),
@@ -305,12 +338,14 @@ public class MessageBus {
                 resp.setBody(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
                 sendResponse.accept(resp);
 
-            } else if (request instanceof EventLastSequenceNumberRequest r) {
+            }
+            else if (request instanceof EventLastSequenceNumberRequest) {
                 var resp = new EventoResponse();
                 resp.setCorrelationId(message.getCorrelationId());
                 resp.setBody(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
                 sendResponse.accept(resp);
-            } else {
+            }
+            else {
                 throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
             }
         } catch (Exception e) {
