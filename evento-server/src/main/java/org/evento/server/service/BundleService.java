@@ -8,15 +8,15 @@ import org.evento.parser.model.component.*;
 import org.evento.parser.model.handler.*;
 import org.evento.parser.model.payload.MultipleResultQueryReturnType;
 import org.evento.parser.model.payload.PayloadDescription;
-import org.evento.server.domain.model.BucketType;
-import org.evento.server.domain.model.Bundle;
-import org.evento.server.domain.model.Handler;
-import org.evento.server.domain.model.Payload;
-import org.evento.server.domain.repository.BundleRepository;
-import org.evento.server.domain.repository.ComponentRepository;
-import org.evento.server.domain.repository.HandlerRepository;
-import org.evento.server.domain.repository.PayloadRepository;
-import org.evento.server.domain.repository.projection.BundleListProjection;
+import org.evento.server.domain.model.core.BucketType;
+import org.evento.server.domain.model.core.Bundle;
+import org.evento.server.domain.model.core.Handler;
+import org.evento.server.domain.model.core.Payload;
+import org.evento.server.domain.repository.core.BundleRepository;
+import org.evento.server.domain.repository.core.ComponentRepository;
+import org.evento.server.domain.repository.core.HandlerRepository;
+import org.evento.server.domain.repository.core.PayloadRepository;
+import org.evento.server.domain.repository.core.projection.BundleListProjection;
 import org.evento.server.service.deploy.BundleDeployService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -140,10 +140,10 @@ public class BundleService {
                         });
                 if (component instanceof Aggregate a) {
                     for (AggregateCommandHandler aggregateCommandHandler : a.getAggregateCommandHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(aggregateCommandHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Aggregate);
@@ -235,10 +235,10 @@ public class BundleService {
                         handlerRepository.save(handler);
                     }
                     for (EventSourcingHandler eventSourcingHandler : a.getEventSourcingHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(eventSourcingHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Aggregate);
@@ -279,10 +279,10 @@ public class BundleService {
                     }
                 } else if (component instanceof Saga s) {
                     for (SagaEventHandler sagaEventHandler : s.getSagaEventHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(sagaEventHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Saga);
@@ -348,10 +348,10 @@ public class BundleService {
                     }
                 } else if (component instanceof Projection p) {
                     for (QueryHandler queryHandler : p.getQueryHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(queryHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Projection);
@@ -411,10 +411,10 @@ public class BundleService {
                     }
                 } else if (component instanceof Projector p) {
                     for (EventHandler eventHandler : p.getEventHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(eventHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Projector);
@@ -463,10 +463,10 @@ public class BundleService {
                     }
                 } else if (component instanceof Observer o) {
                     for (EventHandler eventHandler : o.getEventHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(eventHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Observer);
@@ -529,10 +529,10 @@ public class BundleService {
                     }
                 } else if (component instanceof org.evento.parser.model.component.Service s) {
                     for (ServiceCommandHandler commandHandler : s.getCommandHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(commandHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Service);
@@ -621,10 +621,10 @@ public class BundleService {
                     }
                 } else if (component instanceof Invoker i) {
                     for (InvocationHandler invocationHandler : i.getInvocationHandlers()) {
-                        var handler = new org.evento.server.domain.model.Handler();
+                        var handler = new Handler();
                         handler.setLine(invocationHandler.getLine());
                         handler.setComponent(componentRepository.findById(component.getComponentName()).orElseGet(() -> {
-                            var c = new org.evento.server.domain.model.Component();
+                            var c = new org.evento.server.domain.model.core.Component();
                             c.setBundle(bundle);
                             c.setComponentName(component.getComponentName());
                             c.setComponentType(ComponentType.Invoker);

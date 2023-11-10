@@ -1,24 +1,12 @@
 version: '3.3'
 services:
-  mongo:
-    image: mongo
-    restart: always
+  database:
+    image: 'postgres:latest'
+    ports:
+      - "5432:5432"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-    ports:
-      - '27020:27017'
+      - POSTGRES_PASSWORD=secret
     volumes:
-      - ./data/mongo:/data/db
+      - ./data/postgres:/var/lib/postgresql/data/
 
-  rabbitmq:
-    restart: always
-    image: rabbitmq:3-management-alpine
-    container_name: 'rabbitmq'
-    ports:
-      - 5672:5672
-      - 15672:15672
-    volumes:
-      - ./data/rabbitmq/data/:/var/lib/rabbitmq/
-      - ./data/rabbitmq/log/:/var/log/rabbitmq
 

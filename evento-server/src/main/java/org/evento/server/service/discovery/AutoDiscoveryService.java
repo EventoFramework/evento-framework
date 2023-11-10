@@ -7,14 +7,15 @@ import org.evento.common.modeling.messaging.message.internal.discovery.BundleReg
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import org.evento.server.bus.MessageBus;
 import org.evento.server.bus.NodeAddress;
-import org.evento.server.domain.model.BucketType;
-import org.evento.server.domain.model.Bundle;
-import org.evento.server.domain.model.Handler;
-import org.evento.server.domain.model.Payload;
-import org.evento.server.domain.repository.BundleRepository;
-import org.evento.server.domain.repository.ComponentRepository;
-import org.evento.server.domain.repository.HandlerRepository;
-import org.evento.server.domain.repository.PayloadRepository;
+import org.evento.server.domain.model.core.BucketType;
+import org.evento.server.domain.model.core.Bundle;
+import org.evento.server.domain.model.core.Handler;
+import org.evento.server.domain.model.core.Payload;
+import org.evento.server.domain.model.core.Component;
+import org.evento.server.domain.repository.core.BundleRepository;
+import org.evento.server.domain.repository.core.ComponentRepository;
+import org.evento.server.domain.repository.core.HandlerRepository;
+import org.evento.server.domain.repository.core.PayloadRepository;
 import org.evento.server.service.BundleService;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
@@ -83,7 +84,7 @@ public class AutoDiscoveryService {
                             logger.info(registeredHandler.toString());
                             var handler = new Handler();
                             handler.setComponent(componentRepository.findById(registeredHandler.getComponentName()).orElseGet(() -> {
-                                var c = new org.evento.server.domain.model.Component();
+                                var c = new Component();
                                 c.setBundle(bundle);
                                 c.setComponentName(registeredHandler.getComponentName());
                                 c.setComponentType(registeredHandler.getComponentType());

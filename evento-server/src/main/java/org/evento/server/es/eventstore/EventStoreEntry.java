@@ -25,7 +25,7 @@ public class EventStoreEntry {
 	private String aggregateId;
 
 	@Lob
-	@Column(columnDefinition = "BLOB")
+	@Column(columnDefinition = "TEXT")
 	@Convert(converter = JsonConverter.class)
 	private EventMessage<?> eventMessage;
 	private String eventName;

@@ -1,4 +1,4 @@
-package org.evento.server.domain.model;
+package org.evento.server.domain.model.core;
 
 import lombok.*;
 import org.evento.common.modeling.bundle.types.PayloadType;
@@ -25,7 +25,7 @@ public class Payload implements Serializable {
 	@Column(columnDefinition = "TEXT")
 	private String description;
 
-	@Column(columnDefinition = "LONGTEXT")
+	@Column(columnDefinition = "TEXT")
 	private String detail;
 
 	private String domain;

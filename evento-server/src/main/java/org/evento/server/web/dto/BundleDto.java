@@ -3,9 +3,9 @@ package org.evento.server.web.dto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.evento.server.domain.model.BucketType;
-import org.evento.server.domain.model.Bundle;
-import org.evento.server.domain.model.Handler;
+import org.evento.server.domain.model.core.BucketType;
+import org.evento.server.domain.model.core.Bundle;
+import org.evento.server.domain.model.core.Handler;
 
 import java.io.Serializable;
 import java.time.Instant;

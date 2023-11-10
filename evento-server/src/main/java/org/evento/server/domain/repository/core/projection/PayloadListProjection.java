@@ -1,4 +1,4 @@
-package org.evento.server.domain.repository.projection;
+package org.evento.server.domain.repository.core.projection;
 
 public interface PayloadListProjection {
 	String getName();
