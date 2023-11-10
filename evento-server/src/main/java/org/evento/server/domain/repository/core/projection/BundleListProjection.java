@@ -1,6 +1,6 @@
-package org.evento.server.domain.repository.projection;
+package org.evento.server.domain.repository.core.projection;
 
-import org.evento.server.domain.model.BucketType;
+import org.evento.server.domain.model.core.BucketType;
 
 public interface BundleListProjection {
 	String getId();

@@ -1,4 +1,4 @@
-package org.evento.server.performance;
+package org.evento.server.domain.model.performance;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

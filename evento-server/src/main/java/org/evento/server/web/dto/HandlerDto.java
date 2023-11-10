@@ -6,8 +6,8 @@ import lombok.NoArgsConstructor;
 import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.evento.common.modeling.bundle.types.PayloadType;
-import org.evento.server.domain.model.Handler;
-import org.evento.server.domain.model.Payload;
+import org.evento.server.domain.model.core.Handler;
+import org.evento.server.domain.model.core.Payload;
 
 import java.io.Serializable;
 import java.util.HashMap;

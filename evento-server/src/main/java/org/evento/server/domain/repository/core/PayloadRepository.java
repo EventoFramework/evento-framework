@@ -1,8 +1,8 @@
-package org.evento.server.domain.repository;
+package org.evento.server.domain.repository.core;
 
-import org.evento.server.domain.model.Payload;
-import org.evento.server.domain.repository.projection.PayloadListProjection;
-import org.evento.server.domain.repository.projection.PayloadProjection;
+import org.evento.server.domain.model.core.Payload;
+import org.evento.server.domain.repository.core.projection.PayloadListProjection;
+import org.evento.server.domain.repository.core.projection.PayloadProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

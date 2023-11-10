@@ -1,4 +1,4 @@
-package org.evento.server.domain.model;
+package org.evento.server.domain.model.core;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

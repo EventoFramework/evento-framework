@@ -1,4 +1,4 @@
-package org.evento.server.domain.model;
+package org.evento.server.domain.model.core;
 
 import lombok.*;
 import org.hibernate.Hibernate;
@@ -24,7 +24,7 @@ public class Bundle {
 	@Column(columnDefinition = "TEXT")
 	private String description;
 
-	@Column(columnDefinition = "LONGTEXT")
+	@Column(columnDefinition = "TEXT")
 	private String detail;
 
 	@Enumerated(EnumType.STRING)

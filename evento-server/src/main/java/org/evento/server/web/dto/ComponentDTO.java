@@ -3,8 +3,8 @@ package org.evento.server.web.dto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.evento.common.modeling.bundle.types.ComponentType;
-import org.evento.server.domain.model.Component;
-import org.evento.server.domain.model.Handler;
+import org.evento.server.domain.model.core.Component;
+import org.evento.server.domain.model.core.Handler;
 
 import java.time.Instant;
 import java.util.List;

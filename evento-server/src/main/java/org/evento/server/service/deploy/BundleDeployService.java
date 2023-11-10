@@ -1,7 +1,7 @@
 package org.evento.server.service.deploy;
 
-import org.evento.server.domain.model.Bundle;
-import org.evento.server.domain.repository.BundleRepository;
+import org.evento.server.domain.model.core.Bundle;
+import org.evento.server.domain.repository.core.BundleRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

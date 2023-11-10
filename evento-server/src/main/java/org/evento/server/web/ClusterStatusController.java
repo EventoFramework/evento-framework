@@ -2,8 +2,8 @@ package org.evento.server.web;
 
 import org.evento.server.bus.MessageBus;
 import org.evento.server.bus.NodeAddress;
-import org.evento.server.domain.model.BucketType;
-import org.evento.server.domain.model.Bundle;
+import org.evento.server.domain.model.core.BucketType;
+import org.evento.server.domain.model.core.Bundle;
 import org.evento.server.service.BundleService;
 import org.evento.server.service.deploy.BundleDeployService;
 import org.slf4j.Logger;

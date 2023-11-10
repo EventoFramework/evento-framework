@@ -1,7 +1,7 @@
-package org.evento.server.domain.repository;
+package org.evento.server.domain.repository.core;
 
-import org.evento.server.domain.model.Component;
-import org.evento.server.domain.repository.projection.ComponentListProjection;
+import org.evento.server.domain.model.core.Component;
+import org.evento.server.domain.repository.core.projection.ComponentListProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

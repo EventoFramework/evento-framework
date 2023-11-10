@@ -5,21 +5,22 @@ import org.evento.common.serialization.ObjectMapperUtils;
 
 import javax.persistence.AttributeConverter;
 import java.io.IOException;
+import java.io.Serializable;
 
-public class JsonConverter implements AttributeConverter<Object, byte[]> {
+public class JsonConverter implements AttributeConverter<Serializable, String> {
     @Override
-    public byte[] convertToDatabaseColumn(Object attribute) {
+    public String convertToDatabaseColumn(Serializable attribute) {
         try {
-            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsBytes(attribute);
+            return ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(attribute);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public Object convertToEntityAttribute(byte[] dbData) {
+    public Serializable convertToEntityAttribute(String dbData) {
 		try {
-			return ObjectMapperUtils.getPayloadObjectMapper().readValue(dbData, Object.class);
+			return ObjectMapperUtils.getPayloadObjectMapper().readValue(dbData, Serializable.class);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

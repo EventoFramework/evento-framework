@@ -1,10 +1,10 @@
-package org.evento.server.domain.repository;
+package org.evento.server.domain.repository.core;
 
 import org.evento.common.modeling.bundle.types.ComponentType;
 import org.evento.common.modeling.bundle.types.HandlerType;
-import org.evento.server.domain.model.Bundle;
-import org.evento.server.domain.model.Component;
-import org.evento.server.domain.model.Handler;
+import org.evento.server.domain.model.core.Bundle;
+import org.evento.server.domain.model.core.Component;
+import org.evento.server.domain.model.core.Handler;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
