@@ -2,8 +2,8 @@ package org.evento.server.web;
 
 import org.evento.common.serialization.ObjectMapperUtils;
 import org.evento.parser.model.BundleDescription;
-import org.evento.server.domain.model.BucketType;
-import org.evento.server.domain.repository.projection.BundleListProjection;
+import org.evento.server.domain.model.core.BucketType;
+import org.evento.server.domain.repository.core.projection.BundleListProjection;
 import org.evento.server.service.BundleService;
 import org.evento.server.service.HandlerService;
 import org.evento.server.web.dto.BundleDto;

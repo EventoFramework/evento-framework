@@ -1,8 +1,8 @@
 package org.evento.server.web.dto;
 
 import lombok.Data;
-import org.evento.server.domain.repository.ComponentTypeCount;
-import org.evento.server.domain.repository.PayloadTypeCount;
+import org.evento.server.domain.repository.core.ComponentTypeCount;
+import org.evento.server.domain.repository.core.PayloadTypeCount;
 
 import java.util.List;
 

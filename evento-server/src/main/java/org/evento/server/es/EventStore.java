@@ -62,13 +62,12 @@ public class EventStore {
 
     public void acquire(String string) {
         if (string == null) return;
-        try (var stmt = this.lockConnection.prepareStatement("SELECT GET_LOCK(?, -1)")) {
-            stmt.setString(1, string);
+        try (var stmt = this.lockConnection.prepareStatement("SELECT pg_advisory_lock("+string.hashCode()+")")) {
             var resultSet = stmt.executeQuery();
             resultSet.next();
             if (resultSet.wasNull()) throw new IllegalMonitorStateException();
-            var status = resultSet.getInt(1);
-            if (status != 1) throw new IllegalMonitorStateException();
+            var status = resultSet.getString(1);
+            if (!"".equals(status)) throw new IllegalMonitorStateException();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -77,13 +76,12 @@ public class EventStore {
 
     public void release(String string) {
         if (string == null) return;
-        try (var stmt = lockConnection.prepareStatement("SELECT RELEASE_LOCK(?)")) {
-            stmt.setString(1, string);
+        try (var stmt = lockConnection.prepareStatement("SELECT pg_advisory_unlock("+string.hashCode()+")")) {
             var resultSet = stmt.executeQuery();
             resultSet.next();
             if (resultSet.wasNull()) throw new IllegalMonitorStateException();
-            var status = resultSet.getInt(1);
-            if (status != 1) throw new IllegalMonitorStateException();
+            var status = resultSet.getBoolean(1);
+            if (!status) throw new IllegalMonitorStateException();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -134,11 +132,10 @@ public class EventStore {
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
                             "(event_sequence_number," +
-                            "aggregate_id, created_at, event_message, event_name, context) " +
-                            "values  (?, ?, ?, ?, ?, ?)",
+                            "aggregate_id, event_message, event_name, context) " +
+                            "values  (?, ?, ?, ?, ?)",
                     snowflake.nextId(),
                     aggregateId,
-                    Instant.now().toEpochMilli(),
                     mapper.writeValueAsString(eventMessage),
                     eventMessage.getEventName(),
                     eventMessage.getContext()
@@ -150,16 +147,13 @@ public class EventStore {
 
     public void publishEvent(EventMessage<?> eventMessage) {
         try {
-            var time = Instant.now().toEpochMilli();
-            var serializedMessage = mapper.writeValueAsString(eventMessage);
             jdbcTemplate.update(
                     "INSERT INTO es__events " +
-                            "(event_sequence_number, aggregate_id, created_at, event_message, event_name, context) values " +
-                            "( ?, ?, ?,?,?,?)",
+                            "(event_sequence_number, aggregate_id, event_message, event_name, context) values " +
+                            "( ?, ?,?,?,?)",
                     snowflake.nextId(),
                     null,
-                    time,
-                    serializedMessage,
+                    mapper.writeValueAsString(eventMessage),
                     eventMessage.getEventName(),
                     eventMessage.getContext()
             );
@@ -185,11 +179,10 @@ public class EventStore {
     }
 
     public void deleteAggregate(String aggregateIdentifier) {
-        var time = Instant.now().toEpochMilli();
         jdbcTemplate.update(
                 "UPDATE es__events " +
                         "set deleted_at = ? where aggregate_id = ?",
-                time,
+                Instant.now(),
                 aggregateIdentifier
         );
         snapshotRepository.deleteAggregate(aggregateIdentifier);

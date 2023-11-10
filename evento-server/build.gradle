@@ -33,7 +33,7 @@ dependencies {
 	implementation 'com.google.code.gson:gson:2.10'
 
 	runtimeOnly 'com.h2database:h2'
-	runtimeOnly 'mysql:mysql-connector-java'
+	runtimeOnly 'org.postgresql:postgresql'
 
 	testImplementation 'org.flywaydb:flyway-core'
 	implementation 'com.squareup.okhttp3:okhttp:4.10.0'

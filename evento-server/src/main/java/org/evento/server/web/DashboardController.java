@@ -2,9 +2,9 @@ package org.evento.server.web;
 
 import org.evento.server.bus.MessageBus;
 import org.evento.server.bus.NodeAddress;
-import org.evento.server.domain.repository.BundleRepository;
-import org.evento.server.domain.repository.ComponentRepository;
-import org.evento.server.domain.repository.PayloadRepository;
+import org.evento.server.domain.repository.core.BundleRepository;
+import org.evento.server.domain.repository.core.ComponentRepository;
+import org.evento.server.domain.repository.core.PayloadRepository;
 import org.evento.server.es.EventStore;
 import org.evento.server.web.dto.DashboardDTO;
 import org.springframework.beans.factory.annotation.Value;

@@ -12,7 +12,7 @@ public class Snapshot {
 	@Id
 	private String aggregateId;
 	private Long eventSequenceNumber;
-	@Column(columnDefinition = "BLOB")
+	@Column(columnDefinition = "TEXT")
 	@Convert(converter = JsonConverter.class)
 	private SerializedAggregateState<?> aggregateState;
 

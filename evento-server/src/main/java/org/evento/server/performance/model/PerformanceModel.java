@@ -1,6 +1,6 @@
 package org.evento.server.performance.model;
 
-import org.evento.server.domain.model.Handler;
+import org.evento.server.domain.model.core.Handler;
 import org.evento.server.performance.modeling.PerformanceFetcher;
 
 import java.util.ArrayList;

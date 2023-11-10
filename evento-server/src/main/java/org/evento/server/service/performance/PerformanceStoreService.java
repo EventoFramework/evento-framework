@@ -3,15 +3,16 @@ package org.evento.server.service.performance;
 import org.evento.common.performance.PerformanceInvocationsMessage;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.PerformanceServiceTimeMessage;
-import org.evento.server.domain.model.Handler;
-import org.evento.server.domain.repository.HandlerInvocationCountPerformanceRepository;
-import org.evento.server.domain.repository.HandlerRepository;
-import org.evento.server.domain.repository.HandlerServiceTimePerformanceRepository;
-import org.evento.server.domain.repository.PayloadRepository;
-import org.evento.server.performance.HandlerInvocationCountPerformance;
-import org.evento.server.performance.HandlerServiceTimePerformance;
+import org.evento.server.domain.model.core.Handler;
+import org.evento.server.domain.model.performance.HandlerInvocationCountPerformance;
+import org.evento.server.domain.model.performance.HandlerServiceTimePerformance;
+import org.evento.server.domain.repository.core.HandlerRepository;
+import org.evento.server.domain.repository.core.PayloadRepository;
+import org.evento.server.domain.repository.performance.HandlerInvocationCountPerformanceRepository;
+import org.evento.server.domain.repository.performance.HandlerServiceTimePerformanceRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -23,19 +24,21 @@ public class PerformanceStoreService extends PerformanceService {
 
     public static final double ALPHA = 0.33;
     private final HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository;
-    private final HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository;
+ private final HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository;
 
     private final HandlerRepository handlerRepository;
 
     private final LockRegistry lockRegistry;
     private final PayloadRepository payloadRepository;
 
+    private final JdbcTemplate jdbcTemplate;
+
     public PerformanceStoreService(
             HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository,
             HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository,
             HandlerRepository handlerRepository, LockRegistry lockRegistry,
             @Value("${evento.performance.capture.rate:1}") double performanceCaptureRate,
-            PayloadRepository payloadRepository) {
+            PayloadRepository payloadRepository, JdbcTemplate jdbcTemplate) {
         super(performanceCaptureRate);
         this.handlerServiceTimePerformanceRepository = handlerServiceTimePerformanceRepository;
         this.handlerInvocationCountPerformanceRepository = handlerInvocationCountPerformanceRepository;
@@ -43,6 +46,7 @@ public class PerformanceStoreService extends PerformanceService {
 
         this.lockRegistry = lockRegistry;
         this.payloadRepository = payloadRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     public static Instant now() {
@@ -95,6 +99,9 @@ public class PerformanceStoreService extends PerformanceService {
                     );
                 }
                 handlerServiceTimePerformanceRepository.save(handlerServiceTimePerformance);
+                jdbcTemplate.update("insert into performance__handler_service_time_ts (id, value) values (?,?)",
+                        pId,
+                        duration);
             } finally {
                 lock.unlock();
             }
@@ -137,6 +144,8 @@ public class PerformanceStoreService extends PerformanceService {
                         hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) +
                                 (ALPHA * invocations.getOrDefault(payload.getName(), 0)));
                         handlerInvocationCountPerformanceRepository.save(hip);
+                        jdbcTemplate.update("insert into performance__handler_invocation_count_ts (id) values (?)",
+                                id);
                     }
                 });
             } finally {

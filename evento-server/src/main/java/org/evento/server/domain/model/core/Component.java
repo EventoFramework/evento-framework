@@ -1,4 +1,4 @@
-package org.evento.server.domain.model;
+package org.evento.server.domain.model.core;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,7 @@ public class Component {
 	@Column(columnDefinition = "TEXT")
 	private String description;
 
-	@Column(columnDefinition = "LONGTEXT")
+	@Column(columnDefinition = "TEXT")
 	private String detail;
 
 	private Instant updatedAt;
