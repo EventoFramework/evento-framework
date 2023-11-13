@@ -33,7 +33,10 @@ public class AutoDiscoveryService {
     private final LockRegistry lockRegistry;
     private final ComponentRepository componentRepository;
 
-    public AutoDiscoveryService(MessageBus messageBus, BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository, BundleService bundleService, LockRegistry lockRegistry,
+    public AutoDiscoveryService(MessageBus messageBus,
+                                BundleRepository bundleRepository,
+                                HandlerRepository handlerRepository,
+                                PayloadRepository payloadRepository, BundleService bundleService, LockRegistry lockRegistry,
                                 ComponentRepository componentRepository) {
         this.bundleRepository = bundleRepository;
         this.handlerRepository = handlerRepository;

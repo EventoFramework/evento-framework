@@ -45,8 +45,8 @@ public class BundleController {
 
 	@GetMapping(value = "/{name}", produces = "application/json")
 	@Secured("ROLE_WEB")
-	public ResponseEntity<BundleDto> findByName(@PathVariable String name) {
-		return ResponseEntity.ok(new BundleDto(bundleService.findByName(name),
+	public ResponseEntity<BundleDto> findById(@PathVariable String name) {
+		return ResponseEntity.ok(new BundleDto(bundleService.findById(name),
 				handlerService.findAllByBundleId(name)));
 	}
 
@@ -95,7 +95,7 @@ public class BundleController {
 	@DeleteMapping(value = "/{bundleId}")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<?> unregisterBundle(@PathVariable String bundleId) {
-		var bundle = bundleService.findByName(bundleId);
+		var bundle = bundleService.findById(bundleId);
 		Assert.isTrue(bundle != null, "error.bundle.is.null");
 		Assert.isTrue(bundle.getBucketType() != BucketType.Ephemeral, "error.bundle.is.epehemeral");
 		bundleService.unregister(bundleId);
