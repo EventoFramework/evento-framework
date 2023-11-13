@@ -72,7 +72,7 @@ publishing {
                 scm {
                     connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
                     developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
-                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-parser"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-cli"
                 }
             }
 

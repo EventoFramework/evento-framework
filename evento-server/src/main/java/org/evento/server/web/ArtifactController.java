@@ -22,7 +22,7 @@ public class ArtifactController {
 	@GetMapping(value = "/bundle/{bundleId}", produces = "application/zip")
 	@Secured("ROLE_DEPLOY")
 	public @ResponseBody byte[] getBundleArtifact(@PathVariable String bundleId) throws IOException {
-		var bundle = bundleService.findByName(bundleId);
+		var bundle = bundleService.findById(bundleId);
 		Assert.isTrue(bundle != null, "error.bundle.not.found");
 		return switch (bundle.getBucketType())
 		{

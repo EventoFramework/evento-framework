@@ -723,7 +723,7 @@ public class BundleService {
         return bundleRepository.findAllProjection();
     }
 
-    public Bundle findByName(String bundleId) {
+    public Bundle findById(String bundleId) {
         return bundleRepository.findById(bundleId).orElseThrow();
     }
 
