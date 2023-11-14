@@ -136,6 +136,16 @@ public class MessageBus {
                                     }).start();
                                 }
                             } catch (Exception e) {
+                                for (Map.Entry<String, Consumer<EventoResponse>> ek : correlations.entrySet()) {
+                                    var resp = new EventoResponse();
+                                    resp.setCorrelationId(ek.getKey());
+                                    resp.setBody(new ExceptionWrapper(e));
+                                    try {
+                                        ek.getValue().accept(resp);
+                                    }catch (Exception ex){
+                                        logger.error("Error during correlation fail management", ex);
+                                    }
+                                }
                                 try {
                                     if (!conn.isClosed())
                                         conn.close();
