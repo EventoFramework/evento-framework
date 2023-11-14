@@ -3,8 +3,11 @@ package org.evento.application.bus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.SendFailedException;
+import org.evento.common.modeling.exceptions.ExceptionWrapper;
 import org.evento.common.modeling.messaging.message.internal.DisableMessage;
 import org.evento.common.modeling.messaging.message.internal.EnableMessage;
+import org.evento.common.modeling.messaging.message.internal.EventoRequest;
+import org.evento.common.modeling.messaging.message.internal.EventoResponse;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 
 import java.io.IOException;
@@ -12,6 +15,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.Socket;
+import java.util.HashSet;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,6 +46,8 @@ public class EventoSocketConnection {
     private final int conn = instanceCounter.incrementAndGet();
     private boolean isClosed = false;
 
+    private final HashSet<String> pendingCorrelations = new HashSet<>();
+
     private EventoSocketConnection(
             String serverAddress,
             int serverPort,
@@ -58,6 +64,9 @@ public class EventoSocketConnection {
     }
 
     public void send(Serializable message) throws SendFailedException {
+        if(message instanceof EventoRequest r){
+            this.pendingCorrelations.add(r.getCorrelationId());
+        }
         try {
             out.get().writeObject(message);
         } catch (Exception e) {
@@ -90,12 +99,22 @@ public class EventoSocketConnection {
                     while (true) {
                         var data = dataInputStream.readObject();
                         logger.info(data);
+                        if(data instanceof EventoResponse r){
+                            this.pendingCorrelations.remove(r.getCorrelationId());
+                        }
                         new Thread(() -> {
                             handler.handle((Serializable) data, this::send);
                         }).start();
                     }
                 } catch (Exception e) {
                     logger.error("Connection error %s:%d".formatted(reconnectAttempt, serverPort), e);
+                    for (String pendingCorrelation : pendingCorrelations) {
+                        var resp = new EventoResponse();
+                        resp.setCorrelationId(pendingCorrelation);
+                        resp.setBody(new ExceptionWrapper(e));
+                        handler.handle(resp, this::send);
+                    }
+                    pendingCorrelations.clear();
                     try {
                         Thread.sleep(reconnectDelayMillis);
                     } catch (InterruptedException e1) {
