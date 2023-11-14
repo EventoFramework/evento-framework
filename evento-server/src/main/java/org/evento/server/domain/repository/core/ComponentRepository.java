@@ -13,11 +13,11 @@ public interface ComponentRepository extends JpaRepository<Component, String> {
 	@Query(value = "select c.component_name as componentName, " +
 			"   c.component_type as componentType, " +
 			"   c.description, " +
-			"   group_concat(distinct p.domain) as domains, " +
+			"   string_agg(distinct p.domain, ',') as domains, " +
 			"   c.bundle_id as bundleId, " +
 			"   count(distinct h.uuid) as handledMessages, " +
 			"   count(h.return_type_name) as producedMessages, " +
-			"   count(distinct i.handler_uuid, i.invocations_key) as invocations " +
+			"   count(distinct concat(i.handler_uuid, i.invocations_key)) as invocations " +
 			"from core__component c " +
 			" left join core__handler h on c.component_name = h.component_component_name and h.handler_type <> 'EventSourcingHandler' " +
 			"left join core__handler__invocation i on h.uuid = i.handler_uuid " +
