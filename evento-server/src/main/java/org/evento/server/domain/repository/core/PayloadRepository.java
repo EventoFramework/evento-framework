@@ -12,7 +12,7 @@ import java.util.Optional;
 public interface PayloadRepository extends JpaRepository<Payload, String> {
 
 	@Query(value = "select p.name, p.type, p.path, p.line, p.description, p.domain, count(distinct h.uuid) as subscriptions, " +
-			"       group_concat(distinct h.component_component_name) as subscribers, " +
+			"       string_agg(distinct h.component_component_name, ',') as subscribers, " +
 			"       count(distinct i.handler_uuid) as invocations, " +
 			"       count(distinct h2.uuid) as returnedBy " +
 			"from core__payload p " +
@@ -33,14 +33,14 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"   p.path," +
 			"   p.line," +
 			"   p.is_valid_json_schema as validJsonSchema, " +
-			"   group_concat(distinct concat(hc.component_name, '$$$', hc.component_type, '$$$', hc.path, '$$$', h.line))   as subscribers, " +
-			"   group_concat(distinct concat(hic.component_name, '$$$', hic.component_type, '$$$', hic.path, '$$$', hi.line)) as invokers, " +
-			"   group_concat(distinct concat(h2c.component_name, '$$$', h2c.component_type, '$$$', h2c.path, '$$$', h2.line)) as returnedBy, " +
-			"   group_concat(distinct concat(h3c.component_name, '$$$', h3c.component_type, '$$$', h3c.path, '$$$', h3.line)) as usedBy " +
+			"   string_agg(distinct concat(hc.component_name, '$$$', hc.component_type, '$$$', hc.path, '$$$', h.line), ',')   as subscribers, " +
+			"   string_agg(distinct concat(hic.component_name, '$$$', hic.component_type, '$$$', hic.path, '$$$', hi.line), ',') as invokers, " +
+			"   string_agg(distinct concat(h2c.component_name, '$$$', h2c.component_type, '$$$', h2c.path, '$$$', h2.line), ',') as returnedBy, " +
+			"   string_agg(distinct concat(h3c.component_name, '$$$', h3c.component_type, '$$$', h3c.path, '$$$', h3.line), ',') as usedBy " +
 			" " +
 			"from core__payload p " +
 			" left join core__handler h on p.name = h.handled_payload_name and " +
-			"  (p.type != 'DomainEvent' || h.handler_type <> 'EventSourcingHandler') " +
+			"  ((p.type != 'DomainEvent') or (h.handler_type != 'EventSourcingHandler')) " +
 			" left join core__component hc on h.component_component_name = hc.component_name " +
 			" left join core__handler__invocation i on i.invocations_name = p.name " +
 			" left join core__handler hi on hi.uuid = i.handler_uuid " +
