@@ -46,7 +46,7 @@ public class ApplicationPerformanceModelService {
 
             var s = n.station(i, false, null);
             s.setPath(i.getComponent().getPath());
-            s.setLines(List.of(i.getLine()));
+            s.setLines(i.getLine() == null ? List.of() : List.of(i.getLine()));
 
             source.addTarget(s, performanceStoreService);
 

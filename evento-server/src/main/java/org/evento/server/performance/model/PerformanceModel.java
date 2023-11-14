@@ -27,7 +27,7 @@ public class PerformanceModel {
                 i.getComponent().getComponentType().toString(),
                 i.getHandledPayload().getName()
                 , i.getHandledPayload().getType().toString(), async, numServers, i.getUuid(),
-				i.getComponent().getPath(), List.of(i.getLine()));
+				i.getComponent().getPath(), i.getLine() == null ? List.of() : List.of(i.getLine()));
     }
 
     public ServiceStation station(String bundleId, String componentName, String componentType,
