@@ -53,7 +53,7 @@ public class EventoConfiguration {
 				.setBundleVersion(bundleVersion)
 				.setServerName(serverName)
 				.setMessageBusConfiguration(new MessageBusConfiguration(
-						new ClusterNodeAddress("localhost",3000)
+						new ClusterNodeAddress("host.docker.internal",3000)
 				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
 						.setMaxReconnectAttempts(30)
 						.setReconnectDelayMillis(5000))
@@ -63,7 +63,7 @@ public class EventoConfiguration {
 						maxThreads,
 						minThreads,
 						maxOverflow,
-						maxUnderflow))
+						maxUnderflow, 60 * 1000))
 				.setInjector(factory::getBean)
 				.start();
 

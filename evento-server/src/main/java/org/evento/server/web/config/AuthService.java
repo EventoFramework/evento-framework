@@ -34,7 +34,7 @@ public class AuthService {
                 new TokenRole[]{TokenRole.ROLE_ADMIN},
                 1000 * 60 * 60 * 365));
         System.out.println("Web token: " + generateJWT("evento-web",
-                new TokenRole[]{TokenRole.ROLE_WEB},
+                new TokenRole[]{TokenRole.ROLE_WEB, TokenRole.ROLE_DEPLOY, TokenRole.ROLE_ADMIN},
                 1000 * 60 * 60 * 365));
         System.out.println();
     }

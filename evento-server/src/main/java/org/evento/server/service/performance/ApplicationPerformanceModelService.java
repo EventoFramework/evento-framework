@@ -76,57 +76,59 @@ public class ApplicationPerformanceModelService {
                     componentPath, lines);
 
             source.addTarget(serverRequestAgent, performanceStoreService);
-            // Server -> Component
-            var handler = p.getHandlers().get(0);
-            var a = n.station(handler, false, null);
-            for (var pp : new HashSet<>(handler.getInvocations().values())) {
-                generateInvocationPerformanceModel(n, handlers, pp, a, null,
-                        handler.getUuid(),
-                        handler.getComponent().getPath(),
-                        handler.getInvocations().entrySet().stream()
-                                .filter(e -> e.getValue().equals(pp))
-                                .map(Map.Entry::getKey).toList());
-            }
-            serverRequestAgent.addTarget(a, performanceStoreService);
-            // Component -> Server
-            var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType() == null ? "Void" : handler.getReturnType().getName(), handler.getReturnType() == null ? null : handler.getReturnType().getType().toString(), false, null, "Gateway_" + handler.getHandledPayload().toString() + "_" + (handler.getReturnType() == null ? "Void" : handler.getReturnType().getName())
-                    , handler.getReturnType() == null ? null : handler.getReturnType().getPath(),
-                    handler.getReturnType() == null ? null : List.of(handler.getReturnType().getLine()));
-            a.addTarget(serverResponseAgent, performanceStoreService);
-            if (handler.getReturnType() != null) {
-                // Server -> ES
-                var esAgent = n.station("event-store", "EventStore", "EventStore", handler.getReturnType().getName(), handler.getReturnType().getType().toString(), false, null, "EventStore_" + handler.getReturnType().getName(),
-                        null, null);
-                serverResponseAgent.addTarget(esAgent, performanceStoreService);
+            if(!p.getHandlers().isEmpty()) {
+                // Server -> Component
+                var handler = p.getHandlers().get(0);
+                var a = n.station(handler, false, null);
+                for (var pp : new HashSet<>(handler.getInvocations().values())) {
+                    generateInvocationPerformanceModel(n, handlers, pp, a, null,
+                            handler.getUuid(),
+                            handler.getComponent().getPath(),
+                            handler.getInvocations().entrySet().stream()
+                                    .filter(e -> e.getValue().equals(pp))
+                                    .map(Map.Entry::getKey).toList());
+                }
+                serverRequestAgent.addTarget(a, performanceStoreService);
+                // Component -> Server
+                var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType() == null ? "Void" : handler.getReturnType().getName(), handler.getReturnType() == null ? null : handler.getReturnType().getType().toString(), false, null, "Gateway_" + handler.getHandledPayload().toString() + "_" + (handler.getReturnType() == null ? "Void" : handler.getReturnType().getName())
+                        , handler.getReturnType() == null ? null : handler.getReturnType().getPath(),
+                        (handler.getReturnType() == null || handler.getReturnType().getLine() == null) ? null : List.of(handler.getReturnType().getLine()));
+                a.addTarget(serverResponseAgent, performanceStoreService);
+                if (handler.getReturnType() != null) {
+                    // Server -> ES
+                    var esAgent = n.station("event-store", "EventStore", "EventStore", handler.getReturnType().getName(), handler.getReturnType().getType().toString(), false, null, "EventStore_" + handler.getReturnType().getName(),
+                            null, null);
+                    serverResponseAgent.addTarget(esAgent, performanceStoreService);
 
-                if (dest != null)
-                    esAgent.addTarget(dest, performanceStoreService);
-                handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
-                        .filter(h -> h.getHandledPayload().equals(handler.getReturnType())).forEach(h -> {
-                            // ES -> EventHandler
-                            var perf = performanceStoreService.getMeanServiceTime(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName());
-                            var sum = 0.0;
-                            for (var i : new HashSet<>(h.getInvocations().values())) {
-                                var ih = i.getHandlers().get(0);
-                                var st = performanceStoreService.getMeanServiceTime(ih.getComponent().getBundle().getId(), ih.getComponent().getComponentName(), ih.getHandledPayload().getName());
-                                if (st != null)
-                                    sum += st;
-                            }
-                            perf = perf == null ? null : Math.max(perf, sum);
-                            var ha = n.station(h, true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf);
-                            esAgent.addTarget(ha, performanceStoreService);
-                            for (var i : new HashSet<>(h.getInvocations().values())) {
-                                generateInvocationPerformanceModel(n, handlers, i, ha, null,
-                                        h.getUuid(),
-                                        h.getComponent().getPath(),
-                                        h.getInvocations().entrySet().stream()
-                                                .filter(e -> e.getValue().equals(i))
-                                                .map(Map.Entry::getKey).toList());
-                            }
-                        });
-            } else {
-                if (dest != null)
-                    serverResponseAgent.addTarget(dest, performanceStoreService);
+                    if (dest != null)
+                        esAgent.addTarget(dest, performanceStoreService);
+                    handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
+                            .filter(h -> h.getHandledPayload().equals(handler.getReturnType())).forEach(h -> {
+                                // ES -> EventHandler
+                                var perf = performanceStoreService.getMeanServiceTime(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName());
+                                var sum = 0.0;
+                                for (var i : new HashSet<>(h.getInvocations().values())) {
+                                    var ih = i.getHandlers().get(0);
+                                    var st = performanceStoreService.getMeanServiceTime(ih.getComponent().getBundle().getId(), ih.getComponent().getComponentName(), ih.getHandledPayload().getName());
+                                    if (st != null)
+                                        sum += st;
+                                }
+                                perf = perf == null ? null : Math.max(perf, sum);
+                                var ha = n.station(h, true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf);
+                                esAgent.addTarget(ha, performanceStoreService);
+                                for (var i : new HashSet<>(h.getInvocations().values())) {
+                                    generateInvocationPerformanceModel(n, handlers, i, ha, null,
+                                            h.getUuid(),
+                                            h.getComponent().getPath(),
+                                            h.getInvocations().entrySet().stream()
+                                                    .filter(e -> e.getValue().equals(i))
+                                                    .map(Map.Entry::getKey).toList());
+                                }
+                            });
+                } else {
+                    if (dest != null)
+                        serverResponseAgent.addTarget(dest, performanceStoreService);
+                }
             }
 
         } else if (p.getType() == PayloadType.Query) {
@@ -135,26 +137,29 @@ public class ApplicationPerformanceModelService {
                     false, null, "Gateway_" + p.getName(), componentPath, lines);
             source.addTarget(serverRequestAgent, performanceStoreService);
             // Server -> Component
-            var handler = p.getHandlers().get(0);
-            var a = n.station(handler, false, null);
-            for (var pp : new HashSet<>(handler.getInvocations().values())) {
-                generateInvocationPerformanceModel(n, handlers, pp, a, null,
-                        handler.getUuid(),
-                        handler.getComponent().getPath(),
-                        handler.getInvocations().entrySet().stream()
-                                .filter(e -> e.getValue().equals(pp))
-                                .map(Map.Entry::getKey).toList());
-            }
-            serverRequestAgent.addTarget(a, performanceStoreService);
-            // Component -> Server
-            var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType().getName(),
-                    handler.getReturnType().getType().toString(), false, null, "Gateway_" + handler.getReturnType().getName(),
-                    null, null);
-            a.addTarget(serverResponseAgent, performanceStoreService);
+            if(!p.getHandlers().isEmpty()) {
+                var handler = p.getHandlers().get(0);
+                var a = n.station(handler, false, null);
+                for (var pp : new HashSet<>(handler.getInvocations().values())) {
+                    generateInvocationPerformanceModel(n, handlers, pp, a, null,
+                            handler.getUuid(),
+                            handler.getComponent().getPath(),
+                            handler.getInvocations().entrySet().stream()
+                                    .filter(e -> e.getValue().equals(pp))
+                                    .map(Map.Entry::getKey).toList());
+                }
+                serverRequestAgent.addTarget(a, performanceStoreService);
+                // Component -> Server
+                var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType().getName(),
+                        handler.getReturnType().getType().toString(), false, null, "Gateway_" + handler.getReturnType().getName(),
+                        null, null);
+                a.addTarget(serverResponseAgent, performanceStoreService);
 
-            // Server -> Invoker
-            if (dest != null)
-                serverResponseAgent.addTarget(dest, performanceStoreService);
+
+                // Server -> Invoker
+                if (dest != null)
+                    serverResponseAgent.addTarget(dest, performanceStoreService);
+            }
 
         }
     }

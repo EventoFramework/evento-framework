@@ -15,6 +15,8 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 
 	private final int maxUnderflowCount;
 
+	private final long boredTimeout;
+
 	private int threadCount = 0;
 	private int overflowCount = 0;
 	private int underflowCount = 0;
@@ -30,19 +32,20 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 			int maxThreadCount,
 			int minThreadCount,
 			int maxOverflowCount,
-			int maxUnderflowCount) {
+			int maxUnderflowCount, long boredTimeout) {
 		super(eventoServer);
 		this.maxUnderflowCount = maxUnderflowCount;
 		this.minThreadCount = minThreadCount;
 		this.maxThreadCount = maxThreadCount;
 		this.maxOverflowCount = maxOverflowCount;
+		this.boredTimeout = boredTimeout;
 
 		new Thread(() -> {
 			while (true)
 			{
 				try
 				{
-					Thread.sleep(60 * 1000);
+					Thread.sleep(boredTimeout);
 					if (threadCount == 0 && lastDepartureAt == lastDepartureCheck && boredSentDepartureTime != lastDepartureAt)
 					{
 						overflowCount = 0;
@@ -75,7 +78,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 						sendSufferingSignal();
 					} catch (Exception e)
 					{
-						e.printStackTrace();
+						logger.error("Error sending suffering signal", e);
 					}
 					suffering = true;
 				}
@@ -100,7 +103,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 						sendBoredSignal();
 					} catch (Exception e)
 					{
-						e.printStackTrace();
+						logger.error("Error sending bored signal", e);
 					}
 					bored = true;
 				}

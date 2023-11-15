@@ -8,7 +8,6 @@ public class BundleRegistration implements Serializable {
 
 	private String bundleId;
 	private long bundleVersion;
-
 	private String instanceId;
 	private ArrayList<RegisteredHandler> registeredHandlers;
 

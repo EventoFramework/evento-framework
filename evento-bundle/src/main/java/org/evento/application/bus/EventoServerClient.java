@@ -1,9 +1,12 @@
 package org.evento.application.bus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.bus.SendFailedException;
 import org.evento.common.modeling.exceptions.ExceptionWrapper;
+import org.evento.common.modeling.messaging.message.internal.ClusterNodeKillMessage;
 import org.evento.common.modeling.messaging.message.internal.EventoMessage;
 import org.evento.common.modeling.messaging.message.internal.EventoRequest;
 import org.evento.common.modeling.messaging.message.internal.EventoResponse;
@@ -18,6 +21,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public class EventoServerClient implements EventoServer {
+
+    private final Logger logger = LogManager.getLogger(EventoServerClient.class);
 
     private final String bundleId;
     private final long bundleVersion;
@@ -84,7 +89,12 @@ public class EventoServerClient implements EventoServer {
                     throw new RuntimeException(ex);
                 }
             }
-        } else {
+        } else if (message instanceof EventoMessage m){
+            if(m.getBody() instanceof ClusterNodeKillMessage){
+                logger.info("ClusterNodeKillMessage received");
+                System.exit(0);
+            }
+        }else {
             throw new RuntimeException("Invalid message: " + message);
         }
     }
