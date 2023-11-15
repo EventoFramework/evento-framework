@@ -50,7 +50,7 @@ public class EventoConfiguration {
                         maxThreads,
                         minThreads,
                         maxOverflow,
-                        maxUnderflow))
+                        maxUnderflow, 60 * 1000))
                 .setInjector(factory::getBean)
                 .start();
 

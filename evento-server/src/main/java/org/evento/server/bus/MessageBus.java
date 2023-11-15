@@ -33,7 +33,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -67,9 +66,8 @@ public class MessageBus {
 
     private final BundleService bundleService;
 
-    private final Map<String, Consumer<EventoResponse>> correlations = new HashMap<>();
+    private final Map<String, Consumer<EventoResponse>> correlations = new ConcurrentHashMap<>();
     private boolean isShuttingDown = false;
-    private AtomicInteger pendingRequests = new AtomicInteger();
 
     public MessageBus(
             @Value("${socket.port}") int socketPort, BundleDeployService bundleDeployService, HandlerService handlerService, EventStore eventStore, PerformanceStoreService performanceStoreService, BundleService bundleService) {
@@ -121,7 +119,6 @@ public class MessageBus {
                                                     } catch (IOException e) {
                                                         throw new RuntimeException(e);
                                                     }
-                                                    this.pendingRequests.decrementAndGet();
                                                 });
                                             } else if (message instanceof EventoResponse r) {
                                                 var c = correlations.get(r.getCorrelationId());
@@ -142,7 +139,7 @@ public class MessageBus {
                                     resp.setBody(new ExceptionWrapper(e));
                                     try {
                                         ek.getValue().accept(resp);
-                                    }catch (Exception ex){
+                                    } catch (Exception ex) {
                                         logger.error("Error during correlation fail management", ex);
                                     }
                                 }
@@ -171,7 +168,7 @@ public class MessageBus {
     }
 
     @PreDestroy
-    public void destroy(){
+    public void destroy() {
         try {
             var disableDelayMillis = 3000;
             var maxDisableAttempts = 30;
@@ -181,13 +178,13 @@ public class MessageBus {
             System.out.println("Graceful Shutdown - Sleep...");
             Thread.sleep(disableDelayMillis);
             var retry = 0;
-            while (pendingRequests.get() > 0 && retry < maxDisableAttempts) {
-                System.out.println("Graceful Shutdown - Remaining correlations: %d".formatted(pendingRequests.get()));
+            while (!correlations.isEmpty() && retry < maxDisableAttempts) {
+                System.out.printf("Graceful Shutdown - Remaining correlations: %d%n", correlations.size());
                 System.out.println("Graceful Shutdown - Sleep...");
                 Thread.sleep(disableDelayMillis);
                 retry++;
             }
-            if (pendingRequests.get() == 0) {
+            if (correlations.isEmpty()) {
                 System.out.println("Graceful Shutdown - No more correlations, bye!");
             } else {
                 System.out.println("Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " sec of retry... so... bye!");
@@ -198,16 +195,48 @@ public class MessageBus {
     }
 
     private void handleMessage(EventoMessage m) {
-
+        if (m.getBody() instanceof ClusterNodeIsBoredMessage b) {
+            var lockId = "CLUSTER_MANAGE:" + b.getBundleId();
+            eventStore.acquire(lockId);
+            try {
+                var bundle = bundleService.findById(b.getBundleId());
+                if (bundle.getBucketType() != BucketType.Ephemeral &&
+                        bundle.getMinInstances() <
+                                getCurrentAvailableView()
+                                        .stream()
+                                        .filter(n -> n.getBundleId().equals(b.getBundleId())).count())
+                    try {
+                    sendKill(b.getNodeId());
+                    } catch (Exception e) {
+                        logger.error("Error trying to kill node %s".formatted(b.getNodeId()), e);
+                    }
+            } finally {
+                eventStore.release(lockId);
+            }
+        } else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
+            var lockId = "CLUSTER_MANAGE:" + b.getBundleId();
+            eventStore.acquire(lockId);
+            try {
+                var bundle = bundleService.findById(b.getBundleId());
+                if (bundle.getMaxInstances() > getCurrentAvailableView().stream().filter(n -> n.getBundleId().equals(b.getBundleId())).count())
+                    try {
+                        bundleDeployService.spawn(b.getBundleId());
+                    } catch (Exception e) {
+                        logger.error("Error trying to spawn bundle %s".formatted(b.getBundleId()), e);
+                    }
+            } finally {
+                eventStore.release(lockId);
+            }
+        }
+        logger.debug("Message received: {}", m);
     }
 
 
     private void handleRequest(EventoRequest message, Consumer<EventoResponse> sendResponse) {
         try {
-            if(this.isShuttingDown){
+            if (this.isShuttingDown) {
                 throw new IllegalStateException("Server is shutting down");
             }
-            this.pendingRequests.incrementAndGet();
             var request = message.getBody();
             if (request instanceof DomainCommandMessage c) {
 
@@ -265,19 +294,18 @@ public class MessageBus {
                             if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
                                 sendEventToObservers(message, cr.getDomainEventMessage());
                             }
-                        }catch (Exception e){
+                        } catch (Exception e) {
                             eventStore.release(lockId);
                             resp.setBody(new ExceptionWrapper(e));
                             sendResponse.accept(resp);
                         }
 
                     });
-                }catch (Exception e){
+                } catch (Exception e) {
                     eventStore.release(lockId);
                     throw e;
                 }
-            }
-            else if (request instanceof ServiceCommandMessage c) {
+            } else if (request instanceof ServiceCommandMessage c) {
 
                 var dest = peekMessageHandlerAddress(c.getCommandName());
                 var start = PerformanceStoreService.now();
@@ -308,7 +336,7 @@ public class MessageBus {
                             if (resp.getBody() instanceof EventMessage<?> event) {
                                 sendEventToObservers(message, event);
                             }
-                        }catch (Exception e){
+                        } catch (Exception e) {
                             eventStore.release(lockId);
                             resp.setBody(new ExceptionWrapper(e));
                             sendResponse.accept(resp);
@@ -318,8 +346,7 @@ public class MessageBus {
                     eventStore.release(lockId);
                     throw e;
                 }
-            }
-            else if (request instanceof QueryMessage<?> q) {
+            } else if (request instanceof QueryMessage<?> q) {
                 var dest = peekMessageHandlerAddress(q.getQueryName());
                 var invocationStart = PerformanceStoreService.now();
                 forward(message, dest,
@@ -334,8 +361,7 @@ public class MessageBus {
                         }
                 );
 
-            }
-            else if (request instanceof EventFetchRequest f) {
+            } else if (request instanceof EventFetchRequest f) {
                 var events = f.getComponentName() == null ? eventStore.fetchEvents(
                         f.getContext(),
                         f.getLastSequenceNumber(),
@@ -348,14 +374,12 @@ public class MessageBus {
                 resp.setBody(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
                 sendResponse.accept(resp);
 
-            }
-            else if (request instanceof EventLastSequenceNumberRequest) {
+            } else if (request instanceof EventLastSequenceNumberRequest) {
                 var resp = new EventoResponse();
                 resp.setCorrelationId(message.getCorrelationId());
                 resp.setBody(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
                 sendResponse.accept(resp);
-            }
-            else {
+            } else {
                 throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
             }
         } catch (Exception e) {
@@ -502,7 +526,10 @@ public class MessageBus {
 
     public void sendKill(String nodeId) {
         var m = new EventoMessage();
-        m.setBody("KILL");
+        m.setBody(new ClusterNodeKillMessage());
+        m.setSourceBundleId("evento-server");
+        m.setSourceInstanceId("evento-server");
+        m.setSourceBundleVersion(0);
         try {
             view.get(
                     view.keySet().stream().filter(k -> k.getInstanceId().equals(nodeId)).findFirst().orElseThrow()
