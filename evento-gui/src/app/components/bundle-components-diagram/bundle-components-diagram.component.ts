@@ -68,7 +68,7 @@ export class BundleComponentsDiagramComponent implements OnInit {
           }
           if (!components[h.componentName]) {
             components[h.componentName] = graph.insertVertex(parent, '/component-info/' + h.componentName,
-              h.componentName, 0, 0, h.componentNames.length*7, 50,
+              h.componentName, 0, 0, h.componentName.length*7, 50,
               'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[h.componentType] +
               ';fontColor=#333333;strokeWidth=3;');
 

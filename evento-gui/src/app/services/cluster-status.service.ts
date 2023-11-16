@@ -15,7 +15,8 @@ export class ClusterStatusService {
     return new Observable<any>(
       observer => {
 
-        const source = new EventSource(environment.eventoServerUrl + '/api/cluster-status/view');
+        const source = new EventSource(environment.eventoServerUrl +
+          '/api/cluster-status/view?token=' + localStorage.getItem('evento_server_web_token'));
         source.onmessage = event => {
           this.zone.run(() => {
             observer.next(JSON.parse(event.data));
@@ -41,14 +42,14 @@ export class ClusterStatusService {
     return fetch(environment.eventoServerUrl + '/api/cluster-status/attended-view').then(r => r.json());
   }
 
-  async spawn(node: any) {
-    return fetch(environment.eventoServerUrl + '/api/cluster-status/spawn/' + node, {
+  async spawn(bundleId: any) {
+    return fetch(environment.eventoServerUrl + '/api/cluster-status/spawn/' + bundleId, {
       method: 'POST'
     });
   }
 
-  async kill(nodeId) {
-    return fetch(environment.eventoServerUrl + '/api/cluster-status/kill/' + nodeId, {
+  async kill(bundleId, nodeId) {
+    return fetch(environment.eventoServerUrl + '/api/cluster-status/kill/' + bundleId + '/' + nodeId, {
       method: 'DELETE'
     });
   }
