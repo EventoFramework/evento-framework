@@ -34,7 +34,6 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
     this.attendedView = attendedView;
 
     this.viewSubscription = this.clusterStatusService.getView().subscribe(viewUpdate => {
-      console.log(viewUpdate);
       const view = viewUpdate.view;
       if (viewUpdate.type === 'current') {
         const upNodes = view.map(n => n.bundleId);
@@ -93,7 +92,6 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
   }
 
   async kill(replica: any) {
-    console.log(replica);
     await this.clusterStatusService.kill(replica.bundleId, replica.instanceId);
   }
 
