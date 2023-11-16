@@ -303,3 +303,11 @@ table.mxPopupMenu hr {
 table.mxPopupMenu tr {
   font-size: 4pt;
 }
+
+
+.grid-bg{
+  background: white;
+  background-image: radial-gradient(lightgrey 1px, transparent 0);
+  background-size: 20px 20px;
+  background-position: -9px -9px;
+}

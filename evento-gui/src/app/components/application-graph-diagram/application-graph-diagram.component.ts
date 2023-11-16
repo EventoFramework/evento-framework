@@ -122,6 +122,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
     graph.setPanning(true);
     graph.resizeContainer = false;
 
+
     container.addEventListener('wheel', (e: any) => {
       e.preventDefault();
       e.stopPropagation();

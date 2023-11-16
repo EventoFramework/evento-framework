@@ -37,7 +37,7 @@
                   </ion-col>
                 </ion-row>
                 <ion-row *ngFor="let replica of view[component].replicasKeys">
-                  <ion-col>{{view[component].replicas[replica].nodeId}} (v{{view[component].replicas[replica].bundleVersion}})</ion-col>
+                  <ion-col>{{view[component].replicas[replica].instanceId}} (v{{view[component].replicas[replica].bundleVersion}})</ion-col>
                   <ion-col size="3">
                     <ng-container *ngIf="!view[component].replicas[replica].isAvailable">
                       <b class="node-status-not-available" translate="node.status.not.available"></b>
@@ -96,7 +96,7 @@
                   </ion-col>
                 </ion-row>
                 <ion-row *ngFor="let replica of view[component].replicasKeys">
-                  <ion-col>{{view[component].replicas[replica].nodeId}} (v{{view[component].replicas[replica].bundleVersion}})</ion-col>
+                  <ion-col>{{view[component].replicas[replica].instanceId}} (v{{view[component].replicas[replica].bundleVersion}})</ion-col>
                   <ion-col size="3">
                     <ng-container *ngIf="!view[component].replicas[replica].isAvailable">
                       <b class="node-status-not-available" translate="node.status.not.available"></b>
