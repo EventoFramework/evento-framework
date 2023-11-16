@@ -446,7 +446,7 @@ public class MessageBus {
 
     private void enable(NodeAddress address) {
         this.availableView.add(address);
-        availableViewListeners.forEach(l -> l.accept(availableView));
+        availableViewListeners.stream().filter(Objects::nonNull).forEach(l -> l.accept(availableView));
         synchronized (semaphoreMap) {
             var s = semaphoreMap.get(address.getBundleId());
             if (s != null)
@@ -457,7 +457,7 @@ public class MessageBus {
 
     private void disable(NodeAddress address) {
         this.availableView.remove(address);
-        availableViewListeners.forEach(l -> l.accept(availableView));
+        availableViewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(availableView));
         logger.info("DISABLED: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
     }
 
@@ -511,8 +511,8 @@ public class MessageBus {
                 value.remove(address);
             }
         }
-        leaveListeners.forEach(l -> l.accept(address));
-        viewListeners.forEach(l -> l.accept(view.keySet()));
+        leaveListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(address));
+        viewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(view.keySet()));
         logger.info("LEAVE: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
     }
 
