@@ -1,19 +1,8 @@
 package org.evento.application.bus;
 
-public class ClusterNodeAddress {
-    private final String serverAddress;
-    private final int serverPort;
-
-    public ClusterNodeAddress(String serverAddress, int serverPort) {
-        this.serverAddress = serverAddress;
-        this.serverPort = serverPort;
-    }
-
-    public String getServerAddress() {
-        return serverAddress;
-    }
-
-    public int getServerPort() {
-        return serverPort;
-    }
+/**
+ * Represents the address of a cluster node, including the server address and port.
+ * This is a record, a special type in Java for immutable data-holding classes.
+ */
+public record ClusterNodeAddress(String serverAddress, int serverPort) {
 }

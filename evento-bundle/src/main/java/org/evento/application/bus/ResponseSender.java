@@ -6,5 +6,5 @@ import java.io.Serializable;
 
 public interface ResponseSender {
 
-    public void send(Serializable message) throws SendFailedException;
+    void send(Serializable message) throws SendFailedException;
 }

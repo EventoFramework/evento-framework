@@ -15,7 +15,7 @@ import java.util.Set;
 
 public class ProjectionReference extends Reference {
 
-    private HashMap<String, Method> queryHandlerReferences = new HashMap<>();
+    private final HashMap<String, Method> queryHandlerReferences = new HashMap<>();
 
     public ProjectionReference(Object ref) {
         super(ref);

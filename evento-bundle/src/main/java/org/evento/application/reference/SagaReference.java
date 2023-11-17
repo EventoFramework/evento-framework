@@ -17,7 +17,7 @@ import java.util.Set;
 
 public class SagaReference extends Reference {
 
-    private HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
+    private final HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
 
     public SagaReference(Object ref) {
         super(ref);

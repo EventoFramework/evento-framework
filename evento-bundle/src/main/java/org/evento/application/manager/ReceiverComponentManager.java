@@ -1,5 +1,6 @@
 package org.evento.application.manager;
 
+import lombok.Getter;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.Reference;
@@ -15,8 +16,10 @@ import java.util.function.BiFunction;
  * @param <M> The type of messages that this manager handles.
  * @param <R> The type of references to components.
  */
+@Getter
 public abstract class ReceiverComponentManager<M extends Serializable, R extends Reference> extends ComponentManager {
 
+    // Map to store handlers associated with this manager
     private final HashMap<String, R> handlers = new HashMap<>();
 
     /**
@@ -36,19 +39,12 @@ public abstract class ReceiverComponentManager<M extends Serializable, R extends
     /**
      * Abstract method to handle messages of type `M`.
      *
-     * @param c        The message to be handled.
-     * @param response The message bus response sender.
+     * @param c The message to be handled.
+     * @return A `Serializable` response from the message handling process.
      * @throws Throwable If there is an error during message handling.
      */
     abstract public Serializable handle(
             M c) throws Throwable;
 
-    /**
-     * Get the handlers associated with this manager.
-     *
-     * @return A `HashMap` containing the registered handlers for this manager.
-     */
-    public HashMap<String, R> getHandlers() {
-        return handlers;
-    }
+
 }

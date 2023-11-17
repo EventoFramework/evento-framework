@@ -6,6 +6,7 @@ import org.evento.common.messaging.gateway.QueryGateway;
 import org.evento.common.modeling.messaging.message.application.Message;
 import org.evento.common.modeling.messaging.message.application.Metadata;
 import org.evento.common.modeling.messaging.payload.Command;
+import org.evento.common.modeling.messaging.payload.Payload;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 import org.evento.common.performance.PerformanceService;
@@ -16,7 +17,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
+/**
+ * The GatewayTelemetryProxy class acts as a proxy for CommandGateway and QueryGateway,
+ * adding telemetry and performance tracking functionality.
+ */
 public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
 	private final CommandGateway commandGateway;
@@ -32,6 +36,17 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 	private final Message<?> handledMessage;
 	private final TracingAgent tracingAgent;
 
+	/**
+	 * Constructs a new GatewayTelemetryProxy with the specified parameters.
+	 *
+	 * @param commandGateway     The command gateway to proxy.
+	 * @param queryGateway       The query gateway to proxy.
+	 * @param bundle             The bundle identifier.
+	 * @param performanceService The performance service for tracking metrics.
+	 * @param componentName      The name of the component associated with the proxy.
+	 * @param handledMessage     The message being handled by the proxy.
+	 * @param tracingAgent       The tracing agent for correlating and tracking.
+	 */
 	public GatewayTelemetryProxy(CommandGateway commandGateway,
 								 QueryGateway queryGateway,
 								 String bundle, PerformanceService performanceService,
@@ -49,57 +64,57 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) {
-		try
-		{
+		try {
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.sendAndWait(command, metadata, this.handledMessage);
-		} finally
-		{
-			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
-			invocationCounter.get(command.getClass().getSimpleName()).incrementAndGet();
+		} finally {
+			updateInvocationCounter(command);
 		}
 	}
 
-
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
-		try
-		{
+		try {
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.sendAndWait(command, metadata, this.handledMessage, timeout, unit);
-		} finally
-		{
-			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
-			invocationCounter.get(command.getClass().getSimpleName()).incrementAndGet();
+		} finally {
+			updateInvocationCounter(command);
 		}
 	}
 
 	@Override
 	public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
-		try
-		{
+		try {
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return commandGateway.send(command, metadata, this.handledMessage);
-		} finally
-		{
-			invocationCounter.putIfAbsent(command.getClass().getSimpleName(), new AtomicInteger());
-			invocationCounter.get(command.getClass().getSimpleName()).incrementAndGet();
+		} finally {
+			updateInvocationCounter(command);
 		}
 	}
 
 	@Override
 	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
-		try
-		{
+		try {
 			metadata = tracingAgent.correlate(metadata, this.handledMessage);
 			return queryGateway.query(query, metadata, this.handledMessage);
-		} finally
-		{
-			invocationCounter.putIfAbsent(query.getClass().getSimpleName(), new AtomicInteger());
-			invocationCounter.get(query.getClass().getSimpleName()).incrementAndGet();
+		} finally {
+			updateInvocationCounter(query);
 		}
 	}
 
+	/**
+	 * Updates the invocation counter for a specific command or query.
+	 *
+	 * @param message The command or query being executed.
+	 */
+	private void updateInvocationCounter(Payload message) {
+		invocationCounter.putIfAbsent(message.getClass().getSimpleName(), new AtomicInteger());
+		invocationCounter.get(message.getClass().getSimpleName()).incrementAndGet();
+	}
+
+	/**
+	 * Sends the invocations metric to the performance service.
+	 */
 	public void sendInvocationsMetric() {
 		performanceService.sendInvocationsMetric(
 				bundle,
@@ -107,11 +122,15 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 				handledMessage,
 				invocationCounter
 		);
-
 	}
 
+	/**
+	 * Sends the service time metric to the performance service and then sends the invocations metric.
+	 *
+	 * @param start The start time of the service operation.
+	 */
 	public void sendServiceTimeMetric(Instant start) {
-		this.performanceService.sendServiceTimeMetric(
+		performanceService.sendServiceTimeMetric(
 				bundle,
 				componentName,
 				handledMessage,
