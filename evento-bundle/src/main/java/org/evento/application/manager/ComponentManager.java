@@ -1,5 +1,6 @@
 package org.evento.application.manager;
 
+import lombok.Getter;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.common.modeling.messaging.message.application.Message;
@@ -12,7 +13,9 @@ import java.util.function.Function;
 /**
  * The `ComponentManager` class serves as a base class for managing components with common functionalities.
  */
+@Getter
 public abstract class ComponentManager {
+
 
     private final String bundleId;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
@@ -61,30 +64,4 @@ public abstract class ComponentManager {
      */
     abstract public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException;
 
-    /**
-     * Get the bundle identifier associated with this manager.
-     *
-     * @return The bundle identifier.
-     */
-    public String getBundleId() {
-        return bundleId;
-    }
-
-    /**
-     * Get the function to create a `GatewayTelemetryProxy`.
-     *
-     * @return The function to create a `GatewayTelemetryProxy`.
-     */
-    public BiFunction<String, Message<?>, GatewayTelemetryProxy> getGatewayTelemetryProxy() {
-        return gatewayTelemetryProxy;
-    }
-
-    /**
-     * Get the tracing agent for telemetry.
-     *
-     * @return The tracing agent.
-     */
-    public TracingAgent getTracingAgent() {
-        return tracingAgent;
-    }
 }

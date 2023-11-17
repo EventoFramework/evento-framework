@@ -1,80 +1,98 @@
 package org.evento.application.bus;
 
+import lombok.Getter;
+
 import java.util.List;
 
+@Getter
 public class MessageBusConfiguration {
 
+    // List of cluster node addresses
     private final List<ClusterNodeAddress> addresses;
 
-     private int maxRetryAttempts;
+    // Maximum number of retry attempts for sending messages
+    private int maxRetryAttempts;
+
+    // Delay (in milliseconds) between retry attempts for sending messages
     private int retryDelayMillis = 500;
 
+    // Maximum number of reconnect attempts for the cluster connection
     private int maxReconnectAttempts = 5;
+
+    // Delay (in milliseconds) between reconnect attempts for the cluster connection
     private long reconnectDelayMillis = 5000;
 
+    // Maximum number of attempts to disable the bus during shutdown
     private int maxDisableAttempts = 5;
+
+    // Delay (in milliseconds) between disable attempts during shutdown
     private int disableDelayMillis = 5000;
 
-
-
+    /**
+     * Constructor for MessageBusConfiguration.
+     * @param addresses The cluster node addresses.
+     */
     public MessageBusConfiguration(ClusterNodeAddress... addresses) {
         this.addresses = List.of(addresses);
+        // Set default maxRetryAttempts based on the number of addresses
         maxRetryAttempts = addresses.length * 2;
     }
 
-    public List<ClusterNodeAddress> getAddresses() {
-        return addresses;
-    }
-
-    public int getMaxRetryAttempts() {
-        return maxRetryAttempts;
-    }
-
+    /**
+     * Sets the maximum number of retry attempts for sending messages.
+     * @param maxRetryAttempts The maximum number of retry attempts.
+     * @return The MessageBusConfiguration instance.
+     */
     public MessageBusConfiguration setMaxRetryAttempts(int maxRetryAttempts) {
         this.maxRetryAttempts = maxRetryAttempts;
         return this;
     }
 
-    public int getRetryDelayMillis() {
-        return retryDelayMillis;
-    }
-
+    /**
+     * Sets the delay (in milliseconds) between retry attempts for sending messages.
+     * @param retryDelayMillis The delay between retry attempts.
+     * @return The MessageBusConfiguration instance.
+     */
     public MessageBusConfiguration setRetryDelayMillis(int retryDelayMillis) {
         this.retryDelayMillis = retryDelayMillis;
         return this;
     }
 
-    public int getMaxReconnectAttempts() {
-        return maxReconnectAttempts;
-    }
-
+    /**
+     * Sets the maximum number of reconnect attempts for the cluster connection.
+     * @param maxReconnectAttempts The maximum number of reconnect attempts.
+     * @return The MessageBusConfiguration instance.
+     */
     public MessageBusConfiguration setMaxReconnectAttempts(int maxReconnectAttempts) {
         this.maxReconnectAttempts = maxReconnectAttempts;
         return this;
     }
 
-    public long getReconnectDelayMillis() {
-        return reconnectDelayMillis;
-    }
-
+    /**
+     * Sets the delay (in milliseconds) between reconnect attempts for the cluster connection.
+     * @param reconnectDelayMillis The delay between reconnect attempts.
+     * @return The MessageBusConfiguration instance.
+     */
     public MessageBusConfiguration setReconnectDelayMillis(long reconnectDelayMillis) {
         this.reconnectDelayMillis = reconnectDelayMillis;
         return this;
     }
 
-    public int getMaxDisableAttempts() {
-        return maxDisableAttempts;
-    }
-
+    /**
+     * Sets the maximum number of attempts to disable the bus during shutdown.
+     * @param maxDisableAttempts The maximum number of disable attempts.
+     * @return The MessageBusConfiguration instance.
+     */
     public MessageBusConfiguration setMaxDisableAttempts(int maxDisableAttempts) {
         this.maxDisableAttempts = maxDisableAttempts;
         return this;
     }
 
-    public int getDisableDelayMillis() {
-        return disableDelayMillis;
-    }
-
+    /**
+     * Sets the delay (in milliseconds) between disable attempts during shutdown.
+     * @param disableDelayMillis The delay between disable attempts.
+     * @return The MessageBusConfiguration instance.
+     */
     public MessageBusConfiguration setDisableDelayMillis(int disableDelayMillis) {
         this.disableDelayMillis = disableDelayMillis;
         return this;
