@@ -33,7 +33,7 @@ public class BundleDeployService {
 		this.authService = authService;
 	}
 
-	class SyncPipe implements Runnable
+	static class SyncPipe implements Runnable
 	{
 		public SyncPipe(InputStream istrm, OutputStream ostrm) {
 			istrm_ = istrm;
@@ -69,7 +69,7 @@ public class BundleDeployService {
 		new Thread(new SyncPipe(p.getInputStream(), System.out)).start();
 		new Thread(new SyncPipe(p.getErrorStream(), System.err)).start();
 		p.waitFor();
-	};
+	}
 
 	public void spawn(String bundleId) throws Exception {
 		spawn(bundleRepository.findById(bundleId).orElseThrow());
