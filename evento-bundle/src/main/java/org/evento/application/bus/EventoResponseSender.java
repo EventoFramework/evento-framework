@@ -5,5 +5,5 @@ import org.evento.common.modeling.messaging.message.internal.EventoResponse;
 
 public interface EventoResponseSender {
 
-    public void send(EventoResponse response) throws SendFailedException;
+    void send(EventoResponse response) throws SendFailedException;
 }

@@ -16,7 +16,7 @@ import java.util.Set;
 
 public class ProjectorReference extends Reference {
 
-    private HashMap<String, Method> eventHandlerReferences = new HashMap<>();
+    private final HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 
     public ProjectorReference(Object ref) {
         super(ref);

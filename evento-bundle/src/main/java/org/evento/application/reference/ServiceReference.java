@@ -17,7 +17,7 @@ import java.util.Set;
 public class ServiceReference extends Reference {
 
 
-    private HashMap<String, Method> serviceCommandHandlerReferences = new HashMap<>();
+    private final HashMap<String, Method> serviceCommandHandlerReferences = new HashMap<>();
 
     public ServiceReference(Object ref) {
         super(ref);

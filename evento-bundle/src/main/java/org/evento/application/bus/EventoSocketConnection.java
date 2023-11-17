@@ -20,34 +20,44 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Represents a socket connection for communication with an Evento server.
+ */
 public class EventoSocketConnection {
 
     private static final Logger logger = LogManager.getLogger(EventoSocketConnection.class);
 
+    // Configuration parameters
     private final String serverAddress;
     private final int serverPort;
     private final int maxReconnectAttempts;
     private final long reconnectDelayMillis;
 
+    // Bundle registration information
     private final BundleRegistration bundleRegistration;
 
-    private final MessageHandler  handler;
+    // Message handler for processing incoming messages
+    private final MessageHandler handler;
 
+    // Connection state variables
     private int reconnectAttempt = 0;
-
     private final AtomicReference<ObjectOutputStream> out = new AtomicReference<>();
     private Socket socket;
-
     private boolean enabled;
-
     private static final AtomicInteger instanceCounter = new AtomicInteger(0);
-
-
     private final int conn = instanceCounter.incrementAndGet();
     private boolean isClosed = false;
-
     private final HashSet<String> pendingCorrelations = new HashSet<>();
 
+    /**
+     * Private constructor to create an EventoSocketConnection instance.
+     * @param serverAddress The address of the Evento server.
+     * @param serverPort The port on which the server is listening.
+     * @param maxReconnectAttempts The maximum number of attempts to reconnect in case of connection failure.
+     * @param reconnectDelayMillis The delay between reconnection attempts in milliseconds.
+     * @param bundleRegistration The registration information for the connection.
+     * @param handler The message handler for processing incoming messages.
+     */
     private EventoSocketConnection(
             String serverAddress,
             int serverPort,
@@ -55,6 +65,7 @@ public class EventoSocketConnection {
             long reconnectDelayMillis,
             BundleRegistration bundleRegistration,
             MessageHandler handler) {
+        // Initialization of parameters
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
         this.maxReconnectAttempts = maxReconnectAttempts;
@@ -63,8 +74,13 @@ public class EventoSocketConnection {
         this.bundleRegistration = bundleRegistration;
     }
 
+    /**
+     * Sends a serializable message over the socket connection.
+     * @param message The message to be sent.
+     * @throws SendFailedException Thrown if the message fails to be sent.
+     */
     public void send(Serializable message) throws SendFailedException {
-        if(message instanceof EventoRequest r){
+        if (message instanceof EventoRequest r) {
             this.pendingCorrelations.add(r.getCorrelationId());
         }
         try {
@@ -74,39 +90,66 @@ public class EventoSocketConnection {
         }
     }
 
+    /**
+     * Starts the socket connection and listens for incoming messages.
+     * @throws InterruptedException Thrown if the thread is interrupted during execution.
+     */
     private void start() throws InterruptedException {
-        var s = new Semaphore(0);
+        // Semaphore for signaling when the connection is ready
+        var connectionReady = new Semaphore(0);
+
         new Thread(() -> {
+            // Loop until the connection is closed or the maximum reconnect attempts are reached
             while (!isClosed && reconnectAttempt < maxReconnectAttempts) {
+                // Log the current attempt to connect
                 logger.info("Socket Connection #{} to {}:{} attempt {}",
                         conn,
                         serverAddress,
                         serverPort,
                         reconnectAttempt + 1);
+
                 try (Socket socket = new Socket(serverAddress, serverPort)) {
+                    // Initialize the output stream for sending messages
                     var dataOutputStream = new ObjectOutputStream(socket.getOutputStream());
                     this.socket = socket;
                     logger.info("Connected to {}:{}", serverAddress, serverPort);
                     out.set(dataOutputStream);
+
+                    // Reset the reconnect attempt count
                     reconnectAttempt = 0;
+
+                    // Send the bundle registration information to the server
                     dataOutputStream.writeObject(bundleRegistration);
                     logger.info("Registration message sent");
-                    if(enabled){
+
+                    // If the connection is enabled, send an enable message
+                    if (enabled) {
                         enable();
                     }
-                    s.release();
+
+                    // Signal that the connection is ready
+                    connectionReady.release();
+
+                    // Initialize the input stream for receiving messages
                     var dataInputStream = new ObjectInputStream(socket.getInputStream());
+
+                    // Continuously listen for incoming messages
                     while (true) {
                         var data = dataInputStream.readObject();
                         logger.info(data);
-                        if(data instanceof EventoResponse r){
+
+                        if (data instanceof EventoResponse r) {
+                            // Remove correlation ID from pending set on receiving a response
                             this.pendingCorrelations.remove(r.getCorrelationId());
                         }
+
+                        // Process the incoming message in a new thread using the message handler
                         new Thread(() -> {
                             handler.handle((Serializable) data, this::send);
                         }).start();
                     }
                 } catch (Exception e) {
+                    // Log connection error and handle pending correlations
                     logger.error("Connection error %s:%d".formatted(reconnectAttempt, serverPort), e);
                     for (String pendingCorrelation : pendingCorrelations) {
                         var resp = new EventoResponse();
@@ -115,41 +158,60 @@ public class EventoSocketConnection {
                         handler.handle(resp, this::send);
                     }
                     pendingCorrelations.clear();
+
                     try {
+                        // Sleep before attempting to reconnect
                         Thread.sleep(reconnectDelayMillis);
                     } catch (InterruptedException e1) {
                         // Handle InterruptedException (if needed)
                     }
+
+                    // Increment the reconnect attempt count
                     reconnectAttempt++;
                 }
-
             }
-            s.release();
+
+            // Signal that the connection is ready (even if it failed to connect)
+            connectionReady.release();
+
+            // Log an error if the server is unreachable after maximum attempts
             logger.error("Server unreachable after {} attempts. Dead socket.", reconnectAttempt);
         }).start();
-        s.acquire();
+
+        // Wait for the connection to be ready (or for the maximum attempts to be reached)
+        connectionReady.acquire();
     }
 
+
+    /**
+     * Enables the socket connection.
+     */
     public void enable() {
         enabled = true;
         logger.info("Enabling connection #{}", conn);
         try {
             out.get().writeObject(new EnableMessage());
         } catch (Exception e) {
-
+            logger.error("Enabling failed", e);
         }
     }
 
+    /**
+     * Disables the socket connection.
+     */
     public void disable() {
         enabled = false;
         logger.info("Disabling connection #{}", conn);
         try {
             out.get().writeObject(new DisableMessage());
         } catch (Exception e) {
-
+            logger.error("Disabling failed", e);
         }
     }
 
+    /**
+     * Closes the socket connection.
+     */
     public void close() {
         isClosed = true;
         try {
@@ -159,16 +221,27 @@ public class EventoSocketConnection {
         }
     }
 
+    /**
+     * Builder class for constructing EventoSocketConnection instances.
+     */
     public static class Builder {
 
         private final String serverAddress;
         private final int serverPort;
-
-
         private final BundleRegistration bundleRegistration;
         private final MessageHandler handler;
 
+        // Optional parameters with default values
+        private int maxReconnectAttempts = 5;
+        private long reconnectDelayMillis = 2000;
 
+        /**
+         * Constructs a Builder instance with required parameters.
+         * @param serverAddress The address of the Evento server.
+         * @param serverPort The port on which the server is listening.
+         * @param bundleRegistration The registration information for the connection.
+         * @param handler The message handler for processing incoming messages.
+         */
         public Builder(String serverAddress, int serverPort,
                        BundleRegistration bundleRegistration,
                        MessageHandler handler) {
@@ -178,22 +251,31 @@ public class EventoSocketConnection {
             this.handler = handler;
         }
 
-        private int maxReconnectAttempts = 5;
-        private long reconnectDelayMillis = 2000;
-
-
+        /**
+         * Sets the maximum number of reconnect attempts.
+         * @param maxReconnectAttempts The maximum number of reconnect attempts.
+         * @return The Builder instance for method chaining.
+         */
         public Builder setMaxReconnectAttempts(int maxReconnectAttempts) {
             this.maxReconnectAttempts = maxReconnectAttempts;
             return this;
         }
 
-
+        /**
+         * Sets the delay between reconnection attempts.
+         * @param reconnectDelayMillis The delay between reconnection attempts in milliseconds.
+         * @return The Builder instance for method chaining.
+         */
         public Builder setReconnectDelayMillis(long reconnectDelayMillis) {
             this.reconnectDelayMillis = reconnectDelayMillis;
             return this;
         }
 
-
+        /**
+         * Connects and initializes an EventoSocketConnection instance.
+         * @return The constructed EventoSocketConnection instance.
+         * @throws InterruptedException Thrown if the thread is interrupted during execution.
+         */
         public EventoSocketConnection connect() throws InterruptedException {
             var s = new EventoSocketConnection(serverAddress,
                     serverPort,
