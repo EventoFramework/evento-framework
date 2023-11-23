@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'org.evento'
-version = 'ev1.2.19'
+version = 'ev1.3.3'
 sourceCompatibility = '19'
 
 configurations {

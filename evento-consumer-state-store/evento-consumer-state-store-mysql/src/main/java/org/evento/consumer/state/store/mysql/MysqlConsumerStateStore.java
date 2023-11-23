@@ -4,6 +4,7 @@ import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.StoredSagaState;
 import org.evento.common.modeling.state.SagaState;
+import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.RemotePerformanceService;
 
 import java.sql.Connection;
@@ -22,9 +23,9 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	public MysqlConsumerStateStore(
 			EventoServer eventoServer,
-			Connection connection, double performanceCaptureRate) {
-		super(eventoServer,
-				new RemotePerformanceService(eventoServer, performanceCaptureRate));
+			PerformanceService performanceService,
+			Connection connection) {
+		super(eventoServer, performanceService);
 		this.connection = connection;
 		init();
 	}

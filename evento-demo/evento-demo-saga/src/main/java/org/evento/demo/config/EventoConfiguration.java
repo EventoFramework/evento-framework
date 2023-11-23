@@ -40,10 +40,10 @@ public class EventoConfiguration {
 	) throws Exception {
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoSagaApplication.class.getPackage())
-				.setConsumerStateStore((es) -> {
+				.setConsumerStateStoreBuilder((es, ps) -> {
 					try {
-						return new MysqlConsumerStateStore(es, DriverManager.getConnection(
-								connectionUrl, username, password), 1);
+						return new MysqlConsumerStateStore(es,ps, DriverManager.getConnection(
+								connectionUrl, username, password));
 					} catch (SQLException e) {
 						throw new RuntimeException(e);
 					}
@@ -51,14 +51,13 @@ public class EventoConfiguration {
 				.setInjector(factory::getBean)
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
-				.setServerName(serverName)
 				.setMessageBusConfiguration(new MessageBusConfiguration(
-						new ClusterNodeAddress("host.docker.internal",3000)
+						new ClusterNodeAddress("host.docker.internal",3030)
 				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
 						.setMaxReconnectAttempts(30)
 						.setReconnectDelayMillis(5000))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
-				.setAutoscalingProtocol((es) -> new ThreadCountAutoscalingProtocol(
+				.setAutoscalingProtocolBuilder((es) -> new ThreadCountAutoscalingProtocol(
 						es,
 						maxThreads,
 						minThreads,
