@@ -10,10 +10,7 @@ import org.evento.common.modeling.messaging.message.internal.EventoRequest;
 import org.evento.common.modeling.messaging.message.internal.EventoResponse;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.net.Socket;
 import java.util.HashSet;
 import java.util.concurrent.Semaphore;
@@ -79,12 +76,15 @@ public class EventoSocketConnection {
      * @param message The message to be sent.
      * @throws SendFailedException Thrown if the message fails to be sent.
      */
-    public void send(Serializable message) throws SendFailedException {
+    public synchronized void send(Serializable message) throws SendFailedException {
         if (message instanceof EventoRequest r) {
             this.pendingCorrelations.add(r.getCorrelationId());
         }
         try {
-            out.get().writeObject(message);
+            var o = out.get();
+            synchronized (o){
+                o.writeObject(message);
+            }
         } catch (Exception e) {
             throw new SendFailedException(e);
         }
@@ -122,6 +122,14 @@ public class EventoSocketConnection {
                     dataOutputStream.writeObject(bundleRegistration);
                     logger.info("Registration message sent");
 
+                    // Initialize the input stream for receiving messages
+                    var dataInputStream = new ObjectInputStream(socket.getInputStream());
+
+                    var ok = dataInputStream.readObject();
+                    if(!((boolean) ok)){
+                        throw new IllegalStateException("Bundle registration failed");
+                    }
+
                     // If the connection is enabled, send an enable message
                     if (enabled) {
                         enable();
@@ -130,23 +138,19 @@ public class EventoSocketConnection {
                     // Signal that the connection is ready
                     connectionReady.release();
 
-                    // Initialize the input stream for receiving messages
-                    var dataInputStream = new ObjectInputStream(socket.getInputStream());
-
                     // Continuously listen for incoming messages
                     while (true) {
-                        var data = dataInputStream.readObject();
-                        logger.info(data);
-
-                        if (data instanceof EventoResponse r) {
-                            // Remove correlation ID from pending set on receiving a response
-                            this.pendingCorrelations.remove(r.getCorrelationId());
-                        }
-
-                        // Process the incoming message in a new thread using the message handler
-                        new Thread(() -> {
-                            handler.handle((Serializable) data, this::send);
-                        }).start();
+                        try {
+                            var data = dataInputStream.readObject();
+                            if (data instanceof EventoResponse r) {
+                                // Remove correlation ID from pending set on receiving a response
+                                this.pendingCorrelations.remove(r.getCorrelationId());
+                            }
+                            // Process the incoming message in a new thread using the message handler
+                            new Thread(() -> {
+                                handler.handle((Serializable) data, this::send);
+                            }).start();
+                        }catch (OptionalDataException ignored){}
                     }
                 } catch (Exception e) {
                     // Log connection error and handle pending correlations
@@ -190,7 +194,10 @@ public class EventoSocketConnection {
         enabled = true;
         logger.info("Enabling connection #{}", conn);
         try {
-            out.get().writeObject(new EnableMessage());
+            var o = out.get();
+            synchronized (o){
+                o.writeObject(new EnableMessage());
+            }
         } catch (Exception e) {
             logger.error("Enabling failed", e);
         }
@@ -203,7 +210,10 @@ public class EventoSocketConnection {
         enabled = false;
         logger.info("Disabling connection #{}", conn);
         try {
-            out.get().writeObject(new DisableMessage());
+            var o = out.get();
+            synchronized (o){
+                o.writeObject(new DisableMessage());
+            }
         } catch (Exception e) {
             logger.error("Disabling failed", e);
         }
