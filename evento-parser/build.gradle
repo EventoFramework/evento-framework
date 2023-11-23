@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework'
-version 'ev1.3.8'
+version 'ev1.3.9'
 
 repositories {
     mavenCentral()
