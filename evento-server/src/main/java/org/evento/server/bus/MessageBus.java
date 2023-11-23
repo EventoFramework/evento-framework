@@ -326,14 +326,16 @@ public class MessageBus {
                                     start
                             );
                             if (resp.getBody() instanceof EventMessage<?> event) {
-                                var esStoreStart = PerformanceStoreService.now();
-                                eventStore.publishEvent((EventMessage<?>) resp.getBody());
-                                performanceStoreService.sendServiceTimeMetric(
-                                        EVENT_STORE,
-                                        EVENT_STORE_COMPONENT,
-                                        event,
-                                        esStoreStart
-                                );
+                                if(event.getSerializedPayload().getObjectClass() != null) {
+                                    var esStoreStart = PerformanceStoreService.now();
+                                    eventStore.publishEvent((EventMessage<?>) resp.getBody());
+                                    performanceStoreService.sendServiceTimeMetric(
+                                            EVENT_STORE,
+                                            EVENT_STORE_COMPONENT,
+                                            event,
+                                            esStoreStart
+                                    );
+                                }
                                 resp.setBody(event.getSerializedPayload().getSerializedObject());
                             }
                             eventStore.release(lockId);

@@ -1,7 +1,6 @@
 package org.evento.demo.query;
 
 import org.evento.common.messaging.gateway.QueryGateway;
-import org.evento.common.modeling.annotations.component.Projector;
 import org.evento.common.modeling.annotations.handler.EventHandler;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.demo.api.event.DemoCreatedEvent;
@@ -13,7 +12,7 @@ import org.evento.demo.query.domain.mongo.DemoMongoRepository;
 
 import java.time.Instant;
 
-@Projector(version = 2)
+// @Projector(version = 2)
 public class DemoMongoProjector {
 
 	private final DemoMongoRepository demoMongoRepository;

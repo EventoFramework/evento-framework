@@ -49,10 +49,13 @@ public class ClusterConnection {
 
         // Attempt to send the message to a node, with retry logic
         while (attempt < (1 + maxRetryAttempts)) {
+
+            EventoSocketConnection socket = null;
             try {
                 // Get the socket for the current node and attempt
-                var socket = sockets.get((n + attempt) % nodes);
-
+                socket = sockets.get((n + attempt) % nodes);
+                // Increment the attempt counter
+                attempt++;
                 // Send the message using the socket
                 socket.send(message);
 
@@ -66,8 +69,9 @@ public class ClusterConnection {
                     // Handle InterruptedException (if needed)
                 }
 
-                // Increment the attempt counter
-                attempt++;
+                if(socket != null && socket.isClosed()){
+                    sockets.remove(socket);
+                }
 
                 // If this is the last attempt, throw the SendFailedException
                 if (attempt == maxRetryAttempts) {
