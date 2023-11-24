@@ -102,6 +102,9 @@ public class MessageBus {
                                 var in = new ObjectInputStream(conn.getInputStream());
                                 var out = new ObjectOutputStream(conn.getOutputStream());
                                 final var a = join((BundleRegistration) in.readObject(), out);
+                                synchronized (out) {
+                                    out.writeObject(true);
+                                }
                                 address = a;
 
                                 while (true) {
@@ -115,7 +118,9 @@ public class MessageBus {
                                             } else if (message instanceof EventoRequest r) {
                                                 handleRequest(r, resp -> {
                                                     try {
-                                                        out.writeObject(resp);
+                                                        synchronized (out) {
+                                                            out.writeObject(resp);
+                                                        }
                                                     } catch (IOException e) {
                                                         throw new RuntimeException(e);
                                                     }
@@ -555,9 +560,12 @@ public class MessageBus {
         m.setSourceInstanceId("evento-server");
         m.setSourceBundleVersion(0);
         try {
-            view.get(
+            var out = view.get(
                     view.keySet().stream().filter(k -> k.getInstanceId().equals(nodeId)).findFirst().orElseThrow()
-            ).writeObject(m);
+            );
+            synchronized (out) {
+                out.writeObject(m);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -567,7 +575,10 @@ public class MessageBus {
     public void forward(EventoRequest eventoRequest, NodeAddress address, Consumer<EventoResponse> response) throws Exception {
         correlations.put(eventoRequest.getCorrelationId(), response);
         try {
-            view.get(address).writeObject(eventoRequest);
+            var out = view.get(address);
+            synchronized (out) {
+                out.writeObject(eventoRequest);
+            }
         } catch (Exception e) {
             correlations.remove(eventoRequest.getCorrelationId());
             throw e;
@@ -591,7 +602,10 @@ public class MessageBus {
                 m.setSourceInstanceId(request.getSourceInstanceId());
                 m.setSourceBundleVersion(request.getSourceBundleVersion());
                 try {
-                    view.get(address).writeObject(m);
+                    var out = view.get(address);
+                    synchronized (out) {
+                        out.writeObject(m);
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
