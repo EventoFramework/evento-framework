@@ -7,6 +7,12 @@ Content-Type: application/json
   "value": 5
 }
 ###
+GET http://localhost:9001/api/demo/?page=0
+Content-Type: application/json
+###
+GET http://localhost:9001/api/demo/1
+Content-Type: application/json
+###
 POST http://localhost:9001/api/demo/
 Content-Type: application/json
 

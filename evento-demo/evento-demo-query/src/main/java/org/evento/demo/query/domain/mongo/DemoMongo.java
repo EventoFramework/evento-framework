@@ -16,7 +16,7 @@ import java.time.Instant;
 public class DemoMongo {
 	private String id;
 	private String name;
-	private Long value;
+	private long value;
 	private Instant createdAt;
 	private Instant updatedAt;
 	private Instant deletedAt;
