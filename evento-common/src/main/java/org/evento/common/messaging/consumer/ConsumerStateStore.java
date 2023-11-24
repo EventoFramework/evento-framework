@@ -27,6 +27,8 @@ public abstract class ConsumerStateStore {
         this.objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
     }
 
+    private static Object monitor = new Object();
+
     public int consumeEventsForProjector(
             String consumerId,
             String projectorName,
@@ -38,6 +40,7 @@ public abstract class ConsumerStateStore {
             try {
                 var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
                 if (lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
+
                 var resp = ((EventFetchResponse) eventoServer.request(
                         new EventFetchRequest(
                                 context,

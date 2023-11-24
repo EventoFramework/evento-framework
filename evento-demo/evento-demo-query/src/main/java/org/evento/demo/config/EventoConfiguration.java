@@ -51,7 +51,7 @@ public class EventoConfiguration {
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
 				.setMessageBusConfiguration(new MessageBusConfiguration(
-						new ClusterNodeAddress("host.docker.internal",3030)
+						new ClusterNodeAddress("localhost",3030)
 				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
 						.setMaxReconnectAttempts(30)
 						.setReconnectDelayMillis(5000))
