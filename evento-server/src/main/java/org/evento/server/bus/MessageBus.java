@@ -206,7 +206,7 @@ public class MessageBus {
                                         .stream()
                                         .filter(n -> n.getBundleId().equals(b.getBundleId())).count())
                     try {
-                    sendKill(b.getNodeId());
+                        sendKill(b.getNodeId());
                     } catch (Exception e) {
                         logger.error("Error trying to kill node %s".formatted(b.getNodeId()), e);
                     }
@@ -437,16 +437,22 @@ public class MessageBus {
     private final List<Consumer<Set<NodeAddress>>> availableViewListeners = new ArrayList<>();
 
     public void addAvailableViewListener(Consumer<Set<NodeAddress>> listener) {
-        availableViewListeners.add(listener);
+        synchronized (availableViewListeners) {
+            availableViewListeners.add(listener);
+        }
     }
 
     public void removeAvailableViewListener(Consumer<Set<NodeAddress>> listener) {
-        availableViewListeners.remove(listener);
+        synchronized (availableViewListeners) {
+            availableViewListeners.remove(listener);
+        }
     }
 
     private void enable(NodeAddress address) {
         this.availableView.add(address);
-        availableViewListeners.stream().filter(Objects::nonNull).forEach(l -> l.accept(availableView));
+        synchronized (availableViewListeners) {
+            availableViewListeners.stream().filter(Objects::nonNull).forEach(l -> l.accept(availableView));
+        }
         synchronized (semaphoreMap) {
             var s = semaphoreMap.get(address.getBundleId());
             if (s != null)
@@ -457,7 +463,9 @@ public class MessageBus {
 
     private void disable(NodeAddress address) {
         this.availableView.remove(address);
-        availableViewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(availableView));
+        synchronized (availableViewListeners) {
+            availableViewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(availableView));
+        }
         logger.info("DISABLED: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
     }
 
@@ -466,11 +474,15 @@ public class MessageBus {
     private final List<Consumer<Set<NodeAddress>>> viewListeners = new ArrayList<>();
 
     public void addViewListener(Consumer<Set<NodeAddress>> listener) {
-        viewListeners.add(listener);
+        synchronized (viewListeners) {
+            viewListeners.add(listener);
+        }
     }
 
     public void removeViewListener(Consumer<Set<NodeAddress>> listener) {
-        viewListeners.remove(listener);
+        synchronized (viewListeners) {
+            viewListeners.remove(listener);
+        }
     }
 
     private NodeAddress join(BundleRegistration registration, ObjectOutputStream conn) {
@@ -489,14 +501,20 @@ public class MessageBus {
                 handlers.put(handler.getHandledPayload(), h);
             }
         }
-        joinListeners.forEach(l -> l.accept(registration));
-        viewListeners.forEach(l -> l.accept(view.keySet()));
+        synchronized (joinListeners) {
+            joinListeners.forEach(l -> l.accept(registration));
+        }
+        synchronized (viewListeners) {
+            viewListeners.forEach(l -> l.accept(view.keySet()));
+        }
         logger.info("JOIN: {} (v.{}) {}", registration.getBundleId(), registration.getBundleVersion(), registration.getBundleId());
         return a;
     }
 
     public void addJoinListener(Consumer<BundleRegistration> listener) {
-        joinListeners.add(listener);
+        synchronized (joinListeners) {
+            joinListeners.add(listener);
+        }
     }
 
     private final List<Consumer<NodeAddress>> leaveListeners = new ArrayList<>();
@@ -511,13 +529,19 @@ public class MessageBus {
                 value.remove(address);
             }
         }
-        leaveListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(address));
-        viewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(view.keySet()));
+        synchronized (leaveListeners) {
+            leaveListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(address));
+        }
+        synchronized (viewListeners) {
+            viewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(view.keySet()));
+        }
         logger.info("LEAVE: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
     }
 
     public void addLeaveListener(Consumer<NodeAddress> onNodeLeave) {
-        leaveListeners.add(onNodeLeave);
+        synchronized (leaveListeners) {
+            leaveListeners.add(onNodeLeave);
+        }
     }
 
     public boolean isBundleAvailable(String bundleId) {

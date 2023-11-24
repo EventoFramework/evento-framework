@@ -36,14 +36,13 @@ public class EventoConfiguration {
 				.setBasePackage(DemoAgentApplication.class.getPackage())
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
-				.setServerName(serverName)
 				.setMessageBusConfiguration(new MessageBusConfiguration(
-						new ClusterNodeAddress("host.docker.internal",3000)
+						new ClusterNodeAddress("host.docker.internal",3030)
 				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
 						.setMaxReconnectAttempts(30)
 						.setReconnectDelayMillis(5000))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
-				.setAutoscalingProtocol((es) -> new ThreadCountAutoscalingProtocol(
+				.setAutoscalingProtocolBuilder((es) -> new ThreadCountAutoscalingProtocol(
 						es,
 						maxThreads,
 						minThreads,
