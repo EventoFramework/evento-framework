@@ -44,6 +44,7 @@ import java.lang.reflect.ParameterizedType;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class EventoBundle {
@@ -214,15 +215,17 @@ public class EventoBundle {
         private Package basePackage;
         private String bundleId;
         private long bundleVersion = 1;
-        private String serverName;
-        private Function<EventoServer, AutoscalingProtocol> autoscalingProtocol;
-        private Function<EventoServer, ConsumerStateStore> consumerStateStore;
         private Function<Class<?>, Object> injector;
 
+        private Function<EventoServer, AutoscalingProtocol> autoscalingProtocolBuilder;
+        private BiFunction<EventoServer, PerformanceService, ConsumerStateStore> consumerStateStoreBuilder;
+        private Function<EventoServer, CommandGateway> commandGatewayBuilder  = CommandGatewayImpl::new;
         private CommandGateway commandGateway;
 
+        private Function<EventoServer, QueryGateway> queryGatewayBuilder  = QueryGatewayImpl::new;
         private QueryGateway queryGateway;
 
+        private Function<EventoServer, PerformanceService> performanceServiceBuilder = eventoServer -> new RemotePerformanceService(eventoServer, 0.01);
         private PerformanceService performanceService;
 
         private int sssFetchSize = 1000;
@@ -241,6 +244,24 @@ public class EventoBundle {
 
         public static Builder builder() {
             return new Builder();
+        }
+
+        public Function<EventoServer, CommandGateway> getCommandGatewayBuilder() {
+            return commandGatewayBuilder;
+        }
+
+        public Builder setCommandGatewayBuilder(Function<EventoServer, CommandGateway> commandGatewayBuilder) {
+            this.commandGatewayBuilder = commandGatewayBuilder;
+            return this;
+        }
+
+        public Function<EventoServer, QueryGateway> getQueryGatewayBuilder() {
+            return queryGatewayBuilder;
+        }
+
+        public Builder setQueryGatewayBuilder(Function<EventoServer, QueryGateway> queryGatewayBuilder) {
+            this.queryGatewayBuilder = queryGatewayBuilder;
+            return this;
         }
 
 
@@ -271,30 +292,25 @@ public class EventoBundle {
             return this;
         }
 
-        public String getServerName() {
-            return serverName;
+
+
+
+
+        public Function<EventoServer, AutoscalingProtocol> getAutoscalingProtocolBuilder() {
+            return autoscalingProtocolBuilder;
         }
 
-        public Builder setServerName(String serverName) {
-            this.serverName = serverName;
+        public Builder setAutoscalingProtocolBuilder(Function<EventoServer, AutoscalingProtocol> autoscalingProtocolBuilder) {
+            this.autoscalingProtocolBuilder = autoscalingProtocolBuilder;
             return this;
         }
 
-        public Function<EventoServer, AutoscalingProtocol> getAutoscalingProtocol() {
-            return autoscalingProtocol;
+        public BiFunction<EventoServer, PerformanceService, ConsumerStateStore> getConsumerStateStoreBuilder() {
+            return consumerStateStoreBuilder;
         }
 
-        public Builder setAutoscalingProtocol(Function<EventoServer, AutoscalingProtocol> autoscalingProtocol) {
-            this.autoscalingProtocol = autoscalingProtocol;
-            return this;
-        }
-
-        public Function<EventoServer, ConsumerStateStore> getConsumerStateStore() {
-            return consumerStateStore;
-        }
-
-        public Builder setConsumerStateStore(Function<EventoServer, ConsumerStateStore> consumerStateStore) {
-            this.consumerStateStore = consumerStateStore;
+        public Builder setConsumerStateStoreBuilder(BiFunction<EventoServer, PerformanceService, ConsumerStateStore> consumerStateStoreBuilder) {
+            this.consumerStateStoreBuilder = consumerStateStoreBuilder;
             return this;
         }
 
@@ -307,32 +323,9 @@ public class EventoBundle {
             return this;
         }
 
-        public CommandGateway getCommandGateway() {
-            return commandGateway;
-        }
 
-        public Builder setCommandGateway(CommandGateway commandGateway) {
-            this.commandGateway = commandGateway;
-            return this;
-        }
 
-        public QueryGateway getQueryGateway() {
-            return queryGateway;
-        }
 
-        public Builder setQueryGateway(QueryGateway queryGateway) {
-            this.queryGateway = queryGateway;
-            return this;
-        }
-
-        public PerformanceService getPerformanceService() {
-            return performanceService;
-        }
-
-        public Builder setPerformanceService(PerformanceService performanceService) {
-            this.performanceService = performanceService;
-            return this;
-        }
 
         public int getSssFetchSize() {
             return sssFetchSize;
@@ -379,6 +372,15 @@ public class EventoBundle {
             return this;
         }
 
+        public Function<EventoServer, PerformanceService> getPerformanceServiceBuilder() {
+            return performanceServiceBuilder;
+        }
+
+        public Builder setPerformanceServiceBuilder(Function<EventoServer, PerformanceService> performanceServiceBuilder) {
+            this.performanceServiceBuilder = performanceServiceBuilder;
+            return this;
+        }
+
         public ObjectMapper getObjectMapper() {
             return objectMapper;
         }
@@ -395,9 +397,6 @@ public class EventoBundle {
             if (bundleId == null || bundleId.isBlank() || bundleId.isEmpty()) {
                 throw new IllegalArgumentException("Invalid bundleId");
             }
-            if (serverName == null || serverName.isBlank() || serverName.isEmpty()) {
-                throw new IllegalArgumentException("Invalid serverName");
-            }
             if (messageBusConfiguration == null) {
                 throw new IllegalArgumentException("Invalid messageBusConfiguration");
             }
@@ -406,9 +405,7 @@ public class EventoBundle {
                 injector = clz -> null;
             }
 
-            if (consumerStateStore == null) {
-                consumerStateStore = (es) -> new InMemoryConsumerStateStore(es, performanceService);
-            }
+
             if (sssFetchSize < 1) {
                 sssFetchSize = 1;
             }
@@ -652,8 +649,8 @@ public class EventoBundle {
                             .connect();
 
 
-            if (autoscalingProtocol == null) {
-                autoscalingProtocol = (e) -> new AutoscalingProtocol(
+            if (autoscalingProtocolBuilder == null) {
+                autoscalingProtocolBuilder = (e) -> new AutoscalingProtocol(
                         eventoServer
                 ) {
                     @Override
@@ -667,19 +664,22 @@ public class EventoBundle {
                     }
                 };
             }
+            if(performanceService == null) {
+                performanceService = performanceServiceBuilder.apply(eventoServer);
+            }
+            if (consumerStateStoreBuilder == null) {
+                consumerStateStoreBuilder = InMemoryConsumerStateStore::new;
+            }
             if (commandGateway == null) {
-                commandGateway = new CommandGatewayImpl(eventoServer);
+                commandGateway = commandGatewayBuilder.apply(eventoServer);
             }
             if (queryGateway == null) {
-                queryGateway = new QueryGatewayImpl(eventoServer);
-            }
-            if (performanceService == null) {
-                performanceService = new RemotePerformanceService(eventoServer, 0.01);
+                queryGateway = queryGatewayBuilder.apply(eventoServer);
             }
 
-            logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
-            var asp = autoscalingProtocol.apply(eventoServer);
-            var css = consumerStateStore.apply(eventoServer);
+            logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocolBuilder.getClass().getName()));
+            var asp = autoscalingProtocolBuilder.apply(eventoServer);
+            var css = consumerStateStoreBuilder.apply(eventoServer, performanceService);
             EventoBundle eventoBundle = new EventoBundle(
                     basePackage.getName(),
                     bundleId,

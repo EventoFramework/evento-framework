@@ -35,7 +35,6 @@ public class EventoConfiguration {
                 .setBasePackage(DemoWebApplication.class.getPackage())
                 .setBundleId(bundleId)
                 .setBundleVersion(bundleVersion)
-                .setServerName(serverName)
                 .setMessageBusConfiguration(new MessageBusConfiguration(
                                 new ClusterNodeAddress("localhost", 3030)
                         )
@@ -45,7 +44,7 @@ public class EventoConfiguration {
                                 .setReconnectDelayMillis(5000)
                 )
                 .setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
-                .setAutoscalingProtocol((es) -> new ThreadCountAutoscalingProtocol(
+                .setAutoscalingProtocolBuilder((es) -> new ThreadCountAutoscalingProtocol(
                         es,
                         maxThreads,
                         minThreads,
