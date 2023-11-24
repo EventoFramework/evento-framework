@@ -390,6 +390,7 @@ public class MessageBus {
                 throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
             }
         } catch (Exception e) {
+            logger.error("Error handling message in server", e);
             sendResponse.accept(tw(message.getCorrelationId(), e));
         }
     }
