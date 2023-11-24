@@ -113,7 +113,6 @@ public class EventoSocketConnection {
                     var dataOutputStream = new ObjectOutputStream(socket.getOutputStream());
                     this.socket = socket;
                     logger.info("Connected to {}:{}", serverAddress, serverPort);
-                    out.set(dataOutputStream);
 
                     // Reset the reconnect attempt count
                     reconnectAttempt = 0;
@@ -129,6 +128,8 @@ public class EventoSocketConnection {
                     if(!((boolean) ok)){
                         throw new IllegalStateException("Bundle registration failed");
                     }
+
+                    out.set(dataOutputStream);
 
                     // If the connection is enabled, send an enable message
                     if (enabled) {
@@ -159,7 +160,9 @@ public class EventoSocketConnection {
                         var resp = new EventoResponse();
                         resp.setCorrelationId(pendingCorrelation);
                         resp.setBody(new ExceptionWrapper(e));
-                        handler.handle(resp, this::send);
+                        try {
+                            handler.handle(resp, this::send);
+                        }catch (Exception ignored){}
                     }
                     pendingCorrelations.clear();
 
@@ -180,12 +183,16 @@ public class EventoSocketConnection {
 
             // Log an error if the server is unreachable after maximum attempts
             logger.error("Server unreachable after {} attempts. Dead socket.", reconnectAttempt);
+            isClosed = true;
         }).start();
 
         // Wait for the connection to be ready (or for the maximum attempts to be reached)
         connectionReady.acquire();
     }
 
+    public boolean isClosed() {
+        return isClosed;
+    }
 
     /**
      * Enables the socket connection.
