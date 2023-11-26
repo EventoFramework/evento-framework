@@ -4,6 +4,9 @@ import lombok.Getter;
 
 import java.util.List;
 
+/**
+ * Represents the configuration for the MessageBus.
+ */
 @Getter
 public class MessageBusConfiguration {
 

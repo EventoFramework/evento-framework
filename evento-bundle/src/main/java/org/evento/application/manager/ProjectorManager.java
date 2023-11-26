@@ -18,15 +18,37 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * The ProjectorManager class is responsible for managing projectors and their event consumers.
+ * It extends the ConsumerComponentManager class and provides methods to start event consumers
+ * and parse projectors.
+ */
 public class ProjectorManager extends ConsumerComponentManager<ProjectorReference> {
 
     private static final Logger logger = LogManager.getLogger(ProjectorManager.class);
 
+    /**
+     * Constructs a ProjectorManager object with the specified parameters.
+     *
+     * @param bundleId                 the bundle ID associated with the ProjectorManager
+     * @param gatewayTelemetryProxy    a function that takes a String and a Message object and returns a GatewayTelemetryProxy
+     * @param tracingAgent             the TracingAgent object used for tracing
+     * @param isShuttingDown           a supplier that provides a Boolean value indicating if the application is shutting down
+     * @param sssFetchSize             the fetch size for SSS
+     * @param sssFetchDelay            the fetch delay for SSS
+     */
     public ProjectorManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
         super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
     }
 
 
+    /**
+     * Starts the event consumer for the ProjectorManager.
+     *
+     * @param onHeadReached     a Runnable that will be executed when the head is reached
+     * @param consumerStateStore    the ConsumerStateStore to use for tracking consumer state
+     * @throws Exception if an error occurs while starting the event consumer
+     */
     public void startEventConsumer(Runnable onHeadReached, ConsumerStateStore consumerStateStore) throws Exception {
         if (getReferences().isEmpty()) {
             onHeadReached.run();
@@ -63,6 +85,16 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
 
     }
 
+    /**
+     * Parses the classes annotated with @Projector and adds them as references to the ProjectorManager.
+     * Also registers the projector event handlers.
+     *
+     * @param reflections           the Reflections object containing the annotated classes
+     * @param findInjectableObject  a function that can find an injectable object by its class
+     * @throws InvocationTargetException if an exception occurs while invoking a method or constructor via reflection
+     * @throws InstantiationException    if a class cannot be instantiated
+     * @throws IllegalAccessException    if access to a class, field, method, or constructor is denied
+     */
     public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projector.class)) {
             var projectorReference = new ProjectorReference(createComponentInstance(aClass, findInjectableObject));
