@@ -13,6 +13,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
+/**
+ * The ProjectionReference class extends the Reference class and is responsible for managing query handler references
+ * for projection objects.
+ */
 public class ProjectionReference extends Reference {
 
     private final HashMap<String, Method> queryHandlerReferences = new HashMap<>();
