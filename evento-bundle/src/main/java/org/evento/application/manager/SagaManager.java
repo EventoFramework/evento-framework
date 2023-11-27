@@ -17,13 +17,41 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+
+/**
+ * SagaManager is a class that manages sagas in an application.
+ * It extends the ConsumerComponentManager class and implements functionality to parse sagas and start saga event consumers.
+ *
+ * @param <SagaReference> the type of saga reference
+ */
 public class SagaManager extends ConsumerComponentManager<SagaReference> {
 
     private static final Logger logger = LogManager.getLogger(SagaManager.class);
+    /**
+     * Creates a new instance of SagaManager.
+     *
+     * @param bundleId                the bundle ID
+     * @param gatewayTelemetryProxy   the gateway telemetry proxy
+     * @param tracingAgent            the tracing agent
+     * @param isShuttingDown          the supplier for checking if the application is shutting down
+     * @param sssFetchSize            the size of the SSS fetch
+     * @param sssFetchDelay           the delay for SSS fetch
+     */
     public SagaManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
         super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
     }
 
+    /**
+     * Parses the annotated classes in the given Reflections instance and creates SagaReference
+     * objects for each annotated class. Adds the SagaReference to the references list and
+     * updates the handlers map with the registered events and corresponding SagaReferences.
+     *
+     * @param reflections           the Reflections instance to scan for annotated classes
+     * @param findInjectableObject  the function to find injectable objects
+     * @throws InvocationTargetException   if the called constructor throws an exception
+     * @throws InstantiationException      if the class cannot be instantiated
+     * @throws IllegalAccessException      if the constructor is inaccessible
+     */
     @Override
     public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
         for (Class<?> aClass : reflections.getTypesAnnotatedWith(Saga.class)) {
@@ -38,6 +66,13 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
         }
     }
 
+    /**
+     * Starts the saga event consumers for the registered SagaReferences. Each SagaReference is checked for
+     * the Saga annotation, and for each context specified in the annotation, a new SagaEventConsumer is created
+     * and started in a new thread.
+     *
+     * @param consumerStateStore     the consumer state store to track the state of event consumers
+     */
     public void startSagaEventConsumers(ConsumerStateStore consumerStateStore) {
         if (getReferences().isEmpty()) return;
         logger.info("Starting saga consumers");

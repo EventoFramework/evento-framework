@@ -12,10 +12,19 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
+/**
+ * ObserverReference is a subclass of Reference and provides functionality for managing event handler references.
+ * It allows registering event handlers and invoking them for specific events.
+ */
 public class ObserverReference extends Reference {
 
-    private HashMap<String, Method> eventHandlerReferences = new HashMap<>();
+    private final HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 
+    /**
+     * Creates a new ObserverReference object.
+     *
+     * @param ref the reference object to observe
+     */
     public ObserverReference(Object ref) {
         super(ref);
         for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
@@ -30,11 +39,24 @@ public class ObserverReference extends Reference {
         }
     }
 
+    /**
+     * Returns a set of registered events for this ObserverReference.
+     *
+     * @return a set of registered events
+     */
     public Set<String> getRegisteredEvents() {
         return eventHandlerReferences.keySet();
     }
 
 
+    /**
+     * Invokes the event handler method for the given EventMessage.
+     *
+     * @param em the EventMessage to invoke the handler for
+     * @param commandGateway the CommandGateway to use for command dispatch
+     * @param queryGateway the QueryGateway to use for query dispatch
+     * @throws Exception if an error occurs during invocation
+     */
     public void invoke(
             EventMessage<? extends Event> em,
             CommandGateway commandGateway,
@@ -52,6 +74,12 @@ public class ObserverReference extends Reference {
         );
     }
 
+    /**
+     * Retrieves the event handler method for the specified event name.
+     *
+     * @param event the name of the event
+     * @return the event handler method for the specified event
+     */
     public Method getEventHandler(String event) {
         return eventHandlerReferences.get(event);
     }
