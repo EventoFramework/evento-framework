@@ -14,10 +14,18 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
+/**
+ * The ProjectorReference class represents a reference to a projector object. It extends the Reference class.
+ * It provides methods to register event handlers, retrieve registered events, and invoke event handlers.
+ */
 public class ProjectorReference extends Reference {
 
     private final HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 
+    /**
+     * The ProjectorReference class represents a reference to a projector object. It extends the Reference class.
+     * It provides methods to register event handlers, retrieve registered events, and invoke event handlers.
+     */
     public ProjectorReference(Object ref) {
         super(ref);
         for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
@@ -32,11 +40,25 @@ public class ProjectorReference extends Reference {
         }
     }
 
+    /**
+     * Retrieves the set of registered events for the projector.
+     *
+     * @return the set of registered events
+     */
     public Set<String> getRegisteredEvents() {
         return eventHandlerReferences.keySet();
     }
 
 
+    /**
+     * Invokes an event handler for a given event message.
+     *
+     * @param em             The event message containing the event and its metadata.
+     * @param commandGateway The command gateway.
+     * @param queryGateway   The query gateway.
+     * @param projectorStatus The status of the projector.
+     * @throws Exception If an error occurs while invoking the event handler.
+     */
     public void invoke(
             EventMessage<? extends Event> em,
             CommandGateway commandGateway,
@@ -57,6 +79,12 @@ public class ProjectorReference extends Reference {
         );
     }
 
+    /**
+     * Retrieves the event handler method for a given event.
+     *
+     * @param event The name of the event.
+     * @return The event handler method for the specified event.
+     */
     public Method getEventHandler(String event) {
         return eventHandlerReferences.get(event);
     }

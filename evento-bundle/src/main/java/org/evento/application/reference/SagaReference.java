@@ -15,6 +15,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
+/**
+ * The SagaReference class is a subclass of Reference that represents a reference to a Saga object.
+ * It provides functionality for managing saga event handler references, invoking saga methods, and retrieving registered events.
+ */
 public class SagaReference extends Reference {
 
     private final HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
@@ -34,14 +38,35 @@ public class SagaReference extends Reference {
     }
 
 
+    /**
+     * Retrieves the saga event handler method for the given event name.
+     *
+     * @param eventName the name of the event
+     * @return the saga event handler method
+     */
     public Method getSagaEventHandler(String eventName) {
         return sagaEventHandlerReferences.get(eventName);
     }
 
+    /**
+     * Retrieves the set of registered events for the SagaReference.
+     *
+     * @return the set of registered events
+     */
     public Set<String> getRegisteredEvents() {
         return sagaEventHandlerReferences.keySet();
     }
 
+    /**
+     * Invokes the saga event handler method for the given event and returns the updated saga state.
+     *
+     * @param em            the event message containing the event
+     * @param sagaState     the current saga state
+     * @param commandGateway the command gateway for sending commands
+     * @param queryGateway  the query gateway for querying data
+     * @return the updated saga state
+     * @throws Exception if an error occurs during the invocation
+     */
     public SagaState invoke(
             EventMessage<? extends Event> em,
             SagaState sagaState,
