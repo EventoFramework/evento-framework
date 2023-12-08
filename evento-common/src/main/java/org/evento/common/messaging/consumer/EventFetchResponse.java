@@ -5,6 +5,9 @@ import org.evento.common.modeling.messaging.dto.PublishedEvent;
 import java.io.Serializable;
 import java.util.ArrayList;
 
+/**
+ * This class represents a response object for fetching events. It contains a list of PublishedEvent objects.
+ */
 public class EventFetchResponse implements Serializable {
 	private ArrayList<PublishedEvent> events;
 

@@ -6,6 +6,11 @@ import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.io.Serializable;
 
+/**
+ * Represents a serialized object that can be converted to and from a string representation.
+ * The serialized object must implement the Serializable interface.
+ */
+
 public class SerializedObject<T extends Serializable> implements Serializable {
 	private String serializedObject;
 	private String objectClass;
