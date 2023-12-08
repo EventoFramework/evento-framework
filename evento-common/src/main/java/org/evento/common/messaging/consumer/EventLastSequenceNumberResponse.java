@@ -2,6 +2,9 @@ package org.evento.common.messaging.consumer;
 
 import java.io.Serializable;
 
+/**
+ * Represents a response object containing the last sequence number for an event.
+ */
 public class EventLastSequenceNumberResponse implements Serializable {
 	private long number;
 

@@ -2,6 +2,9 @@ package org.evento.common.messaging.consumer;
 
 import org.evento.common.modeling.state.SagaState;
 
+/**
+ * This class represents the stored state of a Saga.
+ */
 public class StoredSagaState {
 	private Long id;
 	private SagaState state;

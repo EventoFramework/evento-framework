@@ -2,6 +2,12 @@ package org.evento.common.messaging.consumer;
 
 import java.io.Serializable;
 
+/**
+ * The EventFetchRequest class represents a request to fetch events from a specific context,
+ * starting from a given sequence number, with a specified limit, and targeting a specific component.
+ *
+ * The class provides methods to get and set the context, last sequence number, limit, and component name.
+ */
 public class EventFetchRequest implements Serializable {
 
 	private String context;
