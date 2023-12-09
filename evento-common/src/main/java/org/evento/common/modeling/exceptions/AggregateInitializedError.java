@@ -1,5 +1,8 @@
 package org.evento.common.modeling.exceptions;
 
+/**
+ * RuntimeException indicating that an aggregate has already been initialized.
+ */
 public class AggregateInitializedError extends RuntimeException {
 
 
