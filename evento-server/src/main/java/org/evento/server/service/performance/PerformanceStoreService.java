@@ -13,6 +13,7 @@ import org.evento.server.domain.repository.performance.HandlerServiceTimePerform
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -24,7 +25,7 @@ public class PerformanceStoreService extends PerformanceService {
 
     public static final double ALPHA = 0.33;
     private final HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository;
- private final HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository;
+    private final HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository;
 
     private final HandlerRepository handlerRepository;
 
@@ -32,6 +33,9 @@ public class PerformanceStoreService extends PerformanceService {
     private final PayloadRepository payloadRepository;
 
     private final JdbcTemplate jdbcTemplate;
+
+    @Value("${evento.telemetry.ttl}")
+    private int ttl;
 
     public PerformanceStoreService(
             HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository,
@@ -127,9 +131,9 @@ public class PerformanceStoreService extends PerformanceService {
                             }
                         }
                     }
-					if(edited) {
-						handler = handlerRepository.save(handler);
-					}
+                    if (edited) {
+                        handler = handlerRepository.save(handler);
+                    }
                     for (var payload : new HashSet<>(handler.getInvocations().values())) {
                         var id = bundle + "_" + component + "_" + action + '_' + payload.getName();
                         var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(()
@@ -178,5 +182,14 @@ public class PerformanceStoreService extends PerformanceService {
                 message.getComponent(),
                 message.getAction(),
                 message.getInvocations());
+    }
+
+
+    @Scheduled(cron = "0 0 * * *")
+    public void cleanupTelemetry(){
+        jdbcTemplate.update("delete from performance__handler_service_time_ts where timestamp < CURRENT_TIMESTAMP  - INTERVAL ?",
+                ttl + " DAY");
+        jdbcTemplate.update("delete from performance__handler_invocation_count_ts where timestamp < CURRENT_TIMESTAMP  - INTERVAL ?",
+                ttl + " DAY");
     }
 }
