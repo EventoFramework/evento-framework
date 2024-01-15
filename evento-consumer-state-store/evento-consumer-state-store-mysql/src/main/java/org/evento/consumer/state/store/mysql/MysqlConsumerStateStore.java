@@ -1,11 +1,13 @@
 package org.evento.consumer.state.store.mysql;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.StoredSagaState;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
 import org.evento.common.performance.RemotePerformanceService;
+import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -25,7 +27,15 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 			EventoServer eventoServer,
 			PerformanceService performanceService,
 			Connection connection) {
-		super(eventoServer, performanceService);
+		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper());
+	}
+
+	public MysqlConsumerStateStore(
+			EventoServer eventoServer,
+			PerformanceService performanceService,
+			Connection connection,
+			ObjectMapper objectMapper) {
+		super(eventoServer, performanceService, objectMapper);
 		this.connection = connection;
 		init();
 	}
