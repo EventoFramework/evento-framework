@@ -1,5 +1,8 @@
 package org.evento.common.modeling.exceptions;
 
+/**
+ * Exception thrown when an aggregate is not initialized.
+ */
 public class AggregateNotInitializedError extends RuntimeException {
 
 

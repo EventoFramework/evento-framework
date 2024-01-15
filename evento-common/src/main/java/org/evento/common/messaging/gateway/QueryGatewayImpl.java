@@ -10,6 +10,10 @@ import org.evento.common.modeling.messaging.query.SerializedQueryResponse;
 
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * The QueryGatewayImpl class implements the QueryGateway interface
+ * and provides a way to send queries and receive the corresponding responses asynchronously.
+ */
 public class QueryGatewayImpl implements QueryGateway {
 	private final EventoServer eventoServer;
 
@@ -17,6 +21,15 @@ public class QueryGatewayImpl implements QueryGateway {
 		this.eventoServer = eventoServer;
 	}
 
+	/**
+	 * Queries the system with the given Query object and returns a CompletableFuture representing the response.
+	 *
+	 * @param query          The Query object to be sent to the system.
+	 * @param metadata       The metadata associated with the query.
+	 * @param handledMessage The handled message associated with the query.
+	 * @param <T>            The type parameter of the QueryResponse expected as the response.
+	 * @return A CompletableFuture that resolves to the response of the query.
+	 */
 	@Override
 	@SuppressWarnings("unchecked")
 	public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata,

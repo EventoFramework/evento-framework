@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.application.bus.EventoServerClient;
@@ -47,63 +50,63 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+/**
+ * The EventoBundle class represents a bundle of components and services related to event handling.
+ * It provides functionality for starting saga event consumers and projector event consumers.
+ */
+@Getter
 public class EventoBundle {
 
     private static final Logger logger = LogManager.getLogger(EventoBundle.class);
     private final String basePackage;
     private final String bundleId;
-    private final long bundleVersion;
-    private final String bundleInstance;
     private final PerformanceService performanceService;
-    private final Function<Class<?>, Object> findInjectableObject;
     private final AggregateManager aggregateManager;
     private final ServiceManager serviceManager;
     private final ProjectionManager projectionManager;
     private final ProjectorManager projectorManager;
     private final SagaManager sagaManager;
-    private final ObserverManager observerManager;
-    private final InvokerManager invokerManager;
     private final transient CommandGateway commandGateway;
     private final transient QueryGateway queryGateway;
     private final TracingAgent tracingAgent;
-    private boolean isShuttingDown = false;
 
     private EventoBundle(
             String basePackage,
             String bundleId,
-            long bundleVersion,
-            AutoscalingProtocol autoscalingProtocol,
-            ConsumerStateStore consumerStateStore,
-            String bundleInstance, Function<Class<?>, Object> findInjectableObject,
-            AggregateManager aggregateManager, ProjectionManager projectionManager, SagaManager sagaManager, InvokerManager invokerManager, CommandGateway commandGateway,
+            AggregateManager aggregateManager,
+            ProjectionManager projectionManager,
+            SagaManager sagaManager,
+            CommandGateway commandGateway,
             QueryGateway queryGateway,
             PerformanceService performanceService,
-            int sssFetchSize,
-            int sssFetchDelay,
             ServiceManager serviceManager, ProjectorManager projectorManager, ObserverManager observerManager, TracingAgent tracingAgent
 
     ) {
         this.basePackage = basePackage;
         this.bundleId = bundleId;
-        this.bundleVersion = bundleVersion;
-        this.bundleInstance = bundleInstance;
         this.aggregateManager = aggregateManager;
         this.projectionManager = projectionManager;
         this.sagaManager = sagaManager;
-        this.invokerManager = invokerManager;
         this.performanceService = performanceService;
         this.commandGateway = commandGateway;
         this.queryGateway = queryGateway;
-        this.findInjectableObject = findInjectableObject;
         this.serviceManager = serviceManager;
         this.projectorManager = projectorManager;
-        this.observerManager = observerManager;
         this.tracingAgent = tracingAgent;
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> this.isShuttingDown = true));
-
     }
 
+    /**
+     * Creates a GatewayTelemetryProxy with the provided parameters.
+     *
+     * @param commandGateway     The command gateway to proxy.
+     * @param queryGateway       The query gateway to proxy.
+     * @param bundleId           The bundle identifier.
+     * @param performanceService The performance service for tracking metrics.
+     * @param tracingAgent       The tracing agent for correlating and tracking.
+     * @param componentName      The name of the component associated with the proxy.
+     * @param handledMessage     The message being handled by the proxy.
+     * @return The created GatewayTelemetryProxy instance.
+     */
     private static GatewayTelemetryProxy createGatewayTelemetryProxy(
             CommandGateway commandGateway,
             QueryGateway queryGateway,
@@ -116,15 +119,14 @@ public class EventoBundle {
     }
 
 
-    public String getBasePackage() {
-        return basePackage;
-    }
-
-    public String getBundleId() {
-        return bundleId;
-    }
-
-
+    /**
+     * Retrieves an instance of the specified InvokerWrapper class.
+     *
+     * @param invokerClass The class of the InvokerWrapper to retrieve.
+     * @param <T>          The type of the InvokerWrapper.
+     * @return An instance of the specified InvokerWrapper class.
+     * @throws RuntimeException if an error occurs while creating the instance.
+     */
     public <T extends InvokerWrapper> T getInvoker(Class<T> invokerClass) {
         ProxyFactory factory = new ProxyFactory();
         factory.setSuperclass(invokerClass);
@@ -191,15 +193,6 @@ public class EventoBundle {
         info.sagaMessageHandlers = sagaManager.getHandlers().keySet();
         return info;
     }
-
-    public CommandGateway getCommandGateway() {
-        return commandGateway;
-    }
-
-    public QueryGateway getQueryGateway() {
-        return queryGateway;
-    }
-
     public static class ApplicationInfo {
         public String basePackage;
         public String bundleId;
@@ -211,6 +204,9 @@ public class EventoBundle {
         public Set<String> sagaMessageHandlers;
     }
 
+    @Getter
+    @Setter
+    @Accessors(chain = true)
     public static class Builder {
         private Package basePackage;
         private String bundleId;
@@ -246,150 +242,12 @@ public class EventoBundle {
             return new Builder();
         }
 
-        public Function<EventoServer, CommandGateway> getCommandGatewayBuilder() {
-            return commandGatewayBuilder;
-        }
-
-        public Builder setCommandGatewayBuilder(Function<EventoServer, CommandGateway> commandGatewayBuilder) {
-            this.commandGatewayBuilder = commandGatewayBuilder;
-            return this;
-        }
-
-        public Function<EventoServer, QueryGateway> getQueryGatewayBuilder() {
-            return queryGatewayBuilder;
-        }
-
-        public Builder setQueryGatewayBuilder(Function<EventoServer, QueryGateway> queryGatewayBuilder) {
-            this.queryGatewayBuilder = queryGatewayBuilder;
-            return this;
-        }
-
-
-        public Package getBasePackage() {
-            return basePackage;
-        }
-
-        public Builder setBasePackage(Package basePackage) {
-            this.basePackage = basePackage;
-            return this;
-        }
-
-        public String getBundleId() {
-            return bundleId;
-        }
-
-        public Builder setBundleId(String bundleId) {
-            this.bundleId = bundleId;
-            return this;
-        }
-
-        public long getBundleVersion() {
-            return bundleVersion;
-        }
-
-        public Builder setBundleVersion(long bundleVersion) {
-            this.bundleVersion = bundleVersion;
-            return this;
-        }
-
-
-
-
-
-        public Function<EventoServer, AutoscalingProtocol> getAutoscalingProtocolBuilder() {
-            return autoscalingProtocolBuilder;
-        }
-
-        public Builder setAutoscalingProtocolBuilder(Function<EventoServer, AutoscalingProtocol> autoscalingProtocolBuilder) {
-            this.autoscalingProtocolBuilder = autoscalingProtocolBuilder;
-            return this;
-        }
-
-        public BiFunction<EventoServer, PerformanceService, ConsumerStateStore> getConsumerStateStoreBuilder() {
-            return consumerStateStoreBuilder;
-        }
-
-        public Builder setConsumerStateStoreBuilder(BiFunction<EventoServer, PerformanceService, ConsumerStateStore> consumerStateStoreBuilder) {
-            this.consumerStateStoreBuilder = consumerStateStoreBuilder;
-            return this;
-        }
-
-        public Function<Class<?>, Object> getInjector() {
-            return injector;
-        }
-
-        public Builder setInjector(Function<Class<?>, Object> injector) {
-            this.injector = injector;
-            return this;
-        }
-
-
-
-
-
-        public int getSssFetchSize() {
-            return sssFetchSize;
-        }
-
-        public Builder setSssFetchSize(int sssFetchSize) {
-            this.sssFetchSize = sssFetchSize;
-            return this;
-        }
-
-        public int getSssFetchDelay() {
-            return sssFetchDelay;
-        }
-
-        public Builder setSssFetchDelay(int sssFetchDelay) {
-            this.sssFetchDelay = sssFetchDelay;
-            return this;
-        }
-
-        public int getAlignmentDelay() {
-            return alignmentDelay;
-        }
-
-        public Builder setAlignmentDelay(int alignmentDelay) {
-            this.alignmentDelay = alignmentDelay;
-            return this;
-        }
-
-        public TracingAgent getTracingAgent() {
-            return tracingAgent;
-        }
-
-        public Builder setTracingAgent(TracingAgent tracingAgent) {
-            this.tracingAgent = tracingAgent;
-            return this;
-        }
-
-        public MessageBusConfiguration getMessageBusConfiguration() {
-            return messageBusConfiguration;
-        }
-
-        public Builder setMessageBusConfiguration(MessageBusConfiguration messageBusConfiguration) {
-            this.messageBusConfiguration = messageBusConfiguration;
-            return this;
-        }
-
-        public Function<EventoServer, PerformanceService> getPerformanceServiceBuilder() {
-            return performanceServiceBuilder;
-        }
-
-        public Builder setPerformanceServiceBuilder(Function<EventoServer, PerformanceService> performanceServiceBuilder) {
-            this.performanceServiceBuilder = performanceServiceBuilder;
-            return this;
-        }
-
-        public ObjectMapper getObjectMapper() {
-            return objectMapper;
-        }
-
-        public Builder setObjectMapper(ObjectMapper objectMapper) {
-            this.objectMapper = objectMapper;
-            return this;
-        }
-
+        /**
+         * Starts the Evento Application.
+         *
+         * @return the EventoBundle representing the started application
+         * @throws Exception if there is an error during initialization
+         */
         public EventoBundle start() throws Exception {
             if (basePackage == null) {
                 throw new IllegalArgumentException("Invalid basePackage");
@@ -683,16 +541,9 @@ public class EventoBundle {
             EventoBundle eventoBundle = new EventoBundle(
                     basePackage.getName(),
                     bundleId,
-                    bundleVersion,
-                    asp,
-                    css,
-                    bundleInstance,
-                    injector,
-                    aggregateManager, projectionManager, sagaManager, invokerManager, commandGateway,
+                    aggregateManager, projectionManager, sagaManager, commandGateway,
                     queryGateway,
                     performanceService,
-                    sssFetchSize,
-                    sssFetchDelay,
                     serviceManager, projectorManager, observerManager, tracingAgent);
             logger.info("Starting projector consumers...");
             var start = Instant.now();
@@ -714,10 +565,24 @@ public class EventoBundle {
         }
     }
 
+    /**
+     * Starts the saga event consumers for the registered SagaReferences. Each SagaReference is checked for
+     * the Saga annotation, and for each context specified in the annotation, a new SagaEventConsumer is created
+     * and started in a new thread.
+     *
+     * @param consumerStateStore the consumer state store to track the state of event consumers
+     */
     private void startSagaEventConsumers(ConsumerStateStore consumerStateStore) {
         sagaManager.startSagaEventConsumers(consumerStateStore);
     }
 
+    /**
+     * Starts the event consumers for the projector.
+     *
+     * @param onHedReached       a Runnable that will be executed when the head is reached
+     * @param consumerStateStore the ConsumerStateStore to use for tracking consumer state
+     * @throws Exception if an error occurs while starting the event consumers
+     */
     private void startProjectorEventConsumers(Runnable onHedReached, ConsumerStateStore consumerStateStore) throws Exception {
         projectorManager.startEventConsumer(onHedReached, consumerStateStore);
     }

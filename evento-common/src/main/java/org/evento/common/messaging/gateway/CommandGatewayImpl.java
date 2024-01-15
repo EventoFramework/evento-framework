@@ -14,6 +14,10 @@ import org.evento.common.serialization.ObjectMapperUtils;
 import java.io.Serializable;
 import java.util.concurrent.*;
 
+/**
+ * The CommandGatewayImpl class is an implementation of the CommandGateway interface.
+ * It provides methods for sending commands and interacting with a command handler.
+ */
 public class CommandGatewayImpl implements CommandGateway {
 	private final EventoServer eventoServer;
 
@@ -21,6 +25,16 @@ public class CommandGatewayImpl implements CommandGateway {
 		this.eventoServer = eventoServer;
 	}
 
+	/**
+	 * Sends a command synchronously and waits for the result.
+	 *
+	 * @param command         The command to send.
+	 * @param metadata        The metadata associated with the command.
+	 * @param handledMessage The handled message.
+	 * @param <R>             The type of the result.
+	 * @return The result of the command execution.
+	 * @throws RuntimeException if an error occurs while executing the command.
+	 */
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata,
 							 Message<?> handledMessage) {
@@ -37,6 +51,18 @@ public class CommandGatewayImpl implements CommandGateway {
 		}
 	}
 
+	/**
+	 * Sends a command synchronously and waits for the result.
+	 *
+	 * @param command         The command to send.
+	 * @param metadata        The metadata associated with the command.
+	 * @param handledMessage  The handled message.
+	 * @param timeout         The maximum time to wait for the result.
+	 * @param unit            The time unit of the timeout argument.
+	 * @param <R>             The type of the result.
+	 * @return The result of the command execution.
+	 * @throws RuntimeException if an error occurs while executing the command.
+	 */
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata,
 							 Message<?> handledMessage, long timeout, TimeUnit unit) {
@@ -53,6 +79,15 @@ public class CommandGatewayImpl implements CommandGateway {
 		}
 	}
 
+	/**
+	 * Sends a command asynchronously and returns a CompletableFuture that will be completed with the result.
+	 *
+	 * @param command         The command to send.
+	 * @param metadata        The metadata associated with the command.
+	 * @param handledMessage  The handled message.
+	 * @param <R>             The type of the result.
+	 * @return A CompletableFuture that will be completed with the result of the command execution.
+	 */
 	@Override
 	@SuppressWarnings("unchecked")
 	public <R> CompletableFuture<R> send(Command command, Metadata metadata,
