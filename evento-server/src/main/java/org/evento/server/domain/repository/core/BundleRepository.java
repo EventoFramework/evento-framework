@@ -16,7 +16,7 @@ public interface BundleRepository extends JpaRepository<Bundle, String> {
 
 	/**
 	 * The findAllProjection method is used to retrieve a list of BundleListProjection objects representing a projected view of Bundle objects.
-	 *
+	 * <p>
 	 * The method executes a native SQL query to fetch the required data from the database.
 	 *
 	 * @return A list of BundleListProjection objects representing the projected view of Bundle objects.

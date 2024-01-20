@@ -26,6 +26,7 @@ import org.springframework.util.Assert;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -748,7 +749,7 @@ public class BundleService {
 
     /**
      * Retrieves a list of BundleListProjection objects representing a projected view of Bundle objects.
-     *
+     * <p>
      * The findAllProjection method executes a native SQL query to fetch the required data from the database.
      *
      * @return A list of BundleListProjection objects representing the projected view of Bundle objects.
@@ -764,7 +765,7 @@ public class BundleService {
      *
      * @param bundleId the ID of the bundle to find
      * @return the Bundle object representing the found bundle
-     * @throws NoSuchElementException if no bundle with the given ID is found
+     * @throws java.util.NoSuchElementException if no bundle with the given ID is found
      */
     public Bundle findById(String bundleId) {
         return bundleRepository.findById(bundleId).orElseThrow();
@@ -772,7 +773,7 @@ public class BundleService {
 
     /**
      * Updates the value of an environment variable for a given bundle.
-     *
+     * <p>
      * This method updates the value of an environment variable associated with a specific bundle.
      * The updated value is saved in the bundle's environment map, and the bundle's updatedAt timestamp is updated.
      *
@@ -789,7 +790,7 @@ public class BundleService {
 
     /**
      * Removes an environment variable for a given bundle.
-     *
+     * <p>
      * This method removes the specified environment variable for the bundle with the provided ID.
      * The bundle is retrieved from the bundle repository using the ID.
      * If no bundle is found with the provided ID, a NoSuchElementException is thrown.

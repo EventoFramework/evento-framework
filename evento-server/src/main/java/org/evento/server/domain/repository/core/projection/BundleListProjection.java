@@ -30,18 +30,17 @@ public interface BundleListProjection {
 
 	/**
 	 * Retrieves the BucketType associated with the BundleListProjection.
-	 *
+	 * <p>
 	 * The BucketType enum represents the different types of buckets that can be used in the Bundle class.
 	 * The available bucket types are:
 	 * - LocalFilesystem: Represents a bucket stored in the local filesystem.
 	 * - LiveServer: Represents a bucket stored in a live server.
 	 * - Ephemeral: Represents an ephemeral bucket that is created and destroyed on demand.
 	 * - LibraryOnly: Represents a bucket that contains only library files.
-	 *
+	 * <p>
 	 * The bucketType property of the BundleListProjection class can be used to determine the type of bucket associated with the bundle.
 	 *
 	 * @return The BucketType associated with the BundleListProjection.
-	 * @see BundleListProjection
 	 * @see BucketType
 	 */
 	BucketType getBucketType();
@@ -62,14 +61,13 @@ public interface BundleListProjection {
 
 	/**
 	 * Retrieves the domains associated with the BundleListProjection.
-	 *
+	 * <p>
 	 * The getDomains method is used to retrieve the domains associated with the BundleListProjection.
 	 * Domains represent a set of related components and resources within a bundle that can be deployed and executed together.
-	 *
+	 * <p>
 	 * This method returns the domains as a string.
 	 *
 	 * @return The domains associated with the BundleListProjection as a string.
-	 * @see BundleListProjection
 	 */
 	String getDomains();
 }
