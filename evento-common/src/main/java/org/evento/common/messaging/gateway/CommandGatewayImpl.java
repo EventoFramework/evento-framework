@@ -35,6 +35,7 @@ public class CommandGatewayImpl implements CommandGateway {
 	 * @return The result of the command execution.
 	 * @throws RuntimeException if an error occurs while executing the command.
 	 */
+	@SuppressWarnings("unchecked")
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata,
 							 Message<?> handledMessage) {
@@ -63,6 +64,7 @@ public class CommandGatewayImpl implements CommandGateway {
 	 * @return The result of the command execution.
 	 * @throws RuntimeException if an error occurs while executing the command.
 	 */
+	@SuppressWarnings("unchecked")
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata,
 							 Message<?> handledMessage, long timeout, TimeUnit unit) {

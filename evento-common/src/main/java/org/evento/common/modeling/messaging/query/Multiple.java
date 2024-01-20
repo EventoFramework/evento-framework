@@ -19,6 +19,7 @@ public class Multiple<T extends View> extends QueryResponse<T> {
 		return r;
 	}
 
+	@SafeVarargs
 	public static <R extends View> Multiple<R> of(R... items) {
 		var r = new Multiple<R>();
 		r.setData(List.of(items));

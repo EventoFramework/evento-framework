@@ -50,7 +50,7 @@ public class DashboardController {
 		db.setDeployableBundleCount(bundleRepository.countDeployable());
 		var view = messageBus.getCurrentAvailableView();
 		db.setBundleInViewCount(view.stream()
-				.map(NodeAddress::getBundleId).distinct().count());
+				.map(NodeAddress::bundleId).distinct().count());
 		db.setNodeInViewCount(view.size());
 
 		db.setEventCount(eventStore.getSize());

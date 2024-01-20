@@ -6,16 +6,16 @@ import net.sourceforge.pmd.lang.LanguageVersionHandler;
 import net.sourceforge.pmd.lang.Parser;
 import net.sourceforge.pmd.lang.ast.Node;
 import net.sourceforge.pmd.lang.java.ast.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.evento.common.modeling.messaging.payload.*;
+import org.evento.common.utils.FileUtils;
 import org.evento.parser.BundleParser;
 import org.evento.parser.model.BundleDescription;
 import org.evento.parser.model.component.Component;
 import org.evento.parser.model.component.Invoker;
-import org.evento.parser.model.handler.Handler;
-import org.evento.parser.model.handler.InvocationHandler;
 import org.evento.parser.model.payload.PayloadDescription;
 
-import java.io.Console;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -27,7 +27,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * The JavaBundleParser class is responsible for parsing a directory containing Java source files and extracting information about the bundle.
+ */
 public class JavaBundleParser implements BundleParser {
+
+    private final static Logger logger = LogManager.getLogger(JavaBundleParser.class);
 
     public static final String EVENTO_BUNDLE_VERSION_PROPERTY = "evento.bundle.version";
     public static final String EVENTO_BUNDLE_NAME_PROPERTY = "evento.bundle.id";
@@ -39,34 +44,35 @@ public class JavaBundleParser implements BundleParser {
         LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
         Parser parser = java.getParser(java.getDefaultParserOptions());
         if (!directory.isDirectory()) throw new RuntimeException("error.not.dir");
-        System.out.println("Looking for components...");
-        var components = Files.walk(directory.toPath())
-                .filter(p -> p.toString().endsWith(".java"))
-                .filter(p -> !p.toString().toLowerCase().contains("test"))
-                .filter(p -> !p.toString().toLowerCase().contains("package-info"))
-                .map(p -> {
-                    try {
-                        var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
+        logger.info("Looking for components...");
+        var components = FileUtils.autoColseWalk(directory.toPath(), s ->
+                        s.filter(p -> p.toString().endsWith(".java"))
+                        .filter(p -> !p.toString().toLowerCase().contains("test"))
+                        .filter(p -> !p.toString().toLowerCase().contains("package-info"))
+                        .map(p -> {
+                            try {
+                                var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
 
-                        var c = toComponent(node);
-                        if (c != null)
-							c.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
-									.replace("\\","/"));
-                        if(c!=null){
-                            System.out.println("Component found in: " + p.toAbsolutePath() + " ("+c.getLine()+")");
-                        }
-                        return c;
+                                var c = toComponent(node);
+                                if (c != null)
+                                    c.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
+                                            .replace("\\","/"));
+                                if(c!=null){
+                                    logger.info("Component found in: " + p.toAbsolutePath() + " ("+c.getLine()+")");
+                                }
+                                return c;
 
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        return null;
-                    }
-                }).filter(Objects::nonNull).toList();
+                            } catch (Exception e) {
+                                logger.error("Parsing error", e);
+                                return null;
+                            }
+                        }).filter(Objects::nonNull).toList()
+                        );
 
-        System.out.println("Total components detected: " + components.size() );
-        System.out.println("Looking for payloads...");
+        logger.info("Total components detected: " + components.size() );
+        logger.info("Looking for payloads...");
         var payloads = Stream.concat(
-                Files.walk(directory.toPath())
+                FileUtils.autoColseWalk(directory.toPath(), s-> s
                         .filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> !p.toString().toLowerCase().contains("package-info"))
                         .filter(p -> !p.toString().toLowerCase().contains("test"))
@@ -79,15 +85,14 @@ public class JavaBundleParser implements BundleParser {
 											.replace("\\", "/"));
 								}
                                 if(pl!=null){
-                                    System.out.println("Payload found in: " + p.toAbsolutePath() + " ("+pl.getLine()+")");
+                                    logger.info("Payload found in: " + p.toAbsolutePath() + " ("+pl.getLine()+")");
                                 }
                                 return pl;
                             } catch (Exception e) {
-                                System.out.println("Error parsing: " + p.toAbsolutePath());
-                                e.printStackTrace();
+                                logger.error("Error parsing: " + p.toAbsolutePath(), e);
                                 return null;
                             }
-                        }).filter(Objects::nonNull),
+                        }).filter(Objects::nonNull)),
                 components.stream()
                         .filter(c -> c instanceof Invoker)
                         .map(c -> ((Invoker) c))
@@ -95,14 +100,14 @@ public class JavaBundleParser implements BundleParser {
 								p -> {
 									var pl = new PayloadDescription(p.getPayload().getName(), p.getPayload().getDomain(), "Invocation", "{}", p.getLine());
 									pl.setPath(in.getPath());
-                                    System.out.println("Invocation found in: " + in.getPath() + " ("+p.getLine()+")");
+                                    logger.info("Invocation found in: " + in.getPath() + " ("+p.getLine()+")");
 									return pl;
 								}
 						))
         ).collect(Collectors.toList());
-        System.out.println("Total payloads detected: " + payloads.size() );
+        logger.info("Total payloads detected: " + payloads.size() );
 
-        var bundleVersion = Files.walk(directory.toPath())
+        var bundleVersion = FileUtils.autoColseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .mapToInt(p -> {
                     try {
@@ -112,9 +117,9 @@ public class JavaBundleParser implements BundleParser {
                     } catch (Exception e) {
                         return -1;
                     }
-                }).filter(v -> v >= 0).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_VERSION_PROPERTY)));
+                }).filter(v -> v >= 0).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_VERSION_PROPERTY))));
 
-        var bundleId = Files.walk(directory.toPath())
+        var bundleId = FileUtils.autoColseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -124,9 +129,9 @@ public class JavaBundleParser implements BundleParser {
                     } catch (Exception e) {
                         return null;
                     }
-                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
+                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var autorun = Files.walk(directory.toPath())
+        var autorun = FileUtils.autoColseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -136,9 +141,9 @@ public class JavaBundleParser implements BundleParser {
                     } catch (Exception e) {
                         return null;
                     }
-                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
+                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var minInstances = Files.walk(directory.toPath())
+        var minInstances = FileUtils.autoColseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -150,9 +155,9 @@ public class JavaBundleParser implements BundleParser {
                     } catch (Exception e) {
                         return null;
                     }
-                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
+                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var maxInstances = Files.walk(directory.toPath())
+        var maxInstances = FileUtils.autoColseWalk(directory.toPath(), s->s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -162,12 +167,12 @@ public class JavaBundleParser implements BundleParser {
                     } catch (Exception e) {
                         return null;
                     }
-                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY)));
+                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
         var bundleDetail = new AtomicReference<String>();
         var bundleDescription = new AtomicReference<String>();
-        Files.walk(directory.toPath())
-                .filter(p -> p.toString().endsWith(".md"))
+        try(var s = Files.walk(directory.toPath())){
+                s.filter(p -> p.toString().endsWith(".md"))
                 .forEach(p -> {
                     var name = p.getFileName().toString().replace(".md", "");
                     for (Component component : components) {
@@ -207,8 +212,8 @@ public class JavaBundleParser implements BundleParser {
                         } catch (IOException ignored) {
                         }
                     }
-                    System.out.println();
                 });
+                }
 
         return new BundleDescription(
                 bundleId,
@@ -264,18 +269,13 @@ public class JavaBundleParser implements BundleParser {
                     var type = t != null ? t.getImage() : field.getFirstDescendantOfType(ASTPrimitiveType.class).getImage();
                     schema.addProperty(name, type);
                 }
-                if (payloadType.equals("DomainCommand")) {
-                    addSuperFields(schema, DomainCommand.class);
-                } else if (payloadType.equals("DomainEvent")) {
-                    addSuperFields(schema, DomainEvent.class);
-                } else if (payloadType.equals("ServiceCommand")) {
-                    addSuperFields(schema, ServiceCommand.class);
-                } else if (payloadType.equals("ServiceEvent")) {
-                    addSuperFields(schema, ServiceEvent.class);
-                } else if (payloadType.equals("Query")) {
-                    addSuperFields(schema, Query.class);
-                } else {
-                    addSuperFields(schema, View.class);
+                switch (payloadType) {
+                    case "DomainCommand" -> addSuperFields(schema, DomainCommand.class);
+                    case "DomainEvent" -> addSuperFields(schema, DomainEvent.class);
+                    case "ServiceCommand" -> addSuperFields(schema, ServiceCommand.class);
+                    case "ServiceEvent" -> addSuperFields(schema, ServiceEvent.class);
+                    case "Query" -> addSuperFields(schema, Query.class);
+                    default -> addSuperFields(schema, View.class);
                 }
                 String domain = null;
                 try {

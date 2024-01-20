@@ -1,5 +1,7 @@
 package org.evento.server.performance.model;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.evento.server.service.performance.PerformanceStoreService;
 
 import java.util.HashMap;
@@ -10,11 +12,19 @@ public class Source extends Node {
 
 	private String bundleId;
 	private String componentName;
+	@Setter
+	@Getter
 	private String name;
+	@Setter
+	@Getter
 	private String type;
 
+	@Setter
+	@Getter
 	private String handlerId;
 
+	@Setter
+	@Getter
 	private Map<Node, Double> target = new HashMap<>();
 
 	public Source(long id, String bundleId, String componentName, String name, String type, String handlerId) {
@@ -29,30 +39,6 @@ public class Source extends Node {
 	public Source() {
 	}
 
-	public Map<Node, Double> getTarget() {
-		return target;
-	}
-
-	public void setTarget(Map<Node, Double> target) {
-		this.target = target;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	public String getType() {
-		return type;
-	}
-
-	public void setType(String type) {
-		this.type = type;
-	}
-
 	public void addTarget(ServiceStation s, PerformanceStoreService performanceStoreService) {
 		target.put(s, performanceStoreService.getInvocationProbability(
 				bundleId,
@@ -63,11 +49,4 @@ public class Source extends Node {
 
 	}
 
-	public String getHandlerId() {
-		return handlerId;
-	}
-
-	public void setHandlerId(String handlerId) {
-		this.handlerId = handlerId;
-	}
 }

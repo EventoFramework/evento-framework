@@ -8,55 +8,42 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * This annotation is used to mark a class as a Saga.
- * Sagas are long-running processes that coordinate
- * interactions between multiple components to achieve a specific goal.
+ * The Saga annotation is a marker annotation used to designate a class as a Saga within a software system.
+ * Sagas are long-running, distributed transactions that coordinate actions across multiple components.
+ * This annotation is used in conjunction with the Component annotation to categorize and identify the class as a Saga.
  *
  * <p>
  * Example usage:
  * </p>
+ *
  * <pre>
  * {@code
  * @Saga(version = 1, context = {Context.DEFAULT})
- * public class DemoSaga {
+ * public class OrderSaga {
  *
- *     private final DemoRepository demoRepository;
- *     private final CommandGateway commandGateway;
+ *     private final OrderService orderService;
+ *     private final PaymentService paymentService;
  *
- *     public DemoSaga(DemoRepository demoRepository, CommandGateway commandGateway) {
- *         this.demoRepository = demoRepository;
- *         this.commandGateway = commandGateway;
+ *     public OrderSaga(OrderService orderService, PaymentService paymentService) {
+ *         this.orderService = orderService;
+ *         this.paymentService = paymentService;
  *     }
  *
- *     @StartsSaga
  *     @EventHandler
- *     public void on(DemoCreatedEvent event) {
+ *     public void on(OrderCreatedEvent event) {
  *         // Handle event logic
  *     }
  *
  *     @EventHandler
- *     public void on(DemoUpdatedEvent event) {
- *         // Handle event logic
- *     }
- *
- *     @EndsSaga
- *     @EventHandler
- *     public void on(DemoDeletedEvent event) {
+ *     public void on(PaymentCompletedEvent event) {
  *         // Handle event logic
  *     }
  * }
  * }
  * </pre>
  *
- * @see Service
- * @see Projection
- * @see Invoker
- * @see Projector
- * @see Observer
- * @see SagaEventHandler
- * @see StartsSaga
- * @see EndsSaga
- * @see <a href="https://docs.eventoframework.com/recq-patterns/recq-component-pattern/saga">Saga in RECQ Component Patterns</a>
+ * @see org.evento.common.modeling.annotations.handler.EventHandler
+ * @see <a href="https://docs.eventoframework.com/recq-patterns/recq-component-pattern/saga">Saga in RECQ Component Pattern</a>
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

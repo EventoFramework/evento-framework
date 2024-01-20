@@ -8,6 +8,7 @@ import org.evento.application.reference.SagaReference;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.modeling.annotations.handler.SagaEventHandler;
 import org.evento.common.modeling.messaging.message.application.Message;
+import org.evento.common.utils.Sleep;
 
 import java.util.HashMap;
 import java.util.function.BiFunction;
@@ -142,11 +143,7 @@ public class SagaEventConsumer implements Runnable {
 
             // Sleep based on fetch size and error conditions
             if (sssFetchSize - consumedEventCount > 10) {
-                try {
-                    Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                Sleep.apply(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
             }
         }
     }

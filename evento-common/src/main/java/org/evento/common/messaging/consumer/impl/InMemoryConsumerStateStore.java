@@ -45,10 +45,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 * Removes the saga state associated with the given saga ID.
 	 *
 	 * @param sagaId the ID of the saga
-	 * @throws Exception if an error occurs while removing the saga state
 	 */
 	@Override
-    protected void removeSagaState(Long sagaId) throws Exception {
+    protected void removeSagaState(Long sagaId) {
         sagaStateRepository.remove(sagaId);
     }
 

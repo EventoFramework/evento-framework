@@ -64,7 +64,7 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
      * @throws HandlerNotFoundException If no handler is found for the query in the bundle.
      */
     @Override
-    public SerializedQueryResponse handle(QueryMessage<?> q) throws Exception {
+    public SerializedQueryResponse<?> handle(QueryMessage<?> q) throws Exception {
         var handler = getHandlers().get(q.getQueryName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));

@@ -5,7 +5,6 @@ import org.evento.common.modeling.messaging.message.application.Metadata;
 import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.QueryResponse;
 
-import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -19,7 +18,6 @@ public interface QueryGateway {
 	 * @param <T> The type of QueryResponse expected as the response.
 	 * @return A CompletableFuture that resolves to the response of the query.
 	 */
-	@SuppressWarnings("unchecked")
 	default <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
 		return query(query, null);
 	}

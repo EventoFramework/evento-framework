@@ -89,7 +89,7 @@ public class ClusterStatusController {
 
 	@DeleteMapping(value = "/kill/{bundleId}/{nodeId}")
 	@Secured("ROLE_DEPLOY")
-	public ResponseEntity<?> killNode(@PathVariable String bundleId, @PathVariable String nodeId) throws Exception {
+	public ResponseEntity<?> killNode(@PathVariable String bundleId, @PathVariable String nodeId) {
 		messageBus.sendKill(nodeId);
 		return ResponseEntity.ok().build();
 	}

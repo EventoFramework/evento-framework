@@ -130,6 +130,7 @@ public class EventoBundle {
      * @return An instance of the specified InvokerWrapper class.
      * @throws RuntimeException if an error occurs while creating the instance.
      */
+    @SuppressWarnings("unchecked")
     public <T extends InvokerWrapper> T getInvoker(Class<T> invokerClass) {
         ProxyFactory factory = new ProxyFactory();
         factory.setSuperclass(invokerClass);
@@ -391,55 +392,45 @@ public class EventoBundle {
                 payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
                 payloads.add(v.getAggregateCommandHandler(k).getReturnType());
             });
-            projectorManager.getHandlers().forEach((k, v) -> {
-                v.forEach((k1, v1) -> {
-                    handlers.add(new RegisteredHandler(
-                            ComponentType.Projector,
-                            v1.getRef().getClass().getSimpleName(),
-                            HandlerType.EventHandler,
-                            v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                            k,
-                            null,
-                            false,
-                            null
-                    ));
-                    payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-                });
-
-
-            });
-            observerManager.getHandlers().forEach((k, v) -> {
-                v.forEach((k1, v1) -> {
-                    handlers.add(new RegisteredHandler(
-                            ComponentType.Observer,
-                            v1.getRef().getClass().getSimpleName(),
-                            HandlerType.EventHandler,
-                            v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                            k,
-                            null,
-                            false,
-                            null
-                    ));
-                    payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-                });
-            });
-            sagaManager.getHandlers().forEach((k, v) -> {
-                v.forEach((k1, v1) -> {
-                    handlers.add(new RegisteredHandler(
-                            ComponentType.Saga,
-                            v1.getRef().getClass().getSimpleName(),
-                            HandlerType.SagaEventHandler,
-                            v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                            k,
-                            null,
-                            false,
-                            v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
-                    ));
-                    payloads.add(v1.getSagaEventHandler(k).getParameterTypes()[0]);
-                });
-
-
-            });
+            projectorManager.getHandlers().forEach((k, v) -> v.forEach((k1, v1) -> {
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Projector,
+                        v1.getRef().getClass().getSimpleName(),
+                        HandlerType.EventHandler,
+                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                        k,
+                        null,
+                        false,
+                        null
+                ));
+                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
+            }));
+            observerManager.getHandlers().forEach((k, v) -> v.forEach((k1, v1) -> {
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Observer,
+                        v1.getRef().getClass().getSimpleName(),
+                        HandlerType.EventHandler,
+                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                        k,
+                        null,
+                        false,
+                        null
+                ));
+                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
+            }));
+            sagaManager.getHandlers().forEach((k, v) -> v.forEach((k1, v1) -> {
+                handlers.add(new RegisteredHandler(
+                        ComponentType.Saga,
+                        v1.getRef().getClass().getSimpleName(),
+                        HandlerType.SagaEventHandler,
+                        v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
+                        k,
+                        null,
+                        false,
+                        v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
+                ));
+                payloads.add(v1.getSagaEventHandler(k).getParameterTypes()[0]);
+            }));
             projectionManager.getHandlers().forEach((k, v) -> {
                 var r = v.getQueryHandler(k).getReturnType();
                 handlers.add(new RegisteredHandler(
@@ -595,9 +586,8 @@ public class EventoBundle {
      * and started in a new thread.
      *
      * @param consumerStateStore  The consumer state store to track the state of event consumers.
-     * @throws Exception if an error occurs while starting the event consumers.
      */
-    private void startObserverEventConsumers(ConsumerStateStore consumerStateStore) throws Exception {
+    private void startObserverEventConsumers(ConsumerStateStore consumerStateStore) {
         observerManager.startEventConsumers(consumerStateStore);
     }
 }

@@ -11,6 +11,7 @@ import org.evento.common.modeling.messaging.message.internal.EventoMessage;
 import org.evento.common.modeling.messaging.message.internal.EventoRequest;
 import org.evento.common.modeling.messaging.message.internal.EventoResponse;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
+import org.evento.common.utils.Sleep;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -31,6 +32,7 @@ public class EventoServerClient implements EventoServer {
     private final long bundleVersion;
     private final String instanceId;
 
+    @SuppressWarnings("rawtypes")
     private final Map<String, CompletableFuture> correlations = new HashMap<>();
     private ClusterConnection clusterConnection;
 
@@ -87,6 +89,7 @@ public class EventoServerClient implements EventoServer {
      * @param message The incoming message.
      * @param responseSender The sender for responding to the message.
      */
+    @SuppressWarnings("unchecked")
     private void onMessage(Serializable message, EventoResponseSender responseSender) {
         if (message instanceof EventoResponse response) {
             // Handling response messages
@@ -147,9 +150,7 @@ public class EventoServerClient implements EventoServer {
         message.setBody(request);
         correlations.put(message.getCorrelationId(), future);
 
-        future = future.whenComplete((t, throwable) -> {
-            correlations.remove(message.getCorrelationId());
-        });
+        future = future.whenComplete((t, throwable) -> correlations.remove(message.getCorrelationId()));
 
         try {
             message.setTimestamp(Instant.now().toEpochMilli());
@@ -383,12 +384,10 @@ public class EventoServerClient implements EventoServer {
             var cc = new ClusterConnection.Builder(
                     addresses,
                     bundleRegistration,
-                    (message, sender) -> {
-                        bus.onMessage(message, r -> {
-                            r.setTimestamp(Instant.now().toEpochMilli());
-                            sender.send(r);
-                        });
-                    }
+                    (message, sender) -> bus.onMessage(message, r -> {
+                        r.setTimestamp(Instant.now().toEpochMilli());
+                        sender.send(r);
+                    })
             ).setMaxReconnectAttempts(maxReconnectAttempts)
                     .setReconnectDelayMillis(reconnectDelayMillis)
                     .setMaxRetryAttempts(maxRetryAttempts)
@@ -409,7 +408,7 @@ public class EventoServerClient implements EventoServer {
                         var keys = bus.correlations.keySet();
                         System.out.printf("Graceful Shutdown - Remaining correlations: %d%n", keys.size());
                         System.out.println("Graceful Shutdown - Sleep...");
-                        Thread.sleep(disableDelayMillis);
+                        Sleep.apply(disableDelayMillis);
                         if (bus.correlations.isEmpty()) {
                             System.out.println("Graceful Shutdown - No more correlations, bye!");
                             bus.close();

@@ -5,37 +5,47 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+
 /**
- * SagaEventHandler is an annotation that marks a method as an event handler for a saga.
- * It should be used in combination with the @Handler annotation to indicate that the method
- * handles a specific type of event in a software system.
+ * SagaEventHandler is an annotation that marks a method as a handler for events in a Saga.
  *
- * The SagaEventHandler annotation has the following attributes:
- * - init: A boolean value indicating whether the annotated method is an initializer method for the saga.
- *          If true, the method will be invoked when a new saga instance is created.
- *          If false (default), the method will be invoked for each matching event that occurs during the saga's lifespan.
- * - associationProperty: A string value indicating the name of the association property used to correlate events with sagas.
+ * It is a meta-annotation with the following elements:
+ *  - init: Indicates whether the annotated method is an initialization handler. Default value is false.
+ *  - associationProperty: The name of the property used to associate events with a Saga instance.
+ *
+ * The annotated method should have a single parameter that represents the event being handled.
+ * This method will be called whenever an event of the specified type is published.
  *
  * Example usage:
  *
- *     @SagaEventHandler(init = true, associationProperty = "orderId")
- *     public void handleOrderCreatedEvent(OrderCreatedEvent event) {
- *         // Handle the order created event
- *     }
+ * \@SagaEventHandler(init=true, associationProperty="orderNumber")
+ * public void handleOrderCreatedEvent(OrderCreatedEvent event) {
+ *     // Handle order created event
+ * }
  *
- *     @SagaEventHandler(associationProperty = "orderId")
- *     public void handleSomeOtherEvent(SomeOtherEvent event) {
- *         // Handle some other event
- *     }
+ * In the above example, the method handleOrderCreatedEvent is marked as an initialization handler,
+ * which means it will be called when the Saga is initiated. The association property is "orderNumber".
  *
- * Note that the actual implementation of the event handling logic is not shown in the annotation.
- * It should be implemented separately in the annotated method body.
+ * Note:
+ * The SagaEventHandler annotation is a meta-annotation, which means it is used to annotate another annotation.
+ * It is typically used with the Handler annotation, which is a marker annotation indicating that the annotated
+ * annotation is a handler.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 @Handler
 public @interface SagaEventHandler {
+	/**
+	 * Initializes the annotated method.
+	 *
+	 * @return true if the method is an initialization handler, false otherwise.
+	 */
 	boolean init() default false;
 
+	/**
+	 * Retrieves the name of the property used to associate events with a Saga instance.
+	 *
+	 * @return The name of the association property as a {@code String}.
+	 */
 	String associationProperty();
 }
