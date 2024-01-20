@@ -43,6 +43,12 @@ public class BundleDto implements Serializable {
 	private Instant updatedAt;
 	private Set<String> domains;
 
+	/**
+	 * Creates a BundleDto object based on a Bundle and a list of Handlers.
+	 *
+	 * @param bundle   The Bundle object to create the BundleDto from.
+	 * @param handlers The list of Handlers to include in the BundleDto.
+	 */
 	public BundleDto(Bundle bundle, List<Handler> handlers) {
 		this.id = bundle.getId();
 		this.version = bundle.getVersion();

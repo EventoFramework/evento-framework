@@ -8,6 +8,28 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * The Bundle class represents a bundle in the system.
+ * A bundle is a collection of related components and resources that can be deployed and executed together.
+ *
+ * Bundles have the following properties:
+ * - id: The unique identifier of the bundle.
+ * - version: The version number of the bundle.
+ * - description: The description of the bundle.
+ * - detail: Additional detail about the bundle.
+ * - bucketType: The type of bucket associated with the bundle.
+ * - artifactCoordinates: The coordinates of the artifact associated with the bundle.
+ * - artifactOriginalName: The original name of the artifact associated with the bundle.
+ * - containsHandlers: Indicates whether the bundle contains handlers.
+ * - environment: A map of environment variables for the bundle.
+ * - vmOptions: A map of VM options for the bundle.
+ * - autorun: Indicates whether the bundle should be automatically run.
+ * - minInstances: The minimum number of instances of the bundle.
+ * - maxInstances: The maximum number of instances of the bundle.
+ * - updatedAt: The timestamp when the bundle was last updated.
+ *
+ * The Bundle class can be used in conjunction with other classes such as Component to represent a bundle and its components.
+ */
 @Entity
 @Getter
 @Setter

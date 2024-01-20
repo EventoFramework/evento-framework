@@ -185,6 +185,7 @@ public class PerformanceStoreService extends PerformanceService {
     }
 
 
+    @SuppressWarnings("Annotator")
     @Scheduled(cron = "0 0 * * * *")
     public void cleanupTelemetry(){
         jdbcTemplate.update("delete from performance__handler_service_time_ts where timestamp < CURRENT_TIMESTAMP  - INTERVAL ?",

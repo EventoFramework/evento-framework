@@ -1,6 +1,7 @@
 package org.evento.server.web.config;
 
 import com.auth0.jwt.exceptions.TokenExpiredException;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -14,17 +15,45 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * This class represents an authentication filter that is used to authenticate incoming requests based on the provided token.
+ * It extends the OncePerRequestFilter class from Spring Security, which ensures that the filter is only executed once per request.
+ */
 public class AuthFilter extends OncePerRequestFilter {
 
     private final AuthService authService;
 
+    /**
+     * This class represents an authentication filter that is used to authenticate incoming requests based on the provided token.
+     * It extends the OncePerRequestFilter class from Spring Security, which ensures that the filter is only executed once per request.
+     *
+     * Example usage:
+     *
+     * AuthenticationService authService = new AuthenticationService();
+     * AuthFilter authFilter = new AuthFilter(authService);
+     * SecurityFilterChain filterChain = new SecurityFilterChain();
+     * filterChain.addFilter(authFilter);
+     * http.addFilterBefore(filterChain, UsernamePasswordAuthenticationFilter.class);
+     *
+     */
     public AuthFilter(AuthService authService) {
         this.authService = authService;
     }
 
 
+    /**
+     * Filters the incoming request based on the provided token for authentication.
+     * If the token is valid and not expired, it sets the authentication context and proceeds to the next filter in the chain.
+     * If the token is missing, blank, or invalid, it bypasses the authentication and continues to the next filter.
+     *
+     * @param request  the incoming HTTP request
+     * @param response the HTTP response
+     * @param chain    the filter chain
+     * @throws ServletException if a servlet-specific error occurs
+     * @throws IOException      if an I/O error occurs
+     */
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull FilterChain chain) throws ServletException, IOException {
 
         // Get authorization header and validate
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);

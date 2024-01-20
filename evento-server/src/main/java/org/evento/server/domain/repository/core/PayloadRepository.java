@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 
+@SuppressWarnings("Annotator")
 public interface PayloadRepository extends JpaRepository<Payload, String> {
 
 	@Query(value = "select p.name, p.type, p.path, p.line, p.description, p.domain, count(distinct h.uuid) as subscriptions, " +
@@ -20,7 +21,7 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"left join core__handler__invocation i on i.invocations_name = p.name " +
 			"left join core__handler h2 on h2.return_type_name = p.name " +
 			"group by p.name order by p.updated_at desc", nativeQuery = true)
-	public List<PayloadListProjection> findAllProjection();
+    List<PayloadListProjection> findAllProjection();
 
 	@Query(value = "select p.name, " +
 			"   p.json_schema                                                              as jsonSchema, " +
@@ -53,9 +54,9 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"where p.name = ?1 " +
 			"group by p.name " +
 			"order by p.updated_at desc", nativeQuery = true)
-	public Optional<PayloadProjection> findByIdProjection(String name);
+    Optional<PayloadProjection> findByIdProjection(String name);
 
 	@Query("select p.type as type, count(p) as count from Payload p group by p.type")
-	public List<PayloadTypeCount> countByType();
+    List<PayloadTypeCount> countByType();
 
 }

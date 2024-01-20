@@ -1,6 +1,7 @@
 package org.evento.application.bus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.EventoServer;
@@ -198,11 +199,15 @@ public class EventoServerClient implements EventoServer {
     /**
      * Builder class for constructing EventoServerClient instances.
      */
+    @Getter
     public static class Builder {
+
         private final BundleRegistration bundleRegistration;
+
         private final ObjectMapper objectMapper;
 
         private final List<ClusterNodeAddress> addresses;
+
         private final RequestHandler requestHandler;
 
         /**
@@ -224,68 +229,20 @@ public class EventoServerClient implements EventoServer {
 
         // Optional parameters with default values
         private int maxRetryAttempts;
+
         private int retryDelayMillis = 500;
+
         private int maxDisableAttempts = 5;
+
         private int disableDelayMillis = 5000;
+
         private int maxReconnectAttempts = 5;
+
         private long reconnectDelayMillis = 2000;
 
-        /**
-         * Gets the bundle registration information.
-         * @return The bundle registration information.
-         */
-        public BundleRegistration getBundleRegistration() {
-            return bundleRegistration;
-        }
-
-        /**
-         * Gets the ObjectMapper for JSON serialization/deserialization.
-         * @return The ObjectMapper.
-         */
-        public ObjectMapper getObjectMapper() {
-            return objectMapper;
-        }
-
-        /**
-         * Gets the addresses of the cluster nodes.
-         * @return The addresses of the cluster nodes.
-         */
-        public List<ClusterNodeAddress> getAddresses() {
-            return addresses;
-        }
-
-        /**
-         * Gets the handler for processing incoming requests.
-         * @return The request handler.
-         */
-        public RequestHandler getRequestHandler() {
-            return requestHandler;
-        }
-
-        /**
-         * Gets the maximum number of retry attempts for sending messages.
-         * @return The maximum number of retry attempts.
-         */
-        public int getMaxRetryAttempts() {
-            return maxRetryAttempts;
-        }
-
-        /**
-         * Sets the maximum number of retry attempts for sending messages.
-         * @param maxRetryAttempts The maximum number of retry attempts.
-         * @return The Builder instance.
-         */
         public Builder setMaxRetryAttempts(int maxRetryAttempts) {
             this.maxRetryAttempts = maxRetryAttempts;
             return this;
-        }
-
-        /**
-         * Gets the delay (in milliseconds) between retry attempts for sending messages.
-         * @return The delay between retry attempts.
-         */
-        public int getRetryDelayMillis() {
-            return retryDelayMillis;
         }
 
         /**
@@ -299,14 +256,6 @@ public class EventoServerClient implements EventoServer {
         }
 
         /**
-         * Gets the maximum number of attempts to disable the bus during shutdown.
-         * @return The maximum number of disable attempts.
-         */
-        public int getMaxDisableAttempts() {
-            return maxDisableAttempts;
-        }
-
-        /**
          * Sets the maximum number of attempts to disable the bus during shutdown.
          * @param maxDisableAttempts The maximum number of disable attempts.
          * @return The Builder instance.
@@ -314,14 +263,6 @@ public class EventoServerClient implements EventoServer {
         public Builder setMaxDisableAttempts(int maxDisableAttempts) {
             this.maxDisableAttempts = maxDisableAttempts;
             return this;
-        }
-
-        /**
-         * Gets the delay (in milliseconds) between disable attempts during shutdown.
-         * @return The delay between disable attempts.
-         */
-        public int getDisableDelayMillis() {
-            return disableDelayMillis;
         }
 
         /**
@@ -335,14 +276,6 @@ public class EventoServerClient implements EventoServer {
         }
 
         /**
-         * Gets the maximum number of reconnect attempts for the cluster connection.
-         * @return The maximum number of reconnect attempts.
-         */
-        public int getMaxReconnectAttempts() {
-            return maxReconnectAttempts;
-        }
-
-        /**
          * Sets the maximum number of reconnect attempts for the cluster connection.
          * @param maxReconnectAttempts The maximum number of reconnect attempts.
          * @return The Builder instance.
@@ -350,14 +283,6 @@ public class EventoServerClient implements EventoServer {
         public Builder setMaxReconnectAttempts(int maxReconnectAttempts) {
             this.maxReconnectAttempts = maxReconnectAttempts;
             return this;
-        }
-
-        /**
-         * Gets the delay (in milliseconds) between reconnect attempts for the cluster connection.
-         * @return The delay between reconnect attempts.
-         */
-        public long getReconnectDelayMillis() {
-            return reconnectDelayMillis;
         }
 
         /**

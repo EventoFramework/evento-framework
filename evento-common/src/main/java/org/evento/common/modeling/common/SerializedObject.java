@@ -2,6 +2,8 @@ package org.evento.common.modeling.common;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.io.Serializable;
@@ -12,6 +14,8 @@ import java.io.Serializable;
  */
 
 public class SerializedObject<T extends Serializable> implements Serializable {
+
+	private final Logger logger = LogManager.getLogger(this.getClass());
 	private String serializedObject;
 	private String objectClass;
 
@@ -23,7 +27,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 				this.objectClass = object.getClass().toString();
 		} catch (JsonProcessingException e)
 		{
-			e.printStackTrace();
+			logger.error("Serialization failed", e);
 			this.serializedObject = null;
 		}
 	}
@@ -54,7 +58,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 			return (T) ObjectMapperUtils.getPayloadObjectMapper().readValue(serializedObject, Object.class);
 		} catch (Exception e)
 		{
-			e.printStackTrace();
+			logger.error("Deserialization error", e);
 			return null;
 		}
 	}
@@ -65,6 +69,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 			return ObjectMapperUtils.getPayloadObjectMapper().readTree(serializedObject);
 		} catch (Exception e)
 		{
+			logger.error("Deserialization error", e);
 			return null;
 		}
 	}

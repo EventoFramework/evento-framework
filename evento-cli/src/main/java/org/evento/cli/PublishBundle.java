@@ -34,7 +34,10 @@ public class PublishBundle {
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(bundleDescription);
 		System.out.println("JSON created");
 
-		new File(bundlePath + "/build/bundle-dist/").mkdir();
+		if(!new File(bundlePath + "/build/bundle-dist/").mkdir()){
+			throw new IllegalStateException("Output directory creation failed");
+		}
+
 		var bundleFile = bundlePath + "/build/bundle-dist/" + bundleDescription.getBundleId() + ".bundle";
 		final ZipOutputStream outputStream = new ZipOutputStream(new FileOutputStream(
 				bundleFile
@@ -72,7 +75,7 @@ public class PublishBundle {
 		} else
 		{
 			System.err.println("Server Upload Failed");
-			System.err.println(resp.body().string());
+			System.err.println(Objects.requireNonNull(resp.body()).string());
 		}
 	}
 	public static void main(String[] args) throws Exception {
