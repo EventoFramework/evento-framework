@@ -12,6 +12,9 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 
+/**
+ * The AuthService class is responsible for generating and decoding JWT tokens.
+ */
 @Service
 public class AuthService {
 
@@ -20,6 +23,9 @@ public class AuthService {
     private final Algorithm algorithm;
     private final JWTVerifier verifier;
 
+    /**
+     * The AuthService class is responsible for generating and decoding JWT tokens.
+     */
     public AuthService(@Value("${evento.security.signing.key}") String signingKey) {
         algorithm = Algorithm.HMAC256(signingKey);
         verifier = JWT.require(algorithm)
@@ -27,6 +33,11 @@ public class AuthService {
                 .build();
     }
 
+    /**
+     * Generates an admin token and a web token using the {@link #generateJWT(String, TokenRole[], long)} method.
+     * The generated tokens are printed to the console.
+     * This method is executed after the {@link AuthService} bean is constructed.
+     */
     @PostConstruct
     public void genAdminToken(){
         System.out.println();
@@ -39,10 +50,24 @@ public class AuthService {
         System.out.println();
     }
 
+    /**
+     * Decodes the given JWT token.
+     *
+     * @param token the JWT token to decode
+     * @return the decoded JWT object
+     */
     public DecodedJWT decodeJWT(String token) {
         return verifier.verify(token);
     }
 
+    /**
+     * Generates a JSON Web Token (JWT) with the specified client ID, token roles, and duration.
+     *
+     * @param clientId  The ID of the client.
+     * @param roles     An array of token roles.
+     * @param duration  The duration of the token in milliseconds.
+     * @return The generated JWT token.
+     */
     public String generateJWT(String clientId, TokenRole[] roles, long duration) {
         return JWT.create()
                 .withIssuer(ISSUER)

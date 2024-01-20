@@ -16,5 +16,5 @@ public interface SagaEventConsumer {
 	 * @return the updated saga state
 	 * @throws Throwable if an error occurs during consumption
 	 */
-	public SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Throwable;
+    SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Throwable;
 }

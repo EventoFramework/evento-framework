@@ -5,10 +5,9 @@ package org.evento.common.modeling.exceptions;
  */
 public class AggregateDeletedError extends RuntimeException {
 
-	public AggregateDeletedError() {
-		super();
-	}
-
+	/**
+	 * Exception thrown when an attempt is made to interact with a deleted aggregate.
+	 */
 	public AggregateDeletedError(String message) {
 		super(message);
 	}

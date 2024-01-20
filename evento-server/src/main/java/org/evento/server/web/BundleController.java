@@ -20,8 +20,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.zip.ZipInputStream;
 
+/**
+ * The {@code BundleController} class is a controller class that handles HTTP requests for managing bundles.
+ * It provides methods for retrieving bundles, registering and unregistering bundles, and managing environment
+ * variables and VM options for bundles.
+ */
 @RestController
 @RequestMapping("api/bundle")
 public class BundleController {
@@ -31,18 +37,41 @@ public class BundleController {
 	@Value("${file.upload-dir}")
 	private String fileUploadDir;
 
+	/**
+	 * Creates a new instance of the BundleController class.
+	 *
+	 * @param bundleService  the bundle service used to handle bundle operations
+	 * @param handlerService the handler service used to handle bundle handler operations
+	 */
 	public BundleController(BundleService bundleService, HandlerService handlerService) {
 		this.bundleService = bundleService;
 		this.handlerService = handlerService;
 	}
 
 
+	/**
+	 * Retrieves all bundles.
+	 *
+	 * This method sends a GET request to the "/" endpoint with "application/json" as the produces value.
+	 * The user must have the "ROLE_WEB" role to access this endpoint.
+	 *
+	 * @return Returns a ResponseEntity with the list of BundleListProjection objects representing the bundles.
+	 */
 	@GetMapping(value = "/", produces = "application/json")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<List<BundleListProjection>> findAll() {
 		return ResponseEntity.ok(bundleService.findAllProjection());
 	}
 
+	/**
+	 * Retrieves a BundleDto by its name.
+	 *
+	 * This method sends a GET request to the "/{name}" endpoint with "application/json" as the produces value.
+	 * The user must have the "ROLE_WEB" role to access this endpoint.
+	 *
+	 * @param name the name of the bundle to retrieve
+	 * @return a ResponseEntity with the BundleDto object representing the bundle
+	 */
 	@GetMapping(value = "/{name}", produces = "application/json")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<BundleDto> findById(@PathVariable String name) {
@@ -50,12 +79,22 @@ public class BundleController {
 				handlerService.findAllByBundleId(name)));
 	}
 
+	/**
+	 * Registers a bundle.
+	 *
+	 * This method is used to register a bundle by saving it to the file system and storing its information in the database.
+	 * Only users with the "ROLE_PUBLISH" role are allowed to access this endpoint.
+	 *
+	 * @param bundle The MultipartFile containing the bundle file.
+	 * @return A ResponseEntity representing the success of the registration process.
+	 * @throws IOException Thrown if there is an error reading the bundle file.
+	 */
 	@PostMapping(value = "/", produces = "application/json")
 	@Secured("ROLE_PUBLISH")
 	public ResponseEntity<?> registerBundle(@RequestParam("bundle") MultipartFile bundle) throws IOException {
 
 		ZipInputStream zis = new ZipInputStream(bundle.getInputStream());
-		String bundleId = bundle.getOriginalFilename().replace(".bundle", "");
+		String bundleId = Objects.requireNonNull(bundle.getOriginalFilename()).replace(".bundle", "");
 
 		var jarEntry = zis.getNextEntry();
 		var jarUploadPath = fileUploadDir + "/" + bundleId + "-" + Instant.now().toEpochMilli() + ".jar";
@@ -85,13 +124,20 @@ public class BundleController {
 				bundleId,
 				BucketType.LocalFilesystem,
 				jarUploadPath,
-				jarEntry.getName(),
+				Objects.requireNonNull(jarEntry).getName(),
 				ObjectMapperUtils.getPayloadObjectMapper().readValue(bos.toByteArray(), BundleDescription.class));
 
 
 		return ResponseEntity.ok().build();
 	}
 
+	/**
+	 * Unregisters a bundle by deleting it from the file system and database.
+	 * Only users with the "ROLE_WEB" role are allowed to access this endpoint.
+	 *
+	 * @param bundleId the ID of the bundle to unregister
+	 * @return a ResponseEntity indicating the success of the unregister process
+	 */
 	@DeleteMapping(value = "/{bundleId}")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<?> unregisterBundle(@PathVariable String bundleId) {
@@ -102,6 +148,17 @@ public class BundleController {
 		return ResponseEntity.ok().build();
 	}
 
+	/**
+	 * Updates the environment variable value for a given bundle.
+	 *
+	 * This method is used to update the value of an environment variable associated with a specific bundle.
+	 * The user must have the "ROLE_WEB" role to access this endpoint.
+	 *
+	 * @param bundleId the ID of the bundle to update the environment variable for
+	 * @param key the key of the environment variable
+	 * @param value the new value of the environment variable
+	 * @return a ResponseEntity indicating the success of the update process
+	 */
 	@PostMapping("/{bundleId}/env/{key}")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<?> putEnv(@PathVariable String bundleId, @PathVariable String key, @RequestBody String value) {
@@ -109,6 +166,16 @@ public class BundleController {
 		return ResponseEntity.ok().build();
 	}
 
+	/**
+	 * Removes an environment variable for a given bundle.
+	 *
+	 * This method is used to remove an environment variable associated with a specific bundle.
+	 * The user must have the "ROLE_WEB" role to access this endpoint.
+	 *
+	 * @param bundleId the ID of the bundle to remove the environment variable for
+	 * @param key the key of the environment variable to remove
+	 * @return a ResponseEntity indicating the success of the removal process
+	 */
 	@DeleteMapping("/{bundleId}/env/{key}")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<?> removeEnv(@PathVariable String bundleId, @PathVariable String key) {
@@ -116,6 +183,19 @@ public class BundleController {
 		return ResponseEntity.ok().build();
 	}
 
+	/**
+	 * Updates the value of a virtual machine (VM) option for a given bundle.
+	 *
+	 * <p>
+	 * This method is used to update the value of a specific VM option associated with a bundle.
+	 * The user must have the "ROLE_WEB" role to access this endpoint.
+	 * </p>
+	 *
+	 * @param bundleId the ID of the bundle to update the VM option for
+	 * @param key the key of the VM option
+	 * @param value the new value of the VM option
+	 * @return a ResponseEntity indicating the success of the update process
+	 */
 	@PostMapping("/{bundleId}/vm-option/{key}")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<?> putVmOption(@PathVariable String bundleId, @PathVariable String key, @RequestBody String value) {
@@ -123,6 +203,18 @@ public class BundleController {
 		return ResponseEntity.ok().build();
 	}
 
+	/**
+	 * Removes a virtual machine (VM) option for a given bundle.
+	 *
+	 * <p>
+	 * This method is used to remove a specific VM option associated with a bundle.
+	 * The user must have the "ROLE_WEB" role to access this endpoint.
+	 * </p>
+	 *
+	 * @param bundleId the ID of the bundle to remove the VM option for
+	 * @param key the key of the VM option to remove
+	 * @return a ResponseEntity indicating the success of the removal process
+	 */
 	@DeleteMapping("/{bundleId}/vm-option/{key}")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<?> removeVmOption(@PathVariable String bundleId, @PathVariable String key) {

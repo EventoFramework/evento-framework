@@ -28,12 +28,7 @@ public class AggregateReference extends Reference {
 
     private final HashMap<String, Method> eventSourcingReferences = new HashMap<>();
     private final HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
-    /**
-     * -- GETTER --
-     *  Get the snapshot frequency for the aggregate.
-     *
-     * @return The snapshot frequency.
-     */
+
     @Getter
     private final int snapshotFrequency;
 

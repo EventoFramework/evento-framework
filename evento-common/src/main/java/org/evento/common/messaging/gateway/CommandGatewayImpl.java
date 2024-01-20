@@ -21,6 +21,10 @@ import java.util.concurrent.*;
 public class CommandGatewayImpl implements CommandGateway {
 	private final EventoServer eventoServer;
 
+	/**
+	 * The CommandGatewayImpl class is an implementation of the CommandGateway interface.
+	 * It allows sending commands and interacting with a command handler.
+	 */
 	public CommandGatewayImpl(EventoServer eventoServer) {
 		this.eventoServer = eventoServer;
 	}

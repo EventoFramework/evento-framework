@@ -50,7 +50,7 @@ public class Handler implements Serializable {
 
 	public static String generateId(String bundleId, String componentName, String handledPayloadName) throws RuntimeException {
 		var str = bundleId + componentName + handledPayloadName;
-		MessageDigest digest = null;
+		MessageDigest digest;
 		try {
 			digest = MessageDigest.getInstance("SHA-256");
 		} catch (NoSuchAlgorithmException e) {

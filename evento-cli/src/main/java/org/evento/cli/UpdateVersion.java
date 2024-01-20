@@ -1,9 +1,11 @@
 package org.evento.cli;
 
+import org.evento.common.utils.FileUtils;
+import org.jetbrains.annotations.NotNull;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -15,12 +17,13 @@ public class UpdateVersion {
 	}
 
 	public static void run(String bundlePath) throws Exception{
-		if (Files.walk(new File(bundlePath).toPath())
+		if (FileUtils.autoCloseWalk(new File(bundlePath).toPath(), a -> a
 				.filter(p -> p.toString().endsWith(".properties"))
 				.noneMatch(p -> {
 					try
 					{
 						var prop = new Properties() {
+							@NotNull
 							@Override
 							public synchronized Set<Map.Entry<Object, Object>> entrySet() {
 								return Collections.synchronizedSet(
@@ -45,7 +48,7 @@ public class UpdateVersion {
 					{
 						return false;
 					}
-				}))
+				})))
 		{
 			throw new Exception("Version property not found!");
 		}

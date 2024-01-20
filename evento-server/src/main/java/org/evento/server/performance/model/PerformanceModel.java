@@ -12,8 +12,6 @@ public class PerformanceModel {
 
     private final PerformanceFetcher performanceFetcher;
 
-    private final List<ServiceStation> sources = new ArrayList<>();
-
     @Getter
     private final List<Node> nodes = new ArrayList<>();
 
@@ -55,10 +53,6 @@ public class PerformanceModel {
         var sink = new Sink(idGenerator.getAndIncrement());
         nodes.add(sink);
         return sink;
-    }
-
-    public void addSource(ServiceStation s) {
-        sources.add(s);
     }
 
 

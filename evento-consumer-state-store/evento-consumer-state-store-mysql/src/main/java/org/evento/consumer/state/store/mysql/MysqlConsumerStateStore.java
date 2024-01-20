@@ -13,7 +13,6 @@ import java.sql.SQLException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-@SuppressWarnings("Annotator")
 public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	private static final String CONSUMER_STATE_TABLE = "evento__consumer_state";
@@ -137,20 +136,20 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	@Override
 	protected void setSagaState(Long id, String sagaName, SagaState sagaState) throws Exception {
-		if (id == null)
+        java.sql.PreparedStatement stmt;
+        if (id == null)
 		{
-			var stmt = connection.prepareStatement("insert into " + SAGA_STATE_TABLE + " (name, state) value (?, ?)");
+            stmt = connection.prepareStatement("insert into " + SAGA_STATE_TABLE + " (name, state) value (?, ?)");
 			stmt.setString(1, sagaName);
 			var serializedSagaState = getObjectMapper().writeValueAsString(sagaState);
 			stmt.setString(2, serializedSagaState);
-			if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state update error");
-		} else
+        } else
 		{
-			var stmt = connection.prepareStatement("update " + SAGA_STATE_TABLE + " set state = ? where id = ?");
+            stmt = connection.prepareStatement("update " + SAGA_STATE_TABLE + " set state = ? where id = ?");
 			stmt.setLong(2, id);
 			var serializedSagaState = getObjectMapper().writeValueAsString(sagaState);
 			stmt.setString(1, serializedSagaState);
-			if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state update error");
-		}
-	}
+        }
+        if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state update error");
+    }
 }

@@ -573,9 +573,8 @@ public class EventoBundle {
      *
      * @param onHedReached       a Runnable that will be executed when the head is reached
      * @param consumerStateStore the ConsumerStateStore to use for tracking consumer state
-     * @throws Exception if an error occurs while starting the event consumers
      */
-    private void startProjectorEventConsumers(Runnable onHedReached, ConsumerStateStore consumerStateStore) throws Exception {
+    private void startProjectorEventConsumers(Runnable onHedReached, ConsumerStateStore consumerStateStore) {
         projectorManager.startEventConsumers(onHedReached, consumerStateStore);
     }
 
