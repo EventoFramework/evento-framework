@@ -18,8 +18,9 @@ public class ArtifactController {
 
 	private final BundleService bundleService;
 
+
 	/**
-	 * The ArtifactController class handles requests related to artifacts.
+	 * ArtifactController handles requests related to artifacts.
 	 */
 	public ArtifactController(BundleService bundleService) {
 		this.bundleService = bundleService;
