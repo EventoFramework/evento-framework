@@ -49,7 +49,7 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
      * @param consumerStateStore    the ConsumerStateStore to use for tracking consumer state
      * @throws Exception if an error occurs while starting the event consumer
      */
-    public void startEventConsumer(Runnable onHeadReached, ConsumerStateStore consumerStateStore) throws Exception {
+    public void startEventConsumers(Runnable onHeadReached, ConsumerStateStore consumerStateStore) throws Exception {
         if (getReferences().isEmpty()) {
             onHeadReached.run();
             return;

@@ -1,15 +1,13 @@
 package org.evento.common.messaging.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.EventoServer;
 import org.evento.common.modeling.messaging.dto.PublishedEvent;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
-import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.time.Instant;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -20,23 +18,26 @@ public abstract class ConsumerStateStore {
     private final PerformanceService performanceService;
     private final ObjectMapper objectMapper;
 
+    private final Executor observerExecutor;
+
     protected ConsumerStateStore(
             EventoServer eventoServer,
             PerformanceService performanceService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper, Executor observerExecutor) {
         this.eventoServer = eventoServer;
         this.performanceService = performanceService;
         this.objectMapper = objectMapper;
+        this.observerExecutor = observerExecutor;
     }
 
     /**
      * Consumes events for a projector.
      *
-     * @param consumerId              the ID of the consumer
-     * @param projectorName           the name of the projector
-     * @param context                 the context
-     * @param projectorEventConsumer  the projector event consumer
-     * @param fetchSize               the number of events to fetch at a time
+     * @param consumerId             the ID of the consumer
+     * @param projectorName          the name of the projector
+     * @param context                the context
+     * @param projectorEventConsumer the projector event consumer
+     * @param fetchSize              the number of events to fetch at a time
      * @return the number of events consumed
      * @throws Throwable if an error occurs during event consumption
      */
@@ -44,7 +45,7 @@ public abstract class ConsumerStateStore {
             String consumerId,
             String projectorName,
             String context,
-            ProjectorEventConsumer projectorEventConsumer,
+            EventConsumer projectorEventConsumer,
             int fetchSize) throws Throwable {
         var consumedEventCount = 0;
         if (enterExclusiveZone(consumerId)) {
@@ -84,14 +85,66 @@ public abstract class ConsumerStateStore {
 
     }
 
+
+    /**
+     * Consumes events for an observer.
+     *
+     * @param consumerId            the ID of the consumer
+     * @param observerName          the name of the observer
+     * @param context               the context
+     * @param observerEventConsumer the observer event consumer
+     * @param fetchSize             the number of events to fetch at a time
+     * @return the number of events consumed
+     * @throws Throwable if an error occurs during event consumption
+     */
+    public int consumeEventsForObserver(
+            String consumerId,
+            String observerName,
+            String context,
+            EventConsumer observerEventConsumer,
+            int fetchSize) throws Throwable {
+        var consumedEventCount = 0;
+        if (enterExclusiveZone(consumerId)) {
+            try {
+                var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
+                var resp = ((EventFetchResponse) eventoServer.request(
+                        new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, observerName)).get());
+                for (PublishedEvent event : resp.getEvents()) {
+                    var start = Instant.now();
+                    observerExecutor.execute(() -> {
+                        try {
+                            observerEventConsumer.consume(event);
+                        } catch (Exception e) {
+                            throw new RuntimeException("Event consumption Error for consumer %s and event %s".formatted(observerName, event.getEventName()), e);
+                        }
+                    });
+                    setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
+                    consumedEventCount++;
+                    performanceService.sendServiceTimeMetric(
+                            eventoServer.getBundleId(),
+                            observerName,
+                            event.getEventMessage(),
+                            start
+                    );
+                }
+            } finally {
+                leaveExclusiveZone(consumerId);
+            }
+        } else {
+            return -1;
+        }
+        return consumedEventCount;
+
+    }
+
     /**
      * Consumes events for a saga.
      *
-     * @param consumerId         the ID of the consumer
-     * @param sagaName           the name of the saga
-     * @param context            the context
-     * @param sagaEventConsumer  the saga event consumer
-     * @param fetchSize          the number of events to fetch at a time
+     * @param consumerId        the ID of the consumer
+     * @param sagaName          the name of the saga
+     * @param context           the context
+     * @param sagaEventConsumer the saga event consumer
+     * @param fetchSize         the number of events to fetch at a time
      * @return the number of events consumed
      * @throws Throwable if an error occurs during event consumption
      */
@@ -114,13 +167,13 @@ public abstract class ConsumerStateStore {
                             sagaStateId.set(state.getId());
                             return state.getState();
                         }, event);
-						if (newState != null) {
-							if (newState.isEnded()) {
-								removeSagaState(sagaStateId.get());
-							} else {
-								setSagaState(sagaStateId.get(), sagaName, newState);
-							}
-						}
+                        if (newState != null) {
+                            if (newState.isEnded()) {
+                                removeSagaState(sagaStateId.get());
+                            } else {
+                                setSagaState(sagaStateId.get(), sagaName, newState);
+                            }
+                        }
                     } catch (Exception e) {
                         throw new RuntimeException("Event consumption Error for saga %s and event %s".formatted(sagaName, event.getEventName()), e);
                     }
@@ -198,8 +251,8 @@ public abstract class ConsumerStateStore {
     /**
      * Sets the last event sequence number for a consumer.
      *
-     * @param consumerId           the ID of the consumer
-     * @param eventSequenceNumber  the last event sequence number to be set
+     * @param consumerId          the ID of the consumer
+     * @param eventSequenceNumber the last event sequence number to be set
      * @throws Exception if an error occurs
      */
     protected abstract void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) throws Exception;
@@ -218,9 +271,9 @@ public abstract class ConsumerStateStore {
     /**
      * Sets the state of a saga identified by its ID, name, and SagaState object.
      *
-     * @param sagaId     the ID of the saga
-     * @param sagaName   the name of the saga
-     * @param sagaState  the SagaState object representing the state of the saga
+     * @param sagaId    the ID of the saga
+     * @param sagaName  the name of the saga
+     * @param sagaState the SagaState object representing the state of the saga
      * @throws Exception if an error occurs during setting the saga state
      */
     protected abstract void setSagaState(Long sagaId, String sagaName, SagaState sagaState) throws Exception;
