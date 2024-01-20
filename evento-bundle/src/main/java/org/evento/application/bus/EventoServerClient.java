@@ -240,6 +240,12 @@ public class EventoServerClient implements EventoServer {
 
         private long reconnectDelayMillis = 2000;
 
+        /**
+         * Sets the maximum number of retry attempts for sending messages.
+         *
+         * @param maxRetryAttempts The maximum number of retry attempts.
+         * @return The Builder instance.
+         */
         public Builder setMaxRetryAttempts(int maxRetryAttempts) {
             this.maxRetryAttempts = maxRetryAttempts;
             return this;

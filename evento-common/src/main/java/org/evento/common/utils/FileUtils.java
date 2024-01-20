@@ -14,7 +14,7 @@ public class FileUtils {
      *
      * @param path  The path to the directory to be walked.
      * @param apply The function to be applied to the stream of paths.
-     * @return The result of applying the provided function to the stream of paths.
+     * @return T The result of applying the provided function to the stream of paths.
      * @throws RuntimeException if an IO error occurs.
      */
     public static <T> T autoCloseWalk(Path path, Walker<T> apply) throws Exception {

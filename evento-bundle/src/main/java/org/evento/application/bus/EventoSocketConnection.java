@@ -190,6 +190,11 @@ public class EventoSocketConnection {
         connectionReady.acquire();
     }
 
+    /**
+     * Checks if the socket connection is closed.
+     *
+     * @return {@code true} if the socket connection is closed, {@code false} otherwise
+     */
     public boolean isClosed() {
         return isClosed;
     }
