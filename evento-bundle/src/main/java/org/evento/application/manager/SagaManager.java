@@ -18,11 +18,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 
+
 /**
- * SagaManager is a class that manages sagas in an application.
- * It extends the ConsumerComponentManager class and implements functionality to parse sagas and start saga event consumers.
- *
- * @param <SagaReference> the type of saga reference
+ * The `SagaManager` class extends the `ConsumerComponentManager` class and serves as a manager for sagas.
+ * It is responsible for parsing annotated classes, creating `SagaReference` objects, and starting saga event consumers.
  */
 public class SagaManager extends ConsumerComponentManager<SagaReference> {
 

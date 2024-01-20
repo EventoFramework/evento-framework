@@ -7,6 +7,7 @@ import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.ObserverReference;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.modeling.messaging.message.application.Message;
+import org.evento.common.utils.Sleep;
 
 import java.util.HashMap;
 import java.util.function.BiFunction;
@@ -36,17 +37,17 @@ public class ObserverEventConsumer implements Runnable {
     /**
      * ObserverEventConsumer is a class that represents a consumer for observing events.
      *
-     * @param bundleId                     The bundle id of the observer.
-     * @param observerName                 The name of the observer.
-     * @param observerVersion              The version of the observer.
-     * @param context                      The context of the observer.
-     * @param isShuttingDown               A supplier that determines if the consumer is shutting down.
-     * @param consumerStateStore           The state store for the consumer.
-     * @param observerMessageHandlers      The message handlers for the observer.
-     * @param tracingAgent                 The agent for tracing.
-     * @param gatewayTelemetryProxy        The proxy for gateway telemetry.
-     * @param sssFetchSize                 The fetch size for the state store.
-     * @param sssFetchDelay                The fetch delay for the state store.
+     * @param bundleId                The bundle id of the observer.
+     * @param observerName            The name of the observer.
+     * @param observerVersion         The version of the observer.
+     * @param context                 The context of the observer.
+     * @param isShuttingDown          A supplier that determines if the consumer is shutting down.
+     * @param consumerStateStore      The state store for the consumer.
+     * @param observerMessageHandlers The message handlers for the observer.
+     * @param tracingAgent            The agent for tracing.
+     * @param gatewayTelemetryProxy   The proxy for gateway telemetry.
+     * @param sssFetchSize            The fetch size for the state store.
+     * @param sssFetchDelay           The fetch delay for the state store.
      */
     public ObserverEventConsumer(String bundleId, String observerName, int observerVersion,
                                  String context, Supplier<Boolean> isShuttingDown,
@@ -122,11 +123,7 @@ public class ObserverEventConsumer implements Runnable {
 
             // Sleep based on fetch size and error conditions
             if (sssFetchSize - consumedEventCount > 10) {
-                try {
-                    Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                Sleep.apply(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
             }
         }
     }

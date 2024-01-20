@@ -3,6 +3,7 @@ package org.evento.common.performance;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.common.messaging.bus.EventoServer;
+import org.evento.common.utils.Sleep;
 
 import java.time.Instant;
 
@@ -15,9 +16,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 
 	private final int maxUnderflowCount;
 
-	private final long boredTimeout;
-
-	private int threadCount = 0;
+    private int threadCount = 0;
 	private int overflowCount = 0;
 	private int underflowCount = 0;
 	private boolean suffering = false;
@@ -38,14 +37,13 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 		this.minThreadCount = minThreadCount;
 		this.maxThreadCount = maxThreadCount;
 		this.maxOverflowCount = maxOverflowCount;
-		this.boredTimeout = boredTimeout;
 
-		new Thread(() -> {
+        new Thread(() -> {
 			while (true)
 			{
 				try
 				{
-					Thread.sleep(boredTimeout);
+					Sleep.apply(boredTimeout);
 					if (threadCount == 0 && lastDepartureAt == lastDepartureCheck && boredSentDepartureTime != lastDepartureAt)
 					{
 						overflowCount = 0;

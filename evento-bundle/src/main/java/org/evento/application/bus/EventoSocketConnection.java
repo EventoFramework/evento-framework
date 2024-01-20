@@ -9,6 +9,7 @@ import org.evento.common.modeling.messaging.message.internal.EnableMessage;
 import org.evento.common.modeling.messaging.message.internal.EventoRequest;
 import org.evento.common.modeling.messaging.message.internal.EventoResponse;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
+import org.evento.common.utils.Sleep;
 
 import java.io.*;
 import java.net.Socket;
@@ -48,12 +49,13 @@ public class EventoSocketConnection {
 
     /**
      * Private constructor to create an EventoSocketConnection instance.
-     * @param serverAddress The address of the Evento server.
-     * @param serverPort The port on which the server is listening.
+     *
+     * @param serverAddress        The address of the Evento server.
+     * @param serverPort           The port on which the server is listening.
      * @param maxReconnectAttempts The maximum number of attempts to reconnect in case of connection failure.
      * @param reconnectDelayMillis The delay between reconnection attempts in milliseconds.
-     * @param bundleRegistration The registration information for the connection.
-     * @param handler The message handler for processing incoming messages.
+     * @param bundleRegistration   The registration information for the connection.
+     * @param handler              The message handler for processing incoming messages.
      */
     private EventoSocketConnection(
             String serverAddress,
@@ -73,6 +75,7 @@ public class EventoSocketConnection {
 
     /**
      * Sends a serializable message over the socket connection.
+     *
      * @param message The message to be sent.
      * @throws SendFailedException Thrown if the message fails to be sent.
      */
@@ -82,7 +85,7 @@ public class EventoSocketConnection {
         }
         try {
             var o = out.get();
-            synchronized (o){
+            synchronized (o) {
                 o.writeObject(message);
             }
         } catch (Exception e) {
@@ -92,6 +95,7 @@ public class EventoSocketConnection {
 
     /**
      * Starts the socket connection and listens for incoming messages.
+     *
      * @throws InterruptedException Thrown if the thread is interrupted during execution.
      */
     private void start() throws InterruptedException {
@@ -125,7 +129,7 @@ public class EventoSocketConnection {
                     var dataInputStream = new ObjectInputStream(socket.getInputStream());
 
                     var ok = dataInputStream.readObject();
-                    if(!((boolean) ok)){
+                    if (!((boolean) ok)) {
                         throw new IllegalStateException("Bundle registration failed");
                     }
 
@@ -148,10 +152,9 @@ public class EventoSocketConnection {
                                 this.pendingCorrelations.remove(r.getCorrelationId());
                             }
                             // Process the incoming message in a new thread using the message handler
-                            new Thread(() -> {
-                                handler.handle((Serializable) data, this::send);
-                            }).start();
-                        }catch (OptionalDataException ignored){}
+                            new Thread(() -> handler.handle((Serializable) data, this::send)).start();
+                        } catch (OptionalDataException ignored) {
+                        }
                     }
                 } catch (Exception e) {
                     // Log connection error and handle pending correlations
@@ -162,16 +165,13 @@ public class EventoSocketConnection {
                         resp.setBody(new ExceptionWrapper(e));
                         try {
                             handler.handle(resp, this::send);
-                        }catch (Exception ignored){}
+                        } catch (Exception ignored) {
+                        }
                     }
                     pendingCorrelations.clear();
 
-                    try {
-                        // Sleep before attempting to reconnect
-                        Thread.sleep(reconnectDelayMillis);
-                    } catch (InterruptedException e1) {
-                        // Handle InterruptedException (if needed)
-                    }
+                    // Sleep before attempting to reconnect
+                    Sleep.apply(reconnectDelayMillis);
 
                     // Increment the reconnect attempt count
                     reconnectAttempt++;
@@ -202,7 +202,7 @@ public class EventoSocketConnection {
         logger.info("Enabling connection #{}", conn);
         try {
             var o = out.get();
-            synchronized (o){
+            synchronized (o) {
                 o.writeObject(new EnableMessage());
             }
         } catch (Exception e) {
@@ -218,7 +218,7 @@ public class EventoSocketConnection {
         logger.info("Disabling connection #{}", conn);
         try {
             var o = out.get();
-            synchronized (o){
+            synchronized (o) {
                 o.writeObject(new DisableMessage());
             }
         } catch (Exception e) {
@@ -254,10 +254,11 @@ public class EventoSocketConnection {
 
         /**
          * Constructs a Builder instance with required parameters.
-         * @param serverAddress The address of the Evento server.
-         * @param serverPort The port on which the server is listening.
+         *
+         * @param serverAddress      The address of the Evento server.
+         * @param serverPort         The port on which the server is listening.
          * @param bundleRegistration The registration information for the connection.
-         * @param handler The message handler for processing incoming messages.
+         * @param handler            The message handler for processing incoming messages.
          */
         public Builder(String serverAddress, int serverPort,
                        BundleRegistration bundleRegistration,
@@ -270,6 +271,7 @@ public class EventoSocketConnection {
 
         /**
          * Sets the maximum number of reconnect attempts.
+         *
          * @param maxReconnectAttempts The maximum number of reconnect attempts.
          * @return The Builder instance for method chaining.
          */
@@ -280,6 +282,7 @@ public class EventoSocketConnection {
 
         /**
          * Sets the delay between reconnection attempts.
+         *
          * @param reconnectDelayMillis The delay between reconnection attempts in milliseconds.
          * @return The Builder instance for method chaining.
          */
@@ -290,6 +293,7 @@ public class EventoSocketConnection {
 
         /**
          * Connects and initializes an EventoSocketConnection instance.
+         *
          * @return The constructed EventoSocketConnection instance.
          * @throws InterruptedException Thrown if the thread is interrupted during execution.
          */

@@ -8,6 +8,7 @@ import org.evento.application.reference.ProjectorReference;
 import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.modeling.messaging.message.application.Message;
 import org.evento.common.utils.ProjectorStatus;
+import org.evento.common.utils.Sleep;
 
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,19 +41,19 @@ public class ProjectorEvenConsumer implements Runnable {
     /**
      * Constructs a new ProjectorEvenConsumer with the specified parameters.
      *
-     * @param bundleId              The bundle identifier.
-     * @param projectorName         The name of the projector.
-     * @param projectorVersion      The version of the projector.
-     * @param context               The context in which the projector operates.
-     * @param isShuttingDown        A supplier indicating whether the consumer is shutting down.
-     * @param consumerStateStore    The state store for tracking consumer state.
+     * @param bundleId                 The bundle identifier.
+     * @param projectorName            The name of the projector.
+     * @param projectorVersion         The version of the projector.
+     * @param context                  The context in which the projector operates.
+     * @param isShuttingDown           A supplier indicating whether the consumer is shutting down.
+     * @param consumerStateStore       The state store for tracking consumer state.
      * @param projectorMessageHandlers The map of event names to projector handlers.
-     * @param tracingAgent          The tracing agent for tracking events.
-     * @param gatewayTelemetryProxy The function for creating a telemetry proxy for a gateway.
-     * @param sssFetchSize          The fetch size for consuming events from the state store.
-     * @param sssFetchDelay         The delay for fetching events from the state store.
-     * @param alignmentCounter      The atomic counter for tracking alignment.
-     * @param onHeadReached         The runnable to execute when the head is reached.
+     * @param tracingAgent             The tracing agent for tracking events.
+     * @param gatewayTelemetryProxy    The function for creating a telemetry proxy for a gateway.
+     * @param sssFetchSize             The fetch size for consuming events from the state store.
+     * @param sssFetchDelay            The delay for fetching events from the state store.
+     * @param alignmentCounter         The atomic counter for tracking alignment.
+     * @param onHeadReached            The runnable to execute when the head is reached.
      */
     public ProjectorEvenConsumer(String bundleId,
                                  String projectorName, int projectorVersion,
@@ -140,11 +141,7 @@ public class ProjectorEvenConsumer implements Runnable {
 
             // Sleep based on fetch size and error conditions
             if (sssFetchSize - consumedEventCount > 10) {
-                try {
-                    Thread.sleep(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                Sleep.apply(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
             }
 
             // Check for head reached condition and execute onHeadReached if necessary

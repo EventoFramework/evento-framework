@@ -1,5 +1,7 @@
 package org.evento.server.web.dto.performance;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.evento.server.performance.model.PerformanceModel;
 
 import java.io.Serializable;
@@ -7,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Setter
+@Getter
 public class PerformanceModelDTO implements Serializable {
 
 	private List<NodeDTO> nodes = new ArrayList<>();
@@ -18,11 +22,4 @@ public class PerformanceModelDTO implements Serializable {
 	public PerformanceModelDTO() {
 	}
 
-	public List<NodeDTO> getNodes() {
-		return nodes;
-	}
-
-	public void setNodes(List<NodeDTO> nodes) {
-		this.nodes = nodes;
-	}
 }

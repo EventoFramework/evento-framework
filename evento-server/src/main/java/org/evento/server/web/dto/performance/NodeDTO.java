@@ -1,5 +1,7 @@
 package org.evento.server.web.dto.performance;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.evento.server.performance.model.Node;
 import org.evento.server.performance.model.ServiceStation;
 import org.evento.server.performance.model.Source;
@@ -9,26 +11,41 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Setter
 public class NodeDTO implements Serializable {
 
+	@Getter
 	private long id;
+	@Getter
 	private String bundle;
+	@Getter
 	private String component;
+	@Getter
 	private String componentType;
+	@Getter
 	private String action;
+	@Getter
 	private String actionType;
 
 	private boolean async;
+	@Getter
 	private Map<Long, Double> target = new HashMap<>();
+	@Getter
 	private Integer numServers;
+	@Getter
 	private String type;
 
+	@Getter
 	private String name;
+	@Getter
 	private Double meanServiceTime;
 
+	@Getter
 	private String handlerId;
 
+	@Getter
 	private String path;
+	@Getter
 	private List<Integer> lines;
 
 	public NodeDTO(Node node) {
@@ -44,9 +61,7 @@ public class NodeDTO implements Serializable {
 			this.async = s.getAsync();
 			this.actionType = s.getActionType();
 			this.target = new HashMap<>();
-			s.getTarget().forEach((k, v) -> {
-				this.target.put(k.getId(), v);
-			});
+			s.getTarget().forEach((k, v) -> this.target.put(k.getId(), v));
 			this.numServers = s.getNumServers();
 			this.meanServiceTime = s.getMeanServiceTime();
 			this.componentType = s.getComponentType();
@@ -54,9 +69,7 @@ public class NodeDTO implements Serializable {
 		} else if (node instanceof Source s)
 		{
 			this.target = new HashMap<>();
-			s.getTarget().forEach((k, v) -> {
-				this.target.put(k.getId(), v);
-			});
+			s.getTarget().forEach((k, v) -> this.target.put(k.getId(), v));
 			this.name = s.getName();
 			this.action = s.getName();
 			this.actionType = s.getType();
@@ -67,124 +80,9 @@ public class NodeDTO implements Serializable {
 	public NodeDTO() {
 	}
 
-	public long getId() {
-		return id;
-	}
-
-	public void setId(long id) {
-		this.id = id;
-	}
-
-	public String getBundle() {
-		return bundle;
-	}
-
-	public void setBundle(String bundle) {
-		this.bundle = bundle;
-	}
-
-	public String getComponent() {
-		return component;
-	}
-
-	public void setComponent(String component) {
-		this.component = component;
-	}
-
-	public String getAction() {
-		return action;
-	}
-
-	public void setAction(String action) {
-		this.action = action;
-	}
-
 	public boolean getAsync() {
 		return async;
 	}
 
-	public void setAsync(boolean async) {
-		this.async = async;
-	}
 
-	public Map<Long, Double> getTarget() {
-		return target;
-	}
-
-	public void setTarget(Map<Long, Double> target) {
-		this.target = target;
-	}
-
-	public Integer getNumServers() {
-		return numServers;
-	}
-
-	public void setNumServers(Integer numServers) {
-		this.numServers = numServers;
-	}
-
-	public String getType() {
-		return type;
-	}
-
-	public void setType(String type) {
-		this.type = type;
-	}
-
-
-	public Double getMeanServiceTime() {
-		return meanServiceTime;
-	}
-
-	public void setMeanServiceTime(Double meanServiceTime) {
-		this.meanServiceTime = meanServiceTime;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	public String getActionType() {
-		return actionType;
-	}
-
-	public void setActionType(String actionType) {
-		this.actionType = actionType;
-	}
-
-	public String getComponentType() {
-		return componentType;
-	}
-
-	public void setComponentType(String componentType) {
-		this.componentType = componentType;
-	}
-
-	public String getHandlerId() {
-		return handlerId;
-	}
-
-	public void setHandlerId(String handlerId) {
-		this.handlerId = handlerId;
-	}
-
-	public String getPath() {
-		return path;
-	}
-
-	public void setPath(String path) {
-		this.path = path;
-	}
-
-	public List<Integer> getLines() {
-		return lines;
-	}
-
-	public void setLines(List<Integer> lines) {
-		this.lines = lines;
-	}
 }

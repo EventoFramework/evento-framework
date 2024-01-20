@@ -6,7 +6,6 @@ plugins {
 
 group = 'org.evento'
 version = 'ev1.4.1'
-sourceCompatibility = '19'
 
 configurations {
 	compileOnly {
@@ -36,7 +35,7 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql'
 
 	testImplementation 'org.flywaydb:flyway-core'
-	implementation 'com.squareup.okhttp3:okhttp:4.10.0'
+	implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 	implementation 'com.auth0:java-jwt:4.2.1'
 
 

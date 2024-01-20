@@ -1,9 +1,14 @@
 package org.evento.server.performance.modeling;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+@Setter
+@Getter
 public class Post {
 	private long id;
 	private String bundle;
@@ -26,30 +31,6 @@ public class Post {
 		marking = initialMarking;
 	}
 
-	public long getId() {
-		return id;
-	}
-
-	public void setId(long id) {
-		this.id = id;
-	}
-
-	public Set<Transition> getTarget() {
-		return target;
-	}
-
-	public void setTarget(Set<Transition> target) {
-		this.target = target;
-	}
-
-	public long getMarking() {
-		return marking;
-	}
-
-	public void setMarking(long marking) {
-		this.marking = marking;
-	}
-
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
@@ -63,27 +44,4 @@ public class Post {
 		return Objects.hash(id);
 	}
 
-	public String getBundle() {
-		return bundle;
-	}
-
-	public void setBundle(String bundle) {
-		this.bundle = bundle;
-	}
-
-	public String getComponent() {
-		return component;
-	}
-
-	public void setComponent(String component) {
-		this.component = component;
-	}
-
-	public String getAction() {
-		return action;
-	}
-
-	public void setAction(String action) {
-		this.action = action;
-	}
 }

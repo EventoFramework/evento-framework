@@ -7,7 +7,7 @@ import java.util.Enumeration;
 
 /**
  * Distributed Sequence Generator. Inspired by Twitter snowflake:
- * https://github.com/twitter/snowflake/tree/snowflake-2010
+ * <a href="https://github.com/twitter/snowflake/tree/snowflake-2010">...</a>
  * <p>
  * This class should be used as a Singleton. Make sure that you create and reuse a Single instance of Snowflake per node
  * in your distributed system cluster.
@@ -20,8 +20,6 @@ public class Snowflake {
 
 	private static final long maxNodeId = (1L << NODE_ID_BITS) - 1;
 	private static final long maxSequence = (1L << SEQUENCE_BITS) - 1;
-
-	// Custom Epoch (January 1, 2015 Midnight UTC = 2015-01-01T00:00:00Z)
 	private static final long DEFAULT_CUSTOM_EPOCH = 1420070400000L;
 
 	private final long nodeId;
@@ -75,11 +73,9 @@ public class Snowflake {
 
 		lastTimestamp = currentTimestamp;
 
-		long id = currentTimestamp << (NODE_ID_BITS + SEQUENCE_BITS)
+        return currentTimestamp << (NODE_ID_BITS + SEQUENCE_BITS)
 				| (nodeId << SEQUENCE_BITS)
 				| sequence;
-
-		return id;
 	}
 
 

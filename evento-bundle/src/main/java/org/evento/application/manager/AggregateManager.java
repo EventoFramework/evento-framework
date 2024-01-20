@@ -58,12 +58,13 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
         }
     }
 
+
     /**
-     * Handles a domain command message.
+     * Handles a decorated domain command message.
      *
-     * @param c        The decorated domain command message to be handled.
-     * @param response The message bus response sender.
-     * @throws Throwable If there is an error during command handling.
+     * @param c The decorated domain command message to handle.
+     * @return The domain command response message.
+     * @throws Exception If an exception occurs during handling.
      */
     public DomainCommandResponseMessage handle(DecoratedDomainCommandMessage c) throws Exception {
         var handler = getHandlers().get(c.getCommandMessage().getCommandName());

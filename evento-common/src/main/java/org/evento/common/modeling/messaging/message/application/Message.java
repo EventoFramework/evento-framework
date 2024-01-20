@@ -4,7 +4,6 @@ import org.evento.common.modeling.messaging.payload.Payload;
 
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.HashMap;
 
 public abstract class Message<T extends Payload> implements Serializable {
 

@@ -1,13 +1,18 @@
 package org.evento.server.performance.modeling;
 
+import lombok.Getter;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class Network {
+	@Getter
 	private final List<Post> posts = new ArrayList<>();
+	@Getter
 	private final List<Post> sources = new ArrayList<>();
+	@Getter
 	private final List<Transition> transitions = new ArrayList<>();
 	private final AtomicLong idGenerator = new AtomicLong();
 
@@ -30,10 +35,6 @@ public class Network {
 		return p;
 	}
 
-	public List<Post> getPosts() {
-		return posts;
-	}
-
 	public Transition transition(String bundle, String component, String action, boolean async) {
 		var p = performanceFetcher.getMeanServiceTime(bundle, component, action);
 		var t = new Transition(idGenerator.getAndIncrement(), bundle, component, action, p);
@@ -45,16 +46,8 @@ public class Network {
 		return t;
 	}
 
-	public List<Transition> getTransitions() {
-		return transitions;
-	}
-
 	public void addSource(Post post) {
 		sources.add(post);
-	}
-
-	public List<Post> getSources() {
-		return sources;
 	}
 
 	public Post instancePost(String bundle) {

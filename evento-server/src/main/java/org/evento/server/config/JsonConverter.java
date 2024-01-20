@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import org.evento.common.serialization.ObjectMapperUtils;
 
 import javax.persistence.AttributeConverter;
+import javax.persistence.Converter;
 import java.io.IOException;
 import java.io.Serializable;
 
+@Converter
 public class JsonConverter implements AttributeConverter<Serializable, String> {
     @Override
     public String convertToDatabaseColumn(Serializable attribute) {

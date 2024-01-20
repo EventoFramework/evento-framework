@@ -1,19 +1,29 @@
 package org.evento.server.performance.modeling;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+@Setter
 public class Transition {
 
+	@Getter
 	private long id;
+	@Getter
 	private String bundle;
+	@Getter
 	private String component;
+	@Getter
 	private String action;
+	@Getter
 	private Set<Post> target;
 
 	private boolean async;
 
+	@Getter
 	private Double meanServiceTime;
 
 
@@ -23,54 +33,6 @@ public class Transition {
 		this.component = component;
 		this.action = action;
 		target = new HashSet<>();
-		this.meanServiceTime = meanServiceTime;
-	}
-
-	public long getId() {
-		return id;
-	}
-
-	public void setId(long id) {
-		this.id = id;
-	}
-
-	public String getBundle() {
-		return bundle;
-	}
-
-	public void setBundle(String bundle) {
-		this.bundle = bundle;
-	}
-
-	public String getComponent() {
-		return component;
-	}
-
-	public void setComponent(String component) {
-		this.component = component;
-	}
-
-	public String getAction() {
-		return action;
-	}
-
-	public void setAction(String action) {
-		this.action = action;
-	}
-
-	public Set<Post> getTarget() {
-		return target;
-	}
-
-	public void setTarget(Set<Post> target) {
-		this.target = target;
-	}
-
-	public Double getMeanServiceTime() {
-		return meanServiceTime;
-	}
-
-	public void setMeanServiceTime(Double meanServiceTime) {
 		this.meanServiceTime = meanServiceTime;
 	}
 
@@ -91,7 +53,4 @@ public class Transition {
 		return async;
 	}
 
-	public void setAsync(boolean async) {
-		this.async = async;
-	}
 }

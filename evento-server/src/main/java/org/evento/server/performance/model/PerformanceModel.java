@@ -1,5 +1,6 @@
 package org.evento.server.performance.model;
 
+import lombok.Getter;
 import org.evento.server.domain.model.core.Handler;
 import org.evento.server.performance.modeling.PerformanceFetcher;
 
@@ -13,6 +14,7 @@ public class PerformanceModel {
 
     private final List<ServiceStation> sources = new ArrayList<>();
 
+    @Getter
     private final List<Node> nodes = new ArrayList<>();
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -57,10 +59,6 @@ public class PerformanceModel {
 
     public void addSource(ServiceStation s) {
         sources.add(s);
-    }
-
-    public List<Node> getNodes() {
-        return nodes;
     }
 
 

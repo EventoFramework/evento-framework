@@ -58,5 +58,3 @@ tasks.register('eventoUpdateVersionAndPublish') {
     dependsOn 'eventoUpdateVersion'
     finalizedBy(eventoPublish)
 }
-sourceCompatibility = '19'
-targetCompatibility = '19'

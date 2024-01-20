@@ -152,15 +152,13 @@ public class AutoDiscoveryService {
                     }
                 }
                 if (bundleRegistration.getPayloadInfo() != null)
-                    bundleRegistration.getPayloadInfo().forEach((k, v) -> {
-                        payloadRepository.findById(k).ifPresent(p -> {
-                            p.setJsonSchema(v[0]);
-                            p.setDomain(v[1]);
-                            p.setValidJsonSchema(true);
-                            p.setUpdatedAt(Instant.now());
-                            payloadRepository.save(p);
-                        });
-                    });
+                    bundleRegistration.getPayloadInfo().forEach((k, v) -> payloadRepository.findById(k).ifPresent(p -> {
+                        p.setJsonSchema(v[0]);
+                        p.setDomain(v[1]);
+                        p.setValidJsonSchema(true);
+                        p.setUpdatedAt(Instant.now());
+                        payloadRepository.save(p);
+                    }));
             } finally {
                 lock.unlock();
             }
@@ -171,12 +169,12 @@ public class AutoDiscoveryService {
     }
 
     public void onNodeLeave(NodeAddress node) {
-        var lock = lockRegistry.obtain("DISCOVERY:" + node.getInstanceId());
+        var lock = lockRegistry.obtain("DISCOVERY:" + node.instanceId());
         lock.lock();
         try {
-            bundleRepository.findById(node.getBundleId()).ifPresent(b -> {
-                if (b.getBucketType().equals(BucketType.Ephemeral) && b.getArtifactCoordinates().equals(node.getInstanceId())) {
-                    bundleService.unregister(node.getBundleId());
+            bundleRepository.findById(node.bundleId()).ifPresent(b -> {
+                if (b.getBucketType().equals(BucketType.Ephemeral) && b.getArtifactCoordinates().equals(node.instanceId())) {
+                    bundleService.unregister(node.bundleId());
                 }
             });
         } finally {
