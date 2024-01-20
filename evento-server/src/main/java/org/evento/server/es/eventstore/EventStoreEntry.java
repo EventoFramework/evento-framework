@@ -12,6 +12,7 @@ import javax.persistence.Convert;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
+import java.sql.Timestamp;
 
 @Entity
 @Table(name = "es__events")
@@ -30,8 +31,8 @@ public class EventStoreEntry {
 	@Convert(converter = JsonConverter.class)
 	private EventMessage<?> eventMessage;
 	private String eventName;
-	private Long createdAt;
-	private Long deletedAt;
+	private Timestamp createdAt;
+	private Timestamp deletedAt;
 
 
 	public PublishedEvent toPublishedEvent() {

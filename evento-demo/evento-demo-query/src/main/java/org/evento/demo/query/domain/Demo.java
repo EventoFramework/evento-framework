@@ -1,4 +1,4 @@
-package org.evento.demo.query.domain.mysql;
+package org.evento.demo.query.domain;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -16,7 +16,7 @@ import java.time.Instant;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class DemoMysql {
+public class Demo {
 	@Id
 	private String id;
 	private String name;

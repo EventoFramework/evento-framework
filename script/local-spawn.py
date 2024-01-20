@@ -18,7 +18,7 @@ cmd = [
     "run",
     "--name", bundle["id"] + "-" + str(round(time.time() * 1000)),
     "-d",
-    "--rm",
+    # "--rm",
     "-e", "APP_JAR_URL=http://host.docker.internal:3000/asset/bundle/" + bundle["id"] + "?token=" + token]
 
 for k, v in bundle["environment"]:

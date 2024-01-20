@@ -43,15 +43,10 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 	public void init() {
 		try
 		{
-			var stmt = connection.createStatement();
-			try
-			{
-				stmt.execute(CONSUMER_STATE_DDL);
-				stmt.execute(SAGA_STATE_DDL);
-			} finally
-			{
-				stmt.close();
-			}
+            try (var stmt = connection.createStatement()) {
+                stmt.execute(CONSUMER_STATE_DDL);
+                stmt.execute(SAGA_STATE_DDL);
+            }
 		} catch (Exception e)
 		{
 			throw new RuntimeException(e);
@@ -70,18 +65,13 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 	protected void leaveExclusiveZone(String consumerId) {
 		try
 		{
-			var stmt = connection.prepareStatement("SELECT RELEASE_LOCK(?)");
-			try
-			{
-				stmt.setString(1, String.valueOf(consumerId.hashCode()));
-				var resultSet = stmt.executeQuery();
-				resultSet.next();
-				var status = resultSet.getInt(1);
-				if (resultSet.wasNull() || status == 0) throw new IllegalMonitorStateException();
-			} finally
-			{
-				stmt.close();
-			}
+            try (var stmt = connection.prepareStatement("SELECT RELEASE_LOCK(?)")) {
+                stmt.setString(1, String.valueOf(consumerId.hashCode()));
+                var resultSet = stmt.executeQuery();
+                resultSet.next();
+                var status = resultSet.getInt(1);
+                if (resultSet.wasNull() || status == 0) throw new IllegalMonitorStateException();
+            }
 		} catch (SQLException e)
 		{
 			throw new RuntimeException(e);
@@ -92,20 +82,15 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 	protected boolean enterExclusiveZone(String consumerId) {
 		try
 		{
-			var stmt = connection.prepareStatement("SELECT GET_LOCK(?, 0)");
-			try
-			{
-				stmt.setString(1, String.valueOf(consumerId.hashCode()));
-				var resultSet = stmt.executeQuery();
-				resultSet.next();
-				if (resultSet.wasNull()) return false;
-				var status = resultSet.getInt(1);
+            try (var stmt = connection.prepareStatement("SELECT GET_LOCK(?, 0)")) {
+                stmt.setString(1, String.valueOf(consumerId.hashCode()));
+                var resultSet = stmt.executeQuery();
+                resultSet.next();
+                if (resultSet.wasNull()) return false;
+                var status = resultSet.getInt(1);
 
-				return status == 1;
-			} finally
-			{
-				stmt.close();
-			}
+                return status == 1;
+            }
 		} catch (SQLException e)
 		{
 			throw new RuntimeException(e);
