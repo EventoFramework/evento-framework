@@ -65,6 +65,7 @@ public class EventoBundle {
     private final ServiceManager serviceManager;
     private final ProjectionManager projectionManager;
     private final ProjectorManager projectorManager;
+    private final ObserverManager observerManager;
     private final SagaManager sagaManager;
     private final transient CommandGateway commandGateway;
     private final transient QueryGateway queryGateway;
@@ -79,7 +80,8 @@ public class EventoBundle {
             CommandGateway commandGateway,
             QueryGateway queryGateway,
             PerformanceService performanceService,
-            ServiceManager serviceManager, ProjectorManager projectorManager, ObserverManager observerManager, TracingAgent tracingAgent
+            ServiceManager serviceManager, ProjectorManager projectorManager,
+            ObserverManager observerManager, TracingAgent tracingAgent
 
     ) {
         this.basePackage = basePackage;
@@ -93,6 +95,7 @@ public class EventoBundle {
         this.serviceManager = serviceManager;
         this.projectorManager = projectorManager;
         this.tracingAgent = tracingAgent;
+        this.observerManager = observerManager;
     }
 
     /**
@@ -490,9 +493,6 @@ public class EventoBundle {
                                     return serviceManager.handle(sm);
                                 } else if (body instanceof QueryMessage<?> qm) {
                                     return projectionManager.handle(qm);
-                                } else if (body instanceof EventMessage<?> em) {
-                                    observerManager.handle(em);
-                                    return null;
                                 } else {
                                     throw new RuntimeException("Invalid request body: " + body);
                                 }
@@ -553,6 +553,7 @@ public class EventoBundle {
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
                     eventoBundle.startSagaEventConsumers(css);
+                    eventoBundle.startObserverEventConsumers(css);
                     logger.info("Application Started!");
                 } catch (Exception e) {
                     logger.error("Error during startup", e);
@@ -584,6 +585,19 @@ public class EventoBundle {
      * @throws Exception if an error occurs while starting the event consumers
      */
     private void startProjectorEventConsumers(Runnable onHedReached, ConsumerStateStore consumerStateStore) throws Exception {
-        projectorManager.startEventConsumer(onHedReached, consumerStateStore);
+        projectorManager.startEventConsumers(onHedReached, consumerStateStore);
+    }
+
+
+    /**
+     * Starts the observer event consumers for the registered ObserverReferences. Each ObserverReference is checked for
+     * the Observer annotation, and for each context specified in the annotation, a new ObserverEventConsumer is created
+     * and started in a new thread.
+     *
+     * @param consumerStateStore  The consumer state store to track the state of event consumers.
+     * @throws Exception if an error occurs while starting the event consumers.
+     */
+    private void startObserverEventConsumers(ConsumerStateStore consumerStateStore) throws Exception {
+        observerManager.startEventConsumers(consumerStateStore);
     }
 }
