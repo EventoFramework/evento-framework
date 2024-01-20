@@ -8,10 +8,10 @@ import java.util.List;
 
 /**
  * A class representing a bundle description.
- *
+ * <p>
  * A bundle description contains information about a software bundle, including its components, payload descriptions,
  * bundle ID, bundle version, autorun status, minimum and maximum instances, description, and detail.
- *
+ * <p>
  * The bundle description can be serialized and deserialized.
  */
 public class BundleDescription implements Serializable {

@@ -36,7 +36,6 @@ public class AuthService {
     /**
      * Generates an admin token and a web token using the {@link #generateJWT(String, TokenRole[], long)} method.
      * The generated tokens are printed to the console.
-     * This method is executed after the {@link AuthService} bean is constructed.
      */
     @PostConstruct
     public void genAdminToken(){

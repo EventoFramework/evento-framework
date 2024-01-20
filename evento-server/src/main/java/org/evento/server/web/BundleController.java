@@ -51,7 +51,7 @@ public class BundleController {
 
 	/**
 	 * Retrieves all bundles.
-	 *
+	 * <p>
 	 * This method sends a GET request to the "/" endpoint with "application/json" as the produces value.
 	 * The user must have the "ROLE_WEB" role to access this endpoint.
 	 *
@@ -65,7 +65,7 @@ public class BundleController {
 
 	/**
 	 * Retrieves a BundleDto by its name.
-	 *
+	 * <p>
 	 * This method sends a GET request to the "/{name}" endpoint with "application/json" as the produces value.
 	 * The user must have the "ROLE_WEB" role to access this endpoint.
 	 *
@@ -81,7 +81,7 @@ public class BundleController {
 
 	/**
 	 * Registers a bundle.
-	 *
+	 * <p>
 	 * This method is used to register a bundle by saving it to the file system and storing its information in the database.
 	 * Only users with the "ROLE_PUBLISH" role are allowed to access this endpoint.
 	 *
@@ -150,7 +150,7 @@ public class BundleController {
 
 	/**
 	 * Updates the environment variable value for a given bundle.
-	 *
+	 * <p>
 	 * This method is used to update the value of an environment variable associated with a specific bundle.
 	 * The user must have the "ROLE_WEB" role to access this endpoint.
 	 *
@@ -168,7 +168,7 @@ public class BundleController {
 
 	/**
 	 * Removes an environment variable for a given bundle.
-	 *
+	 * <p>
 	 * This method is used to remove an environment variable associated with a specific bundle.
 	 * The user must have the "ROLE_WEB" role to access this endpoint.
 	 *
