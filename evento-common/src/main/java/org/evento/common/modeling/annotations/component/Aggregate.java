@@ -50,8 +50,6 @@ public @interface Aggregate {
 	 * Retrieves the snapshot frequency for an annotated aggregate class.
 	 *
 	 * @return The snapshot frequency for the aggregate class. Returns -1 if no snapshot frequency is specified.
-	 *
-	 * @see Aggregate
 	 */
 	int snapshotFrequency() default -1;
 }

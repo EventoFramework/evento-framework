@@ -6,7 +6,6 @@ import java.io.Serializable;
  * The {@code Component} class is an abstract class that represents a generic component.
  * It provides basic properties like componentName, description, detail, path and line along with their getter and setter methods.
  * ...
- * <p>
  * This class is meant to be extended by other specific component classes such as Invoker, Projection, Projector, etc.
  * It can be used as follows:
  * <pre>
@@ -17,7 +16,6 @@ import java.io.Serializable;
  *     comp.setPath("/path/to/component");
  *     comp.setLine(10);
  * </pre>
- * </p>
  */
 public abstract class Component implements Serializable {
 

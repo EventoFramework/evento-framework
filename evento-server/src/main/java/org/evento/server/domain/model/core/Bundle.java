@@ -11,7 +11,7 @@ import java.util.Objects;
 /**
  * The Bundle class represents a bundle in the system.
  * A bundle is a collection of related components and resources that can be deployed and executed together.
- *
+ * <p>
  * Bundles have the following properties:
  * - id: The unique identifier of the bundle.
  * - version: The version number of the bundle.
@@ -27,7 +27,7 @@ import java.util.Objects;
  * - minInstances: The minimum number of instances of the bundle.
  * - maxInstances: The maximum number of instances of the bundle.
  * - updatedAt: The timestamp when the bundle was last updated.
- *
+ * <p>
  * The Bundle class can be used in conjunction with other classes such as Component to represent a bundle and its components.
  */
 @Entity

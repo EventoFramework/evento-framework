@@ -22,13 +22,12 @@ public class AggregateCommandHandler extends Handler<DomainCommand>  implements 
 
 	/**
 	 * Represents a command handler for an aggregate.
-	 *
+	 * <p>
 	 * This class extends the {@link Handler} class and implements the {@link HasCommandInvocations}
 	 * and {@link HasQueryInvocations} interfaces. It provides methods to add and retrieve command and
 	 * query invocations, as well as to retrieve the produced event.
 	 *
-	 * @param <T> The type of payload being handled.
-	 */
+     */
 	public AggregateCommandHandler(DomainCommand payload, DomainEvent producedEvent, int line) {
 		super(payload, line);
 		this.producedEvent = producedEvent;
@@ -74,7 +73,7 @@ public class AggregateCommandHandler extends Handler<DomainCommand>  implements 
 
 	/**
 	 * Retrieves the map of query invocations.
-	 *
+	 * <p>
 	 * This method returns a map containing the line number as the key and the associated Query object as the value.
 	 *
 	 * @return The map of query invocations.
