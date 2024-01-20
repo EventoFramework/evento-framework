@@ -12,17 +12,16 @@ import org.evento.demo.api.query.DemoViewFindByIdQuery;
 import org.evento.demo.api.utils.Utils;
 import org.evento.demo.api.view.DemoRichView;
 import org.evento.demo.api.view.DemoView;
-import org.evento.demo.query.domain.mongo.DemoMongo;
-import org.evento.demo.query.domain.mongo.DemoMongoRepository;
-import java.util.*;
+import org.evento.demo.query.domain.Demo;
+import org.evento.demo.query.domain.DemoRepository;
 
 @Projection
 public class DemoProjection {
 
-	private final DemoMongoRepository demoMongoRepository;
+	private final DemoRepository repository;
 
-	public DemoProjection(DemoMongoRepository demoMongoRepository) {
-		this.demoMongoRepository = demoMongoRepository;
+	public DemoProjection(DemoRepository repository) {
+		this.repository = repository;
 	}
 
 	@QueryHandler
@@ -41,19 +40,18 @@ public class DemoProjection {
 	@QueryHandler
 	Multiple<DemoView> query(DemoViewFindAllQuery query) {
 		Utils.logMethodFlow(this, "query", query, "BEGIN");
-		/*
-		var result = demoMongoRepository.findAll().stream()
+		var result = repository.findAll().stream()
 				.filter(d -> d.getDeletedAt() != null)
-				.map(DemoMongo::toDemoView).toList();*/
+				.map(Demo::toDemoView).toList();
 		Utils.logMethodFlow(this, "query", query, "END");
-		return Multiple.of(List.of(new DemoMongo().toDemoView()));
+		return Multiple.of(result);
 	}
 
 	@QueryHandler
 	Single<DemoRichView> queryRich(DemoRichViewFindByIdQuery query) {
 		Utils.logMethodFlow(this, "query", query, "BEGIN");
-		var result = demoMongoRepository.findById(query.getDemoId())
-				.map(DemoMongo::toDemoRichView).orElseThrow();
+		var result = repository.findById(query.getDemoId())
+				.map(Demo::toDemoRichView).orElseThrow();
 		Utils.logMethodFlow(this, "query", query, "END");
 		return Single.of(result);
 	}
@@ -62,7 +60,7 @@ public class DemoProjection {
 	@QueryHandler
 	Multiple<DemoRichView> queryRich(DemoRichViewFindAllQuery query) {
 		Utils.logMethodFlow(this, "query", query, "BEGIN");
-		var result = demoMongoRepository.findAll().stream().map(DemoMongo::toDemoRichView).toList();
+		var result = repository.findAll().stream().map(Demo::toDemoRichView).toList();
 		Utils.logMethodFlow(this, "query", query, "END");
 		return Multiple.of(result);
 	}

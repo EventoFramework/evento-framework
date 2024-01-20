@@ -18,6 +18,9 @@ public abstract class SagaState implements Serializable {
 	public void setAssociation(String eventFieldName, String value) {
 		associations.put(eventFieldName, value);
 	}
+	public String getAssociation(String eventFieldName) {
+		return associations.get(eventFieldName);
+	}
 
 	public void unsetAssociation(String eventFieldName) {
 		associations.remove(eventFieldName);
