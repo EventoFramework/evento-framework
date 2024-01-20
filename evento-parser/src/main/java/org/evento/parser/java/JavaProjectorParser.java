@@ -7,6 +7,7 @@ import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
 import org.evento.parser.model.component.Projector;
 import org.evento.parser.model.handler.EventHandler;
 import org.evento.parser.model.payload.Event;
+import org.jaxen.JaxenException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,7 +19,8 @@ public class JavaProjectorParser extends JavaComponentParser<Projector> {
 		super(node);
 	}
 
-	private List<EventHandler> findEventHandlers(){
+	@SuppressWarnings("deprecation")
+	private List<EventHandler> findEventHandlers() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("EventHandler");
 		return node.getFirstChildOfType(ASTAnyTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
 				n -> {

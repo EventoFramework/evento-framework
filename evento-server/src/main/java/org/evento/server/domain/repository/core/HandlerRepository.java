@@ -13,9 +13,9 @@ import java.util.List;
 
 public interface HandlerRepository extends JpaRepository<Handler, String> {
 
-	public void deleteAllByComponent_Bundle_Id(String bundle);
+	void deleteAllByComponent_Bundle_Id(String bundle);
 
-	public Handler findByHandledPayload_Name(String name);
+	Handler findByHandledPayload_Name(String name);
 
 	Collection<Handler> findAllByHandledPayload_Name(String payloadName);
 

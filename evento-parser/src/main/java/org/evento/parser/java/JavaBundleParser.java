@@ -45,7 +45,7 @@ public class JavaBundleParser implements BundleParser {
         Parser parser = java.getParser(java.getDefaultParserOptions());
         if (!directory.isDirectory()) throw new RuntimeException("error.not.dir");
         logger.info("Looking for components...");
-        var components = FileUtils.autoColseWalk(directory.toPath(), s ->
+        var components = FileUtils.autoCloseWalk(directory.toPath(), s ->
                         s.filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> !p.toString().toLowerCase().contains("test"))
                         .filter(p -> !p.toString().toLowerCase().contains("package-info"))
@@ -72,7 +72,7 @@ public class JavaBundleParser implements BundleParser {
         logger.info("Total components detected: " + components.size() );
         logger.info("Looking for payloads...");
         var payloads = Stream.concat(
-                FileUtils.autoColseWalk(directory.toPath(), s-> s
+                FileUtils.autoCloseWalk(directory.toPath(), s-> s
                         .filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> !p.toString().toLowerCase().contains("package-info"))
                         .filter(p -> !p.toString().toLowerCase().contains("test"))
@@ -107,7 +107,7 @@ public class JavaBundleParser implements BundleParser {
         ).collect(Collectors.toList());
         logger.info("Total payloads detected: " + payloads.size() );
 
-        var bundleVersion = FileUtils.autoColseWalk(directory.toPath(), s -> s
+        var bundleVersion = FileUtils.autoCloseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .mapToInt(p -> {
                     try {
@@ -119,7 +119,7 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(v -> v >= 0).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_VERSION_PROPERTY))));
 
-        var bundleId = FileUtils.autoColseWalk(directory.toPath(), s -> s
+        var bundleId = FileUtils.autoCloseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -131,7 +131,7 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var autorun = FileUtils.autoColseWalk(directory.toPath(), s -> s
+        var autorun = FileUtils.autoCloseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -143,7 +143,7 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var minInstances = FileUtils.autoColseWalk(directory.toPath(), s -> s
+        var minInstances = FileUtils.autoCloseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -157,7 +157,7 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var maxInstances = FileUtils.autoColseWalk(directory.toPath(), s->s
+        var maxInstances = FileUtils.autoCloseWalk(directory.toPath(), s->s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -208,7 +208,6 @@ public class JavaBundleParser implements BundleParser {
                             if (content.length > 1) {
                                 bundleDetail.set(content[1].trim());
                             }
-                            return;
                         } catch (IOException ignored) {
                         }
                     }

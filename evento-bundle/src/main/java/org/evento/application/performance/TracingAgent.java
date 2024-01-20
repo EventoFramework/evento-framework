@@ -72,8 +72,8 @@ public class TracingAgent {
      *
      * @param <T> The type of result returned by the transaction.
      */
-    public static interface Transaction<T> {
-        public T run() throws Exception;
+    public interface Transaction<T> {
+        T run() throws Exception;
     }
 
 

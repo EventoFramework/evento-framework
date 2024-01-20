@@ -21,6 +21,10 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+/**
+ * The ClusterStatusController class is a REST controller that handles requests related to cluster status.
+ * It provides endpoints for fetching cluster information and performing actions on the cluster.
+ */
 @RestController
 @RequestMapping("api/cluster-status")
 public class ClusterStatusController {
@@ -32,6 +36,10 @@ public class ClusterStatusController {
 	@Value("${evento.cluster.node.server.id}")
 	private String serverNodeName;
 
+	/**
+	 * The ClusterStatusController class is a REST controller that handles requests related to cluster status.
+	 * It provides endpoints for fetching cluster information and performing actions on the cluster.
+	 */
 	public ClusterStatusController(MessageBus messageBus,
 								   BundleService bundleService, BundleDeployService bundleDeployService) {
 		this.messageBus = messageBus;
@@ -39,6 +47,11 @@ public class ClusterStatusController {
 		this.bundleDeployService = bundleDeployService;
 	}
 
+	/**
+	 * Finds all nodes in the system.
+	 *
+	 * @return A ResponseEntity containing a list of node IDs.
+	 */
 	@GetMapping(value = "/attended-view")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<List<String>> findAllNodes() {
@@ -47,6 +60,12 @@ public class ClusterStatusController {
 		return ResponseEntity.ok(nodes);
 	}
 
+	/**
+	 * Handle method for the "/view" endpoint.
+	 *
+	 * @return SseEmitter - the server-sent event emitter for pushing data to the client.
+	 * @throws IOException if an I/O error occurs.
+	 */
 	@GetMapping(value = "/view")
 	@Secured("ROLE_WEB")
 	public SseEmitter handle() throws IOException {
@@ -54,6 +73,12 @@ public class ClusterStatusController {
 		emitter.send(Map.of("type", "current", "view", messageBus.getCurrentView()));
 		emitter.send(Map.of("type", "available", "view", messageBus.getCurrentAvailableView()));
 		messageBus.addViewListener(new Consumer<>() {
+			/**
+			 * Sends the current view information to the SSE emitter.
+			 * If an exception occurs while sending the data, the view listener is removed.
+			 *
+			 * @param o The set of NodeAddress representing the current view.
+			 */
 			@Override
 			public void accept(Set<NodeAddress> o) {
 				try
@@ -80,6 +105,13 @@ public class ClusterStatusController {
 		return emitter;
 	}
 
+	/**
+	 * Spawns a bundle by executing a spawn script.
+	 *
+	 * @param bundleId The ID of the bundle to be spawned.
+	 * @return A ResponseEntity representing the response status of the spawn operation.
+	 * @throws Exception If an error occurs during the spawn process.
+	 */
 	@PostMapping(value = "/spawn/{bundleId}")
 	@Secured("ROLE_DEPLOY")
 	public ResponseEntity<?> spawnBundle(@PathVariable String bundleId) throws Exception {
@@ -87,6 +119,13 @@ public class ClusterStatusController {
 		return ResponseEntity.ok().build();
 	}
 
+	/**
+	 * Deletes a node in the cluster by sending a kill message to the specified node.
+	 *
+	 * @param bundleId The ID of the bundle to which the node belongs.
+	 * @param nodeId The ID of the node to be killed.
+	 * @return A ResponseEntity representing the response status of the kill operation.
+	 */
 	@DeleteMapping(value = "/kill/{bundleId}/{nodeId}")
 	@Secured("ROLE_DEPLOY")
 	public ResponseEntity<?> killNode(@PathVariable String bundleId, @PathVariable String nodeId) {

@@ -15,6 +15,9 @@ import org.springframework.stereotype.Component;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+/**
+ * The BundleDeployService class is responsible for deploying bundles.
+ */
 @Component
 public class BundleDeployService {
 
@@ -28,24 +31,38 @@ public class BundleDeployService {
 	private final AuthService authService;
 
 
+	/**
+	 * The BundleDeployService class is responsible for deploying bundles.
+	 */
 	public BundleDeployService(BundleRepository bundleRepository, AuthService authService) {
 		this.bundleRepository = bundleRepository;
 		this.authService = authService;
 	}
 
+	/**
+	 * The SyncPipe class represents a synchronized pipe for streaming data from an input stream to an output stream.
+	 */
 	static class SyncPipe implements Runnable
 	{
-		public SyncPipe(InputStream istrm, OutputStream ostrm) {
-			istrm_ = istrm;
-			ostrm_ = ostrm;
+		/**
+		 * The SyncPipe class represents a synchronized pipe for streaming data from an input stream to an output stream.
+		 */
+		public SyncPipe(InputStream inputStream, OutputStream outputStream) {
+			this.inputStream = inputStream;
+			this.outputStream = outputStream;
 		}
+		/**
+		 * This method represents the main functionality of a synchronized pipe for streaming data from an input stream to an output stream.
+		 * It reads data from the input stream and writes it to the output stream.
+		 * If any error occurs during the process, it logs the exception with a specific error message.
+		 */
 		public void run() {
 			try
 			{
 				final byte[] buffer = new byte[1024];
-				for (int length = 0; (length = istrm_.read(buffer)) != -1; )
+				for (int length; (length = inputStream.read(buffer)) != -1; )
 				{
-					ostrm_.write(buffer, 0, length);
+					outputStream.write(buffer, 0, length);
 				}
 			}
 			catch (Exception e)
@@ -53,24 +70,36 @@ public class BundleDeployService {
 				LOGGER.error("Pipe Error", e);
 			}
 		}
-		private final OutputStream ostrm_;
-		private final InputStream istrm_;
+		private final OutputStream outputStream;
+		private final InputStream inputStream;
 	}
 
+	/**
+	 * Spawns a bundle by executing a spawn script.
+	 *
+	 * @param bundle The bundle to be spawned.
+	 * @throws Exception If an error occurs during the spawn process.
+	 */
 	public void spawn(Bundle bundle) throws Exception {
 		if(bundle.getBucketType() == BucketType.Ephemeral){
 			throw new IllegalArgumentException("Cannot spawn an Ephemeral bundle");
 		}
 		var mapper = new ObjectMapper();
 		mapper.registerModule(new JavaTimeModule());
-		Process p = Runtime.getRuntime().exec(spawnScript + " \"" +
-				mapper.writeValueAsString(bundle).replace("\"","\\\"") + "\" " +
-				authService.generateJWT("evento-server-deploy", new TokenRole[]{TokenRole.ROLE_DEPLOY}, 1000 * 60));
+		Process p = Runtime.getRuntime().exec(new String[]{spawnScript ,
+				mapper.writeValueAsString(bundle),
+				authService.generateJWT("evento-server-deploy", new TokenRole[]{TokenRole.ROLE_DEPLOY}, 1000 * 60)});
 		new Thread(new SyncPipe(p.getInputStream(), System.out)).start();
 		new Thread(new SyncPipe(p.getErrorStream(), System.err)).start();
 		p.waitFor();
 	}
 
+	/**
+	 * Spawns a bundle by executing a spawn script.
+	 *
+	 * @param bundleId The ID of the bundle to be spawned.
+	 * @throws Exception If an error occurs during the spawn process.
+	 */
 	public void spawn(String bundleId) throws Exception {
 		spawn(bundleRepository.findById(bundleId).orElseThrow());
 	}

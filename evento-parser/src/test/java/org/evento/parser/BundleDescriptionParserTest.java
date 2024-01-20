@@ -13,9 +13,10 @@ class BundleDescriptionParserTest {
 	public void test() throws Exception {
 		JavaBundleParser applicationParser = new JavaBundleParser();
 		var components = applicationParser.parseDirectory(
-				new File("C:\\Users\\ggalazzo\\workspace\\iris_5\\iris-server\\iris-gateway-iot"), "https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-agent");
+				new File(".\\evento\\evento-demo"), "https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-agent");
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
 
 		System.out.println(components);
+		System.out.println(jsonDescription);
 	}
 }

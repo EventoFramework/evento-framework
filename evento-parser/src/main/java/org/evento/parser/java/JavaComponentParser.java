@@ -121,39 +121,25 @@ public abstract class JavaComponentParser<T extends Component> {
 				).findFirst();
 		if (annot.isPresent())
 		{
-			if (annot.get().equals("InvocationHandler"))
-			{
-				var name = methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() + "::" + ((ASTMethodDeclaration) methodOrConstructor).getName();
-				hs.stream().filter(eh -> eh.getPayload().getName().equals(name)).forEach(h -> {
-					if (m instanceof Query q && h instanceof HasQueryInvocations qi)
-					{
-						qi.addQueryInvocation(q, expr.peek().getBeginLine());
-					}
-					if (m instanceof Command c && h instanceof HasCommandInvocations ci)
-					{
-						ci.addCommandInvocation(c, expr.peek().getBeginLine());
-					}
-				});
-			} else
-			{
-				var eName = methodOrConstructor.getFirstDescendantOfType(ASTFormalParameters.class).getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-				hs.stream().filter(eh -> eh.getPayload().getName().equals(eName)).forEach(h -> {
-					if (m instanceof Query q && h instanceof HasQueryInvocations qi)
-					{
-						qi.addQueryInvocation(q, expr.peek().getBeginLine());
-					}
-					if (m instanceof Command c && h instanceof HasCommandInvocations ci)
-					{
-						ci.addCommandInvocation(c, expr.peek().getBeginLine());
-					}
-				});
-			}
+			var name = annot.get().equals("InvocationHandler") ?
+					methodOrConstructor.getFirstParentOfType(ASTClassOrInterfaceDeclaration.class).getSimpleName() + "::" + ((ASTMethodDeclaration) methodOrConstructor).getName() :
+					methodOrConstructor.getFirstDescendantOfType(ASTFormalParameters.class).getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
+			hs.stream().filter(eh -> eh.getPayload().getName().equals(name)).forEach(h -> {
+				if (m instanceof Query q && h instanceof HasQueryInvocations qi)
+				{
+					qi.addQueryInvocation(q, expr.peek().getBeginLine());
+				}
+				if (m instanceof Command c && h instanceof HasCommandInvocations ci)
+				{
+					ci.addCommandInvocation(c, expr.peek().getBeginLine());
+				}
+			});
 			return;
 		}
 
 		var mName = methodOrConstructor instanceof ASTMethodDeclaration ? ((ASTMethodDeclaration) methodOrConstructor).getName() : methodOrConstructor.getImage();
-		var invoks = node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath("//PrimaryPrefix/Name[@Image = \"%s\"]".formatted(mName));
-		for (Node i : invoks)
+		var invocations = node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath("//PrimaryPrefix/Name[@Image = \"%s\"]".formatted(mName));
+		for (Node i : invocations)
 		{
 			var mt = i.getFirstParentOfType(ASTMethodDeclaration.class);
 			if (mt == null) return;

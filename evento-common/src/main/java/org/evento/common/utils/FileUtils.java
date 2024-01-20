@@ -17,7 +17,7 @@ public class FileUtils {
      * @return The result of applying the provided function to the stream of paths.
      * @throws RuntimeException if an IO error occurs.
      */
-    public static <T> T autoColseWalk(Path path, Walker<T> apply) throws Exception {
+    public static <T> T autoCloseWalk(Path path, Walker<T> apply) throws Exception {
         try(var stream = Files.walk(path)) {
             return apply.apply(stream);
         }

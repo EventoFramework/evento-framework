@@ -22,12 +22,7 @@ import java.util.List;
 @Getter
 public class InvokerManager {
     private static final Logger logger = LogManager.getLogger(InvokerManager.class);
-    /**
-     * -- GETTER --
-     *  Retrieves the list of registered handlers.
-     *
-     * @return the list of registered handlers
-     */
+
     private final List<RegisteredHandler> handlers = new ArrayList<>();
 
     /**

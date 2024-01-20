@@ -28,6 +28,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * The BundleService class provides methods for managing bundles in the system.
+ */
 @Service
 public class BundleService {
 
@@ -41,6 +44,9 @@ public class BundleService {
 
     private final PlatformTransactionManager tm;
 
+    /**
+     * The BundleService class is responsible for managing bundles in the system.
+     */
     public BundleService(BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository, BundleDeployService bundleDeployService,
                          ComponentRepository componentRepository, PlatformTransactionManager tm) {
         this.bundleRepository = bundleRepository;
@@ -52,6 +58,19 @@ public class BundleService {
     }
 
 
+    /**
+     * Registers a bundle with the given bundle information.
+     * Updates or creates a new bundle in the bundle repository,
+     * deletes existing handlers and components associated with the bundle,
+     * deletes payloads not registered in the bundle repository,
+     * saves payload descriptions, components, and handlers associated with the bundle.
+     *
+     * @param bundleId                      the ID of the bundle
+     * @param bundleDeploymentBucketType    the type of bucket for the bundle deployment
+     * @param bundleDeploymentArtifactCoordinates    the artifact coordinates for the bundle deployment
+     * @param jarOriginalName               the original name of the JAR file
+     * @param bundleDescription             the description of the bundle
+     */
     public synchronized void register(
             String bundleId,
             BucketType bundleDeploymentBucketType,
@@ -693,6 +712,11 @@ public class BundleService {
 
     }
 
+    /**
+     * Unregisters a bundle and deletes all associated handlers, components, and payloads.
+     *
+     * @param bundleId the ID of the bundle to unregister
+     */
     public void unregister(
             String bundleId) {
         for (Handler handler : handlerRepository.findAll()) {
@@ -713,18 +737,49 @@ public class BundleService {
         }
     }
 
+    /**
+     * Retrieves a list of all bundles in the system.
+     *
+     * @return A list of bundles.
+     */
     public List<Bundle> findAllBundles() {
         return bundleRepository.findAll();
     }
 
+    /**
+     * Retrieves a list of BundleListProjection objects representing a projected view of Bundle objects.
+     *
+     * The findAllProjection method executes a native SQL query to fetch the required data from the database.
+     *
+     * @return A list of BundleListProjection objects representing the projected view of Bundle objects.
+     *
+     * @see BundleListProjection
+     */
     public List<BundleListProjection> findAllProjection() {
         return bundleRepository.findAllProjection();
     }
 
+    /**
+     * Finds a bundle by its ID.
+     *
+     * @param bundleId the ID of the bundle to find
+     * @return the Bundle object representing the found bundle
+     * @throws NoSuchElementException if no bundle with the given ID is found
+     */
     public Bundle findById(String bundleId) {
         return bundleRepository.findById(bundleId).orElseThrow();
     }
 
+    /**
+     * Updates the value of an environment variable for a given bundle.
+     *
+     * This method updates the value of an environment variable associated with a specific bundle.
+     * The updated value is saved in the bundle's environment map, and the bundle's updatedAt timestamp is updated.
+     *
+     * @param bundleId the ID of the bundle to update the environment variable for
+     * @param key the key of the environment variable
+     * @param value the new value of the environment variable
+     */
     public void putEnv(String bundleId, String key, String value) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().put(key, value);
@@ -732,6 +787,19 @@ public class BundleService {
         bundleRepository.save(bundle);
     }
 
+    /**
+     * Removes an environment variable for a given bundle.
+     *
+     * This method removes the specified environment variable for the bundle with the provided ID.
+     * The bundle is retrieved from the bundle repository using the ID.
+     * If no bundle is found with the provided ID, a NoSuchElementException is thrown.
+     * The environment variable is then removed from the bundle's environment map.
+     * The bundle's updatedAt property is updated with the current timestamp.
+     * Finally, the updated bundle is saved in the bundle repository.
+     *
+     * @param bundleId the ID of the bundle to remove the environment variable for
+     * @param key the key of the environment variable to remove
+     */
     public void removeEnv(String bundleId, String key) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().remove(key);
@@ -739,6 +807,14 @@ public class BundleService {
         bundleRepository.save(bundle);
     }
 
+    /**
+     * Updates the virtual machine option of a given bundle with the provided key-value pair.
+     *
+     * @param bundleId the ID of the bundle to update
+     * @param key the key of the virtual machine option to update
+     * @param value the value of the virtual machine option to update
+     * @throws NoSuchElementException if the bundle with the provided ID does not exist
+     */
     public void putVmOption(String bundleId, String key, String value) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().put(key, value);
@@ -746,17 +822,15 @@ public class BundleService {
         bundleRepository.save(bundle);
     }
 
+    /**
+     * Removes a specific VM option from a bundle identified by bundleId.
+     *
+     * @param bundleId the identifier of the bundle to remove the VM option from
+     * @param key the key of the VM option to be removed
+     */
     public void removeVmOption(String bundleId, String key) {
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().remove(key);
-        bundle.setUpdatedAt(Instant.now());
-        bundleRepository.save(bundle);
-    }
-
-    public void update(String bundleId, String description, String detail) {
-        var bundle = bundleRepository.findById(bundleId).orElseThrow();
-        bundle.setDescription(description);
-        bundle.setDetail(detail);
         bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
     }

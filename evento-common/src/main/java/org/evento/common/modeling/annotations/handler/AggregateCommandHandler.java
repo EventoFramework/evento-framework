@@ -15,5 +15,10 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Handler
 public @interface AggregateCommandHandler {
+	/**
+	 * Checks if the method is marked as an aggregate initializer.
+	 *
+	 * @return {@code true} if the method is an initializer, otherwise {@code false}.
+	 */
 	boolean init() default false;
 }

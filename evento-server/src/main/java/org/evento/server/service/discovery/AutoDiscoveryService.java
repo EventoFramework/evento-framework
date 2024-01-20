@@ -23,6 +23,9 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.HashMap;
 
+/**
+ * Service class for auto-discovery of bundles, handlers, and payloads.
+ */
 @Service
 public class AutoDiscoveryService {
     private final Logger logger = LogManager.getLogger(AutoDiscoveryService.class);
@@ -33,6 +36,17 @@ public class AutoDiscoveryService {
     private final LockRegistry lockRegistry;
     private final ComponentRepository componentRepository;
 
+    /**
+     * Service responsible for auto-discovery of components in the system.
+     *
+     * @param messageBus       The message bus used for communication between components.
+     * @param bundleRepository The repository for managing bundles of components.
+     * @param handlerRepository The repository for managing component handlers.
+     * @param payloadRepository The repository for managing component payloads.
+     * @param bundleService    The service for managing bundles of components.
+     * @param lockRegistry     The registry for managing locks.
+     * @param componentRepository The repository for managing components.
+     */
     public AutoDiscoveryService(MessageBus messageBus,
                                 BundleRepository bundleRepository,
                                 HandlerRepository handlerRepository,
@@ -48,6 +62,11 @@ public class AutoDiscoveryService {
         this.componentRepository = componentRepository;
     }
 
+    /**
+     * Handles the event when a node joins the system.
+     *
+     * @param bundleRegistration The registration information of the joining bundle.
+     */
     private void onNodeJoin(BundleRegistration bundleRegistration) {
         try {
             var lock = lockRegistry.obtain("DISCOVERY:" + bundleRegistration.getBundleId());
@@ -168,6 +187,11 @@ public class AutoDiscoveryService {
         }
     }
 
+    /**
+     * Handles the event when a node leaves the system.
+     *
+     * @param node The address of the leaving node.
+     */
     public void onNodeLeave(NodeAddress node) {
         var lock = lockRegistry.obtain("DISCOVERY:" + node.instanceId());
         lock.lock();
