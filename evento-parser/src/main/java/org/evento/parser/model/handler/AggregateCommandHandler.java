@@ -21,13 +21,12 @@ public class AggregateCommandHandler extends Handler<DomainCommand>  implements 
 	private final HashMap<Integer, Query> invokedQueries = new HashMap<>();
 
 	/**
-	 * Represents a command handler for an aggregate.
-	 * <p>
-	 * This class extends the {@link Handler} class and implements the {@link HasCommandInvocations}
-	 * and {@link HasQueryInvocations} interfaces. It provides methods to add and retrieve command and
-	 * query invocations, as well as to retrieve the produced event.
+	 * Creates a new instance of `AggregateCommandHandler` with the specified payload, produced event, and line number.
 	 *
-     */
+	 * @param payload       The payload of the command handler.
+	 * @param producedEvent The event produced by the command handler.
+	 * @param line          The line number where the command handler is invoked.
+	 */
 	public AggregateCommandHandler(DomainCommand payload, DomainEvent producedEvent, int line) {
 		super(payload, line);
 		this.producedEvent = producedEvent;

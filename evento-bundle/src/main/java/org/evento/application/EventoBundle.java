@@ -186,6 +186,18 @@ public class EventoBundle {
 
     }
 
+    /**
+     * Retrieves information about the application.
+     *
+     * @return An instance of the ApplicationInfo class containing the following information:
+     *         - basePackage: The base package of the application.
+     *         - bundleId: The bundle identifier of the application.
+     *         - aggregateMessageHandlers: The set of aggregate message handlers in the application.
+     *         - serviceMessageHandlers: The set of service message handlers in the application.
+     *         - projectionMessageHandlers: The set of projection message handlers in the application.
+     *         - projectorMessageHandlers: The set of projector message handlers in the application.
+     *         - sagaMessageHandlers: The set of saga message handlers in the application.
+     */
     public ApplicationInfo getAppInfo() {
         var info = new ApplicationInfo();
         info.basePackage = basePackage;
@@ -197,6 +209,9 @@ public class EventoBundle {
         info.sagaMessageHandlers = sagaManager.getHandlers().keySet();
         return info;
     }
+    /**
+     * Represents information about an application.
+     */
     public static class ApplicationInfo {
         public String basePackage;
         public String bundleId;

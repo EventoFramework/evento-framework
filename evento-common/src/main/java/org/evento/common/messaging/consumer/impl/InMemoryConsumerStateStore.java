@@ -30,12 +30,22 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 
 	private final AtomicInteger sagaCounter = new AtomicInteger(1);
 
-    public InMemoryConsumerStateStore(EventoServer eventoServer,
+    /**
+	 * Constructs a new InMemoryConsumerStateStore object.
+	 *
+	 * @param eventoServer         the EventoServer used for sending and receiving messages in an Evento cluster
+	 * @param performanceService   the PerformanceService used for performance monitoring
+	 */
+	public InMemoryConsumerStateStore(EventoServer eventoServer,
                                       PerformanceService performanceService) {
         this(eventoServer, performanceService, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newSingleThreadExecutor());
     }
 
-    public InMemoryConsumerStateStore(EventoServer eventoServer,
+    /**
+	 * This class represents an in-memory implementation of the ConsumerStateStore interface.
+	 * It stores the state of the consumer such as last event sequence number and saga state.
+	 */
+	public InMemoryConsumerStateStore(EventoServer eventoServer,
 									  PerformanceService performanceService, ObjectMapper objectMapper,
 									  Executor executor) {
         super(eventoServer, performanceService, objectMapper, executor);

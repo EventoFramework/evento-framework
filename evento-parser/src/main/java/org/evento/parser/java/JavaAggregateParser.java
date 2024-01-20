@@ -14,12 +14,25 @@ import org.jaxen.JaxenException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * The JavaAggregateParser class is responsible for parsing a Java class that represents an Aggregate.
+ * It extends the JavaComponentParser class, which is a generic abstract class for parsing different types of components.
+ * The class provides methods to find AggregateCommandHandlers and EventSourcingHandlers in the parsed class.
+ * It also overrides the parse method to parse the aggregate and return an Aggregate object.
+ */
 public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 
 
+	/**
+	 * The JavaAggregateParser class is responsible for parsing a Java class that represents an Aggregate.
+	 * It extends the JavaComponentParser class, which is a generic abstract class for parsing different types of components.
+	 * The class provides methods to find AggregateCommandHandlers and EventSourcingHandlers in the parsed class.
+	 * It also overrides the parse method to parse the aggregate and return an Aggregate object.
+	 */
 	public JavaAggregateParser(Node node) {
 		super(node);
 	}
+
 
 
 	private List<AggregateCommandHandler> findAggregateCommandHandler() throws JaxenException {
@@ -34,6 +47,7 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 		).collect(Collectors.toList());
 	}
 
+
 	private List<EventSourcingHandler> findEventSourcingHandlers() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("EventSourcingHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
@@ -44,6 +58,7 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 				}
 		).collect(Collectors.toList());
 	}
+
 
 	@Override
 	public Aggregate parse() throws Exception {
