@@ -90,8 +90,7 @@ public class MessageBus {
         }).start();
 
         new Thread(() -> {
-            try {
-                ServerSocket server = new ServerSocket(socketPort);
+            try(ServerSocket server = new ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
                     logger.info("New connection: " + conn.getInetAddress());
@@ -296,9 +295,6 @@ public class MessageBus {
                             }
                             eventStore.release(lockId);
                             sendResponse.accept(resp);
-                            if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
-                                sendEventToObservers(message, cr.getDomainEventMessage());
-                            }
                         } catch (Exception e) {
                             eventStore.release(lockId);
                             resp.setBody(new ExceptionWrapper(e));
@@ -340,9 +336,6 @@ public class MessageBus {
                             }
                             eventStore.release(lockId);
                             sendResponse.accept(resp);
-                            if (resp.getBody() instanceof EventMessage<?> event) {
-                                sendEventToObservers(message, event);
-                            }
                         } catch (Exception e) {
                             eventStore.release(lockId);
                             resp.setBody(new ExceptionWrapper(e));
@@ -430,17 +423,11 @@ public class MessageBus {
                 .findFirst().orElseThrow();
     }
 
-    private boolean getObservers(String eventName) {
-        return registrations.values().stream().flatMap(r -> r.getHandlers().stream())
-                .anyMatch(h -> h.getComponentType() == ComponentType.Observer && eventName.equals(h.getHandledPayload()));
-    }
-
-    private Set<NodeAddress> getEnabledAddressesFormMessage(String commandName) {
-        return handlers.getOrDefault(commandName, new HashSet<>())
+    private Set<NodeAddress> getEnabledAddressesFormMessage(String payloadName) {
+        return handlers.getOrDefault(payloadName, new HashSet<>())
                 .stream().filter(availableView::contains)
                 .collect(Collectors.toSet());
     }
-
 
     private final List<Consumer<Set<NodeAddress>>> availableViewListeners = new ArrayList<>();
 
@@ -586,34 +573,6 @@ public class MessageBus {
         } catch (Exception e) {
             correlations.remove(eventoRequest.getCorrelationId());
             throw e;
-        }
-    }
-
-    private void sendEventToObservers(EventoRequest request, EventMessage<?> eventMessage) {
-        if (getObservers(eventMessage.getEventName())) {
-            var addresses = getEnabledAddressesFormMessage(eventMessage.getEventName());
-            if (addresses == null || addresses.isEmpty()) {
-                var handler = handlerService.findByPayloadName(eventMessage.getEventName());
-                if (handler != null && handler.getComponent().getBundle().isAutorun()) {
-                    waitUntilAvailable(handler.getComponent().getBundle());
-                }
-                addresses = getEnabledAddressesFormMessage(eventMessage.getEventName());
-            }
-            addresses.parallelStream().forEach(address -> {
-                var m = new EventoMessage();
-                m.setBody(eventMessage);
-                m.setSourceBundleId(request.getSourceBundleId());
-                m.setSourceInstanceId(request.getSourceInstanceId());
-                m.setSourceBundleVersion(request.getSourceBundleVersion());
-                try {
-                    var out = view.get(address);
-                    synchronized (out) {
-                        out.writeObject(m);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
         }
     }
 

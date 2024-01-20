@@ -2,16 +2,16 @@ package org.evento.application.manager;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.evento.application.consumer.ObserverEventConsumer;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.proxy.GatewayTelemetryProxy;
 import org.evento.application.reference.ObserverReference;
+import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.modeling.annotations.component.Observer;
-import org.evento.common.modeling.messaging.message.application.EventMessage;
 import org.evento.common.modeling.messaging.message.application.Message;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -63,23 +63,37 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
         }
     }
 
+
     /**
-     * Handles an EventMessage by invoking the appropriate ObserverReference instances registered for the event.
+     * Starts the event consumers for the observer event listeners.
      *
-     * @param e the EventMessage to handle
-     * @throws Exception when an error occurs during the handling process
+     * @param consumerStateStore the ConsumerStateStore instance for tracking the state of the consumers
      */
-    public void handle(EventMessage<?> e) throws Exception {
-        for (ObserverReference observerReference : getHandlers().get(e.getEventName()).values()) {
-            var start = Instant.now();
-            var proxy = getGatewayTelemetryProxy().apply(observerReference.getComponentName(), e);
-            getTracingAgent().track(e, observerReference.getComponentName(),
-                    null,
-                    () -> {
-                        observerReference.invoke(e, proxy, proxy);
-                        proxy.sendServiceTimeMetric(start);
-                        return null;
-                    });
+    public void startEventConsumers(ConsumerStateStore consumerStateStore) {
+        logger.info("Checking for observer event consumers");
+        for (ObserverReference observer : getReferences()) {
+            var annotation = observer.getRef().getClass().getAnnotation(Observer.class);
+            for (var c : annotation.context()) {
+                var observerName = observer.getRef().getClass().getSimpleName();
+                var observerVersion = annotation.version();
+                logger.info("Starting event consumer for Observer: %s - Version: %d - Context: %s"
+                        .formatted(observerName, observerVersion, c));
+                new Thread(new ObserverEventConsumer(
+                        getBundleId(),
+                        observerName,
+                        observerVersion,
+                        c,
+                        getIsShuttingDown(),
+                        consumerStateStore,
+                        getHandlers(),
+                        getTracingAgent(),
+                        getGatewayTelemetryProxy(),
+                        getSssFetchSize(),
+                        getSssFetchDelay()
+                )).start();
+            }
+
         }
+
     }
 }

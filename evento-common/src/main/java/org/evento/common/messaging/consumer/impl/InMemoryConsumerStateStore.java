@@ -11,6 +11,8 @@ import org.evento.common.serialization.ObjectMapperUtils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,12 +32,13 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 
     public InMemoryConsumerStateStore(EventoServer eventoServer,
                                       PerformanceService performanceService) {
-        this(eventoServer, performanceService, ObjectMapperUtils.getPayloadObjectMapper());
+        this(eventoServer, performanceService, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newSingleThreadExecutor());
     }
 
     public InMemoryConsumerStateStore(EventoServer eventoServer,
-                                      PerformanceService performanceService, ObjectMapper objectMapper) {
-        super(eventoServer, performanceService, objectMapper);
+									  PerformanceService performanceService, ObjectMapper objectMapper,
+									  Executor executor) {
+        super(eventoServer, performanceService, objectMapper, executor);
     }
 
     /**
@@ -83,15 +86,16 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
         return lockRegistry.get(lockKey);
     }
 
-    /**
+
+	/**
 	 * Retrieves the last event sequence number for the specified consumer.
 	 *
-	 * @param consumerId the ID of the consumer for which to get the last event sequence number
-	 * @return the last event sequence number for the consumer
+	 * @param consumerId the ID of the consumer for which to retrieve the last event sequence number
+	 * @return the last event sequence number for the specified consumer, or null if the consumer ID is not found
 	 */
 	@Override
     protected Long getLastEventSequenceNumber(String consumerId) {
-        return lastEventSequenceNumberRepository.getOrDefault(consumerId, 0L);
+        return lastEventSequenceNumberRepository.getOrDefault(consumerId, null);
     }
 
     /**
@@ -105,13 +109,14 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
         lastEventSequenceNumberRepository.put(consumerId, eventSequenceNumber);
     }
 
-    /**
-	 * Retrieves the stored saga state based on the given saga name, association property, and association value.
+
+	/**
+	 * Retrieves the StoredSagaState associated with the specified saga name, association property, and association value.
 	 *
-	 * @param sagaName            the name of the saga
+	 * @param sagaName           the name of the saga
 	 * @param associationProperty the property used for association
 	 * @param associationValue    the value of the association property
-	 * @return the stored saga state, or null if not found
+	 * @return the StoredSagaState associated with the specified saga name, association property, and association value. If no match is found, null is returned.
 	 */
 	@Override
     protected StoredSagaState getSagaState(String sagaName,
@@ -121,7 +126,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 				.stream().filter(s->s.getValue().getKey().equals(sagaName))
 				.filter(s -> Objects.equals(associationValue,s.getValue().getValue().getAssociation(associationProperty)))
 				.findFirst().map(s -> new StoredSagaState(s.getKey(), s.getValue().getValue()))
-				.orElseThrow();
+				.orElseGet(() ->  new StoredSagaState(null, null));
     }
 
     /**
