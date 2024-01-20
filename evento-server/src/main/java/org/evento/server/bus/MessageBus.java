@@ -459,7 +459,8 @@ public class MessageBus {
     private void enable(NodeAddress address) {
         this.availableView.add(address);
         synchronized (availableViewListeners) {
-            availableViewListeners.stream().filter(Objects::nonNull).forEach(l -> l.accept(availableView));
+            availableViewListeners.stream().filter(Objects::nonNull).toList()
+                    .forEach(l -> l.accept(availableView));
         }
         synchronized (semaphoreMap) {
             var s = semaphoreMap.get(address.getBundleId());

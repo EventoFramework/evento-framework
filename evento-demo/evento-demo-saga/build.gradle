@@ -43,14 +43,6 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.integration:spring-integration-jdbc'
-    runtimeOnly 'mysql:mysql-connector-java'
-
-
-
-
-    implementation project(':evento-consumer-state-store:evento-consumer-state-store-mysql')
     implementation project(":evento-demo:evento-demo-api")
 }
 

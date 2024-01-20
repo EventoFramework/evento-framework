@@ -10,6 +10,8 @@ import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -22,7 +24,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     private final Map<Object, Lock> lockRegistry = new HashMap<>();
     private final Map<String, Long> lastEventSequenceNumberRepository = new HashMap<>();
 
-    private final Map<String, SagaState> sagaStateRepository = new HashMap<>();
+    private final Map<Long, Map.Entry<String,SagaState>> sagaStateRepository = new HashMap<>();
+
+	private final AtomicInteger sagaCounter = new AtomicInteger(1);
 
     public InMemoryConsumerStateStore(EventoServer eventoServer,
                                       PerformanceService performanceService) {
@@ -113,7 +117,11 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     protected StoredSagaState getSagaState(String sagaName,
                                            String associationProperty,
                                            String associationValue) {
-        return null;
+        return sagaStateRepository.entrySet()
+				.stream().filter(s->s.getValue().getKey().equals(sagaName))
+				.filter(s -> Objects.equals(associationValue,s.getValue().getValue().getAssociation(associationProperty)))
+				.findFirst().map(s -> new StoredSagaState(s.getKey(), s.getValue().getValue()))
+				.orElseThrow();
     }
 
     /**
@@ -125,6 +133,23 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 */
 	@Override
     protected void setSagaState(Long id, String sagaName, SagaState sagaState) {
+        sagaStateRepository.put(Objects.requireNonNullElseGet(id,
+						() -> (long) sagaCounter.getAndIncrement()),
+                new Map.Entry<>() {
+                    @Override
+                    public String getKey() {
+                        return sagaName;
+                    }
 
+                    @Override
+                    public SagaState getValue() {
+                        return sagaState;
+                    }
+
+                    @Override
+                    public SagaState setValue(SagaState value) {
+                        return sagaState;
+                    }
+                });
     }
 }

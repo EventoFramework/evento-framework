@@ -4,6 +4,7 @@ package org.evento.common.modeling.messaging.dto;
 import org.evento.common.modeling.messaging.message.application.EventMessage;
 
 import java.io.Serializable;
+import java.sql.Timestamp;
 
 
 public class PublishedEvent implements Serializable {
@@ -11,7 +12,7 @@ public class PublishedEvent implements Serializable {
 	private String aggregateId;
 	private EventMessage<?> eventMessage;
 	private String eventName;
-	private Long createdAt;
+	private Timestamp createdAt;
 
 	public Long getEventSequenceNumber() {
 		return eventSequenceNumber;
@@ -37,11 +38,11 @@ public class PublishedEvent implements Serializable {
 		this.eventMessage = eventMessage;
 	}
 
-	public Long getCreatedAt() {
+	public Timestamp getCreatedAt() {
 		return createdAt;
 	}
 
-	public void setCreatedAt(Long createdAt) {
+	public void setCreatedAt(Timestamp createdAt) {
 		this.createdAt = createdAt;
 	}
 

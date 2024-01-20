@@ -18,7 +18,7 @@ import java.io.OutputStream;
 @Component
 public class BundleDeployService {
 
-	private final Logger LOGGER = LoggerFactory.getLogger(BundleDeployService.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(BundleDeployService.class);
 
 	private final BundleRepository bundleRepository;
 
@@ -50,7 +50,7 @@ public class BundleDeployService {
 			}
 			catch (Exception e)
 			{
-				e.printStackTrace();
+				LOGGER.error("Pipe Error", e);
 			}
 		}
 		private final OutputStream ostrm_;
@@ -63,8 +63,8 @@ public class BundleDeployService {
 		}
 		var mapper = new ObjectMapper();
 		mapper.registerModule(new JavaTimeModule());
-		Process p = Runtime.getRuntime().exec(spawnScript + " " +
-				mapper.writeValueAsString(bundle).replace("\"","\\\"") + " " +
+		Process p = Runtime.getRuntime().exec(spawnScript + " \"" +
+				mapper.writeValueAsString(bundle).replace("\"","\\\"") + "\" " +
 				authService.generateJWT("evento-server-deploy", new TokenRole[]{TokenRole.ROLE_DEPLOY}, 1000 * 60));
 		new Thread(new SyncPipe(p.getInputStream(), System.out)).start();
 		new Thread(new SyncPipe(p.getErrorStream(), System.err)).start();
