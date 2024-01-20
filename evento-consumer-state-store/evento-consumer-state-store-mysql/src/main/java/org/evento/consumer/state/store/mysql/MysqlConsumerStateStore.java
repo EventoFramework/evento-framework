@@ -6,12 +6,14 @@ import org.evento.common.messaging.consumer.ConsumerStateStore;
 import org.evento.common.messaging.consumer.StoredSagaState;
 import org.evento.common.modeling.state.SagaState;
 import org.evento.common.performance.PerformanceService;
-import org.evento.common.performance.RemotePerformanceService;
 import org.evento.common.serialization.ObjectMapperUtils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
+@SuppressWarnings("Annotator")
 public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	private static final String CONSUMER_STATE_TABLE = "evento__consumer_state";
@@ -27,15 +29,16 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 			EventoServer eventoServer,
 			PerformanceService performanceService,
 			Connection connection) {
-		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper());
+		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newSingleThreadExecutor());
 	}
 
 	public MysqlConsumerStateStore(
 			EventoServer eventoServer,
 			PerformanceService performanceService,
 			Connection connection,
-			ObjectMapper objectMapper) {
-		super(eventoServer, performanceService, objectMapper);
+			ObjectMapper objectMapper,
+			Executor executor) {
+		super(eventoServer, performanceService, objectMapper, executor);
 		this.connection = connection;
 		init();
 	}

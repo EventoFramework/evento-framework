@@ -14,5 +14,5 @@ public interface EventConsumer {
 	 * @param event the event to consume
 	 * @throws Exception if an error occurs during consumption
 	 */
-	public void consume(PublishedEvent event) throws Exception;
+    void consume(PublishedEvent event) throws Exception;
 }

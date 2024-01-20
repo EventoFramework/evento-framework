@@ -226,18 +226,16 @@ public abstract class ConsumerStateStore {
      * This method is called when a consumer leaves the exclusive zone.
      *
      * @param consumerId the ID of the consumer
-     * @throws Exception if an error occurs while leaving the exclusive zone
      */
-    protected abstract void leaveExclusiveZone(String consumerId) throws Exception;
+    protected abstract void leaveExclusiveZone(String consumerId);
 
     /**
      * This method is called when a consumer enters the exclusive zone.
      *
      * @param consumerId the ID of the consumer
      * @return true if the consumer successfully enters the exclusive zone, false otherwise
-     * @throws Exception if an error occurs while entering the exclusive zone
      */
-    protected abstract boolean enterExclusiveZone(String consumerId) throws Exception;
+    protected abstract boolean enterExclusiveZone(String consumerId);
 
     /**
      * Retrieves the last event sequence number for a given consumer.

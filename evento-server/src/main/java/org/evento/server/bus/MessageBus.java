@@ -10,6 +10,7 @@ import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.message.internal.*;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
+import org.evento.common.utils.Sleep;
 import org.evento.server.domain.model.core.BucketType;
 import org.evento.server.domain.model.core.Bundle;
 import org.evento.server.es.EventStore;
@@ -80,7 +81,7 @@ public class MessageBus {
     }
 
     @PostConstruct
-    public void init() throws IOException {
+    public void init() {
 
         new Thread(() -> {
             for (Bundle bundle : bundleService.findAllBundles()) {
@@ -171,6 +172,7 @@ public class MessageBus {
         }).start();
     }
 
+
     @PreDestroy
     public void destroy() {
         try {
@@ -185,7 +187,7 @@ public class MessageBus {
             while (!correlations.isEmpty() && retry < maxDisableAttempts) {
                 System.out.printf("Graceful Shutdown - Remaining correlations: %d%n", correlations.size());
                 System.out.println("Graceful Shutdown - Sleep...");
-                Thread.sleep(disableDelayMillis);
+                Sleep.apply(disableDelayMillis);
                 retry++;
             }
             if (correlations.isEmpty()) {
@@ -208,7 +210,7 @@ public class MessageBus {
                         bundle.getMinInstances() <
                                 getCurrentAvailableView()
                                         .stream()
-                                        .filter(n -> n.getBundleId().equals(b.getBundleId())).count())
+                                        .filter(n -> n.bundleId().equals(b.getBundleId())).count())
                     try {
                         sendKill(b.getNodeId());
                     } catch (Exception e) {
@@ -222,7 +224,7 @@ public class MessageBus {
             eventStore.acquire(lockId);
             try {
                 var bundle = bundleService.findById(b.getBundleId());
-                if (bundle.getMaxInstances() > getCurrentAvailableView().stream().filter(n -> n.getBundleId().equals(b.getBundleId())).count())
+                if (bundle.getMaxInstances() > getCurrentAvailableView().stream().filter(n -> n.bundleId().equals(b.getBundleId())).count())
                     try {
                         bundleDeployService.spawn(b.getBundleId());
                     } catch (Exception e) {
@@ -253,8 +255,8 @@ public class MessageBus {
                     var invocation = new DecoratedDomainCommandMessage();
                     invocation.setCommandMessage(c);
                     var story = eventStore.fetchAggregateStory(c.getAggregateId());
-                    invocation.setSerializedAggregateState(story.getState());
-                    invocation.setEventStream(story.getEvents());
+                    invocation.setSerializedAggregateState(story.state());
+                    invocation.setEventStream(story.events());
                     performanceStoreService.sendServiceTimeMetric(
                             SERVER,
                             GATEWAY_COMPONENT,
@@ -316,7 +318,7 @@ public class MessageBus {
                     forward(message, dest, resp -> {
                         try {
                             performanceStoreService.sendServiceTimeMetric(
-                                    dest.getBundleId(),
+                                    dest.bundleId(),
                                     getComponent(c.getCommandName()),
                                     c,
                                     start
@@ -352,7 +354,7 @@ public class MessageBus {
                 forward(message, dest,
                         resp -> {
                             performanceStoreService.sendServiceTimeMetric(
-                                    dest.getBundleId(),
+                                    dest.bundleId(),
                                     getComponent(q.getQueryName()),
                                     q,
                                     invocationStart
@@ -450,11 +452,11 @@ public class MessageBus {
                     .forEach(l -> l.accept(availableView));
         }
         synchronized (semaphoreMap) {
-            var s = semaphoreMap.get(address.getBundleId());
+            var s = semaphoreMap.get(address.bundleId());
             if (s != null)
                 s.release();
         }
-        logger.info("ENABLED: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
+        logger.info("ENABLED: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
     }
 
     private void disable(NodeAddress address) {
@@ -462,7 +464,7 @@ public class MessageBus {
         synchronized (availableViewListeners) {
             availableViewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(availableView));
         }
-        logger.info("DISABLED: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
+        logger.info("DISABLED: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
     }
 
 
@@ -531,7 +533,7 @@ public class MessageBus {
         synchronized (viewListeners) {
             viewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(view.keySet()));
         }
-        logger.info("LEAVE: {} (v.{}) {}", address.getBundleId(), address.getBundleVersion(), address.getBundleId());
+        logger.info("LEAVE: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
     }
 
     public void addLeaveListener(Consumer<NodeAddress> onNodeLeave) {
@@ -541,7 +543,7 @@ public class MessageBus {
     }
 
     public boolean isBundleAvailable(String bundleId) {
-        return availableView.stream().anyMatch(n -> n.getBundleId().equals(bundleId));
+        return availableView.stream().anyMatch(n -> n.bundleId().equals(bundleId));
     }
 
     public void sendKill(String nodeId) {
@@ -552,13 +554,13 @@ public class MessageBus {
         m.setSourceBundleVersion(0);
         try {
             var out = view.get(
-                    view.keySet().stream().filter(k -> k.getInstanceId().equals(nodeId)).findFirst().orElseThrow()
+                    view.keySet().stream().filter(k -> k.instanceId().equals(nodeId)).findFirst().orElseThrow()
             );
             synchronized (out) {
                 out.writeObject(m);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Send kill failed", e);
         }
     }
 

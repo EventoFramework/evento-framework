@@ -5,21 +5,6 @@ import org.evento.common.modeling.state.SerializedAggregateState;
 
 import java.util.List;
 
-public class AggregateStory {
+public record AggregateStory(SerializedAggregateState<?> state, List<DomainEventMessage> events) {
 
-    private final SerializedAggregateState<?> state;
-    private final List<DomainEventMessage> events;
-
-    public AggregateStory(SerializedAggregateState<?> state, List<DomainEventMessage> events) {
-        this.state = state;
-        this.events = events;
-    }
-
-    public SerializedAggregateState<?> getState() {
-        return state;
-    }
-
-    public List<DomainEventMessage> getEvents() {
-        return events;
-    }
 }

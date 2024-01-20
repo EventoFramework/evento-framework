@@ -21,7 +21,7 @@ dependencies {
     implementation project(':evento-common')
     implementation project(':evento-parser')
 
-    implementation("com.squareup.okhttp3:okhttp:4.10.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 
 

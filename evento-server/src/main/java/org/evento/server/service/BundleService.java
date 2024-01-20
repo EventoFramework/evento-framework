@@ -133,11 +133,9 @@ public class BundleService {
 
             for (Component component : bundleDescription.getComponents()) {
                 componentRepository.findById(component.getComponentName())
-                        .ifPresent(c -> {
-                            Assert.isTrue(c.getBundle().getId().equals(bundleId),
-                                    "Component Duplicated: The component %s is already registered in bundle %s"
-                                            .formatted(component.getComponentName(), bundleId));
-                        });
+                        .ifPresent(c -> Assert.isTrue(c.getBundle().getId().equals(bundleId),
+                                "Component Duplicated: The component %s is already registered in bundle %s"
+                                        .formatted(component.getComponentName(), bundleId)));
                 if (component instanceof Aggregate a) {
                     for (AggregateCommandHandler aggregateCommandHandler : a.getAggregateCommandHandlers()) {
                         var handler = new Handler();

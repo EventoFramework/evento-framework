@@ -4,7 +4,6 @@ import org.evento.common.modeling.messaging.message.application.Message;
 import org.evento.common.modeling.messaging.message.application.Metadata;
 import org.evento.common.modeling.messaging.payload.Command;
 
-import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -12,12 +11,12 @@ import java.util.concurrent.TimeUnit;
  * The CommandGateway interface defines methods for sending commands and interacting with a command handler.
  */
 public interface CommandGateway {
+
 	/**
 	 * Sends a command and waits for its execution to complete.
 	 *
 	 * @param command the command to be sent
-	 * @param metadata optional metadata associated with the command
-	 * @param <R>     the type of the expected result
+	 * @param <R> the type of the expected result
 	 * @return the result of the command execution
 	 */
 	default <R> R sendAndWait(Command command) {
@@ -44,7 +43,6 @@ public interface CommandGateway {
 	 * @param <R>     the type of the expected result
 	 * @return a CompletableFuture that will eventually hold the result of the command execution
 	 */
-	@SuppressWarnings("unchecked")
 	default <R> CompletableFuture<R> send(Command command) {
 		return send(command, null);
 	}
@@ -86,7 +84,6 @@ public interface CommandGateway {
 	 * @param <R>      the type of the expected result
 	 * @return a CompletableFuture that will eventually hold the result of the command execution
 	 */
-	@SuppressWarnings("unchecked")
 	default <R> CompletableFuture<R> send(Command command, Metadata metadata) {
 		return send(command, metadata, null);
 	}
@@ -125,7 +122,6 @@ public interface CommandGateway {
 	 * @param <R>              the type of the expected result
 	 * @return the result of the command execution
 	 */
-	@SuppressWarnings("unchecked")
-	<R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage);
+    <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage);
 
 }

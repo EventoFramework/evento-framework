@@ -1,6 +1,11 @@
 package org.evento.server.performance.model;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.List;
 
+@Setter
+@Getter
 public abstract class Node {
 
 	private long id;
@@ -15,27 +20,4 @@ public abstract class Node {
 	public Node() {
 	}
 
-	public long getId() {
-		return id;
-	}
-
-	public void setId(long id) {
-		this.id = id;
-	}
-
-	public String getPath() {
-		return path;
-	}
-
-	public void setPath(String path) {
-		this.path = path;
-	}
-
-	public List<Integer> getLines() {
-		return lines;
-	}
-
-	public void setLines(List<Integer> lines) {
-		this.lines = lines;
-	}
 }

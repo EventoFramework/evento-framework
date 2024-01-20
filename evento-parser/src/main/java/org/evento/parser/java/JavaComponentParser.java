@@ -18,7 +18,7 @@ import java.util.Stack;
 public abstract class JavaComponentParser<T extends Component> {
 
 
-	protected Node node;
+	protected final Node node;
 
 	public JavaComponentParser(Node node) {
 		this.node = node;

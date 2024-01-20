@@ -1,5 +1,6 @@
 package org.evento.application.reference;
 
+import lombok.Getter;
 import org.evento.application.utils.ReflectionUtils;
 import org.evento.common.messaging.gateway.CommandGateway;
 import org.evento.common.messaging.gateway.QueryGateway;
@@ -27,6 +28,13 @@ public class AggregateReference extends Reference {
 
     private final HashMap<String, Method> eventSourcingReferences = new HashMap<>();
     private final HashMap<String, Method> aggregateCommandHandlerReferences = new HashMap<>();
+    /**
+     * -- GETTER --
+     *  Get the snapshot frequency for the aggregate.
+     *
+     * @return The snapshot frequency.
+     */
+    @Getter
     private final int snapshotFrequency;
 
     /**
@@ -58,15 +66,6 @@ public class AggregateReference extends Reference {
                         .map(Class::getSimpleName).orElseThrow(), declaredMethod);
             }
         }
-    }
-
-    /**
-     * Get the snapshot frequency for the aggregate.
-     *
-     * @return The snapshot frequency.
-     */
-    public int getSnapshotFrequency() {
-        return snapshotFrequency;
     }
 
     /**
@@ -107,7 +106,7 @@ public class AggregateReference extends Reference {
      * @param commandGateway The command gateway for issuing commands.
      * @param queryGateway   The query gateway for querying data.
      * @return The domain event resulting from the command execution.
-     * @throws Throwable If there is an error during command handling.
+     * @throws Exception If there is an error during command handling.
      */
     public DomainEvent invoke(
             DomainCommandMessage cm,

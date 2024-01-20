@@ -28,11 +28,9 @@ public class Query extends Payload {
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
-		if (!(o instanceof Query)) return false;
+		if (!(o instanceof Query query)) return false;
 
-		Query query = (Query) o;
-
-		if (getReturnType() != null ? !getReturnType().equals(query.getReturnType()) : query.getReturnType() != null)
+        if (getReturnType() != null ? !getReturnType().equals(query.getReturnType()) : query.getReturnType() != null)
 			return false;
 		return getName() != null ? getName().equals(query.getName()) : query.getName() == null;
 	}
