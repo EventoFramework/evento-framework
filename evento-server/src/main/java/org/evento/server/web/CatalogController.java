@@ -45,7 +45,7 @@ public class CatalogController {
 	 * Retrieves a list of Payloads using the findAllProjection method of the PayloadRepository.
 	 * This method queries the database and returns a list of objects that implement the PayloadListProjection interface.
 	 *
-	 * @return ResponseEntity<List < PayloadListProjection>> - The response entity containing the list of payloads.
+	 * @return ResponseEntity - The response entity containing the list of payloads.
 	 * @see PayloadListProjection
 	 * @see PayloadRepository#findAllProjection()
 	 */
@@ -58,7 +58,7 @@ public class CatalogController {
 	 * Retrieves a Payload object by its name.
 	 *
 	 * @param payloadName The name of the payload to retrieve.
-	 * @return ResponseEntity<PayloadProjection> - The response entity containing the payload.
+	 * @return ResponseEntity - The response entity containing the payload.
 	 */
 	@GetMapping(value = "/payload/{payloadName}", produces = "application/json")
 	public ResponseEntity<PayloadProjection> findByName(@PathVariable String payloadName) {
@@ -68,7 +68,7 @@ public class CatalogController {
 	/**
 	 * Retrieves a list of all components in the catalog.
 	 *
-	 * @return ResponseEntity<List < ComponentListProjection>> - The response entity containing the list of components.
+	 * @return ResponseEntity - The response entity containing the list of components.
 	 */
 	@GetMapping(value = "/component/", produces = "application/json")
 	public ResponseEntity<List<ComponentListProjection>> findAllComponents() {
@@ -79,7 +79,7 @@ public class CatalogController {
 	 * Retrieves a component by its name.
 	 *
 	 * @param componentName The name of the component to retrieve.
-	 * @return ResponseEntity<ComponentDTO> - The response entity containing the component.
+	 * @return ResponseEntity - The response entity containing the component.
 	 * @throws java.util.NoSuchElementException if the component with the given name does not exist.
 	 */
 	@GetMapping(value = "/component/{componentName}", produces = "application/json")

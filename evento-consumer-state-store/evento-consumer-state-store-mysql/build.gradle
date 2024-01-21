@@ -83,3 +83,7 @@ javadoc{
         options.addStringOption('Xdoclint:none', '-quiet')
     }
 }
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
