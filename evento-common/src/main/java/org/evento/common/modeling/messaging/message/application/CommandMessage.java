@@ -15,6 +15,7 @@ public abstract class CommandMessage<T extends Command> extends Message<T> {
 	 * CommandMessage is a subclass of Message that represents a message carrying a command payload.
 	 * It is meant to be subclassed for specific types of commands.
 	 *
+     * @param command The command paylod of this message
      */
 	public CommandMessage(T command) {
 		super(command);

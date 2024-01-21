@@ -16,11 +16,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * The ObjectMapperUtils class provides utility methods for obtaining a shared instance of ObjectMapper for serializing and deserializing objects.
+ */
 public class ObjectMapperUtils {
 
 	private static ObjectMapper instance;
 
 
+	/**
+	 * Retrieves the shared instance of ObjectMapper used for serializing and deserializing payloads.
+	 *
+	 * @return The shared instance of ObjectMapper.
+	 */
 	public synchronized static ObjectMapper getPayloadObjectMapper() {
 		if (instance == null)
 		{

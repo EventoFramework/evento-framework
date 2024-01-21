@@ -6,8 +6,6 @@ import org.evento.common.modeling.messaging.payload.DomainEvent;
  * The DomainEventMessage class represents a specialized type of EventMessage that encapsulates a DomainEvent.
  * It inherits from the EventMessage class.
  *
- * @param <Payload> The type of the payload contained in the DomainEventMessage.
- *
  * @see EventMessage
  */
 public class DomainEventMessage extends EventMessage<DomainEvent> {
@@ -25,9 +23,9 @@ public class DomainEventMessage extends EventMessage<DomainEvent> {
 
 	/**
 	 * Constructs a new DomainEventMessage.
-	 *
+	 * <p>
 	 * This constructor is used to create an instance of DomainEventMessage without any parameters.
-	 *
+	 * <p>
 	 * Example usage:
 	 * DomainEventMessage eventMessage = new DomainEventMessage();
 	 */

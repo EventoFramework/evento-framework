@@ -12,9 +12,17 @@ import org.jaxen.JaxenException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * A parser for a Java Projector component, extending the JavaComponentParser class.
+ */
 public class JavaProjectorParser extends JavaComponentParser<Projector> {
 
 
+	/**
+	 * Creates a JavaProjectorParser object.
+	 *
+	 * @param node the Node object representing the Java projector component
+	 */
 	public JavaProjectorParser(Node node) {
 		super(node);
 	}

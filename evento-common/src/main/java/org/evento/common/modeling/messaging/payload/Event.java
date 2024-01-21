@@ -13,7 +13,7 @@ public abstract class Event extends Payload {
 
     /**
      * Returns the context of the event.
-     *
+     * <p>
      * The context is a string value representing the available context options for certain functionalities within a software system.
      * It is set by calling the setContext method.
      * The context can be accessed using the getContext method.
@@ -37,7 +37,7 @@ public abstract class Event extends Payload {
      * @return the updated event object with the new context
      *
      * @see Event#getContext()
-     * @see Event#setContext(String)
+     * @param <T> the event
      */
     @SuppressWarnings("unchecked")
     public <T extends Event> T setContext(String context) {

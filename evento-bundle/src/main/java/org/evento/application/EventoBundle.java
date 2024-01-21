@@ -213,16 +213,41 @@ public class EventoBundle {
      * Represents information about an application.
      */
     public static class ApplicationInfo {
+        /**
+         * Represents the base package that is used for scanning components in an application.
+         */
         public String basePackage;
+        /**
+         * Represents the bundle identifier of an application.
+         */
         public String bundleId;
 
+        /**
+         * Represents a set of aggregate message handlers.
+         */
         public Set<String> aggregateMessageHandlers;
+        /**
+         * The set of service message handlers.
+         */
         public Set<String> serviceMessageHandlers;
+        /**
+         * Represents a set of projection message handlers.
+         */
         public Set<String> projectionMessageHandlers;
+        /**
+         * A set of available message handlers for the projector.
+         */
         public Set<String> projectorMessageHandlers;
+        /**
+         * A set of string values representing the saga message handlers.
+         *
+         */
         public Set<String> sagaMessageHandlers;
     }
 
+    /**
+     * The Builder class is responsible for constructing an EventoBundle and starting the Evento application.
+     */
     @Getter
     @Setter
     @Accessors(chain = true)
@@ -254,9 +279,17 @@ public class EventoBundle {
 
         private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
+        /**
+         * The Builder class represents a builder for constructing objects.
+         */
         private Builder() {
         }
 
+        /**
+         * Returns a new instance of the Builder class.
+         *
+         * @return a new instance of the Builder class
+         */
         public static Builder builder() {
             return new Builder();
         }

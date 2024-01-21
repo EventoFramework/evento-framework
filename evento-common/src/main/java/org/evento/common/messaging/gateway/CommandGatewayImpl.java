@@ -24,7 +24,8 @@ public class CommandGatewayImpl implements CommandGateway {
 	/**
 	 * The CommandGatewayImpl class is an implementation of the CommandGateway interface.
 	 * It allows sending commands and interacting with a command handler.
-	 */
+     * @param eventoServer an evento server connection instance
+     */
 	public CommandGatewayImpl(EventoServer eventoServer) {
 		this.eventoServer = eventoServer;
 	}

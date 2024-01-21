@@ -3,7 +3,7 @@ package org.evento.parser.model.payload;
 /**
  * The Event class represents an event payload.
  * It extends the Payload class and inherits its properties and methods.
- *
+ * <p>
  * Usage example:
  * Event event = new Event("eventName");
  */

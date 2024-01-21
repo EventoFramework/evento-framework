@@ -16,8 +16,7 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 	 *
 	 * @param payload the payload of the EventMessage
 	 *
-	 * @param <T> the type of the event payload
-	 */
+     */
 	public EventMessage(T payload) {
 		super(payload);
 		this.context = payload == null ? Context.DEFAULT : payload.getContext();
@@ -26,8 +25,7 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 	/**
 	 * EventMessage is a class that represents a message containing an event payload.
 	 *
-	 * @param <T> The type of the event payload.
-	 */
+     */
 	public EventMessage() {
 	}
 
@@ -52,7 +50,7 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 
 	/**
 	 * Retrieves the context of the EventMessage.
-	 *
+	 * <p>
 	 * The context is a string value representing the available context options for certain functionalities within a software system.
 	 * It is set by calling the setContext method of the Event object.
 	 * The context can be accessed using the getContext method of the Event object.
@@ -62,15 +60,14 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 	 * @see Event#setContext(String)
 	 * @see Event#getContext()
 	 * @see EventMessage#setContext(String)
-	 * @see EventMessage#getContext()
-	 */
+     */
 	public String getContext() {
 		return context;
 	}
 
 	/**
 	 * Sets the context of the EventMessage.
-	 *
+	 * <p>
 	 * The context is a string value representing the available context options for certain functionalities within a software system.
 	 * It is set by calling the setContext method of the Event object.
 	 *

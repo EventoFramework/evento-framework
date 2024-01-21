@@ -18,8 +18,20 @@ import java.util.zip.ZipOutputStream;
 import static org.evento.common.serialization.ObjectMapperUtils.getPayloadObjectMapper;
 
 
+/**
+ * The PublishBundle class provides a static method to publish a bundle to a server.
+ */
 public class PublishBundle {
 
+	/**
+	 * Runs the bundle publishing process.
+	 *
+	 * @param bundlePath    the path to the bundle directory
+	 * @param serverUrl     the URL of the server to upload the bundle to
+	 * @param repositoryUrl the URL of the repository
+	 * @param token         the authorization token
+	 * @throws Exception if an error occurs during the publishing process
+	 */
 	public static void run(String bundlePath, String serverUrl, String repositoryUrl,
 						   String token) throws Exception {
 		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
@@ -78,6 +90,16 @@ public class PublishBundle {
 			System.err.println(Objects.requireNonNull(resp.body()).string());
 		}
 	}
+	/**
+	 * The main method of the PublishBundle class.
+	 *
+	 * @param args an array of command-line arguments. The arguments are as follows:
+	 *             - args[0]: the path to the bundle directory
+	 *             - args[1]: the URL of the server to upload the bundle to
+	 *             - args[2]: the URL of the repository
+	 *             - args[3]: the authorization token
+	 * @throws Exception if an error occurs during the publishing process
+	 */
 	public static void main(String[] args) throws Exception {
 		run(args[0],  args[1], args[2], args[3]);
 	}

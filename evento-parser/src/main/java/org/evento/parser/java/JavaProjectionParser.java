@@ -14,13 +14,27 @@ import org.jaxen.JaxenException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * {@code JavaProjectionParser} is a class that parses a Java component and extracts information related to projections.
+ * It extends the {@code JavaComponentParser} class.
+ */
 public class JavaProjectionParser extends JavaComponentParser<Projection> {
 
 
+	/**
+	 * The JavaProjectionParser class is responsible for parsing a Java component and extracting information related to projections.
+	 * It extends the JavaComponentParser class.
+	 */
 	public JavaProjectionParser(Node node) {
 		super(node);
 	}
 
+	/**
+	 * Find query handlers by searching for methods annotated with "QueryHandler".
+	 *
+	 * @return a list of QueryHandler objects
+	 * @throws JaxenException if an error occurs during XPath query execution
+	 */
 	private List<QueryHandler> findQueryHandlers() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("QueryHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(

@@ -7,10 +7,10 @@ package org.evento.common.utils;
 public class Context {
     /**
      * Represents the default value for a certain functionality within a software system.
-     *
+     * <p>
      * The DEFAULT constant is of type String and its value is "default".
      * It is a public static final variable, which means it can be accessed from anywhere in the code.
-     *
+     * <p>
      * Example usage:
      * String value = DEFAULT;
      *
@@ -21,7 +21,7 @@ public class Context {
      * The ALL constant represents a wildcard value used in certain functionalities within a software system.
      * It is of type String and its value is "*".
      * The constant is defined as public, static, and final, which means it can be accessed from anywhere in the code and its value cannot be changed.
-     *
+     * <p>
      * Example usage:
      * String value = ALL;
      *

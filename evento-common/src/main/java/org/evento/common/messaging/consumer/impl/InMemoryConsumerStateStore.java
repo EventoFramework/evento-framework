@@ -44,11 +44,15 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     /**
 	 * This class represents an in-memory implementation of the ConsumerStateStore interface.
 	 * It stores the state of the consumer such as last event sequence number and saga state.
-	 */
+     * @param eventoServer an evento server connection instance
+     * @param performanceService a performance service connection instance
+     * @param objectMapper an object mapper to convert messages
+     * @param observerExecutor an executor for observers
+     */
 	public InMemoryConsumerStateStore(EventoServer eventoServer,
 									  PerformanceService performanceService, ObjectMapper objectMapper,
-									  Executor executor) {
-        super(eventoServer, performanceService, objectMapper, executor);
+									  Executor observerExecutor) {
+        super(eventoServer, performanceService, objectMapper, observerExecutor);
     }
 
     /**
