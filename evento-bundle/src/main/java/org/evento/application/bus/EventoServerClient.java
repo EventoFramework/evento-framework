@@ -236,7 +236,7 @@ public class EventoServerClient implements EventoServer {
 
         private int disableDelayMillis = 5000;
 
-        private int maxReconnectAttempts = 5;
+        private int maxReconnectAttempts = -1;
 
         private long reconnectDelayMillis = 2000;
 
