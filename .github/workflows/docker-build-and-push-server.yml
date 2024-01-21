@@ -14,6 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Get current version
+        id: version
         uses: dolittle/read-version-from-file-action@v2
         with:
           path: evento-server/version.json
@@ -24,7 +25,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build the Docker image
-        run: docker build . --file docker/evento-server/Dockerfile --tag eventoframework/evento-server:latest --tag eventoframework/evento-server:${{ current-version }}
+        run: docker build . --file docker/evento-server/Dockerfile --tag eventoframework/evento-server:latest --tag eventoframework/evento-server:${{ steps.version.current-version }}
 
       - name: Push the Docker image
         run: docker push --all-tags eventoframework/evento-server
