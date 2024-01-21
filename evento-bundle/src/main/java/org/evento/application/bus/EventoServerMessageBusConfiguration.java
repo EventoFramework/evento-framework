@@ -8,7 +8,7 @@ import java.util.List;
  * Represents the configuration for the MessageBus.
  */
 @Getter
-public class MessageBusConfiguration {
+public class EventoServerMessageBusConfiguration {
 
     // List of cluster node addresses
     private final List<ClusterNodeAddress> addresses;
@@ -20,7 +20,7 @@ public class MessageBusConfiguration {
     private int retryDelayMillis = 500;
 
     // Maximum number of reconnect attempts for the cluster connection
-    private int maxReconnectAttempts = 5;
+    private int maxReconnectAttempts = -1;
 
     // Delay (in milliseconds) between reconnect attempts for the cluster connection
     private long reconnectDelayMillis = 5000;
@@ -35,7 +35,7 @@ public class MessageBusConfiguration {
      * Constructor for MessageBusConfiguration.
      * @param addresses The cluster node addresses.
      */
-    public MessageBusConfiguration(ClusterNodeAddress... addresses) {
+    public EventoServerMessageBusConfiguration(ClusterNodeAddress... addresses) {
         this.addresses = List.of(addresses);
         // Set default maxRetryAttempts based on the number of addresses
         maxRetryAttempts = addresses.length * 2;
@@ -46,7 +46,7 @@ public class MessageBusConfiguration {
      * @param maxRetryAttempts The maximum number of retry attempts.
      * @return The MessageBusConfiguration instance.
      */
-    public MessageBusConfiguration setMaxRetryAttempts(int maxRetryAttempts) {
+    public EventoServerMessageBusConfiguration setMaxRetryAttempts(int maxRetryAttempts) {
         this.maxRetryAttempts = maxRetryAttempts;
         return this;
     }
@@ -56,7 +56,7 @@ public class MessageBusConfiguration {
      * @param retryDelayMillis The delay between retry attempts.
      * @return The MessageBusConfiguration instance.
      */
-    public MessageBusConfiguration setRetryDelayMillis(int retryDelayMillis) {
+    public EventoServerMessageBusConfiguration setRetryDelayMillis(int retryDelayMillis) {
         this.retryDelayMillis = retryDelayMillis;
         return this;
     }
@@ -66,7 +66,7 @@ public class MessageBusConfiguration {
      * @param maxReconnectAttempts The maximum number of reconnect attempts.
      * @return The MessageBusConfiguration instance.
      */
-    public MessageBusConfiguration setMaxReconnectAttempts(int maxReconnectAttempts) {
+    public EventoServerMessageBusConfiguration setMaxReconnectAttempts(int maxReconnectAttempts) {
         this.maxReconnectAttempts = maxReconnectAttempts;
         return this;
     }
@@ -76,7 +76,7 @@ public class MessageBusConfiguration {
      * @param reconnectDelayMillis The delay between reconnect attempts.
      * @return The MessageBusConfiguration instance.
      */
-    public MessageBusConfiguration setReconnectDelayMillis(long reconnectDelayMillis) {
+    public EventoServerMessageBusConfiguration setReconnectDelayMillis(long reconnectDelayMillis) {
         this.reconnectDelayMillis = reconnectDelayMillis;
         return this;
     }
@@ -86,7 +86,7 @@ public class MessageBusConfiguration {
      * @param maxDisableAttempts The maximum number of disable attempts.
      * @return The MessageBusConfiguration instance.
      */
-    public MessageBusConfiguration setMaxDisableAttempts(int maxDisableAttempts) {
+    public EventoServerMessageBusConfiguration setMaxDisableAttempts(int maxDisableAttempts) {
         this.maxDisableAttempts = maxDisableAttempts;
         return this;
     }
@@ -96,7 +96,7 @@ public class MessageBusConfiguration {
      * @param disableDelayMillis The delay between disable attempts.
      * @return The MessageBusConfiguration instance.
      */
-    public MessageBusConfiguration setDisableDelayMillis(int disableDelayMillis) {
+    public EventoServerMessageBusConfiguration setDisableDelayMillis(int disableDelayMillis) {
         this.disableDelayMillis = disableDelayMillis;
         return this;
     }

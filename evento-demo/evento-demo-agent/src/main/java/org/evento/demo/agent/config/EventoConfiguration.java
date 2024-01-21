@@ -2,7 +2,7 @@ package org.evento.demo.agent.config;
 
 import org.evento.application.EventoBundle;
 import org.evento.application.bus.ClusterNodeAddress;
-import org.evento.application.bus.MessageBusConfiguration;
+import org.evento.application.bus.EventoServerMessageBusConfiguration;
 import org.evento.common.performance.ThreadCountAutoscalingProtocol;
 import org.evento.demo.agent.DemoAgentApplication;
 import org.evento.demo.telemetry.SentryTracingAgent;
@@ -35,7 +35,7 @@ public class EventoConfiguration {
 				.setBasePackage(DemoAgentApplication.class.getPackage())
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
-				.setMessageBusConfiguration(new MessageBusConfiguration(
+				.setEventoServerMessageBusConfiguration(new EventoServerMessageBusConfiguration(
 						new ClusterNodeAddress(eventoServerHost,eventoServerPort)
 				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
 						.setMaxReconnectAttempts(30)
