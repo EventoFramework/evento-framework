@@ -5,7 +5,7 @@ on:
     branches:
       - "release"
     paths:
-      - "evento/evento-server/version.json"
+      - "evento-server/version.json"
 
 jobs:
   build-and-push:
