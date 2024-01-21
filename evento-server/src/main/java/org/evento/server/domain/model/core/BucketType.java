@@ -32,11 +32,6 @@ public enum BucketType {
 	 * It is one of the bucket types used in the Bundle class to specify the type of bucket associated with the bundle.
 	 * <p>
 	 * In the Bundle class, the bucketType property can be set to Ephemeral to indicate that an ephemeral bucket should be used.
-	 * <p>
-	 * Example usage:
-	 * <p>
-	 * Bundle bundle = new Bundle();
-	 * bundle.setBucketType(BucketType.Ephemeral);
 	 */
 	Ephemeral,
 	/**

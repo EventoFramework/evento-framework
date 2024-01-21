@@ -26,15 +26,6 @@ public class AuthFilter extends OncePerRequestFilter {
     /**
      * This class represents an authentication filter that is used to authenticate incoming requests based on the provided token.
      * It extends the OncePerRequestFilter class from Spring Security, which ensures that the filter is only executed once per request.
-     * <p>
-     * Example usage:
-     * <p>
-     * AuthenticationService authService = new AuthenticationService();
-     * AuthFilter authFilter = new AuthFilter(authService);
-     * SecurityFilterChain filterChain = new SecurityFilterChain();
-     * filterChain.addFilter(authFilter);
-     * http.addFilterBefore(filterChain, UsernamePasswordAuthenticationFilter.class);
-     *
      */
     public AuthFilter(AuthService authService) {
         this.authService = authService;

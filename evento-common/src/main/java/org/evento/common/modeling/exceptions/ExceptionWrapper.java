@@ -135,7 +135,7 @@ public class ExceptionWrapper implements Serializable {
 	}
 
 	/**
-	 * Converts the ExceptionWrapper object to an exception of the corresponding type.
+	 * Converts the ExceptionWrapper object to an exception for the corresponding type.
 	 *
 	 * @return the converted Exception object
 	 */

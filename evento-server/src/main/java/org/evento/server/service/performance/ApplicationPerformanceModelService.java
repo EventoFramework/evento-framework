@@ -7,9 +7,7 @@ import org.evento.server.domain.model.core.Handler;
 import org.evento.server.domain.model.core.Payload;
 import org.evento.server.domain.repository.core.HandlerRepository;
 import org.evento.server.domain.repository.core.PayloadRepository;
-import org.evento.server.performance.model.PerformanceModel;
-import org.evento.server.performance.model.ServiceStation;
-import org.evento.server.performance.model.Source;
+import org.evento.server.performance.model.*;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -33,9 +31,9 @@ public class ApplicationPerformanceModelService {
     /**
      * Constructs a new instance of the ApplicationPerformanceModelService class.
      *
-     * @param handlerRepository         The handler repository.
-     * @param performanceStoreService   The performance store service.
-     * @param payloadRepository         The payload repository.
+     * @param handlerRepository       The handler repository.
+     * @param performanceStoreService The performance store service.
+     * @param payloadRepository       The payload repository.
      */
     public ApplicationPerformanceModelService(
             HandlerRepository handlerRepository, PerformanceStoreService performanceStoreService,
@@ -71,7 +69,7 @@ public class ApplicationPerformanceModelService {
 
     }
 
-    private void manageInvocations(PerformanceModel n, List<Handler> handlers, Handler i, Source source, ServiceStation s) {
+    private void manageInvocations(PerformanceModel n, List<Handler> handlers, Handler i, HasTarget source, ServiceStation s) {
         source.addTarget(s, performanceStoreService);
 
 
@@ -88,23 +86,23 @@ public class ApplicationPerformanceModelService {
     /**
      * Generates the invocation performance model for a given payload.
      *
-     * @param n               The performance model to add the generated agents to.
-     * @param handlers        The list of all handlers.
-     * @param p               The payload to generate the performance model for.
-     * @param source          The service station representing the source of the payload.
-     * @param handlerId       The ID of the handler associated with the payload.
-     * @param componentPath   The path of the component associated with the handler.
-     * @param lines           The line numbers of the handler invocations.
+     * @param n             The performance model to add the generated agents to.
+     * @param handlers      The list of all handlers.
+     * @param p             The payload to generate the performance model for.
+     * @param source        The service station representing the source of the payload.
+     * @param handlerId     The ID of the handler associated with the payload.
+     * @param componentPath The path of the component associated with the handler.
+     * @param lines         The line numbers of the handler invocations.
      */
     private void generateInvocationPerformanceModel(PerformanceModel n, List<Handler> handlers, Payload p, ServiceStation source,
                                                     String handlerId, String componentPath, List<Integer> lines) {
         if (p.getType() == PayloadType.Command || p.getType() == PayloadType.DomainCommand || p.getType() == PayloadType.ServiceCommand) {
             // Invoker -> Server
-            var serverRequestAgent = n.station(SERVER, "Gateway", "Gateway", p.getName(), p.getType().toString(), false, null, "Gateway_"+handlerId+"_"+p.getName(),
+            var serverRequestAgent = n.station(SERVER, "Gateway", "Gateway", p.getName(), p.getType().toString(), false, null, "Gateway_" + handlerId + "_" + p.getName(),
                     componentPath, lines);
 
             source.addTarget(serverRequestAgent, performanceStoreService);
-            if(!p.getHandlers().isEmpty()) {
+            if (!p.getHandlers().isEmpty()) {
                 // Server -> Component
                 var handler = p.getHandlers().get(0);
                 var a = n.station(handler, false, null);
@@ -140,15 +138,14 @@ public class ApplicationPerformanceModelService {
                                 }
                                 perf = perf == null ? null : Math.max(perf, sum);
                                 var ha = n.station(h, true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf);
-                                esAgent.addTarget(ha, performanceStoreService);
-                                for (var i : new HashSet<>(h.getInvocations().values())) {
-                                    generateInvocationPerformanceModel(n, handlers, i, ha,
-                                            h.getUuid(),
-                                            h.getComponent().getPath(),
-                                            h.getInvocations().entrySet().stream()
-                                                    .filter(e -> e.getValue().equals(i))
-                                                    .map(Map.Entry::getKey).toList());
-                                }
+
+                                manageInvocations(
+                                        n,
+                                        handlers,
+                                        h,
+                                        esAgent,
+                                        ha
+                                );
                             });
                 }
             }
@@ -159,7 +156,7 @@ public class ApplicationPerformanceModelService {
                     false, null, "Gateway_" + p.getName(), componentPath, lines);
             source.addTarget(serverRequestAgent, performanceStoreService);
             // Server -> Component
-            if(!p.getHandlers().isEmpty()) {
+            if (!p.getHandlers().isEmpty()) {
                 var handler = p.getHandlers().get(0);
                 var a = n.station(handler, false, null);
                 for (var pp : new HashSet<>(handler.getInvocations().values())) {
@@ -234,9 +231,9 @@ public class ApplicationPerformanceModelService {
     /**
      * Generates the service station representing the source flow for a given handler in the performance model.
      *
-     * @param n         The performance model to add the generated service station to.
-     * @param handlers  The list of all handlers.
-     * @param i         The handler to generate the source flow for.
+     * @param n        The performance model to add the generated service station to.
+     * @param handlers The list of all handlers.
+     * @param i        The handler to generate the source flow for.
      * @return The generated service station representing the source flow.
      */
     private ServiceStation generateSourceFLow(PerformanceModel n, List<Handler> handlers, Handler i) {
@@ -260,7 +257,7 @@ public class ApplicationPerformanceModelService {
         var p = payloadRepository.findById(payload).orElseThrow();
         var source = n.source(p.getName(), p.getType().toString());
         source.setPath(p.getPath());
-        if(p.getLine() != null)
+        if (p.getLine() != null)
             source.setLines(List.of(p.getLine()));
         handlers.stream().filter(h -> h.getHandledPayload().getName().equals(payload) && h.getHandlerType() != HandlerType.EventSourcingHandler).forEach(i -> {
 
