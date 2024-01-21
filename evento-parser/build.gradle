@@ -54,7 +54,7 @@ publishing {
             pom {
                 name = "Evento Framework - Parser"
                 description = "Codebase Parser to detect RECQ Components for Evento Framework"
-                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-parser"
+                url = "https://www.eventoframework.com/"
 
                 licenses {
                     license {

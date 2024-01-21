@@ -35,7 +35,7 @@ publishing {
             pom {
                 name = "Evento Framework - Consumer State Store - MySQL"
                 description = "Evento Framework Consumer State Store implemented in MySQL"
-                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-consumer-state-store/evento-consumer-state-store-mysql"
+                url = "https://www.eventoframework.com/"
 
                 licenses {
                     license {
