@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.locks.Lock;
 
 @Service
 public class PerformanceStoreService extends PerformanceService {
@@ -63,12 +64,20 @@ public class PerformanceStoreService extends PerformanceService {
         ).orElse(null);
     }
 
+    private static boolean tryLock(Lock lock){
+        try{
+            return lock.tryLock();
+        }catch (Exception e){
+            return false;
+        }
+    }
+
     public void saveServiceTimePerformance(String bundle, String component, String action, long start, long end) {
         var pId = bundle + "_" + component + "_" + action;
         System.out.println("saveServiceTimePerformance - " + pId);
         var lock = lockRegistry.obtain(pId);
         var duration = end - start;
-        if (lock.tryLock()) {
+        if (tryLock(lock)) {
             try {
                 var hp = handlerServiceTimePerformanceRepository.findById(pId);
                 HandlerServiceTimePerformance handlerServiceTimePerformance;
@@ -118,7 +127,7 @@ public class PerformanceStoreService extends PerformanceService {
         var pId = "ic__" + bundle + "_" + component + "_" + action;
         System.out.println("saveInvocationsPerformance - " + pId);
         var lock = lockRegistry.obtain(pId);
-        if (lock.tryLock()) {
+        if (tryLock(lock)) {
             try {
                 var hId = Handler.generateId(bundle, component, action);
                 handlerRepository.findById(hId).ifPresent(handler -> {
