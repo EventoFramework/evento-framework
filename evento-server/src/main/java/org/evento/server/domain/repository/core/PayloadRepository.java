@@ -24,33 +24,33 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
     List<PayloadListProjection> findAllProjection();
 
 	@Query(value = "select p.name, " +
-			"   p.json_schema                                                              as jsonSchema, " +
-			"   p.registered_in                                                            as registeredIn, " +
-			"   p.type, " +
-			"   p.updated_at                                                               as updatedAt, " +
-			"   p.description, " +
-			"   p.detail, " +
-			"   p.domain," +
-			"   p.path," +
-			"   p.line," +
-			"   p.is_valid_json_schema as validJsonSchema, " +
-			"   string_agg(distinct concat(hc.component_name, '$$$', hc.component_type, '$$$', hc.path, '$$$', h.line), ',')   as subscribers, " +
-			"   string_agg(distinct concat(hic.component_name, '$$$', hic.component_type, '$$$', hic.path, '$$$', hi.line), ',') as invokers, " +
-			"   string_agg(distinct concat(h2c.component_name, '$$$', h2c.component_type, '$$$', h2c.path, '$$$', h2.line), ',') as returnedBy, " +
-			"   string_agg(distinct concat(h3c.component_name, '$$$', h3c.component_type, '$$$', h3c.path, '$$$', h3.line), ',') as usedBy " +
+			"       p.json_schema                                                              as jsonSchema, " +
+			"       p.registered_in                                                            as registeredIn, " +
+			"       p.type, " +
+			"       p.updated_at                                                               as updatedAt, " +
+			"       p.description, " +
+			"       p.detail, " +
+			"       p.domain, " +
+			"       p.path, " +
+			"       p.line, " +
+			"       p.is_valid_json_schema as validJsonSchema, " +
+			"       string_agg(distinct case when hc.component_name is null then null else concat(hc.component_name, '$$$', hc.component_type, '$$$', hc.path, '$$$', h.line) end, ',')   as subscribers, " +
+			"       string_agg(distinct case when hic.component_name is null then null else concat(hic.component_name, '$$$', hic.component_type, '$$$', hic.path, '$$$', hi.line) end, ',') as invokers, " +
+			"       string_agg(distinct case when h2c.component_name is null then null else concat(h2c.component_name, '$$$', h2c.component_type, '$$$', h2c.path, '$$$', h2.line) end, ',') as returnedBy, " +
+			"       string_agg(distinct case when h3c.component_name is null then null else  concat(h3c.component_name, '$$$', h3c.component_type, '$$$', h3c.path, '$$$', h3.line) end, ',') as usedBy " +
 			" " +
 			"from core__payload p " +
-			" left join core__handler h on p.name = h.handled_payload_name and " +
-			"  ((p.type != 'DomainEvent') or (h.handler_type != 'EventSourcingHandler')) " +
-			" left join core__component hc on h.component_component_name = hc.component_name " +
-			" left join core__handler__invocation i on i.invocations_name = p.name " +
-			" left join core__handler hi on hi.uuid = i.handler_uuid " +
-			" left join core__component hic on hi.component_component_name = hic.component_name " +
-			" left join core__handler h2 on h2.return_type_name = p.name " +
-			" left join core__component h2c on h2.component_component_name = h2c.component_name " +
-			" left join core__handler__invocation ri on ri.invocations_name = h2.handled_payload_name " +
-			" left join core__handler h3 on h3.uuid = ri.handler_uuid " +
-			" left join core__component h3c on h3.component_component_name = h3c.component_name " +
+			"         left join core__handler h on p.name = h.handled_payload_name and " +
+			"                                      ((p.type != 'DomainEvent') or (h.handler_type != 'EventSourcingHandler')) " +
+			"         left join core__component hc on h.component_component_name = hc.component_name " +
+			"         left join core__handler__invocation i on i.invocations_name = p.name " +
+			"         left join core__handler hi on hi.uuid = i.handler_uuid " +
+			"         left join core__component hic on hi.component_component_name = hic.component_name " +
+			"         left join core__handler h2 on h2.return_type_name = p.name " +
+			"         left join core__component h2c on h2.component_component_name = h2c.component_name " +
+			"         left join core__handler__invocation ri on ri.invocations_name = h2.handled_payload_name " +
+			"         left join core__handler h3 on h3.uuid = ri.handler_uuid " +
+			"         left join core__component h3c on h3.component_component_name = h3c.component_name " +
 			"where p.name = ?1 " +
 			"group by p.name " +
 			"order by p.updated_at desc", nativeQuery = true)

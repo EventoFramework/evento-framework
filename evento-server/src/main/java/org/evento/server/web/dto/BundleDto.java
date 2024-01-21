@@ -9,10 +9,7 @@ import org.evento.server.domain.model.core.Handler;
 
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -65,6 +62,8 @@ public class BundleDto implements Serializable {
 		this.description = bundle.getDescription();
 		this.detail = bundle.getDetail();
 		this.updatedAt = bundle.getUpdatedAt();
-		this.domains = handlers.stream().map(h -> h.getHandledPayload().getDomain()).collect(Collectors.toSet());
+		this.domains = handlers.stream().map(h -> h.getHandledPayload().getDomain())
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
 	}
 }

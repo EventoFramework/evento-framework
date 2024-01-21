@@ -10,6 +10,8 @@ import org.evento.common.modeling.messaging.message.application.*;
 import org.evento.common.modeling.messaging.message.internal.*;
 import org.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
+import org.evento.common.performance.PerformanceInvocationsMessage;
+import org.evento.common.performance.PerformanceServiceTimeMessage;
 import org.evento.common.utils.Sleep;
 import org.evento.server.domain.model.core.BucketType;
 import org.evento.server.domain.model.core.Bundle;
@@ -233,6 +235,21 @@ public class MessageBus {
             } finally {
                 eventStore.release(lockId);
             }
+        } else if(m.getBody() instanceof PerformanceInvocationsMessage im){
+            performanceStoreService.saveInvocationsPerformance(
+                    im.getBundle(),
+                    im.getComponent(),
+                    im.getAction(),
+                    im.getInvocations()
+            );
+        } else if(m.getBody() instanceof PerformanceServiceTimeMessage im){
+            performanceStoreService.saveServiceTimePerformance(
+                    im.getBundle(),
+                    im.getComponent(),
+                    im.getAction(),
+                    im.getStart(),
+                    im.getEnd()
+            );
         }
         logger.debug("Message received: {}", m);
     }
