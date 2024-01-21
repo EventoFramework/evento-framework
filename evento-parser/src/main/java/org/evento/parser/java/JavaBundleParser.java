@@ -34,10 +34,42 @@ public class JavaBundleParser implements BundleParser {
 
     private final static Logger logger = LogManager.getLogger(JavaBundleParser.class);
 
+    /**
+     * Represents the property name for the version of the bundle.
+     * <p>
+     * This constant is used to retrieve the version of a bundle from the bundle properties.
+     * It is typically used as a key in a key-value map.
+     * <p>
+     * Example usage:
+     * <pre>{@code
+     * String version = bundleProperties.get(EVENTO_BUNDLE_VERSION_PROPERTY);
+     * }</pre>
+     */
     public static final String EVENTO_BUNDLE_VERSION_PROPERTY = "evento.bundle.version";
+    /**
+     * A constant variable representing the property name for the evento bundle.
+     * The value of this property can be retrieved using the bundle ID.
+     * <p>
+     * Example usage:
+     * String bundleName = System.getProperty(EVENTO_BUNDLE_NAME_PROPERTY);
+     */
     public static final String EVENTO_BUNDLE_NAME_PROPERTY = "evento.bundle.id";
+    /**
+     * The EVENTO_BUNDLE_AUTORUN_PROPERTY variable represents the key used to retrieve the autorun status of a bundle from a configuration.
+     * It is a constant string value.
+     */
     public static final String EVENTO_BUNDLE_AUTORUN_PROPERTY = "evento.bundle.autorun";
+    /**
+     * This constant represents the property name for the minimum number of instances allowed for a bundle.
+     * The value of this property is "evento.bundle.instances.min".
+     * It is used in the {@link JavaBundleParser} class to define the minimum instances value for a bundle when parsing a directory.
+     */
     public static final String EVENTO_BUNDLE_INSTANCES_MIN_PROPERTY = "evento.bundle.instances.min";
+    /**
+     * Represents the maximum number of instances allowed for a bundle.
+     * This property defines the upper limit on the number of instances that can be created for a bundle.
+     * The value of this property must be an integer.
+     */
     public static final String EVENTO_BUNDLE_INSTANCES_MAX_PROPERTY = "evento.bundle.instances.max";
 
     public BundleDescription parseDirectory(File directory, String repositoryRoot) throws Exception {

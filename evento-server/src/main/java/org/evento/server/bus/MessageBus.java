@@ -382,7 +382,7 @@ public class MessageBus {
                 resp.setBody(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
                 sendResponse.accept(resp);
             } else {
-                throw new IllegalArgumentException("Missing Handler " + ((ServerHandleInvocationMessage) request).getPayload());
+                throw new IllegalArgumentException("Missing Handler for " + request.getClass());
             }
         } catch (Exception e) {
             logger.error("Error handling message in server", e);

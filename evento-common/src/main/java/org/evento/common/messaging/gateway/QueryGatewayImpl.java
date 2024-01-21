@@ -20,7 +20,8 @@ public class QueryGatewayImpl implements QueryGateway {
 	/**
 	 * The QueryGatewayImpl class implements the QueryGateway interface
 	 * and provides a way to send queries and receive the corresponding responses asynchronously.
-	 */
+     * @param eventoServer an instance of evento server connection
+     */
 	public QueryGatewayImpl(EventoServer eventoServer) {
 		this.eventoServer = eventoServer;
 	}

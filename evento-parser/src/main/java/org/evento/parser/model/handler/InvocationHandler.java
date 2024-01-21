@@ -26,6 +26,10 @@ public class InvocationHandler extends Handler<Invocation> implements HasCommand
 		super(payload, line);
 	}
 
+	/**
+	 * The InvocationHandler class represents a handler for invocations.
+	 * It extends the Handler class and implements the HasCommandInvocations and HasQueryInvocations interfaces.
+	 */
 	public InvocationHandler() {
 	}
 

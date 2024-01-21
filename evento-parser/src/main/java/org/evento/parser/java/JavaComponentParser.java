@@ -31,7 +31,8 @@ public abstract class JavaComponentParser<T extends Component> {
 	 * The JavaComponentParser class is responsible for parsing a Java component.
 	 * It is a generic abstract class for parsing different types of components.
 	 * The class provides methods for parsing different types of components and returning the parsed object.
-	 */
+     * @param node a node for a component class
+     */
 	public JavaComponentParser(Node node) {
 		this.node = node;
 	}

@@ -30,7 +30,10 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	/**
 	 * Implementation of the ConsumerStateStore interface that stores the consumer state in MySQL database.
-	 */
+     * @param eventoServer an instance of evento server connection
+     * @param performanceService  an instance of performance service
+     * @param connection a MySQL java connection
+     */
 	public MysqlConsumerStateStore(
 			EventoServer eventoServer,
 			PerformanceService performanceService,
@@ -40,14 +43,19 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	/**
 	 * Represents a consumer state store implementation that stores the consumer state in a MySQL database.
-	 */
+     * @param eventoServer an instance of evento server connection
+     * @param performanceService an instance of performance service
+     * @param connection a MySQL java connection
+     * @param objectMapper an object mapper to manage serialization
+     * @param observerExecutor observer executor
+     */
 	public MysqlConsumerStateStore(
 			EventoServer eventoServer,
 			PerformanceService performanceService,
 			Connection connection,
 			ObjectMapper objectMapper,
-			Executor executor) {
-		super(eventoServer, performanceService, objectMapper, executor);
+			Executor observerExecutor) {
+		super(eventoServer, performanceService, objectMapper, observerExecutor);
 		this.connection = connection;
 		init();
 	}

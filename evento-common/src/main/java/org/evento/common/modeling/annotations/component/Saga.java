@@ -49,7 +49,19 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Component
 public @interface Saga {
+	/**
+	 * Returns the version of the method.
+	 *
+	 * @return the version of the method
+	 */
 	int version();
 
+	/**
+	 * Returns the available context options for the functionality.
+	 *
+	 * @return an array of context options
+	 *
+	 * @see Context
+	 */
 	String[] context() default  {Context.ALL};
 }

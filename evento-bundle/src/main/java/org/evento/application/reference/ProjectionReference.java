@@ -24,6 +24,7 @@ public class ProjectionReference extends Reference {
     /**
      * The ProjectionReference class extends the Reference class and is responsible for managing query handler references
      * for projection objects.
+     * @param ref the Projection Object
      */
     public ProjectionReference(Object ref) {
         super(ref);

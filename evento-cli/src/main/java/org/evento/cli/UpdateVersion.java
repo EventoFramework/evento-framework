@@ -11,11 +11,26 @@ import java.util.stream.Collectors;
 
 import static org.evento.parser.java.JavaBundleParser.EVENTO_BUNDLE_VERSION_PROPERTY;
 
+/**
+ * The UpdateVersion class is responsible for updating the version property in a bundle.
+ */
 public class UpdateVersion {
+	/**
+	 * The main method is the entry point of the program. It runs the `run` method with the provided command line argument.
+	 *
+	 * @param args The command line arguments.
+	 * @throws Exception if an error occurs during the execution of the `run` method.
+	 */
 	public static void main(String[] args) throws Exception {
 		run(args[0]);
 	}
 
+	/**
+	 * The run method updates the version property in a bundle file.
+	 *
+	 * @param bundlePath The path to the bundle file.
+	 * @throws Exception if the version property is not found or an error occurs during the update process.
+	 */
 	public static void run(String bundlePath) throws Exception{
 		if (FileUtils.autoCloseWalk(new File(bundlePath).toPath(), a -> a
 				.filter(p -> p.toString().endsWith(".properties"))

@@ -22,6 +22,10 @@ public class ServiceReference extends Reference {
 
     private final HashMap<String, Method> serviceCommandHandlerReferences = new HashMap<>();
 
+    /**
+     * The ServiceReference class represents a reference to a service object. It extends the Reference class.
+     * @param ref The reference to the service object
+     */
     public ServiceReference(Object ref) {
         super(ref);
         for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {
