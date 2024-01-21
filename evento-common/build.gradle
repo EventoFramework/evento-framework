@@ -43,7 +43,7 @@ publishing {
             pom {
                 name = "Evento Framework - Common"
                 description = "Common Library of Object and Algorithms for Evento Framework"
-                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-common"
+                url = "https://www.eventoframework.com/"
 
                 licenses {
                     license {

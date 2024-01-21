@@ -52,7 +52,7 @@ publishing {
             pom {
                 name = "Evento Framework - CLI"
                 description = "Command line interface for Evento Framework to Publish and Parse the codebase"
-                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-cli"
+                url = "https://www.eventoframework.com/"
 
                 licenses {
                     license {

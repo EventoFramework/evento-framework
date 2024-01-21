@@ -60,7 +60,7 @@ publishing {
             pom {
                 name = "Evento Framework - Bundle"
                 description = "Evento Framework - Bundle. The library to build a RECQ System based on Evento Server"
-                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-bundle"
+                url = "https://www.eventoframework.com/"
 
                 licenses {
                     license {
