@@ -10,9 +10,16 @@ import org.jaxen.JaxenException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * The JavaSagaParser class is responsible for parsing a Java node and extracting information to create a Saga object.
+ */
 public class JavaSagaParser extends JavaComponentParser<Saga> {
 
 
+	/**
+	 * JavaSagaParser is a class responsible for parsing a Java node and extracting information
+	 * to create a Saga object.
+	 */
 	public JavaSagaParser(Node node) {
 		super(node);
 	}

@@ -21,6 +21,11 @@ public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 		this.aggregateId = command.getAggregateId();
 	}
 
+	/**
+	 * The DomainCommandMessage class represents a message that carries a domain command payload.
+	 * It extends the CommandMessage class and is used to invoke command handler methods.
+	 * It contains the domain command payload and the ID of the aggregate the command is targeting.
+	 */
 	public DomainCommandMessage() {
 	}
 

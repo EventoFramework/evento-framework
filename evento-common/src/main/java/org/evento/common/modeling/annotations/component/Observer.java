@@ -55,6 +55,16 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Component
 public @interface Observer {
+    /**
+     * Returns the version of the observer.
+     *
+     * @return the version of the observer
+     */
     int version();
+    /**
+     * Retrieves the context options for the given method context.
+     *
+     * @return the context options for the method context
+     */
     String[] context() default {Context.ALL};
 }

@@ -7,14 +7,24 @@ import java.lang.reflect.InvocationTargetException;
  *  The ExceptionWrapper class is a utility class that wraps a Throwable object and provides methods for accessing and manipulating its properties.
  */
 public class ExceptionWrapper implements Serializable {
+	/**
+	 * Represents a Throwable object.
+	 */
 	public String throwable;
+	/**
+	 * The message associated with this ExceptionWrapper object.
+	 */
 	public String message;
+	/**
+	 *
+	 */
 	public StackTraceElement[] stackTrace;
 	private ExceptionWrapper cause;
 
 	/**
 	 * The ExceptionWrapper class is a utility class that wraps a Throwable object and provides methods for accessing and manipulating its properties.
-	 */
+     * @param throwable The original throwable
+     */
 	public ExceptionWrapper(Throwable throwable) {
 		this.throwable = throwable.getClass().getName();
 		this.message = throwable.getMessage();

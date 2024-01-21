@@ -21,7 +21,9 @@ public class EventHandler extends Handler<Event> implements HasQueryInvocations,
 	 * EventHandler represents an event handler that handles event payloads.
 	 * It extends the Handler class and implements the HasQueryInvocations and HasCommandInvocations interfaces.
 	 * It contains methods to add and retrieve query and command invocations.
-	 */
+     * @param payload the event
+     * @param line the line on file
+     */
 	public EventHandler(Event payload, int line) {
 		super(payload, line);
 	}
