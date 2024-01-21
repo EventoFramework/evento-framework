@@ -18,7 +18,7 @@ import java.util.function.Supplier;
  * for a specific observer.
  */
 public class ObserverEventConsumer implements Runnable {
-    private final Logger logger = LogManager.getLogger(ObserverEventConsumer.class);
+    private static final Logger logger = LogManager.getLogger(ObserverEventConsumer.class);
 
     // Fields for configuration and dependencies
     private final String bundleId;

@@ -13,7 +13,7 @@ import java.time.Instant;
  */
 public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 
-	private final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
+	private static final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
 	private final int maxThreadCount;
 	private final int minThreadCount;
 	private final int maxOverflowCount;

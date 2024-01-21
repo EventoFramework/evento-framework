@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  * in a saga context.
  */
 public class SagaEventConsumer implements Runnable {
-    private final Logger logger = LogManager.getLogger(SagaEventConsumer.class);
+    private static final Logger logger = LogManager.getLogger(SagaEventConsumer.class);
 
     // Fields for configuration and dependencies
     private final String bundleId;

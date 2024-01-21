@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class PerformanceService {
 
-    private final Logger logger = LogManager.getLogger(PerformanceService.class);
+    private static final Logger logger = LogManager.getLogger(PerformanceService.class);
 
     /**
      * The EVENT_STORE constant is a string that represents the name of the event store.

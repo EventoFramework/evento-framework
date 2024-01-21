@@ -27,7 +27,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public class EventoServerClient implements EventoServer {
 
-    private final Logger logger = LogManager.getLogger(EventoServerClient.class);
+    private static final Logger logger = LogManager.getLogger(EventoServerClient.class);
 
     private final String bundleId;
     private final long bundleVersion;
