@@ -51,10 +51,7 @@ public class DemoAggregate {
 
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
 		Utils.doWork(1100);
-		/*
-		if (state.getValue() >= command.getValue())
-			throw new RuntimeException("error.invalid.value");*/
-		Utils.logMethodFlow(this, "handle", command, "END");
+        Utils.logMethodFlow(this, "handle", command, "END");
 		return new DemoUpdatedEvent(
 				command.getDemoId(),
 				command.getName(),
