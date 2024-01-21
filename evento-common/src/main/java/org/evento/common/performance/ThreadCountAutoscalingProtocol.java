@@ -7,6 +7,10 @@ import org.evento.common.utils.Sleep;
 
 import java.time.Instant;
 
+/**
+ * The ThreadCountAutoscalingProtocol class is a concrete implementation of the AutoscalingProtocol abstract class.
+ * It provides an autoscaling protocol that adjusts the thread count based on the arrival and departure of requests or messages.
+ */
 public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 
 	private final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
@@ -26,6 +30,16 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 	private long lastDepartureCheck = 0;
 	private long boredSentDepartureTime = -1;
 
+	/**
+	 * The ThreadCountAutoscalingProtocol class is a concrete implementation of the AutoscalingProtocol abstract class.
+	 * It provides an autoscaling protocol that adjusts the thread count based on the arrival and departure of requests or messages.
+     * @param eventoServer an evento server connection instance
+     * @param maxThreadCount maximum thread concurrently available
+     * @param minThreadCount minimum thread active to handle messages
+     * @param maxOverflowCount overflow to detect suffering
+     * @param maxUnderflowCount underflow to detect boredom
+     * @param boredTimeout interval to detect boredom
+     */
 	public ThreadCountAutoscalingProtocol(
 			EventoServer eventoServer,
 			int maxThreadCount,

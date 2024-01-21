@@ -19,9 +19,27 @@ public abstract class PerformanceService {
 
     private final Logger logger = LogManager.getLogger(PerformanceService.class);
 
+    /**
+     * The EVENT_STORE constant is a string that represents the name of the event store.
+     * It is used to refer to the event store in various parts of the application.
+     */
     public static final String EVENT_STORE = "event-store";
+    /**
+     * The EVENT_STORE_COMPONENT variable represents the component name for the event store.
+     * It is a constant String value that is set to "EventStore".
+     */
     public static final String EVENT_STORE_COMPONENT = "EventStore";
+    /**
+     * The GATEWAY_COMPONENT constant represents the component name "Gateway".
+     * It is a string literal and is declared as a public static final field.
+     * This constant is used in various methods and classes within the PerformanceService package to refer to the Gateway component.
+     * It helps in identifying and distinguishing metrics related to the Gateway component in performance monitoring and reporting.
+     */
     public static final String GATEWAY_COMPONENT = "Gateway";
+    /**
+     * The SERVER variable represents the name of the server.
+     * It is a constant String value.
+     */
     public static final String SERVER = "server";
     protected final Executor executor = Executors.newSingleThreadExecutor();
 
