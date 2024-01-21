@@ -65,6 +65,7 @@ public class PerformanceStoreService extends PerformanceService {
 
     public void saveServiceTimePerformance(String bundle, String component, String action, long start, long end) {
         var pId = bundle + "_" + component + "_" + action;
+        System.out.println("saveServiceTimePerformance - " + pId);
         var lock = lockRegistry.obtain(pId);
         var duration = end - start;
         if (lock.tryLock()) {
@@ -115,6 +116,7 @@ public class PerformanceStoreService extends PerformanceService {
 
     public void saveInvocationsPerformance(String bundle, String component, String action, HashMap<String, Integer> invocations) {
         var pId = "ic__" + bundle + "_" + component + "_" + action;
+        System.out.println("saveInvocationsPerformance - " + pId);
         var lock = lockRegistry.obtain(pId);
         if (lock.tryLock()) {
             try {

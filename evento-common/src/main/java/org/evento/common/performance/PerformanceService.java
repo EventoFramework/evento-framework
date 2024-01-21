@@ -120,6 +120,7 @@ public abstract class PerformanceService {
      */
     public final void sendInvocationsMetric(String bundle, String component, Message<?> action,
                                             HashMap<String, AtomicInteger> invocationCounter) {
+        if(invocationCounter.isEmpty()) return;
         if (random.nextDouble(0.0, 1.0) > performanceRate) return;
         executor.execute(() -> {
             try {
