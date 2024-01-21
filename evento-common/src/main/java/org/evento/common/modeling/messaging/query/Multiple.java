@@ -20,8 +20,7 @@ public class Multiple<T extends View> extends QueryResponse<T> {
 	 * Represents a response object that contains multiple instances of a specified type.
 	 * Extends the `QueryResponse` class.
 	 *
-	 * @param <T> The type of view the Multiple object contains.
-	 */
+     */
 	public Multiple() {
 	}
 
@@ -55,7 +54,6 @@ public class Multiple<T extends View> extends QueryResponse<T> {
 	/**
 	 * Retrieves the data contained in the Multiple object.
 	 *
-	 * @param <T> The type of view.
 	 * @return The collection of views contained in the Multiple object.
 	 */
 	public Collection<T> getData() {
