@@ -28,7 +28,7 @@ import java.util.HashMap;
  */
 @Service
 public class AutoDiscoveryService {
-    private final Logger logger = LogManager.getLogger(AutoDiscoveryService.class);
+    private static final Logger logger = LogManager.getLogger(AutoDiscoveryService.class);
     private final BundleRepository bundleRepository;
     private final HandlerRepository handlerRepository;
     private final PayloadRepository payloadRepository;

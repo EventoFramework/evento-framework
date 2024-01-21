@@ -16,7 +16,7 @@ import java.io.Serializable;
 
 public class SerializedObject<T extends Serializable> implements Serializable {
 
-	private final Logger logger = LogManager.getLogger(this.getClass());
+	private transient final Logger logger = LogManager.getLogger(this.getClass());
 	private String serializedObject;
 	private String objectClass;
 
