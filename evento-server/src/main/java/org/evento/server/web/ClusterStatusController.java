@@ -33,8 +33,6 @@ public class ClusterStatusController {
 	private final MessageBus messageBus;
 	private final BundleService bundleService;
 	private final BundleDeployService bundleDeployService;
-	@Value("${evento.cluster.node.server.id}")
-	private String serverNodeName;
 
 	/**
 	 * The ClusterStatusController class is a REST controller that handles requests related to cluster status.
