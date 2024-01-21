@@ -41,7 +41,7 @@ publishing {
             version = version
             from components.java
             pom {
-                name = "Evento Frameowrk - Common"
+                name = "Evento Framework - Common"
                 description = "Common Library of Object and Algorithms for Evento Framework"
                 url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-common"
 
@@ -88,5 +88,6 @@ signing {
 javadoc{
     if(JavaVersion.current().isJava9Compatible()){
         options.addBooleanOption("html5", true)
+        options.addStringOption('Xdoclint:none', '-quiet')
     }
 }

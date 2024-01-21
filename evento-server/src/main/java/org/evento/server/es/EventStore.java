@@ -62,7 +62,8 @@ public class EventStore {
 
     public void acquire(String string) {
         if (string == null) return;
-        try (var stmt = this.lockConnection.prepareStatement("SELECT pg_advisory_lock("+string.hashCode()+")")) {
+        try (var stmt = this.lockConnection.prepareStatement("SELECT pg_advisory_lock(?)")) {
+            stmt.setString(1, String.valueOf(string.hashCode()));
             var resultSet = stmt.executeQuery();
             resultSet.next();
             if (resultSet.wasNull()) throw new IllegalMonitorStateException();
@@ -76,7 +77,8 @@ public class EventStore {
 
     public void release(String string) {
         if (string == null) return;
-        try (var stmt = lockConnection.prepareStatement("SELECT pg_advisory_unlock("+string.hashCode()+")")) {
+        try (var stmt = lockConnection.prepareStatement("SELECT pg_advisory_unlock(?)")) {
+            stmt.setString(1, String.valueOf(string.hashCode()));
             var resultSet = stmt.executeQuery();
             resultSet.next();
             if (resultSet.wasNull()) throw new IllegalMonitorStateException();

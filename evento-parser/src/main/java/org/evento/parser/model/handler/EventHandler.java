@@ -108,7 +108,7 @@ public class EventHandler extends Handler<Event> implements HasQueryInvocations,
 	/**
 	 * Sets the map of invoked commands for the EventHandler.
 	 *
-	 * @param invokedCommands a HashMap<Integer, Command> containing the line numbers and corresponding Command objects
+	 * @param invokedCommands a HashMap containing the line numbers and corresponding Command objects
 	 */
 	public void setInvokedCommands(HashMap<Integer, Command> invokedCommands) {
 		this.invokedCommands = invokedCommands;

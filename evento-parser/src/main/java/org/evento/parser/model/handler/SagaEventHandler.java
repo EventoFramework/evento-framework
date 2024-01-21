@@ -79,7 +79,7 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 	/**
 	 * Retrieves a map of the commands that have been invoked by the SagaEventHandler.
 	 *
-	 * @return A HashMap<Integer, Command> representing the invoked commands. The key is the line number of the invocation and the value is the Command object.
+	 * @return A HashMap representing the invoked commands. The key is the line number of the invocation and the value is the Command object.
 	 */
 	public HashMap<Integer, Command> getInvokedCommands() {
 		return invokedCommands;
@@ -97,7 +97,7 @@ public class SagaEventHandler extends Handler<Event> implements HasCommandInvoca
 	/**
 	 * Retrieves a HashMap of the queries that have been invoked by the SagaEventHandler object.
 	 *
-	 * @return A HashMap<Integer, Query> representing the invoked queries. The key is the line number of the invocation and the value is the Query object.
+	 * @return A HashMap representing the invoked queries. The key is the line number of the invocation and the value is the Query object.
 	 */
 	public HashMap<Integer, Query> getInvokedQueries() {
 		return invokedQueries;
