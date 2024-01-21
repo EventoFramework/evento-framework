@@ -25,7 +25,7 @@ public class MonoResultQueryReturnType extends QueryReturnType {
 
 	/**
 	 * Returns a string representation of the object.
-	 *
+	 * <p>
 	 * The `toString` method returns the name of the view associated with the query return type.
 	 *
 	 * @return The name of the view associated with the query return type.

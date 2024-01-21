@@ -32,7 +32,6 @@ public class Projection extends Component {
 	 *
 	 * @return a list of {@code QueryHandler} objects
 	 *
-	 * @see Projection
 	 * @see QueryHandler
 	 */
 	public List<QueryHandler> getQueryHandlers() {
@@ -53,7 +52,6 @@ public class Projection extends Component {
 	 *
 	 * @param queryHandlers a list of {@code QueryHandler} objects
 	 *
-	 * @see Projection
 	 * @see QueryHandler
 	 */
 	public void setQueryHandlers(List<QueryHandler> queryHandlers) {

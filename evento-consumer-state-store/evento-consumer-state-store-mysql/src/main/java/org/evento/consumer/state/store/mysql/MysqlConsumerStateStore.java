@@ -54,7 +54,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	/**
 	 * Initializes the MySQL consumer state store.
-	 *
+	 * <p>
 	 * This method creates the necessary database tables for storing consumer and saga states in a MySQL database.
 	 * It should be called once before using the consumer state store.
 	 *

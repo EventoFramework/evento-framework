@@ -39,7 +39,7 @@ public abstract class PerformanceService {
 
     /**
      * Sends a service time metric.
-     *
+     * <p>
      * This method sends a service time metric with the given parameters. It calculates the service time using the provided start time and the current time. The service time metric
      * is wrapped in a PerformanceServiceTimeMessage object and sent asynchronously using the executor. If an exception occurs while sending the metric, an error message is logged
      *.
@@ -65,7 +65,7 @@ public abstract class PerformanceService {
 
     /**
      * Sends a service time metric message.
-     *
+     * <p>
      * This method sends a service time metric with the provided information. It calculates the service time using the provided start time
      * and the current time. The service time metric is wrapped in a PerformanceServiceTimeMessage object and sent asynchronously using
      * the executor. If an exception occurs while sending the metric, an error message is logged.
@@ -88,7 +88,7 @@ public abstract class PerformanceService {
 
     /**
      * Sends a performance invocations metric asynchronously.
-     *
+     * <p>
      * This method sends a performance invocations metric with the specified bundle, component, action, and invocation counter.
      * The invocation counter is a HashMap that contains the number of invocations for each key.
      * The performance invocations metric is encapsulated in a PerformanceInvocationsMessage object.
@@ -121,7 +121,7 @@ public abstract class PerformanceService {
 
     /**
      * Sends a performance invocations metric message.
-     *
+     * <p>
      * This method sends a performance invocations metric message with the provided information.
      * The performance invocations metric message is encapsulated in a PerformanceInvocationsMessage object.
      * The method executes the sending logic on a separate thread using an executor.
