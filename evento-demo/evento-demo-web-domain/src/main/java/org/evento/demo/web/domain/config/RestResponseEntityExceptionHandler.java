@@ -13,6 +13,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
+@SuppressWarnings("CallToPrintStackTrace")
 @ControllerAdvice
 public class RestResponseEntityExceptionHandler 
   extends ResponseEntityExceptionHandler {

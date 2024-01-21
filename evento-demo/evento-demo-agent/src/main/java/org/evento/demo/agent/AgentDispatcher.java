@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.Random;
 
+@SuppressWarnings("CallToPrintStackTrace")
 @Component
 public class AgentDispatcher implements CommandLineRunner {
 
@@ -62,9 +63,6 @@ public class AgentDispatcher implements CommandLineRunner {
 				System.out.println(finalI + "_end");
 			}).start();
 		}
-		// eventoBundle.gracefulShutdown();
 
-        // eventoBundle.gracefulShutdown();
-
-	}
+    }
 }
