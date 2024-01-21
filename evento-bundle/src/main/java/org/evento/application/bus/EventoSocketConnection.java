@@ -104,7 +104,7 @@ public class EventoSocketConnection {
 
         new Thread(() -> {
             // Loop until the connection is closed or the maximum reconnect attempts are reached
-            while (!isClosed && reconnectAttempt < maxReconnectAttempts) {
+            while (!isClosed && (maxReconnectAttempts < 0 || reconnectAttempt < maxReconnectAttempts)) {
                 // Log the current attempt to connect
                 logger.info("Socket Connection #{} to {}:{} attempt {}",
                         conn,
@@ -254,7 +254,7 @@ public class EventoSocketConnection {
         private final MessageHandler handler;
 
         // Optional parameters with default values
-        private int maxReconnectAttempts = 5;
+        private int maxReconnectAttempts = -1;
         private long reconnectDelayMillis = 2000;
 
         /**

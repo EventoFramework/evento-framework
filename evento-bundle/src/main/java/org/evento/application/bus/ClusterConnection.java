@@ -153,7 +153,7 @@ public class ClusterConnection {
         // Optional parameters with default values
         private int maxRetryAttempts;
         private int retryDelayMillis = 500;
-        private int maxReconnectAttempts = 5;
+        private int maxReconnectAttempts = -1;
         private long reconnectDelayMillis = 2000;
 
         /**

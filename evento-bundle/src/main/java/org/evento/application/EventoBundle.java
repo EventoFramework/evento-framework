@@ -10,7 +10,7 @@ import lombok.experimental.Accessors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.evento.application.bus.EventoServerClient;
-import org.evento.application.bus.MessageBusConfiguration;
+import org.evento.application.bus.EventoServerMessageBusConfiguration;
 import org.evento.application.manager.*;
 import org.evento.application.performance.TracingAgent;
 import org.evento.application.performance.Track;
@@ -275,7 +275,7 @@ public class EventoBundle {
 
         private TracingAgent tracingAgent;
 
-        private MessageBusConfiguration messageBusConfiguration;
+        private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
 
         private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
@@ -307,7 +307,7 @@ public class EventoBundle {
             if (bundleId == null || bundleId.isBlank() || bundleId.isEmpty()) {
                 throw new IllegalArgumentException("Invalid bundleId");
             }
-            if (messageBusConfiguration == null) {
+            if (eventoServerMessageBusConfiguration == null) {
                 throw new IllegalArgumentException("Invalid messageBusConfiguration");
             }
 
@@ -524,7 +524,7 @@ public class EventoBundle {
                     new EventoServerClient.Builder(
                             registration,
                             objectMapper,
-                            messageBusConfiguration.getAddresses(),
+                            eventoServerMessageBusConfiguration.getAddresses(),
                             (body) -> {
                                 if (body instanceof DecoratedDomainCommandMessage cm) {
                                     return aggregateManager.handle(cm);
@@ -537,12 +537,12 @@ public class EventoBundle {
                                 }
                             }
                     )
-                            .setMaxReconnectAttempts(messageBusConfiguration.getMaxReconnectAttempts())
-                            .setReconnectDelayMillis(messageBusConfiguration.getReconnectDelayMillis())
-                            .setMaxDisableAttempts(messageBusConfiguration.getMaxDisableAttempts())
-                            .setDisableDelayMillis(messageBusConfiguration.getDisableDelayMillis())
-                            .setMaxRetryAttempts(messageBusConfiguration.getMaxRetryAttempts())
-                            .setRetryDelayMillis(messageBusConfiguration.getRetryDelayMillis())
+                            .setMaxReconnectAttempts(eventoServerMessageBusConfiguration.getMaxReconnectAttempts())
+                            .setReconnectDelayMillis(eventoServerMessageBusConfiguration.getReconnectDelayMillis())
+                            .setMaxDisableAttempts(eventoServerMessageBusConfiguration.getMaxDisableAttempts())
+                            .setDisableDelayMillis(eventoServerMessageBusConfiguration.getDisableDelayMillis())
+                            .setMaxRetryAttempts(eventoServerMessageBusConfiguration.getMaxRetryAttempts())
+                            .setRetryDelayMillis(eventoServerMessageBusConfiguration.getRetryDelayMillis())
                             .connect();
 
 
