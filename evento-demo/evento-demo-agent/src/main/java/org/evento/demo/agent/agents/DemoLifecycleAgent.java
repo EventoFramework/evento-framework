@@ -20,7 +20,7 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 
 	@Track
 	@InvocationHandler
-	public Report action(int i) throws ExecutionException, InterruptedException {
+	public void action(int i) throws ExecutionException, InterruptedException {
 		var random = new Random();
 		String id = UUID.randomUUID().toString();
 
@@ -66,8 +66,6 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 
 		if (random.nextDouble(0, 1) < 0.2)
 			throw new RuntimeException("Demo exception");
-
-		return null;
 
 	}
 

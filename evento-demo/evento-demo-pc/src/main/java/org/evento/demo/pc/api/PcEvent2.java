@@ -1,16 +1,13 @@
 package org.evento.demo.pc.api;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.evento.common.modeling.messaging.payload.DomainEvent;
 
+@Setter
+@Getter
 public class PcEvent2 extends DomainEvent {
 
 	private String pcId;
 
-	public String getPcId() {
-		return pcId;
-	}
-
-	public void setPcId(String pcId) {
-		this.pcId = pcId;
-	}
 }

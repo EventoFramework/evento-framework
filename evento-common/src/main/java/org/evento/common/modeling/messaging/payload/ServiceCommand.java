@@ -10,6 +10,7 @@ public abstract class ServiceCommand extends Command {
 	 *
 	 * @return The lock ID associated with the ServiceCommand.
      */
+	@SuppressWarnings("SameReturnValue")
 	public String getLockId(){
 		return null;
 	}

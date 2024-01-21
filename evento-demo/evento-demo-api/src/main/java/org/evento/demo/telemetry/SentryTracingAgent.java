@@ -25,6 +25,7 @@ public class SentryTracingAgent extends TracingAgent {
 		});
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public <T> T track(Message<?> message, String component,
 					   Track trackingAnnotation,
@@ -95,7 +96,9 @@ public class SentryTracingAgent extends TracingAgent {
 			}
 		}
 		metadata.put(SENTRY_TRACE_HEADER, t.toSentryTrace().getValue());
-		metadata.put(BAGGAGE_HEADER, t.toBaggageHeader(List.of()).getValue());
+		var b = t.toBaggageHeader(List.of());
+		if(b!= null)
+			metadata.put(BAGGAGE_HEADER, b.getValue());
 		t.setData("Description", t.getName() + " - " + getBundleId() + "@" + getBundleVersion());
 		t.setTag("message", message.getPayloadName());
 		t.setTag("component", component);

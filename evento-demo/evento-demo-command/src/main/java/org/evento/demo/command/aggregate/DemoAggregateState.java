@@ -1,7 +1,11 @@
 package org.evento.demo.command.aggregate;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.evento.common.modeling.state.AggregateState;
 
+@Setter
+@Getter
 public class DemoAggregateState extends AggregateState {
 	private long value;
 
@@ -13,11 +17,4 @@ public class DemoAggregateState extends AggregateState {
 	public DemoAggregateState() {
 	}
 
-	public long getValue() {
-		return value;
-	}
-
-	public void setValue(long value) {
-		this.value = value;
-	}
 }
