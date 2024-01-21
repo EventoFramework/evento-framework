@@ -46,6 +46,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -168,7 +169,11 @@ public class EventoBundle {
                             method.getDeclaredAnnotation(Track.class),
                             () -> {
                                 Object result = proceed.invoke(target, args);
-                                gProxy.sendServiceTimeMetric(start);
+                                if(result instanceof CompletableFuture<?> cf){
+                                    result = cf.whenComplete((s,f) -> gProxy.sendServiceTimeMetric(start));
+                                }else{
+                                    gProxy.sendServiceTimeMetric(start);
+                                }
                                 return result;
                             });
                 }

@@ -64,95 +64,80 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
     @Override
     public <R> R sendAndWait(Command command) {
-        try {
-            return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
-        } finally {
-            updateInvocationCounter(command);
-        }
+        updateInvocationCounter(command);
+        return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
     }
 
     @Override
     public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
-        try {
-            return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage), timeout, unit);
-        } finally {
-            updateInvocationCounter(command);
-        }
+        updateInvocationCounter(command);
+        return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage), timeout, unit);
+
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <R> CompletableFuture<R> send(Command command) {
-        return (CompletableFuture<R>) commandGateway.send(command, tracingAgent.correlate((Metadata) null, this.handledMessage))
-                .whenComplete((s, e) -> updateInvocationCounter(command));
+        updateInvocationCounter(command);
+        return commandGateway.send(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata) {
-        try {
-            return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage));
-        } finally {
-            updateInvocationCounter(command);
-        }
+        updateInvocationCounter(command);
+        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage));
+
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata, long timeout, TimeUnit unit) {
-        try {
-            return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), timeout, unit);
-        } finally {
-            updateInvocationCounter(command);
-        }
+        updateInvocationCounter(command);
+        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), timeout, unit);
+
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <R> CompletableFuture<R> send(Command command, Metadata metadata) {
-        return (CompletableFuture<R>) commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage))
-                .whenComplete((s, e) -> updateInvocationCounter(command));
+        updateInvocationCounter(command);
+        return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage));
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) {
-        try {
-            return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
-        } finally {
-            updateInvocationCounter(command);
-        }
+        updateInvocationCounter(command);
+        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
+
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
-        try {
-            return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
-        } finally {
-            updateInvocationCounter(command);
-        }
+        updateInvocationCounter(command);
+        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
+
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
-        return (CompletableFuture<R>) commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage),
-                this.handledMessage).whenComplete((s, e) -> updateInvocationCounter(command));
+        updateInvocationCounter(command);
+        return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage),
+                this.handledMessage);
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
-        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage)
-                .whenComplete((s, e) -> updateInvocationCounter(query));
+        updateInvocationCounter(query);
+        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
-        return queryGateway.query(query, tracingAgent.correlate((Metadata) null, this.handledMessage))
-                .whenComplete((s, e) -> updateInvocationCounter(query));
+        updateInvocationCounter(query);
+        return queryGateway.query(query, tracingAgent.correlate((Metadata) null, this.handledMessage));
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata) {
-        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage))
-                .whenComplete((s, e) -> updateInvocationCounter(query));
+        updateInvocationCounter(query);
+        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage));
     }
 
     /**
