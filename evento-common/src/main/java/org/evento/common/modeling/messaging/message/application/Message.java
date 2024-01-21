@@ -24,8 +24,7 @@ public abstract class Message<T extends Payload> implements Serializable {
 	 * Constructs a new Message object with the given payload.
 	 *
 	 * @param payload The payload of the Message.
-	 * @param <T>     The type of the payload.
-	 */
+     */
 	public Message(T payload) {
 		this.serializedPayload = new SerializedPayload<>(payload);
 		this.timestamp = Instant.now().toEpochMilli();
@@ -34,8 +33,7 @@ public abstract class Message<T extends Payload> implements Serializable {
 	/**
 	 * The Message class represents a message with a serialized payload, timestamp, and metadata.
 	 *
-	 * @param <T> The type of the payload.
-	 */
+     */
 	public Message() {
 	}
 
@@ -52,8 +50,7 @@ public abstract class Message<T extends Payload> implements Serializable {
 	 * Sets the payload of the message.
 	 *
 	 * @param payload The payload to be set.
-	 * @param <T>     The type of the payload.
-	 */
+     */
 	public void setPayload(T payload) {
 		this.serializedPayload = new SerializedPayload<>(payload);
 	}
@@ -71,8 +68,7 @@ public abstract class Message<T extends Payload> implements Serializable {
 	 * Sets the serialized payload of the Message.
 	 *
 	 * @param serializedPayload The serialized payload to be set.
-	 * @param <T>               The type of the payload.
-	 */
+     */
 	public void setSerializedPayload(SerializedPayload<T> serializedPayload) {
 		this.serializedPayload = serializedPayload;
 	}

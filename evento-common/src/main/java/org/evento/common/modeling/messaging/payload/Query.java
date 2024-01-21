@@ -15,7 +15,6 @@ public abstract class Query<T extends QueryResponse<?>> extends Payload {
 	/**
 	 * Returns the response type of the Query.
 	 *
-	 * @param <T> The type parameter that the QueryResponse will return.
 	 * @return The Class object representing the response type.
 	 */
 	@SuppressWarnings("unchecked")

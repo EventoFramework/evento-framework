@@ -16,7 +16,7 @@ public class PerformanceInvocationsMessage implements Serializable {
 
 	/**
 	 * Constructs a new PerformanceInvocationsMessage object.
-	 *
+	 * <p>
 	 * This constructor creates a PerformanceInvocationsMessage object with all fields set to their default values.
 	 * The default values are:
 	 * - bundle: null
@@ -89,7 +89,7 @@ public class PerformanceInvocationsMessage implements Serializable {
 
 	/**
 	 * Sets the action associated with the performance invocations message.
-	 *
+	 * <p>
 	 * This method sets the value of the action field in the PerformanceInvocationsMessage object.
 	 *
 	 * @param action The new value for the action.

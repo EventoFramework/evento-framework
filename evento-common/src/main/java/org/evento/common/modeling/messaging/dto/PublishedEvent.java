@@ -55,8 +55,7 @@ public class PublishedEvent implements Serializable {
 	 * @param aggregateId the aggregate ID to be set as a String
 	 *
 	 * @see PublishedEvent#getAggregateId()
-	 * @see PublishedEvent#setAggregateId(String)
-	 */
+     */
 	public void setAggregateId(String aggregateId) {
 		this.aggregateId = aggregateId;
 	}

@@ -73,7 +73,7 @@ public abstract class JavaComponentParser<T extends Component> {
 	 * Checks if a given {@link ASTTypeDeclaration} class is annotated with the annotation "Projection".
 	 *
 	 * @param classDef the {@link ASTTypeDeclaration} class to check for the "Projection" annotation
-	 * @return <code>true</code> if the class is annotated with "Projection", <code>false</code> otherwise
+	 * @return true if the class is annotated with "Projection", false otherwise
 	 * @throws JaxenException if there is an error in the XPath query
 	 */
 	public static boolean isProjection(ASTTypeDeclaration classDef) throws JaxenException {
