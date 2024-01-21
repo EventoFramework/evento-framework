@@ -10,7 +10,7 @@ import org.evento.common.modeling.messaging.message.internal.ClusterNodeIsBoredM
  */
 public abstract class AutoscalingProtocol {
 
-	protected final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
+	protected static final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
 	private final EventoServer eventoServer;
 
 	/**

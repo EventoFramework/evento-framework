@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  */
 public class ProjectorEvenConsumer implements Runnable {
 
-    private final Logger logger = LogManager.getLogger(ProjectorEvenConsumer.class);
+    private static final Logger logger = LogManager.getLogger(ProjectorEvenConsumer.class);
 
     // Fields for configuration and dependencies
     private final String bundleId;
