@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -205,6 +206,7 @@ public class EventStore {
     }
 
     public AggregateStory fetchAggregateStory(String aggregateId) {
+        Assert.isTrue(aggregateId!=null, "getAggregateId() return null!");
         if (!snapshotCache.containsKey(aggregateId)) {
             snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
         }
