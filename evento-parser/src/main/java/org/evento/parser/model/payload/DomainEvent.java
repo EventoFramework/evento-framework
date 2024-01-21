@@ -3,7 +3,7 @@ package org.evento.parser.model.payload;
 /**
  * The DomainEvent class represents a domain-specific event payload.
  * It extends the Event class and inherits its properties and methods.
- *
+ * <p>
  * Usage example:
  * DomainEvent event = new DomainEvent("eventName");
  */
@@ -11,7 +11,7 @@ public class DomainEvent extends Event {
 	/**
 	 * The DomainEvent class represents a domain-specific event payload.
 	 * It extends the Event class and inherits its properties and methods.
-	 *
+	 * <p>
 	 * Usage example:
 	 * DomainEvent event = new DomainEvent("eventName");
 	 *

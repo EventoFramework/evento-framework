@@ -16,6 +16,7 @@ public class FileUtils {
      * @param apply The function to be applied to the stream of paths.
      * @return T The result of applying the provided function to the stream of paths.
      * @throws RuntimeException if an IO error occurs.
+     * @param <T> generic return to handle multiple stream types
      */
     public static <T> T autoCloseWalk(Path path, Walker<T> apply) throws Exception {
         try(var stream = Files.walk(path)) {

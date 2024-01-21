@@ -13,9 +13,17 @@ import org.jaxen.JaxenException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * The JavaServiceParser class is responsible for parsing the Java Service component and extracting relevant information.
+ * It extends the JavaComponentParser class and provides additional functionality specific to Service components.
+ */
 public class JavaServiceParser extends JavaComponentParser<Service> {
 
 
+	/**
+	 * The JavaServiceParser class is responsible for parsing the Java Service component and extracting relevant information.
+	 * It extends the JavaComponentParser class and provides additional functionality specific to Service components.
+	 */
 	public JavaServiceParser(Node node) {
 		super(node);
 	}

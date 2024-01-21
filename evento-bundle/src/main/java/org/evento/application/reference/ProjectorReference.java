@@ -25,6 +25,7 @@ public class ProjectorReference extends Reference {
     /**
      * The ProjectorReference class represents a reference to a projector object. It extends the Reference class.
      * It provides methods to register event handlers, retrieve registered events, and invoke event handlers.
+     * @param ref the object representing the projector
      */
     public ProjectorReference(Object ref) {
         super(ref);

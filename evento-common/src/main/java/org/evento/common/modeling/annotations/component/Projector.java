@@ -49,6 +49,16 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Component
 public @interface Projector {
+	/**
+	 * Returns the version of the Projector.
+	 *
+	 * @return the version of the Projector
+	 */
 	int version();
+	/**
+	 * Retrieves the context options for the given method context.
+	 *
+	 * @return an array of Strings representing the context options for the method context
+	 */
 	String[] context() default {Context.ALL};
 }

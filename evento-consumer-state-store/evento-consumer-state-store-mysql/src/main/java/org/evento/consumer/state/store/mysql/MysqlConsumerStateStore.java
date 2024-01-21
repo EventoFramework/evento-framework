@@ -13,6 +13,10 @@ import java.sql.SQLException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+/**
+ * MysqlConsumerStateStore is a class that extends the ConsumerStateStore abstract class and implements
+ * methods for storing and retrieving consumer and saga state using MySQL database.
+ */
 public class MysqlConsumerStateStore extends ConsumerStateStore {
 
 	private static final String CONSUMER_STATE_TABLE = "evento__consumer_state";
@@ -24,6 +28,9 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 			+ " (id int auto_increment, name varchar(255),  state text, primary key (id))";
 	private final Connection connection;
 
+	/**
+	 * Implementation of the ConsumerStateStore interface that stores the consumer state in MySQL database.
+	 */
 	public MysqlConsumerStateStore(
 			EventoServer eventoServer,
 			PerformanceService performanceService,
@@ -31,6 +38,9 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newSingleThreadExecutor());
 	}
 
+	/**
+	 * Represents a consumer state store implementation that stores the consumer state in a MySQL database.
+	 */
 	public MysqlConsumerStateStore(
 			EventoServer eventoServer,
 			PerformanceService performanceService,
@@ -42,6 +52,14 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 		init();
 	}
 
+	/**
+	 * Initializes the MySQL consumer state store.
+	 *
+	 * This method creates the necessary database tables for storing consumer and saga states in a MySQL database.
+	 * It should be called once before using the consumer state store.
+	 *
+	 * @throws RuntimeException if an exception occurs during the initialization process.
+	 */
 	public void init() {
 		try
 		{

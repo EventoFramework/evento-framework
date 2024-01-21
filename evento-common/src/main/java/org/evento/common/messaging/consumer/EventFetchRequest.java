@@ -23,7 +23,11 @@ public class EventFetchRequest implements Serializable {
 	/**
 	 * The EventFetchRequest class represents a request to fetch events from a context.
 	 * It contains the context, the last sequence number, the limit, and the component name.
-	 */
+     * @param context context from to filler events
+     * @param lastSequenceNumber to fetch only later events
+     * @param limit events to fetch
+     * @param componentName caller component to fetch only required events
+     */
 	public EventFetchRequest(String context, long lastSequenceNumber, int limit, String componentName) {
 		this.context = context;
 		this.lastSequenceNumber = lastSequenceNumber;
@@ -101,7 +105,7 @@ public class EventFetchRequest implements Serializable {
 
 	/**
 	 * Sets the context for the EventFetchRequest object.
-	 *
+	 * <p>
 	 * This method allows you to set the context, which represents the identifier of the context associated with the request.
 	 *
 	 * @param context the context to set

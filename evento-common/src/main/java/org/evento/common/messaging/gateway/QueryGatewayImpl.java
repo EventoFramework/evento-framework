@@ -17,6 +17,10 @@ import java.util.concurrent.CompletableFuture;
 public class QueryGatewayImpl implements QueryGateway {
 	private final EventoServer eventoServer;
 
+	/**
+	 * The QueryGatewayImpl class implements the QueryGateway interface
+	 * and provides a way to send queries and receive the corresponding responses asynchronously.
+	 */
 	public QueryGatewayImpl(EventoServer eventoServer) {
 		this.eventoServer = eventoServer;
 	}

@@ -12,13 +12,27 @@ import org.jaxen.JaxenException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * The JavaInvokerParser class is responsible for parsing a Java source code file and extracting information about Invokers.
+ * It extends the JavaComponentParser class and implements the parsing logic specific to Invokers.
+ */
 public class JavaInvokerParser extends JavaComponentParser<Invoker> {
 
 
+	/**
+	 * The {@code JavaInvokerParser} class is responsible for parsing a Java source code file and extracting information about Invokers.
+	 * It extends the {@code JavaComponentParser} class and implements the parsing logic specific to Invokers.
+	 */
 	public JavaInvokerParser(Node node) {
 		super(node);
 	}
 
+	/**
+	 * Finds all invocation handlers in the class.
+	 *
+	 * @return A List of InvocationHandler objects representing the invocation handlers.
+	 * @throws JaxenException if an error occurs while executing the XPath query.
+	 */
 	private List<InvocationHandler> findInvocationHandlers() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("InvocationHandler");
 		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(

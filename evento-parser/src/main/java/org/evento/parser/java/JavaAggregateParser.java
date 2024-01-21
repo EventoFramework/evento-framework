@@ -28,7 +28,8 @@ public class JavaAggregateParser extends JavaComponentParser<Aggregate> {
 	 * It extends the JavaComponentParser class, which is a generic abstract class for parsing different types of components.
 	 * The class provides methods to find AggregateCommandHandlers and EventSourcingHandlers in the parsed class.
 	 * It also overrides the parse method to parse the aggregate and return an Aggregate object.
-	 */
+     * @param node Root node for parsing
+     */
 	public JavaAggregateParser(Node node) {
 		super(node);
 	}

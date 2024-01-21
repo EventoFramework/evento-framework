@@ -72,7 +72,6 @@ public class DomainCommandResponseMessage implements Serializable {
 	 *
 	 * @param serializedAggregateState The serialized aggregate state to set.
 	 *                                The type parameter T must extend the AggregateState class.
-	 * @param <T>                     The type of the aggregate state.
 	 */
 	public void setSerializedAggregateState(SerializedAggregateState<AggregateState> serializedAggregateState) {
 		this.serializedAggregateState = serializedAggregateState;

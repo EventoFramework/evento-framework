@@ -16,7 +16,8 @@ public class EventLastSequenceNumberResponse implements Serializable {
 
 	/**
 	 * The EventLastSequenceNumberResponse class represents a response object that contains the last sequence number for an event.
-	 */
+     * @param number the sequence number
+     */
 	public EventLastSequenceNumberResponse(long number) {
 		this.number = number;
 	}

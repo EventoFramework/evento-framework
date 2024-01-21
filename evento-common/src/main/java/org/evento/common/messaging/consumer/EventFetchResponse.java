@@ -40,7 +40,7 @@ public class EventFetchResponse implements Serializable {
 
 	/**
 	 * Sets the list of published events.
-	 *
+	 * <p>
 	 * This method sets the list of published events in the EventFetchResponse class.
 	 * The list of events is provided as an argument to the method and assigned to the "events" member variable.
 	 *
