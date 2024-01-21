@@ -1,8 +1,10 @@
 package org.evento.demo.api.query;
 
 import org.evento.common.modeling.messaging.payload.Query;
+import org.evento.common.modeling.messaging.query.Single;
+import org.evento.demo.api.view.NotificationView;
 
-public class NotificationFindByIdQuery extends Query {
+public class NotificationFindByIdQuery extends Query<Single<NotificationView>> {
 
 	private String notificationId;
 

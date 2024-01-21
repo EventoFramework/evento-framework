@@ -9,6 +9,7 @@ import org.evento.server.domain.repository.core.HandlerRepository;
 import org.evento.server.domain.repository.core.PayloadRepository;
 import org.evento.server.performance.model.PerformanceModel;
 import org.evento.server.performance.model.ServiceStation;
+import org.evento.server.performance.model.Source;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -62,24 +63,26 @@ public class ApplicationPerformanceModelService {
             s.setPath(i.getComponent().getPath());
             s.setLines(i.getLine() == null ? List.of() : List.of(i.getLine()));
 
-            source.addTarget(s, performanceStoreService);
-
-
-            for (var p : new HashSet<>(i.getInvocations().values())) {
-                generateInvocationPerformanceModel(n, handlers, p, s,
-                        i.getUuid(),
-                        i.getComponent().getPath(),
-                        i.getInvocations().entrySet().stream()
-                                .filter(e -> e.getValue().equals(p))
-                                .map(Map.Entry::getKey).toList());
-            }
-
-            //
+            manageInvocations(n, handlers, i, source, s);
 
         });
 
         return n;
 
+    }
+
+    private void manageInvocations(PerformanceModel n, List<Handler> handlers, Handler i, Source source, ServiceStation s) {
+        source.addTarget(s, performanceStoreService);
+
+
+        for (var p : new HashSet<>(i.getInvocations().values())) {
+            generateInvocationPerformanceModel(n, handlers, p, s,
+                    i.getUuid(),
+                    i.getComponent().getPath(),
+                    i.getInvocations().entrySet().stream()
+                            .filter(e -> e.getValue().equals(p))
+                            .map(Map.Entry::getKey).toList());
+        }
     }
 
     /**
@@ -241,17 +244,7 @@ public class ApplicationPerformanceModelService {
 
         var s = n.station(i, false, null);
 
-        source.addTarget(s, performanceStoreService);
-
-
-        for (var p : new HashSet<>(i.getInvocations().values())) {
-            generateInvocationPerformanceModel(n, handlers, p, s,
-                    i.getUuid(),
-                    i.getComponent().getPath(),
-                    i.getInvocations().entrySet().stream()
-                            .filter(e -> e.getValue().equals(p))
-                            .map(Map.Entry::getKey).toList());
-        }
+        manageInvocations(n, handlers, i, source, s);
         return s;
     }
 
@@ -273,17 +266,7 @@ public class ApplicationPerformanceModelService {
 
             var s = n.station(i, false, null);
 
-            source.addTarget(s, performanceStoreService);
-
-
-            for (var pp : new HashSet<>(i.getInvocations().values())) {
-                generateInvocationPerformanceModel(n, handlers, pp, s,
-                        i.getUuid(),
-                        i.getComponent().getPath(),
-                        i.getInvocations().entrySet().stream()
-                                .filter(e -> e.getValue().equals(pp))
-                                .map(Map.Entry::getKey).toList());
-            }
+            manageInvocations(n, handlers, i, source, s);
 
 
             if (i.getReturnType() != null && i.getHandlerType() != HandlerType.QueryHandler) {

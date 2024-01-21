@@ -19,9 +19,4 @@ public class NotificationSendSilentCommand extends ServiceCommand {
 	public void setBody(String body) {
 		this.body = body;
 	}
-
-	@Override
-	public String getLockId() {
-		return null;
-	}
 }
