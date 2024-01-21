@@ -9,6 +9,7 @@ import java.util.List;
 @Data
 public class DashboardDTO {
 	private String serverName;
+	private String serverVersion;
 	private Long payloadCount;
 	private List<PayloadTypeCount> payloadCountByType;
 	private Long componentCount;

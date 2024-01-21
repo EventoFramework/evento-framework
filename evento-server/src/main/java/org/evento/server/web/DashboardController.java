@@ -22,8 +22,10 @@ public class DashboardController {
 	private final BundleRepository bundleRepository;
 	private final MessageBus messageBus;
 	private final EventStore eventStore;
-	@Value("${evento.cluster.node.server.id}")
-	private String serverNodeName;
+	@Value("${evento.cluster.name}")
+	private String clusterName;
+	@Value("${application.version}")
+	private String version;
 
 	public DashboardController(PayloadRepository payloadRepository, ComponentRepository componentRepository, BundleRepository bundleRepository, MessageBus messageBus, EventStore eventStore) {
 		this.payloadRepository = payloadRepository;
@@ -38,7 +40,8 @@ public class DashboardController {
 	public DashboardDTO getDashboard() {
 		var db = new DashboardDTO();
 
-		db.setServerName(serverNodeName);
+		db.setServerName(clusterName);
+		db.setServerVersion(version);
 
 		db.setPayloadCount(payloadRepository.count());
 		db.setPayloadCountByType(payloadRepository.countByType());
