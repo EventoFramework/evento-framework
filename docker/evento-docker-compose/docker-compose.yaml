@@ -1,0 +1,29 @@
+version: '3.3'
+services:
+  database:
+    image: 'postgres:latest'
+    environment:
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=evento
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data/
+  evento-server:
+    image: 'eventoframework/evento-server:latest'
+    depends_on:
+      - database
+    environment:
+      - evento_cluster_name=evento-server
+      - evento_performance_capture_rate=0.1
+      - evento_telemetry_ttl=365
+      - evento_file_upload-dir=/server_upload
+      - evento_security_signing_key=MY_JWT_SECRET_TOKEN_SEED
+      - spring_datasource_url=jdbc:postgresql://database:5432/evento
+      - spring_datasource_username=postgres
+      - spring_datasource_password=secret
+    ports:
+      - '3000:3000'
+      - '3030:3030'
+    volumes:
+      - ./data/evento/files:/server_upload
+
+

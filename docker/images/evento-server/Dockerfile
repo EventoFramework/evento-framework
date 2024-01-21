@@ -1,4 +1,4 @@
-FROM gradle:8.5-jdk17-focal AS build
+FROM gradle:8.5-jdk17-alpine AS build
 COPY --chown=gradle:gradle . /evento
 WORKDIR /evento
 RUN gradle :evento-server:bootJar --no-daemon

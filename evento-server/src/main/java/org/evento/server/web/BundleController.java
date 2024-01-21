@@ -34,7 +34,7 @@ public class BundleController {
 
 	private final BundleService bundleService;
 	private final HandlerService handlerService;
-	@Value("${file.upload-dir}")
+	@Value("${evento.file.upload-dir}")
 	private String fileUploadDir;
 
 	/**
