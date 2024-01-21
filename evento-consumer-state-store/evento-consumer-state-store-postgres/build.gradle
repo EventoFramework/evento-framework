@@ -33,8 +33,8 @@ publishing {
             version = version
             from components.java
             pom {
-                name = "Evento Framework - Consumer State Store - PostgreSQL"
-                description = "Evento Framework Consumer State Store implemented in PostgreSQL"
+                name = "Evento Framework - Consumer State Store - PostgresSQL"
+                description = "Evento Framework Consumer State Store implemented in PostgresSQL"
                 url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-consumer-state-store/evento-consumer-state-store-postgresql"
 
                 licenses {
@@ -82,4 +82,9 @@ javadoc{
         options.addBooleanOption("html5", true)
         options.addStringOption('Xdoclint:none', '-quiet')
     }
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
 }
