@@ -14,6 +14,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
+@SuppressWarnings("CallToPrintStackTrace")
 @Invoker
 public class DemoLifecycleAgent extends InvokerWrapper {
 
@@ -35,12 +36,14 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 		}
 		getCommandGateway().send(new DemoUpdateCommand(id, id, 1)).thenAccept(o -> {
 		}).exceptionally(e -> {
+			//noinspection CallToPrintStackTrace
 			e.printStackTrace();
 			return null;
 		});
 		if (random.nextDouble(0, 1) < 0.7)
 		{
 			resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> {
+				//noinspection CallToPrintStackTrace
 				e.printStackTrace();
 				return null;
 			}).get();
@@ -49,6 +52,7 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 			{
 				Thread.sleep(3000);
 				resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> {
+					//noinspection CallToPrintStackTrace
 					e.printStackTrace();
 					return null;
 				}).get();

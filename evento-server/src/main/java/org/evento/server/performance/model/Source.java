@@ -7,7 +7,7 @@ import org.evento.server.service.performance.PerformanceStoreService;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Source extends Node {
+public class Source extends Node implements HasTarget {
 
 
 	private String bundleId;
@@ -39,7 +39,8 @@ public class Source extends Node {
 	public Source() {
 	}
 
-	public void addTarget(ServiceStation s, PerformanceStoreService performanceStoreService) {
+	@Override
+	public void addTarget(ActionNode s, PerformanceStoreService performanceStoreService) {
 		target.put(s, performanceStoreService.getInvocationProbability(
 				bundleId,
 				componentName,

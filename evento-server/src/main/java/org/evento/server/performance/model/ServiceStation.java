@@ -7,7 +7,7 @@ import org.evento.server.service.performance.PerformanceStoreService;
 import java.util.HashMap;
 
 @Setter
-public class ServiceStation extends Node {
+public class ServiceStation extends ActionNode implements HasTarget {
 
     @Getter
     private String bundle;
@@ -15,10 +15,6 @@ public class ServiceStation extends Node {
     private String component;
     @Getter
     private String componentType;
-    @Getter
-    private String action;
-    @Getter
-    private String actionType;
 
     private boolean async;
     @Getter
@@ -40,17 +36,17 @@ public class ServiceStation extends Node {
         super(id);
         this.bundle = bundle;
         this.component = component;
-        this.action = action;
+        super.setAction(action);
         this.numServers = numServers;
         this.async = async;
         this.meanServiceTime = meanServiceTime;
-        this.actionType = actionType;
+        this.setActionType(actionType);
         this.componentType = componentType;
         this.handlerId = handlerId;
     }
 
     public ServiceStation() {
-
+        super();
     }
 
 
@@ -59,9 +55,9 @@ public class ServiceStation extends Node {
     }
 
 
-    public void addTarget(Node a, PerformanceStoreService performanceStoreService) {
+    public void addTarget(ActionNode a, PerformanceStoreService performanceStoreService) {
         if (a instanceof ServiceStation ss) {
-            var frequency = performanceStoreService.getInvocationProbability(bundle, component, action, ss.action);
+            var frequency = performanceStoreService.getInvocationProbability(bundle, component, getAction(), ss.getAction());
             target.put(a, frequency);
         } else {
             target.put(a, null);

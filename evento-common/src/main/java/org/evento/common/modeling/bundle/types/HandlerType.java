@@ -66,11 +66,6 @@ public enum HandlerType {
 	 * <p>
 	 * EventSourcingHandler is a type of EventHandler and belongs to the HandlerType EventSourcingHandler.
 	 * Implementations of EventSourcingHandler should define how events are handled and what actions should be taken in response to each event.
-	 * <p>
-	 * Example usage:
-	 * <p>
-	 * EventSourcingHandler eventSourcingHandler = new EventSourcingHandler();
-	 * eventSourcingHandler.handleEvent(event);
 	 */
 	EventSourcingHandler,
 
