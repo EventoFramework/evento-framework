@@ -93,7 +93,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 		try
 		{
             try (var stmt = connection.prepareStatement("SELECT pg_advisory_unlock(?)")) {
-                stmt.setString(1, String.valueOf(consumerId.hashCode()));
+                stmt.setInt(1, consumerId.hashCode());
 				var resultSet = stmt.executeQuery();
 				resultSet.next();
 				if (resultSet.wasNull()) return;
@@ -111,7 +111,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 		try
 		{
             try (var stmt = connection.prepareStatement("SELECT pg_advisory_lock(?)")) {
-				stmt.setString(1, String.valueOf(consumerId.hashCode()));
+				stmt.setInt(1, consumerId.hashCode());
 				var resultSet = stmt.executeQuery();
 				resultSet.next();
 				if (resultSet.wasNull()) return false;
