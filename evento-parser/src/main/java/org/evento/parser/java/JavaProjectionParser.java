@@ -24,7 +24,8 @@ public class JavaProjectionParser extends JavaComponentParser<Projection> {
 	/**
 	 * The JavaProjectionParser class is responsible for parsing a Java component and extracting information related to projections.
 	 * It extends the JavaComponentParser class.
-	 */
+     * @param node a node for a projection class
+     */
 	public JavaProjectionParser(Node node) {
 		super(node);
 	}

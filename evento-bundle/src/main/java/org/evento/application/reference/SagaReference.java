@@ -23,6 +23,11 @@ public class SagaReference extends Reference {
 
     private final HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
 
+    /**
+     * The SagaReference class is a subclass of Reference that represents a reference to a Saga object.
+     * It provides functionality for managing saga event handler references, invoking saga methods, and retrieving registered events.
+     * @param ref The saga object
+     */
     public SagaReference(Object ref) {
         super(ref);
         for (Method declaredMethod : ref.getClass().getDeclaredMethods()) {

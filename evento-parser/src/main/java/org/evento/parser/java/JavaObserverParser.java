@@ -22,7 +22,8 @@ public class JavaObserverParser extends JavaComponentParser<Observer> {
 	/**
 	 * JavaObserverParser is a class that parses a Java file to extract information about an Observer component.
 	 * It extends the JavaComponentParser class and specializes in parsing Observer specific information.
-	 */
+     * @param node a node for an observer class
+     */
 	public JavaObserverParser(Node node) {
 		super(node);
 	}

@@ -8,6 +8,7 @@ import org.evento.common.modeling.messaging.payload.Command;
  * <p>
  * CommandMessage objects can be used to send commands and invoke command handler methods.
  * They contain the command payload, metadata, timestamp, and other related information.
+ * @param <T> the Command payload for this message
  */
 public abstract class CommandMessage<T extends Command> extends Message<T> {
 
@@ -15,7 +16,7 @@ public abstract class CommandMessage<T extends Command> extends Message<T> {
 	 * CommandMessage is a subclass of Message that represents a message carrying a command payload.
 	 * It is meant to be subclassed for specific types of commands.
 	 *
-     * @param command The command paylod of this message
+     * @param command The command payload of this message
      */
 	public CommandMessage(T command) {
 		super(command);

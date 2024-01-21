@@ -22,7 +22,8 @@ public class JavaInvokerParser extends JavaComponentParser<Invoker> {
 	/**
 	 * The {@code JavaInvokerParser} class is responsible for parsing a Java source code file and extracting information about Invokers.
 	 * It extends the {@code JavaComponentParser} class and implements the parsing logic specific to Invokers.
-	 */
+     * @param node a node for an invoker class
+     */
 	public JavaInvokerParser(Node node) {
 		super(node);
 	}

@@ -23,7 +23,8 @@ public class JavaServiceParser extends JavaComponentParser<Service> {
 	/**
 	 * The JavaServiceParser class is responsible for parsing the Java Service component and extracting relevant information.
 	 * It extends the JavaComponentParser class and provides additional functionality specific to Service components.
-	 */
+     * @param node Base node for a Service
+     */
 	public JavaServiceParser(Node node) {
 		super(node);
 	}

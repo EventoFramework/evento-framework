@@ -19,7 +19,8 @@ public class JavaSagaParser extends JavaComponentParser<Saga> {
 	/**
 	 * JavaSagaParser is a class responsible for parsing a Java node and extracting information
 	 * to create a Saga object.
-	 */
+     * @param node A node for a Saga Class
+     */
 	public JavaSagaParser(Node node) {
 		super(node);
 	}

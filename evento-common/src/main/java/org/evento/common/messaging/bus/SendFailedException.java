@@ -6,6 +6,11 @@ package org.evento.common.messaging.bus;
  */
 public class SendFailedException extends Exception{
 
+    /**
+     * Constructs a new SendFailedException with the specified cause.
+     *
+     * @param cause the cause (which is saved for later retrieval by the Throwable.getCause() method)
+     */
     public SendFailedException(Throwable cause) {
         super(cause);
     }

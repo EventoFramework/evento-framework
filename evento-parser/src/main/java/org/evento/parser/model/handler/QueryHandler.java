@@ -38,10 +38,22 @@ public class QueryHandler extends Handler<Query> implements HasQueryInvocations 
 		return invokedQueries;
 	}
 
+	/**
+	 * Retrieves a map of invoked queries.
+	 *
+	 * @return A HashMap with Integer as the key representing the line number of the invocation,
+	 * and Query as the value representing the invoked query.
+	 */
 	public HashMap<Integer, Query> getInvokedQueries() {
 		return invokedQueries;
 	}
 
+	/**
+	 * Sets the map of invoked queries.
+	 *
+	 * @param invokedQueries The map containing the invoked queries where the key is the line number of the invocation and the value is the Query object representing the invoked query
+	 *.
+	 */
 	public void setInvokedQueries(HashMap<Integer, Query> invokedQueries) {
 		this.invokedQueries = invokedQueries;
 	}
