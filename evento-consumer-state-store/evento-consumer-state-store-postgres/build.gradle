@@ -1,11 +1,11 @@
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'java-library'
     id 'maven-publish'
     id 'signing'
 }
 
-group 'com.eventoframework'
+group 'com.eventoframework.evento-consumer-state-store'
 version 'ev1.4.1'
 
 repositories {
@@ -16,26 +16,9 @@ repositories {
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
-    implementation 'info.picocli:picocli:4.7.0'
+
 
     implementation project(':evento-common')
-    implementation project(':evento-parser')
-
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-}
-
-
-jar {
-    manifest {
-        attributes(
-                'Main-Class': 'org.evento.cli.Main'
-        )
-    }
-}
-
-java {
-    withJavadocJar()
-    withSourcesJar()
 }
 
 test {
@@ -46,13 +29,13 @@ publishing {
     publications{
         mavenJava(MavenPublication){
             groupId = group
-            artifactId = 'evento-cli'
+            artifactId = 'evento-consumer-state-store-postgresql'
             version = version
             from components.java
             pom {
-                name = "Evento Framework - CLI"
-                description = "Command line interface for Evento Framework to Publish and Parse the codebase"
-                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-cli"
+                name = "Evento Framework - Consumer State Store - PostgreSQL"
+                description = "Evento Framework Consumer State Store implemented in PostgreSQL"
+                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-consumer-state-store/evento-consumer-state-store-postgresql"
 
                 licenses {
                     license {
@@ -72,7 +55,7 @@ publishing {
                 scm {
                     connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
                     developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
-                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-cli"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-consumer-state-store/evento-consumer-state-store-postgresql"
                 }
             }
 
@@ -100,5 +83,3 @@ javadoc{
         options.addStringOption('Xdoclint:none', '-quiet')
     }
 }
-
-

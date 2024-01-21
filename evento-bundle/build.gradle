@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
 }
 
 group 'com.eventoframework'
@@ -45,17 +46,61 @@ test {
 }
 
 publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId = 'com.eventoframework'
+    publications{
+        mavenJava(MavenPublication){
+            groupId = group
             artifactId = 'evento-bundle'
             version = version
             from components.java
-
             pom {
-                name = 'Evento Framework - Bundle'
-                description = '...'
+                name = "Evento Framework - Bundle"
+                description = "Evento Framework - Bundle. The library to build a RECQ System based on Evento Server"
+                url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-bundle"
+
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-bundle"
+                }
+            }
+
+            repositories {
+                maven {
+                    name = "OSSRH"
+                    url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+                    credentials {
+                        username = project.properties["mavenCentralUsername"]
+                        password = project.properties["mavenCentralPassword"]
+                    }
+                }
             }
         }
     }
 }
+
+signing {
+    sign publishing.publications.mavenJava
+}
+
+javadoc{
+    if(JavaVersion.current().isJava9Compatible()){
+        options.addBooleanOption("html5", true)
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+}
+

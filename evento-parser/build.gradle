@@ -52,7 +52,7 @@ publishing {
             version = version
             from components.java
             pom {
-                name = "Evento Frameowrk - Parser"
+                name = "Evento Framework - Parser"
                 description = "Codebase Parser to detect RECQ Components for Evento Framework"
                 url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-parser"
 
@@ -99,5 +99,6 @@ signing {
 javadoc{
     if(JavaVersion.current().isJava9Compatible()){
         options.addBooleanOption("html5", true)
+        options.addStringOption('Xdoclint:none', '-quiet')
     }
 }
