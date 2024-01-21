@@ -14,6 +14,7 @@ include 'evento-cli'
 include 'evento-common'
 include 'evento-bundle'
 include 'evento-consumer-state-store:evento-consumer-state-store-mysql'
+include 'evento-consumer-state-store:evento-consumer-state-store-postgres'
 
 
 include 'evento-demo:evento-demo-command'

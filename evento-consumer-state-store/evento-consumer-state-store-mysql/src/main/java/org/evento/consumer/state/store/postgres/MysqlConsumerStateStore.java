@@ -1,4 +1,4 @@
-package org.evento.consumer.state.store.mysql;
+package org.evento.consumer.state.store.postgres;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.evento.common.messaging.bus.EventoServer;
