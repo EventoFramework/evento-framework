@@ -27,6 +27,6 @@ services:
       - '3030:3030'
     volumes:
       - ./data/evento/files:/server_upload
-      - .docker-spawn.py:/script/spawn.py
+      - ./docker-spawn.py:/script/spawn.py
 
 
