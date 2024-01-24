@@ -4,7 +4,7 @@ import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.Single;
 import org.evento.demo.api.view.DemoRichView;
 
-public class DemoRichViewFindByIdQuery extends Query<Single<DemoRichView>> {
+public class DemoRichViewFindByIdQuery implements Query<Single<DemoRichView>> {
 	private String demoId;
 
 

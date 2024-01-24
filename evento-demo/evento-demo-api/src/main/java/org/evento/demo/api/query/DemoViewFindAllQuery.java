@@ -4,7 +4,7 @@ import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.Multiple;
 import org.evento.demo.api.view.DemoView;
 
-public class DemoViewFindAllQuery extends Query<Multiple<DemoView>> {
+public class DemoViewFindAllQuery implements Query<Multiple<DemoView>> {
 	private String filter;
 	private String sort;
 	private Integer limit;

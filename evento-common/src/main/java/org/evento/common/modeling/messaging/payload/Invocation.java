@@ -6,7 +6,7 @@ import java.util.HashMap;
  * The Invocation class extends the Payload class and represents an invocation of a method. It stores the method arguments
  * in a HashMap.
  */
-public class Invocation extends Payload {
+public class Invocation implements Payload {
 
 	private HashMap<String, Object> arguments = new HashMap<>();
 

@@ -4,13 +4,14 @@ import org.evento.common.modeling.messaging.query.QueryResponse;
 
 import java.lang.reflect.ParameterizedType;
 
+
 /**
- * The Query class is an abstract class that represents a query object.
- * It extends the Payload class.
+ * The Query interface represents a query object that can be sent to a system to retrieve a response.
+ * It extends the Payload interface.
  *
- * @param <T> The type of QueryResponse that the Query class will return.
+ * @param <T> The type of QueryResponse expected as the response.
  */
-public abstract class Query<T extends QueryResponse<?>> extends Payload {
+public interface Query<T extends QueryResponse<?>> extends Payload {
 
 	/**
 	 * Returns the response type of the Query.
@@ -18,7 +19,7 @@ public abstract class Query<T extends QueryResponse<?>> extends Payload {
 	 * @return The Class object representing the response type.
 	 */
 	@SuppressWarnings("unchecked")
-	public Class<T> getResponseType() {
+	public default Class<T> getResponseType() {
 		return (Class<T>) ((ParameterizedType) ((ParameterizedType) getClass()
 				.getGenericSuperclass()).getActualTypeArguments()[0]).getRawType();
 	}

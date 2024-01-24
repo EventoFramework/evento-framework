@@ -1,17 +1,18 @@
 package org.evento.common.modeling.messaging.payload;
 
+
 /**
- * The ServiceCommand class represents an abstract command that can be sent and executed in a service context.
- * It extends the Command class.
+ * The ServiceCommand interface represents a command that can be sent to a service.
+ * It extends the Command interface and defines an additional method to retrieve the lock ID associated with the command.
  */
-public abstract class ServiceCommand extends Command {
+public interface ServiceCommand extends Command {
 	/**
 	 * Retrieves the lock ID associated with the ServiceCommand.
 	 *
 	 * @return The lock ID associated with the ServiceCommand.
      */
 	@SuppressWarnings("SameReturnValue")
-	public String getLockId(){
+    default String getLockId(){
 		return null;
 	}
 }

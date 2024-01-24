@@ -16,7 +16,7 @@ import java.util.Map;
  */
 public class AggregateCommandHandler extends Handler<DomainCommand>  implements HasCommandInvocations, HasQueryInvocations  {
 
-	private final DomainEvent producedEvent;
+	private DomainEvent producedEvent;
 	private final HashMap<Integer, Command> invokedCommands = new HashMap<>();
 	private final HashMap<Integer, Query> invokedQueries = new HashMap<>();
 
@@ -30,6 +30,15 @@ public class AggregateCommandHandler extends Handler<DomainCommand>  implements 
 	public AggregateCommandHandler(DomainCommand payload, DomainEvent producedEvent, int line) {
 		super(payload, line);
 		this.producedEvent = producedEvent;
+	}
+
+
+	/**
+	 * The AggregateCommandHandler class represents a command handler for an aggregate.
+	 * It extends the Handler class and implements the HasCommandInvocations and HasQueryInvocations interfaces.
+	 * It provides methods to add and retrieve command and query invocations, as well as to retrieve the produced event.
+	 */
+	public AggregateCommandHandler() {
 	}
 
 	/**
@@ -80,5 +89,14 @@ public class AggregateCommandHandler extends Handler<DomainCommand>  implements 
 	@Override
 	public Map<Integer, Query> getQueryInvocations() {
 		return invokedQueries;
+	}
+
+	/**
+	 * Sets the produced event by the command handler.
+	 *
+	 * @param producedEvent The event object to be set as the produced event.
+	 */
+	public void setProducedEvent(DomainEvent producedEvent) {
+		this.producedEvent = producedEvent;
 	}
 }

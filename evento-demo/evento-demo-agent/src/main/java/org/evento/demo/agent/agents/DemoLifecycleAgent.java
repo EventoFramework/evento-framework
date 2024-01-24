@@ -42,20 +42,12 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 		});
 		if (random.nextDouble(0, 1) < 0.7)
 		{
-			resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> {
-				//noinspection CallToPrintStackTrace
-				e.printStackTrace();
-				return null;
-			}).get();
+			resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> null).get();
 			System.out.println("[" + i + "] - DemoViewFindByIdQuery: " + resp);
 			if (resp == null)
 			{
 				Thread.sleep(3000);
-				resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> {
-					//noinspection CallToPrintStackTrace
-					e.printStackTrace();
-					return null;
-				}).get();
+				resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> null).get();
 				System.out.println("[" + i + "] - DemoViewFindByIdQuery(3000ms): " + resp);
 			}
 		}

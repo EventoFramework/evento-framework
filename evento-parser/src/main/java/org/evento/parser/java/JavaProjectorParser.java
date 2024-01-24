@@ -1,9 +1,9 @@
 package org.evento.parser.java;
 
 import net.sourceforge.pmd.lang.ast.Node;
-import net.sourceforge.pmd.lang.java.ast.ASTAnyTypeDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTClassOrInterfaceType;
 import net.sourceforge.pmd.lang.java.ast.ASTMethodDeclaration;
+import net.sourceforge.pmd.lang.java.ast.ASTTypeDeclaration;
 import org.evento.parser.model.component.Projector;
 import org.evento.parser.model.handler.EventHandler;
 import org.evento.parser.model.payload.Event;
@@ -30,7 +30,7 @@ public class JavaProjectorParser extends JavaComponentParser<Projector> {
 	@SuppressWarnings("deprecation")
 	private List<EventHandler> findEventHandlers() throws JaxenException {
 		var query = getQueryForAnnotatedMethod("EventHandler");
-		return node.getFirstChildOfType(ASTAnyTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
+		return node.getFirstChildOfType(ASTTypeDeclaration.class).findChildNodesWithXPath(query).stream().map(
 				n -> {
 					var md = (ASTMethodDeclaration) n;
 					var eventName = md.getFormalParameters().getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();

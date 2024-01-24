@@ -13,4 +13,12 @@ public class Invocation extends Payload {
 	public Invocation(String name) {
 		super(name);
 	}
+
+	/**
+	 * The Invocation class represents an invocation payload.
+	 * It extends the Payload class and inherits its properties and methods.
+	 */
+	public Invocation() {
+		super();
+	}
 }

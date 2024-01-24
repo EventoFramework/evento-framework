@@ -22,4 +22,16 @@ public class DomainCommand extends Command {
 	public DomainCommand(String name) {
 		super(name);
 	}
+
+	/**
+	 * The DomainCommand class represents a domain-specific command payload. It extends the Command class
+	 * and inherits its properties and methods.
+	 * <p>
+	 * Usage example:
+	 * <pre>
+	 *     DomainCommand command = new DomainCommand("commandName");
+	 * </pre>
+	 */
+	public DomainCommand() { super();
+	}
 }

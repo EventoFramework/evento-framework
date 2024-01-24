@@ -4,7 +4,7 @@ import org.evento.common.modeling.messaging.payload.Query;
 import org.evento.common.modeling.messaging.query.Single;
 import org.evento.demo.api.view.NotificationView;
 
-public class NotificationFindByIdQuery extends Query<Single<NotificationView>> {
+public class NotificationFindByIdQuery implements Query<Single<NotificationView>> {
 
 	private String notificationId;
 
