@@ -6,7 +6,6 @@ plugins {
 }
 
 group 'com.eventoframework.evento-consumer-state-store'
-version 'ev1.4.3'
 
 repositories {
     mavenCentral()
