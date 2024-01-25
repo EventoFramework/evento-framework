@@ -21,11 +21,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The JavaBundleParser class is responsible for parsing a directory containing Java source files and extracting information about the bundle.
@@ -103,28 +102,28 @@ public class JavaBundleParser implements BundleParser {
 
         logger.info("Total components detected: " + components.size() );
         logger.info("Looking for payloads...");
-        var payloads = Stream.concat(
-                FileUtils.autoCloseWalk(directory.toPath(), s-> s
-                        .filter(p -> p.toString().endsWith(".java"))
-                        .filter(p -> !p.toString().toLowerCase().contains("package-info"))
-                        .filter(p -> !p.toString().toLowerCase().contains("test"))
-                        .map(p -> {
-                            try {
-                                var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
-								var pl = toPayload(node);
-								if (pl != null) {
-									pl.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
-											.replace("\\", "/"));
-								}
-                                if(pl!=null){
-                                    logger.info("Payload found in: " + p.toAbsolutePath() + " ("+pl.getLine()+")");
-                                }
-                                return pl;
-                            } catch (Exception e) {
-                                logger.error("Error parsing: " + p.toAbsolutePath(), e);
-                                return null;
-                            }
-                        }).filter(Objects::nonNull)),
+        var payloads = new java.util.ArrayList<>(FileUtils.autoCloseWalk(directory.toPath(), s -> s
+                .filter(p -> p.toString().endsWith(".java"))
+                .filter(p -> !p.toString().toLowerCase().contains("package-info"))
+                .filter(p -> !p.toString().toLowerCase().contains("test"))
+                .map(p -> {
+                    try {
+                        var node = parser.parse(p.getFileName().toString(), new FileReader(p.toFile()));
+                        var pl = toPayload(node);
+                        if (pl != null) {
+                            pl.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
+                                    .replace("\\", "/"));
+                        }
+                        if (pl != null) {
+                            logger.info("Payload found in: " + p.toAbsolutePath() + " (" + pl.getLine() + ")");
+                        }
+                        return pl;
+                    } catch (Exception e) {
+                        logger.error("Error parsing: " + p.toAbsolutePath(), e);
+                        return null;
+                    }
+                }).filter(Objects::nonNull).toList()));
+        payloads.addAll(
                 components.stream()
                         .filter(c -> c instanceof Invoker)
                         .map(c -> ((Invoker) c))
@@ -135,8 +134,8 @@ public class JavaBundleParser implements BundleParser {
                                     logger.info("Invocation found in: " + in.getPath() + " ("+p.getLine()+")");
 									return pl;
 								}
-						))
-        ).collect(Collectors.toList());
+						)
+        ).toList());
         logger.info("Total payloads detected: " + payloads.size() );
 
         var bundleVersion = FileUtils.autoCloseWalk(directory.toPath(), s -> s
@@ -252,7 +251,7 @@ public class JavaBundleParser implements BundleParser {
                 autorun,
                 minInstances,
                 maxInstances,
-                components,
+                new ArrayList<>(components),
                 payloads,
                 bundleDescription.get(),
                 bundleDetail.get());

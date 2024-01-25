@@ -2,7 +2,7 @@ package org.evento.demo.api.command;
 
 import org.evento.common.modeling.messaging.payload.DomainCommand;
 
-public class DemoDeleteCommand extends DomainCommand {
+public class DemoDeleteCommand implements DomainCommand {
 
 	private String demoId;
 

@@ -2,7 +2,7 @@ package org.evento.demo.api.view;
 
 import org.evento.common.modeling.messaging.payload.View;
 
-public class NotificationView extends View {
+public class NotificationView implements View {
 
 	private String notificationId;
 	private String body;

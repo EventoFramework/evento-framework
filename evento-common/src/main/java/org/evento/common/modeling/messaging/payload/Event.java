@@ -8,7 +8,7 @@ import org.evento.common.utils.Context;
  *
  * @see Payload
  */
-public abstract class Event extends Payload {
+public abstract class Event implements Payload {
     private String context = Context.DEFAULT;
 
     /**

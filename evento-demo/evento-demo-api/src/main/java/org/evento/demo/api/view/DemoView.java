@@ -2,7 +2,7 @@ package org.evento.demo.api.view;
 
 import org.evento.common.modeling.messaging.payload.View;
 
-public class DemoView extends View {
+public class DemoView implements View {
 	private String demoId;
 	private String name;
 	private Long value;
