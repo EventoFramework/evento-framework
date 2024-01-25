@@ -2,7 +2,7 @@ package org.evento.demo.api.command;
 
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
 
-public class NotificationSendSilentCommand extends ServiceCommand {
+public class NotificationSendSilentCommand implements ServiceCommand {
 	private String body;
 
 	public NotificationSendSilentCommand(String body) {

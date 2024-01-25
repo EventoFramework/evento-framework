@@ -6,7 +6,7 @@ import org.evento.common.modeling.messaging.payload.DomainCommand;
 
 @Setter
 @Getter
-public class PcCommand1 extends DomainCommand {
+public class PcCommand1 implements DomainCommand {
 
 	private String pcId;
 

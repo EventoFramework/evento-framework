@@ -46,7 +46,7 @@ public class PublishBundle {
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(bundleDescription);
 		System.out.println("JSON created");
 
-		if(!new File(bundlePath + "/build/bundle-dist/").mkdir()){
+		if(!new File(bundlePath + "/build/bundle-dist/").exists() && !new File(bundlePath + "/build/bundle-dist/").mkdir()){
 			throw new IllegalStateException("Output directory creation failed");
 		}
 

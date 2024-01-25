@@ -2,7 +2,7 @@ package org.evento.demo.api.command;
 
 import org.evento.common.modeling.messaging.payload.ServiceCommand;
 
-public class NotificationSendCommand extends ServiceCommand {
+public class NotificationSendCommand implements ServiceCommand {
 	private String body;
 
 	public NotificationSendCommand(String body) {

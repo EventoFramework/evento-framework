@@ -4,7 +4,7 @@ import org.evento.parser.model.component.Component;
 import org.evento.parser.model.payload.PayloadDescription;
 
 import java.io.Serializable;
-import java.util.List;
+import java.util.ArrayList;
 
 /**
  * A class representing a bundle description.
@@ -16,8 +16,8 @@ import java.util.List;
  */
 public class BundleDescription implements Serializable {
 
-	private List<Component> components;
-	private List<PayloadDescription> payloadDescriptions;
+	private ArrayList<Component> components;
+	private ArrayList<PayloadDescription> payloadDescriptions;
 
 	private String bundleId;
 	private long bundleVersion;
@@ -47,8 +47,8 @@ public class BundleDescription implements Serializable {
 	public BundleDescription(String bundleId, long bundleVersion, boolean autorun,
 							 int minInstances,
 							 int maxInstances,
-							 List<Component> components,
-							 List<PayloadDescription> payloadDescriptions,
+							 ArrayList<Component> components,
+							 ArrayList<PayloadDescription> payloadDescriptions,
 							 String description,
 							 String detail) {
 		this.components = components;
@@ -73,7 +73,7 @@ public class BundleDescription implements Serializable {
 	 *
 	 * @return the list of components included in the bundle
 	 */
-	public List<Component> getComponents() {
+	public ArrayList<Component> getComponents() {
 		return components;
 	}
 
@@ -82,7 +82,7 @@ public class BundleDescription implements Serializable {
 	 *
 	 * @param components the list of components to be set
 	 */
-	public void setComponents(List<Component> components) {
+	public void setComponents(ArrayList<Component> components) {
 		this.components = components;
 	}
 
@@ -91,7 +91,7 @@ public class BundleDescription implements Serializable {
 	 *
 	 * @return the list of payload descriptions included in the bundle
 	 */
-	public List<PayloadDescription> getPayloadDescriptions() {
+	public ArrayList<PayloadDescription> getPayloadDescriptions() {
 		return payloadDescriptions;
 	}
 
@@ -100,7 +100,7 @@ public class BundleDescription implements Serializable {
 	 *
 	 * @param payloadDescriptions the list of payload descriptions to be set
 	 */
-	public void setPayloadDescriptions(List<PayloadDescription> payloadDescriptions) {
+	public void setPayloadDescriptions(ArrayList<PayloadDescription> payloadDescriptions) {
 		this.payloadDescriptions = payloadDescriptions;
 	}
 
