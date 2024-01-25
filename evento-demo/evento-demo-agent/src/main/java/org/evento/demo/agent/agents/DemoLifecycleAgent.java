@@ -35,11 +35,7 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 			System.out.println("[" + i + "] - DemoUpdateCommand: " + resp);
 		}
 		getCommandGateway().send(new DemoUpdateCommand(id, id, 1)).thenAccept(o -> {
-		}).exceptionally(e -> {
-			//noinspection CallToPrintStackTrace
-			e.printStackTrace();
-			return null;
-		});
+		}).exceptionally(e -> null);
 		if (random.nextDouble(0, 1) < 0.7)
 		{
 			resp = getQueryGateway().query(new DemoViewFindByIdQuery(id)).exceptionally(e -> null).get();

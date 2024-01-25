@@ -30,7 +30,7 @@ public class AgentDispatcher implements CommandLineRunner {
 		Thread.sleep(3000);
 
 
-		for (int i = 0; i < 10; i++)
+		for (int i = 0; i < 1; i++)
 		{
 			Thread.sleep(500);
 			int finalI = i;
