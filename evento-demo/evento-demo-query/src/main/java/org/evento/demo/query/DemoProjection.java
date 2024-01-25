@@ -28,7 +28,7 @@ public class DemoProjection {
     Single<DemoView> query(DemoViewFindByIdQuery query, QueryMessage<DemoViewFindByIdQuery> queryMessage) {
         Utils.logMethodFlow(this, "query", query, "BEGIN");
         var result = repository.findById(query.getDemoId())
-                .filter(d -> d.getDeletedAt() != null)
+                .filter(d -> d.getDeletedAt() == null)
                 .map(Demo::toDemoView).orElseThrow();
         result.setDemoId(query.getDemoId());
         Utils.logMethodFlow(this, "query", query, "END");
@@ -39,7 +39,7 @@ public class DemoProjection {
     Multiple<DemoView> query(DemoViewFindAllQuery query) {
         Utils.logMethodFlow(this, "query", query, "BEGIN");
         var result = repository.findAll().stream()
-                .filter(d -> d.getDeletedAt() != null)
+                .filter(d -> d.getDeletedAt() == null)
                 .map(Demo::toDemoView).toList();
         Utils.logMethodFlow(this, "query", query, "END");
         return Multiple.of(result);
