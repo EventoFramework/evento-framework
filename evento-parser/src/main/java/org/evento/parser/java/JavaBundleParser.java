@@ -77,7 +77,7 @@ public class JavaBundleParser implements BundleParser {
         if (!directory.isDirectory()) throw new RuntimeException("error.not.dir");
         logger.info("Looking for components...");
         var components = FileUtils.autoCloseWalk(directory.toPath(), s ->
-                        s.filter(p -> p.toString().endsWith(".java"))
+                s.filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> !p.toString().toLowerCase().contains("test"))
                         .filter(p -> !p.toString().toLowerCase().contains("package-info"))
                         .map(p -> {
@@ -87,9 +87,9 @@ public class JavaBundleParser implements BundleParser {
                                 var c = toComponent(node);
                                 if (c != null)
                                     c.setPath(p.toAbsolutePath().toString().replace(directory.getAbsolutePath(), repositoryRoot)
-                                            .replace("\\","/"));
-                                if(c!=null){
-                                    logger.info("Component found in: " + p.toAbsolutePath() + " ("+c.getLine()+")");
+                                            .replace("\\", "/"));
+                                if (c != null) {
+                                    logger.info("Component found in: " + p.toAbsolutePath() + " (" + c.getLine() + ")");
                                 }
                                 return c;
 
@@ -98,9 +98,9 @@ public class JavaBundleParser implements BundleParser {
                                 return null;
                             }
                         }).filter(Objects::nonNull).toList()
-                        );
+        );
 
-        logger.info("Total components detected: " + components.size() );
+        logger.info("Total components detected: " + components.size());
         logger.info("Looking for payloads...");
         var payloads = new java.util.ArrayList<>(FileUtils.autoCloseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".java"))
@@ -127,16 +127,16 @@ public class JavaBundleParser implements BundleParser {
                 components.stream()
                         .filter(c -> c instanceof Invoker)
                         .map(c -> ((Invoker) c))
-						.flatMap(in -> in.getInvocationHandlers().stream().distinct().map(
-								p -> {
-									var pl = new PayloadDescription(p.getPayload().getName(), p.getPayload().getDomain(), "Invocation", "{}", p.getLine());
-									pl.setPath(in.getPath());
-                                    logger.info("Invocation found in: " + in.getPath() + " ("+p.getLine()+")");
-									return pl;
-								}
-						)
-        ).toList());
-        logger.info("Total payloads detected: " + payloads.size() );
+                        .flatMap(in -> in.getInvocationHandlers().stream().distinct().map(
+                                        p -> {
+                                            var pl = new PayloadDescription(p.getPayload().getName(), p.getPayload().getDomain(), "Invocation", "{}", p.getLine());
+                                            pl.setPath(in.getPath());
+                                            logger.info("Invocation found in: " + in.getPath() + " (" + p.getLine() + ")");
+                                            return pl;
+                                        }
+                                )
+                        ).toList());
+        logger.info("Total payloads detected: " + payloads.size());
 
         var bundleVersion = FileUtils.autoCloseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
@@ -188,7 +188,7 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var maxInstances = FileUtils.autoCloseWalk(directory.toPath(), s->s
+        var maxInstances = FileUtils.autoCloseWalk(directory.toPath(), s -> s
                 .filter(p -> p.toString().endsWith(".properties"))
                 .map(p -> {
                     try {
@@ -202,48 +202,48 @@ public class JavaBundleParser implements BundleParser {
 
         var bundleDetail = new AtomicReference<String>();
         var bundleDescription = new AtomicReference<String>();
-        try(var s = Files.walk(directory.toPath())){
-                s.filter(p -> p.toString().endsWith(".md"))
-                .forEach(p -> {
-                    var name = p.getFileName().toString().replace(".md", "");
-                    for (Component component : components) {
-                        if (component.getComponentName().equals(name)) {
+        try (var s = Files.walk(directory.toPath())) {
+            s.filter(p -> p.toString().endsWith(".md"))
+                    .forEach(p -> {
+                        var name = p.getFileName().toString().replace(".md", "");
+                        for (Component component : components) {
+                            if (component.getComponentName().equals(name)) {
+                                try {
+                                    var content = Files.readString(p).split("--detail");
+                                    component.setDescription(content[0].trim());
+                                    if (content.length > 1) {
+                                        component.setDetail(content[1].trim());
+                                    }
+                                    return;
+                                } catch (IOException ignored) {
+                                }
+                            }
+                        }
+                        for (PayloadDescription payloadDescription : payloads) {
+                            if (payloadDescription.getName().equals(name)) {
+                                try {
+                                    var content = Files.readString(p).split("--detail");
+                                    payloadDescription.setDescription(content[0].trim());
+                                    if (content.length > 1) {
+                                        payloadDescription.setDetail(content[1].trim());
+                                    }
+                                    return;
+                                } catch (IOException ignored) {
+                                }
+                            }
+                        }
+                        if (name.equals("bundle")) {
                             try {
                                 var content = Files.readString(p).split("--detail");
-                                component.setDescription(content[0].trim());
+                                bundleDescription.set(content[0].trim());
                                 if (content.length > 1) {
-                                    component.setDetail(content[1].trim());
+                                    bundleDetail.set(content[1].trim());
                                 }
-                                return;
                             } catch (IOException ignored) {
                             }
                         }
-                    }
-                    for (PayloadDescription payloadDescription : payloads) {
-                        if (payloadDescription.getName().equals(name)) {
-                            try {
-                                var content = Files.readString(p).split("--detail");
-                                payloadDescription.setDescription(content[0].trim());
-                                if (content.length > 1) {
-                                    payloadDescription.setDetail(content[1].trim());
-                                }
-                                return;
-                            } catch (IOException ignored) {
-                            }
-                        }
-                    }
-                    if (name.equals("bundle")) {
-                        try {
-                            var content = Files.readString(p).split("--detail");
-                            bundleDescription.set(content[0].trim());
-                            if (content.length > 1) {
-                                bundleDetail.set(content[1].trim());
-                            }
-                        } catch (IOException ignored) {
-                        }
-                    }
-                });
-                }
+                    });
+        }
 
         return new BundleDescription(
                 bundleId,
@@ -276,50 +276,52 @@ public class JavaBundleParser implements BundleParser {
         } else if (JavaComponentParser.isInvoker(classDef)) {
             resp = new JavaInvokerParser(node).parse();
         }
-        if(resp != null){
+        if (resp != null) {
             resp.setLine(classDef.getBeginLine());
         }
         return resp;
     }
 
     private PayloadDescription toPayload(net.sourceforge.pmd.lang.ast.Node node) {
-            var classDef = node.getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class);
-            if(classDef == null) return null;
-            var extendedClass = classDef.getParent().getFirstDescendantOfType(ASTExtendsList.class);
-            if(extendedClass == null) return null;
-            var payloadType = extendedClass.getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
-            if (payloadType.equals("DomainCommand") || payloadType.equals("DomainEvent") ||
-                    payloadType.equals("ServiceCommand") || payloadType.equals("ServiceEvent") ||
-                    payloadType.equals("Query") || payloadType.equals("View")) {
-                JsonObject schema = new JsonObject();
-                var fields = node.findDescendantsOfType(ASTFieldDeclaration.class);
-                for (var field : fields) {
-                    var name = field.getFirstDescendantOfType(ASTVariableDeclaratorId.class).getName();
-                    var t = field.getFirstDescendantOfType(ASTClassOrInterfaceType.class);
-                    var type = t != null ? t.getImage() : field.getFirstDescendantOfType(ASTPrimitiveType.class).getImage();
-                    schema.addProperty(name, type);
-                }
-                switch (payloadType) {
-                    case "DomainCommand" -> addSuperFields(schema, DomainCommand.class);
-                    case "DomainEvent" -> addSuperFields(schema, DomainEvent.class);
-                    case "ServiceCommand" -> addSuperFields(schema, ServiceCommand.class);
-                    case "ServiceEvent" -> addSuperFields(schema, ServiceEvent.class);
-                    case "Query" -> addSuperFields(schema, Query.class);
-                    default -> addSuperFields(schema, View.class);
-                }
-                String domain = null;
-                try {
-                    domain = classDef.getParent().findDescendantsOfType(ASTMemberValuePair.class)
-                            .stream().filter(p -> p.getFirstParentOfType(ASTAnnotation.class)
-                                    .getFirstDescendantOfType(ASTName.class)
-                                    .getImage().equals("Domain"))
-                            .findFirst().orElseThrow().getFirstDescendantOfType(ASTLiteral.class)
-                            .getImage().replace("\"", "");
-                } catch (Exception ignored) {
-                }
-                return new PayloadDescription(classDef.getSimpleName(), domain, payloadType, schema.toString(), classDef.getBeginLine());
+        var classDef = node.getFirstDescendantOfType(ASTClassOrInterfaceDeclaration.class);
+        if (classDef == null) return null;
+        AbstractJavaNode extendedClass = classDef.getParent().getFirstDescendantOfType(ASTExtendsList.class);
+        if (extendedClass == null)
+            extendedClass = classDef.getParent().getFirstDescendantOfType(ASTImplementsList.class);
+        if (extendedClass == null) return null;
+        var payloadType = extendedClass.getFirstDescendantOfType(ASTClassOrInterfaceType.class).getImage();
+        if (payloadType.equals("DomainCommand") || payloadType.equals("DomainEvent") ||
+                payloadType.equals("ServiceCommand") || payloadType.equals("ServiceEvent") ||
+                payloadType.equals("Query") || payloadType.equals("View")) {
+            JsonObject schema = new JsonObject();
+            var fields = node.findDescendantsOfType(ASTFieldDeclaration.class);
+            for (var field : fields) {
+                var name = field.getFirstDescendantOfType(ASTVariableDeclaratorId.class).getName();
+                var t = field.getFirstDescendantOfType(ASTClassOrInterfaceType.class);
+                var type = t != null ? t.getImage() : field.getFirstDescendantOfType(ASTPrimitiveType.class).getImage();
+                schema.addProperty(name, type);
             }
-            return null;
+            switch (payloadType) {
+                case "DomainCommand" -> addSuperFields(schema, DomainCommand.class);
+                case "DomainEvent" -> addSuperFields(schema, DomainEvent.class);
+                case "ServiceCommand" -> addSuperFields(schema, ServiceCommand.class);
+                case "ServiceEvent" -> addSuperFields(schema, ServiceEvent.class);
+                case "Query" -> addSuperFields(schema, Query.class);
+                default -> addSuperFields(schema, View.class);
+            }
+            String domain = null;
+            try {
+                domain = classDef.getParent().findDescendantsOfType(ASTMemberValuePair.class)
+                        .stream().filter(p -> p.getFirstParentOfType(ASTAnnotation.class)
+                                .getFirstDescendantOfType(ASTName.class)
+                                .getImage().equals("Domain"))
+                        .findFirst().orElseThrow().getFirstDescendantOfType(ASTLiteral.class)
+                        .getImage().replace("\"", "");
+            } catch (Exception ignored) {
+            }
+            return new PayloadDescription(classDef.getSimpleName(), domain, payloadType, schema.toString(), classDef.getBeginLine());
+        }
+        return null;
     }
 
     private void addSuperFields(JsonObject schema, Class<?> clazz) {
