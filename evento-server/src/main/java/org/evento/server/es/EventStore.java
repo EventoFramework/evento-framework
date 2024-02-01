@@ -148,23 +148,6 @@ public class EventStore {
         }
     }
 
-    public void publishEvent(EventMessage<?> eventMessage) {
-        try {
-            jdbcTemplate.update(
-                    "INSERT INTO es__events " +
-                            "(event_sequence_number, aggregate_id, event_message, event_name, context) values " +
-                            "( ?, ?,?,?,?)",
-                    snowflake.nextId(),
-                    null,
-                    mapper.writeValueAsString(eventMessage),
-                    eventMessage.getEventName(),
-                    eventMessage.getContext()
-            );
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public Long getLastAggregateSequenceNumber(String aggregateId) {
         return eventStoreRepository.getLastAggregateSequenceNumber(aggregateId);
     }

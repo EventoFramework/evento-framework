@@ -13,7 +13,7 @@ class BundleDescriptionParserTest {
 	public void test() throws Exception {
 		JavaBundleParser applicationParser = new JavaBundleParser();
 		var components = applicationParser.parseDirectory(
-				new File(".\\evento\\evento-demo"), "https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-agent");
+				new File("C:\\Users\\ggalazzo\\workspace\\personal\\eventrails\\evento-demo\\evento-demo-api"), "https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-agent");
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(components);
 
 		System.out.println(components);
