@@ -5,7 +5,7 @@ import lombok.Setter;
 import org.evento.common.modeling.state.SerializedAggregateState;
 import org.evento.server.config.JsonConverter;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.Instant;
 
 @Setter

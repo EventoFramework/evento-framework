@@ -1,4 +1,4 @@
-FROM gradle:8.5-jdk21-alpine AS build
+FROM gradle:8.5-jdk21-focal AS build
 COPY --chown=gradle:gradle . /evento
 WORKDIR /evento
 RUN gradle :evento-server:bootJar --no-daemon
