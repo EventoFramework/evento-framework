@@ -67,7 +67,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build the Docker image
-        run: docker build . --file docker/images/evento-server/Dockerfile-macOS --tag eventoframework/evento-server:latest --tag eventoframework/evento-server:${{ steps.version.outputs.current-version }}
+        run: docker build . --file docker/images/evento-server/Dockerfile-macOS --tag eventoframework/evento-server:latest-macos --tag eventoframework/evento-server:${{ steps.version.outputs.current-version }}-macos
       - name: Push the Docker image
         run: docker push --all-tags eventoframework/evento-server
 
