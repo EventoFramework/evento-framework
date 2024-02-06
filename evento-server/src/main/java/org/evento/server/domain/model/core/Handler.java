@@ -7,7 +7,7 @@ import lombok.ToString;
 import org.evento.common.modeling.bundle.types.HandlerType;
 import org.hibernate.HibernateException;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

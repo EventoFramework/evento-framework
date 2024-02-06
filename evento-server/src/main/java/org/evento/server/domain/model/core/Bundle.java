@@ -3,7 +3,7 @@ package org.evento.server.domain.model.core;
 import lombok.*;
 import org.hibernate.Hibernate;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;

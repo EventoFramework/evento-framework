@@ -39,4 +39,35 @@ jobs:
         run: docker build . --file docker/images/evento-server/Dockerfile --tag eventoframework/evento-server:latest --tag eventoframework/evento-server:${{ steps.version.outputs.current-version }}
       - name: Push the Docker image
         run: docker push --all-tags eventoframework/evento-server
+  build-and-push-arm86:
+    runs-on: macOS
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Get current version
+        id: version
+        uses: dolittle/read-version-from-file-action@v2
+        with:
+          path: evento-server/version.json
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 18.x
+      - name: Install Ionic
+        run: npm install -g @ionic/cli
+      - name: Install app dependencies
+        run: npm install
+        working-directory: ./evento-gui
+      - name: Build Ionic App
+        run: ionic build --prod
+        working-directory: ./evento-gui
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build the Docker image
+        run: docker build . --file docker/images/evento-server/Dockerfile-macOS --tag eventoframework/evento-server:latest --tag eventoframework/evento-server:${{ steps.version.outputs.current-version }}
+      - name: Push the Docker image
+        run: docker push --all-tags eventoframework/evento-server
 
