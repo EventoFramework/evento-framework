@@ -1,11 +1,11 @@
-package org.evento.parser;
+package com.evento.parser;
 
-import org.evento.parser.java.JavaBundleParser;
+import com.evento.parser.java.JavaBundleParser;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
-import static org.evento.common.serialization.ObjectMapperUtils.getPayloadObjectMapper;
+import static com.evento.common.serialization.ObjectMapperUtils.getPayloadObjectMapper;
 
 class BundleDescriptionParserTest {
 
