@@ -32,7 +32,7 @@ dependencies {
 jar {
     manifest {
         attributes(
-                'Main-Class': 'org.evento.cli.Main'
+                'Main-Class': 'com.evento.cli.Main'
         )
     }
 }
