@@ -4,7 +4,7 @@ plugins {
 	id 'java'
 }
 
-group = 'org.evento'
+group = 'com.evento'
 version = 'ev1.6.0'
 java {
 	targetCompatibility = "21"
