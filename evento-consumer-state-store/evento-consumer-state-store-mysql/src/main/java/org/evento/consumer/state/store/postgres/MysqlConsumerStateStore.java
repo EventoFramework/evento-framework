@@ -38,7 +38,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 			EventoServer eventoServer,
 			PerformanceService performanceService,
 			Connection connection) {
-		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newSingleThreadExecutor());
+		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newVirtualThreadPerTaskExecutor());
 	}
 
 	/**

@@ -33,9 +33,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -71,6 +69,8 @@ public class MessageBus {
 
     private final Map<String, Consumer<EventoResponse>> correlations = new ConcurrentHashMap<>();
     private boolean isShuttingDown = false;
+
+    private final Executor threadPerMessageExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     public MessageBus(
             @Value("${socket.port}") int socketPort, BundleDeployService bundleDeployService, HandlerService handlerService, EventStore eventStore, PerformanceStoreService performanceStoreService, BundleService bundleService) {
@@ -111,7 +111,7 @@ public class MessageBus {
 
                                 while (true) {
                                     var message = in.readObject();
-                                    new Thread(() -> {
+                                    threadPerMessageExecutor.execute(() -> {
                                         try {
                                             if (message instanceof DisableMessage) {
                                                 disable(a);
@@ -137,7 +137,7 @@ public class MessageBus {
                                         } catch (Exception e) {
                                             throw new RuntimeException(e);
                                         }
-                                    }).start();
+                                    });
                                 }
                             } catch (Exception e) {
                                 for (Map.Entry<String, Consumer<EventoResponse>> ek : correlations.entrySet()) {
