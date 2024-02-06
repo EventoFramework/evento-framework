@@ -14,6 +14,8 @@ import org.evento.common.utils.Sleep;
 import java.io.*;
 import java.net.Socket;
 import java.util.HashSet;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,6 +48,7 @@ public class EventoSocketConnection {
     private final int conn = instanceCounter.incrementAndGet();
     private boolean isClosed = false;
     private final HashSet<String> pendingCorrelations = new HashSet<>();
+    private final Executor threadPerRequestExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     /**
      * Private constructor to create an EventoSocketConnection instance.
@@ -152,7 +155,7 @@ public class EventoSocketConnection {
                                 this.pendingCorrelations.remove(r.getCorrelationId());
                             }
                             // Process the incoming message in a new thread using the message handler
-                            new Thread(() -> handler.handle((Serializable) data, this::send)).start();
+                            threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, this::send));
                         } catch (OptionalDataException ignored) {
                         }
                     }
