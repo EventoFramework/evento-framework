@@ -15,7 +15,7 @@ plugins {
     id 'java'
 }
 
-group 'org.evento'
+group 'com.evento'
 version '1.0-SNAPSHOT'
 
 configurations {
