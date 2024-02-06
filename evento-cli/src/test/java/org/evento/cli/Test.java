@@ -1,4 +1,4 @@
-package org.evento.cli;
+package com.evento.cli;
 
 public class Test {
 

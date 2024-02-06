@@ -1,4 +1,4 @@
-package org.evento.demo;
+package com.evento.demo;
 
 class DemoCommandApplicationTest {
 
