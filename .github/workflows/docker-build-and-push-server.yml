@@ -39,7 +39,7 @@ jobs:
         run: docker build . --file docker/images/evento-server/Dockerfile --tag eventoframework/evento-server:latest --tag eventoframework/evento-server:${{ steps.version.outputs.current-version }}
       - name: Push the Docker image
         run: docker push --all-tags eventoframework/evento-server
-  build-and-push-arm86:
+  build-and-push-macos:
     runs-on: macOS
     steps:
       - name: Checkout code
