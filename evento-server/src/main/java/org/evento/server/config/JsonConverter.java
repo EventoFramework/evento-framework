@@ -3,8 +3,8 @@ package org.evento.server.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.evento.common.serialization.ObjectMapperUtils;
 
-import javax.persistence.AttributeConverter;
-import javax.persistence.Converter;
+import jakarta.persistence.AttributeConverter;
+import jakarta.persistence.Converter;
 import java.io.IOException;
 import java.io.Serializable;
 

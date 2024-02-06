@@ -1,12 +1,16 @@
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
     id 'maven-publish'
     id 'signing'
 }
 
 group 'com.eventoframework'
 version 'ev1.5.0'
+java {
+    targetCompatibility = "21"
+    targetCompatibility = "21"
+}
 
 repositories {
     mavenCentral()

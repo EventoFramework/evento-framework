@@ -7,8 +7,8 @@ import lombok.Setter;
 import org.evento.demo.api.view.DemoRichView;
 import org.evento.demo.api.view.DemoView;
 
-import javax.persistence.Entity;
-import javax.persistence.Id;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import java.time.Instant;
 
 @Entity

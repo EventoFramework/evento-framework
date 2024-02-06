@@ -49,7 +49,7 @@ public class WebConfig implements WebMvcConfigurer {
 	@Override
 	public void addResourceHandlers(ResourceHandlerRegistry registry) {
 
-		registry.addResourceHandler("/**/*")
+		registry.addResourceHandler("/**")
 				.addResourceLocations("classpath:/public/")
 				.resourceChain(true)
 				.addResolver(new PathResourceResolver() {
