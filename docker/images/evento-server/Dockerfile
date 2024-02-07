@@ -3,7 +3,7 @@ COPY --chown=gradle:gradle . /evento
 WORKDIR /evento
 RUN gradle :evento-server:bootJar --no-daemon
 
-FROM openjdk:20
+FROM openjdk:21
 
 EXPOSE 3000
 EXPOSE 3030
