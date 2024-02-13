@@ -6,10 +6,10 @@ package com.evento.common.modeling.messaging.payload;
  * Subclasses of DomainCommand must implement the getAggregateId() method to provide the ID of the aggregate the command is targeting.
  */
 public interface DomainCommand extends Command {
-	/**
-	 * Retrieves the ID of the aggregate that the command is targeting.
-	 *
-	 * @return The aggregate ID as a string.
-	 */
 	String getAggregateId();
+
+	@Override
+	default String getLockId(){
+		return getAggregateId();
+	}
 }
