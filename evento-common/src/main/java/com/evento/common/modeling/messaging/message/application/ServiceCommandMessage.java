@@ -10,7 +10,6 @@ import com.evento.common.modeling.messaging.payload.ServiceCommand;
  */
 public class ServiceCommandMessage extends CommandMessage<ServiceCommand> {
 
-	private String lockId;
 	/**
 	 * Initializes a new instance of the ServiceCommandMessage class with the given ServiceCommand.
 	 *
@@ -19,7 +18,6 @@ public class ServiceCommandMessage extends CommandMessage<ServiceCommand> {
 	 */
 	public ServiceCommandMessage(ServiceCommand command) {
 		super(command);
-		lockId = command.getLockId();
 	}
 
 	/**
@@ -33,21 +31,5 @@ public class ServiceCommandMessage extends CommandMessage<ServiceCommand> {
 	public ServiceCommandMessage() {
 	}
 
-	/**
-	 * Sets the lock ID for the ServiceCommandMessage.
-	 *
-	 * @param lockId The lock ID to be set.
-     */
-	public void setLockId(String lockId) {
-		this.lockId = lockId;
-	}
 
-	/**
-	 * Retrieves the lock ID associated with the ServiceCommandMessage.
-	 *
-	 * @return The lock ID associated with the ServiceCommandMessage.
-     */
-	public String getLockId() {
-		return lockId;
-	}
 }
