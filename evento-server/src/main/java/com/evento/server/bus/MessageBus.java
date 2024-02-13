@@ -53,8 +53,9 @@ public class MessageBus {
 
     private final BundleDeployService bundleDeployService;
 
-    private static final String AGGREGATE_LOCK_PREFIX = "AGGREGATE:";
-    private static final String SERVICE_LOCK_PREFIX = "SERVICE:";
+    private static final String RESOURCE_LOCK_PREFIX = "RESOURCE:";
+    private static final String BUNDLE_LOCK_PREFIX = "BUNDLE:";
+    private static final String CLUSTER_LOCK_PREFIX = "CLUSTER:";
     private final HandlerService handlerService;
 
     private final EventStore eventStore;
@@ -204,7 +205,7 @@ public class MessageBus {
 
     private void handleMessage(EventoMessage m) {
         if (m.getBody() instanceof ClusterNodeIsBoredMessage b) {
-            var lockId = "CLUSTER_MANAGE:" + b.getBundleId();
+            var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
             eventStore.acquire(lockId);
             try {
                 var bundle = bundleService.findById(b.getBundleId());
@@ -222,7 +223,7 @@ public class MessageBus {
                 eventStore.release(lockId);
             }
         } else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
-            var lockId = "CLUSTER_MANAGE:" + b.getBundleId();
+            var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
             eventStore.acquire(lockId);
             try {
                 var bundle = bundleService.findById(b.getBundleId());
@@ -261,146 +262,148 @@ public class MessageBus {
                 throw new IllegalStateException("Server is shutting down");
             }
             var request = message.getBody();
-            if (request instanceof DomainCommandMessage c) {
-
-                var dest = peekMessageHandlerAddress(c.getCommandName());
-
-                var start = PerformanceStoreService.now();
-                var lockId = AGGREGATE_LOCK_PREFIX + c.getAggregateId();
-                eventStore.acquire(lockId);
-                try {
-                    var invocation = new DecoratedDomainCommandMessage();
-                    invocation.setCommandMessage(c);
-                    var story = eventStore.fetchAggregateStory(c.getAggregateId());
-                    invocation.setSerializedAggregateState(story.state());
-                    invocation.setEventStream(story.events());
-                    performanceStoreService.sendServiceTimeMetric(
-                            SERVER,
-                            GATEWAY_COMPONENT,
-                            c,
-                            start
-                    );
-                    var invocationStart = PerformanceStoreService.now();
-                    message.setBody(invocation);
-                    forward(message, dest, resp -> {
-                        try {
-                            performanceStoreService.sendServiceTimeMetric(
-                                    message.getSourceBundleId(),
-                                    getComponent(c.getCommandName()),
-                                    c,
-                                    invocationStart
-                            );
-                            if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
-                                var esStoreStart = PerformanceStoreService.now();
-                                eventStore.publishEvent(cr.getDomainEventMessage(),
-                                        c.getAggregateId());
-                                if (cr.getSerializedAggregateState() != null) {
-                                    eventStore.saveSnapshot(
-                                            c.getAggregateId(),
-                                            eventStore.getLastAggregateSequenceNumber(c.getAggregateId()),
-                                            cr.getSerializedAggregateState()
-                                    );
-                                }
-                                if (cr.isAggregateDeleted()) {
-                                    eventStore.deleteAggregate(c.getAggregateId());
-                                }
+            switch (request) {
+                case DomainCommandMessage c -> {
+                    var dest = peekMessageHandlerAddress(c.getCommandName());
+                    var start = PerformanceStoreService.now();
+                    var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
+                    eventStore.acquire(lockId);
+                    try {
+                        var invocation = new DecoratedDomainCommandMessage();
+                        invocation.setCommandMessage(c);
+                        var story = eventStore.fetchAggregateStory(c.getAggregateId());
+                        invocation.setSerializedAggregateState(story.state());
+                        invocation.setEventStream(story.events());
+                        performanceStoreService.sendServiceTimeMetric(
+                                SERVER,
+                                GATEWAY_COMPONENT,
+                                c,
+                                start
+                        );
+                        var invocationStart = PerformanceStoreService.now();
+                        message.setBody(invocation);
+                        forward(message, dest, resp -> {
+                            try {
                                 performanceStoreService.sendServiceTimeMetric(
-                                        EVENT_STORE,
-                                        EVENT_STORE_COMPONENT,
-                                        cr.getDomainEventMessage(),
-                                        esStoreStart
+                                        message.getSourceBundleId(),
+                                        getComponent(c.getCommandName()),
+                                        c,
+                                        invocationStart
                                 );
-                                resp.setBody(cr.getDomainEventMessage().getSerializedPayload().getSerializedObject());
-                            }
-                            eventStore.release(lockId);
-                            sendResponse.accept(resp);
-                        } catch (Exception e) {
-                            eventStore.release(lockId);
-                            resp.setBody(new ExceptionWrapper(e));
-                            sendResponse.accept(resp);
-                        }
-
-                    });
-                } catch (Exception e) {
-                    eventStore.release(lockId);
-                    throw e;
-                }
-            } else if (request instanceof ServiceCommandMessage c) {
-
-                var dest = peekMessageHandlerAddress(c.getCommandName());
-                var start = PerformanceStoreService.now();
-                var lockId = c.getLockId() == null ? null : SERVICE_LOCK_PREFIX + c.getLockId();
-                eventStore.acquire(lockId);
-                try {
-                    forward(message, dest, resp -> {
-                        try {
-                            performanceStoreService.sendServiceTimeMetric(
-                                    dest.bundleId(),
-                                    getComponent(c.getCommandName()),
-                                    c,
-                                    start
-                            );
-                            if (resp.getBody() instanceof EventMessage<?> event) {
-                                if(event.getSerializedPayload().getObjectClass() != null) {
+                                if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
                                     var esStoreStart = PerformanceStoreService.now();
-                                    eventStore.publishEvent((EventMessage<?>) resp.getBody(),
-                                            c.getLockId());
+                                    eventStore.publishEvent(cr.getDomainEventMessage(),
+                                            c.getAggregateId());
+                                    if (cr.getSerializedAggregateState() != null) {
+                                        eventStore.saveSnapshot(
+                                                c.getAggregateId(),
+                                                eventStore.getLastAggregateSequenceNumber(c.getAggregateId()),
+                                                cr.getSerializedAggregateState()
+                                        );
+                                    }
+                                    if (cr.isAggregateDeleted()) {
+                                        eventStore.deleteAggregate(c.getAggregateId());
+                                    }
                                     performanceStoreService.sendServiceTimeMetric(
                                             EVENT_STORE,
                                             EVENT_STORE_COMPONENT,
-                                            event,
+                                            cr.getDomainEventMessage(),
                                             esStoreStart
                                     );
+                                    resp.setBody(cr.getDomainEventMessage().getSerializedPayload().getSerializedObject());
                                 }
-                                resp.setBody(event.getSerializedPayload().getSerializedObject());
+                                eventStore.release(lockId);
+                                sendResponse.accept(resp);
+                            } catch (Exception e) {
+                                eventStore.release(lockId);
+                                resp.setBody(new ExceptionWrapper(e));
+                                sendResponse.accept(resp);
                             }
-                            eventStore.release(lockId);
-                            sendResponse.accept(resp);
-                        } catch (Exception e) {
-                            eventStore.release(lockId);
-                            resp.setBody(new ExceptionWrapper(e));
-                            sendResponse.accept(resp);
-                        }
-                    });
-                } catch (Exception e) {
-                    eventStore.release(lockId);
-                    throw e;
+
+                        });
+                    } catch (Exception e) {
+                        eventStore.release(lockId);
+                        throw e;
+                    }
                 }
-            } else if (request instanceof QueryMessage<?> q) {
-                var dest = peekMessageHandlerAddress(q.getQueryName());
-                var invocationStart = PerformanceStoreService.now();
-                forward(message, dest,
-                        resp -> {
-                            performanceStoreService.sendServiceTimeMetric(
-                                    dest.bundleId(),
-                                    getComponent(q.getQueryName()),
-                                    q,
-                                    invocationStart
-                            );
-                            sendResponse.accept(resp);
-                        }
-                );
+                case ServiceCommandMessage c -> {
+                    var dest = peekMessageHandlerAddress(c.getCommandName());
+                    var start = PerformanceStoreService.now();
+                    var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
+                    eventStore.acquire(lockId);
+                    try {
+                        forward(message, dest, resp -> {
+                            try {
+                                performanceStoreService.sendServiceTimeMetric(
+                                        dest.bundleId(),
+                                        getComponent(c.getCommandName()),
+                                        c,
+                                        start
+                                );
+                                if (resp.getBody() instanceof EventMessage<?> event) {
+                                    if (event.getSerializedPayload().getObjectClass() != null) {
+                                        var esStoreStart = PerformanceStoreService.now();
+                                        eventStore.publishEvent((EventMessage<?>) resp.getBody(),
+                                                c.getLockId());
+                                        performanceStoreService.sendServiceTimeMetric(
+                                                EVENT_STORE,
+                                                EVENT_STORE_COMPONENT,
+                                                event,
+                                                esStoreStart
+                                        );
+                                    }
+                                    resp.setBody(event.getSerializedPayload().getSerializedObject());
+                                }
+                                eventStore.release(lockId);
+                                sendResponse.accept(resp);
+                            } catch (Exception e) {
+                                eventStore.release(lockId);
+                                resp.setBody(new ExceptionWrapper(e));
+                                sendResponse.accept(resp);
+                            }
+                        });
+                    } catch (Exception e) {
+                        eventStore.release(lockId);
+                        throw e;
+                    }
+                }
+                case QueryMessage<?> q -> {
+                    var dest = peekMessageHandlerAddress(q.getQueryName());
+                    var invocationStart = PerformanceStoreService.now();
+                    forward(message, dest,
+                            resp -> {
+                                performanceStoreService.sendServiceTimeMetric(
+                                        dest.bundleId(),
+                                        getComponent(q.getQueryName()),
+                                        q,
+                                        invocationStart
+                                );
+                                sendResponse.accept(resp);
+                            }
+                    );
 
-            } else if (request instanceof EventFetchRequest f) {
-                var events = f.getComponentName() == null ? eventStore.fetchEvents(
-                        f.getContext(),
-                        f.getLastSequenceNumber(),
-                        f.getLimit()) : eventStore.fetchEvents(
-                        f.getContext(),
-                        f.getLastSequenceNumber(),
-                        f.getLimit(), handlerService.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
-                var resp = new EventoResponse();
-                resp.setCorrelationId(message.getCorrelationId());
-                resp.setBody(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
-                sendResponse.accept(resp);
+                }
+                case EventFetchRequest f -> {
+                    var events = f.getComponentName() == null ? eventStore.fetchEvents(
+                            f.getContext(),
+                            f.getLastSequenceNumber(),
+                            f.getLimit()) : eventStore.fetchEvents(
+                            f.getContext(),
+                            f.getLastSequenceNumber(),
+                            f.getLimit(), handlerService.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
+                    var resp = new EventoResponse();
+                    resp.setCorrelationId(message.getCorrelationId());
+                    resp.setBody(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
+                    sendResponse.accept(resp);
 
-            } else if (request instanceof EventLastSequenceNumberRequest) {
-                var resp = new EventoResponse();
-                resp.setCorrelationId(message.getCorrelationId());
-                resp.setBody(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
-                sendResponse.accept(resp);
-            } else {
-                throw new IllegalArgumentException("Missing Handler for " + request.getClass());
+                }
+                case EventLastSequenceNumberRequest ignored -> {
+                    var resp = new EventoResponse();
+                    resp.setCorrelationId(message.getCorrelationId());
+                    resp.setBody(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
+                    sendResponse.accept(resp);
+                }
+                case null, default -> throw new IllegalArgumentException("Missing Handler for " + (request != null ? request.getClass() : null));
             }
         } catch (Exception e) {
             logger.error("Error handling message in server", e);
@@ -610,7 +613,7 @@ public class MessageBus {
         if (!isBundleAvailable(bundle.getId())) {
             var bundleId = bundle.getId();
             logger.info("Bundle %s not available, spawning a new one".formatted(bundleId));
-            var lockId = "BUNDLE:" + bundleId;
+            var lockId = BUNDLE_LOCK_PREFIX + bundleId;
             try {
                 eventStore.acquire(lockId);
                 var semaphore = semaphoreMap.getOrDefault(bundleId, new Semaphore(0));
