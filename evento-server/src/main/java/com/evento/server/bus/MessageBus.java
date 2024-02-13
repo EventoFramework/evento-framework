@@ -344,7 +344,7 @@ public class MessageBus {
                                     if (event.getSerializedPayload().getObjectClass() != null) {
                                         var esStoreStart = PerformanceStoreService.now();
                                         eventStore.publishEvent((EventMessage<?>) resp.getBody(),
-                                                c.getLockId());
+                                                c.getAggregateId());
                                         performanceStoreService.sendServiceTimeMetric(
                                                 EVENT_STORE,
                                                 EVENT_STORE_COMPONENT,
