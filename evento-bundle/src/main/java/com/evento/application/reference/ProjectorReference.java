@@ -36,7 +36,8 @@ public class ProjectorReference extends Reference {
                 eventHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
                         .filter(Event.class::isAssignableFrom)
                         .findFirst()
-                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+                        .map(Class::getSimpleName)
+                        .orElseThrow(() -> new IllegalArgumentException("Event parameter not fount in  " + declaredMethod)), declaredMethod);
             }
         }
     }

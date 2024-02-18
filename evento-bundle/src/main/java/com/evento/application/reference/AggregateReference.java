@@ -48,7 +48,8 @@ public class AggregateReference extends Reference {
                         Arrays.stream(declaredMethod.getParameterTypes())
                                 .filter(DomainEvent.class::isAssignableFrom)
                                 .findFirst()
-                                .map(Class::getSimpleName).orElseThrow(),
+                                .map(Class::getSimpleName)
+                                .orElseThrow(() -> new IllegalArgumentException("DomainEvent parameter not fount in  " + declaredMethod)),
                         declaredMethod);
                 continue;
             }
@@ -58,7 +59,8 @@ public class AggregateReference extends Reference {
                 aggregateCommandHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
                         .filter(DomainCommand.class::isAssignableFrom)
                         .findFirst()
-                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+                        .map(Class::getSimpleName)
+                        .orElseThrow(() -> new IllegalArgumentException("DomainCommand parameter not fount in  " + declaredMethod)), declaredMethod);
             }
         }
     }
