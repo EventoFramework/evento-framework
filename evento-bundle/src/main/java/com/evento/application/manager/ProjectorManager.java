@@ -58,16 +58,16 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
         logger.info("Checking for projector event consumers");
         for (ProjectorReference projector : getReferences()) {
             var annotation = projector.getRef().getClass().getAnnotation(Projector.class);
-            for (var c : annotation.context()) {
+            for (var context : annotation.context()) {
                 var projectorName = projector.getRef().getClass().getSimpleName();
                 var projectorVersion = annotation.version();
                 logger.info("Starting event consumer for Projector: %s - Version: %d - Context: %s"
-                        .formatted(projectorName, projectorVersion, c));
-                new Thread(new ProjectorEvenConsumer(
+                        .formatted(projectorName, projectorVersion, context));
+                var t = new Thread(new ProjectorEvenConsumer(
                         getBundleId(),
                         projectorName,
                         projectorVersion,
-                        c,
+                        context,
                         getIsShuttingDown(),
                         consumerStateStore,
                         getHandlers(),
@@ -77,7 +77,9 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
                         getSssFetchDelay(),
                         counter,
                         onHeadReached
-                )).start();
+                ));
+                t.setName(projectorName + "(v"+projectorVersion+") - " + context);
+                t.start();
             }
 
         }

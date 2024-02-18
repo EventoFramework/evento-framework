@@ -326,7 +326,7 @@ public class EventoServerClient implements EventoServer {
                     .connect();
             bus.setClusterConnection(cc);
             // Shutdown hook for graceful shutdown
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            var t  = new Thread(() -> {
                 try {
                     System.out.println("Graceful Shutdown - Started");
                     System.out.println("Graceful Shutdown - Disabling Bus");
@@ -354,7 +354,9 @@ public class EventoServerClient implements EventoServer {
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-            }));
+            });
+            t.setName("Shutdown thread");
+            Runtime.getRuntime().addShutdownHook(t);
             return bus;
         }
     }

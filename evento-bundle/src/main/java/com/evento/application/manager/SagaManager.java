@@ -78,16 +78,16 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
         logger.info("Checking for saga event consumers");
         for (SagaReference saga : getReferences()) {
             var annotation = saga.getRef().getClass().getAnnotation(Saga.class);
-            for (var c : annotation.context()) {
+            for (var context : annotation.context()) {
                 var sagaName = saga.getRef().getClass().getSimpleName();
                 var sagaVersion = annotation.version();
                 logger.info("Starting event consumer for Saga: %s - Version: %d - Context: %s"
-                        .formatted(sagaName, sagaVersion, c));
-                new Thread(new SagaEventConsumer(
+                        .formatted(sagaName, sagaVersion, context));
+                var t = new Thread(new SagaEventConsumer(
                         getBundleId(),
                         sagaName,
                         sagaVersion,
-                        c,
+                        context,
                         getIsShuttingDown(),
                         consumerStateStore,
                         getHandlers(),
@@ -95,7 +95,9 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
                         getGatewayTelemetryProxy(),
                         getSssFetchSize(),
                         getSssFetchDelay()
-                )).start();
+                ));
+                t.setName(sagaName + "(v"+sagaVersion+") - " + context);
+                t.start();
             }
 
         }
