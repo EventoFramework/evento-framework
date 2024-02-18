@@ -89,8 +89,12 @@ public class BundleDeployService {
 		Process p = Runtime.getRuntime().exec(new String[]{spawnScript ,
 				mapper.writeValueAsString(bundle),
 				authService.generateJWT("evento-server-deploy", new TokenRole[]{TokenRole.ROLE_DEPLOY}, 1000 * 60)});
-		new Thread(new SyncPipe(p.getInputStream(), System.out)).start();
-		new Thread(new SyncPipe(p.getErrorStream(), System.err)).start();
+		var iT = new Thread(new SyncPipe(p.getInputStream(), System.out));
+		iT.setName("Deploy Output reader thread");
+		iT.start();
+		var oT = new Thread(new SyncPipe(p.getErrorStream(), System.err));
+		oT.setName("Deploy Error reader thread");
+		oT.start();
 		p.waitFor();
 	}
 

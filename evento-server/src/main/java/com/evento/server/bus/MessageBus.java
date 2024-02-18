@@ -86,19 +86,21 @@ public class MessageBus {
     @PostConstruct
     public void init() {
 
-        new Thread(() -> {
+        var t = new Thread(() -> {
             for (Bundle bundle : bundleService.findAllBundles()) {
                 if (bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral)
                     waitUntilAvailable(bundle);
             }
-        }).start();
+        });
+        t.setName("Bundle autostart Thread");
+        t.start();
 
-        new Thread(() -> {
+        t = new Thread(() -> {
             try(ServerSocket server = new ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
-                    logger.info("New connection: " + conn.getInetAddress());
-                    new Thread(() -> {
+                    logger.info("New connection: " + conn.getInetAddress() + ":" + conn.getPort());
+                    var it = new Thread(() -> {
                         NodeAddress address = null;
                         try {
                             try {
@@ -166,13 +168,17 @@ public class MessageBus {
                         }
 
 
-                    }).start();
+                    });
+                    it.setName("Client connection " + conn.getInetAddress() + ":" + conn.getPort());
+                    it.start();
                 }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
 
-        }).start();
+        });
+        t.setName("MessageBus ConnectionHandler Thread");
+        t.start();
     }
 
 

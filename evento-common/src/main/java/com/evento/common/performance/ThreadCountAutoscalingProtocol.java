@@ -52,7 +52,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 		this.maxThreadCount = maxThreadCount;
 		this.maxOverflowCount = maxOverflowCount;
 
-        new Thread(() -> {
+        var t = new Thread(() -> {
 			while (true)
 			{
 				try
@@ -72,7 +72,9 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 					throw new RuntimeException(e);
 				}
 			}
-		}).start();
+		});
+		t.setName("ThreadCountAutoscalingProtocol");
+		t.start();
 	}
 
 	@Override
