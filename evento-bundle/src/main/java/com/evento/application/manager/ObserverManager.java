@@ -73,16 +73,16 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
         logger.info("Checking for observer event consumers");
         for (ObserverReference observer : getReferences()) {
             var annotation = observer.getRef().getClass().getAnnotation(Observer.class);
-            for (var c : annotation.context()) {
+            for (var context : annotation.context()) {
                 var observerName = observer.getRef().getClass().getSimpleName();
                 var observerVersion = annotation.version();
                 logger.info("Starting event consumer for Observer: %s - Version: %d - Context: %s"
-                        .formatted(observerName, observerVersion, c));
-                new Thread(new ObserverEventConsumer(
+                        .formatted(observerName, observerVersion, context));
+                var t = new Thread(new ObserverEventConsumer(
                         getBundleId(),
                         observerName,
                         observerVersion,
-                        c,
+                        context,
                         getIsShuttingDown(),
                         consumerStateStore,
                         getHandlers(),
@@ -90,7 +90,9 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
                         getGatewayTelemetryProxy(),
                         getSssFetchSize(),
                         getSssFetchDelay()
-                )).start();
+                ));
+                t.setName(observerName + "(v"+observerVersion+") - " + context);
+                t.start();
             }
 
         }

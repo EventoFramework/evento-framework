@@ -105,7 +105,7 @@ public class EventoSocketConnection {
         // Semaphore for signaling when the connection is ready
         var connectionReady = new Semaphore(0);
 
-        new Thread(() -> {
+        var t = new Thread(() -> {
             // Loop until the connection is closed or the maximum reconnect attempts are reached
             while (!isClosed && (maxReconnectAttempts < 0 || reconnectAttempt < maxReconnectAttempts)) {
                 // Log the current attempt to connect
@@ -187,7 +187,9 @@ public class EventoSocketConnection {
             // Log an error if the server is unreachable after maximum attempts
             logger.error("Server unreachable after {} attempts. Dead socket.", reconnectAttempt);
             isClosed = true;
-        }).start();
+        });
+        t.setName("EventoConnection - " + serverAddress + ":" + serverPort);
+        t.start();
 
         // Wait for the connection to be ready (or for the maximum attempts to be reached)
         connectionReady.acquire();
