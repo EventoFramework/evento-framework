@@ -35,7 +35,8 @@ public class ProjectionReference extends Reference {
                 queryHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
                         .filter(Query.class::isAssignableFrom)
                         .findFirst()
-                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+                        .map(Class::getSimpleName)
+                        .orElseThrow(() -> new IllegalArgumentException("Query parameter not fount in  " + declaredMethod)), declaredMethod);
             }
         }
     }

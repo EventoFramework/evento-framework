@@ -35,7 +35,8 @@ public class ServiceReference extends Reference {
                 serviceCommandHandlerReferences.put(Arrays.stream(declaredMethod.getParameterTypes())
                         .filter(ServiceCommand.class::isAssignableFrom)
                         .findFirst()
-                        .map(Class::getSimpleName).orElseThrow(), declaredMethod);
+                        .map(Class::getSimpleName)
+                        .orElseThrow(() -> new IllegalArgumentException("ServiceCommand parameter not fount in  " + declaredMethod)), declaredMethod);
             }
         }
     }
