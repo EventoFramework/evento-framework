@@ -531,16 +531,11 @@ public class EventoBundle {
                             registration,
                             objectMapper,
                             eventoServerMessageBusConfiguration.getAddresses(),
-                            (body) -> {
-                                if (body instanceof DecoratedDomainCommandMessage cm) {
-                                    return aggregateManager.handle(cm);
-                                } else if (body instanceof ServiceCommandMessage sm) {
-                                    return serviceManager.handle(sm);
-                                } else if (body instanceof QueryMessage<?> qm) {
-                                    return projectionManager.handle(qm);
-                                } else {
-                                    throw new RuntimeException("Invalid request body: " + body);
-                                }
+                            (body) -> switch (body) {
+                                case DecoratedDomainCommandMessage cm -> aggregateManager.handle(cm);
+                                case ServiceCommandMessage sm -> serviceManager.handle(sm);
+                                case QueryMessage<?> qm -> projectionManager.handle(qm);
+                                case null, default -> throw new RuntimeException("Invalid request body: " + body);
                             }
                     )
                             .setMaxReconnectAttempts(eventoServerMessageBusConfiguration.getMaxReconnectAttempts())
