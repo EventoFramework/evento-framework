@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework'
-version 'ev1.7.1'
+version 'ev1.7.2'
 java {
     targetCompatibility = "21"
     targetCompatibility = "21"
@@ -29,8 +29,8 @@ dependencies {
     api project(':evento-common')
     api 'org.hibernate.validator:hibernate-validator:8.0.0.Final'
 
-    implementation 'org.apache.logging.log4j:log4j-core:2.19.0'
-    implementation 'org.apache.logging.log4j:log4j-api:2.19.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.22.1'
+    implementation 'org.apache.logging.log4j:log4j-api:2.22.1'
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
