@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework'
-version 'ev1.7.1'
+version 'ev1.7.2'
 java {
     targetCompatibility = "21"
     targetCompatibility = "21"
@@ -25,8 +25,8 @@ dependencies {
     api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2'
     api 'com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2'
 
-    api 'org.apache.logging.log4j:log4j-api:2.19.0'
-    api 'org.apache.logging.log4j:log4j-core:2.19.0'
+    api 'org.apache.logging.log4j:log4j-api:2.22.1'
+    api 'org.apache.logging.log4j:log4j-core:2.22.1'
 }
 
 java {
