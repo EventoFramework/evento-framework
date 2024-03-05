@@ -103,12 +103,14 @@ public class AuthFilter extends OncePerRequestFilter {
                     return validToken.getClaim("clientId").asString();
                 }
             });
-            chain.doFilter(request, response);
         }catch (TokenExpiredException tokenExpiredException){
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token expired");
+            return;
         }catch (Exception e){
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Not unauthorized");
+            return;
         }
+        chain.doFilter(request, response);
 
     }
 }
