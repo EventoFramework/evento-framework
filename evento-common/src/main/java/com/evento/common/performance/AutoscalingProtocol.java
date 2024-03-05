@@ -1,5 +1,6 @@
 package com.evento.common.performance;
 
+import com.evento.common.modeling.messaging.message.internal.ClusterNodeIsSufferingMessage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.common.messaging.bus.EventoServer;
@@ -9,8 +10,6 @@ import com.evento.common.modeling.messaging.message.internal.ClusterNodeIsBoredM
  * The AutoscalingProtocol class is an abstract class that provides a template for autoscaling protocols in a cluster system.
  */
 public abstract class AutoscalingProtocol {
-
-	protected static final Logger logger = LogManager.getLogger(ThreadCountAutoscalingProtocol.class);
 	private final EventoServer eventoServer;
 
 	/**
@@ -40,7 +39,6 @@ public abstract class AutoscalingProtocol {
 	 */
 	protected void sendBoredSignal() throws Exception {
 		eventoServer.send(new ClusterNodeIsBoredMessage(eventoServer.getBundleId(), eventoServer.getInstanceId()));
-		logger.info("ClusterNodeIsBoredMessage sent by timer");
 	}
 
 	/**
@@ -50,8 +48,6 @@ public abstract class AutoscalingProtocol {
 	 * @throws Exception if the message sending fails
 	 */
 	protected void sendSufferingSignal() throws Exception {
-		eventoServer.send(new ClusterNodeIsBoredMessage(eventoServer.getBundleId(), eventoServer.getInstanceId()));
-		logger.info("ClusterNodeIsSufferingMessage sent");
-
+		eventoServer.send(new ClusterNodeIsSufferingMessage(eventoServer.getBundleId()));
 	}
 }
