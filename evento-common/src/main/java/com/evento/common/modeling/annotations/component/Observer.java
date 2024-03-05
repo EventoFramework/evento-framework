@@ -61,10 +61,4 @@ public @interface Observer {
      * @return the version of the observer
      */
     int version();
-    /**
-     * Retrieves the context options for the given method context.
-     *
-     * @return the context options for the method context
-     */
-    String[] context() default {Context.ALL};
 }

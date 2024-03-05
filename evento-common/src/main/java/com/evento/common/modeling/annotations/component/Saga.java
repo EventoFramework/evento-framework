@@ -55,13 +55,4 @@ public @interface Saga {
 	 * @return the version of the method
 	 */
 	int version();
-
-	/**
-	 * Returns the available context options for the functionality.
-	 *
-	 * @return an array of context options
-	 *
-	 * @see Context
-	 */
-	String[] context() default  {Context.ALL};
 }
