@@ -30,7 +30,7 @@ public class AgentDispatcher implements CommandLineRunner {
 
 		Thread.sleep(3000);
 
-		var r = 1;
+		var r = 16;
 		var s = new Semaphore(0);
 		for (int i = 0; i < r; i++)
 		{
@@ -55,7 +55,7 @@ public class AgentDispatcher implements CommandLineRunner {
 					}
 					Sentry.setUser(user);
 					demoLifecycleAgent.action(finalI);
-					System.out.println("zzzzzzzzzzzzzzzzzzzzzz");
+					System.out.println("--------------------");
 					System.out.println(Sentry.getLastEventId());
 				} catch (Exception e)
 				{
