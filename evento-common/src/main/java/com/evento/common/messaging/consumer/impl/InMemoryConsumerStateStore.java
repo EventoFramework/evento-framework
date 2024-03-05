@@ -11,6 +11,7 @@ import com.evento.common.serialization.ObjectMapperUtils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,10 +24,10 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class InMemoryConsumerStateStore extends ConsumerStateStore {
 
-    private final Map<Object, Lock> lockRegistry = new HashMap<>();
-    private final Map<String, Long> lastEventSequenceNumberRepository = new HashMap<>();
+    private final Map<Object, Lock> lockRegistry = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastEventSequenceNumberRepository = new ConcurrentHashMap<>();
 
-    private final Map<Long, Map.Entry<String,SagaState>> sagaStateRepository = new HashMap<>();
+    private final Map<Long, Map.Entry<String,SagaState>> sagaStateRepository = new ConcurrentHashMap<>();
 
 	private final AtomicInteger sagaCounter = new AtomicInteger(1);
 
