@@ -1,5 +1,7 @@
 package com.evento.application.bus;
 
+import com.evento.common.modeling.messaging.message.internal.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
@@ -7,10 +9,6 @@ import org.apache.logging.log4j.Logger;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.bus.SendFailedException;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
-import com.evento.common.modeling.messaging.message.internal.ClusterNodeKillMessage;
-import com.evento.common.modeling.messaging.message.internal.EventoMessage;
-import com.evento.common.modeling.messaging.message.internal.EventoRequest;
-import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import com.evento.common.utils.Sleep;
 
@@ -21,6 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+
+import com.evento.common.serialization.ObjectMapperUtils;
 
 /**
  * Represents a client for communicating with an Evento server.
@@ -34,16 +36,17 @@ public class EventoServerClient implements EventoServer {
     private final String instanceId;
 
     @SuppressWarnings("rawtypes")
-    private final Map<String, CompletableFuture> correlations = new HashMap<>();
+    private final Map<String, Correlation> correlations = new ConcurrentHashMap<>();
     private ClusterConnection clusterConnection;
 
     private final RequestHandler requestHandler;
 
     /**
      * Private constructor for creating an EventoServerClient instance.
-     * @param bundleId The bundle ID of the client.
-     * @param bundleVersion The bundle version of the client.
-     * @param instanceId The instance ID of the client.
+     *
+     * @param bundleId       The bundle ID of the client.
+     * @param bundleVersion  The bundle version of the client.
+     * @param instanceId     The instance ID of the client.
      * @param requestHandler The handler for processing incoming requests.
      */
     private EventoServerClient(String bundleId,
@@ -79,6 +82,7 @@ public class EventoServerClient implements EventoServer {
 
     /**
      * Sets the cluster connection for the client.
+     *
      * @param cc The cluster connection to set.
      */
     private void setClusterConnection(ClusterConnection cc) {
@@ -87,56 +91,62 @@ public class EventoServerClient implements EventoServer {
 
     /**
      * Handles an incoming message and takes appropriate actions based on the message type.
-     * @param message The incoming message.
+     *
+     * @param message        The incoming message.
      * @param responseSender The sender for responding to the message.
      */
     @SuppressWarnings("unchecked")
     private void onMessage(Serializable message, EventoResponseSender responseSender) {
-        if (message instanceof EventoResponse response) {
-            // Handling response messages
-            var c = correlations.get(response.getCorrelationId());
-            if (response.getBody() instanceof ExceptionWrapper tw) {
-                c.completeExceptionally(tw.toException());
-            } else {
-                try {
-                    c.complete(response.getBody());
-                } catch (Exception e) {
-                    c.completeExceptionally(e);
+        switch (message) {
+            case EventoResponse response -> {
+                // Handling response messages
+                var c = correlations.get(response.getCorrelationId());
+                if (response.getBody() instanceof ExceptionWrapper tw) {
+                    c.getCallback().completeExceptionally(tw.toException());
+                } else {
+                    try {
+                        c.getCallback().complete(response.getBody());
+                    } catch (Exception e) {
+                        c.getCallback().completeExceptionally(e);
+                    }
                 }
+                correlations.remove(response.getCorrelationId());
             }
-            correlations.remove(response.getCorrelationId());
-        } else if (message instanceof EventoRequest request) {
-            // Handling request messages
-            var resp = new EventoResponse();
-            resp.setCorrelationId(request.getCorrelationId());
-            try {
-                var body = request.getBody();
-                resp.setBody(requestHandler.handle(body));
-                responseSender.send(resp);
-            } catch (Exception e) {
-                resp.setBody(new ExceptionWrapper(e));
+            case EventoRequest request -> {
+                // Handling request messages
+                var resp = new EventoResponse();
+                resp.setCorrelationId(request.getCorrelationId());
                 try {
+                    var body = request.getBody();
+                    resp.setBody(requestHandler.handle(body));
                     responseSender.send(resp);
-                } catch (SendFailedException ex) {
-                    throw new RuntimeException(ex);
+                } catch (Exception e) {
+                    resp.setBody(new ExceptionWrapper(e));
+                    try {
+                        responseSender.send(resp);
+                    } catch (SendFailedException ex) {
+                        throw new RuntimeException(ex);
+                    }
                 }
             }
-        } else if (message instanceof EventoMessage m){
-            // Handling general messages
-            if(m.getBody() instanceof ClusterNodeKillMessage){
-                logger.info("ClusterNodeKillMessage received");
-                System.exit(0);
+            case EventoMessage m -> {
+                // Handling general messages
+                if (m.getBody() instanceof ClusterNodeKillMessage) {
+                    logger.info("ClusterNodeKillMessage received");
+                    System.exit(0);
+                }
             }
-        } else {
-            // Invalid message type
-            throw new RuntimeException("Invalid message: " + message);
+            case null, default ->
+                // Invalid message type
+                    throw new RuntimeException("Invalid message: " + message);
         }
     }
 
     /**
      * Sends a request to the cluster nodes and returns a CompletableFuture for the response.
+     *
      * @param request The request to be sent.
-     * @param <T> The type of the response body.
+     * @param <T>     The type of the response body.
      * @return A CompletableFuture representing the response.
      * @throws SendFailedException Thrown if the request fails to be sent.
      */
@@ -149,7 +159,7 @@ public class EventoServerClient implements EventoServer {
         message.setSourceInstanceId(instanceId);
         message.setCorrelationId(UUID.randomUUID().toString());
         message.setBody(request);
-        correlations.put(message.getCorrelationId(), future);
+        correlations.put(message.getCorrelationId(), new Correlation<T>(message, future));
 
         future = future.whenComplete((t, throwable) -> correlations.remove(message.getCorrelationId()));
 
@@ -166,6 +176,7 @@ public class EventoServerClient implements EventoServer {
 
     /**
      * Gets the instance ID of the client.
+     *
      * @return The instance ID.
      */
     @Override
@@ -175,6 +186,7 @@ public class EventoServerClient implements EventoServer {
 
     /**
      * Gets the bundle ID of the client.
+     *
      * @return The bundle ID.
      */
     @Override
@@ -184,6 +196,7 @@ public class EventoServerClient implements EventoServer {
 
     /**
      * Sends a message to the cluster nodes.
+     *
      * @param m The message to be sent.
      * @throws SendFailedException Thrown if the message fails to be sent.
      */
@@ -212,10 +225,11 @@ public class EventoServerClient implements EventoServer {
 
         /**
          * Constructs a Builder instance with required parameters.
+         *
          * @param bundleRegistration The registration information for the client.
-         * @param objectMapper The ObjectMapper for JSON serialization/deserialization.
-         * @param addresses The addresses of the cluster nodes.
-         * @param requestHandler The handler for processing incoming requests.
+         * @param objectMapper       The ObjectMapper for JSON serialization/deserialization.
+         * @param addresses          The addresses of the cluster nodes.
+         * @param requestHandler     The handler for processing incoming requests.
          */
         public Builder(BundleRegistration bundleRegistration, ObjectMapper objectMapper,
                        List<ClusterNodeAddress> addresses,
@@ -253,6 +267,7 @@ public class EventoServerClient implements EventoServer {
 
         /**
          * Sets the delay (in milliseconds) between retry attempts for sending messages.
+         *
          * @param retryDelayMillis The delay between retry attempts.
          * @return The Builder instance.
          */
@@ -263,6 +278,7 @@ public class EventoServerClient implements EventoServer {
 
         /**
          * Sets the maximum number of attempts to disable the bus during shutdown.
+         *
          * @param maxDisableAttempts The maximum number of disable attempts.
          * @return The Builder instance.
          */
@@ -273,6 +289,7 @@ public class EventoServerClient implements EventoServer {
 
         /**
          * Sets the delay (in milliseconds) between disable attempts during shutdown.
+         *
          * @param disableDelayMillis The delay between disable attempts.
          * @return The Builder instance.
          */
@@ -283,6 +300,7 @@ public class EventoServerClient implements EventoServer {
 
         /**
          * Sets the maximum number of reconnect attempts for the cluster connection.
+         *
          * @param maxReconnectAttempts The maximum number of reconnect attempts.
          * @return The Builder instance.
          */
@@ -293,6 +311,7 @@ public class EventoServerClient implements EventoServer {
 
         /**
          * Sets the delay (in milliseconds) between reconnect attempts for the cluster connection.
+         *
          * @param reconnectDelayMillis The delay between reconnect attempts.
          * @return The Builder instance.
          */
@@ -303,6 +322,7 @@ public class EventoServerClient implements EventoServer {
 
         /**
          * Connects the EventoServerClient to the cluster.
+         *
          * @return The connected EventoServerClient.
          * @throws InterruptedException Thrown if the connection is interrupted.
          */
@@ -326,26 +346,35 @@ public class EventoServerClient implements EventoServer {
                     .connect();
             bus.setClusterConnection(cc);
             // Shutdown hook for graceful shutdown
-            var t  = new Thread(() -> {
+            var t = new Thread(() -> {
                 try {
-                    System.out.println("Graceful Shutdown - Started");
-                    System.out.println("Graceful Shutdown - Disabling Bus");
+
+                    System.out.println("Graceful Shutdown - Started!");
+                    System.out.println( "Graceful Shutdown - Disabling Bus");
                     bus.disable();
-                    System.out.println("Waiting for bus disabled propagation...");
-                    Thread.sleep(disableDelayMillis);
-                    System.out.println("Graceful Shutdown - Bus Disabled");
+                    System.out.println( "Graceful Shutdown - Waiting for bus disabled propagation...");
+                    Sleep.apply(disableDelayMillis);
+                    System.out.println( "Graceful Shutdown - Bus Disabled");
                     var retry = 0;
                     while (true) {
                         var keys = bus.correlations.keySet();
-                        System.out.printf("Graceful Shutdown - Remaining correlations: %d%n", keys.size());
-                        System.out.println("Graceful Shutdown - Sleep...");
+                        System.out.printf("Graceful Shutdown - Remaining correlations: %s%n", keys.size());
+                        bus.correlations.forEach((k, v) -> {
+                            System.out.printf( "Graceful Shutdown - Pending correlation: %s%n", k);
+                            System.out.println( "Graceful Shutdown - Body:");
+                            try {
+                                System.out.println(ObjectMapperUtils.getPayloadObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(v.getRequest()));
+                            } catch (JsonProcessingException ignored) {}
+
+                        });
+                        System.out.println( "Graceful Shutdown - Sleep...");
                         Sleep.apply(disableDelayMillis);
                         if (bus.correlations.isEmpty()) {
-                            System.out.println("Graceful Shutdown - No more correlations, bye!");
+                            System.out.println( "Graceful Shutdown - No more correlations, bye!");
                             bus.close();
                             return;
                         } else if (keys.containsAll(bus.correlations.keySet()) && retry > maxDisableAttempts) {
-                            System.out.println("Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " sec of retry... so... bye!");
+                            System.out.println( "Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " sec of retry... so... bye!");
                             bus.close();
                             return;
                         }
