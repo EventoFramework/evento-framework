@@ -170,7 +170,13 @@ public class EventoBundle {
                     return tracingAgent.track(payload, invokerClass.getSimpleName(),
                             method.getDeclaredAnnotation(Track.class),
                             () -> {
-                                Object result = proceed.invoke(target, args);
+                                Object result;
+                                try{
+                                    result = proceed.invoke(target, args);
+                                }catch (Exception e){
+                                    gProxy.sendServiceTimeMetric(start);
+                                    throw e;
+                                }
                                 if(result instanceof CompletableFuture<?> cf){
                                     result = cf.whenComplete((s,f) -> gProxy.sendServiceTimeMetric(start));
                                 }else{
@@ -272,7 +278,7 @@ public class EventoBundle {
         private Function<EventoServer, QueryGateway> queryGatewayBuilder  = QueryGatewayImpl::new;
         private QueryGateway queryGateway;
 
-        private Function<EventoServer, PerformanceService> performanceServiceBuilder = eventoServer -> new RemotePerformanceService(eventoServer, 0.01);
+        private Function<EventoServer, PerformanceService> performanceServiceBuilder = eventoServer -> new RemotePerformanceService(eventoServer, 1);
         private PerformanceService performanceService;
 
         private int sssFetchSize = 1000;
