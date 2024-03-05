@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Semaphore;
 
 @SuppressWarnings("CallToPrintStackTrace")
 @Component
@@ -29,10 +30,10 @@ public class AgentDispatcher implements CommandLineRunner {
 
 		Thread.sleep(3000);
 
-
-		for (int i = 0; i < 10; i++)
+		var r = 1;
+		var s = new Semaphore(0);
+		for (int i = 0; i < r; i++)
 		{
-			Thread.sleep(500);
 			int finalI = i;
 			new Thread(() -> {
 				try
@@ -54,15 +55,29 @@ public class AgentDispatcher implements CommandLineRunner {
 					}
 					Sentry.setUser(user);
 					demoLifecycleAgent.action(finalI);
-					System.out.println("--------------------");
+					System.out.println("zzzzzzzzzzzzzzzzzzzzzz");
 					System.out.println(Sentry.getLastEventId());
 				} catch (Exception e)
 				{
 					e.printStackTrace();
 				}
 				System.out.println(finalI + "_end");
+				s.release();
 			}).start();
 		}
+
+		Thread.ofPlatform().start(() -> {
+			for (int i = 0; i < r; i++) {
+                try {
+                    s.acquire();
+					System.out.println(i + " acquired");
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+			System.exit(0);
+		});
+
 
     }
 }
