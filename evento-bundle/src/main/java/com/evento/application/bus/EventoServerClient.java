@@ -1,6 +1,7 @@
 package com.evento.application.bus;
 
 import com.evento.common.modeling.messaging.message.internal.*;
+import com.evento.common.performance.AutoscalingProtocol;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -14,13 +15,12 @@ import com.evento.common.utils.Sleep;
 
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
+import java.util.function.Function;
 
 import com.evento.common.serialization.ObjectMapperUtils;
 
@@ -44,10 +44,10 @@ public class EventoServerClient implements EventoServer {
     /**
      * Private constructor for creating an EventoServerClient instance.
      *
-     * @param bundleId       The bundle ID of the client.
-     * @param bundleVersion  The bundle version of the client.
-     * @param instanceId     The instance ID of the client.
-     * @param requestHandler The handler for processing incoming requests.
+     * @param bundleId                   The bundle ID of the client.
+     * @param bundleVersion              The bundle version of the client.
+     * @param instanceId                 The instance ID of the client.
+     * @param requestHandler             The handler for processing incoming requests.
      */
     private EventoServerClient(String bundleId,
                                long bundleVersion,
@@ -57,6 +57,7 @@ public class EventoServerClient implements EventoServer {
         this.bundleVersion = bundleVersion;
         this.instanceId = instanceId;
         this.requestHandler = requestHandler;
+
     }
 
     /**
@@ -226,10 +227,10 @@ public class EventoServerClient implements EventoServer {
         /**
          * Constructs a Builder instance with required parameters.
          *
-         * @param bundleRegistration The registration information for the client.
-         * @param objectMapper       The ObjectMapper for JSON serialization/deserialization.
-         * @param addresses          The addresses of the cluster nodes.
-         * @param requestHandler     The handler for processing incoming requests.
+         * @param bundleRegistration         The registration information for the client.
+         * @param objectMapper               The ObjectMapper for JSON serialization/deserialization.
+         * @param addresses                  The addresses of the cluster nodes.
+         * @param requestHandler             The handler for processing incoming requests.
          */
         public Builder(BundleRegistration bundleRegistration, ObjectMapper objectMapper,
                        List<ClusterNodeAddress> addresses,

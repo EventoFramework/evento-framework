@@ -64,6 +64,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 						suffering = false;
 						bored = true;
 						sendBoredSignal();
+						logger.info("ClusterNodeIsSufferingMessage sent! (Timeout)");
 						boredSentDepartureTime = lastDepartureAt;
 					}
 					lastDepartureCheck = lastDepartureAt;
@@ -90,6 +91,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 					try
 					{
 						sendSufferingSignal();
+						logger.info("ClusterNodeIsSufferingMessage sent!");
 					} catch (Exception e)
 					{
 						logger.error("Error sending suffering signal", e);
@@ -98,7 +100,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 				}
 			}
 		}
-		logger.debug("ARRIVAL: " + threadCount);
+		logger.trace("ARRIVAL: {}", threadCount);
 
 	}
 
@@ -115,6 +117,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 					try
 					{
 						sendBoredSignal();
+						logger.info("ClusterNodeIsBoredMessage sent!");
 					} catch (Exception e)
 					{
 						logger.error("Error sending bored signal", e);
@@ -124,7 +127,7 @@ public class ThreadCountAutoscalingProtocol extends AutoscalingProtocol {
 			}
 		}
 		lastDepartureAt = Instant.now().toEpochMilli();
-		logger.debug("DEPARTURE: " + threadCount);
+		logger.trace("DEPARTURE: {}", threadCount);
 
 	}
 }

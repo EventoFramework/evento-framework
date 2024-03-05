@@ -1,8 +1,10 @@
 package com.evento.application.performance;
 
+import com.evento.common.performance.AutoscalingProtocol;
 import lombok.Getter;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
+import lombok.Setter;
 
 /**
  * The TracingAgent class provides functionality for correlating and tracking messages
@@ -14,6 +16,8 @@ public class TracingAgent {
     // Fields for bundle identification
     private final String bundleId;
     private final long bundleVersion;
+    @Setter
+    private AutoscalingProtocol autoscalingProtocol;
 
     /**
      * Constructs a new TracingAgent with the specified bundle identifier and version.
@@ -47,11 +51,38 @@ public class TracingAgent {
      * @return                    The result of the transaction.
      * @throws Exception          If an exception occurs during the transaction.
      */
-    public <T> T track(Message<?> message,
+    public final <T> T track(Message<?> message,
                        String component,
                        Track trackingAnnotation,
                        Transaction<T> transaction)
             throws Exception {
+        try {
+            if(autoscalingProtocol != null){
+                autoscalingProtocol.arrival();
+            }
+            return doTrack(message, component, trackingAnnotation, transaction);
+        }finally {
+            if(autoscalingProtocol != null){
+                autoscalingProtocol.departure();
+            }
+        }
+    }
+
+    /**
+     * Tracks the internal implementation
+     *
+     * @param message             The message being tracked.
+     * @param component           The component associated with the tracking.
+     * @param trackingAnnotation  The tracking annotation (unused in this example).
+     * @param transaction         The transaction to be tracked.
+     * @param <T>                 The type of the result returned by the transaction.
+     * @return                    The result of the transaction.
+     * @throws Exception          If an exception occurs during the transaction.
+     */
+    protected <T> T doTrack(Message<?> message,
+                            String component,
+                            Track trackingAnnotation,
+                            Transaction<T> transaction) throws Exception {
         return transaction.run();
     }
 
