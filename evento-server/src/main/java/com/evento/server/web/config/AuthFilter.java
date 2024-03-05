@@ -106,6 +106,8 @@ public class AuthFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
         }catch (TokenExpiredException tokenExpiredException){
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token expired");
+        }catch (Exception e){
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Not unauthorized");
         }
 
     }
