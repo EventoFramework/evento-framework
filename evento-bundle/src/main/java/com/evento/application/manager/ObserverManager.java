@@ -3,6 +3,7 @@ package com.evento.application.manager;
 import com.evento.application.consumer.ObserverEventConsumer;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
+import com.evento.common.utils.Context;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -13,6 +14,8 @@ import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -68,12 +71,13 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
      * Starts the event consumers for the observer event listeners.
      *
      * @param consumerStateStore the ConsumerStateStore instance for tracking the state of the consumers
+     * @param contexts the component contexts associations
      */
-    public void startEventConsumers(ConsumerStateStore consumerStateStore) {
+    public void startEventConsumers(ConsumerStateStore consumerStateStore, Map<String, Set<String>> contexts) {
         logger.info("Checking for observer event consumers");
         for (ObserverReference observer : getReferences()) {
             var annotation = observer.getRef().getClass().getAnnotation(Observer.class);
-            for (var context : annotation.context()) {
+            for (var context : contexts.getOrDefault(observer.getComponentName(), Set.of(Context.ALL))) {
                 var observerName = observer.getRef().getClass().getSimpleName();
                 var observerVersion = annotation.version();
                 logger.info("Starting event consumer for Observer: %s - Version: %d - Context: %s"

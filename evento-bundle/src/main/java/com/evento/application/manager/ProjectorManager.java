@@ -3,6 +3,7 @@ package com.evento.application.manager;
 import com.evento.application.consumer.ProjectorEvenConsumer;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ProjectorReference;
+import com.evento.common.utils.Context;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -13,6 +14,8 @@ import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -42,23 +45,29 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
     }
 
 
+
+
     /**
-     * Starts the event consumer for the ProjectorManager.
+     * Starts the event consumers for projectors.
      *
-     * @param onAllHeadReached     a Runnable that will be executed when the head is reached
-     * @param consumerStateStore    the ConsumerStateStore to use for tracking consumer state
+     * @param onAllHeadReached    the runnable that gets executed when all heads have been reached
+     * @param consumerStateStore  the consumer state store used by the event consumers
+     * @param contexts            the map containing the consumers contexts association
      */
-    public void startEventConsumers(Runnable onAllHeadReached, ConsumerStateStore consumerStateStore) {
+    public void startEventConsumers(Runnable onAllHeadReached, ConsumerStateStore consumerStateStore, Map<String,Set<String>> contexts) {
         if (getReferences().isEmpty()) {
             onAllHeadReached.run();
             return;
         }
-        var counter = new AtomicInteger(getReferences().stream()
-                .mapToInt(p -> p.getRef().getClass().getAnnotation(Projector.class).context().length).sum());
+        var counter = new AtomicInteger(getReferences()
+                .stream()
+                .mapToInt(p -> contexts.getOrDefault(p.getComponentName(), Set.of(Context.ALL))
+                        .size())
+                .sum());
         logger.info("Checking for projector event consumers");
         for (ProjectorReference projector : getReferences()) {
             var annotation = projector.getRef().getClass().getAnnotation(Projector.class);
-            for (var context : annotation.context()) {
+            for (var context : contexts.getOrDefault(projector.getComponentName(), Set.of(Context.ALL))) {
                 var projectorName = projector.getRef().getClass().getSimpleName();
                 var projectorVersion = annotation.version();
                 logger.info("Starting event consumer for Projector: %s - Version: %d - Context: %s"

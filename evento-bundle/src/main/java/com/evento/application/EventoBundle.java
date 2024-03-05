@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.bus.EventoServerClient;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
-import com.evento.application.manager.*;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.proxy.InvokerWrapper;
 import com.evento.common.documentation.Domain;
@@ -50,6 +49,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -285,6 +285,7 @@ public class EventoBundle {
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
 
         private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
+        private Map<String, Set<String>> contexts = new HashMap<>();
 
         /**
          * The Builder class represents a builder for constructing objects.
@@ -547,11 +548,9 @@ public class EventoBundle {
                             .setRetryDelayMillis(eventoServerMessageBusConfiguration.getRetryDelayMillis())
                             .connect();
 
+            if(autoscalingProtocolBuilder == null){
+                autoscalingProtocolBuilder = (e) -> new AutoscalingProtocol(e) {
 
-            if (autoscalingProtocolBuilder == null) {
-                autoscalingProtocolBuilder = (e) -> new AutoscalingProtocol(
-                        eventoServer
-                ) {
                     @Override
                     public void arrival() {
 
@@ -563,6 +562,10 @@ public class EventoBundle {
                     }
                 };
             }
+            var autoscalingProtocol = autoscalingProtocolBuilder.apply(eventoServer);
+            logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
+            tracingAgent.setAutoscalingProtocol(autoscalingProtocol);
+
             if(performanceService == null) {
                 performanceService = performanceServiceBuilder.apply(eventoServer);
             }
@@ -576,8 +579,7 @@ public class EventoBundle {
                 queryGateway = queryGatewayBuilder.apply(eventoServer);
             }
 
-            logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocolBuilder.getClass().getName()));
-            var asp = autoscalingProtocolBuilder.apply(eventoServer);
+
             var css = consumerStateStoreBuilder.apply(eventoServer, performanceService);
             EventoBundle eventoBundle = new EventoBundle(
                     basePackage.getName(),
@@ -589,15 +591,15 @@ public class EventoBundle {
             logger.info("Starting projector consumers...");
             var start = Instant.now();
             var wait = new Semaphore(0);
-            eventoBundle.startProjectorEventConsumers(wait::release, css);
+            eventoBundle.startProjectorEventConsumers(wait::release, css, contexts);
             var startThread = new Thread(() -> {
                 try {
                     wait.acquire();
                     logger.info("All Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
-                    eventoBundle.startSagaEventConsumers(css);
-                    eventoBundle.startObserverEventConsumers(css);
+                    eventoBundle.startSagaEventConsumers(css, contexts);
+                    eventoBundle.startObserverEventConsumers(css, contexts);
                     logger.info("Application Started!");
                 }catch (Exception e){
                     logger.error("Error during startup", e);
@@ -617,19 +619,22 @@ public class EventoBundle {
      * and started in a new thread.
      *
      * @param consumerStateStore the consumer state store to track the state of event consumers
+     * @param contexts the component contexts associations
      */
-    private void startSagaEventConsumers(ConsumerStateStore consumerStateStore) {
-        sagaManager.startSagaEventConsumers(consumerStateStore);
+    private void startSagaEventConsumers(ConsumerStateStore consumerStateStore, Map<String, Set<String>> contexts) {
+        sagaManager.startSagaEventConsumers(consumerStateStore, contexts);
     }
 
+
     /**
-     * Starts the event consumers for the projector.
+     * Starts the projector event consumers for the specified contexts.
      *
-     * @param onAllHeadReached       a Runnable that will be executed when the head is reached
-     * @param consumerStateStore the ConsumerStateStore to use for tracking consumer state
+     * @param onAllHeadReached   The callback to be executed when all heads are reached.
+     * @param consumerStateStore The consumer state store to track the state of event consumers.
+     * @param contexts           The contexts for which the projector event consumers should be started.
      */
-    private void startProjectorEventConsumers(Runnable onAllHeadReached, ConsumerStateStore consumerStateStore) {
-        projectorManager.startEventConsumers(onAllHeadReached, consumerStateStore);
+    private void startProjectorEventConsumers(Runnable onAllHeadReached, ConsumerStateStore consumerStateStore, Map<String,Set<String>> contexts) {
+        projectorManager.startEventConsumers(onAllHeadReached, consumerStateStore, contexts);
     }
 
 
@@ -638,9 +643,10 @@ public class EventoBundle {
      * the Observer annotation, and for each context specified in the annotation, a new ObserverEventConsumer is created
      * and started in a new thread.
      *
-     * @param consumerStateStore  The consumer state store to track the state of event consumers.
+     * @param consumerStateStore The consumer state store to track the state of event consumers.
+     * @param contexts the component contexts associations
      */
-    private void startObserverEventConsumers(ConsumerStateStore consumerStateStore) {
-        observerManager.startEventConsumers(consumerStateStore);
+    private void startObserverEventConsumers(ConsumerStateStore consumerStateStore, Map<String, Set<String>> contexts) {
+        observerManager.startEventConsumers(consumerStateStore, contexts);
     }
 }

@@ -3,6 +3,7 @@ package com.evento.application.manager;
 import com.evento.application.consumer.SagaEventConsumer;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
+import com.evento.common.utils.Context;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -13,6 +14,8 @@ import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -70,15 +73,16 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
      * the Saga annotation, and for each context specified in the annotation, a new SagaEventConsumer is created
      * and started in a new thread.
      *
-     * @param consumerStateStore     the consumer state store to track the state of event consumers
+     * @param consumerStateStore the consumer state store to track the state of event consumers
+     * @param contexts the component contexts associations
      */
-    public void startSagaEventConsumers(ConsumerStateStore consumerStateStore) {
+    public void startSagaEventConsumers(ConsumerStateStore consumerStateStore, Map<String, Set<String>> contexts) {
         if (getReferences().isEmpty()) return;
         logger.info("Starting saga consumers");
         logger.info("Checking for saga event consumers");
         for (SagaReference saga : getReferences()) {
             var annotation = saga.getRef().getClass().getAnnotation(Saga.class);
-            for (var context : annotation.context()) {
+            for (var context : contexts.getOrDefault(saga.getComponentName(), Set.of(Context.ALL))) {
                 var sagaName = saga.getRef().getClass().getSimpleName();
                 var sagaVersion = annotation.version();
                 logger.info("Starting event consumer for Saga: %s - Version: %d - Context: %s"
