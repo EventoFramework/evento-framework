@@ -4,7 +4,7 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath 'com.eventoframework:evento-cli:ev1.4.6'
+        classpath 'com.eventoframework:evento-cli:ev1.7.2'
     }
 }
 
@@ -59,15 +59,15 @@ test {
 tasks.register('eventoUpdateVersion') {
     dependsOn 'clean'
     doLast {
-        org.evento.cli.UpdateVersion.run(file("./src").toString())
+        com.evento.cli.UpdateVersion.run(file("./src").toString())
     }
 }
 tasks.register('eventoPublish') {
     dependsOn 'bootJar'
     doLast {
-        org.evento.cli.PublishBundle.run(file(".").toString(), 'http://localhost:3000',
+        com.evento.cli.PublishBundle.run(file(".").toString(), 'http://localhost:3000',
                 'https://github.com/EventoFramework/evento-framework/blob/main/evento-demo/evento-demo-agent',
-                'eyJraWQiOiJldmVudG8tc2VydmVyLWF1dGgta2V5IiwidHlwIjoiSldUIiwiYWxnIjoiSFMyNTYifQ.eyJjbGllbnRJZCI6ImRlcGxveUtleSIsInJvbGUiOlsiUk9MRV9QVUJMSVNIIl0sIm5iZiI6MTY5NTU3NjU4MywiaXNzIjoiZXZlbnRvLXNlcnZlciIsImV4cCI6MTcyNzExMjU4NCwiaWF0IjoxNjk1NTc2NTg0LCJqdGkiOiIxYmVjMjY0MC02YzgwLTRkZDctYjc1NC1hMDNmMTIzZjZmNTcifQ.9pY37cPqa55kAzWG8OlqPvObQ6en-f0D45HWRqzZU3E')
+                'eyJraWQiOiJldmVudG8tc2VydmVyLWF1dGgta2V5IiwiYWxnIjoiSFMyNTYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJldmVudG8tc2VydmVyIiwiY2xpZW50SWQiOiJkZXBsb3lLZXkiLCJyb2xlIjpbIlJPTEVfUFVCTElTSCJdLCJpYXQiOjE3MDk2NjM1NTYsImV4cCI6MTc0MTE5OTU1NiwianRpIjoiNmJlMGM5YTQtZDQ0Ni00NzE1LWJlNzAtY2NkMzgxMmExNWI2IiwibmJmIjoxNzA5NjYzNTU1fQ.MIGuorOyP__sPwfWnZyKhuhIhvjaRj-Kojl94hTzc9c')
     }
 }
 tasks.register('eventoUpdateVersionAndPublish') {

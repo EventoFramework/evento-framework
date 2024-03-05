@@ -101,7 +101,7 @@ public class SentryTracingAgent extends TracingAgent {
                     return o;
                 }).exceptionally(tr -> {
                     t.setThrowable(tr);
-                    t.setData("Pyload", message.getSerializedPayload().getSerializedObject());
+                    t.setData("Payload", message.getSerializedPayload().getSerializedObject());
                     t.finish(SpanStatus.INTERNAL_ERROR);
                     Sentry.captureException(tr);
                     System.out.println(t.toSentryTrace().getTraceId());

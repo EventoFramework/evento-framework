@@ -293,7 +293,7 @@ public class MessageBus {
                         forward(message, dest, resp -> {
                             try {
                                 performanceStoreService.sendServiceTimeMetric(
-                                        message.getSourceBundleId(),
+                                        dest.bundleId(),
                                         getComponent(c.getCommandName()),
                                         c,
                                         invocationStart
