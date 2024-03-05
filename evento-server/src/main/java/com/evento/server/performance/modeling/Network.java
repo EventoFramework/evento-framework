@@ -5,6 +5,8 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class Network {
@@ -16,7 +18,7 @@ public class Network {
 	private final List<Transition> transitions = new ArrayList<>();
 	private final AtomicLong idGenerator = new AtomicLong();
 
-	private final HashMap<String, Post> instancesPosts = new HashMap<>();
+	private final Map<String, Post> instancesPosts = new ConcurrentHashMap<>();
 
 	private final PerformanceFetcher performanceFetcher;
 

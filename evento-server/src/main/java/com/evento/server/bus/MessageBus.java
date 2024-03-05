@@ -34,6 +34,7 @@ import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -46,10 +47,10 @@ public class MessageBus {
     private final Logger logger = LoggerFactory.getLogger(MessageBus.class);
     private final int socketPort;
 
-    private final HashMap<NodeAddress, ObjectOutputStream> view = new HashMap<>();
-    private final HashMap<NodeAddress, BundleRegistration> registrations = new HashMap<>();
+    private final Map<NodeAddress, ObjectOutputStream> view = new ConcurrentHashMap<>();
+    private final Map<NodeAddress, BundleRegistration> registrations = new ConcurrentHashMap<>();
     private final Set<NodeAddress> availableView = new HashSet<>();
-    private final Map<String, Set<NodeAddress>> handlers = new HashMap<>();
+    private final Map<String, Set<NodeAddress>> handlers = new ConcurrentHashMap<>();
 
     private final BundleDeployService bundleDeployService;
 
@@ -274,6 +275,7 @@ public class MessageBus {
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
+                    AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         var invocation = new DecoratedDomainCommandMessage();
                         invocation.setCommandMessage(c);
@@ -319,9 +321,16 @@ public class MessageBus {
                                     resp.setBody(cr.getDomainEventMessage().getSerializedPayload().getSerializedObject());
                                 }
                                 eventStore.release(lockId);
+                                acquired.set(false);
                                 sendResponse.accept(resp);
                             } catch (Exception e) {
-                                eventStore.release(lockId);
+                                try {
+                                    if(acquired.get()) {
+                                        eventStore.release(lockId);
+                                    }
+                                }catch (Exception ie){
+                                    logger.error("Error unlocking after exception", ie);
+                                }
                                 resp.setBody(new ExceptionWrapper(e));
                                 sendResponse.accept(resp);
                             }
@@ -337,6 +346,7 @@ public class MessageBus {
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
+                    AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         forward(message, dest, resp -> {
                             try {
@@ -361,9 +371,16 @@ public class MessageBus {
                                     resp.setBody(event.getSerializedPayload().getSerializedObject());
                                 }
                                 eventStore.release(lockId);
+                                acquired.set(false);
                                 sendResponse.accept(resp);
                             } catch (Exception e) {
-                                eventStore.release(lockId);
+                                try {
+                                    if(acquired.get()) {
+                                        eventStore.release(lockId);
+                                    }
+                                }catch (Exception ie){
+                                    logger.error("Error unlocking after exception", ie);
+                                }
                                 resp.setBody(new ExceptionWrapper(e));
                                 sendResponse.accept(resp);
                             }
