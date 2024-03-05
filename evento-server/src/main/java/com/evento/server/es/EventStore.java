@@ -29,6 +29,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -44,6 +49,8 @@ public class EventStore {
 
     private final LruCache<String, Snapshot> snapshotCache;
     private final LruCache<String, List<EventStoreEntry>> eventsCache;
+
+    private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<String, LockWrapper>();
 
     public EventStore(EventStoreRepository repository,
                       SnapshotRepository snapshotRepository,
@@ -61,10 +68,27 @@ public class EventStore {
         eventsCache = new LruCache<>(aggregateEventsCacheSize);
     }
 
-    public void acquire(String string) {
-        if (string == null) return;
+    private static class LockWrapper {
+        private final Semaphore lock = new Semaphore(1);
+        private final AtomicInteger numberOfThreadsInQueue = new AtomicInteger(1);
+
+        private LockWrapper addThreadInQueue() {
+            numberOfThreadsInQueue.incrementAndGet();
+            return this;
+        }
+
+        private int removeThreadFromQueue() {
+            return numberOfThreadsInQueue.decrementAndGet();
+        }
+
+    }
+
+    public void acquire(String key) {
+        if (key == null) return;
+        LockWrapper lockWrapper = locks.compute(key, (k, v) -> v == null ? new LockWrapper() : v.addThreadInQueue());
+        lockWrapper.lock.acquireUninterruptibly();
         try (var stmt = this.lockConnection.prepareStatement("SELECT pg_advisory_lock(?)")) {
-            stmt.setInt(1, string.hashCode());
+            stmt.setInt(1, key.hashCode());
             var resultSet = stmt.executeQuery();
             resultSet.next();
             if (resultSet.wasNull()) throw new IllegalMonitorStateException();
@@ -76,15 +100,21 @@ public class EventStore {
 
     }
 
-    public void release(String string) {
-        if (string == null) return;
+    public void release(String key) {
+        if (key == null) return;
+        LockWrapper lockWrapper = locks.get(key);
+        lockWrapper.lock.release();
+        if (lockWrapper.removeThreadFromQueue() == 0) {
+            // NB : We pass in the specific value to remove to handle the case where another thread would queue right before the removal
+            locks.remove(key, lockWrapper);
+        }
         try (var stmt = lockConnection.prepareStatement("SELECT pg_advisory_unlock(?)")) {
-            stmt.setInt(1, string.hashCode());
+            stmt.setInt(1, key.hashCode());
             var resultSet = stmt.executeQuery();
             resultSet.next();
             if (resultSet.wasNull()) throw new IllegalMonitorStateException();
             var status = resultSet.getBoolean(1);
-            if (!status) throw new IllegalMonitorStateException();
+            if (!status) throw new IllegalMonitorStateException("Lock key: " + key);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -159,7 +189,7 @@ public class EventStore {
     public Double getRecentPublicationRation() {
         try {
             return eventStoreRepository.getPublicationRatio();
-        }catch (Exception e){
+        } catch (Exception e) {
             return 0.0;
         }
     }
@@ -182,10 +212,12 @@ public class EventStore {
 
     private static class LruCache<A, B> extends LinkedHashMap<A, B> {
         private final int maxEntries;
+
         public LruCache(final int maxEntries) {
             super(maxEntries + 1, 1.0f, true);
             this.maxEntries = maxEntries;
         }
+
         @Override
         protected boolean removeEldestEntry(final Map.Entry<A, B> eldest) {
             return super.size() > maxEntries;
@@ -193,7 +225,7 @@ public class EventStore {
     }
 
     public AggregateStory fetchAggregateStory(String aggregateId) {
-        Assert.isTrue(aggregateId!=null, "getAggregateId() return null!");
+        Assert.isTrue(aggregateId != null, "getAggregateId() return null!");
         if (!snapshotCache.containsKey(aggregateId)) {
             snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
         }
@@ -213,7 +245,7 @@ public class EventStore {
                 min,
                 max
         );
-        while (true){
+        while (true) {
             try {
                 if (!rs.next()) break;
                 var entry = new EventStoreEntry();
