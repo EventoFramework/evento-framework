@@ -45,12 +45,12 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
     /**
      * Starts the event consumer for the ProjectorManager.
      *
-     * @param onHeadReached     a Runnable that will be executed when the head is reached
+     * @param onAllHeadReached     a Runnable that will be executed when the head is reached
      * @param consumerStateStore    the ConsumerStateStore to use for tracking consumer state
      */
-    public void startEventConsumers(Runnable onHeadReached, ConsumerStateStore consumerStateStore) {
+    public void startEventConsumers(Runnable onAllHeadReached, ConsumerStateStore consumerStateStore) {
         if (getReferences().isEmpty()) {
-            onHeadReached.run();
+            onAllHeadReached.run();
             return;
         }
         var counter = new AtomicInteger(getReferences().stream()
@@ -76,7 +76,7 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
                         getSssFetchSize(),
                         getSssFetchDelay(),
                         counter,
-                        onHeadReached
+                        onAllHeadReached
                 ));
                 t.setName(projectorName + "(v"+projectorVersion+") - " + context);
                 t.start();
