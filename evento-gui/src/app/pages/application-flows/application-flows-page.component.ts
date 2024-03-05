@@ -323,18 +323,20 @@ export class ApplicationFlowsPage implements OnInit {
       // Installs a popupmenu handler using local function (see below).
       graph.popupMenuHandler.factoryMethod = (menu, cell, evt) => {
         if (cell?.vertex) {
+          console.log(cell);
           if (this.performanceAnalysis) {
-            const targets = this.model.nodes.filter(n => n.handlerId === cell.handlerId && n.meanServiceTime);
-            if (targets.length) {
-              menu.addItem('Edit Mean Service Time (' + targets[0].meanServiceTime.toFixed(4) + ' [ms])', '', async () => {
+            const node = this.model.nodes.find(n => (n.id === cell.nodeId) && n.meanServiceTime);
+            if (node) {
+              const copies = this.model.nodes.filter(n => n.handlerId === node.handlerId);
+              menu.addItem('Edit Mean Service Time (' + node.meanServiceTime.toFixed(4) + ' [ms])', '', async () => {
                 const alert = await this.alertController.create({
                   header: 'Edit Mean Service Time',
-                  subHeader: targets[0].component + ' - ' + targets[0].action,
+                  subHeader: node.component + ' - ' + node.action,
                   inputs: [
                     {
                       id: 'mst',
                       name: 'mst',
-                      value: targets[0].meanServiceTime
+                      value: node.meanServiceTime
                     }
                   ],
                   buttons: [
@@ -346,7 +348,7 @@ export class ApplicationFlowsPage implements OnInit {
                       text: 'OK',
                       role: 'confirm',
                       handler: (e) => {
-                        for (const t of targets) {
+                        for (const t of copies) {
                           t.meanServiceTime = parseFloat(e.mst);
                         }
                         this.redrawGraph();
@@ -358,17 +360,17 @@ export class ApplicationFlowsPage implements OnInit {
               });
               menu.addSeparator();
 
-              for (const t of Object.keys(targets[0].target)) {
+              for (const t of Object.keys(node.target)) {
                 const i = this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(t, 10));
-                menu.addItem(i.action + ' (' + targets[0].target[t] + ')', '', async () => {
+                menu.addItem(i.action + ' (' + node.target[t] + ')', '', async () => {
                   const alert = await this.alertController.create({
                     header: 'Edit Invocation Frequency',
-                    subHeader: targets[0].component + ' - ' + i.action,
+                    subHeader: node.component + ' - ' + i.action,
                     inputs: [
                       {
                         id: 'inf',
                         name: 'inf',
-                        value: targets[0].target[t]
+                        value: node.target[t]
                       }
                     ],
                     buttons: [
@@ -380,7 +382,7 @@ export class ApplicationFlowsPage implements OnInit {
                         text: 'OK',
                         role: 'confirm',
                         handler: (e) => {
-                          for (const tt of targets) {
+                          for (const tt of copies) {
                             // eslint-disable-next-line guard-for-in
                             for (const k in tt.target) {
                               if (this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(k, 10)).action === i.action) {
@@ -399,9 +401,8 @@ export class ApplicationFlowsPage implements OnInit {
               }
             }
           } else {
-            const targets = this.model.nodes.filter(n => n.handlerId === cell.handlerId);
-            if (targets.length) {
-              const t = targets[0];
+            const t = this.model.nodes.find(n => n.id === cell.nodeId);
+            if (t) {
               console.log(t);
               if (t.path) {
                 for (const line of t.lines) {
