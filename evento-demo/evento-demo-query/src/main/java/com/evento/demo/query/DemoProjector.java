@@ -13,7 +13,7 @@ import com.evento.demo.query.domain.DemoRepository;
 
 import java.time.Instant;
 
-@Projector(version = 3)
+@Projector(version = 3, context = {"default", "other"})
 public class DemoProjector {
 
 	private final DemoRepository demoRepository;
