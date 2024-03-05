@@ -36,7 +36,7 @@ public class ProjectorEvenConsumer implements Runnable {
     private final int sssFetchSize;
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
-    private final Runnable onHeadReached;
+    private final Runnable onAllHeadReached;
 
     /**
      * Constructs a new ProjectorEvenConsumer with the specified parameters.
@@ -53,7 +53,7 @@ public class ProjectorEvenConsumer implements Runnable {
      * @param sssFetchSize             The fetch size for consuming events from the state store.
      * @param sssFetchDelay            The delay for fetching events from the state store.
      * @param alignmentCounter         The atomic counter for tracking alignment.
-     * @param onHeadReached            The runnable to execute when the head is reached.
+     * @param onAllHeadReached            The runnable to execute when the head is reached.
      */
     public ProjectorEvenConsumer(String bundleId,
                                  String projectorName, int projectorVersion,
@@ -63,7 +63,7 @@ public class ProjectorEvenConsumer implements Runnable {
                                  TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy, int sssFetchSize,
                                  int sssFetchDelay, AtomicInteger alignmentCounter,
-                                 Runnable onHeadReached) {
+                                 Runnable onAllHeadReached) {
         // Initialization of fields
         this.bundleId = bundleId;
         this.projectorName = projectorName;
@@ -77,7 +77,7 @@ public class ProjectorEvenConsumer implements Runnable {
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
         this.alignmentCounter = alignmentCounter;
-        this.onHeadReached = onHeadReached;
+        this.onAllHeadReached = onAllHeadReached;
     }
 
     /**
@@ -86,6 +86,7 @@ public class ProjectorEvenConsumer implements Runnable {
      */
     @Override
     public void run() {
+
         // Initialize projector status
         var ps = new ProjectorStatus();
         ps.setHeadReached(false);
@@ -147,9 +148,11 @@ public class ProjectorEvenConsumer implements Runnable {
             // Check for head reached condition and execute onHeadReached if necessary
             if (!hasError && !ps.isHeadReached() && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
                 ps.setHeadReached(true);
+                logger.info("Event consumer head Reached for Projector: %s - Version: %d - Context: %s"
+                        .formatted(projectorName, projectorVersion, context));
                 var aligned = alignmentCounter.decrementAndGet();
                 if (aligned == 0) {
-                    onHeadReached.run();
+                    onAllHeadReached.run();
                 }
             }
         }

@@ -48,6 +48,7 @@ import java.lang.reflect.ParameterizedType;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -587,20 +588,24 @@ public class EventoBundle {
                     serviceManager, projectorManager, observerManager, tracingAgent);
             logger.info("Starting projector consumers...");
             var start = Instant.now();
-            eventoBundle.startProjectorEventConsumers(() -> {
+            var wait = new Semaphore(0);
+            eventoBundle.startProjectorEventConsumers(wait::release, css);
+            var startThread = new Thread(() -> {
                 try {
-                    logger.info("Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
+                    wait.acquire();
+                    logger.info("All Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
                     eventoBundle.startSagaEventConsumers(css);
                     eventoBundle.startObserverEventConsumers(css);
                     logger.info("Application Started!");
-                } catch (Exception e) {
+                }catch (Exception e){
                     logger.error("Error during startup", e);
                     System.exit(1);
                 }
-            }, css);
-
+            });
+            startThread.setName("Start Bundle Thread");
+            startThread.start();
             return eventoBundle;
 
         }
@@ -620,11 +625,11 @@ public class EventoBundle {
     /**
      * Starts the event consumers for the projector.
      *
-     * @param onHedReached       a Runnable that will be executed when the head is reached
+     * @param onAllHeadReached       a Runnable that will be executed when the head is reached
      * @param consumerStateStore the ConsumerStateStore to use for tracking consumer state
      */
-    private void startProjectorEventConsumers(Runnable onHedReached, ConsumerStateStore consumerStateStore) {
-        projectorManager.startEventConsumers(onHedReached, consumerStateStore);
+    private void startProjectorEventConsumers(Runnable onAllHeadReached, ConsumerStateStore consumerStateStore) {
+        projectorManager.startEventConsumers(onAllHeadReached, consumerStateStore);
     }
 
 
