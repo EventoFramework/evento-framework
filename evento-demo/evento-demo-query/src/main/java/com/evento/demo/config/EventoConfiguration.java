@@ -5,7 +5,9 @@ import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
 import com.evento.common.performance.ThreadCountAutoscalingProtocol;
+import com.evento.common.utils.Context;
 import com.evento.demo.DemoQueryApplication;
+import com.evento.demo.query.DemoProjector;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,9 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
+
+import java.util.Map;
+import java.util.Set;
 
 @Configuration
 public class EventoConfiguration {
@@ -53,6 +58,7 @@ public class EventoConfiguration {
 						maxOverflow,
 						maxUnderflow, 60 * 1000))
 				.setInjector(factory::getBean)
+				.setContexts(Map.of(DemoProjector.class.getSimpleName(), Set.of(Context.DEFAULT, "other")))
 				.start();
 
 	}
