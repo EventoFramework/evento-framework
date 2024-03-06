@@ -9,6 +9,6 @@ export class DashboardService {
   constructor() { }
 
   getDashboard() {
-    return fetch(environment.eventoServerUrl + '/api/dashboard/').then(r => r.json());
+    return fetch(environment.eventoServerUrl + '/api/dashboard').then(r => r.json());
   }
 }

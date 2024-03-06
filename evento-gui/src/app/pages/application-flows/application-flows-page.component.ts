@@ -325,10 +325,10 @@ export class ApplicationFlowsPage implements OnInit {
         if (cell?.vertex) {
           console.log(cell);
           if (this.performanceAnalysis) {
-            const node = this.model.nodes.find(n => (n.id === cell.nodeId) && n.meanServiceTime);
+            const node = this.model.nodes.find(n => (n.id === cell.nodeId));
             if (node) {
               const copies = this.model.nodes.filter(n => n.handlerId === node.handlerId);
-              menu.addItem('Edit Mean Service Time (' + node.meanServiceTime.toFixed(4) + ' [ms])', '', async () => {
+              menu.addItem('Edit Mean Service Time (' + (node.meanServiceTime || 1).toFixed(4) + ' [ms])', '', async () => {
                 const alert = await this.alertController.create({
                   header: 'Edit Mean Service Time',
                   subHeader: node.component + ' - ' + node.action,
