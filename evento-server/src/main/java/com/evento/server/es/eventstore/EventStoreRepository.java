@@ -36,8 +36,8 @@ public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Lon
     Long getLastAggregateSequenceNumber(String aggregateId);
 
 
-    @Query(value = "select count(*) / ((max(created_at) - min(created_at) + 1000)/1000)\n" +
-            "from (select created_at from es__events order by event_sequence_number desc limit 100) r", nativeQuery = true)
+    @Query(value = "select count(*) / greatest(extract('epoch' from coalesce(max(created_at) - min(created_at), interval '1 second')), 1) " +
+            "from (select created_at from es__events order by event_sequence_number desc limit 10000) r", nativeQuery = true)
     Double getPublicationRatio();
 
     @Query("select count(distinct e.aggregateId) from EventStoreEntry e")
