@@ -104,7 +104,7 @@ public class ApplicationPerformanceModelService {
             source.addTarget(serverRequestAgent, performanceStoreService);
             if (!p.getHandlers().isEmpty()) {
                 // Server -> Component
-                var handler = p.getHandlers().get(0);
+                var handler = p.getHandlers().getFirst();
                 var a = n.station(handler, false, null);
                 for (var pp : new HashSet<>(handler.getInvocations().values())) {
                     generateInvocationPerformanceModel(n, handlers, pp, a,
@@ -131,12 +131,12 @@ public class ApplicationPerformanceModelService {
                                 var perf = performanceStoreService.getMeanServiceTime(h.getComponent().getBundle().getId(), h.getComponent().getComponentName(), h.getHandledPayload().getName());
                                 var sum = 0.0;
                                 for (var i : new HashSet<>(h.getInvocations().values())) {
-                                    var ih = i.getHandlers().get(0);
+                                    var ih = i.getHandlers().getFirst();
                                     var st = performanceStoreService.getMeanServiceTime(ih.getComponent().getBundle().getId(), ih.getComponent().getComponentName(), ih.getHandledPayload().getName());
                                     if (st != null)
                                         sum += st;
                                 }
-                                perf = perf == null ? null : Math.max(perf, sum);
+                                perf = perf == null ? Math.max(1, sum) : perf;
                                 var ha = n.station(h, true, h.getComponent().getComponentType() == ComponentType.Observer ? null : 1, perf);
 
                                 manageInvocations(
@@ -157,7 +157,7 @@ public class ApplicationPerformanceModelService {
             source.addTarget(serverRequestAgent, performanceStoreService);
             // Server -> Component
             if (!p.getHandlers().isEmpty()) {
-                var handler = p.getHandlers().get(0);
+                var handler = p.getHandlers().getFirst();
                 var a = n.station(handler, false, null);
                 for (var pp : new HashSet<>(handler.getInvocations().values())) {
                     generateInvocationPerformanceModel(n, handlers, pp, a,
