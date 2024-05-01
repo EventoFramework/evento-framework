@@ -133,7 +133,7 @@ public class AggregateReference extends Reference {
             }
         }
 
-        return (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+        var resp =  (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
                 cm.getPayload(),
                 envelope.getAggregateState(),
                 commandGateway,
@@ -141,6 +141,13 @@ public class AggregateReference extends Reference {
                 cm,
                 cm.getMetadata()
         );
+        var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
+        var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata());
+        if (state == null) {
+            state = envelope.getAggregateState();
+        }
+        envelope.setAggregateState(state);
+        return resp;
     }
 
     /**
