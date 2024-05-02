@@ -132,7 +132,6 @@ public class AggregateReference extends Reference {
                     throw AggregateDeletedError.build(cm.getAggregateId());
             }
         }
-
         var resp =  (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
                 cm.getPayload(),
                 envelope.getAggregateState(),
@@ -141,6 +140,9 @@ public class AggregateReference extends Reference {
                 cm,
                 cm.getMetadata()
         );
+        if (resp == null) {
+            throw new IllegalArgumentException("Command handler returned null");
+        }
         var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
         var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata());
         if (state == null) {
