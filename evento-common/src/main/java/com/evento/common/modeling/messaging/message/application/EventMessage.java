@@ -39,7 +39,7 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 	}
 
 	/**
-	 * Retrieves the value of the association property from the serialized payload.
+	 * Retrieves the value of the association property from the serialized payload used by saga components.
 	 *
 	 * @param associationProperty the property key of the association
 	 * @return the value of the association property as a string
