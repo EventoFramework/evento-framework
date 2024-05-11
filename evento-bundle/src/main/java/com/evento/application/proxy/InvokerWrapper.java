@@ -16,7 +16,7 @@ public abstract class InvokerWrapper {
 	 * @throws RuntimeException if the command gateway is unavailable.
 	 */
 	protected CommandGateway getCommandGateway() {
-		throw new RuntimeException();
+		throw new RuntimeException("getCommandGateway() called outside an @InvocationHandler scope.");
 	}
 
 	/**
@@ -26,7 +26,7 @@ public abstract class InvokerWrapper {
 	 * @throws RuntimeException if the query gateway is unavailable.
 	 */
 	protected QueryGateway getQueryGateway() {
-		throw new RuntimeException();
+		throw new RuntimeException("getQueryGateway() called outside an @InvocationHandler scope.");
 	}
 
 }
