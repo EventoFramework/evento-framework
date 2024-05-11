@@ -4,6 +4,7 @@ import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.component.Projector;
 import com.evento.common.modeling.annotations.handler.EventHandler;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
+import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.demo.api.event.DemoCreatedEvent;
 import com.evento.demo.api.event.DemoDeletedEvent;
 import com.evento.demo.api.event.DemoUpdatedEvent;
@@ -23,7 +24,11 @@ public class DemoProjector {
 	}
 
 	@EventHandler
-	void on(DemoCreatedEvent event, QueryGateway queryGateway, EventMessage<?> eventMessage) {
+	void on(DemoCreatedEvent event,
+			QueryGateway queryGateway,
+			EventMessage<?> eventMessage,
+			Metadata metadata,
+			Instant instant) {
 		Utils.logMethodFlow(this, "on", event, "BEGIN");
 		var now = Instant.now();
 		demoRepository.save(new Demo(event.getDemoId(), event.getName(),
