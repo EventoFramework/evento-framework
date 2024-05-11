@@ -6,6 +6,7 @@ import com.evento.common.modeling.annotations.handler.AggregateCommandHandler;
 import com.evento.common.modeling.annotations.handler.EventSourcingHandler;
 import com.evento.common.modeling.messaging.message.application.CommandMessage;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
+import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.demo.api.command.DemoCreateCommand;
 import com.evento.demo.api.command.DemoDeleteCommand;
 import com.evento.demo.api.command.DemoUpdateCommand;
@@ -16,6 +17,8 @@ import com.evento.demo.api.event.DemoUpdatedEvent;
 import com.evento.demo.api.utils.Utils;
 import org.springframework.util.Assert;
 
+import java.time.Instant;
+
 @Aggregate(snapshotFrequency = 100)
 public class DemoAggregate {
 
@@ -23,7 +26,9 @@ public class DemoAggregate {
 	DemoCreatedEvent handle(DemoCreateCommand command,
 							DemoAggregateState state,
 							CommandGateway commandGateway,
-							CommandMessage<DemoCreateCommand> commandMessage) {
+							CommandMessage<DemoCreateCommand> commandMessage,
+							Metadata metadata,
+							Instant instant) {
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
 		commandGateway.sendAndWait(new NotificationSendCommand(command.getName()));
 		Assert.isTrue(command.getDemoId() != null, "error.command.not.valid.id");
@@ -40,7 +45,9 @@ public class DemoAggregate {
 	@EventSourcingHandler
 	DemoAggregateState on(DemoCreatedEvent event,
 						  DemoAggregateState state,
-						  EventMessage<DemoCreatedEvent> eventMessage) {
+						  EventMessage<DemoCreatedEvent> eventMessage,
+						  Metadata metadata,
+						  Instant instant) {
 		Utils.logMethodFlow(this, "on", event, "ES");
 		return new DemoAggregateState(event.getValue());
 	}
@@ -59,10 +66,9 @@ public class DemoAggregate {
 	}
 
 	@EventSourcingHandler
-	DemoAggregateState on(DemoUpdatedEvent event, DemoAggregateState state) {
+	void on(DemoUpdatedEvent event, DemoAggregateState state) {
 		Utils.logMethodFlow(this, "on", event, "ES");
 		state.setValue(event.getValue());
-		return state;
 	}
 
 	@AggregateCommandHandler

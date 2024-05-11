@@ -9,6 +9,7 @@ import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
@@ -82,7 +83,8 @@ public class ProjectionReference extends Reference {
                 commandGateway,
                 queryGateway,
                 qm,
-                qm.getMetadata()
+                qm.getMetadata(),
+                Instant.ofEpochMilli(qm.getTimestamp())
         );
     }
 }

@@ -16,6 +16,7 @@ import com.evento.common.modeling.messaging.payload.DomainEvent;
 import com.evento.common.modeling.state.AggregateState;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -123,7 +124,8 @@ public class AggregateReference extends Reference {
         for (var em : eventStream) {
             var eh = getEventSourcingHandler(em.getEventName());
             if(eh != null){
-                var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState(), em.getMetadata());
+                var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, em.getPayload(), envelope.getAggregateState(), em.getMetadata(),
+                        Instant.ofEpochMilli(em.getTimestamp()));
                 if (state == null) {
                     state = envelope.getAggregateState();
                 }
@@ -138,13 +140,15 @@ public class AggregateReference extends Reference {
                 commandGateway,
                 queryGateway,
                 cm,
-                cm.getMetadata()
+                cm.getMetadata(),
+                Instant.ofEpochMilli(cm.getTimestamp())
         );
         if (resp == null) {
             throw new IllegalArgumentException("Command handler returned null");
         }
         var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
-        var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata());
+        var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata(),
+                Instant.ofEpochMilli(cm.getTimestamp()));
         if (state == null) {
             state = envelope.getAggregateState();
         }
