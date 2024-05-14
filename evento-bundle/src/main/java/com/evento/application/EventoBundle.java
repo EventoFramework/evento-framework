@@ -284,8 +284,6 @@ public class EventoBundle {
         private int sssFetchSize = 1000;
         private int sssFetchDelay = 1000;
 
-        private int alignmentDelay = 3000;
-
         private TracingAgent tracingAgent;
 
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
@@ -335,9 +333,6 @@ public class EventoBundle {
             }
             if (sssFetchDelay < 100) {
                 sssFetchDelay = 100;
-            }
-            if (alignmentDelay < 0) {
-                alignmentDelay = 3000;
             }
             if (tracingAgent == null) {
                 tracingAgent = new TracingAgent(bundleId, bundleVersion);
