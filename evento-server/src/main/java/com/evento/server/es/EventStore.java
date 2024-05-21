@@ -68,7 +68,7 @@ public class EventStore {
                       int aggregateEventsCacheSize,
                       @Value("${evento.es.fetch.delay:69}")
                       int fetchDelay,
-                      @Value("${evento.es.mode:CPES}")
+                      @Value("${evento.es.mode:APES}")
                       EventStoreMode mode) throws SQLException {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
