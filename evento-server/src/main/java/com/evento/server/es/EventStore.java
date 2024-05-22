@@ -12,6 +12,8 @@ import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.es.eventstore.EventStoreRepository;
 import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.es.snapshot.SnapshotRepository;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
@@ -38,6 +40,8 @@ import java.util.concurrent.locks.ReentrantLock;
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class EventStore {
+
+    private final Logger logger = LogManager.getLogger(EventStore.class);
 
     private static final String ES_LOCK = "es-lock";
     private final long DELAY;
@@ -74,6 +78,15 @@ public class EventStore {
         eventsCache = new LruCache<>(aggregateEventsCacheSize);
         DELAY = fetchDelay;
         MODE = mode;
+
+        logger.info("Initializing EventStore");
+        if (mode == EventStoreMode.CPES) {
+            logger.info("Mode: CPES");
+        } else {
+            logger.info("Mode: APES - Fetch Delay: {}", fetchDelay);
+        }
+        logger.info("Aggregate Snapshot Cache Size: {}", aggregateSnapshotCacheSize);
+        logger.info("Aggregate Story Cache Size: {}", aggregateEventsCacheSize);
 
     }
 
@@ -131,29 +144,29 @@ public class EventStore {
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit) {
         if (seq == null) seq = -1L;
-        if(MODE == EventStoreMode.CPES) {
+        if (MODE == EventStoreMode.CPES) {
             return eventStoreRepository.fetchEvents(
-                    context.replace("*","%"),
+                    context.replace("*", "%"),
                     seq, PageRequest.of(0, limit));
         }
         return eventStoreRepository.fetchEvents(
-                        context.replace("*","%"),
-                        seq,
-                        snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit));
+                context.replace("*", "%"),
+                seq,
+                snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit));
     }
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit, List<String> eventNames) {
         if (seq == null) seq = -1L;
-        if(MODE == EventStoreMode.CPES) {
+        if (MODE == EventStoreMode.CPES) {
             return eventStoreRepository.fetchEvents(
-                    context.replace("*","%"),
+                    context.replace("*", "%"),
                     seq,
                     eventNames, PageRequest.of(0, limit));
         }
         return eventStoreRepository.fetchEvents(
-                        context.replace("*","%"),
-                        seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
-                        eventNames, PageRequest.of(0, limit));
+                context.replace("*", "%"),
+                seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
+                eventNames, PageRequest.of(0, limit));
     }
 
 
@@ -175,7 +188,7 @@ public class EventStore {
     public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
         try {
-            if(MODE == EventStoreMode.APES) {
+            if (MODE == EventStoreMode.APES) {
                 jdbcTemplate.update(
                         "INSERT INTO es__events " +
                                 "(event_sequence_number," +
@@ -187,7 +200,7 @@ public class EventStore {
                         eventMessage.getEventName(),
                         eventMessage.getContext()
                 );
-            }else{
+            } else {
                 acquire(ES_LOCK);
                 jdbcTemplate.update(
                         "INSERT INTO es__events " +
