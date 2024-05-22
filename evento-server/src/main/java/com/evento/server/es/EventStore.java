@@ -39,7 +39,9 @@ import java.util.concurrent.locks.ReentrantLock;
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class EventStore {
 
-    private static final long DELAY = 69;
+    private static final String ES_LOCK = "es-lock";
+    private final long DELAY;
+    private final EventStoreMode MODE;
     private final EventStoreRepository eventStoreRepository;
     private final SnapshotRepository snapshotRepository;
     private final JdbcTemplate jdbcTemplate;
@@ -59,13 +61,20 @@ public class EventStore {
                       @Value("${evento.es.aggregate.state.cache.size:1024}")
                       int aggregateSnapshotCacheSize,
                       @Value("${evento.es.aggregate.events.cache.size:1024}")
-                      int aggregateEventsCacheSize) throws SQLException {
+                      int aggregateEventsCacheSize,
+                      @Value("${evento.es.fetch.delay:69}")
+                      int fetchDelay,
+                      @Value("${evento.es.mode:CPES}")
+                      EventStoreMode mode) throws SQLException {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.lockConnection = dataSource.getConnection();
         snapshotCache = new LruCache<>(aggregateSnapshotCacheSize);
         eventsCache = new LruCache<>(aggregateEventsCacheSize);
+        DELAY = fetchDelay;
+        MODE = mode;
+
     }
 
     private static class LockWrapper {
@@ -122,23 +131,27 @@ public class EventStore {
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit) {
         if (seq == null) seq = -1L;
-        return Context.ALL.equals(context) ?
-                eventStoreRepository.fetchEvents(
-                        seq,
-                        snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit)) :
-                eventStoreRepository.fetchEvents(
-                        context,
+        if(MODE == EventStoreMode.CPES) {
+            return eventStoreRepository.fetchEvents(
+                    context.replace("*","%"),
+                    seq, PageRequest.of(0, limit));
+        }
+        return eventStoreRepository.fetchEvents(
+                        context.replace("*","%"),
                         seq,
                         snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit));
     }
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit, List<String> eventNames) {
         if (seq == null) seq = -1L;
-        return Context.ALL.equals(context) ? eventStoreRepository.fetchEvents(
-                seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
-                eventNames, PageRequest.of(0, limit)) :
-                eventStoreRepository.fetchEvents(
-                        context,
+        if(MODE == EventStoreMode.CPES) {
+            return eventStoreRepository.fetchEvents(
+                    context.replace("*","%"),
+                    seq,
+                    eventNames, PageRequest.of(0, limit));
+        }
+        return eventStoreRepository.fetchEvents(
+                        context.replace("*","%"),
                         seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
                         eventNames, PageRequest.of(0, limit));
     }
@@ -162,17 +175,31 @@ public class EventStore {
     public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
         try {
-            jdbcTemplate.update(
-                    "INSERT INTO es__events " +
-                            "(event_sequence_number," +
-                            "aggregate_id, event_message, event_name, context) " +
-                            "values  (?, ?, ?, ?, ?)",
-                    snowflake.nextId(),
-                    aggregateId,
-                    mapper.writeValueAsString(eventMessage),
-                    eventMessage.getEventName(),
-                    eventMessage.getContext()
-            );
+            if(MODE == EventStoreMode.APES) {
+                jdbcTemplate.update(
+                        "INSERT INTO es__events " +
+                                "(event_sequence_number," +
+                                "aggregate_id, event_message, event_name, context) " +
+                                "values  (?, ?, ?, ?, ?)",
+                        snowflake.nextId(),
+                        aggregateId,
+                        mapper.writeValueAsString(eventMessage),
+                        eventMessage.getEventName(),
+                        eventMessage.getContext()
+                );
+            }else{
+                acquire(ES_LOCK);
+                jdbcTemplate.update(
+                        "INSERT INTO es__events " +
+                                "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
+                                "values  (nextval('event_sequence_number_serial') ,?, ?, ?, ?)",
+                        aggregateId,
+                        mapper.writeValueAsString(eventMessage),
+                        eventMessage.getEventName(),
+                        eventMessage.getContext()
+                );
+                release(ES_LOCK);
+            }
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -201,11 +228,14 @@ public class EventStore {
     public void deleteAggregate(String aggregateIdentifier) {
         jdbcTemplate.update(
                 "UPDATE es__events " +
-                        "set deleted_at = ? where aggregate_id = ?",
-                Instant.now(),
+                        "set deleted_at = current_timestamp where aggregate_id = ?",
                 aggregateIdentifier
         );
-        snapshotRepository.deleteAggregate(aggregateIdentifier);
+        jdbcTemplate.update(
+                "UPDATE es__snapshot " +
+                        "set deleted_at = current_timestamp where aggregate_id = ?",
+                aggregateIdentifier
+        );
         snapshotCache.remove(aggregateIdentifier);
         eventsCache.remove(aggregateIdentifier);
     }
@@ -239,7 +269,6 @@ public class EventStore {
                         "from es__events " +
                         "where aggregate_id = ? " +
                         "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) " +
-                        "and deleted_at is null " +
                         "order by event_sequence_number",
                 aggregateId,
                 min,

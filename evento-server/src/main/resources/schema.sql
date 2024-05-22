@@ -189,3 +189,5 @@ as select id,
           max(value)
    from performance__handler_service_time_ts as ext
    group by id;
+
+CREATE SEQUENCE IF NOT EXISTS event_sequence_number_serial START 1;
