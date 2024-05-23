@@ -5,7 +5,10 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit)
 ![Code style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg)
 [![](https://img.shields.io/github/v/release/EventoFramework/evento-framework)](https://github.com/EventoFramework/evento-framework/releases)
-[![](https://img.shields.io/maven-central/v/com.eventoframework/evento-bundle)](https://central.sonatype.com/artifact/com.eventoframework/evento-bundle)
+[![](https://img.shields.io/maven-central/v/com.eventoframework/evento-bundle?logo=gradle)](https://central.sonatype.com/artifact/com.eventoframework/evento-bundle)
+[![](https://img.shields.io/docker/v/eventoframework/evento-server?logo=docker&label=image)
+](https://hub.docker.com/r/eventoframework/evento-server)
+
 
 ## What is Evento Framework?
 
