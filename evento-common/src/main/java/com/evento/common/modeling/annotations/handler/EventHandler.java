@@ -16,4 +16,20 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Handler
 public @interface EventHandler {
+    /**
+     * The retry method is used to specify the number of retries to attempt when executing a specific action.
+     * This method is an annotation attribute, typically used in conjunction with the EventHandler annotation.
+     *
+     * @return the number of retries to attempt. The default value is -1, indicating no specific retry count.
+     */
+    public int retry() default -1;
+    /**
+     * The retryDelay method is used to specify the delay in milliseconds between each retry attempt
+     * when executing a specific action.
+     * This method is an annotation attribute, typically used in conjunction with the EventHandler annotation.
+     *
+     * @return the delay in milliseconds between each retry attempt. The default value is 1000,
+     * indicating no specific retry delay.
+     */
+    public int retryDelay() default 1000;
 }

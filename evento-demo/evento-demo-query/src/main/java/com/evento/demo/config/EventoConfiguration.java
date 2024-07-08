@@ -58,7 +58,7 @@ public class EventoConfiguration {
 						maxOverflow,
 						maxUnderflow, 60 * 1000))
 				.setInjector(factory::getBean)
-				.setContexts(Map.of(DemoProjector.class.getSimpleName(), Set.of(Context.DEFAULT, "other")))
+				// .setContexts(Map.of(DemoProjector.class.getSimpleName(), Set.of(Context.DEFAULT, "other")))
 				.start();
 
 	}

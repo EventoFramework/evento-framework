@@ -1,5 +1,6 @@
 package com.evento.common.messaging.consumer.impl;
 
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
@@ -10,6 +11,7 @@ import com.evento.common.serialization.ObjectMapperUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -122,6 +124,11 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     protected void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) {
         lastEventSequenceNumberRepository.put(consumerId, eventSequenceNumber);
     }
+
+	@Override
+	protected void addEventToDeadEventQueue(String consumerId, PublishedEvent event) throws Exception {
+        logger.debug("Dead Event queue is not implemented for consumer {} - {} {}", consumerId, event.getEventName(), event.getEventSequenceNumber());
+	}
 
 
 	/**

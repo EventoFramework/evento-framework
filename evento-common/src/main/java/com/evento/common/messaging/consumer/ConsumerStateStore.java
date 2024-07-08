@@ -5,6 +5,8 @@ import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.state.SagaState;
 import com.evento.common.performance.PerformanceService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.time.Instant;
 import java.util.concurrent.Executor;
@@ -14,6 +16,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * The abstract class represents a state store for the consumer, which is responsible for consuming events and tracking the state of projections and sagas.
  */
 public abstract class ConsumerStateStore {
+
+
+    protected static final Logger logger = LogManager.getLogger(ConsumerStateStore.class);
+
     protected final EventoServer eventoServer;
     private final PerformanceService performanceService;
     private final ObjectMapper objectMapper;
@@ -64,7 +70,8 @@ public abstract class ConsumerStateStore {
                     try {
                         projectorEventConsumer.consume(event);
                     } catch (Exception e) {
-                        throw new RuntimeException("Event consumption Error for projection %s and event %s".formatted(projectorName, event.getEventName()), e);
+                        addEventToDeadEventQueue(consumerId, event);
+                        logger.error("Event consumption Error for projection %s and event %s after retry policy. Event added to Dead Event Queue".formatted(projectorName, event.getEventName()), e);
                     }
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                     consumedEventCount++;
@@ -115,7 +122,13 @@ public abstract class ConsumerStateStore {
                         try {
                             observerEventConsumer.consume(event);
                         } catch (Exception e) {
-                            throw new RuntimeException("Event consumption Error for consumer %s and event %s".formatted(observerName, event.getEventName()), e);
+                            try {
+                                addEventToDeadEventQueue(consumerId, event);
+                                logger.error("Event consumption Error for consumer %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()), e);
+                            } catch (Exception ex) {
+                                logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()));
+                            }
+
                         }
                     });
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
@@ -175,9 +188,9 @@ public abstract class ConsumerStateStore {
                             }
                         }
                     } catch (Exception e) {
-                        throw new RuntimeException("Event consumption Error for saga %s and event %s".formatted(sagaName, event.getEventName()), e);
+                        addEventToDeadEventQueue(consumerId, event);
+                        logger.error("Event consumption Error for consumer %s and saga %s after retry policy. Event added to Dead Event Queue".formatted(sagaName, event.getEventName()), e);
                     }
-
                     setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                     consumedEventCount++;
                     performanceService.sendServiceTimeMetric(
@@ -254,6 +267,16 @@ public abstract class ConsumerStateStore {
      * @throws Exception if an error occurs
      */
     protected abstract void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) throws Exception;
+
+
+    /**
+     * Adds an event to the dead event queue for a specific consumer.
+     *
+     * @param consumerId              the ID of the consumer
+     * @param publishedEvent     the PublishedEvent object representing the event to be added
+     * @throws RuntimeException              if an error occurs during the addition of the event to the dead event queue
+     */
+    protected abstract void addEventToDeadEventQueue(String consumerId, PublishedEvent publishedEvent) throws Exception;
 
     /**
      * Retrieves the stored state of a saga identified by its name and association property and value.
