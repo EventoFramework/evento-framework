@@ -19,13 +19,11 @@ import java.util.concurrent.Executors;
  */
 public class MysqlConsumerStateStore extends ConsumerStateStore {
 
-	private static final String CONSUMER_STATE_TABLE = "evento__consumer_state";
-	private static final String SAGA_STATE_TABLE = "evento__saga_state";
+	private final String CONSUMER_STATE_TABLE;
+	private final String SAGA_STATE_TABLE;
 
-	private static final String CONSUMER_STATE_DDL = "create table if not exists " + CONSUMER_STATE_TABLE
-			+ " (id varchar(255), lastEventSequenceNumber bigint, primary key (id))";
-	private static final String SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
-			+ " (id int auto_increment, name varchar(255),  state text, primary key (id))";
+	private final String CONSUMER_STATE_DDL;
+	private final String SAGA_STATE_DDL;
 	private final Connection connection;
 
 	/**
@@ -38,7 +36,26 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 			EventoServer eventoServer,
 			PerformanceService performanceService,
 			Connection connection) {
-		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newVirtualThreadPerTaskExecutor());
+		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newVirtualThreadPerTaskExecutor(),
+				"","");
+	}
+
+	/**
+	 * Implementation of the ConsumerStateStore interface that stores the consumer state in MySQL database.
+	 * @param eventoServer an instance of evento server connection
+	 * @param performanceService  an instance of performance service
+	 * @param connection a MySQL java connection
+	 * @param tablePrefix prefix to add to tables
+	 * @param tableSuffix suffix to add to tables
+	 */
+	public MysqlConsumerStateStore(
+			EventoServer eventoServer,
+			PerformanceService performanceService,
+			Connection connection,
+			String tablePrefix,
+			String tableSuffix) {
+		this(eventoServer, performanceService, connection, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newVirtualThreadPerTaskExecutor(),
+				tablePrefix, tableSuffix);
 	}
 
 	/**
@@ -54,9 +71,17 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 			PerformanceService performanceService,
 			Connection connection,
 			ObjectMapper objectMapper,
-			Executor observerExecutor) {
+			Executor observerExecutor,
+			String tablePrefix,
+			String tableSuffix) {
 		super(eventoServer, performanceService, objectMapper, observerExecutor);
 		this.connection = connection;
+		this.CONSUMER_STATE_TABLE = tablePrefix + "evento__consumer_state" + tableSuffix;
+		this.SAGA_STATE_TABLE = tablePrefix + "evento__saga_state" + tableSuffix;
+		this.CONSUMER_STATE_DDL =  "create table if not exists " + CONSUMER_STATE_TABLE
+				+ " (id varchar(255), lastEventSequenceNumber bigint, primary key (id))";
+		this.SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
+				+ " (id int auto_increment, name varchar(255),  state text, primary key (id))";
 		init();
 	}
 
