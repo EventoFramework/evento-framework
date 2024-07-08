@@ -64,6 +64,7 @@ public class EventoBundle {
     private static final Logger logger = LogManager.getLogger(EventoBundle.class);
     private final String basePackage;
     private final String bundleId;
+    private final String instanceId;
     private final PerformanceService performanceService;
     private final AggregateManager aggregateManager;
     private final ServiceManager serviceManager;
@@ -78,6 +79,7 @@ public class EventoBundle {
     private EventoBundle(
             String basePackage,
             String bundleId,
+            String instanceId,
             AggregateManager aggregateManager,
             ProjectionManager projectionManager,
             SagaManager sagaManager,
@@ -90,6 +92,7 @@ public class EventoBundle {
     ) {
         this.basePackage = basePackage;
         this.bundleId = bundleId;
+        this.instanceId = instanceId;
         this.aggregateManager = aggregateManager;
         this.projectionManager = projectionManager;
         this.sagaManager = sagaManager;
@@ -118,11 +121,12 @@ public class EventoBundle {
             CommandGateway commandGateway,
             QueryGateway queryGateway,
             String bundleId,
+            String instanceId,
             PerformanceService performanceService,
             TracingAgent tracingAgent,
             String componentName, Message<?> handledMessage) {
         return new GatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
-                componentName, handledMessage, tracingAgent);
+                componentName, handledMessage, tracingAgent, instanceId);
     }
 
 
@@ -149,7 +153,7 @@ public class EventoBundle {
                     var gProxy = createGatewayTelemetryProxy(
                             commandGateway,
                             queryGateway,
-                            bundleId,
+                            bundleId, instanceId,
                             performanceService,
                             tracingAgent,
                             invokerClass.getSimpleName(),
@@ -268,6 +272,7 @@ public class EventoBundle {
     public static class Builder {
         private Package basePackage;
         private String bundleId;
+        private String instanceId;
         private long bundleVersion = 1;
         private Function<Class<?>, Object> injector;
 
@@ -332,6 +337,11 @@ public class EventoBundle {
             }
 
 
+            if (instanceId == null || instanceId.isBlank() || instanceId.isEmpty()) {
+                instanceId = UUID.randomUUID().toString();
+            }
+
+
             if (sssFetchSize < 1) {
                 sssFetchSize = 1;
             }
@@ -345,29 +355,27 @@ public class EventoBundle {
 
             var isShuttingDown = new AtomicBoolean();
 
-            String bundleInstance = UUID.randomUUID().toString();
-
             var aggregateManager = new AggregateManager(
                     bundleId,
-                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent
             );
             var serviceManager = new ServiceManager(
                     bundleId,
-                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent
             );
             var projectionManager = new ProjectionManager(
                     bundleId,
-                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent
             );
             var projectorManager = new ProjectorManager(
                     bundleId,
-                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent,
                     isShuttingDown::get,
@@ -376,7 +384,7 @@ public class EventoBundle {
             );
             var sagaManager = new SagaManager(
                     bundleId,
-                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent,
                     isShuttingDown::get,
@@ -385,7 +393,7 @@ public class EventoBundle {
             );
             var observerManager = new ObserverManager(
                     bundleId,
-                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, performanceService,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent,
                     isShuttingDown::get,
@@ -526,7 +534,7 @@ public class EventoBundle {
             var registration = new BundleRegistration(
                     bundleId,
                     bundleVersion,
-                    bundleInstance,
+                    instanceId,
                     handlers,
                     payloadInfo
             );
@@ -588,7 +596,7 @@ public class EventoBundle {
             var css = consumerStateStoreBuilder.apply(eventoServer, performanceService);
             EventoBundle eventoBundle = new EventoBundle(
                     basePackage.getName(),
-                    bundleId,
+                    bundleId, instanceId,
                     aggregateManager, projectionManager, sagaManager, commandGateway,
                     queryGateway,
                     performanceService,

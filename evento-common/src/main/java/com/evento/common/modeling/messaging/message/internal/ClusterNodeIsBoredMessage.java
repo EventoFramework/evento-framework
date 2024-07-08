@@ -9,7 +9,7 @@ public class ClusterNodeIsBoredMessage implements Serializable {
 
 	private String bundleId;
 
-	private String nodeId;
+	private String instanceId;
 
 	/**
 	 * Creates a new instance of the {@code ClusterNodeIsBoredMessage} class.
@@ -21,11 +21,11 @@ public class ClusterNodeIsBoredMessage implements Serializable {
 	 * Constructs a new ClusterNodeIsBoredMessage with the specified bundle ID and node ID.
 	 *
 	 * @param bundleId the bundle ID of the message
-	 * @param nodeId the node ID of the message
+	 * @param instanceId the node ID of the message
 	 */
-	public ClusterNodeIsBoredMessage(String bundleId, String nodeId) {
+	public ClusterNodeIsBoredMessage(String bundleId, String instanceId) {
 		this.bundleId = bundleId;
-		this.nodeId = nodeId;
+		this.instanceId = instanceId;
 	}
 
 	/**
@@ -51,16 +51,16 @@ public class ClusterNodeIsBoredMessage implements Serializable {
 	 *
 	 * @return the node ID of the ClusterNodeIsBoredMessage
 	 */
-	public String getNodeId() {
-		return nodeId;
+	public String getInstanceId() {
+		return instanceId;
 	}
 
 	/**
 	 * Sets the node ID of the ClusterNodeIsBoredMessage.
 	 *
-	 * @param nodeId the new node ID to be set
+	 * @param instanceId the new node ID to be set
 	 */
-	public void setNodeId(String nodeId) {
-		this.nodeId = nodeId;
+	public void setInstanceId(String instanceId) {
+		this.instanceId = instanceId;
 	}
 }

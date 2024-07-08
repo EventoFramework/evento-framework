@@ -27,6 +27,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     private final QueryGateway queryGateway;
 
     private final String bundle;
+    private final String instanceId;
     private final String componentName;
 
     private final PerformanceService performanceService;
@@ -46,13 +47,15 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
      * @param componentName      The name of the component associated with the proxy.
      * @param handledMessage     The message being handled by the proxy.
      * @param tracingAgent       The tracing agent for correlating and tracking.
+     * @param instanceId         The cluster node identifier
      */
     public GatewayTelemetryProxy(CommandGateway commandGateway,
                                  QueryGateway queryGateway,
                                  String bundle, PerformanceService performanceService,
                                  String componentName,
                                  Message<?> handledMessage,
-                                 TracingAgent tracingAgent) {
+                                 TracingAgent tracingAgent,
+                                 String instanceId) {
         this.commandGateway = commandGateway;
         this.queryGateway = queryGateway;
         this.bundle = bundle;
@@ -60,6 +63,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
         this.componentName = componentName;
         this.handledMessage = handledMessage;
         this.tracingAgent = tracingAgent;
+        this.instanceId = instanceId;
     }
 
     @Override
@@ -158,7 +162,8 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
                 bundle,
                 componentName,
                 handledMessage,
-                invocationCounter
+                invocationCounter,
+                instanceId
         );
     }
 
@@ -170,6 +175,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     public void sendServiceTimeMetric(Instant start) {
         performanceService.sendServiceTimeMetric(
                 bundle,
+                instanceId,
                 componentName,
                 handledMessage,
                 start

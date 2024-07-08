@@ -77,6 +77,7 @@ public abstract class ConsumerStateStore {
                     consumedEventCount++;
                     performanceService.sendServiceTimeMetric(
                             eventoServer.getBundleId(),
+                            eventoServer.getInstanceId(),
                             projectorName,
                             event.getEventMessage(),
                             start
@@ -135,6 +136,7 @@ public abstract class ConsumerStateStore {
                     consumedEventCount++;
                     performanceService.sendServiceTimeMetric(
                             eventoServer.getBundleId(),
+                            eventoServer.getInstanceId(),
                             observerName,
                             event.getEventMessage(),
                             start
@@ -195,6 +197,7 @@ public abstract class ConsumerStateStore {
                     consumedEventCount++;
                     performanceService.sendServiceTimeMetric(
                             eventoServer.getBundleId(),
+                            eventoServer.getInstanceId(),
                             sagaName,
                             event.getEventMessage(),
                             start

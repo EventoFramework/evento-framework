@@ -72,7 +72,7 @@ public class PerformanceStoreService extends PerformanceService {
         }
     }
 
-    public void saveServiceTimePerformance(String bundle, String component, String action, long start, long end) {
+    public void saveServiceTimePerformance(String bundle, String instanceId, String component, String action, long start, long end) {
         var pId = bundle + "_" + component + "_" + action;
         var lock = lockRegistry.obtain(pId);
         var duration = end - start;
@@ -112,9 +112,10 @@ public class PerformanceStoreService extends PerformanceService {
                     );
                 }
                 handlerServiceTimePerformanceRepository.save(handlerServiceTimePerformance);
-                jdbcTemplate.update("insert into performance__handler_service_time_ts (id, value) values (?,?)",
+                jdbcTemplate.update("insert into performance__handler_service_time_ts (id, value, instance_id) values (?,?,?)",
                         pId,
-                        duration);
+                        duration,
+                        instanceId);
             } finally {
                 lock.unlock();
             }
@@ -122,7 +123,7 @@ public class PerformanceStoreService extends PerformanceService {
     }
 
 
-    public void saveInvocationsPerformance(String bundle, String component, String action, HashMap<String, Integer> invocations) {
+    public void saveInvocationsPerformance(String bundle, String instanceId, String component, String action, HashMap<String, Integer> invocations) {
         var pId = "ic__" + bundle + "_" + component + "_" + action;
         var lock = lockRegistry.obtain(pId);
         if (tryLock(lock)) {
@@ -157,8 +158,8 @@ public class PerformanceStoreService extends PerformanceService {
                         hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) +
                                 (ALPHA * invocations.getOrDefault(payload.getName(), 0)));
                         handlerInvocationCountPerformanceRepository.save(hip);
-                        jdbcTemplate.update("insert into performance__handler_invocation_count_ts (id) values (?)",
-                                id);
+                        jdbcTemplate.update("insert into performance__handler_invocation_count_ts (id, instance_id) values (?, ?)",
+                                id, instanceId);
                     }
                 });
             } finally {
@@ -178,6 +179,7 @@ public class PerformanceStoreService extends PerformanceService {
     public void sendServiceTimeMetricMessage(PerformanceServiceTimeMessage message) {
         saveServiceTimePerformance(
                 message.getBundle(),
+                message.getInstanceId(),
                 message.getComponent(),
                 message.getAction(),
                 message.getStart(),
@@ -188,6 +190,7 @@ public class PerformanceStoreService extends PerformanceService {
     @Override
     public void sendInvocationMetricMessage(PerformanceInvocationsMessage message) {
         saveInvocationsPerformance(message.getBundle(),
+                message.getInstanceId(),
                 message.getComponent(),
                 message.getAction(),
                 message.getInvocations());

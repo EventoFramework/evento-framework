@@ -12,6 +12,7 @@ public class PerformanceInvocationsMessage implements Serializable {
 	private String component;
 	private String action;
 	private HashMap<String, Integer> invocations;
+	private String instanceId;
 
 
 	/**
@@ -34,12 +35,15 @@ public class PerformanceInvocationsMessage implements Serializable {
 	 * @param component   The component associated with the performance invocations message.
 	 * @param action      The action associated with the performance invocations message.
 	 * @param invocations The invocations associated with the performance invocations message.
+	 * @param instanceId	  The node id associated to this message
 	 */
-	public PerformanceInvocationsMessage(String bundle, String component, String action, HashMap<String, Integer> invocations) {
+	public PerformanceInvocationsMessage(String bundle, String component, String action, HashMap<String, Integer> invocations,
+										 String instanceId) {
 		this.bundle = bundle;
 		this.component = component;
 		this.action = action;
 		this.invocations = invocations;
+		this.instanceId = instanceId;
 	}
 
 	/**
@@ -114,5 +118,23 @@ public class PerformanceInvocationsMessage implements Serializable {
 	 */
 	public void setInvocations(HashMap<String, Integer> invocations) {
 		this.invocations = invocations;
+	}
+
+	/**
+	 * Retrieves the node ID associated with the performance invocations message.
+	 *
+	 * @return The node ID associated with the performance invocations message.
+	 */
+	public String getInstanceId() {
+		return instanceId;
+	}
+
+	/**
+	 * Sets the node ID associated with the performance invocations message.
+	 *
+	 * @param instanceId The new value for the node ID.
+	 */
+	public void setInstanceId(String instanceId) {
+		this.instanceId = instanceId;
 	}
 }
