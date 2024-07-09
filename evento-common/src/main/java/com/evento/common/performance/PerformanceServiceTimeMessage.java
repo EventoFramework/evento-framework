@@ -12,6 +12,7 @@ import java.io.Serializable;
  * - action: The action associated with the metric.
  * - start: The start time of the service.
  * - end: The end time of the service.
+ * - instanceId: The node Id
  * </p>
  *
  * <p>
@@ -29,6 +30,7 @@ public class PerformanceServiceTimeMessage implements Serializable {
 	private String action;
 	private long start;
 	private long end;
+	private String instanceId;
 
 	/**
 	 * The PerformanceServiceTimeMessage class represents a message object used to store service time metrics.
@@ -62,13 +64,15 @@ public class PerformanceServiceTimeMessage implements Serializable {
 	 * @param action    The action associated with the metric.
 	 * @param start     The start time of the service.
 	 * @param end       The end time of the service.
+	 * @param instanceId	  The node id associated to this message
 	 */
-	public PerformanceServiceTimeMessage(String bundle, String component, String action, long start, long end) {
+	public PerformanceServiceTimeMessage(String bundle, String component, String action, long start, long end, String instanceId) {
 		this.bundle = bundle;
 		this.component = component;
 		this.action = action;
 		this.start = start;
 		this.end = end;
+		this.instanceId = instanceId;
 	}
 
 	/**
@@ -162,4 +166,21 @@ public class PerformanceServiceTimeMessage implements Serializable {
 		this.end = end;
 	}
 
+	/**
+	 * Retrieves the node ID associated with the performance invocations message.
+	 *
+	 * @return The node ID associated with the performance invocations message.
+	 */
+	public String getInstanceId() {
+		return instanceId;
+	}
+
+	/**
+	 * Sets the node ID associated with the performance invocations message.
+	 *
+	 * @param instanceId The new value for the node ID.
+	 */
+	public void setInstanceId(String instanceId) {
+		this.instanceId = instanceId;
+	}
 }

@@ -67,12 +67,12 @@ public abstract class PerformanceService {
      * @param message   The message associated with the metric.
      * @param startTime The start time of the service.
      */
-    public final void sendServiceTimeMetric(String bundle, String component, Message<?> message, Instant startTime) {
+    public final void sendServiceTimeMetric(String bundle, String instanceId, String component, Message<?> message, Instant startTime) {
         if (random.nextDouble(0.0, 1.0) > performanceRate) return;
         var time = Instant.now().toEpochMilli();
         executor.execute(() -> {
             var st = new PerformanceServiceTimeMessage(bundle, component, message.getPayloadName()
-                    , startTime.toEpochMilli(), time);
+                    , startTime.toEpochMilli(), time, instanceId);
             try {
                 sendServiceTimeMetricMessage(st);
             } catch (Exception e) {
@@ -119,7 +119,7 @@ public abstract class PerformanceService {
      * @param invocationCounter  The invocation counter containing the number of invocations for each key.
      */
     public final void sendInvocationsMetric(String bundle, String component, Message<?> action,
-                                            HashMap<String, AtomicInteger> invocationCounter) {
+                                            HashMap<String, AtomicInteger> invocationCounter, String instanceId) {
         if (random.nextDouble(0.0, 1.0) > performanceRate) return;
         executor.execute(() -> {
             try {
@@ -128,7 +128,7 @@ public abstract class PerformanceService {
                 for (Map.Entry<String, AtomicInteger> e : invocationCounter.entrySet()) {
                     invocations.put(e.getKey(), e.getValue().get());
                 }
-                var pi = new PerformanceInvocationsMessage(bundle, component, action.getPayloadName(), invocations);
+                var pi = new PerformanceInvocationsMessage(bundle, component, action.getPayloadName(), invocations, instanceId);
                 sendInvocationMetricMessage(pi);
 
             } catch (Exception ignored) {

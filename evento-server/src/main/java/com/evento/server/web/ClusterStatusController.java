@@ -121,13 +121,13 @@ public class ClusterStatusController {
 	 * Deletes a node in the cluster by sending a kill message to the specified node.
 	 *
 	 * @param bundleId The ID of the bundle to which the node belongs.
-	 * @param nodeId The ID of the node to be killed.
+	 * @param instanceId The ID of the node to be killed.
 	 * @return A ResponseEntity representing the response status of the kill operation.
 	 */
-	@DeleteMapping(value = "/kill/{bundleId}/{nodeId}")
+	@DeleteMapping(value = "/kill/{bundleId}/{instanceId}")
 	@Secured("ROLE_DEPLOY")
-	public ResponseEntity<?> killNode(@PathVariable String bundleId, @PathVariable String nodeId) {
-		messageBus.sendKill(nodeId);
+	public ResponseEntity<?> killNode(@PathVariable String bundleId, @PathVariable String instanceId) {
+		messageBus.sendKill(instanceId);
 		return ResponseEntity.ok().build();
 	}
 }

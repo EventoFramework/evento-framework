@@ -58,6 +58,7 @@ public class MessageBus {
     private static final String BUNDLE_LOCK_PREFIX = "BUNDLE:";
     private static final String CLUSTER_LOCK_PREFIX = "CLUSTER:";
     private final HandlerService handlerService;
+    private final String instanceId;
 
     private final EventStore eventStore;
 
@@ -75,13 +76,20 @@ public class MessageBus {
     private final Executor threadPerMessageExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     public MessageBus(
-            @Value("${socket.port}") int socketPort, BundleDeployService bundleDeployService, HandlerService handlerService, EventStore eventStore, PerformanceStoreService performanceStoreService, BundleService bundleService) {
+            @Value("${socket.port}") int socketPort,
+            @Value("${evento.server.instance.id}") String instanceId,
+            BundleDeployService bundleDeployService,
+            HandlerService handlerService,
+            EventStore eventStore,
+            PerformanceStoreService performanceStoreService,
+            BundleService bundleService) {
         this.socketPort = socketPort;
         this.bundleDeployService = bundleDeployService;
         this.handlerService = handlerService;
         this.eventStore = eventStore;
         this.performanceStoreService = performanceStoreService;
         this.bundleService = bundleService;
+        this.instanceId = instanceId;
     }
 
     @PostConstruct
@@ -222,9 +230,9 @@ public class MessageBus {
                                         .stream()
                                         .filter(n -> n.bundleId().equals(b.getBundleId())).count())
                     try {
-                        sendKill(b.getNodeId());
+                        sendKill(b.getInstanceId());
                     } catch (Exception e) {
-                        logger.error("Error trying to kill node %s".formatted(b.getNodeId()), e);
+                        logger.error("Error trying to kill node %s".formatted(b.getInstanceId()), e);
                     }
             } finally {
                 eventStore.release(lockId);
@@ -246,6 +254,7 @@ public class MessageBus {
         } else if(m.getBody() instanceof PerformanceInvocationsMessage im){
             performanceStoreService.saveInvocationsPerformance(
                     im.getBundle(),
+                    im.getInstanceId(),
                     im.getComponent(),
                     im.getAction(),
                     im.getInvocations()
@@ -253,6 +262,7 @@ public class MessageBus {
         } else if(m.getBody() instanceof PerformanceServiceTimeMessage im){
             performanceStoreService.saveServiceTimePerformance(
                     im.getBundle(),
+                    im.getInstanceId(),
                     im.getComponent(),
                     im.getAction(),
                     im.getStart(),
@@ -284,6 +294,7 @@ public class MessageBus {
                         invocation.setEventStream(story.events());
                         performanceStoreService.sendServiceTimeMetric(
                                 SERVER,
+                                instanceId,
                                 GATEWAY_COMPONENT,
                                 c,
                                 start
@@ -294,6 +305,7 @@ public class MessageBus {
                             try {
                                 performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
+                                        dest.instanceId(),
                                         getComponent(c.getCommandName()),
                                         c,
                                         invocationStart
@@ -314,6 +326,7 @@ public class MessageBus {
                                     }
                                     performanceStoreService.sendServiceTimeMetric(
                                             EVENT_STORE,
+                                            instanceId,
                                             EVENT_STORE_COMPONENT,
                                             cr.getDomainEventMessage(),
                                             esStoreStart
@@ -352,6 +365,7 @@ public class MessageBus {
                             try {
                                 performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
+                                        dest.instanceId(),
                                         getComponent(c.getCommandName()),
                                         c,
                                         start
@@ -363,6 +377,7 @@ public class MessageBus {
                                                 c.getAggregateId());
                                         performanceStoreService.sendServiceTimeMetric(
                                                 EVENT_STORE,
+                                                instanceId,
                                                 EVENT_STORE_COMPONENT,
                                                 event,
                                                 esStoreStart
@@ -397,6 +412,7 @@ public class MessageBus {
                             resp -> {
                                 performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
+                                        dest.instanceId(),
                                         getComponent(q.getQueryName()),
                                         q,
                                         invocationStart
@@ -590,7 +606,7 @@ public class MessageBus {
         return availableView.stream().anyMatch(n -> n.bundleId().equals(bundleId));
     }
 
-    public void sendKill(String nodeId) {
+    public void sendKill(String instanceId) {
         var m = new EventoMessage();
         m.setBody(new ClusterNodeKillMessage());
         m.setSourceBundleId("evento-server");
@@ -598,7 +614,7 @@ public class MessageBus {
         m.setSourceBundleVersion(0);
         try {
             var out = view.get(
-                    view.keySet().stream().filter(k -> k.instanceId().equals(nodeId)).findFirst().orElseThrow()
+                    view.keySet().stream().filter(k -> k.instanceId().equals(instanceId)).findFirst().orElseThrow()
             );
             synchronized (out) {
                 out.writeObject(m);

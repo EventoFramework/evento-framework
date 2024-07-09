@@ -48,8 +48,8 @@ export class ClusterStatusService {
     });
   }
 
-  async kill(bundleId, nodeId) {
-    return fetch(environment.eventoServerUrl + '/api/cluster-status/kill/' + bundleId + '/' + nodeId, {
+  async kill(bundleId, instanceId) {
+    return fetch(environment.eventoServerUrl + '/api/cluster-status/kill/' + bundleId + '/' + instanceId, {
       method: 'DELETE'
     });
   }
