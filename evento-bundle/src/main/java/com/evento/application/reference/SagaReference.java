@@ -4,10 +4,14 @@ package com.evento.application.reference;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
+import com.evento.common.modeling.annotations.handler.EventHandler;
 import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 import com.evento.common.modeling.messaging.payload.Event;
 import com.evento.common.modeling.state.SagaState;
+import com.evento.common.utils.Sleep;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -20,6 +24,8 @@ import java.util.Set;
  * It provides functionality for managing saga event handler references, invoking saga methods, and retrieving registered events.
  */
 public class SagaReference extends Reference {
+
+    private static final Logger logger = LogManager.getLogger(SagaReference.class);
 
     private final HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
 
@@ -82,19 +88,36 @@ public class SagaReference extends Reference {
 
         var handler = sagaEventHandlerReferences.get(em.getEventName());
 
-        var state = (SagaState) ReflectionUtils.invoke(getRef(), handler,
-                em.getPayload(),
-                sagaState,
-                commandGateway,
-                queryGateway,
-                em,
-                em.getMetadata(),
-                Instant.ofEpochMilli(em.getTimestamp())
-        );
-        if (state == null) {
-            return sagaState;
-        } else {
-            return state;
+        var a = handler.getAnnotation(SagaEventHandler.class);
+        var retry = 0;
+        while (true) {
+            try {
+                var state = (SagaState) ReflectionUtils.invoke(getRef(), handler,
+                        em.getPayload(),
+                        sagaState,
+                        commandGateway,
+                        queryGateway,
+                        em,
+                        em.getMetadata(),
+                        Instant.ofEpochMilli(em.getTimestamp())
+                );
+                if (state == null) {
+                    return sagaState;
+                } else {
+                    return state;
+                }
+            }catch (Exception e){
+                retry++;
+                logger.error("Event processing failed for saga "+ getComponentName() + " event " + em.getEventName() + " (attempt " +(retry)+ ")", e);
+                if(a.retry() > 0){
+                    if (retry > a.retry()) {
+                        throw e;
+                    }
+                }
+                Sleep.apply(a.retryDelay());
+            }
         }
+
+
     }
 }

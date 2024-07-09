@@ -99,11 +99,12 @@ public class SagaEventConsumer implements Runnable {
                             if (handler == null) return null;
 
                             // Extract information from SagaEventHandler annotation
-                            var associationProperty = handler.getSagaEventHandler(publishedEvent.getEventName())
-                                    .getAnnotation(SagaEventHandler.class).associationProperty();
-                            var isInit = handler.getSagaEventHandler(publishedEvent.getEventName())
-                                    .getAnnotation(SagaEventHandler.class).init();
+                            var a = handler.getSagaEventHandler(publishedEvent.getEventName())
+                                    .getAnnotation(SagaEventHandler.class);
+                            var associationProperty = a.associationProperty();
+                            var isInit = a.init();
                             var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
+
 
                             // Retrieve the last state from the saga state fetcher
                             var sagaState = sagaStateFetcher.getLastState(

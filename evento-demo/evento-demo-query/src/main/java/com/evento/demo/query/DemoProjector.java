@@ -23,7 +23,7 @@ public class DemoProjector {
 		this.demoRepository = demoRepository;
 	}
 
-	@EventHandler
+	@EventHandler(retry = 3)
 	void on(DemoCreatedEvent event,
 			QueryGateway queryGateway,
 			EventMessage<?> eventMessage,

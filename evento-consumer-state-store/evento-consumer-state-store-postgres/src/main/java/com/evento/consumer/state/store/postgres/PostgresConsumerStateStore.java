@@ -1,5 +1,6 @@
 package com.evento.consumer.state.store.postgres;
 
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
@@ -20,9 +21,11 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
 	private final String CONSUMER_STATE_TABLE;
 	private final String SAGA_STATE_TABLE;
+	private final String DEAD_EVENT_TABLE;
 
 	private final String CONSUMER_STATE_DDL;
 	private final String SAGA_STATE_DDL;
+	private final String DEAD_EVENT_DDL;
 
 	private final Connection connection;
 	/**
@@ -77,10 +80,13 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 		this.connection = connection;
 		this.CONSUMER_STATE_TABLE = tablePrefix + "evento__consumer_state" + tableSuffix;
 		this.SAGA_STATE_TABLE = tablePrefix + "evento__saga_state" + tableSuffix;
+		this.DEAD_EVENT_TABLE = tablePrefix + "evento__dead_event" + tableSuffix;
 		this.CONSUMER_STATE_DDL = "create table if not exists " + CONSUMER_STATE_TABLE
 				+ " (id varchar(255), lastEventSequenceNumber bigint, primary key (id))";
 		this.SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
 				+ " (id serial, name varchar(255),  state text, primary key (id))";
+		this.DEAD_EVENT_DDL = "create table if not exists " + DEAD_EVENT_TABLE
+				+ " (consumer varchar(255), eventSequenceNumber bigint, eventName varchar(255), toProcess boolean, primary key (consumer, eventSequenceNumber))";
 		init();
 	}
 
@@ -98,6 +104,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
             try (var stmt = connection.createStatement()) {
                 stmt.execute(CONSUMER_STATE_DDL);
                 stmt.execute(SAGA_STATE_DDL);
+                stmt.execute(DEAD_EVENT_DDL);
             }
 		} catch (Exception e)
 		{
@@ -166,6 +173,16 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 		stmt.setLong(2, eventSequenceNumber);
 		stmt.setLong(3, eventSequenceNumber);
 		if (stmt.executeUpdate() == 0) throw new RuntimeException("Consumer state update error");
+	}
+
+	@Override
+	protected void addEventToDeadEventQueue(String consumerId, PublishedEvent event) throws Exception {
+		var q = "insert into " + DEAD_EVENT_TABLE + " (consumer, eventSequenceNumber, eventName, toProcess) value (?, ?, ?, true, ?)";
+		var stmt = connection.prepareStatement(q);
+		stmt.setString(1, consumerId);
+		stmt.setLong(2, event.getEventSequenceNumber());
+		stmt.setString(3, event.getEventName());
+		if (stmt.executeUpdate() == 0) throw new RuntimeException("Insert into Dead Event Queue error");
 	}
 
 	@Override

@@ -6,8 +6,12 @@ import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.handler.EventHandler;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 import com.evento.common.modeling.messaging.payload.Event;
+import com.evento.common.utils.Sleep;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
@@ -17,6 +21,7 @@ import java.util.Set;
  * It allows registering event handlers and invoking them for specific events.
  */
 public class ObserverReference extends Reference {
+    private static final Logger logger = LogManager.getLogger(ObserverReference.class);
 
     private final HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 
@@ -66,13 +71,35 @@ public class ObserverReference extends Reference {
 
         var handler = eventHandlerReferences.get(em.getEventName());
 
-        ReflectionUtils.invoke(getRef(), handler,
-                em.getPayload(),
-                commandGateway,
-                queryGateway,
-                em,
-                em.getMetadata()
-        );
+        if (handler == null) {
+            throw new IllegalArgumentException("No event handler found for event: " + em.getEventName());
+        }
+
+        var a = handler.getAnnotation(EventHandler.class);
+        var retry = 0;
+        while (true) {
+            try {
+                ReflectionUtils.invoke(getRef(), handler,
+                        em.getPayload(),
+                        commandGateway,
+                        queryGateway,
+                        em,
+                        em.getMetadata()
+                );
+                return;
+            }catch (Exception e){
+                retry++;
+                logger.error("Event processing failed for observer "+ getComponentName() + " event " + em.getEventName() + " (attempt " +(retry)+ ")", e);
+                if(a.retry() > 0){
+                    if (retry > a.retry()) {
+                        throw e;
+                    }
+                }
+                Sleep.apply(a.retryDelay());
+            }
+        }
+
+
     }
 
     /**
