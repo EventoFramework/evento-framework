@@ -149,12 +149,14 @@ create table if NOT EXISTS performance__handler_service_time_ts
 (
     id        varchar(255)               not null,
     value     bigint default 0 not null,
+    instance_id   varchar(255),
     timestamp timestamp        default current_timestamp
 );
 
 create table if NOT EXISTS performance__handler_invocation_count_ts
 (
     id        varchar(255)               not null,
+    instance_id   varchar(255),
     timestamp timestamp        default current_timestamp
 );
 

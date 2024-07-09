@@ -30,7 +30,7 @@ public class AgentDispatcher implements CommandLineRunner {
 
 		Thread.sleep(3000);
 
-		var r = 1;
+		var r = 3;
 		var s = new Semaphore(0);
 		for (int i = 0; i < r; i++)
 		{
