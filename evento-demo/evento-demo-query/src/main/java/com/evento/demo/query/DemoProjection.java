@@ -1,7 +1,9 @@
 package com.evento.demo.query;
 
+import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.component.Projection;
 import com.evento.common.modeling.annotations.handler.QueryHandler;
+import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;
 import com.evento.common.modeling.messaging.query.Multiple;
 import com.evento.common.modeling.messaging.query.Single;
@@ -15,6 +17,8 @@ import com.evento.demo.api.view.DemoView;
 import com.evento.demo.query.domain.Demo;
 import com.evento.demo.query.domain.DemoRepository;
 
+import java.time.Instant;
+
 @Projection
 public class DemoProjection {
 
@@ -25,7 +29,11 @@ public class DemoProjection {
     }
 
     @QueryHandler
-    Single<DemoView> query(DemoViewFindByIdQuery query, QueryMessage<DemoViewFindByIdQuery> queryMessage) {
+    Single<DemoView> query(DemoViewFindByIdQuery query,
+                           QueryMessage<DemoViewFindByIdQuery> queryMessage,
+                           QueryGateway queryGateway,
+                           Metadata metadata,
+                           Instant instant) {
         Utils.logMethodFlow(this, "query", query, "BEGIN");
         var result = repository.findById(query.getDemoId())
                 .filter(d -> d.getDeletedAt() == null)

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -273,12 +274,15 @@ public class EventoBundle {
         private Function<EventoServer, AutoscalingProtocol> autoscalingProtocolBuilder;
         private BiFunction<EventoServer, PerformanceService, ConsumerStateStore> consumerStateStoreBuilder;
         private Function<EventoServer, CommandGateway> commandGatewayBuilder  = CommandGatewayImpl::new;
+        @Setter(AccessLevel.NONE)
         private CommandGateway commandGateway;
 
         private Function<EventoServer, QueryGateway> queryGatewayBuilder  = QueryGatewayImpl::new;
+        @Setter(AccessLevel.NONE)
         private QueryGateway queryGateway;
 
         private Function<EventoServer, PerformanceService> performanceServiceBuilder = eventoServer -> new RemotePerformanceService(eventoServer, 1);
+        @Setter(AccessLevel.NONE)
         private PerformanceService performanceService;
 
         private int sssFetchSize = 1000;
