@@ -3,7 +3,7 @@ name: Maven Build&Push Repository
 on:
   push:
     branches:
-      - "release"
+      - "zzz"
     #paths:
     #  - "evento-server/version.json"
 
@@ -19,5 +19,6 @@ jobs:
           java-version: '21'
       - name: Enable Gradle
         run: chmod +x gradlew
+
       - name: Publish
-        run: mavenCentralUsername=${{ secrets.MAVEN_USERNAME }} mavenCentralPassword=${{ secrets.MAVEN_PASSWORD }} ./gradlew publish
+        run: ./gradlew publish
