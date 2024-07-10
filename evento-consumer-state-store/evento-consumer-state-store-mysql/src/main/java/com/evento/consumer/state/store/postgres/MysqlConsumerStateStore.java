@@ -87,7 +87,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
 		this.SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
 				+ " (id int auto_increment, name varchar(255),  state text, primary key (id))";
 		this.DEAD_EVENT_DDL =  "create table if not exists " + DEAD_EVENT_TABLE
-				+ " (consumer varchar(255), lastEventSequenceNumber bigint, eventName varchar(255), toProcess boolean, primary key (consumer, eventSequenceNumber))";
+				+ " (consumer varchar(255), eventSequenceNumber bigint, eventName varchar(255), toProcess boolean, primary key (consumer, eventSequenceNumber))";
 		init();
 	}
 
