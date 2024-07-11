@@ -36,6 +36,9 @@ public class EventoServerMessageBusConfiguration {
      * @param addresses The cluster node addresses.
      */
     public EventoServerMessageBusConfiguration(ClusterNodeAddress... addresses) {
+        if(addresses.length < 1){
+            throw new IllegalArgumentException("Addresses must contain at least one address, no address specified for event bus configuration");
+        }
         this.addresses = List.of(addresses);
         // Set default maxRetryAttempts based on the number of addresses
         maxRetryAttempts = addresses.length * 2;
