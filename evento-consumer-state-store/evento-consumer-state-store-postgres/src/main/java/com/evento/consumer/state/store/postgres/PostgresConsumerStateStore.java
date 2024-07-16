@@ -125,12 +125,12 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 		try
 		{
             try (var stmt = connection.prepareStatement("SELECT pg_advisory_unlock(?)")) {
-                stmt.setInt(1, consumerId.hashCode());
+				stmt.setInt(1, consumerId.hashCode());
 				var resultSet = stmt.executeQuery();
 				resultSet.next();
-				if (resultSet.wasNull()) return;
+				if (resultSet.wasNull()) throw new IllegalMonitorStateException();
 				var status = resultSet.getBoolean(1);
-				if (!status) throw new IllegalMonitorStateException();
+				if (!status) throw new IllegalMonitorStateException("Lock key: " + consumerId);
             }
 		} catch (SQLException e)
 		{
@@ -147,7 +147,8 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 				var resultSet = stmt.executeQuery();
 				resultSet.next();
 				if (resultSet.wasNull()) return false;
-                return resultSet.getBoolean(1);
+				var status = resultSet.getString(1);
+				return "".equals(status);
             }
 		} catch (SQLException e)
 		{
