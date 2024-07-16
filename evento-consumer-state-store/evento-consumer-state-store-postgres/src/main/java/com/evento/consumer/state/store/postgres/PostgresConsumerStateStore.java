@@ -168,7 +168,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
 	@Override
 	protected void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) throws Exception {
-		var q = "insert into " + CONSUMER_STATE_TABLE + " (id, lastEventSequenceNumber) value (?, ?) on duplicate key update lastEventSequenceNumber = ?";
+		var q = "insert into " + CONSUMER_STATE_TABLE + " (id, lastEventSequenceNumber) values (?, ?) on conflict (id) do update set lasteventsequencenumber = ?";
 		var stmt = connection.prepareStatement(q);
 		stmt.setString(1, consumerId);
 		stmt.setLong(2, eventSequenceNumber);
@@ -178,7 +178,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
 	@Override
 	protected void addEventToDeadEventQueue(String consumerId, PublishedEvent event) throws Exception {
-		var q = "insert into " + DEAD_EVENT_TABLE + " (consumer, eventSequenceNumber, eventName, toProcess) value (?, ?, ?, true, ?)";
+		var q = "insert into " + DEAD_EVENT_TABLE + " (consumer, eventSequenceNumber, eventName, toProcess) values (?, ?, ?, ?)";
 		var stmt = connection.prepareStatement(q);
 		stmt.setString(1, consumerId);
 		stmt.setLong(2, event.getEventSequenceNumber());
@@ -190,7 +190,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	protected StoredSagaState getSagaState(String sagaName,
 										   String associationProperty,
 										   String associationValue) throws Exception {
-		var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ? and JSON_EXTRACT(state, concat('$[1].associations[1].', ?)) = ?");
+		var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ? and json_extract_path_text(state::json->1->'associations'->1,?) = ?");
 		stmt.setString(1, sagaName);
 		stmt.setString(2, associationProperty);
 		stmt.setString(3, associationValue);
@@ -206,7 +206,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
         java.sql.PreparedStatement stmt;
         if (id == null)
 		{
-            stmt = connection.prepareStatement("insert into " + SAGA_STATE_TABLE + " (name, state) value (?, ?)");
+            stmt = connection.prepareStatement("insert into " + SAGA_STATE_TABLE + " (name, state) values (?, ?)");
 			stmt.setString(1, sagaName);
 			var serializedSagaState = getObjectMapper().writeValueAsString(sagaState);
 			stmt.setString(2, serializedSagaState);

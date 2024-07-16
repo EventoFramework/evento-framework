@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework'
-version 'ev1.9.2'
+version 'ev1.9.3'
 java {
     targetCompatibility = "21"
     targetCompatibility = "21"
