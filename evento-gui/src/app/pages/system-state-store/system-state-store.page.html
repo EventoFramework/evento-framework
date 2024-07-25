@@ -75,10 +75,26 @@
                 </ion-grid>
                 <ion-modal #detailModal>
                   <ng-template>
-                    <pre>
+                    <ion-header>
+                      <ion-toolbar>
+                        <ion-title class="ion-padding-start">{{e.eventName}} ({{e.eventSequenceNumber}})</ion-title>
+                        <ion-buttons slot="end">
+                          <ion-button (click)="detailModal.dismiss()">
+                            <ion-icon slot="icon-only" name="close"></ion-icon>
+                          </ion-button>
+                        </ion-buttons>
+                      </ion-toolbar>
+                    </ion-header>
+                    <ion-content class="ion-padding">
+                      <ion-title translate="sss.events.metadata"></ion-title>
+                      <ion-grid>
+                        <ion-row *ngFor="let k of e.metadata | keyvalue">
+                          <ion-col size="6">{{k.key}}</ion-col>
+                          <ion-col size="6">{{k.value}}</ion-col>
+                        </ion-row>
+                      </ion-grid>
+                    </ion-content>
 
-               {{e | json}}
-                    </pre>
                   </ng-template>
                 </ion-modal>
               </ion-card-content>
