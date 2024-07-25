@@ -1,0 +1,92 @@
+<ion-content>
+
+  <app-wrapped-content>
+    <ion-grid>
+      <ion-row class="ion-margin-top line-under">
+        <ion-col>
+          <ion-title><h1><span translate="system.state.store"></span></h1></ion-title>
+        </ion-col>
+      </ion-row>
+      <ion-row>
+        <ion-col>
+
+          <ion-card class="ion-no-margin" color="primary">
+            <ion-card-header>
+              <ion-card-title>
+              <ion-grid>
+                <ion-row>
+                  <ion-col >
+                    <ion-input fill="outline" color="light" labelPlacement="floating"
+                               label="{{'sss.events.event.sequence.number' | translate}}"
+                               type="number"></ion-input>
+                  </ion-col>
+                  <ion-col>
+                    <ion-input fill="outline" color="light" labelPlacement="floating"
+                               label="{{'sss.events.event.name' | translate}}"
+                               type="number"></ion-input>
+                  </ion-col>
+                  <ion-col >
+                    <ion-input fill="outline" color="light" labelPlacement="floating"
+                               label="{{'sss.events.aggregate.id' | translate}}"
+                               type="number"></ion-input>
+                  </ion-col>
+                  <ion-col >
+                    <ion-input fill="outline" color="light" labelPlacement="floating"
+                               label="{{'sss.events.context' | translate}}"
+                               type="number"></ion-input>
+                  </ion-col>
+                  <ion-col >
+                    <ion-input fill="outline" color="light" labelPlacement="floating"
+                               label="{{'sss.events.created.at' | translate}}"
+                               type="number"></ion-input>
+                  </ion-col>
+                </ion-row>
+              </ion-grid>
+              </ion-card-title>
+            </ion-card-header>
+          </ion-card>
+
+        </ion-col>
+      </ion-row>
+      @for(e of events; track e.eventSequenceNumber){
+      <ion-row>
+        <ion-col>
+
+            <ion-card class="ion-no-margin" (click)="detailModal.present()">
+              <ion-card-content>
+                <ion-grid>
+                  <ion-row>
+                    <ion-col>
+                      {{e.eventSequenceNumber}}
+                    </ion-col>
+                    <ion-col>
+                      {{e.eventName}}
+                    </ion-col>
+                    <ion-col>
+                      {{e.aggregateId}}
+                    </ion-col>
+                    <ion-col>
+                      {{e.context}}
+                    </ion-col>
+                    <ion-col class="ion-text-end">
+                      {{e.createdAt | date:'yyyy-MM-dd HH:mm:ss.SSS'}}
+                    </ion-col>
+                  </ion-row>
+                </ion-grid>
+                <ion-modal #detailModal>
+                  <ng-template>
+                    <pre>
+
+               {{e | json}}
+                    </pre>
+                  </ng-template>
+                </ion-modal>
+              </ion-card-content>
+            </ion-card>
+
+        </ion-col>
+      </ion-row>
+      }
+    </ion-grid>
+  </app-wrapped-content>
+</ion-content>
