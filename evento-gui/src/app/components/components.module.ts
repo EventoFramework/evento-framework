@@ -7,6 +7,9 @@ import {BundleComponentsDiagramComponent} from './bundle-components-diagram/bund
 import {ApplicationGraphDiagramComponent} from './application-graph-diagram/application-graph-diagram.component';
 import {JsonPipe} from "@angular/common";
 import {RouterLink} from "@angular/router";
+import {ComponentTelemetryComponent} from "./component-telemetry/component-telemetry.component";
+import {NgApexchartsModule} from "ng-apexcharts";
+import {FormsModule} from "@angular/forms";
 
 
 @NgModule({
@@ -15,26 +18,31 @@ import {RouterLink} from "@angular/router";
     InvokersHandlersDiagramComponent,
     ApplicationGraphDiagramComponent,
     ComponentHandlersDiagramComponent,
-    BundleComponentsDiagramComponent
+    BundleComponentsDiagramComponent,
+    ComponentTelemetryComponent
   ],
-    exports: [
-        InvokersHandlersDiagramComponent,
-        WrappedContentComponent,
-        ComponentHandlersDiagramComponent,
-        BundleComponentsDiagramComponent,
-        ApplicationGraphDiagramComponent,
-    ],
+  exports: [
+    InvokersHandlersDiagramComponent,
+    WrappedContentComponent,
+    ComponentHandlersDiagramComponent,
+    BundleComponentsDiagramComponent,
+    ApplicationGraphDiagramComponent,
+    ComponentTelemetryComponent
+  ],
   imports: [
     IonicModule,
     JsonPipe,
-    RouterLink
+    RouterLink,
+    NgApexchartsModule,
+    FormsModule
   ],
   declarations: [
     WrappedContentComponent,
     InvokersHandlersDiagramComponent,
     ComponentHandlersDiagramComponent,
     BundleComponentsDiagramComponent,
-    ApplicationGraphDiagramComponent]
+    ApplicationGraphDiagramComponent,
+    ComponentTelemetryComponent]
 })
 export class ComponentsModule {
 }

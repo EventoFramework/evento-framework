@@ -10,15 +10,25 @@ import com.evento.server.domain.repository.core.HandlerRepository;
 import com.evento.server.domain.repository.core.PayloadRepository;
 import com.evento.server.domain.repository.performance.HandlerInvocationCountPerformanceRepository;
 import com.evento.server.domain.repository.performance.HandlerServiceTimePerformanceRepository;
+import com.evento.server.service.performance.model.AggregationFunction;
+import com.evento.server.service.performance.model.PerformancePoint;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestParam;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.locks.Lock;
 
 @Service
@@ -112,10 +122,11 @@ public class PerformanceStoreService extends PerformanceService {
                     );
                 }
                 handlerServiceTimePerformanceRepository.save(handlerServiceTimePerformance);
-                jdbcTemplate.update("insert into performance__handler_service_time_ts (id, value, instance_id) values (?,?,?)",
+                jdbcTemplate.update("insert into performance__handler_service_time_ts (id, value, instance_id, timestamp) values (?,?,?,?)",
                         pId,
                         duration,
-                        instanceId);
+                        instanceId,
+                        Instant.now().toEpochMilli());
             } finally {
                 lock.unlock();
             }
@@ -158,8 +169,8 @@ public class PerformanceStoreService extends PerformanceService {
                         hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) +
                                 (ALPHA * invocations.getOrDefault(payload.getName(), 0)));
                         handlerInvocationCountPerformanceRepository.save(hip);
-                        jdbcTemplate.update("insert into performance__handler_invocation_count_ts (id, instance_id) values (?, ?)",
-                                id, instanceId);
+                        jdbcTemplate.update("insert into performance__handler_invocation_count_ts (id, instance_id, timestamp) values (?, ?, ?)",
+                                id, instanceId, Instant.now().toEpochMilli());
                     }
                 });
             } finally {
@@ -194,6 +205,48 @@ public class PerformanceStoreService extends PerformanceService {
                 message.getComponent(),
                 message.getAction(),
                 message.getInvocations());
+    }
+
+    public Map<String,Collection<PerformancePoint>> getComponentPerformance(String bundleId,
+                                                                            String componentId,
+                                                                            AggregationFunction serviceTimeAggregationFunction,
+                                                                            @RequestParam(defaultValue = "60") Integer interval,
+                                                                            ZonedDateTime from,
+                                                                            ZonedDateTime to){
+        
+        var sql = "SELECT to_timestamp(gs.interval_start / 1000) as ts, " +
+                "       COALESCE(COUNT(performance__handler_service_time_ts.id), 0) AS count, " +
+                "      "+serviceTimeAggregationFunction+"(performance__handler_service_time_ts.value) AS value " +
+                "FROM generate_series( " +
+                "             ?::bigint, " +
+                "             ?::bigint, " +
+                "             ? " +
+                "     ) AS gs(interval_start) " +
+                "         LEFT JOIN performance__handler_service_time_ts " +
+                "                   ON performance__handler_service_time_ts.timestamp >= gs.interval_start " +
+                "                       AND performance__handler_service_time_ts.timestamp < gs.interval_start + " +
+                "                                                                            ? " +
+                "AND performance__handler_service_time_ts.id = ? " +
+                "GROUP BY gs.interval_start " +
+                "ORDER BY gs.interval_start";
+        var resp = new HashMap<String, Collection<PerformancePoint>>();
+        var handlers = handlerRepository.findAllHandledPayloadsNameByComponentName(componentId);
+
+        var tsFrom = from.toInstant().toEpochMilli();
+        var toTs = to.toInstant().toEpochMilli();
+
+        for (String handler : handlers) {
+            var ts_id = bundleId + "_" + componentId + "_" + handler;
+            var i = interval * 1000;
+            resp.put(handler, jdbcTemplate.query(sql, new Object[]{tsFrom, toTs, i, i, ts_id}, (rs, rowNum) -> {
+                var pp =  new PerformancePoint();
+                pp.setTimestamp(rs.getString("ts"));
+                pp.setCount(rs.getBigDecimal("count"));
+                pp.setServiceTime(rs.getBigDecimal("value"));
+                return pp;
+            }));
+        }
+        return resp;
     }
 
 
