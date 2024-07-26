@@ -319,3 +319,21 @@ table.mxPopupMenu tr {
 ::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
+
+ion-modal {
+  --border-radius: 6px;
+  --box-shadow: 0 28px 48px rgba(0, 0, 0, 0.4)!important;
+}
+@media only screen and (min-width: 768px) and (min-height: 600px){
+  .modal-large {
+    --width: 90vw;
+    --height: 90vh;
+  }
+}
+
+@media only screen and (min-width: 768px) and (min-height: 600px){
+  .modal-medium {
+    --width: 60vw;
+    --height: 60vh;
+  }
+}

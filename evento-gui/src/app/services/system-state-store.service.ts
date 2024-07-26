@@ -8,9 +8,8 @@ export class SystemStateStoreService {
 
   constructor() { }
 
-  async searchEvents(
+  async searchEvents(parameters = {}
   ) {
-    return fetch(environment.eventoServerUrl + '/api/system-state-store/event?' + new URLSearchParams({
-    } as any).toString()).then(r => r.json());
+    return fetch(environment.eventoServerUrl + '/api/system-state-store/event?' + new URLSearchParams(parameters as any).toString()).then(r => r.json());
   }
 }

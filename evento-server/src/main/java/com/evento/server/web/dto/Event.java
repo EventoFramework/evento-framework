@@ -9,7 +9,7 @@ import java.util.Map;
 
 @Data
 public class Event {
-    private Long eventSequenceNumber;
+    private String eventSequenceNumber;
     private String eventName;
     private String aggregateId;
     private String context;
@@ -21,7 +21,7 @@ public class Event {
     public Event() {
     }
     public Event(EventStoreEntry entry) {
-        eventSequenceNumber = entry.getEventSequenceNumber();
+        eventSequenceNumber = entry.getEventSequenceNumber().toString();
         eventName = entry.getEventName();
         aggregateId = entry.getAggregateId();
         context =  entry.getContext();
