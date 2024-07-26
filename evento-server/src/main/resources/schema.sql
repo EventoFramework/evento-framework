@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS es__events
     context               varchar(100)          DEFAULT 'default',
     aggregate_id          varchar(100)          DEFAULT NULL,
     event_name            varchar(100) NOT NULL,
-    created_at            timestamp    NOT NULL default current_timestamp,
+    created_at            timestamp    NOT NULL default  (now() at time zone 'utc'),
     event_message         text         NOT NULL,
     deleted_at            timestamp             DEFAULT NULL
 );
@@ -150,14 +150,14 @@ create table if NOT EXISTS performance__handler_service_time_ts
     id        varchar(255)               not null,
     value     bigint default 0 not null,
     instance_id   varchar(255),
-    timestamp timestamp        default current_timestamp
+    timestamp bigint not null
 );
 
 create table if NOT EXISTS performance__handler_invocation_count_ts
 (
     id        varchar(255)               not null,
     instance_id   varchar(255),
-    timestamp timestamp        default current_timestamp
+    timestamp bigint not null
 );
 
 
