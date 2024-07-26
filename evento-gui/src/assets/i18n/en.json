@@ -95,5 +95,11 @@
   "dashboard.node.view.count": "Nodes in View",
   "dashboard.aggregate.count": "Aggregates",
   "dashboard.event.publication.frequency": "Event Frequency",
-  "common.open.repository": "Open Repository"
+  "common.open.repository": "Open Repository",
+  "system.state.store": "System State Store",
+  "sss.events.event.sequence.number": "Event Id",
+  "sss.events.aggregate.id": "Aggregate Id",
+  "sss.events.context": "Context",
+  "sss.events.created.at": "Timestamp",
+  "sss.events.event.name": "Name"
 }
