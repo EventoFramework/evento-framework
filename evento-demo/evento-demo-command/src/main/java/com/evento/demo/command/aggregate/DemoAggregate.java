@@ -19,7 +19,7 @@ import org.springframework.util.Assert;
 
 import java.time.Instant;
 
-@Aggregate(snapshotFrequency = 100)
+@Aggregate(snapshotFrequency = 50000)
 public class DemoAggregate {
 
 	@AggregateCommandHandler(init = true)
@@ -56,6 +56,7 @@ public class DemoAggregate {
 	DemoUpdatedEvent handle(DemoUpdateCommand command,
 							DemoAggregateState state) {
 
+		System.out.println("Previous update: " + state.getUpdateCount());
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
 		Utils.doWork(1100);
         Utils.logMethodFlow(this, "handle", command, "END");
@@ -69,6 +70,7 @@ public class DemoAggregate {
 	void on(DemoUpdatedEvent event, DemoAggregateState state) {
 		Utils.logMethodFlow(this, "on", event, "ES");
 		state.setValue(event.getValue());
+		state.setUpdateCount(state.getUpdateCount() + 1);
 	}
 
 	@AggregateCommandHandler

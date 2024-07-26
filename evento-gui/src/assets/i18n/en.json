@@ -102,5 +102,7 @@
   "sss.events.context": "Context",
   "sss.events.created.at": "Timestamp",
   "sss.events.event.name": "Name",
-  "sss.events.metadata": "Metadata"
+  "sss.events.event": "Event",
+  "sss.events.metadata": "Metadata",
+  "sss.event.detail": "Event Detail"
 }

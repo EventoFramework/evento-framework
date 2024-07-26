@@ -337,8 +337,11 @@ public class EventStore {
         }
         var snapshot = snapshotCache.get(aggregateId);
         var events = eventsCache.getOrDefault(aggregateId, new ArrayList<>());
-        var min = events.isEmpty() ? 0L : events.get(0).getEventSequenceNumber();
-        var max = events.isEmpty() ? 0L : events.get(events.size() - 1).getEventSequenceNumber();
+        var min = events.isEmpty() ? 0L : events.getFirst().getEventSequenceNumber();
+        if(snapshot != null && snapshot.getEventSequenceNumber() > min) {
+            min = 0;
+        }
+        var max = events.isEmpty() ? 0L : events.getLast().getEventSequenceNumber();
         var i = 0;
         var rs = jdbcTemplate.queryForRowSet(
                 "select event_sequence_number, event_message " +
