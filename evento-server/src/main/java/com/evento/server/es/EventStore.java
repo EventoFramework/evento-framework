@@ -12,12 +12,14 @@ import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.es.eventstore.EventStoreRepository;
 import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.es.snapshot.SnapshotRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
@@ -25,7 +27,9 @@ import org.springframework.util.Assert;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -87,6 +91,65 @@ public class EventStore {
         }
         logger.info("Aggregate Snapshot Cache Size: {}", aggregateSnapshotCacheSize);
         logger.info("Aggregate Story Cache Size: {}", aggregateEventsCacheSize);
+
+    }
+
+    public Page<EventStoreEntry> searchEvents(String aggregateIdentifier,
+                                              String eventName, String context,
+                                              Integer eventSequenceNumber,
+                                              Timestamp createdAtFrom,
+                                              Timestamp createdAtTo,
+                                              String contentQuery,
+                                              int page,
+                                              int size,
+                                              Sort.Direction sort,
+                                              String sortBy) {
+
+        var predicates = new ArrayList<Specification<EventStoreEntry>>();
+
+        if(aggregateIdentifier != null && !aggregateIdentifier.isBlank()){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("aggregateId"),aggregateIdentifier)
+            );
+        }
+
+        if(eventName != null && !eventName.isBlank()){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("eventName"),eventName)
+            );
+        }
+
+        if(eventSequenceNumber != null ){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("eventSequenceNumber"),eventSequenceNumber)
+            );
+        }
+
+        if(createdAtFrom != null ){
+            predicates.add(
+                    (r,o,cb) -> cb.greaterThanOrEqualTo(r.get("createdAt"),createdAtTo)
+            );
+        }
+
+        if(createdAtTo != null ){
+            predicates.add(
+                    (r,o,cb) -> cb.lessThanOrEqualTo(r.get("createdAt"),createdAtFrom)
+            );
+        }
+
+        if(contentQuery != null  && !contentQuery.isBlank() ){
+            predicates.add(
+                    (r,o,cb) -> cb.like(r.get("eventMessage"),contentQuery)
+            );
+        }
+
+        return eventStoreRepository.findAll(
+                Specification.allOf(predicates),
+                PageRequest.of(page, size, Sort.by(sort, sortBy))
+        );
+
+
+
 
     }
 
