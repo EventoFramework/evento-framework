@@ -101,5 +101,6 @@
   "sss.events.aggregate.id": "Aggregate Id",
   "sss.events.context": "Context",
   "sss.events.created.at": "Timestamp",
-  "sss.events.event.name": "Name"
+  "sss.events.event.name": "Name",
+  "sss.events.metadata": "Metadata"
 }
