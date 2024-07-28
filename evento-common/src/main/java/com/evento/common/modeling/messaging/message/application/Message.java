@@ -1,7 +1,7 @@
 package com.evento.common.modeling.messaging.message.application;
 
 import com.evento.common.modeling.messaging.payload.Payload;
-import com.evento.common.modeling.messaging.payload.PayloadWithContext;
+import com.evento.common.modeling.messaging.payload.TrackablePayload;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -31,7 +31,7 @@ public abstract class Message<T extends Payload> implements Serializable {
 	public Message(T payload) {
 		this.serializedPayload = new SerializedPayload<>(payload);
 		this.timestamp = Instant.now().toEpochMilli();
-		if(payload instanceof PayloadWithContext pc){
+		if(payload instanceof TrackablePayload pc){
 			setForceTelemetry(pc.isForceTelemetry());
 		}
 	}

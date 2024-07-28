@@ -153,12 +153,35 @@ create table if NOT EXISTS performance__handler_service_time_ts
     timestamp bigint not null
 );
 
+create index if not exists performance__handler_service_time_ts_id_timestamp_index
+    on performance__handler_service_time_ts (id asc, timestamp desc);
+
 create table if NOT EXISTS performance__handler_invocation_count_ts
 (
     id        varchar(255)               not null,
     instance_id   varchar(255),
     timestamp bigint not null
 );
+
+create index if not exists performance__handler_invocation_count_ts_id_timestamp_index
+    on performance__handler_invocation_count_ts (id asc, timestamp desc);
+
+create table if NOT EXISTS performance__aggregate_handler_invocation_count_ts
+(
+    id        varchar(255)               not null,
+    aggregate_id        varchar(255)               not null,
+    instance_id   varchar(255),
+    timestamp bigint not null,
+    total bigint not null,
+    lock bigint not null,
+    retrieve bigint not null,
+    compute bigint not null,
+    publish bigint not null
+);
+
+create index if not exists  performance__agg_handler_invocation_count_ts_timestamp_index
+    on performance__aggregate_handler_invocation_count_ts (id asc, timestamp desc);
+
 
 
 create index if not exists es__events_aggregate_id_event_sequence_number_index

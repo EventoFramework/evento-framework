@@ -7,7 +7,7 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.payload.Command;
 import com.evento.common.modeling.messaging.payload.Payload;
-import com.evento.common.modeling.messaging.payload.PayloadWithContext;
+import com.evento.common.modeling.messaging.payload.TrackablePayload;
 import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.performance.PerformanceService;
@@ -155,7 +155,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     private void updateInvocationCounter(Payload message) {
         invocationCounter.putIfAbsent(message.getClass().getSimpleName(), new AtomicInteger());
         invocationCounter.get(message.getClass().getSimpleName()).incrementAndGet();
-        if(message instanceof PayloadWithContext c) {
+        if(message instanceof TrackablePayload c) {
             forceTelemetry = forceTelemetry || c.isForceTelemetry();
         }
     }
