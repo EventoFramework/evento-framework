@@ -178,7 +178,11 @@ public class PerformanceStoreService extends PerformanceService {
     }
 
 
-    public void sendAggregateServiceTimeMetric(String bundle, String instance, String component,
+    public void sendAggregateServiceTimeMetric(String bundle, String instance,
+                                               String sourceBundle,
+                                               String sourceInstance,
+                                               long eventSequenceNumber,
+                                               String component,
                                                String commandName, Instant start,
                                                Instant lockAcquired, Instant retrieveDone,
                                                Instant computationDone, Instant published,
@@ -190,10 +194,13 @@ public class PerformanceStoreService extends PerformanceService {
             try {
                 jdbcTemplate.update(
                         "insert into performance__aggregate_handler_invocation_count_ts " +
-                                "values (?,?,?,?,?,?,?,?,?)",
+                                "values (?,?,?,?,?,?,?,?,?,?,?,?)",
                         bundle + "_" + component + "_" + commandName,
                         aggregateId,
+                        eventSequenceNumber,
                         instance,
+                        sourceBundle,
+                        sourceInstance,
                         start.toEpochMilli(),
                         published.toEpochMilli() - start.toEpochMilli(),
                         lockAcquired.toEpochMilli() - start.toEpochMilli(),

@@ -245,8 +245,9 @@ public class EventStore {
         return v == null ? 0 : v;
     }
 
-    public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
+    public long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
+        var id = snowflake.nextId();
         try {
             if (MODE == EventStoreMode.APES) {
                 jdbcTemplate.update(
@@ -254,7 +255,7 @@ public class EventStore {
                                 "(event_sequence_number," +
                                 "aggregate_id, event_message, event_name, context) " +
                                 "values  (?, ?, ?, ?, ?)",
-                        snowflake.nextId(),
+                        id,
                         aggregateId,
                         mapper.writeValueAsString(eventMessage),
                         eventMessage.getEventName(),
@@ -262,10 +263,13 @@ public class EventStore {
                 );
             } else {
                 acquire(ES_LOCK);
+                id = jdbcTemplate.queryForRowSet("select nextval('event_sequence_number_serial') as event_sequence_number")
+                        .getLong("event_sequence_number");
                 jdbcTemplate.update(
                         "INSERT INTO es__events " +
                                 "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
-                                "values  (nextval('event_sequence_number_serial') ,?, ?, ?, ?)",
+                                "values  (? ,?, ?, ?, ?)",
+                        id,
                         aggregateId,
                         mapper.writeValueAsString(eventMessage),
                         eventMessage.getEventName(),
@@ -276,6 +280,7 @@ public class EventStore {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+        return id;
     }
 
     public Long getLastAggregateSequenceNumber(String aggregateId) {
