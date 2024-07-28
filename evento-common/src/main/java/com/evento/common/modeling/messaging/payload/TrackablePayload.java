@@ -10,17 +10,6 @@ public abstract class TrackablePayload implements Payload {
 
     private boolean forceTelemetry = false;
 
-    /**
-     * Returns the aggregate ID associated with this payload.
-     *
-     * The aggregate ID is a unique identifier assigned to an aggregation of related objects.
-     * It is used to group together objects that should be treated as a single unit in the system.
-     *
-     * @return the aggregate ID as a string
-     *
-     * @see TrackablePayload
-     */
-    public abstract String getAggregateId();
 
     /**
      * Checks if telemetry is forced for the current payload.

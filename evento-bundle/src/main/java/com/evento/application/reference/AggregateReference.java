@@ -153,9 +153,6 @@ public class AggregateReference extends Reference {
             state = envelope.getAggregateState();
         }
         envelope.setAggregateState(state);
-        if(resp.getAggregateId() == null){
-            return resp.setAggregateId(cm.getPayload());
-        }
         return resp;
     }
 
