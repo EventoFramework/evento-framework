@@ -298,7 +298,7 @@ public class MessageBus {
                     try {
                         var invocation = new DecoratedDomainCommandMessage();
                         invocation.setCommandMessage(c);
-                        var story = eventStore.fetchAggregateStory(c.getAggregateId(), c.isInvalidateAggregateCaches());
+                        var story = eventStore.fetchAggregateStory(c.getAggregateId(), c.isInvalidateAggregateCaches(), c.isInvalidateAggregateSnapshot());
                         invocation.setSerializedAggregateState(story.state());
                         invocation.setEventStream(story.events());
                         performanceStoreService.sendServiceTimeMetric(
