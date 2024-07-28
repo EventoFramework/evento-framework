@@ -26,4 +26,22 @@ export class PerformanceService {
       serviceTimeAggregationFunction
     } as any).toString()).then(r => r.json());
   }
+
+  async getAggregatePerformanceTs(
+    bundleId: string,
+    componentId: string,
+    from: string,
+    to: string,
+    interval: number,
+    serviceTimeAggregationFunction: string
+  ) {
+    return fetch(environment.eventoServerUrl + '/api/performance/aggregate?' + new URLSearchParams({
+      bundleId,
+      componentId,
+      from,
+      to,
+      interval,
+      serviceTimeAggregationFunction
+    } as any).toString()).then(r => r.json());
+  }
 }

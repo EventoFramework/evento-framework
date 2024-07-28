@@ -10,6 +10,7 @@ import {RouterLink} from "@angular/router";
 import {ComponentTelemetryComponent} from "./component-telemetry/component-telemetry.component";
 import {NgApexchartsModule} from "ng-apexcharts";
 import {FormsModule} from "@angular/forms";
+import {AggregateTelemetryComponent} from "./aggregate-telemetry/aggregate-telemetry.component";
 
 
 @NgModule({
@@ -27,7 +28,8 @@ import {FormsModule} from "@angular/forms";
     ComponentHandlersDiagramComponent,
     BundleComponentsDiagramComponent,
     ApplicationGraphDiagramComponent,
-    ComponentTelemetryComponent
+    ComponentTelemetryComponent,
+    AggregateTelemetryComponent
   ],
   imports: [
     IonicModule,
@@ -42,7 +44,8 @@ import {FormsModule} from "@angular/forms";
     ComponentHandlersDiagramComponent,
     BundleComponentsDiagramComponent,
     ApplicationGraphDiagramComponent,
-    ComponentTelemetryComponent]
+    ComponentTelemetryComponent,
+  AggregateTelemetryComponent]
 })
 export class ComponentsModule {
 }
