@@ -19,11 +19,13 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -325,33 +327,72 @@ public class EventStore {
         }
     }
 
-    public AggregateStory fetchAggregateStory(String aggregateId, boolean invalidateAggregateCaches) {
+    /**
+     * Fetches the aggregate story for a given aggregate ID.
+     *
+     * @param aggregateId The ID of the aggregate.
+     * @param invalidateAggregateCaches A flag indicating whether to invalidate the aggregate caches.
+     * @param invalidateAggregateSnapshot A flag indicating whether to invalidate the aggregate snapshot.
+     * @return The aggregate story, consisting of the serialized aggregate state and a list of domain events.
+     */
+    public AggregateStory fetchAggregateStory(String aggregateId,
+                                              boolean invalidateAggregateCaches,
+                                              boolean invalidateAggregateSnapshot) {
         Assert.isTrue(aggregateId != null, "getAggregateId() return null!");
         if(invalidateAggregateCaches){
             snapshotCache.remove(aggregateId);
             eventsCache.remove(aggregateId);
         }
-        if (!snapshotCache.containsKey(aggregateId)) {
+        if (!invalidateAggregateSnapshot && !snapshotCache.containsKey(aggregateId)) {
             snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
         }
-        var snapshot = snapshotCache.get(aggregateId);
+        var snapshot = invalidateAggregateSnapshot ? null :  snapshotCache.get(aggregateId);
         var events = eventsCache.getOrDefault(aggregateId, new ArrayList<>());
+        SqlRowSet rs;
+        var max = 0L;
         var min = events.isEmpty() ? 0L : events.getFirst().getEventSequenceNumber();
-        if(snapshot != null && snapshot.getEventSequenceNumber() > min) {
-            min = 0;
+        if(snapshot == null){
+            max = events.isEmpty() ? 0L : events.getLast().getEventSequenceNumber();
+            rs = jdbcTemplate.queryForRowSet(
+                    "select event_sequence_number, event_message " +
+                            "from es__events " +
+                            "where aggregate_id = ? " +
+                            "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) " +
+                            "order by event_sequence_number",
+                    aggregateId,
+                    min,
+                    max
+            );
+
+        }else{
+            max = events.isEmpty() ? snapshot.getEventSequenceNumber() : events.getLast().getEventSequenceNumber();
+            if(snapshot.getEventSequenceNumber() < min){
+                rs = jdbcTemplate.queryForRowSet(
+                        "select event_sequence_number, event_message " +
+                                "from es__events " +
+                                "where aggregate_id = ? " +
+                                "and ((es__events.event_sequence_number > ? and es__events.event_sequence_number < ?) or (es__events.event_sequence_number > ?)) " +
+                                "order by event_sequence_number",
+                        aggregateId,
+                        snapshot.getEventSequenceNumber(),
+                        events.getFirst().getEventSequenceNumber(),
+                        max
+                );
+
+            }else{
+                rs = jdbcTemplate.queryForRowSet(
+                        "select event_sequence_number, event_message " +
+                                "from es__events " +
+                                "where aggregate_id = ? " +
+                                "and es__events.event_sequence_number > ? " +
+                                "order by event_sequence_number",
+                        aggregateId,
+                        max
+                );
+            }
         }
-        var max = events.isEmpty() ? 0L : events.getLast().getEventSequenceNumber();
+
         var i = 0;
-        var rs = jdbcTemplate.queryForRowSet(
-                "select event_sequence_number, event_message " +
-                        "from es__events " +
-                        "where aggregate_id = ? " +
-                        "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) " +
-                        "order by event_sequence_number",
-                aggregateId,
-                min,
-                max
-        );
         while (true) {
             try {
                 if (!rs.next()) break;

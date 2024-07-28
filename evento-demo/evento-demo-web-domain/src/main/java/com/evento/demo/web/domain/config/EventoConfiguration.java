@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -67,8 +68,9 @@ public class EventoConfiguration {
                                 .map(ServletRequestAttributes.class::cast)
                                 .map(ServletRequestAttributes::getRequest)
                                 .ifPresent(r -> {
-                                    finalMetadata.invalidateCache(r.getHeader("Invalidate-Evento-Cache").equals("true"));
-                                    finalMetadata.forceTelemetry(r.getHeader("Force-Evento-Telemetry").equals("true"));
+                                    finalMetadata.invalidateCache(Objects.equals(r.getHeader("Invalidate-Evento-Cache"),"true"));
+                                    finalMetadata.forceTelemetry(Objects.equals(r.getHeader("Force-Evento-Telemetry"),"true"));
+                                    finalMetadata.invalidateAggregateSnapshot(Objects.equals(r.getHeader("Invalidate-Evento-Aggregate-Snapshot"),"true"));
                                 });
                         return super.send(command, metadata, handledMessage);
                     }
@@ -85,7 +87,6 @@ public class EventoConfiguration {
                                 .map(ServletRequestAttributes.class::cast)
                                 .map(ServletRequestAttributes::getRequest)
                                 .ifPresent(r -> {
-                                    finalMetadata.invalidateCache(r.getHeader("Invalidate-Evento-Cache").equals("true"));
                                     finalMetadata.forceTelemetry(r.getHeader("Force-Evento-Telemetry").equals("true"));
                                 });
                         return super.query(query, metadata, handledMessage);
