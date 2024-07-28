@@ -170,7 +170,10 @@ create table if NOT EXISTS performance__aggregate_handler_invocation_count_ts
 (
     id        varchar(255)               not null,
     aggregate_id        varchar(255)               not null,
+    event_sequence_number bigint not null,
     instance_id   varchar(255),
+    source_bundle_id   varchar(255),
+    source_instance_id   varchar(255),
     timestamp bigint not null,
     total bigint not null,
     lock bigint not null,
