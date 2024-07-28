@@ -285,11 +285,20 @@ public class MessageBus {
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
+                    if(lockId != null)
+                        performanceStoreService.sendServiceTimeMetric(
+                                SERVER,
+                                instanceId,
+                                LOCK_COMPONENT,
+                                c,
+                                start,
+                                c.isForceTelemetry()
+                        );
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         var invocation = new DecoratedDomainCommandMessage();
                         invocation.setCommandMessage(c);
-                        var story = eventStore.fetchAggregateStory(c.getAggregateId());
+                        var story = eventStore.fetchAggregateStory(c.getAggregateId(), c.isInvalidateAggregateCaches());
                         invocation.setSerializedAggregateState(story.state());
                         invocation.setEventStream(story.events());
                         performanceStoreService.sendServiceTimeMetric(
@@ -297,7 +306,8 @@ public class MessageBus {
                                 instanceId,
                                 GATEWAY_COMPONENT,
                                 c,
-                                start
+                                start,
+                                c.isForceTelemetry()
                         );
                         var invocationStart = PerformanceStoreService.now();
                         message.setBody(invocation);
@@ -308,10 +318,12 @@ public class MessageBus {
                                         dest.instanceId(),
                                         getComponent(c.getCommandName()),
                                         c,
-                                        invocationStart
+                                        invocationStart,
+                                        c.isForceTelemetry()
                                 );
                                 if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
                                     var esStoreStart = PerformanceStoreService.now();
+                                    cr.getDomainEventMessage().setForceTelemetry(c.isForceTelemetry());
                                     eventStore.publishEvent(cr.getDomainEventMessage(),
                                             c.getAggregateId());
                                     if (cr.getSerializedAggregateState() != null) {
@@ -329,7 +341,8 @@ public class MessageBus {
                                             instanceId,
                                             EVENT_STORE_COMPONENT,
                                             cr.getDomainEventMessage(),
-                                            esStoreStart
+                                            esStoreStart,
+                                            c.isForceTelemetry()
                                     );
                                     resp.setBody(cr.getDomainEventMessage().getSerializedPayload().getSerializedObject());
                                 }
@@ -359,6 +372,15 @@ public class MessageBus {
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
+                    if(lockId != null)
+                        performanceStoreService.sendServiceTimeMetric(
+                                SERVER,
+                                instanceId,
+                                LOCK_COMPONENT,
+                                c,
+                                start,
+                                c.isForceTelemetry()
+                        );
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         forward(message, dest, resp -> {
@@ -368,19 +390,22 @@ public class MessageBus {
                                         dest.instanceId(),
                                         getComponent(c.getCommandName()),
                                         c,
-                                        start
+                                        start,
+                                        c.isForceTelemetry()
                                 );
                                 if (resp.getBody() instanceof EventMessage<?> event) {
                                     if (event.getSerializedPayload().getObjectClass() != null) {
+                                        event.setForceTelemetry(c.isForceTelemetry());
                                         var esStoreStart = PerformanceStoreService.now();
-                                        eventStore.publishEvent((EventMessage<?>) resp.getBody(),
+                                        eventStore.publishEvent(event,
                                                 c.getAggregateId());
                                         performanceStoreService.sendServiceTimeMetric(
                                                 EVENT_STORE,
                                                 instanceId,
                                                 EVENT_STORE_COMPONENT,
                                                 event,
-                                                esStoreStart
+                                                esStoreStart,
+                                                c.isForceTelemetry()
                                         );
                                     }
                                     resp.setBody(event.getSerializedPayload().getSerializedObject());
@@ -415,7 +440,8 @@ public class MessageBus {
                                         dest.instanceId(),
                                         getComponent(q.getQueryName()),
                                         q,
-                                        invocationStart
+                                        invocationStart,
+                                        q.isForceTelemetry()
                                 );
                                 sendResponse.accept(resp);
                             }

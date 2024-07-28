@@ -9,6 +9,8 @@ import com.evento.common.modeling.messaging.payload.DomainCommand;
  */
 public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 
+	private boolean invalidateAggregateCaches = false;
+
 	/**
 	 * Constructs a new DomainCommandMessage with the given DomainCommand.
 	 *
@@ -28,4 +30,19 @@ public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 	}
 
 
+	/**
+	 * Determines whether to invalidate the cached data of an aggregate.
+	 *
+	 * @return True if the cached data of the aggregate should be invalidated, False otherwise.
+	 */
+	public boolean isInvalidateAggregateCaches() {
+		return invalidateAggregateCaches;
+	}
+
+	/**
+	 * Determines whether to invalidate the cached data of an aggregate.
+	 */
+	public void setInvalidateAggregateCaches(boolean invalidateAggregateCaches) {
+		this.invalidateAggregateCaches = invalidateAggregateCaches;
+	}
 }

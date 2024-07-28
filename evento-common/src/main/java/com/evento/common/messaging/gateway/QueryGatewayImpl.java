@@ -1,6 +1,7 @@
 package com.evento.common.messaging.gateway;
 
 import com.evento.common.messaging.bus.EventoServer;
+import com.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;
@@ -43,6 +44,9 @@ public class QueryGatewayImpl implements QueryGateway {
 		{
 			var message = new QueryMessage<>((query));
 			message.setMetadata(metadata);
+			if(metadata != null) {
+				message.setForceTelemetry(metadata.isTelemetryForced());
+			}
 			return eventoServer.request(message).thenApply(r -> ((T) ((SerializedQueryResponse<?>) r).getObject()));
 		} catch (Exception e)
 		{
