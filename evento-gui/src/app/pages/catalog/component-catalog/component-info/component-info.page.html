@@ -33,7 +33,13 @@
               <ion-title class="ion-padding-bottom" style="font-weight: bold"
                          translate="component.handlers.consume.produce.diagram"></ion-title>
               <app-component-handlers-diagram [component]="component"></app-component-handlers-diagram>
-              <app-component-telemetry [component]="component"></app-component-telemetry>
+              @if(component.componentType == 'Aggregate'){
+                <app-aggregate-telemetry [component]="component"></app-aggregate-telemetry>
+
+              }@else{
+                <app-component-telemetry [component]="component"></app-component-telemetry>
+
+              }
             </ion-col>
           </ion-row>
 
