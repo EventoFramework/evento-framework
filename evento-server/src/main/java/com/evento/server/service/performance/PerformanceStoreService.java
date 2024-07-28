@@ -17,14 +17,10 @@ import com.evento.server.service.performance.model.PerformancePoint;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Collection;
@@ -182,6 +178,39 @@ public class PerformanceStoreService extends PerformanceService {
     }
 
 
+    public void sendAggregateServiceTimeMetric(String bundle, String instance, String component,
+                                               String commandName, Instant start,
+                                               Instant lockAcquired, Instant retrieveDone,
+                                               Instant computationDone, Instant published,
+                                               String aggregateId, boolean force) {
+        if (!force)
+            if (super.random.nextDouble(0.0, 1.0) > super.performanceRate) return;
+
+        executor.execute(() -> {
+            try {
+                jdbcTemplate.update(
+                        "insert into performance__aggregate_handler_invocation_count_ts " +
+                                "values (?,?,?,?,?,?,?,?,?)",
+                        bundle + "_" + component + "_" + commandName,
+                        aggregateId,
+                        instance,
+                        start.toEpochMilli(),
+                        published.toEpochMilli() - start.toEpochMilli(),
+                        lockAcquired.toEpochMilli() - start.toEpochMilli(),
+                        retrieveDone.toEpochMilli() - lockAcquired.toEpochMilli(),
+                        computationDone.toEpochMilli() - retrieveDone.toEpochMilli(),
+                        published.toEpochMilli() - computationDone.toEpochMilli()
+                )
+                ;
+            } catch (Exception e) {
+                logger.error("Error during aggregatePerformance Save", e);
+            }
+        });
+
+
+    }
+
+
     public Double getInvocationProbability(String bundle, String component, String action, String payload) {
         return handlerInvocationCountPerformanceRepository.findById(bundle + "_" + component + "_" + action + "_" + payload).map(
                 HandlerInvocationCountPerformance::getMeanProbability
@@ -252,44 +281,28 @@ public class PerformanceStoreService extends PerformanceService {
     }
 
     public Map<String, Collection<AggregatePerformancePoint>> getAggregatePerformance(String bundleId,
-                                                                             String componentId,
-                                                                             AggregationFunction serviceTimeAggregationFunction,
-                                                                             @RequestParam(defaultValue = "60") Integer interval,
-                                                                             ZonedDateTime from,
-                                                                             ZonedDateTime to) {
+                                                                                      String componentId,
+                                                                                      AggregationFunction serviceTimeAggregationFunction,
+                                                                                      @RequestParam(defaultValue = "60") Integer interval,
+                                                                                      ZonedDateTime from,
+                                                                                      ZonedDateTime to) {
 
         var sql = "SELECT to_timestamp(gs.interval_start / 1000) as ts, " +
                 "       COALESCE(COUNT(handler.id), 0) AS count, " +
-                "      " + serviceTimeAggregationFunction + "(handler.value) AS serviceTime, " +
-                "      " + serviceTimeAggregationFunction + "(eventStore.value) AS store, " +
-                "      " + serviceTimeAggregationFunction + "(server.value) AS retrieve, " +
-                "      " + serviceTimeAggregationFunction + "(lock.value) AS lock " +
+                "      " + serviceTimeAggregationFunction + "(handler.compute) AS compute, " +
+                "      " + serviceTimeAggregationFunction + "(handler.publish) AS publish, " +
+                "      " + serviceTimeAggregationFunction + "(handler.retrieve) AS retrieve, " +
+                "      " + serviceTimeAggregationFunction + "(handler.lock) AS lock " +
                 "FROM generate_series( " +
                 "             ?::bigint, " +
                 "             ?::bigint, " +
                 "             ? " +
                 "     ) AS gs(interval_start) " +
-                "         LEFT JOIN performance__handler_service_time_ts handler " +
+                "         LEFT JOIN performance__aggregate_handler_invocation_count_ts handler " +
                 "                   ON handler.timestamp >= gs.interval_start " +
                 "                       AND handler.timestamp < gs.interval_start + " +
                 "                                               ? " +
                 "AND handler.id = ? " +
-                "         LEFT JOIN performance__handler_service_time_ts eventStore " +
-                "                   ON eventStore.timestamp >= gs.interval_start " +
-                "                       AND eventStore.timestamp < gs.interval_start + " +
-                "                                                  ? " +
-                "                       AND eventStore.id = ? " +
-                " " +
-                "         LEFT JOIN performance__handler_service_time_ts server " +
-                "                   ON server.timestamp >= gs.interval_start " +
-                "                       AND server.timestamp < gs.interval_start + " +
-                "                                                  ?" +
-                "                       AND server.id = ? " +
-                "         LEFT JOIN performance__handler_service_time_ts lock " +
-                "                   ON lock.timestamp >= gs.interval_start " +
-                "                       AND lock.timestamp < gs.interval_start + " +
-                "                                              ? " +
-                "                       AND lock.id = ? " +
                 "GROUP BY gs.interval_start " +
                 "ORDER BY gs.interval_start;";
         var resp = new HashMap<String, Collection<AggregatePerformancePoint>>();
@@ -299,20 +312,16 @@ public class PerformanceStoreService extends PerformanceService {
         var toTs = to.toInstant().toEpochMilli();
 
         for (var handler : handlers) {
-            if(handler.getHandlerType() != HandlerType.AggregateCommandHandler) continue;
-            var serviceTimeTs = bundleId + "_" + componentId + "_" + handler.getHandledPayload().getName();
-            var eventPublicationTs = EVENT_STORE + "_" + EVENT_STORE_COMPONENT + "_" + handler.getReturnType().getName();
-            var aggregateRetrieveTs = SERVER + "_" + GATEWAY_COMPONENT + "_" + handler.getHandledPayload().getName();
-            var aggregateLockTs = SERVER + "_" + LOCK_COMPONENT + "_" + handler.getHandledPayload().getName();
+            if (handler.getHandlerType() != HandlerType.AggregateCommandHandler) continue;
+            var id = bundleId + "_" + componentId + "_" + handler.getHandledPayload().getName();
             var i = interval * 1000;
-            resp.put(handler.getHandledPayload().getName(), jdbcTemplate.query(sql, new Object[]{tsFrom, toTs, i, i, serviceTimeTs,
-                    i, eventPublicationTs, i, aggregateRetrieveTs, i, aggregateLockTs
+            resp.put(handler.getHandledPayload().getName(), jdbcTemplate.query(sql, new Object[]{tsFrom, toTs, i, i, id
             }, (rs, rowNum) -> {
                 var pp = new AggregatePerformancePoint();
                 pp.setTimestamp(rs.getString("ts"));
                 pp.setCount(rs.getBigDecimal("count"));
-                pp.setServiceTime(rs.getBigDecimal("serviceTime"));
-                pp.setStore(rs.getBigDecimal("store"));
+                pp.setServiceTime(rs.getBigDecimal("compute"));
+                pp.setStore(rs.getBigDecimal("publish"));
                 pp.setRetrieve(rs.getBigDecimal("retrieve"));
                 pp.setLock(rs.getBigDecimal("lock"));
                 return pp;
@@ -328,5 +337,7 @@ public class PerformanceStoreService extends PerformanceService {
         var delta = Instant.now().toEpochMilli() - (ttl * 24L * 60L * 60L * 1000L);
         jdbcTemplate.update("delete from performance__handler_service_time_ts where timestamp < ?", delta);
         jdbcTemplate.update("delete from performance__handler_invocation_count_ts where timestamp < ?", delta);
+        jdbcTemplate.update("delete from performance__aggregate_handler_invocation_count_ts where timestamp < ?", delta);
     }
+
 }

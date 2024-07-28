@@ -11,7 +11,7 @@ import java.lang.reflect.ParameterizedType;
  *
  * @param <T> The type of QueryResponse expected as the response.
  */
-public abstract class Query<T extends QueryResponse<?>> extends PayloadWithContext {
+public abstract class Query<T extends QueryResponse<?>> extends TrackablePayload {
 
 	private String aggregateId = null;
 
@@ -43,7 +43,7 @@ public abstract class Query<T extends QueryResponse<?>> extends PayloadWithConte
 	 * @return the query itself with the aggregate ID set
 	 */
 	@SuppressWarnings("unchecked")
-	public <T extends Query<?>> T setAggregateId(PayloadWithContext payload) {
+	public <T extends Query<?>> T setAggregateId(TrackablePayload payload) {
 		this.aggregateId = payload.getAggregateId();
 		return (T) this;
 	}
