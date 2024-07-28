@@ -19,7 +19,7 @@ import org.springframework.util.Assert;
 
 import java.time.Instant;
 
-@Aggregate(snapshotFrequency = 50000)
+@Aggregate(snapshotFrequency = 500000)
 public class DemoAggregate {
 
 	@AggregateCommandHandler(init = true)

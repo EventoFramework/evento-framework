@@ -1,0 +1,10 @@
+PUT http://localhost:9001/api/demo/001
+Content-Type: application/json
+Invalidate-Evento-Cache: false
+Force-Evento-Telemetry: true
+
+{
+  "demoId": "001",
+  "name": "aaa",
+  "value": 9
+}

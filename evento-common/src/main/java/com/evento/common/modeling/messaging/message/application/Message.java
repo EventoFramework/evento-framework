@@ -20,6 +20,8 @@ public abstract class Message<T extends Payload> implements Serializable {
 
 	private Metadata metadata;
 
+	private boolean forceTelemetry = false;
+
 	/**
 	 * Constructs a new Message object with the given payload.
 	 *
@@ -126,5 +128,23 @@ public abstract class Message<T extends Payload> implements Serializable {
 	 */
 	public void setTimestamp(long timestamp) {
 		this.timestamp = timestamp;
+	}
+
+	/**
+	 * Retrieves the value indicating whether force telemetry is enabled for the message.
+	 *
+	 * @return True if force telemetry is enabled, False otherwise.
+	 */
+	public boolean isForceTelemetry() {
+		return forceTelemetry;
+	}
+
+	/**
+	 * Sets the value indicating whether force telemetry is enabled for the message.
+	 *
+	 * @param forceTelemetry True to enable force telemetry, False to disable it.
+	 */
+	public void setForceTelemetry(boolean forceTelemetry) {
+		this.forceTelemetry = forceTelemetry;
 	}
 }

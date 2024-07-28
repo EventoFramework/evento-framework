@@ -6,13 +6,11 @@ import com.evento.common.modeling.messaging.message.application.DomainEventMessa
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 import com.evento.common.modeling.state.SerializedAggregateState;
 import com.evento.common.serialization.ObjectMapperUtils;
-import com.evento.common.utils.Context;
 import com.evento.common.utils.Snowflake;
 import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.es.eventstore.EventStoreRepository;
 import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.es.snapshot.SnapshotRepository;
-import jakarta.persistence.criteria.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,7 +27,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -38,8 +35,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -330,8 +325,12 @@ public class EventStore {
         }
     }
 
-    public AggregateStory fetchAggregateStory(String aggregateId) {
+    public AggregateStory fetchAggregateStory(String aggregateId, boolean invalidateAggregateCaches) {
         Assert.isTrue(aggregateId != null, "getAggregateId() return null!");
+        if(invalidateAggregateCaches){
+            snapshotCache.remove(aggregateId);
+            eventsCache.remove(aggregateId);
+        }
         if (!snapshotCache.containsKey(aggregateId)) {
             snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
         }

@@ -160,12 +160,13 @@ public class EventoServerClient implements EventoServer {
         message.setSourceInstanceId(instanceId);
         message.setCorrelationId(UUID.randomUUID().toString());
         message.setBody(request);
+        message.setTimestamp(Instant.now().toEpochMilli());
         correlations.put(message.getCorrelationId(), new Correlation<T>(message, future));
+
 
         future = future.whenComplete((t, throwable) -> correlations.remove(message.getCorrelationId()));
 
         try {
-            message.setTimestamp(Instant.now().toEpochMilli());
             clusterConnection.send(message);
         } catch (Exception e) {
             correlations.remove(message.getCorrelationId());
