@@ -1,5 +1,6 @@
 package com.evento.server.web;
 
+import com.evento.server.service.performance.model.AggregatePerformancePoint;
 import com.evento.server.service.performance.model.AggregationFunction;
 import com.evento.server.service.performance.PerformanceStoreService;
 import com.evento.server.service.performance.model.PerformancePoint;
@@ -34,6 +35,26 @@ public class PerformanceController {
             ZonedDateTime to
     ){
         return performanceStoreService.getComponentPerformance(
+                bundleId,
+                componentId,
+                serviceTimeAggregationFunction,
+                interval,
+                from,
+                to
+        );
+    }
+
+    @GetMapping("/aggregate")
+    @Secured("ROLE_WEB")
+    public Map<String, Collection<AggregatePerformancePoint>> getAggregatePerformances(
+            String bundleId,
+            String componentId,
+            @RequestParam(defaultValue = "AVG") AggregationFunction serviceTimeAggregationFunction,
+            @RequestParam(defaultValue = "60") Integer interval,
+            ZonedDateTime from,
+            ZonedDateTime to
+    ){
+        return performanceStoreService.getAggregatePerformance(
                 bundleId,
                 componentId,
                 serviceTimeAggregationFunction,
