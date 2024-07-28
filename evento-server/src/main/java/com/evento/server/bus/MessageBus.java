@@ -319,12 +319,12 @@ public class MessageBus {
                                 );
                                 if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
                                     cr.getDomainEventMessage().setForceTelemetry(c.isForceTelemetry());
-                                    eventStore.publishEvent(cr.getDomainEventMessage(),
+                                    var eventSequenceNumber = eventStore.publishEvent(cr.getDomainEventMessage(),
                                             c.getAggregateId());
                                     if (cr.getSerializedAggregateState() != null) {
                                         eventStore.saveSnapshot(
                                                 c.getAggregateId(),
-                                                eventStore.getLastAggregateSequenceNumber(c.getAggregateId()),
+                                                eventSequenceNumber,
                                                 cr.getSerializedAggregateState()
                                         );
                                     }
@@ -343,6 +343,9 @@ public class MessageBus {
                                     performanceStoreService.sendAggregateServiceTimeMetric(
                                             dest.bundleId(),
                                             dest.instanceId(),
+                                            message.getSourceBundleId(),
+                                            message.getSourceInstanceId(),
+                                            eventSequenceNumber,
                                             getComponent(c.getCommandName()),
                                             c.getCommandName(),
                                             start,
