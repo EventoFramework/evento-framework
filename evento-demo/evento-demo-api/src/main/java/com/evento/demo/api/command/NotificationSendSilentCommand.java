@@ -4,7 +4,7 @@ import com.evento.common.modeling.messaging.payload.ServiceCommand;
 
 import java.util.UUID;
 
-public class NotificationSendSilentCommand implements ServiceCommand {
+public class NotificationSendSilentCommand extends ServiceCommand {
 	private String body;
 
 	private String lockId = "NOTIFY_" + UUID.randomUUID();

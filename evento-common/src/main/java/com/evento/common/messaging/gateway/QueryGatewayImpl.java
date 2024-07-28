@@ -44,9 +44,6 @@ public class QueryGatewayImpl implements QueryGateway {
 		{
 			var message = new QueryMessage<>((query));
 			message.setMetadata(metadata);
-			if(metadata != null) {
-				message.setForceTelemetry(metadata.isTelemetryForced());
-			}
 			return eventoServer.request(message).thenApply(r -> ((T) ((SerializedQueryResponse<?>) r).getObject()));
 		} catch (Exception e)
 		{

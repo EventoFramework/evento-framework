@@ -7,6 +7,7 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.payload.Command;
 import com.evento.common.modeling.messaging.payload.Payload;
+import com.evento.common.modeling.messaging.payload.PayloadWithContext;
 import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.performance.PerformanceService;
@@ -70,79 +71,79 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
     @Override
     public <R> R sendAndWait(Command command) {
-        updateInvocationCounter(command, null);
+        updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
     }
 
     @Override
     public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
-        updateInvocationCounter(command, null);
+        updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage), timeout, unit);
 
     }
 
     @Override
     public <R> CompletableFuture<R> send(Command command) {
-        updateInvocationCounter(command, null);
+        updateInvocationCounter(command);
         return commandGateway.send(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata) {
-        updateInvocationCounter(command, metadata);
+        updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage));
 
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata, long timeout, TimeUnit unit) {
-        updateInvocationCounter(command, metadata);
+        updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), timeout, unit);
 
     }
 
     @Override
     public <R> CompletableFuture<R> send(Command command, Metadata metadata) {
-        updateInvocationCounter(command, metadata);
+        updateInvocationCounter(command);
         return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage));
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) {
-        updateInvocationCounter(command, metadata);
+        updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
 
     }
 
     @Override
     public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
-        updateInvocationCounter(command, metadata);
+        updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
 
     }
 
     @Override
     public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
-        updateInvocationCounter(command, metadata);
+        updateInvocationCounter(command);
         return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage),
                 this.handledMessage);
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
-        updateInvocationCounter(query, metadata);
+        updateInvocationCounter(query);
         return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
-        updateInvocationCounter(query, null);
+        updateInvocationCounter(query);
         return queryGateway.query(query, tracingAgent.correlate((Metadata) null, this.handledMessage));
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata) {
-        updateInvocationCounter(query, metadata);
+        updateInvocationCounter(query);
         return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage));
     }
 
@@ -151,11 +152,11 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
      *
      * @param message The command or query being executed.
      */
-    private void updateInvocationCounter(Payload message, Metadata metadata) {
+    private void updateInvocationCounter(Payload message) {
         invocationCounter.putIfAbsent(message.getClass().getSimpleName(), new AtomicInteger());
         invocationCounter.get(message.getClass().getSimpleName()).incrementAndGet();
-        if(metadata != null){
-            forceTelemetry = forceTelemetry || metadata.isTelemetryForced();
+        if(message instanceof PayloadWithContext c) {
+            forceTelemetry = forceTelemetry || c.isForceTelemetry();
         }
     }
 
