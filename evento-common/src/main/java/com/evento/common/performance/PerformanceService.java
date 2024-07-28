@@ -37,6 +37,10 @@ public abstract class PerformanceService {
      */
     public static final String GATEWAY_COMPONENT = "Gateway";
     /**
+     * The LOCK_COMPONENT variable represents the component name for a lock.
+     */
+    public static final String LOCK_COMPONENT = "Lock";
+    /**
      * The SERVER variable represents the name of the server.
      * It is a constant String value.
      */
@@ -67,8 +71,10 @@ public abstract class PerformanceService {
      * @param message   The message associated with the metric.
      * @param startTime The start time of the service.
      */
-    public final void sendServiceTimeMetric(String bundle, String instanceId, String component, Message<?> message, Instant startTime) {
-        if (random.nextDouble(0.0, 1.0) > performanceRate) return;
+    public final void sendServiceTimeMetric(String bundle, String instanceId, String component,
+                                            Message<?> message, Instant startTime, boolean force) {
+        if(!force)
+            if (random.nextDouble(0.0, 1.0) > performanceRate) return;
         var time = Instant.now().toEpochMilli();
         executor.execute(() -> {
             var st = new PerformanceServiceTimeMessage(bundle, component, message.getPayloadName()
@@ -119,8 +125,10 @@ public abstract class PerformanceService {
      * @param invocationCounter  The invocation counter containing the number of invocations for each key.
      */
     public final void sendInvocationsMetric(String bundle, String component, Message<?> action,
-                                            HashMap<String, AtomicInteger> invocationCounter, String instanceId) {
-        if (random.nextDouble(0.0, 1.0) > performanceRate) return;
+                                            HashMap<String, AtomicInteger> invocationCounter, String instanceId,
+                                            boolean force) {
+        if(!force)
+            if (random.nextDouble(0.0, 1.0) > performanceRate) return;
         executor.execute(() -> {
             try {
 

@@ -105,6 +105,13 @@ public class CommandGatewayImpl implements CommandGateway {
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
+			if(metadata != null) {
+				message.setForceTelemetry(metadata.isTelemetryForced());
+				if(message instanceof DomainCommandMessage dcm){
+					dcm.setInvalidateAggregateCaches(metadata.isCacheInvalidated());
+				}
+			}
+
 			return (CompletableFuture<R>) eventoServer.request(message).thenApply(e -> {
 				try {
 					return ObjectMapperUtils.getPayloadObjectMapper()

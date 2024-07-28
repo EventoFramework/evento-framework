@@ -80,7 +80,8 @@ public abstract class ConsumerStateStore {
                             eventoServer.getInstanceId(),
                             projectorName,
                             event.getEventMessage(),
-                            start
+                            start,
+                            event.getEventMessage().isForceTelemetry()
                     );
                 }
             } finally {
@@ -139,7 +140,8 @@ public abstract class ConsumerStateStore {
                             eventoServer.getInstanceId(),
                             observerName,
                             event.getEventMessage(),
-                            start
+                            start,
+                            event.getEventMessage().isForceTelemetry()
                     );
                 }
             } finally {
@@ -200,7 +202,8 @@ public abstract class ConsumerStateStore {
                             eventoServer.getInstanceId(),
                             sagaName,
                             event.getEventMessage(),
-                            start
+                            start,
+                            event.getEventMessage().isForceTelemetry()
                     );
                 }
             } finally {
