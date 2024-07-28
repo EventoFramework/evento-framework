@@ -1,5 +1,6 @@
 package com.evento.server.bus;
 
+import com.evento.common.performance.PerformanceService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import com.evento.common.messaging.consumer.EventFetchRequest;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -285,23 +287,17 @@ public class MessageBus {
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
-                    if(lockId != null)
-                        performanceStoreService.sendServiceTimeMetric(
-                                SERVER,
-                                instanceId,
-                                LOCK_COMPONENT,
-                                c,
-                                start,
-                                c.isForceTelemetry()
-                        );
+                    Instant lockAcquired = PerformanceStoreService.now();
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         var invocation = new DecoratedDomainCommandMessage();
                         invocation.setCommandMessage(c);
-                        var story = eventStore.fetchAggregateStory(c.getAggregateId(), c.isInvalidateAggregateCaches(), c.isInvalidateAggregateSnapshot());
+                        var story = eventStore.fetchAggregateStory(c.getAggregateId(),
+                                c.isInvalidateAggregateCaches(),
+                                c.isInvalidateAggregateSnapshot());
                         invocation.setSerializedAggregateState(story.state());
                         invocation.setEventStream(story.events());
-                        performanceStoreService.sendServiceTimeMetric(
+                        var retrieveDone = performanceStoreService.sendServiceTimeMetric(
                                 SERVER,
                                 instanceId,
                                 GATEWAY_COMPONENT,
@@ -313,7 +309,7 @@ public class MessageBus {
                         message.setBody(invocation);
                         forward(message, dest, resp -> {
                             try {
-                                performanceStoreService.sendServiceTimeMetric(
+                                var computationDone = performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
                                         dest.instanceId(),
                                         getComponent(c.getCommandName()),
@@ -322,7 +318,6 @@ public class MessageBus {
                                         c.isForceTelemetry()
                                 );
                                 if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
-                                    var esStoreStart = PerformanceStoreService.now();
                                     cr.getDomainEventMessage().setForceTelemetry(c.isForceTelemetry());
                                     eventStore.publishEvent(cr.getDomainEventMessage(),
                                             c.getAggregateId());
@@ -336,15 +331,28 @@ public class MessageBus {
                                     if (cr.isAggregateDeleted()) {
                                         eventStore.deleteAggregate(c.getAggregateId());
                                     }
-                                    performanceStoreService.sendServiceTimeMetric(
+                                    var published = performanceStoreService.sendServiceTimeMetric(
                                             EVENT_STORE,
                                             instanceId,
                                             EVENT_STORE_COMPONENT,
                                             cr.getDomainEventMessage(),
-                                            esStoreStart,
+                                            computationDone,
                                             c.isForceTelemetry()
                                     );
                                     resp.setBody(cr.getDomainEventMessage().getSerializedPayload().getSerializedObject());
+                                    performanceStoreService.sendAggregateServiceTimeMetric(
+                                            dest.bundleId(),
+                                            dest.instanceId(),
+                                            getComponent(c.getCommandName()),
+                                            c.getCommandName(),
+                                            start,
+                                            lockAcquired,
+                                            retrieveDone,
+                                            computationDone,
+                                            published,
+                                            c.getAggregateId(),
+                                            c.isForceTelemetry()
+                                    );
                                 }
                                 eventStore.release(lockId);
                                 acquired.set(false);
@@ -372,15 +380,6 @@ public class MessageBus {
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
-                    if(lockId != null)
-                        performanceStoreService.sendServiceTimeMetric(
-                                SERVER,
-                                instanceId,
-                                LOCK_COMPONENT,
-                                c,
-                                start,
-                                c.isForceTelemetry()
-                        );
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         forward(message, dest, resp -> {

@@ -79,12 +79,18 @@ public class ServiceReference extends Reference {
 
         var commandHandler = serviceCommandHandlerReferences.get(cm.getCommandName());
 
-        return (ServiceEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+        var resp =  (ServiceEvent) ReflectionUtils.invoke(getRef(), commandHandler,
                 cm.getPayload(),
                 commandGateway,
                 queryGateway,
                 cm,
                 cm.getMetadata()
         );
+        if(resp != null){
+            if(resp.getAggregateId() == null){
+                return resp.setAggregateId(cm.getPayload());
+            }
+        }
+        return resp;
     }
 }
