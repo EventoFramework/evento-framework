@@ -20,6 +20,8 @@ public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 	 */
 	public DomainCommandMessage(DomainCommand command) {
 		super(command);
+		setInvalidateAggregateSnapshot(command.isInvalidateAggregateSnapshot());
+		setInvalidateAggregateCaches(command.isInvalidateAggregateCaches());
 	}
 
 	/**

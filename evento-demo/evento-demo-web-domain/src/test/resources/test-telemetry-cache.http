@@ -2,7 +2,7 @@ PUT http://localhost:9001/api/demo/001
 Content-Type: application/json
 Invalidate-Evento-Cache: false
 Force-Evento-Telemetry: true
-Invalidate-Evento-Aggregate-Snapshot: true
+Invalidate-Evento-Aggregate-Snapshot: false
 
 {
   "demoId": "001",
