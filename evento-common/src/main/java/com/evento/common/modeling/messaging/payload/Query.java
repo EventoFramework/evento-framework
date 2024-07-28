@@ -13,42 +13,6 @@ import java.lang.reflect.ParameterizedType;
  */
 public abstract class Query<T extends QueryResponse<?>> extends TrackablePayload {
 
-	private String aggregateId = null;
-
-	@Override
-	public String getAggregateId() {
-		return aggregateId;
-	}
-
-	/**
-	 * Sets the aggregate ID for the query.
-	 * This method allows you to set the aggregate ID for a query object.
-	 *
-	 * @param aggregateId the aggregate ID to be set
-	 * @param <T> the type of the query
-	 * @return the query itself with the aggregate ID set
-	 */
-	@SuppressWarnings("unchecked")
-	public <T extends Query<?>> T setAggregateId(String aggregateId) {
-		this.aggregateId = aggregateId;
-		return (T) this;
-	}
-
-	/**
-	 * Sets the aggregate ID for the query.
-	 * This method allows you to set the aggregate ID for a query object.
-	 *
-	 * @param payload the payload containing the aggregate ID to be set
-	 * @param <T> the type of the query
-	 * @return the query itself with the aggregate ID set
-	 */
-	@SuppressWarnings("unchecked")
-	public <T extends Query<?>> T setAggregateId(TrackablePayload payload) {
-		this.aggregateId = payload.getAggregateId();
-		return (T) this;
-	}
-
-
 	/**
 	 * Returns the response type of the Query.
 	 *
