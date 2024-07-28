@@ -338,7 +338,7 @@ public class EventStore {
     public AggregateStory fetchAggregateStory(String aggregateId,
                                               boolean invalidateAggregateCaches,
                                               boolean invalidateAggregateSnapshot) {
-        Assert.isTrue(aggregateId != null, "getAggregateId() return null!");
+        Assert.isTrue(aggregateId != null, "Fetching aggregate state without an aggregate Id");
         if(invalidateAggregateCaches){
             snapshotCache.remove(aggregateId);
             eventsCache.remove(aggregateId);

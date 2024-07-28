@@ -4,7 +4,7 @@ import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.Single;
 import com.evento.demo.api.view.DemoView;
 
-public class DemoViewFindByIdQuery implements Query<Single<DemoView>> {
+public class DemoViewFindByIdQuery extends Query<Single<DemoView>> {
 	private String demoId;
 
 	public DemoViewFindByIdQuery(String demoId) {

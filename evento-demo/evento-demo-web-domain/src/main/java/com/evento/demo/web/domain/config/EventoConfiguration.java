@@ -5,9 +5,11 @@ import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.common.messaging.gateway.CommandGatewayImpl;
 import com.evento.common.messaging.gateway.QueryGatewayImpl;
+import com.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.payload.Command;
+import com.evento.common.modeling.messaging.payload.DomainCommand;
 import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.performance.ThreadCountAutoscalingProtocol;
@@ -59,18 +61,16 @@ public class EventoConfiguration {
 
                     @Override
                     public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
-                        if(metadata == null){
-                            metadata = new Metadata();
-                        }
-                        Metadata finalMetadata = metadata;
                         Optional.ofNullable(RequestContextHolder.getRequestAttributes())
                                 .filter(ServletRequestAttributes.class::isInstance)
                                 .map(ServletRequestAttributes.class::cast)
                                 .map(ServletRequestAttributes::getRequest)
                                 .ifPresent(r -> {
-                                    finalMetadata.invalidateCache(Objects.equals(r.getHeader("Invalidate-Evento-Cache"),"true"));
-                                    finalMetadata.forceTelemetry(Objects.equals(r.getHeader("Force-Evento-Telemetry"),"true"));
-                                    finalMetadata.invalidateAggregateSnapshot(Objects.equals(r.getHeader("Invalidate-Evento-Aggregate-Snapshot"),"true"));
+                                    command.setForceTelemetry(Objects.equals(r.getHeader("Force-Evento-Telemetry"),"true"));
+                                    if(command instanceof DomainCommand dc){
+                                        dc.setInvalidateAggregateCaches(Objects.equals(r.getHeader("Invalidate-Evento-Cache"),"true"));
+                                        dc.setInvalidateAggregateSnapshot(Objects.equals(r.getHeader("Invalidate-Evento-Aggregate-Snapshot"),"true"));
+                                    }
                                 });
                         return super.send(command, metadata, handledMessage);
                     }
@@ -78,16 +78,12 @@ public class EventoConfiguration {
                 .setQueryGatewayBuilder(es -> new QueryGatewayImpl(es){
                     @Override
                     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
-                        if(metadata == null){
-                            metadata = new Metadata();
-                        }
-                        Metadata finalMetadata = metadata;
                         Optional.ofNullable(RequestContextHolder.getRequestAttributes())
                                 .filter(ServletRequestAttributes.class::isInstance)
                                 .map(ServletRequestAttributes.class::cast)
                                 .map(ServletRequestAttributes::getRequest)
                                 .ifPresent(r -> {
-                                    finalMetadata.forceTelemetry(r.getHeader("Force-Evento-Telemetry").equals("true"));
+                                    query.setForceTelemetry(r.getHeader("Force-Evento-Telemetry").equals("true"));
                                 });
                         return super.query(query, metadata, handledMessage);
                     }

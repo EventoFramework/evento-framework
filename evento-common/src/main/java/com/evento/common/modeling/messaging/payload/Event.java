@@ -8,43 +8,41 @@ import com.evento.common.utils.Context;
  *
  * @see Payload
  */
-public abstract class Event implements Payload {
-    private String context = Context.DEFAULT;
+public abstract class Event extends PayloadWithContext {
 
-    /**
-     * Returns the context of the event.
-     * <p>
-     * The context is a string value representing the available context options for certain functionalities within a software system.
-     * It is set by calling the setContext method.
-     * The context can be accessed using the getContext method.
-     *
-     * @return the context of the event as a string
-     *
-     * @see #setContext(String)
-     * @see Event#setContext(String)
-     */
-    public String getContext() {
-        return context;
+    private String aggregateId;
+
+    @Override
+    public String getAggregateId() {
+        return aggregateId;
     }
 
     /**
-     * Sets the context of the event.
-     * The context is a string value representing the available context options for certain functionalities within a software system.
-     * It is set by calling the setContext method.
+     * Sets the aggregate ID for the event.
      *
-     * @param context the context to be set as a string
-     * @throws IllegalArgumentException if the context provided is null
-     * @return the updated event object with the new context
-     *
-     * @see Event#getContext()
-     * @param <T> the event
+     * @param aggregateId the aggregate ID to be set
+     * @param <T>         the type of the event
+     * @return the event itself with the aggregate ID set
      */
     @SuppressWarnings("unchecked")
-    public <T extends Event> T setContext(String context) {
-        if(context ==  null){
-            throw new IllegalArgumentException();
-        }
-        this.context = context;
+    public <T extends Event> T setAggregateId(String aggregateId) {
+        this.aggregateId = aggregateId;
+        return (T) this;
+    }
+
+    /**
+     * Sets the aggregate ID for the event based on the provided payload.
+     * It updates the aggregate ID of the current event object with the aggregate ID from the payload.
+     * The aggregate ID is retrieved from the payload by calling the getAggregateId method.
+     * This method is automatically called by EventoServer when an event is fired from a command
+     *
+     * @param payload the payload containing the aggregate ID to be set
+     * @param <T>     the type of the event
+     * @return the event itself with the updated aggregate ID
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends Event> T setAggregateId(PayloadWithContext payload) {
+        this.aggregateId = payload.getAggregateId();
         return (T) this;
     }
 }
