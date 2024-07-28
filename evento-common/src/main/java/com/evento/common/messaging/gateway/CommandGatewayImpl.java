@@ -109,6 +109,7 @@ public class CommandGatewayImpl implements CommandGateway {
 				message.setForceTelemetry(metadata.isTelemetryForced());
 				if(message instanceof DomainCommandMessage dcm){
 					dcm.setInvalidateAggregateCaches(metadata.isCacheInvalidated());
+					dcm.setInvalidateAggregateSnapshot(metadata.isAggregateSnapshotInvalidated());
 				}
 			}
 

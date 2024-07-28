@@ -10,6 +10,7 @@ import com.evento.common.modeling.messaging.payload.DomainCommand;
 public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 
 	private boolean invalidateAggregateCaches = false;
+	private boolean invalidateAggregateSnapshot = false;
 
 	/**
 	 * Constructs a new DomainCommandMessage with the given DomainCommand.
@@ -44,5 +45,23 @@ public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 	 */
 	public void setInvalidateAggregateCaches(boolean invalidateAggregateCaches) {
 		this.invalidateAggregateCaches = invalidateAggregateCaches;
+	}
+
+	/**
+	 * Determines whether to invalidate the snapshot data of an aggregate.
+	 *
+	 * @return True if the snapshot data of the aggregate should be invalidated, False otherwise.
+	 */
+	public boolean isInvalidateAggregateSnapshot() {
+		return invalidateAggregateSnapshot;
+	}
+
+	/**
+	 * Sets whether to invalidate the snapshot data of an aggregate.
+	 *
+	 * @param invalidateAggregateSnapshot True if the snapshot data of the aggregate should be invalidated, False otherwise.
+	 */
+	public void setInvalidateAggregateSnapshot(boolean invalidateAggregateSnapshot) {
+		this.invalidateAggregateSnapshot = invalidateAggregateSnapshot;
 	}
 }

@@ -46,6 +46,7 @@ public class Metadata extends HashMap<String, String> {
      * isCacheInvalidated = metadata.isCacheInvalidated(); // false
      */
     public final static String INVALIDATE_CACHE = "invalidate_cache";
+    public final static String INVALIDATE_AGGREGATE_SNAPSHOT = "invalidate_aggregate_snapshot";
 
     /**
      * Sets the value of the FORCE_TELEMETRY key in the Metadata collection.
@@ -76,8 +77,39 @@ public class Metadata extends HashMap<String, String> {
         this.put(INVALIDATE_CACHE, String.valueOf(force));
     }
 
+    /**
+     * Checks if the cache is invalidated based on the value of the "invalidate_cache" key in the Metadata collection.
+     *
+     * @return True if the cache is invalidated, False otherwise.
+     * @see Metadata
+     */
     @JsonIgnore
     public boolean isCacheInvalidated(){
         return this.getOrDefault(INVALIDATE_CACHE, "false").equals("true");
+    }
+
+
+    /**
+     * Invalidates the aggregate snapshot by setting the value of the "invalidate_aggregate_snapshot" key in the Metadata collection.
+     * This method allows you to force the invalidation of the snapshot if the force parameter is true.
+     * Otherwise, if the force parameter is false, the snapshot will not be forcefully invalidated.
+     *
+     * @param force true to force the invalidation of the aggregate snapshot, false otherwise
+     */
+    public void invalidateAggregateSnapshot(boolean force){
+        this.put(INVALIDATE_AGGREGATE_SNAPSHOT, String.valueOf(force));
+    }
+
+
+    /**
+     * Checks if the aggregate snapshot is invalidated based on the value of the "invalidate_aggregate_snapshot"
+     * key in the Metadata collection.
+     *
+     * @return true if the aggregate snapshot is invalidated, false otherwise.
+     * @see Metadata
+     */
+    @JsonIgnore
+    public boolean isAggregateSnapshotInvalidated(){
+        return this.getOrDefault(INVALIDATE_AGGREGATE_SNAPSHOT, "false").equals("true");
     }
 }
