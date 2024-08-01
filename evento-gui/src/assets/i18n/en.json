@@ -104,5 +104,10 @@
   "sss.events.event.name": "Name",
   "sss.events.event": "Event",
   "sss.events.metadata": "Metadata",
-  "sss.event.detail": "Event Detail"
+  "sss.event.detail": "Event Detail",
+  "sss.event.store": "Event Store",
+  "sss.snapshot.store": "Snapshot Store",
+  "common.updated.at": "Updated at",
+  "sss.snapshot.detail": "Snapshot Detail",
+  "sss.aggregate.state": "Aggregate State"
 }
