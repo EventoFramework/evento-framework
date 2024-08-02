@@ -116,6 +116,12 @@ public class EventStore {
             );
         }
 
+        if(context != null && !context.isBlank()){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("context"),context)
+            );
+        }
+
         if(eventSequenceNumber != null ){
             predicates.add(
                     (r,o,cb) -> cb.equal(r.get("eventSequenceNumber"),eventSequenceNumber)
@@ -148,6 +154,20 @@ public class EventStore {
 
 
 
+    }
+
+    public Page<Snapshot> searchSnapshots(String aggregateId,
+                                     int page,
+                                     int size,
+                                     Sort.Direction sort,
+                                     String sortBy){
+        var s = new Snapshot();
+        if(aggregateId != null && !aggregateId.isBlank())
+            s.setAggregateId(aggregateId);
+
+        return snapshotRepository.findAll(Example.of(s), PageRequest.of(
+                page, size, Sort.by(sort, sortBy)
+        ));
     }
 
     private static class LockWrapper {
