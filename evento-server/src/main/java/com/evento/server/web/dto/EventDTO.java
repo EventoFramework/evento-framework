@@ -8,7 +8,7 @@ import java.sql.Timestamp;
 import java.util.Map;
 
 @Data
-public class Event {
+public class EventDTO {
     private String eventSequenceNumber;
     private String eventName;
     private String aggregateId;
@@ -18,9 +18,9 @@ public class Event {
     private Map<String, String> metadata;
     private JsonNode event;
 
-    public Event() {
+    public EventDTO() {
     }
-    public Event(EventStoreEntry entry) {
+    public EventDTO(EventStoreEntry entry) {
         eventSequenceNumber = entry.getEventSequenceNumber().toString();
         eventName = entry.getEventName();
         aggregateId = entry.getAggregateId();
