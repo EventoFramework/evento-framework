@@ -12,4 +12,9 @@ export class SystemStateStoreService {
   ) {
     return fetch(environment.eventoServerUrl + '/api/system-state-store/event?' + new URLSearchParams(parameters as any).toString()).then(r => r.json());
   }
+
+  async searchSnapshots(parameters = {}
+  ) {
+    return fetch(environment.eventoServerUrl + '/api/system-state-store/snapshot?' + new URLSearchParams(parameters as any).toString()).then(r => r.json());
+  }
 }
