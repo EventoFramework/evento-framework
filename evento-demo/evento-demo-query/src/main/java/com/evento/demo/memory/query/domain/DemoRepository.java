@@ -1,4 +1,4 @@
-package com.evento.demo.query.domain;
+package com.evento.demo.memory.query.domain;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

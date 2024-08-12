@@ -1,4 +1,4 @@
-package com.evento.demo.query.external;
+package com.evento.demo.memory.query.external;
 
 import com.evento.demo.api.view.NotificationView;
 import org.springframework.stereotype.Service;

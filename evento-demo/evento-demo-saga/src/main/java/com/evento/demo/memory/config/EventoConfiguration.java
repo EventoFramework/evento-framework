@@ -1,10 +1,11 @@
-package com.evento.demo.config;
+package com.evento.demo.memory.config;
 
 import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
+import com.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
 import com.evento.common.performance.ThreadCountAutoscalingProtocol;
-import com.evento.demo.DemoCommandApplication;
+import com.evento.demo.DemoSagaApplication;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,15 +28,17 @@ public class EventoConfiguration {
 			@Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
 			@Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
 			@Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
-			@Value("${sentry.dns}") String sentryDns,
-			BeanFactory factory
+			BeanFactory factory,
+			@Value("${sentry.dns}") String sentryDns
 	) throws Exception {
 		return EventoBundle.Builder.builder()
-				.setBasePackage(DemoCommandApplication.class.getPackage())
+				.setBasePackage(DemoSagaApplication.class.getPackage())
+				.setConsumerStateStoreBuilder(InMemoryConsumerStateStore::new)
+				.setInjector(factory::getBean)
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
 				.setEventoServerMessageBusConfiguration(new EventoServerMessageBusConfiguration(
-						new ClusterNodeAddress(eventoServerHost,eventoServerPort)
+						new ClusterNodeAddress(eventoServerHost, eventoServerPort)
 				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
 						.setMaxReconnectAttempts(30)
 						.setReconnectDelayMillis(5000))
