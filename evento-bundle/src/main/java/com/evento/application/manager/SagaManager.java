@@ -1,5 +1,6 @@
 package com.evento.application.manager;
 
+import com.evento.application.consumer.ProjectorEvenConsumer;
 import com.evento.application.consumer.SagaEventConsumer;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
@@ -13,6 +14,7 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +31,8 @@ import java.util.function.Supplier;
 public class SagaManager extends ConsumerComponentManager<SagaReference> {
 
     private static final Logger logger = LogManager.getLogger(SagaManager.class);
+
+    private final ArrayList<SagaEventConsumer> sagaEventConsumers = new ArrayList<>();
     /**
      * Creates a new instance of SagaManager.
      *
@@ -87,7 +91,7 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
                 var sagaVersion = annotation.version();
                 logger.info("Starting event consumer for Saga: %s - Version: %d - Context: %s"
                         .formatted(sagaName, sagaVersion, context));
-                var t = new Thread(new SagaEventConsumer(
+                var c = new SagaEventConsumer(
                         getBundleId(),
                         sagaName,
                         sagaVersion,
@@ -99,11 +103,22 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
                         getGatewayTelemetryProxy(),
                         getSssFetchSize(),
                         getSssFetchDelay()
-                ));
+                );
+                sagaEventConsumers.add(c);
+                var t = new Thread(c);
                 t.setName(sagaName + "(v"+sagaVersion+") - " + context);
                 t.start();
             }
 
         }
+    }
+
+    /**
+     * Retrieves the list of SagaEventConsumer instances associated with this SagaManager.
+     *
+     * @return The list of SagaEventConsumer instances.
+     */
+    public ArrayList<SagaEventConsumer> getSagaEventConsumers() {
+        return sagaEventConsumers;
     }
 }

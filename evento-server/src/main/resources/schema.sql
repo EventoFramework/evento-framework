@@ -47,6 +47,16 @@ create table if not exists core__component
     foreign key (bundle_id) references core__bundle (id)
 );
 
+create table if not exists core__consumer
+(
+    identifier varchar(512) not null
+        primary key,
+    component_component_name varchar(255) null,
+    instance_id    varchar(255) null,
+    consumer_id        varchar(255) null,
+    foreign key (component_component_name) references core__component (component_name)
+);
+
 create table if not exists core__payload
 (
     name                 varchar(255) not null

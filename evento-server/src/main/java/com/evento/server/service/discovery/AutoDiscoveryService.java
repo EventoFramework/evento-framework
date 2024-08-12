@@ -1,5 +1,8 @@
 package com.evento.server.service.discovery;
 
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
+import com.evento.server.domain.model.core.*;
+import com.evento.server.domain.repository.core.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.common.modeling.bundle.types.PayloadType;
@@ -7,20 +10,12 @@ import com.evento.common.modeling.messaging.message.internal.discovery.BundleReg
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.server.bus.MessageBus;
 import com.evento.server.bus.NodeAddress;
-import com.evento.server.domain.model.core.BucketType;
-import com.evento.server.domain.model.core.Bundle;
-import com.evento.server.domain.model.core.Handler;
-import com.evento.server.domain.model.core.Payload;
-import com.evento.server.domain.model.core.Component;
-import com.evento.server.domain.repository.core.BundleRepository;
-import com.evento.server.domain.repository.core.ComponentRepository;
-import com.evento.server.domain.repository.core.HandlerRepository;
-import com.evento.server.domain.repository.core.PayloadRepository;
 import com.evento.server.service.BundleService;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -35,6 +30,7 @@ public class AutoDiscoveryService {
     private final BundleService bundleService;
     private final LockRegistry lockRegistry;
     private final ComponentRepository componentRepository;
+    private final ConsumerRepository consumerRepository;
 
     /**
      * Service responsible for auto-discovery of components in the system.
@@ -51,12 +47,13 @@ public class AutoDiscoveryService {
                                 BundleRepository bundleRepository,
                                 HandlerRepository handlerRepository,
                                 PayloadRepository payloadRepository, BundleService bundleService, LockRegistry lockRegistry,
-                                ComponentRepository componentRepository) {
+                                ComponentRepository componentRepository, ConsumerRepository consumerRepository) {
         this.bundleRepository = bundleRepository;
         this.handlerRepository = handlerRepository;
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
         this.lockRegistry = lockRegistry;
+        this.consumerRepository = consumerRepository;
         messageBus.addJoinListener(this::onNodeJoin);
         messageBus.addLeaveListener(this::onNodeLeave);
         this.componentRepository = componentRepository;
@@ -201,6 +198,7 @@ public class AutoDiscoveryService {
                     bundleService.unregister(node.bundleId());
                 }
             });
+            consumerRepository.deleteAllByInstanceId(node.instanceId());
         } finally {
             lock.unlock();
         }

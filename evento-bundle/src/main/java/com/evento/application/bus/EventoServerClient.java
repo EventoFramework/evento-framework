@@ -1,7 +1,8 @@
 package com.evento.application.bus;
 
+import com.evento.application.EventoBundle;
 import com.evento.common.modeling.messaging.message.internal.*;
-import com.evento.common.performance.AutoscalingProtocol;
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -15,12 +16,9 @@ import com.evento.common.utils.Sleep;
 
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 
 import com.evento.common.serialization.ObjectMapperUtils;
 
@@ -209,6 +207,26 @@ public class EventoServerClient implements EventoServer {
         message.setSourceInstanceId(instanceId);
         message.setBody(m);
         clusterConnection.send(message);
+    }
+
+    public void registerConsumers(EventoBundle eventoBundle) throws SendFailedException {
+        var cr = new BundleConsumerRegistrationMessage();
+        cr.setProjectorConsumers(new HashMap<>());
+        for (var c : eventoBundle.getProjectorManager().getProjectorEvenConsumers()) {
+            var s = cr.getProjectorConsumers().computeIfAbsent(c.getProjectorName(), k -> new HashSet<>());
+            s.add(c.getConsumerId());
+        }
+        cr.setSagaConsumers(new HashMap<>());
+        for (var c : eventoBundle.getSagaManager().getSagaEventConsumers()) {
+            var s = cr.getSagaConsumers().computeIfAbsent(c.getSagaName(), k -> new HashSet<>());
+            s.add(c.getConsumerId());
+        }
+        cr.setObserverConsumers(new HashMap<>());
+        for (var c : eventoBundle.getObserverManager().getObserverEventConsumers()) {
+            var s = cr.getObserverConsumers().computeIfAbsent(c.getObserverName(), k -> new HashSet<>());
+            s.add(c.getConsumerId());
+        }
+        send(cr);
     }
 
     /**
