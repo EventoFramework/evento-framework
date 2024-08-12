@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class EventStore {
 
-    private final Logger logger = LogManager.getLogger(EventStore.class);
+    private static final Logger logger = LogManager.getLogger(EventStore.class);
 
     private static final String ES_LOCK = "es-lock";
     private final long DELAY;
