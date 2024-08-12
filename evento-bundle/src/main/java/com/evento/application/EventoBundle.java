@@ -52,6 +52,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -227,6 +228,7 @@ public class EventoBundle {
         info.sagaMessageHandlers = sagaManager.getHandlers().keySet();
         return info;
     }
+
     /**
      * Represents information about an application.
      */
@@ -299,6 +301,7 @@ public class EventoBundle {
 
         private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
         private Map<String, Set<String>> contexts = new HashMap<>();
+        private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
 
         /**
          * The Builder class represents a builder for constructing objects.
@@ -614,6 +617,7 @@ public class EventoBundle {
                     eventoBundle.startSagaEventConsumers(css, contexts);
                     eventoBundle.startObserverEventConsumers(css, contexts);
                     logger.info("Application Started!");
+                    Thread.startVirtualThread(() -> onEventoStartedHook.accept(eventoBundle));
                 }catch (Exception e){
                     logger.error("Error during startup", e);
                     System.exit(1);
