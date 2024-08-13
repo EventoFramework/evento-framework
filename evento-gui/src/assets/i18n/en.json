@@ -109,5 +109,8 @@
   "sss.snapshot.store": "Snapshot Store",
   "common.updated.at": "Updated at",
   "sss.snapshot.detail": "Snapshot Detail",
-  "sss.aggregate.state": "Aggregate State"
+  "sss.aggregate.state": "Aggregate State",
+  "cluster.bundles": "Bundle Instances",
+  "cluster.consumers": "Consumers"
+
 }

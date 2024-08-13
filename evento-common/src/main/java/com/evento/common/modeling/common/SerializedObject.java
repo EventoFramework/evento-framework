@@ -1,5 +1,6 @@
 package com.evento.common.modeling.common;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
@@ -85,6 +86,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 	 *
 	 * @return the deserialized object, or null if deserialization fails
 	 */
+	@JsonIgnore
 	@SuppressWarnings("unchecked")
 	public T getObject() {
 		try
@@ -102,6 +104,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 	 *
 	 * @return the tree structure of the serialized object as a JsonNode, or null if deserialization fails
 	 */
+	@JsonIgnore
 	public JsonNode getTree() {
 		try
 		{

@@ -1,15 +1,24 @@
 package com.evento.server.service.discovery;
 
+import com.evento.common.modeling.exceptions.ExceptionWrapper;
+import com.evento.common.modeling.messaging.message.internal.EventoRequest;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusRequestMessage;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
+import com.evento.server.bus.MessageBus;
 import com.evento.server.domain.model.core.Consumer;
 import com.evento.server.domain.repository.core.*;
-import com.evento.server.service.BundleService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * This class represents a service for managing consumers in the system.
@@ -32,11 +41,15 @@ public class ConsumerService {
     private final LockRegistry lockRegistry;
     private final ComponentRepository componentRepository;
     private final ConsumerRepository consumerRepository;
+    private final String eventoServerInstanceId;
 
-    public ConsumerService(LockRegistry lockRegistry, ComponentRepository componentRepository, ConsumerRepository consumerRepository) {
+    public ConsumerService(LockRegistry lockRegistry, ComponentRepository componentRepository,
+                           ConsumerRepository consumerRepository,
+                           @Value("${evento.server.instance.id}") String eventoServerInstanceId) {
         this.lockRegistry = lockRegistry;
         this.componentRepository = componentRepository;
         this.consumerRepository = consumerRepository;
+        this.eventoServerInstanceId = eventoServerInstanceId;
     }
 
     /**
@@ -100,5 +113,42 @@ public class ConsumerService {
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         }
+    }
+
+    public List<Consumer> findAll() {
+        return consumerRepository.findAll();
+    }
+
+    public CompletableFuture<ConsumerFetchStatusResponseMessage> getConsumerStatusFromNodes(String consumerId, MessageBus messageBus) throws Exception {
+        var consumers =  consumerRepository.findAllByConsumerId(consumerId);
+        var instances = consumers.stream()
+                .map(Consumer::getInstanceId)
+                .collect(Collectors.toSet());
+        var address =  messageBus.getCurrentView().stream().filter(n ->
+                instances.contains(n.instanceId())).findFirst()
+                .orElseThrow();
+        var request  = new EventoRequest();
+        request.setCorrelationId(UUID.randomUUID().toString());
+        request.setTimestamp(System.currentTimeMillis());
+        request.setSourceBundleId("evento-server");
+        request.setSourceInstanceId(eventoServerInstanceId);
+        request.setSourceBundleVersion(0);
+        request.setBody(new ConsumerFetchStatusRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
+        var future = new CompletableFuture<ConsumerFetchStatusResponseMessage>();
+        messageBus.forward(request, address, (c) -> {
+            if(c.getBody() instanceof ConsumerFetchStatusResponseMessage resp){
+                future.complete(resp);
+            } else if (c.getBody() instanceof ExceptionWrapper e) {
+                future.completeExceptionally(e.toException());
+            }else{
+                future.completeExceptionally(new RuntimeException("Invalid response from component while fetching for consumer status"));
+            }
+        });
+        return future;
+
+    }
+
+    public void clearInstance(String instanceId) {
+        consumerRepository.deleteAllByInstanceId(instanceId);
     }
 }

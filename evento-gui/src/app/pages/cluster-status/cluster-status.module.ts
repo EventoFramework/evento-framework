@@ -9,6 +9,7 @@ import {ClusterStatusPageRoutingModule} from './cluster-status-routing.module';
 import {ClusterStatusPage} from './cluster-status.page';
 import {TranslateModule} from '@ngx-translate/core';
 import {ComponentsModule} from '../../components/components.module';
+import {ConsumersComponent} from "./components/consumers/consumers.component";
 
 @NgModule({
     imports: [
@@ -17,7 +18,8 @@ import {ComponentsModule} from '../../components/components.module';
         IonicModule,
         ClusterStatusPageRoutingModule,
         TranslateModule,
-        ComponentsModule
+        ComponentsModule,
+        ConsumersComponent
     ],
   declarations: [ClusterStatusPage]
 })

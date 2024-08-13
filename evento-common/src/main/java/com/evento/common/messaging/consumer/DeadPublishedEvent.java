@@ -2,6 +2,7 @@ package com.evento.common.messaging.consumer;
 
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 
+import java.io.Serializable;
 import java.time.ZonedDateTime;
 
 /**
@@ -12,7 +13,7 @@ import java.time.ZonedDateTime;
  * This class provides a constructor to create a new DeadPublishedEvent object with the specified consumer ID, event sequence number, event message, retry status, and dead timestamp
  * .
  */
-public class DeadPublishedEvent {
+public class DeadPublishedEvent implements Serializable {
 
     private String consumerId;
     private String eventName;

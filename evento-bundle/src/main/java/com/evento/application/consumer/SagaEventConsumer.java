@@ -2,7 +2,8 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
-import com.evento.common.utils.ProjectorStatus;
+import com.evento.common.messaging.consumer.DeadPublishedEvent;
+import com.evento.common.messaging.consumer.StoredSagaState;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,6 +13,7 @@ import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.utils.Sleep;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -213,4 +215,33 @@ public class SagaEventConsumer implements Runnable {
         );
     }
 
+    /**
+     * Retrieves the collection of dead published events from the dead event queue for a specific consumer.
+     *
+     * @return a Collection of DeadPublishedEvent objects representing the dead published events from the dead event queue
+     * @throws Exception if an error occurs during retrieval of dead published events from the dead event queue
+     */
+    public Collection<DeadPublishedEvent> getDeadEventQueue() throws Exception {
+        return consumerStateStore.getEventsFromDeadEventQueue(consumerId);
+    }
+
+    /**
+     * Retrieves the last consumed event sequence number for the SagaEventConsumer.
+     *
+     * @return the last consumed event sequence number
+     * @throws Exception if an error occurs during retrieval of the last consumed event sequence number
+     */
+    public long getLastConsumedEvent() throws Exception {
+        return consumerStateStore.getLastEventSequenceNumberSagaOrHead(consumerId);
+    }
+
+    /**
+     * Retrieves the current states of sagas for the given saga name.
+     *
+     * @return a collection of StoredSagaState objects representing the current saga states
+     * @throws Exception if an error occurs during retrieval of the current saga states
+     */
+    public Collection<StoredSagaState> getCurrentSagaStates() throws Exception {
+        return consumerStateStore.getSagaStates(sagaName);
+    }
 }

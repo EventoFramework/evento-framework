@@ -208,7 +208,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
      * @return the StoredSagaState associated with the specified saga name, association property, and association value. If no match is found, null is returned.
      */
     @Override
-    protected StoredSagaState getSagaState(String sagaName,
+    public StoredSagaState getSagaState(String sagaName,
                                            String associationProperty,
                                            String associationValue) {
         return sagaStateRepository.entrySet()
@@ -219,6 +219,21 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     }
 
     /**
+     * Returns a collection of StoredSagaState objects associated with the specified saga name.
+     *
+     * @param sagaName the name of the saga
+     * @return a collection of StoredSagaState objects associated with the specified saga name.
+     * @throws Exception if an error occurs while retrieving the saga states
+     */
+    @Override
+    public Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception {
+        return sagaStateRepository.entrySet()
+                .stream().filter(s -> s.getValue().getKey().equals(sagaName))
+                .map(s -> new StoredSagaState(s.getKey(), s.getValue().getValue()))
+                .toList();
+    }
+
+    /**
      * Sets the saga state for the given saga ID and saga name.
      *
      * @param id        the ID of the saga
@@ -226,7 +241,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
      * @param sagaState the saga state to set for the saga
      */
     @Override
-    protected void setSagaState(Long id, String sagaName, SagaState sagaState) {
+    public void setSagaState(Long id, String sagaName, SagaState sagaState) {
         sagaStateRepository.put(Objects.requireNonNullElseGet(id,
                         () -> (long) sagaCounter.getAndIncrement()),
                 new Map.Entry<>() {
