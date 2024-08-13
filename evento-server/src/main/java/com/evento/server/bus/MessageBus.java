@@ -649,7 +649,7 @@ public class MessageBus {
         var m = new EventoMessage();
         m.setBody(new ClusterNodeKillMessage());
         m.setSourceBundleId("evento-server");
-        m.setSourceInstanceId("evento-server");
+        m.setSourceInstanceId(instanceId);
         m.setSourceBundleVersion(0);
         try {
             var out = view.get(

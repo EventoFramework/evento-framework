@@ -1,0 +1,23 @@
+<ion-row>
+  <ion-col size="6" *ngFor="let c of consumers">
+    <ion-card [class]="'component-type component-type-' + c.componentType" (click)="fetchConsumerState(c, modal)">
+      <ion-card-content>
+        <ion-text class="title">{{c.componentName}} ({{c.context}})</ion-text>
+        <ion-text color="dark"><p>{{c.bundleId}} (v{{c.bundleVersion}})</p></ion-text>
+        <ul >
+          <li *ngFor="let i of c.instances">{{i}}</li>
+        </ul>
+      </ion-card-content>
+    </ion-card>
+  </ion-col>
+</ion-row>
+<ion-modal #modal>
+  <ng-template>
+    <ion-header>
+      <ion-toolbar></ion-toolbar>
+    </ion-header>
+    <ion-content>
+      {{consumerState | json}}
+    </ion-content>
+  </ng-template>
+</ion-modal>

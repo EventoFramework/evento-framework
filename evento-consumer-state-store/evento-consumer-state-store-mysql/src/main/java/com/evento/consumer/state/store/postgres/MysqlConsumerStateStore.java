@@ -250,7 +250,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     }
 
     @Override
-    protected StoredSagaState getSagaState(String sagaName,
+    public StoredSagaState getSagaState(String sagaName,
                                            String associationProperty,
                                            String associationValue) throws Exception {
         var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ? and JSON_EXTRACT(state, concat('$[1].associations[1].', ?)) = ?");
@@ -265,7 +265,20 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     }
 
     @Override
-    protected void setSagaState(Long id, String sagaName, SagaState sagaState) throws Exception {
+    public Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception {
+        var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ?");
+        stmt.setString(1, sagaName);
+        var resultSet = stmt.executeQuery();
+        var response = new ArrayList<StoredSagaState>();
+        while (!resultSet.next()) {
+            var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
+            response.add(new StoredSagaState(resultSet.getLong(1), state));
+        }
+        return response;
+    }
+
+    @Override
+    public void setSagaState(Long id, String sagaName, SagaState sagaState) throws Exception {
         java.sql.PreparedStatement stmt;
         if (id == null) {
             stmt = connection.prepareStatement("insert into " + SAGA_STATE_TABLE + " (name, state) value (?, ?)");
