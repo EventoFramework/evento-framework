@@ -47,7 +47,7 @@ public class EventoConfiguration {
 				.setBasePackage(DemoQueryApplication.class.getPackage())
 
 				.setInjector(factory::getBean)
-				.setBundleId("InMemory" + bundleId)
+				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
 				.setEventoServerMessageBusConfiguration(new EventoServerMessageBusConfiguration(
 						new ClusterNodeAddress(eventoServerHost, eventoServerPort)
