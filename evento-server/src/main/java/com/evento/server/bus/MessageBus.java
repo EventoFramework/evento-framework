@@ -1,6 +1,9 @@
 package com.evento.server.bus;
 
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.performance.PerformanceService;
+import com.evento.server.service.discovery.AutoDiscoveryService;
+import com.evento.server.service.discovery.ConsumerService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import com.evento.common.messaging.consumer.EventFetchRequest;
@@ -73,6 +76,7 @@ public class MessageBus {
     private final BundleService bundleService;
 
     private final Map<String, Consumer<EventoResponse>> correlations = new ConcurrentHashMap<>();
+    private final ConsumerService consumerService;
     private boolean isShuttingDown = false;
 
     private final Executor threadPerMessageExecutor = Executors.newVirtualThreadPerTaskExecutor();
@@ -84,7 +88,7 @@ public class MessageBus {
             HandlerService handlerService,
             EventStore eventStore,
             PerformanceStoreService performanceStoreService,
-            BundleService bundleService) {
+            BundleService bundleService, ConsumerService consumerService) {
         this.socketPort = socketPort;
         this.bundleDeployService = bundleDeployService;
         this.handlerService = handlerService;
@@ -92,6 +96,7 @@ public class MessageBus {
         this.performanceStoreService = performanceStoreService;
         this.bundleService = bundleService;
         this.instanceId = instanceId;
+        this.consumerService = consumerService;
     }
 
     @PostConstruct
@@ -239,7 +244,8 @@ public class MessageBus {
             } finally {
                 eventStore.release(lockId);
             }
-        } else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
+        }
+        else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
             var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
             eventStore.acquire(lockId);
             try {
@@ -253,7 +259,8 @@ public class MessageBus {
             } finally {
                 eventStore.release(lockId);
             }
-        } else if(m.getBody() instanceof PerformanceInvocationsMessage im){
+        }
+        else if(m.getBody() instanceof PerformanceInvocationsMessage im){
             performanceStoreService.saveInvocationsPerformance(
                     im.getBundle(),
                     im.getInstanceId(),
@@ -261,7 +268,8 @@ public class MessageBus {
                     im.getAction(),
                     im.getInvocations()
             );
-        } else if(m.getBody() instanceof PerformanceServiceTimeMessage im){
+        }
+        else if(m.getBody() instanceof PerformanceServiceTimeMessage im){
             performanceStoreService.saveServiceTimePerformance(
                     im.getBundle(),
                     im.getInstanceId(),
@@ -270,6 +278,9 @@ public class MessageBus {
                     im.getStart(),
                     im.getEnd()
             );
+        }
+        else if (m.getBody() instanceof BundleConsumerRegistrationMessage cr) {
+            consumerService.registerConsumers(m.getSourceBundleId(), m.getSourceInstanceId(), m.getSourceBundleVersion(), cr);
         }
         logger.debug("Message received: {}", m);
     }

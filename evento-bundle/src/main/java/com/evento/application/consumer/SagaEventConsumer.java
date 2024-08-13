@@ -2,6 +2,8 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
+import com.evento.common.utils.ProjectorStatus;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -23,6 +25,7 @@ public class SagaEventConsumer implements Runnable {
 
     // Fields for configuration and dependencies
     private final String bundleId;
+    @Getter
     private final String sagaName;
     private final int sagaVersion;
     private final String context;
@@ -33,6 +36,8 @@ public class SagaEventConsumer implements Runnable {
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
     private final int sssFetchSize;
     private final int sssFetchDelay;
+    @Getter
+    private final String consumerId;
 
     /**
      * Constructs a new SagaEventConsumer with the specified parameters.
@@ -68,6 +73,10 @@ public class SagaEventConsumer implements Runnable {
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
+
+        // Construct consumer identifier
+        this.consumerId = bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context;
+
     }
 
     /**
@@ -76,9 +85,6 @@ public class SagaEventConsumer implements Runnable {
      */
     @Override
     public void run() {
-        // Construct consumer identifier
-        var consumerId = bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context;
-
         // Main loop for event processing
         while (!isShuttingDown.get()) {
             var hasError = false;
@@ -88,7 +94,8 @@ public class SagaEventConsumer implements Runnable {
                 // Consume events from the state store and process them
                 consumedEventCount = consumerStateStore.consumeEventsForSaga(consumerId,
                         sagaName,
-                        context, (sagaStateFetcher, publishedEvent) -> {
+                        context,
+                        (sagaStateFetcher, publishedEvent) -> {
                             // Retrieve handlers for the event name
                             var handlers = sagaMessageHandlers
                                     .get(publishedEvent.getEventName());
@@ -148,4 +155,62 @@ public class SagaEventConsumer implements Runnable {
             }
         }
     }
+
+    public void consumeDeadEventQueue() throws Throwable {
+
+        consumerStateStore.consumeDeadEventsForSaga(
+                consumerId,
+                sagaName,
+                (sagaStateFetcher, publishedEvent) -> {
+                    // Retrieve handlers for the event name
+                    var handlers = sagaMessageHandlers
+                            .get(publishedEvent.getEventName());
+                    if (handlers == null) return null;
+
+                    // Retrieve the handler for the current saga
+                    var handler = handlers.getOrDefault(sagaName, null);
+                    if (handler == null) return null;
+
+                    // Extract information from SagaEventHandler annotation
+                    var a = handler.getSagaEventHandler(publishedEvent.getEventName())
+                            .getAnnotation(SagaEventHandler.class);
+                    var associationProperty = a.associationProperty();
+                    var isInit = a.init();
+                    var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
+
+
+                    // Retrieve the last state from the saga state fetcher
+                    var sagaState = sagaStateFetcher.getLastState(
+                            sagaName,
+                            associationProperty,
+                            associationValue
+                    );
+
+                    // Check for initialization condition
+                    if (sagaState == null && !isInit) {
+                        return null;
+                    }
+
+                    // Create telemetry proxy for the gateway
+                    var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
+                            publishedEvent.getEventMessage());
+
+                    // Track the event using the tracing agent
+                    return tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                            null,
+                            () -> {
+                                // Invoke the handler and send telemetry metrics
+                                var resp = handler.invoke(
+                                        publishedEvent.getEventMessage(),
+                                        sagaState,
+                                        proxy,
+                                        proxy
+                                );
+                                proxy.sendInvocationsMetric();
+                                return resp == null ? sagaState : resp;
+                            });
+                }
+        );
+    }
+
 }

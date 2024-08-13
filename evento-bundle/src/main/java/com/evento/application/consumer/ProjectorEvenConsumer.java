@@ -2,6 +2,7 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ProjectorReference;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -25,6 +26,7 @@ public class ProjectorEvenConsumer implements Runnable {
 
     // Fields for configuration and dependencies
     private final String bundleId;
+    @Getter
     private final String projectorName;
     private final int projectorVersion;
     private final String context;
@@ -37,6 +39,7 @@ public class ProjectorEvenConsumer implements Runnable {
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
+    @Getter
     private final String consumerId;
 
     /**
@@ -162,9 +165,6 @@ public class ProjectorEvenConsumer implements Runnable {
 
     public void consumeDeadEventQueue() throws Exception {
 
-        // Construct consumer identifier
-        var consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context;
-
         // Initialize projector status
         var ps = new ProjectorStatus();
         ps.setHeadReached(true);
@@ -205,12 +205,4 @@ public class ProjectorEvenConsumer implements Runnable {
         );
     }
 
-    /**
-     * Retrieves the consumer ID associated with this object.
-     *
-     * @return The consumer ID.
-     */
-    public String getConsumerId() {
-        return consumerId;
-    }
 }
