@@ -2,6 +2,8 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
+import com.evento.common.utils.ProjectorStatus;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -22,6 +24,7 @@ public class ObserverEventConsumer implements Runnable {
 
     // Fields for configuration and dependencies
     private final String bundleId;
+    @Getter
     private final String observerName;
     private final int observerVersion;
     private final String context;
@@ -32,6 +35,8 @@ public class ObserverEventConsumer implements Runnable {
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
     private final int sssFetchSize;
     private final int sssFetchDelay;
+    @Getter
+    private final String consumerId;
 
 
     /**
@@ -68,6 +73,8 @@ public class ObserverEventConsumer implements Runnable {
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
+        // Construct consumer identifier
+        this.consumerId = bundleId + "_" + observerName + "_" + observerVersion + "_" + context;
     }
 
     /**
@@ -76,8 +83,6 @@ public class ObserverEventConsumer implements Runnable {
      */
     @Override
     public void run() {
-        // Construct consumer identifier
-        var consumerId = bundleId + "_" + observerName + "_" + observerVersion + "_" + context;
 
         // Main loop for event processing
         while (!isShuttingDown.get()) {
@@ -88,7 +93,8 @@ public class ObserverEventConsumer implements Runnable {
                 // Consume events from the state store and process them
                 consumedEventCount = consumerStateStore.consumeEventsForObserver(consumerId,
                         observerName,
-                        context, (publishedEvent) -> {
+                        context,
+                        (publishedEvent) -> {
                             // Retrieve handlers for the event name
                             var handlers = observerMessageHandlers
                                     .get(publishedEvent.getEventName());
@@ -127,4 +133,42 @@ public class ObserverEventConsumer implements Runnable {
             }
         }
     }
+
+    public void consumeDeadEventQueue() throws Exception {
+
+
+        consumerStateStore.consumeDeadEventsForObserver(
+                consumerId,
+                observerName,
+                (publishedEvent) -> {
+                    // Retrieve handlers for the event name
+                    var handlers = observerMessageHandlers
+                            .get(publishedEvent.getEventName());
+                    if (handlers == null) return;
+
+                    // Retrieve the handler for the current saga
+                    var handler = handlers.getOrDefault(observerName, null);
+                    if (handler == null) return;
+
+                    // Create telemetry proxy for the gateway
+                    var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
+                            publishedEvent.getEventMessage());
+
+                    // Track the event using the tracing agent
+                    tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                            null,
+                            () -> {
+                                // Invoke the handler and send telemetry metrics
+                                handler.invoke(
+                                        publishedEvent.getEventMessage(),
+                                        proxy,
+                                        proxy
+                                );
+                                proxy.sendInvocationsMetric();
+                                return null;
+                            });
+                }
+        );
+    }
+
 }

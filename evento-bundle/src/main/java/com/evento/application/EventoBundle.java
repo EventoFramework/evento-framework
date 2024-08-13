@@ -3,6 +3,7 @@ package com.evento.application;
 import com.evento.application.manager.*;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.performance.Track;
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import javassist.util.proxy.MethodHandler;
@@ -50,7 +51,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -534,6 +534,7 @@ public class EventoBundle {
                     info[1] = p.getAnnotation(Domain.class).name();
                 }
             }
+
             var registration = new BundleRegistration(
                     bundleId,
                     bundleVersion,
@@ -616,6 +617,7 @@ public class EventoBundle {
                     eventoServer.enable();
                     eventoBundle.startSagaEventConsumers(css, contexts);
                     eventoBundle.startObserverEventConsumers(css, contexts);
+                    eventoServer.registerConsumers(eventoBundle);
                     logger.info("Application Started!");
                     Thread.startVirtualThread(() -> onEventoStartedHook.accept(eventoBundle));
                 }catch (Exception e){
