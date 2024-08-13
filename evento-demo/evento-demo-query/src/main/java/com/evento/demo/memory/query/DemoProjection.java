@@ -1,4 +1,4 @@
-package com.evento.demo.query;
+package com.evento.demo.memory.query;
 
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.component.Projection;
@@ -14,8 +14,8 @@ import com.evento.demo.api.query.DemoViewFindByIdQuery;
 import com.evento.demo.api.utils.Utils;
 import com.evento.demo.api.view.DemoRichView;
 import com.evento.demo.api.view.DemoView;
-import com.evento.demo.query.domain.Demo;
-import com.evento.demo.query.domain.DemoRepository;
+import com.evento.demo.memory.query.domain.Demo;
+import com.evento.demo.memory.query.domain.DemoRepository;
 
 import java.time.Instant;
 
