@@ -37,6 +37,7 @@ public class ProjectorEvenConsumer implements Runnable {
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
+    private final String consumerId;
 
     /**
      * Constructs a new ProjectorEvenConsumer with the specified parameters.
@@ -78,6 +79,9 @@ public class ProjectorEvenConsumer implements Runnable {
         this.sssFetchDelay = sssFetchDelay;
         this.alignmentCounter = alignmentCounter;
         this.onAllHeadReached = onAllHeadReached;
+
+        // Construct consumer identifier
+        this.consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context;
     }
 
     /**
@@ -91,8 +95,6 @@ public class ProjectorEvenConsumer implements Runnable {
         var ps = new ProjectorStatus();
         ps.setHeadReached(false);
 
-        // Construct consumer identifier
-        var consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context;
 
         // Main loop for event processing
         while (!isShuttingDown.get()) {
@@ -125,7 +127,7 @@ public class ProjectorEvenConsumer implements Runnable {
                                     () -> {
                                         // Invoke the handler and send telemetry metrics
                                         handler.invoke(
-                                                publishedEvent.getEventMessage(),
+                                                publishedEvent,
                                                 proxy,
                                                 proxy,
                                                 ps
@@ -156,5 +158,59 @@ public class ProjectorEvenConsumer implements Runnable {
                 }
             }
         }
+    }
+
+    public void consumeDeadEventQueue() throws Exception {
+
+        // Construct consumer identifier
+        var consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context;
+
+        // Initialize projector status
+        var ps = new ProjectorStatus();
+        ps.setHeadReached(true);
+
+        consumerStateStore.consumeDeadEventsForProjector(
+                consumerId,
+                projectorName,
+                publishedEvent -> {
+                    // Retrieve handlers for the event name
+                    var handlers = projectorMessageHandlers
+                            .get(publishedEvent.getEventName());
+                    if (handlers == null) return;
+
+                    // Retrieve the handler for the current projector
+                    var handler = handlers.getOrDefault(projectorName, null);
+                    if (handler == null) return;
+
+                    // Create telemetry proxy for the gateway
+                    var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
+                            publishedEvent.getEventMessage());
+
+                    // Track the event using the tracing agent
+                    tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                            null,
+                            () -> {
+                                // Invoke the handler and send telemetry metrics
+                                handler.invoke(
+                                        publishedEvent,
+                                        proxy,
+                                        proxy,
+                                        ps
+                                );
+                                proxy.sendInvocationsMetric();
+                                return null;
+                            });
+
+                }
+        );
+    }
+
+    /**
+     * Retrieves the consumer ID associated with this object.
+     *
+     * @return The consumer ID.
+     */
+    public String getConsumerId() {
+        return consumerId;
     }
 }
