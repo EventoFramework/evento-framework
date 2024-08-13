@@ -13,9 +13,7 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -30,6 +28,8 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
 
     private static final Logger logger = LogManager.getLogger(ProjectorManager.class);
 
+    private final ArrayList<ProjectorEvenConsumer> projectorEvenConsumers = new ArrayList<>();
+
     /**
      * Constructs a ProjectorManager object with the specified parameters.
      *
@@ -42,6 +42,16 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
      */
     public ProjectorManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
         super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
+    }
+
+
+    /**
+     * Retrieves the collection of ProjectorEvenConsumers.
+     *
+     * @return the collection of ProjectorEvenConsumers stored in the ProjectorManager.
+     */
+    public Collection<ProjectorEvenConsumer> getProjectorEvenConsumers() {
+        return projectorEvenConsumers;
     }
 
 
@@ -72,7 +82,7 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
                 var projectorVersion = annotation.version();
                 logger.info("Starting event consumer for Projector: %s - Version: %d - Context: %s"
                         .formatted(projectorName, projectorVersion, context));
-                var t = new Thread(new ProjectorEvenConsumer(
+                var c = new ProjectorEvenConsumer(
                         getBundleId(),
                         projectorName,
                         projectorVersion,
@@ -86,7 +96,9 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
                         getSssFetchDelay(),
                         counter,
                         onAllHeadReached
-                ));
+                );
+                projectorEvenConsumers.add(c);
+                var t = new Thread(c);
                 t.setName(projectorName + "(v"+projectorVersion+") - " + context);
                 t.start();
             }
