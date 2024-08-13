@@ -184,13 +184,14 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
 	@Override
 	public void addEventToDeadEventQueue(String consumerId, PublishedEvent event) throws Exception {
-		var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event) values (?, ?, ?, false,?,?::json)";
+		var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId) values (?, ?, ?, false,?,?::json,?)";
 		var stmt = connection.prepareStatement(q);
 		stmt.setString(1, consumerId);
 		stmt.setLong(2, event.getEventSequenceNumber());
 		stmt.setString(3, event.getEventName());
 		stmt.setTimestamp(4, new Timestamp(ZonedDateTime.now().toInstant().toEpochMilli()));
 		stmt.setString(5, getObjectMapper().writeValueAsString(event));
+		stmt.setString(6, event.getAggregateId());
 		if (stmt.executeUpdate() == 0) throw new RuntimeException("Insert into Dead Event Queue error");
 	}
 
@@ -251,7 +252,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
 
 	@Override
-	protected StoredSagaState getSagaState(String sagaName,
+	public StoredSagaState getSagaState(String sagaName,
 										   String associationProperty,
 										   String associationValue) throws Exception {
 		var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ? and json_extract_path_text(state::json->1->'associations'->1,?) = ?");
@@ -266,7 +267,20 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	}
 
 	@Override
-	protected void setSagaState(Long id, String sagaName, SagaState sagaState) throws Exception {
+	public Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception {
+		var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ?");
+		stmt.setString(1, sagaName);
+		var resultSet = stmt.executeQuery();
+		var response = new ArrayList<StoredSagaState>();
+		while (!resultSet.next()) {
+			var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
+			response.add(new StoredSagaState(resultSet.getLong(1), state));
+		}
+		return response;
+	}
+
+	@Override
+	public void setSagaState(Long id, String sagaName, SagaState sagaState) throws Exception {
         java.sql.PreparedStatement stmt;
         if (id == null)
 		{

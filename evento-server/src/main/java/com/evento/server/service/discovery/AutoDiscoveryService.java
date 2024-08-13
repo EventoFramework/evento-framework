@@ -198,7 +198,6 @@ public class AutoDiscoveryService {
                     bundleService.unregister(node.bundleId());
                 }
             });
-            consumerRepository.deleteAllByInstanceId(node.instanceId());
         } finally {
             lock.unlock();
         }

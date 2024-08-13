@@ -7,6 +7,7 @@ import com.evento.server.web.dto.SnapshotDTO;
 import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,6 +27,7 @@ public class SystemStateStoreController {
 
 
     @GetMapping("/event")
+    @Secured("ROLE_WEB")
     public Page<EventDTO> searchEvents(
             @RequestParam(required = false) String aggregateIdentifier,
             @RequestParam(required = false) String eventName,
@@ -56,7 +58,9 @@ public class SystemStateStoreController {
                 sortProperty
         ).map(EventDTO::new);
     }
+
     @GetMapping("/snapshot")
+    @Secured("ROLE_WEB")
     public Page<SnapshotDTO> searchSnapshots(
             @RequestParam(required = false) String aggregateIdentifier,
             @RequestParam(defaultValue = "0") int page,

@@ -2,6 +2,7 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
+import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.utils.ProjectorStatus;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
@@ -11,6 +12,7 @@ import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.utils.Sleep;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -171,4 +173,35 @@ public class ObserverEventConsumer implements Runnable {
         );
     }
 
+    /**
+     * Retrieves the dead event queue for the observer event consumer.
+     *
+     * This method retrieves the dead event queue from the consumer state store for the specified consumer ID. It calls the {@code getEventsFromDeadEventQueue} method of the consumer
+     *  state store, passing the consumer ID as a parameter. The method returns a collection of {@code DeadPublishedEvent} objects representing the events from the dead event queue
+     * .
+     *
+     * @return a collection of {@code DeadPublishedEvent} objects representing the events from the dead event queue
+     * @throws Exception if an error occurs during retrieval of the dead event queue
+     *
+     * @see ConsumerStateStore#getEventsFromDeadEventQueue(String)
+     * @see DeadPublishedEvent
+     */
+    public Collection<DeadPublishedEvent> getDeadEventQueue() throws Exception {
+        return consumerStateStore.getEventsFromDeadEventQueue(consumerId);
+    }
+
+    /**
+     * Retrieves the last consumed event sequence number for the observer event consumer.
+     *
+     * This method calls the {@code getLastEventSequenceNumberSagaOrHead} method of the {@code consumerStateStore} instance,
+     * passing the consumer ID as a parameter. It returns the last event sequence number for the consumer.
+     *
+     * @return the last consumed event sequence number for the observer event consumer
+     * @throws Exception if an error occurs during retrieval of the last consumed event sequence number
+     *
+     * @see ConsumerStateStore#getLastEventSequenceNumberSagaOrHead(String)
+     */
+    public long getLastConsumedEvent() throws Exception {
+        return consumerStateStore.getLastEventSequenceNumberSagaOrHead(consumerId);
+    }
 }

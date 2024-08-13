@@ -305,12 +305,13 @@ public abstract class ConsumerStateStore {
     }
 
     /**
-     * Consumes dead events for an observer.
+     * Consume dead events for a saga.
      *
-     * @param consumerId             the ID of the consumer
-     * @param observerName          the name of the observer
-     * @param observerEventConsumer the event consumer for the observer
-     * @throws Exception if an error occurs during event consumption
+     * @param consumerId The ID of the consumer processing the dead events.
+     * @param sagaName The name of the saga.
+     * @param sagaEventConsumer The implementation of the SagaEventConsumer interface that will consume the dead events.
+     *
+     * @throws Throwable if an error occurs during the consumption of the dead events.
      */
     public void consumeDeadEventsForSaga(
             String consumerId, String sagaName,
@@ -364,7 +365,7 @@ public abstract class ConsumerStateStore {
      * @return the last event sequence number for the consumer
      * @throws Exception if an error occurs
      */
-    protected long getLastEventSequenceNumberSagaOrHead(String consumerId) throws Exception {
+    public long getLastEventSequenceNumberSagaOrHead(String consumerId) throws Exception {
         var last = getLastEventSequenceNumber(consumerId);
         if (last == null) {
             var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest()).get()).getNumber();
@@ -475,7 +476,16 @@ public abstract class ConsumerStateStore {
      * @return the stored saga state
      * @throws Exception if an error occurs during retrieval of saga state
      */
-    protected abstract StoredSagaState getSagaState(String sagaName, String associationProperty, String associationValue) throws Exception;
+    public abstract StoredSagaState getSagaState(String sagaName, String associationProperty, String associationValue) throws Exception;
+
+    /**
+     * Retrieves the stored states of sagas with the specified name.
+     *
+     * @param sagaName the name of the saga
+     * @return a collection of StoredSagaState objects representing the stored saga states
+     * @throws Exception if an error occurs during retrieval of the saga states
+     */
+    public abstract Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception;
 
     /**
      * Sets the state of a saga identified by its ID, name, and SagaState object.
@@ -485,7 +495,7 @@ public abstract class ConsumerStateStore {
      * @param sagaState the SagaState object representing the state of the saga
      * @throws Exception if an error occurs during setting the saga state
      */
-    protected abstract void setSagaState(Long sagaId, String sagaName, SagaState sagaState) throws Exception;
+    public abstract void setSagaState(Long sagaId, String sagaName, SagaState sagaState) throws Exception;
 
     /**
      * Retrieves the instance of ObjectMapper used for JSON serialization and deserialization.
