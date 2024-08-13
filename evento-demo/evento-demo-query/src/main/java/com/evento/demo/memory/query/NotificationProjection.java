@@ -1,4 +1,4 @@
-package com.evento.demo.query;
+package com.evento.demo.memory.query;
 
 import com.evento.common.modeling.annotations.component.Projection;
 import com.evento.common.modeling.annotations.handler.QueryHandler;
@@ -8,7 +8,7 @@ import com.evento.demo.api.query.NotificationFindAllQuery;
 import com.evento.demo.api.query.NotificationFindByIdQuery;
 import com.evento.demo.api.utils.Utils;
 import com.evento.demo.api.view.NotificationView;
-import com.evento.demo.query.external.ExternalNotificationService;
+import com.evento.demo.memory.query.external.ExternalNotificationService;
 
 @Projection
 public class NotificationProjection {
