@@ -2,6 +2,7 @@ package com.evento.common.modeling.messaging.message.application;
 
 import com.evento.common.modeling.messaging.payload.Payload;
 import com.evento.common.modeling.messaging.payload.TrackablePayload;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -48,6 +49,7 @@ public abstract class Message<T extends Payload> implements Serializable {
 	 *
 	 * @return the payload of the message
 	 */
+	@JsonIgnore
 	public T getPayload() {
 		return serializedPayload.getObject();
 	}

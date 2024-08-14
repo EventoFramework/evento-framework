@@ -82,6 +82,7 @@ public class EventoConfiguration {
 				})*/
 				// .setContexts(Map.of(DemoProjector.class.getSimpleName(), Set.of(Context.DEFAULT, "other")))
 				.setOnEventoStartedHook((eb) -> {
+					/*
 					while (true) {
                         try {
                             Thread.sleep(1000);
@@ -96,7 +97,7 @@ public class EventoConfiguration {
 										e.printStackTrace();
 									}
 								});
-					}
+					}*/
 				})
 				.start();
 

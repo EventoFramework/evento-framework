@@ -5,6 +5,7 @@ import {IonicModule} from "@ionic/angular";
 import {FormsModule} from "@angular/forms";
 import {TranslateModule} from "@ngx-translate/core";
 import {DatePipe, JsonPipe, KeyValuePipe, NgForOf, NgIf} from "@angular/common";
+import {ComponentsModule} from "../../../../components/components.module";
 
 @Component({
   standalone: true,
@@ -20,7 +21,8 @@ import {DatePipe, JsonPipe, KeyValuePipe, NgForOf, NgIf} from "@angular/common";
     JsonPipe,
     KeyValuePipe,
     NgForOf,
-    NgIf
+    NgIf,
+    ComponentsModule
   ]
 })
 export class EventStoreComponent  implements OnInit {

@@ -1,15 +1,14 @@
 package com.evento.server.web;
 
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerProcessDeadQueueResponseMessage;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerSetEventRetryResponseMessage;
 import com.evento.server.bus.MessageBus;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.service.discovery.ConsumerService;
 import com.evento.server.web.dto.ConsumerDTO;
 import org.springframework.security.access.annotation.Secured;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,7 +42,8 @@ public class ConsumerController {
                 consumer.setBundleVersion(c.getComponent().getBundle().getVersion());
                 consumer.setComponentName(c.getComponent().getComponentName());
                 consumer.setComponentType(c.getComponent().getComponentType());
-                consumer.setContext(Arrays.stream(c.getConsumerId().split("_")).toList().getLast());
+                consumer.setContext((c.getConsumerId().split("_"))[3]);
+                consumer.setComponentVersion((c.getConsumerId().split("_"))[2]);
                 map.put(c.getComponent().getComponentName(), consumer);
             }
             if(messageBus.getCurrentAvailableView().stream().anyMatch(e -> e.instanceId().equals(c.getInstanceId()))){
@@ -60,5 +60,21 @@ public class ConsumerController {
     public CompletableFuture<ConsumerFetchStatusResponseMessage>
     getConsumersByConsumerId(@PathVariable String consumerId) throws Exception {
       return consumerService.getConsumerStatusFromNodes(consumerId, messageBus);
+    }
+
+    @PutMapping("/{consumerId}/retry/{eventSequenceNumber}")
+    @Secured("ROLE_WEB")
+    public CompletableFuture<ConsumerSetEventRetryResponseMessage>
+    setRetryForConsumerEvent(@PathVariable String consumerId,
+                             @PathVariable long eventSequenceNumber,
+                             @RequestParam boolean retry) throws Exception {
+      return consumerService.setRetryForConsumerEvent(consumerId, eventSequenceNumber, retry, messageBus);
+    }
+
+    @PostMapping("/{consumerId}/consume-dead-queue")
+    @Secured("ROLE_WEB")
+    public CompletableFuture<ConsumerProcessDeadQueueResponseMessage>
+    consumeDeadQueue(@PathVariable String consumerId) throws Exception {
+      return consumerService.consumeDeadQueue(consumerId, messageBus);
     }
 }

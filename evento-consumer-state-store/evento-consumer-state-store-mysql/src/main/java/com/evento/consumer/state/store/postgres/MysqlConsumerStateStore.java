@@ -1,6 +1,7 @@
 package com.evento.consumer.state.store.postgres;
 
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
+import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
@@ -97,7 +98,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         this.SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
                 + " (id int auto_increment, name varchar(255),  state text, primary key (id))";
         this.DEAD_EVENT_DDL = "create table if not exists " + DEAD_EVENT_TABLE
-                + " (consumerId varchar(255), eventSequenceNumber bigint, eventName varchar(255), retry boolean, deadAt timestamp, event json, aggregateId varchar(255), primary key (consumerId, eventSequenceNumber))";
+                + " (consumerId varchar(255), eventSequenceNumber bigint, eventName varchar(255), retry boolean, deadAt timestamp, event json, aggregateId varchar(255), context varchar(255), exception json, primary key (consumerId, eventSequenceNumber))";
         init();
     }
 
@@ -172,8 +173,8 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     }
 
     @Override
-    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event) throws Exception {
-        var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId) values (?, ?, ?, false,?,?,?)";
+    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Exception exception) throws Exception {
+        var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId, context, exception) values (?, ?, ?, false,?,?,?,?,?)";
         var stmt = connection.prepareStatement(q);
         stmt.setString(1, consumerId);
         stmt.setLong(2, event.getEventSequenceNumber());
@@ -181,6 +182,8 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         stmt.setTimestamp(4, new Timestamp(ZonedDateTime.now().toInstant().toEpochMilli()));
         stmt.setString(5, getObjectMapper().writeValueAsString(event));
         stmt.setString(6, event.getAggregateId());
+        stmt.setString(7, event.getEventMessage().getContext());
+        stmt.setString(8, getObjectMapper().writeValueAsString(new ExceptionWrapper(exception)));
         if (stmt.executeUpdate() == 0) throw new RuntimeException("Insert into Dead Event Queue error");
     }
 
@@ -219,9 +222,11 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
                             rs.getString("consumerId"),
                             rs.getString("eventName"),
                             rs.getString("aggregateId"),
-                            rs.getLong("eventSequenceNumber"),
+                            rs.getString("context"),
+                            rs.getLong("eventSequenceNumber") + "",
                             getObjectMapper().readValue(rs.getString("event"), PublishedEvent.class),
                             rs.getBoolean("retry"),
+                            getObjectMapper().readValue(rs.getString("exception"), ExceptionWrapper.class),
                             ZonedDateTime.ofInstant(rs.getTimestamp("deadAt").toInstant(), ZoneId.systemDefault())
                     ));
 

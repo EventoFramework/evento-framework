@@ -5,29 +5,17 @@ import com.evento.common.modeling.bundle.types.ComponentType;
 import java.io.Serializable;
 
 
-/**
- * The ConsumerFetchStatusRequestMessage class represents a message used to request the status of a consumer.
- * The status request message includes the consumer ID.
- *
- * <p>This class implements the Serializable interface to enable serialization and deserialization of objects of this class.</p>
- *
- * <p>Use the constructor  to create an instance of the ConsumerFetchStatusRequestMessage class with the specified consumer ID.
- * The default constructor {@link #ConsumerFetchStatusRequestMessage()} can be used to create an instance with no consumer ID specified.</p>
- *
- * <p>After creating an instance of the ConsumerFetchStatusRequestMessage class, the consumer ID can be retrieved or modified using the getter {@link #getConsumerId()} and setter
- *  {@link #setConsumerId(String)} respectively.</p>
- *
- */
-public class ConsumerFetchStatusRequestMessage implements Serializable {
+
+public class ConsumerProcessDeadQueueRequestMessage implements Serializable {
     private String consumerId;
     private ComponentType componentType;
 
-    public ConsumerFetchStatusRequestMessage(String consumerId, ComponentType componentType) {
+    public ConsumerProcessDeadQueueRequestMessage(String consumerId, ComponentType componentType) {
         this.consumerId = consumerId;
         this.componentType = componentType;
     }
 
-    public ConsumerFetchStatusRequestMessage() {
+    public ConsumerProcessDeadQueueRequestMessage() {
     }
 
     /**

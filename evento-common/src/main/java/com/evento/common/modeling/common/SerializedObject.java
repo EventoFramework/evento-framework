@@ -104,7 +104,6 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 	 *
 	 * @return the tree structure of the serialized object as a JsonNode, or null if deserialization fails
 	 */
-	@JsonIgnore
 	public JsonNode getTree() {
 		try
 		{
