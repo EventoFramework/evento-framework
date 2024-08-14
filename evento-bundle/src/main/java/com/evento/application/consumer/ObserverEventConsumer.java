@@ -21,8 +21,7 @@ import java.util.function.Supplier;
  * The ObserverEventConsumer class is responsible for consuming and processing events
  * for a specific observer.
  */
-public class ObserverEventConsumer implements Runnable {
-    private static final Logger logger = LogManager.getLogger(ObserverEventConsumer.class);
+public class ObserverEventConsumer extends EventConsumer {
 
     // Fields for configuration and dependencies
     private final String bundleId;
@@ -31,14 +30,11 @@ public class ObserverEventConsumer implements Runnable {
     private final int observerVersion;
     private final String context;
     private final Supplier<Boolean> isShuttingDown;
-    private final ConsumerStateStore consumerStateStore;
     private final HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
     private final int sssFetchSize;
     private final int sssFetchDelay;
-    @Getter
-    private final String consumerId;
 
 
     /**
@@ -63,20 +59,19 @@ public class ObserverEventConsumer implements Runnable {
                                  TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy,
                                  int sssFetchSize, int sssFetchDelay) {
+        super(bundleId + "_" + observerName + "_" + observerVersion + "_" + context, consumerStateStore);
+        ;
         // Initialization of fields
         this.bundleId = bundleId;
         this.observerName = observerName;
         this.observerVersion = observerVersion;
         this.context = context;
         this.isShuttingDown = isShuttingDown;
-        this.consumerStateStore = consumerStateStore;
         this.observerMessageHandlers = observerMessageHandlers;
         this.tracingAgent = tracingAgent;
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
-        // Construct consumer identifier
-        this.consumerId = bundleId + "_" + observerName + "_" + observerVersion + "_" + context;
     }
 
     /**
@@ -173,46 +168,5 @@ public class ObserverEventConsumer implements Runnable {
         );
     }
 
-    /**
-     * Retrieves the dead event queue for the observer event consumer.
-     *
-     * This method retrieves the dead event queue from the consumer state store for the specified consumer ID. It calls the {@code getEventsFromDeadEventQueue} method of the consumer
-     *  state store, passing the consumer ID as a parameter. The method returns a collection of {@code DeadPublishedEvent} objects representing the events from the dead event queue
-     * .
-     *
-     * @return a collection of {@code DeadPublishedEvent} objects representing the events from the dead event queue
-     * @throws Exception if an error occurs during retrieval of the dead event queue
-     *
-     * @see ConsumerStateStore#getEventsFromDeadEventQueue(String)
-     * @see DeadPublishedEvent
-     */
-    public Collection<DeadPublishedEvent> getDeadEventQueue() throws Exception {
-        return consumerStateStore.getEventsFromDeadEventQueue(consumerId);
-    }
 
-    /**
-     * Retrieves the last consumed event sequence number for the observer event consumer.
-     *
-     * This method calls the {@code getLastEventSequenceNumberSagaOrHead} method of the {@code consumerStateStore} instance,
-     * passing the consumer ID as a parameter. It returns the last event sequence number for the consumer.
-     *
-     * @return the last consumed event sequence number for the observer event consumer
-     * @throws Exception if an error occurs during retrieval of the last consumed event sequence number
-     *
-     * @see ConsumerStateStore#getLastEventSequenceNumberSagaOrHead(String)
-     */
-    public long getLastConsumedEvent() throws Exception {
-        return consumerStateStore.getLastEventSequenceNumberSagaOrHead(consumerId);
-    }
-
-    /**
-     * Sets the retry flag for a dead event of a specific consumer.
-     *
-     * @param eventSequenceNumber the sequence number of the dead event
-     * @param retry               the retry flag, true if the event should be retried, false otherwise
-     * @throws Exception if an error occurs during the retry flag setting
-     */
-    public void setDeadEventRetry(long eventSequenceNumber, boolean retry) throws Exception {
-        consumerStateStore.setRetryDeadEvent(consumerId, eventSequenceNumber, retry);
-    }
 }

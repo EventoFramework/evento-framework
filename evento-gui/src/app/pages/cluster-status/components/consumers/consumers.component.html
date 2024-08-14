@@ -60,9 +60,10 @@
                       <ion-col size="2">{{de.deadAt * 1000 | date:'short'}}</ion-col>
                       <ion-col size="3" class="ion-text-end">
                         <ion-button shape="round" size="small" translate="consumer.show.event" (click)="detail.present()"></ion-button>
-                        <ion-button shape="round" size="small" color="warning" translate="consumer.show.error" (click)="error.present()">
-
-                        </ion-button></ion-col>
+                        <ion-button shape="round" size="small" color="warning" translate="consumer.show.error" (click)="error.present()"></ion-button>
+                        <ion-button shape="round" size="small" color="danger" translate="consumer.delete.event" (click)="deleteEvent(de.consumerId, de.eventSequenceNumber)">
+                        </ion-button>
+                      </ion-col>
                     </ion-row>
                     <app-event-detail-modal #detail [event]="de.ev"></app-event-detail-modal>
                     <ion-modal #error class="modal-medium">
