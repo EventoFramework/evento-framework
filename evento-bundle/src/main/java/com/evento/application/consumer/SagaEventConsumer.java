@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  * Represents a consumer for saga events, responsible for processing and handling events
  * in a saga context.
  */
-public class SagaEventConsumer implements Runnable {
+public class SagaEventConsumer extends EventConsumer {
     private static final Logger logger = LogManager.getLogger(SagaEventConsumer.class);
 
     // Fields for configuration and dependencies
@@ -32,14 +32,11 @@ public class SagaEventConsumer implements Runnable {
     private final int sagaVersion;
     private final String context;
     private final Supplier<Boolean> isShuttingDown;
-    private final ConsumerStateStore consumerStateStore;
     private final HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
     private final int sssFetchSize;
     private final int sssFetchDelay;
-    @Getter
-    private final String consumerId;
 
     /**
      * Constructs a new SagaEventConsumer with the specified parameters.
@@ -63,21 +60,19 @@ public class SagaEventConsumer implements Runnable {
                              TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy,
                              int sssFetchSize, int sssFetchDelay) {
+        super(bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context, consumerStateStore);
+        ;
         // Initialization of fields
         this.bundleId = bundleId;
         this.sagaName = sagaName;
         this.sagaVersion = sagaVersion;
         this.context = context;
         this.isShuttingDown = isShuttingDown;
-        this.consumerStateStore = consumerStateStore;
         this.sagaMessageHandlers = sagaMessageHandlers;
         this.tracingAgent = tracingAgent;
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
-
-        // Construct consumer identifier
-        this.consumerId = bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context;
 
     }
 
@@ -158,7 +153,7 @@ public class SagaEventConsumer implements Runnable {
         }
     }
 
-    public void consumeDeadEventQueue() throws Throwable {
+    public void consumeDeadEventQueue() throws Exception {
 
         consumerStateStore.consumeDeadEventsForSaga(
                 consumerId,
@@ -213,46 +208,5 @@ public class SagaEventConsumer implements Runnable {
                             });
                 }
         );
-    }
-
-    /**
-     * Retrieves the collection of dead published events from the dead event queue for a specific consumer.
-     *
-     * @return a Collection of DeadPublishedEvent objects representing the dead published events from the dead event queue
-     * @throws Exception if an error occurs during retrieval of dead published events from the dead event queue
-     */
-    public Collection<DeadPublishedEvent> getDeadEventQueue() throws Exception {
-        return consumerStateStore.getEventsFromDeadEventQueue(consumerId);
-    }
-
-    /**
-     * Retrieves the last consumed event sequence number for the SagaEventConsumer.
-     *
-     * @return the last consumed event sequence number
-     * @throws Exception if an error occurs during retrieval of the last consumed event sequence number
-     */
-    public long getLastConsumedEvent() throws Exception {
-        return consumerStateStore.getLastEventSequenceNumberSagaOrHead(consumerId);
-    }
-
-    /**
-     * Retrieves the current states of sagas for the given saga name.
-     *
-     * @return a collection of StoredSagaState objects representing the current saga states
-     * @throws Exception if an error occurs during retrieval of the current saga states
-     */
-    public Collection<StoredSagaState> getCurrentSagaStates() throws Exception {
-        return consumerStateStore.getSagaStates(sagaName);
-    }
-
-    /**
-     * Sets the retry flag for a dead event of a specific consumer.
-     *
-     * @param eventSequenceNumber the sequence number of the dead event
-     * @param retry               the retry flag, true if the event should be retried, false otherwise
-     * @throws Exception if an error occurs during the retry flag setting
-     */
-    public void setDeadEventRetry(long eventSequenceNumber, boolean retry) throws Exception {
-        consumerStateStore.setRetryDeadEvent(consumerId, eventSequenceNumber, retry);
     }
 }

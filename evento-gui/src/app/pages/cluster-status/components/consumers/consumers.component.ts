@@ -87,4 +87,29 @@ export class ConsumersComponent implements OnInit {
       await l.dismiss();
     }
   }
+
+  async deleteEvent(consumerId: any, eventSequenceNumber: any) {
+    const l = await this.loadingCtrl.create();
+    await l.present();
+    try {
+      await this.service.deleteDeadEvent(consumerId, eventSequenceNumber)
+      const cs = await this.service.fetchConsumerState(consumerId)
+      cs.deadEvents = cs.deadEvents.map(e => {
+        e.ev = {
+          aggregateId: e.aggregateId,
+          context: e.context,
+          createdAt: e.event.eventMessage.timestamp,
+          deletedAt: e.deletedAt,
+          eventName: e.eventName,
+          eventSequenceNumber: e.eventSequenceNumber,
+          metadata: e.event.eventMessage.metadata,
+          event: e.event.eventMessage.serializedPayload.tree
+        }
+        return e;
+      });
+      this.consumerState = cs;
+    }finally{
+      await l.dismiss();
+    }
+  }
 }

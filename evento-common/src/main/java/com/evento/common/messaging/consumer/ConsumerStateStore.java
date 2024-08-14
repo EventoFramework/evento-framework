@@ -315,7 +315,7 @@ public abstract class ConsumerStateStore {
      */
     public void consumeDeadEventsForSaga(
             String consumerId, String sagaName,
-            SagaEventConsumer sagaEventConsumer) throws Throwable {
+            SagaEventConsumer sagaEventConsumer) throws Exception {
         if (enterExclusiveZone(consumerId)) {
             try {
                 var events = getEventsToReprocessFromDeadEventQueue(consumerId);
@@ -434,7 +434,19 @@ public abstract class ConsumerStateStore {
      * @param publishedEvent the PublishedEvent object representing the event to be removed
      * @throws Exception if an error occurs during the removal of the event from the dead event queue
      */
-    public abstract void removeEventFromDeadEventQueue(String consumerId, PublishedEvent publishedEvent) throws Exception;
+    public void removeEventFromDeadEventQueue(String consumerId, PublishedEvent publishedEvent) throws Exception {
+        removeEventFromDeadEventQueue(consumerId, publishedEvent.getEventSequenceNumber());
+    }
+
+
+    /**
+     * Removes an event from the dead event queue for a specific consumer.
+     *
+     * @param consumerId             the ID of the consumer
+     * @param eventSequenceNumber    the sequence number of the event to be removed
+     * @throws Exception if an error occurs during the removal of the event from the dead event queue
+     */
+    public abstract void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) throws Exception;
 
 
     /**

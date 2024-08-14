@@ -199,11 +199,11 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	}
 
 	@Override
-	public void removeEventFromDeadEventQueue(String consumerId, PublishedEvent publishedEvent) throws Exception {
+	public void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) throws Exception {
 		var q = "delete from " + DEAD_EVENT_TABLE + " where consumerId = ? and eventSequenceNumber = ?";
 		var stmt = connection.prepareStatement(q);
 		stmt.setString(1, consumerId);
-		stmt.setLong(2, publishedEvent.getEventSequenceNumber());
+		stmt.setLong(2, eventSequenceNumber);
 		stmt.executeUpdate();
 	}
 

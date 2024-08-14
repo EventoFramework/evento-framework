@@ -1,5 +1,6 @@
 package com.evento.application;
 
+import com.evento.application.consumer.EventConsumer;
 import com.evento.application.manager.*;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.performance.Track;
@@ -562,134 +563,60 @@ public class EventoBundle {
                                 case QueryMessage<?> qm -> projectionManager.handle(qm);
                                 case ConsumerFetchStatusRequestMessage cr -> {
                                     var resp = new ConsumerFetchStatusResponseMessage();
-                                    switch (cr.getComponentType()){
-                                        case Saga -> {
-                                            eventoBundle.get().getSagaManager().getSagaEventConsumers()
-                                                    .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                    .findFirst()
-                                                    .ifPresent(c -> {
-                                                        try {
-                                                            resp.setDeadEvents(c.getDeadEventQueue());
-                                                            resp.setLastEventSequenceNumber(c.getLastConsumedEvent());
-                                                        } catch (Exception e) {
-                                                            throw new RuntimeException(e);
-                                                        }
-
-                                                    });
-
-                                        }
-                                        case Projector ->  eventoBundle.get().getProjectorManager().getProjectorEvenConsumers()
-                                                .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                .findFirst()
-                                                .ifPresent(c -> {
-                                                    try {
-                                                        resp.setDeadEvents(c.getDeadEventQueue());
-                                                        resp.setLastEventSequenceNumber(c.getLastConsumedEvent());
-                                                    } catch (Exception e) {
-                                                        throw new RuntimeException(e);
-                                                    }
-
-                                                });
-                                        case Observer -> eventoBundle.get().getObserverManager().getObserverEventConsumers()
-                                                .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                .findFirst()
-                                                .ifPresent(c -> {
-                                                    try {
-                                                        resp.setDeadEvents(c.getDeadEventQueue());
-                                                        resp.setLastEventSequenceNumber(c.getLastConsumedEvent());
-                                                    } catch (Exception e) {
-                                                        throw new RuntimeException(e);
-                                                    }
-
-                                                });
-                                        case null, default -> throw new RuntimeException("Invalid request body: " + body);
-                                    };
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                                try {
+                                                    resp.setDeadEvents(c.getDeadEventQueue());
+                                                    resp.setLastEventSequenceNumber(c.getLastConsumedEvent());
+                                                } catch (Exception e) {
+                                                    throw new RuntimeException(e);
+                                                }
+                                            });
                                     yield resp;
                                 }
                                 case ConsumerSetEventRetryRequestMessage cr -> {
-                                    var resp = new ConsumerSetEventRetryResponseMessage();
+                                    var resp = new ConsumerResponseMessage();
                                     resp.setSuccess(true);
-                                    switch (cr.getComponentType()){
-                                        case Saga -> {
-                                            eventoBundle.get().getSagaManager().getSagaEventConsumers()
-                                                    .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                    .findFirst()
-                                                    .ifPresent(c -> {
-                                                        try {
-                                                            c.setDeadEventRetry(cr.getEventSequenceNumber(), cr.isRetry());
-                                                        } catch (Exception e) {
-                                                            throw new RuntimeException(e);
-                                                        }
-                                                    });
-
-                                        }
-                                        case Projector ->  eventoBundle.get().getProjectorManager().getProjectorEvenConsumers()
-                                                .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                .findFirst()
-                                                .ifPresent(c -> {
-                                                    try {
-                                                        c.setDeadEventRetry(cr.getEventSequenceNumber(), cr.isRetry());
-                                                    } catch (Exception e) {
-                                                        throw new RuntimeException(e);
-                                                    }
-
-                                                });
-                                        case Observer -> eventoBundle.get().getObserverManager().getObserverEventConsumers()
-                                                .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                .findFirst()
-                                                .ifPresent(c -> {
-                                                    try {
-                                                        c.setDeadEventRetry(cr.getEventSequenceNumber(), cr.isRetry());
-                                                    } catch (Exception e) {
-                                                        throw new RuntimeException(e);
-                                                    }
-
-                                                });
-                                        case null, default -> throw new RuntimeException("Invalid request body: " + body);
-                                    };
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                                try {
+                                                    c.setDeadEventRetry(cr.getEventSequenceNumber(), cr.isRetry());
+                                                } catch (Exception e) {
+                                                    throw new RuntimeException(e);
+                                                }
+                                            });
                                     yield resp;
                                 }
                                 case ConsumerProcessDeadQueueRequestMessage cr -> {
-                                    var resp = new ConsumerProcessDeadQueueResponseMessage();
+                                    var resp = new ConsumerResponseMessage();
                                     resp.setSuccess(true);
-                                    switch (cr.getComponentType()){
-                                        case Saga -> {
-                                            eventoBundle.get().getSagaManager().getSagaEventConsumers()
-                                                    .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                    .findFirst()
-                                                    .ifPresent(c -> {
-                                                        try {
-                                                            c.consumeDeadEventQueue();
-                                                        } catch (Throwable e) {
-                                                            throw new RuntimeException(e);
-                                                        }
-                                                    });
-
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                        try {
+                                            c.consumeDeadEventQueue();
+                                        } catch (Exception e) {
+                                            throw new RuntimeException(e);
                                         }
-                                        case Projector ->  eventoBundle.get().getProjectorManager().getProjectorEvenConsumers()
-                                                .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                .findFirst()
-                                                .ifPresent(c -> {
-                                                    try {
-                                                        c.consumeDeadEventQueue();
-                                                    } catch (Throwable e) {
-                                                        throw new RuntimeException(e);
-                                                    }
+                                    });
 
-                                                });
-                                        case Observer -> eventoBundle.get().getObserverManager().getObserverEventConsumers()
-                                                .stream().filter(c -> c.getConsumerId().equals(cr.getConsumerId()))
-                                                .findFirst()
-                                                .ifPresent(c -> {
-                                                    try {
-                                                        c.consumeDeadEventQueue();
-                                                    } catch (Throwable e) {
-                                                        throw new RuntimeException(e);
-                                                    }
+                                    yield resp;
+                                }
+                                case ConsumerDeleteDeadEventRequestMessage cr -> {
+                                    var resp = new ConsumerResponseMessage();
+                                    resp.setSuccess(true);
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                        try {
+                                            c.deleteDeadEvent(cr.getEventSequenceNumber());
+                                        } catch (Exception e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                    });
 
-                                                });
-                                        case null, default -> throw new RuntimeException("Invalid request body: " + body);
-                                    };
                                     yield resp;
                                 }
                                 case null, default -> throw new RuntimeException("Invalid request body: " + body);
@@ -769,6 +696,22 @@ public class EventoBundle {
             return eventoBundle.get();
 
         }
+    }
+
+    private Optional<? extends EventConsumer> getEventConsumer(String consumerId, ComponentType componentType) {
+        return switch (componentType){
+            case Saga ->
+                    getSagaManager().getSagaEventConsumers()
+                            .stream().filter(c -> c.getConsumerId().equals(consumerId))
+                            .findFirst();
+            case Projector ->  getProjectorManager().getProjectorEvenConsumers()
+                    .stream().filter(c -> c.getConsumerId().equals(consumerId))
+                    .findFirst();
+            case Observer -> getObserverManager().getObserverEventConsumers()
+                    .stream().filter(c -> c.getConsumerId().equals(consumerId))
+                    .findFirst();
+            case null, default -> throw new RuntimeException("Invalid consumer fetch " + consumerId + " - " + componentType);
+        };
     }
 
     /**

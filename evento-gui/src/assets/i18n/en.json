@@ -119,6 +119,7 @@
   "consumer.last.event": "Last Event",
   "consumer.reprocess.event": "Reprocess Events",
   "consumer.dead.event.retry": "Retry",
-  "consumer.dead.event.at": "Dead at"
+  "consumer.dead.event.at": "Dead at",
+  "consumer.delete.event": "Delete"
 
 }

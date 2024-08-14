@@ -32,7 +32,7 @@ public class Consumer {
     /**
      *
      */
-    @ManyToOne
+    @ManyToOne(cascade = CascadeType.ALL)
     private Component component;
     private String instanceId;
     private String consumerId;

@@ -18,9 +18,16 @@ export class ConsumerService {
   }
 
   setRetryToDeadEvent(consumerId: any, eventSequenceNumber: any, checked) {
-    return fetch(environment.eventoServerUrl + '/api/consumer/' + consumerId + '/retry/' + eventSequenceNumber +'?retry=' + checked,
+    return fetch(environment.eventoServerUrl + '/api/consumer/' + consumerId + '/event/' + eventSequenceNumber +'?retry=' + checked,
       {
       method: 'PUT'
+    }).then(r => r.json());
+  }
+
+  deleteDeadEvent(consumerId: any, eventSequenceNumber: any) {
+    return fetch(environment.eventoServerUrl + '/api/consumer/' + consumerId + '/event/' + eventSequenceNumber,
+      {
+      method: 'DELETE'
     }).then(r => r.json());
   }
 

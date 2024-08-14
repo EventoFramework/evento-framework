@@ -151,15 +151,15 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     }
 
     /**
-	 * Removes the specified PublishedEvent from the dead event queue.
-	 *
-	 * @param consumerId the ID of the consumer
-	 * @param publishedEvent the PublishedEvent to be removed from the dead event queue
-	 * @throws Exception if an error occurs while removing the event from the dead event queue
-	 */
+     * Removes the event from the dead event queue that matches the specified consumer ID and event sequence number.
+     *
+     * @param consumerId          the ID of the consumer
+     * @param eventSequenceNumber the event sequence number
+     * @throws Exception if an error occurs while removing the event from the dead event queue
+     */
 	@Override
-    public void removeEventFromDeadEventQueue(String consumerId, PublishedEvent publishedEvent) throws Exception {
-        deadEventQueue.removeIf(de -> de.getConsumerId().equals(consumerId) && Long.parseLong(de.getEventSequenceNumber()) == (publishedEvent.getEventSequenceNumber()));
+    public void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) throws Exception {
+        deadEventQueue.removeIf(de -> de.getConsumerId().equals(consumerId) && Long.parseLong(de.getEventSequenceNumber()) == eventSequenceNumber);
     }
 
     /**
