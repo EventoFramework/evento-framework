@@ -111,6 +111,14 @@
   "sss.snapshot.detail": "Snapshot Detail",
   "sss.aggregate.state": "Aggregate State",
   "cluster.bundles": "Bundle Instances",
-  "cluster.consumers": "Consumers"
+  "cluster.consumers": "Consumers",
+  "consumer.dead.event.queue": "Dead Event Queue",
+  "consumer.saga.states": "Saga States",
+  "consumer.show.event": "Show Event",
+  "consumer.show.error": "Show Error",
+  "consumer.last.event": "Last Event",
+  "consumer.reprocess.event": "Reprocess Events",
+  "consumer.dead.event.retry": "Retry",
+  "consumer.dead.event.at": "Dead at"
 
 }

@@ -9,50 +9,62 @@ import java.util.Collection;
 
 
 /**
- * The ConsumerFetchStatusResponseMessage class represents a response message containing the fetch status for a consumer in an event sourcing system.
- * It provides information about the last event sequence number processed by the consumer, the dead events that failed to be processed, and the stored saga state.
+ * The ConsumerFetchStatusResponseMessage class represents a response message containing the status of a consumer's fetch operation.
+ * It implements the Serializable interface to allow objects of this class to be serialized and deserialized.
  *
- * This class implements the Serializable interface to enable the object to be written to an output stream and deserialized back into a Java object.
- *
- * The class has the following attributes:
- * - lastEventSequenceNumber: A long value representing the sequence number of the last event processed by the consumer.
- * - deadEvents: An ArrayList of DeadPublishedEvent objects representing the events that failed to be processed by the consumer.
- * - sagaState: A StoredSagaState object representing the stored state of a saga.
- *
- * The class provides the following methods:
- * - getLastEventSequenceNumber: Returns the last event sequence number processed by the consumer.
- * - setLastEventSequenceNumber: Sets the last event sequence number processed by the consumer.
- * - getDeadEvents: Returns the list of dead events.
- * - setDeadEvents: Sets the list of dead events.
- * - getSagaState: Returns the stored saga state.
- * - setSagaState: Sets the stored saga state.
+ * This class provides methods to retrieve and set the last event sequence number and the collection of dead events.
  */
 public class ConsumerFetchStatusResponseMessage implements Serializable {
     private long lastEventSequenceNumber;
     private Collection<DeadPublishedEvent> deadEvents;
-    private Collection<StoredSagaState> sagaState;
 
+    /**
+     * Retrieves the last event sequence number.
+     *
+     * This method returns the last event sequence number of the ConsumerFetchStatusResponseMessage.
+     * The last event sequence number represents the sequence number of the last event that was fetched by the consumer.
+     *
+     * @return the last event sequence number as a long value.
+     */
     public long getLastEventSequenceNumber() {
         return lastEventSequenceNumber;
     }
 
+    /**
+     * Sets the last event sequence number.
+     *
+     * This method allows you to set the last event sequence number of the ConsumerFetchStatusResponseMessage.
+     * The last event sequence number represents the sequence number of the last event that was fetched by the consumer.
+     *
+     * @param lastEventSequenceNumber the last event sequence number to be set, as a long value.
+     */
     public void setLastEventSequenceNumber(long lastEventSequenceNumber) {
         this.lastEventSequenceNumber = lastEventSequenceNumber;
     }
 
+    /**
+     * Retrieves the collection of dead published events.
+     *
+     * This method returns the collection of DeadPublishedEvent objects that represent dead published events in the event sourcing architecture. A dead published event occurs when
+     *  a published event fails to be processed and is moved to a dead event queue for further handling.
+     *
+     * @return the collection of DeadPublishedEvent objects representing the dead published events.
+     * @see DeadPublishedEvent
+     */
     public Collection<DeadPublishedEvent> getDeadEvents() {
         return deadEvents;
     }
 
+    /**
+     * Sets the collection of dead published events.
+     *
+     * This method allows you to set the collection of dead published events for the ConsumerFetchStatusResponseMessage object.
+     * A dead published event occurs when a published event fails to be processed and is moved to a dead event queue for further handling.
+     *
+     * @param deadEvents the collection of DeadPublishedEvent objects representing the dead published events to be set.
+     * @see DeadPublishedEvent
+     */
     public void setDeadEvents(Collection<DeadPublishedEvent> deadEvents) {
         this.deadEvents = deadEvents;
-    }
-
-    public Collection<StoredSagaState> getSagaState() {
-        return sagaState;
-    }
-
-    public void setSagaState(Collection<StoredSagaState> sagaState) {
-        this.sagaState = sagaState;
     }
 }

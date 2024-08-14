@@ -1,6 +1,7 @@
 package com.evento.common.messaging.consumer.impl;
 
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
+import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
@@ -135,14 +136,16 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 * @throws Exception if an error occurs while adding the event to the dead event queue
 	 */
 	@Override
-    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event) throws Exception {
+    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Exception exception) throws Exception {
         deadEventQueue.add(new DeadPublishedEvent(
                 consumerId,
                 event.getEventName(),
                 event.getAggregateId(),
-                event.getEventSequenceNumber(),
+                event.getEventMessage().getContext(),
+                event.getEventSequenceNumber().toString(),
                 event,
                 false,
+                new ExceptionWrapper(exception),
                 ZonedDateTime.now()
         ));
     }
@@ -156,7 +159,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 */
 	@Override
     public void removeEventFromDeadEventQueue(String consumerId, PublishedEvent publishedEvent) throws Exception {
-        deadEventQueue.removeIf(de -> de.getConsumerId().equals(consumerId) && de.getEventSequenceNumber() == publishedEvent.getEventSequenceNumber());
+        deadEventQueue.removeIf(de -> de.getConsumerId().equals(consumerId) && Long.parseLong(de.getEventSequenceNumber()) == (publishedEvent.getEventSequenceNumber()));
     }
 
     /**
@@ -181,7 +184,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 */
 	@Override
     public Collection<DeadPublishedEvent> getEventsFromDeadEventQueue(String consumerId) throws Exception {
-        return deadEventQueue.stream().filter(de -> de.getConsumerId().equals(consumerId)).toList();
+        return new ArrayList<>(deadEventQueue.stream().filter(de -> de.getConsumerId().equals(consumerId)).toList());
     }
 
     /**
@@ -194,7 +197,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 */
 	@Override
     public void setRetryDeadEvent(String consumerId, long eventSequenceNumber, boolean retry) throws Exception {
-        deadEventQueue.stream().filter(de -> de.getConsumerId().equals(consumerId) && de.getEventSequenceNumber() == eventSequenceNumber)
+        deadEventQueue.stream().filter(de -> de.getConsumerId().equals(consumerId) && Long.parseLong(de.getEventSequenceNumber()) == eventSequenceNumber)
                 .findFirst().ifPresent(de -> de.setRetry(retry));
     }
 
@@ -227,10 +230,10 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
      */
     @Override
     public Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception {
-        return sagaStateRepository.entrySet()
+        return new ArrayList<>(sagaStateRepository.entrySet()
                 .stream().filter(s -> s.getValue().getKey().equals(sagaName))
                 .map(s -> new StoredSagaState(s.getKey(), s.getValue().getValue()))
-                .toList();
+                .toList());
     }
 
     /**

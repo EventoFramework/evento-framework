@@ -1,5 +1,6 @@
 package com.evento.common.messaging.consumer;
 
+import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 
 import java.io.Serializable;
@@ -18,32 +19,29 @@ public class DeadPublishedEvent implements Serializable {
     private String consumerId;
     private String eventName;
     private String aggregateId;
-    private long eventSequenceNumber;
+    private String context;
+    private String eventSequenceNumber;
     private PublishedEvent event;
     private boolean retry;
+    private ExceptionWrapper exception;
     private ZonedDateTime deadAt;
 
     /**
-     * The DeadPublishedEvent class represents a dead published event in the event sourcing architecture.
-     * A dead published event occurs when a published event fails to be processed and is moved to a dead event queue for further handling.
-     * It contains information about the consumer ID, event name, aggregate ID, event sequence number, event message, retry status, and timestamp when it was moved to the dead event
-     *  queue.
-     *
-     * This class provides a constructor to create a new DeadPublishedEvent object with the specified consumer ID, event name, aggregate ID, event sequence number, event message,
-     *  retry status, and dead timestamp.
-     *
-     * @param consumerId The ID of the consumer that failed to process the published event.
-     * @*/
-    public DeadPublishedEvent(String consumerId, String eventName, String aggregateId, long eventSequenceNumber, PublishedEvent event, boolean retry, ZonedDateTime deadAt) {
+     * The DeadPublishedEvent class represents an event that failed to be processed by a consumer in the event sourcing architecture.
+     * It contains information about the consumer ID, event name, aggregate ID, context, event sequence number, published event,
+     * retry status, exception wrapper, and timestamp when it was marked as dead.
+     */
+    public DeadPublishedEvent(String consumerId, String eventName, String aggregateId, String context, String eventSequenceNumber, PublishedEvent event, boolean retry, ExceptionWrapper exception, ZonedDateTime deadAt) {
         this.consumerId = consumerId;
         this.eventName = eventName;
         this.aggregateId = aggregateId;
+        this.context = context;
         this.eventSequenceNumber = eventSequenceNumber;
         this.event = event;
         this.retry = retry;
+        this.exception = exception;
         this.deadAt = deadAt;
     }
-
 
     public DeadPublishedEvent() {
     }
@@ -127,7 +125,7 @@ public class DeadPublishedEvent implements Serializable {
      *
      * @return the event sequence number of the DeadPublishedEvent as a long value.
      */
-    public long getEventSequenceNumber() {
+    public String getEventSequenceNumber() {
         return eventSequenceNumber;
     }
 
@@ -137,7 +135,7 @@ public class DeadPublishedEvent implements Serializable {
      * @param eventSequenceNumber the event sequence number to be set as a long value.
      * @see DeadPublishedEvent#getEventSequenceNumber()
      */
-    public void setEventSequenceNumber(long eventSequenceNumber) {
+    public void setEventSequenceNumber(String eventSequenceNumber) {
         this.eventSequenceNumber = eventSequenceNumber;
     }
 
@@ -182,5 +180,43 @@ public class DeadPublishedEvent implements Serializable {
      */
     public void setAggregateId(String aggregateId) {
         this.aggregateId = aggregateId;
+    }
+
+    /**
+     * Retrieves the context of the DeadPublishedEvent.
+     *
+     * @return the context of the DeadPublishedEvent as a String.
+     */
+    public String getContext() {
+        return context;
+    }
+
+    /**
+     * Sets the context of the DeadPublishedEvent.
+     *
+     * This method allows you to set the context for a DeadPublishedEvent object. The context represents additional information associated with the event. It is typically a string
+     *  value that provides context or details about the event.
+     * @param context the context to be set as a String
+     */
+    public void setContext(String context) {
+        this.context = context;
+    }
+
+    /**
+     * Retrieves the wrapped exception.
+     *
+     * @return The wrapped exception.
+     */
+    public ExceptionWrapper getException() {
+        return exception;
+    }
+
+    /**
+     * Sets the exception for the current object.
+     *
+     * @param exception the exception to be set
+     */
+    public void setException(ExceptionWrapper exception) {
+        this.exception = exception;
     }
 }

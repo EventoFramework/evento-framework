@@ -5,12 +5,14 @@ import {IonicModule} from '@ionic/angular';
 import {ComponentHandlersDiagramComponent} from './component-handlers-diagram/component-handlers-diagram.component';
 import {BundleComponentsDiagramComponent} from './bundle-components-diagram/bundle-components-diagram.component';
 import {ApplicationGraphDiagramComponent} from './application-graph-diagram/application-graph-diagram.component';
-import {JsonPipe} from "@angular/common";
+import {DatePipe, JsonPipe, KeyValuePipe, NgForOf} from "@angular/common";
 import {RouterLink} from "@angular/router";
 import {ComponentTelemetryComponent} from "./component-telemetry/component-telemetry.component";
 import {NgApexchartsModule} from "ng-apexcharts";
 import {FormsModule} from "@angular/forms";
 import {AggregateTelemetryComponent} from "./aggregate-telemetry/aggregate-telemetry.component";
+import {EventDetailModalComponent} from "./event-detail-modal/event-detail-modal.component";
+import {TranslateModule} from "@ngx-translate/core";
 
 
 @NgModule({
@@ -20,7 +22,8 @@ import {AggregateTelemetryComponent} from "./aggregate-telemetry/aggregate-telem
     ApplicationGraphDiagramComponent,
     ComponentHandlersDiagramComponent,
     BundleComponentsDiagramComponent,
-    ComponentTelemetryComponent
+    ComponentTelemetryComponent,
+    EventDetailModalComponent
   ],
   exports: [
     InvokersHandlersDiagramComponent,
@@ -29,14 +32,19 @@ import {AggregateTelemetryComponent} from "./aggregate-telemetry/aggregate-telem
     BundleComponentsDiagramComponent,
     ApplicationGraphDiagramComponent,
     ComponentTelemetryComponent,
-    AggregateTelemetryComponent
+    AggregateTelemetryComponent,
+    EventDetailModalComponent,
   ],
   imports: [
     IonicModule,
     JsonPipe,
     RouterLink,
     NgApexchartsModule,
-    FormsModule
+    FormsModule,
+    KeyValuePipe,
+    NgForOf,
+    TranslateModule,
+    DatePipe
   ],
   declarations: [
     WrappedContentComponent,
@@ -45,7 +53,8 @@ import {AggregateTelemetryComponent} from "./aggregate-telemetry/aggregate-telem
     BundleComponentsDiagramComponent,
     ApplicationGraphDiagramComponent,
     ComponentTelemetryComponent,
-  AggregateTelemetryComponent]
+  AggregateTelemetryComponent,
+    EventDetailModalComponent]
 })
 export class ComponentsModule {
 }

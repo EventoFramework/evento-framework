@@ -241,4 +241,15 @@ public class ProjectorEvenConsumer implements Runnable {
         return consumerStateStore.getLastEventSequenceNumberSagaOrHead(consumerId);
     }
 
+    /**
+     * Sets the retry flag for a dead event of a specific consumer.
+     *
+     * @param eventSequenceNumber the sequence number of the dead event
+     * @param retry               the retry flag, true if the event should be retried, false otherwise
+     * @throws Exception if an error occurs during the retry flag setting
+     */
+    public void setDeadEventRetry(long eventSequenceNumber, boolean retry) throws Exception {
+        consumerStateStore.setRetryDeadEvent(consumerId, eventSequenceNumber, retry);
+    }
+
 }
