@@ -2,8 +2,7 @@ package com.evento.server.service.discovery;
 
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
-import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusRequestMessage;
-import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
+import com.evento.common.modeling.messaging.message.internal.consumer.*;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.server.bus.MessageBus;
 import com.evento.server.domain.model.core.Consumer;
@@ -150,5 +149,62 @@ public class ConsumerService {
 
     public void clearInstance(String instanceId) {
         consumerRepository.deleteAllByInstanceId(instanceId);
+    }
+
+    public CompletableFuture<ConsumerSetEventRetryResponseMessage> setRetryForConsumerEvent(String consumerId, long eventSequenceNumber, boolean retry, MessageBus messageBus) throws Exception {
+        var consumers =  consumerRepository.findAllByConsumerId(consumerId);
+        var instances = consumers.stream()
+                .map(Consumer::getInstanceId)
+                .collect(Collectors.toSet());
+        var address =  messageBus.getCurrentView().stream().filter(n ->
+                        instances.contains(n.instanceId())).findFirst()
+                .orElseThrow();
+        var request  = new EventoRequest();
+        request.setCorrelationId(UUID.randomUUID().toString());
+        request.setTimestamp(System.currentTimeMillis());
+        request.setSourceBundleId("evento-server");
+        request.setSourceInstanceId(eventoServerInstanceId);
+        request.setSourceBundleVersion(0);
+        request.setBody(new ConsumerSetEventRetryRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
+                eventSequenceNumber, retry));
+        var future = new CompletableFuture<ConsumerSetEventRetryResponseMessage>();
+        messageBus.forward(request, address, (c) -> {
+            if(c.getBody() instanceof ConsumerSetEventRetryResponseMessage resp){
+                future.complete(resp);
+            } else if (c.getBody() instanceof ExceptionWrapper e) {
+                future.completeExceptionally(e.toException());
+            }else{
+                future.completeExceptionally(new RuntimeException("Invalid response from component while fetching for consumer status"));
+            }
+        });
+        return future;
+    }
+
+    public CompletableFuture<ConsumerProcessDeadQueueResponseMessage> consumeDeadQueue(String consumerId, MessageBus messageBus) throws Exception {
+        var consumers =  consumerRepository.findAllByConsumerId(consumerId);
+        var instances = consumers.stream()
+                .map(Consumer::getInstanceId)
+                .collect(Collectors.toSet());
+        var address =  messageBus.getCurrentView().stream().filter(n ->
+                        instances.contains(n.instanceId())).findFirst()
+                .orElseThrow();
+        var request  = new EventoRequest();
+        request.setCorrelationId(UUID.randomUUID().toString());
+        request.setTimestamp(System.currentTimeMillis());
+        request.setSourceBundleId("evento-server");
+        request.setSourceInstanceId(eventoServerInstanceId);
+        request.setSourceBundleVersion(0);
+        request.setBody(new ConsumerProcessDeadQueueRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
+        var future = new CompletableFuture<ConsumerProcessDeadQueueResponseMessage>();
+        messageBus.forward(request, address, (c) -> {
+            if(c.getBody() instanceof ConsumerProcessDeadQueueResponseMessage resp){
+                future.complete(resp);
+            } else if (c.getBody() instanceof ExceptionWrapper e) {
+                future.completeExceptionally(e.toException());
+            }else{
+                future.completeExceptionally(new RuntimeException("Invalid response from component while fetching for consumer status"));
+            }
+        });
+        return future;
     }
 }

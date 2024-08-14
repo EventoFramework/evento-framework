@@ -2,10 +2,12 @@ package com.evento.common.messaging.consumer;
 
 import com.evento.common.modeling.state.SagaState;
 
+import java.io.Serializable;
+
 /**
  * This class represents the stored state of a Saga.
  */
-public class StoredSagaState {
+public class StoredSagaState implements Serializable {
 	private Long id;
 	private SagaState state;
 
