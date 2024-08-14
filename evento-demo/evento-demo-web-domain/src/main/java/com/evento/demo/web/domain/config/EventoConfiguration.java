@@ -83,7 +83,7 @@ public class EventoConfiguration {
                                 .map(ServletRequestAttributes.class::cast)
                                 .map(ServletRequestAttributes::getRequest)
                                 .ifPresent(r -> {
-                                    query.setForceTelemetry(r.getHeader("Force-Evento-Telemetry").equals("true"));
+                                    query.setForceTelemetry("true".equals(r.getHeader("Force-Evento-Telemetry")));
                                 });
                         return super.query(query, metadata, handledMessage);
                     }

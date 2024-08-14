@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  * Represents a consumer for projector events, responsible for processing and handling events
  * in a projector context.
  */
-public class ProjectorEvenConsumer implements Runnable {
+public class ProjectorEvenConsumer extends EventConsumer {
 
     private static final Logger logger = LogManager.getLogger(ProjectorEvenConsumer.class);
 
@@ -33,7 +33,6 @@ public class ProjectorEvenConsumer implements Runnable {
     private final int projectorVersion;
     private final String context;
     private final Supplier<Boolean> isShuttingDown;
-    private final ConsumerStateStore consumerStateStore;
     private final HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
@@ -41,8 +40,6 @@ public class ProjectorEvenConsumer implements Runnable {
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
-    @Getter
-    private final String consumerId;
 
     /**
      * Constructs a new ProjectorEvenConsumer with the specified parameters.
@@ -70,13 +67,14 @@ public class ProjectorEvenConsumer implements Runnable {
             GatewayTelemetryProxy> gatewayTelemetryProxy, int sssFetchSize,
                                  int sssFetchDelay, AtomicInteger alignmentCounter,
                                  Runnable onAllHeadReached) {
+        super(bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context, consumerStateStore);
+        ;
         // Initialization of fields
         this.bundleId = bundleId;
         this.projectorName = projectorName;
         this.projectorVersion = projectorVersion;
         this.context = context;
         this.isShuttingDown = isShuttingDown;
-        this.consumerStateStore = consumerStateStore;
         this.projectorMessageHandlers = projectorMessageHandlers;
         this.tracingAgent = tracingAgent;
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
@@ -84,9 +82,6 @@ public class ProjectorEvenConsumer implements Runnable {
         this.sssFetchDelay = sssFetchDelay;
         this.alignmentCounter = alignmentCounter;
         this.onAllHeadReached = onAllHeadReached;
-
-        // Construct consumer identifier
-        this.consumerId = bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context;
     }
 
     /**
@@ -205,51 +200,6 @@ public class ProjectorEvenConsumer implements Runnable {
 
                 }
         );
-    }
-
-    /**
-     * Retrieves the dead published events from the dead event queue for the specified consumer.
-     *
-     * This method delegates the retrieval of events from the dead event queue to the consumer state store. It calls the {@code getEventsFromDeadEventQueue} method of the consumer
-     *  state store, passing the consumer ID as a parameter. The method returns a Collection of DeadPublishedEvent objects representing the events from the dead event queue for the
-     *  specified consumer.
-     *
-     * @return a Collection of DeadPublishedEvent objects representing the events from the dead event queue for the specified consumer
-     * @throws Exception if an error occurs during the retrieval of events from the dead event queue
-     *
-     * @see DeadPublishedEvent
-     * @see ConsumerStateStore
-     */
-    public Collection<DeadPublishedEvent> getDeadEventQueue() throws Exception {
-        return consumerStateStore.getEventsFromDeadEventQueue(consumerId);
-    }
-
-    /**
-     * Retrieves the last consumed event sequence number for a consumer.
-     *
-     * This method delegates the retrieval of the last event sequence number to the consumer state store.
-     * It calls the {@code getLastEventSequenceNumberSagaOrHead} method of the consumer state store,
-     * passing the consumer ID as a parameter. The method returns the last event sequence number
-     * for the specified consumer.
-     *
-     * @return the last consumed event sequence number for the consumer
-     * @throws Exception if an error occurs during the retrieval of the last event sequence number
-     *
-     * @see ConsumerStateStore#getLastEventSequenceNumberSagaOrHead(String)
-     */
-    public long getLastConsumedEvent() throws Exception {
-        return consumerStateStore.getLastEventSequenceNumberSagaOrHead(consumerId);
-    }
-
-    /**
-     * Sets the retry flag for a dead event of a specific consumer.
-     *
-     * @param eventSequenceNumber the sequence number of the dead event
-     * @param retry               the retry flag, true if the event should be retried, false otherwise
-     * @throws Exception if an error occurs during the retry flag setting
-     */
-    public void setDeadEventRetry(long eventSequenceNumber, boolean retry) throws Exception {
-        consumerStateStore.setRetryDeadEvent(consumerId, eventSequenceNumber, retry);
     }
 
 }

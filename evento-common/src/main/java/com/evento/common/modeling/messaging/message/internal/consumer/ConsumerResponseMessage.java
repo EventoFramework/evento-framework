@@ -12,7 +12,7 @@ import java.io.Serializable;
  * The response message contains a boolean field 'success' which indicates whether the retry flag was
  * successfully set or not.
  */
-public class ConsumerSetEventRetryResponseMessage implements Serializable {
+public class ConsumerResponseMessage implements Serializable {
     private boolean success;
 
     /**

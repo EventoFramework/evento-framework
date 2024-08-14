@@ -70,8 +70,7 @@ public class EventoConfiguration {
 					} catch (SQLException e) {
 						throw new RuntimeException(e);
 					}
-				})
-				/*
+				})/*
 				.setConsumerStateStoreBuilder((es, ps) ->{
 					try {
 						return new MysqlConsumerStateStore(es, ps, DriverManager.getConnection(
