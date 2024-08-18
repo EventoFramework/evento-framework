@@ -1,7 +1,6 @@
 package com.evento.common.messaging.gateway;
 
 import com.evento.common.messaging.bus.EventoServer;
-import com.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;

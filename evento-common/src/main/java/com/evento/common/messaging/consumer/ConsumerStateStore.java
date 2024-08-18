@@ -311,7 +311,6 @@ public abstract class ConsumerStateStore {
      * @param sagaName The name of the saga.
      * @param sagaEventConsumer The implementation of the SagaEventConsumer interface that will consume the dead events.
      *
-     * @throws Throwable if an error occurs during the consumption of the dead events.
      */
     public void consumeDeadEventsForSaga(
             String consumerId, String sagaName,

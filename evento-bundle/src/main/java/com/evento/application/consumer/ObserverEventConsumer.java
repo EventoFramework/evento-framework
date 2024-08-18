@@ -2,17 +2,12 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
-import com.evento.common.messaging.consumer.DeadPublishedEvent;
-import com.evento.common.utils.ProjectorStatus;
 import lombok.Getter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.utils.Sleep;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -24,16 +19,21 @@ import java.util.function.Supplier;
 public class ObserverEventConsumer extends EventConsumer {
 
     // Fields for configuration and dependencies
+    @Getter
     private final String bundleId;
     @Getter
     private final String observerName;
+    @Getter
     private final int observerVersion;
+    @Getter
     private final String context;
     private final Supplier<Boolean> isShuttingDown;
     private final HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
+    @Getter
     private final int sssFetchSize;
+    @Getter
     private final int sssFetchDelay;
 
 
@@ -60,7 +60,6 @@ public class ObserverEventConsumer extends EventConsumer {
             GatewayTelemetryProxy> gatewayTelemetryProxy,
                                  int sssFetchSize, int sssFetchDelay) {
         super(bundleId + "_" + observerName + "_" + observerVersion + "_" + context, consumerStateStore);
-        ;
         // Initialization of fields
         this.bundleId = bundleId;
         this.observerName = observerName;

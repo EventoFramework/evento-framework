@@ -6,9 +6,9 @@ import java.io.Serializable;
 /**
  * The ConsumerSetEventRetryResponseMessage class represents a response message for setting the retry flag
  * of a consumer event.
- *
+ * <p>
  * This class is Serializable, allowing instances of it to be serialized and deserialized.
- *
+ * <p>
  * The response message contains a boolean field 'success' which indicates whether the retry flag was
  * successfully set or not.
  */

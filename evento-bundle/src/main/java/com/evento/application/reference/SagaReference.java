@@ -4,7 +4,6 @@ package com.evento.application.reference;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
-import com.evento.common.modeling.annotations.handler.EventHandler;
 import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 import com.evento.common.modeling.messaging.payload.Event;

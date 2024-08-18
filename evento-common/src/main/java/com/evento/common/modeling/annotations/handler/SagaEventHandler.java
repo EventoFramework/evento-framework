@@ -56,7 +56,7 @@ public @interface SagaEventHandler {
 	 *
 	 * @return the number of retries to attempt. The default value is -1, indicating no specific retry count.
 	 */
-	public int retry() default -1;
+    int retry() default -1;
 	/**
 	 * The retryDelay method is used to specify the delay in milliseconds between each retry attempt
 	 * when executing a specific action.
@@ -65,5 +65,5 @@ public @interface SagaEventHandler {
 	 * @return the delay in milliseconds between each retry attempt. The default value is 1000,
 	 * indicating no specific retry delay.
 	 */
-	public int retryDelay() default 1000;
+    int retryDelay() default 1000;
 }

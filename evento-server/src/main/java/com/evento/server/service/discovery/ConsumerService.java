@@ -21,15 +21,15 @@ import java.util.stream.Collectors;
 
 /**
  * This class represents a service for managing consumers in the system.
- *
+ * <p>
  * The class provides methods for registering consumers and saving them to the database.
  * Consumers are components that consume resources or services provided by other components.
- *
+ * <p>
  * The class requires three dependencies:
  *   - LockRegistry: A lock registry used for obtaining locks for consumer discovery.
  *   - ComponentRepository: A repository for accessing and managing components in the database.
  *   - ConsumerRepository: A repository for accessing and managing consumers in the database.
- *
+ * <p>
  * The class is annotated with the @Service annotation to indicate that it is a service component.
  * It also makes use of the logging framework by defining a static logger instance.
  */
@@ -125,7 +125,7 @@ public class ConsumerService {
 
     /**
      * Retrieves the consumer status from the nodes in the system.
-     *
+     * <p>
      * This method takes in the consumer ID and the message bus, and retrieves the consumer status from the nodes in the system.
      * The consumer status is obtained by finding the instances associated with the consumer ID, and then selecting the first available node
      * from the current view of the message bus. A request is sent to the selected node to fetch the consumer status.
@@ -167,7 +167,7 @@ public class ConsumerService {
 
     /**
      * Deletes all consumers associated with a specific instance ID.
-     *
+     * <p>
      * This method deletes all consumers from the consumer repository that are associated with the given instance ID.
      *
      * @param instanceId the ID of the instance for which all consumers should be deleted, as a String.
@@ -178,7 +178,7 @@ public class ConsumerService {
 
     /**
      * Sets the retry flag for a consumer event.
-     *
+     * <p>
      * This method allows you to set the retry flag for a specific consumer event by providing the consumer ID, event sequence number,
      * retry flag, and a MessageBus object. The consumer ID is used to fetch the consumer's status from the nodes in the system,
      * and the event sequence number is used to identify the specific event. The retry flag determines whether the event should
@@ -261,7 +261,7 @@ public class ConsumerService {
 
     /**
      * Deletes a dead event from an event consumer.
-     *
+     * <p>
      * This method takes in the ID of the event consumer, the sequence number of the dead event,
      * and the message bus. It deletes the dead event from the consumer by sending a request to the
      * appropriate node in the system via the message bus. The method returns a CompletableFuture

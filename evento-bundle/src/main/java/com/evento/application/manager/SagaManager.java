@@ -1,10 +1,10 @@
 package com.evento.application.manager;
 
-import com.evento.application.consumer.ProjectorEvenConsumer;
 import com.evento.application.consumer.SagaEventConsumer;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
 import com.evento.common.utils.Context;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -28,10 +28,16 @@ import java.util.function.Supplier;
  * The `SagaManager` class extends the `ConsumerComponentManager` class and serves as a manager for sagas.
  * It is responsible for parsing annotated classes, creating `SagaReference` objects, and starting saga event consumers.
  */
+@Getter
 public class SagaManager extends ConsumerComponentManager<SagaReference> {
 
     private static final Logger logger = LogManager.getLogger(SagaManager.class);
 
+    /**
+     * -- GETTER --
+     *  Retrieves the list of SagaEventConsumer instances associated with this SagaManager.
+     *
+     */
     private final ArrayList<SagaEventConsumer> sagaEventConsumers = new ArrayList<>();
     /**
      * Creates a new instance of SagaManager.
@@ -113,12 +119,4 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
         }
     }
 
-    /**
-     * Retrieves the list of SagaEventConsumer instances associated with this SagaManager.
-     *
-     * @return The list of SagaEventConsumer instances.
-     */
-    public ArrayList<SagaEventConsumer> getSagaEventConsumers() {
-        return sagaEventConsumers;
-    }
 }

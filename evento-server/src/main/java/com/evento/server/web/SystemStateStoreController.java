@@ -1,7 +1,6 @@
 package com.evento.server.web;
 
 import com.evento.server.es.EventStore;
-import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.web.dto.EventDTO;
 import com.evento.server.web.dto.SnapshotDTO;
 import org.apache.coyote.BadRequestException;

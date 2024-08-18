@@ -1,10 +1,10 @@
 package com.evento.application.manager;
 
 import com.evento.application.consumer.ObserverEventConsumer;
-import com.evento.application.consumer.SagaEventConsumer;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
 import com.evento.common.utils.Context;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -27,10 +27,16 @@ import java.util.function.Supplier;
  * It extends the ConsumerComponentManager class and overrides its parse method.
  * It also provides a handle method to handle event messages.
  */
+@Getter
 public class ObserverManager extends ConsumerComponentManager<ObserverReference> {
     private static final Logger logger = LogManager.getLogger(ObserverManager.class);
 
 
+    /**
+     * -- GETTER --
+     *  Retrieves the list of ObserverEventConsumer instances associated with the ObserverManager.
+     *
+     */
     private final ArrayList<ObserverEventConsumer> observerEventConsumers = new ArrayList<>();
 
     /**
@@ -111,12 +117,4 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
 
     }
 
-    /**
-     * Retrieves the list of ObserverEventConsumer instances associated with the ObserverManager.
-     *
-     * @return The list of ObserverEventConsumer instances.
-     */
-    public ArrayList<ObserverEventConsumer> getObserverEventConsumers() {
-        return observerEventConsumers;
-    }
 }

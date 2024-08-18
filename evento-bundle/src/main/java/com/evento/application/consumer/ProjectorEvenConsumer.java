@@ -2,7 +2,6 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ProjectorReference;
-import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,7 +11,6 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.utils.ProjectorStatus;
 import com.evento.common.utils.Sleep;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -27,16 +25,21 @@ public class ProjectorEvenConsumer extends EventConsumer {
     private static final Logger logger = LogManager.getLogger(ProjectorEvenConsumer.class);
 
     // Fields for configuration and dependencies
+    @Getter
     private final String bundleId;
     @Getter
     private final String projectorName;
+    @Getter
     private final int projectorVersion;
+    @Getter
     private final String context;
     private final Supplier<Boolean> isShuttingDown;
     private final HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
+    @Getter
     private final int sssFetchSize;
+    @Getter
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
@@ -68,7 +71,6 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                  int sssFetchDelay, AtomicInteger alignmentCounter,
                                  Runnable onAllHeadReached) {
         super(bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context, consumerStateStore);
-        ;
         // Initialization of fields
         this.bundleId = bundleId;
         this.projectorName = projectorName;

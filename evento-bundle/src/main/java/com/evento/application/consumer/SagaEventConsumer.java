@@ -2,8 +2,6 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
-import com.evento.common.messaging.consumer.DeadPublishedEvent;
-import com.evento.common.messaging.consumer.StoredSagaState;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,7 +11,6 @@ import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.utils.Sleep;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -26,16 +23,21 @@ public class SagaEventConsumer extends EventConsumer {
     private static final Logger logger = LogManager.getLogger(SagaEventConsumer.class);
 
     // Fields for configuration and dependencies
+    @Getter
     private final String bundleId;
     @Getter
     private final String sagaName;
+    @Getter
     private final int sagaVersion;
     private final String context;
+    @Getter
     private final Supplier<Boolean> isShuttingDown;
     private final HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
+    @Getter
     private final int sssFetchSize;
+    @Getter
     private final int sssFetchDelay;
 
     /**
@@ -61,7 +63,6 @@ public class SagaEventConsumer extends EventConsumer {
             GatewayTelemetryProxy> gatewayTelemetryProxy,
                              int sssFetchSize, int sssFetchDelay) {
         super(bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context, consumerStateStore);
-        ;
         // Initialization of fields
         this.bundleId = bundleId;
         this.sagaName = sagaName;
