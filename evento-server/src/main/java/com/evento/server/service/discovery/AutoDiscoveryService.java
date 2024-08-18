@@ -1,6 +1,5 @@
 package com.evento.server.service.discovery;
 
-import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.server.domain.model.core.*;
 import com.evento.server.domain.repository.core.*;
 import org.apache.logging.log4j.LogManager;
@@ -15,7 +14,6 @@ import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -30,7 +28,6 @@ public class AutoDiscoveryService {
     private final BundleService bundleService;
     private final LockRegistry lockRegistry;
     private final ComponentRepository componentRepository;
-    private final ConsumerRepository consumerRepository;
 
     /**
      * Service responsible for auto-discovery of components in the system.
@@ -53,7 +50,6 @@ public class AutoDiscoveryService {
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
         this.lockRegistry = lockRegistry;
-        this.consumerRepository = consumerRepository;
         messageBus.addJoinListener(this::onNodeJoin);
         messageBus.addLeaveListener(this::onNodeLeave);
         this.componentRepository = componentRepository;

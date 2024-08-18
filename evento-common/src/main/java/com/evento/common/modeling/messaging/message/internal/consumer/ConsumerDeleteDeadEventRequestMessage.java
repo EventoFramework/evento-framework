@@ -21,7 +21,7 @@ public class ConsumerDeleteDeadEventRequestMessage implements Serializable {
 
     /**
      * The ConsumerDeleteDeadEventRequestMessage class represents a request message to delete a dead event for a consumer.
-     *
+     * <p>
      * This class contains the consumer ID, component type, and event sequence number.
      *
      * @param consumerId The consumer ID.

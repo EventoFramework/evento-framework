@@ -1,8 +1,6 @@
 package com.evento.server.bus;
 
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
-import com.evento.common.performance.PerformanceService;
-import com.evento.server.service.discovery.AutoDiscoveryService;
 import com.evento.server.service.discovery.ConsumerService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

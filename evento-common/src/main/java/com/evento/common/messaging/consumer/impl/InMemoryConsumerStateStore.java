@@ -133,10 +133,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 *
 	 * @param consumerId the ID of the consumer
 	 * @param event the published event to be added
-	 * @throws Exception if an error occurs while adding the event to the dead event queue
-	 */
+     */
 	@Override
-    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Exception exception) throws Exception {
+    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Exception exception) {
         deadEventQueue.add(new DeadPublishedEvent(
                 consumerId,
                 event.getEventName(),
@@ -155,10 +154,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
      *
      * @param consumerId          the ID of the consumer
      * @param eventSequenceNumber the event sequence number
-     * @throws Exception if an error occurs while removing the event from the dead event queue
      */
 	@Override
-    public void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) throws Exception {
+    public void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) {
         deadEventQueue.removeIf(de -> de.getConsumerId().equals(consumerId) && Long.parseLong(de.getEventSequenceNumber()) == eventSequenceNumber);
     }
 
@@ -167,10 +165,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 *
 	 * @param consumerId the ID of the consumer
 	 * @return a collection of PublishedEvent objects to be reprocessed
-	 * @throws Exception if an error occurs while retrieving the events from the dead event queue
-	 */
+     */
 	@Override
-    protected Collection<PublishedEvent> getEventsToReprocessFromDeadEventQueue(String consumerId) throws Exception {
+    protected Collection<PublishedEvent> getEventsToReprocessFromDeadEventQueue(String consumerId) {
         return deadEventQueue.stream().filter(de -> de.getConsumerId().equals(consumerId))
                 .filter(DeadPublishedEvent::isRetry).map(DeadPublishedEvent::getEvent).toList();
     }
@@ -180,10 +177,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 *
 	 * @param consumerId the ID of the consumer
 	 * @return a collection of DeadPublishedEvent objects to be reprocessed
-	 * @throws Exception if an error occurs while retrieving the events from the dead event queue
-	 */
+     */
 	@Override
-    public Collection<DeadPublishedEvent> getEventsFromDeadEventQueue(String consumerId) throws Exception {
+    public Collection<DeadPublishedEvent> getEventsFromDeadEventQueue(String consumerId) {
         return new ArrayList<>(deadEventQueue.stream().filter(de -> de.getConsumerId().equals(consumerId)).toList());
     }
 
@@ -193,10 +189,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 * @param consumerId           the ID of the consumer
 	 * @param eventSequenceNumber  the event sequence number
 	 * @param retry                the retry status to be set (true for retry, false for no retry)
-	 * @throws Exception           if an error occurs while setting the retry status
-	 */
+     */
 	@Override
-    public void setRetryDeadEvent(String consumerId, long eventSequenceNumber, boolean retry) throws Exception {
+    public void setRetryDeadEvent(String consumerId, long eventSequenceNumber, boolean retry) {
         deadEventQueue.stream().filter(de -> de.getConsumerId().equals(consumerId) && Long.parseLong(de.getEventSequenceNumber()) == eventSequenceNumber)
                 .findFirst().ifPresent(de -> de.setRetry(retry));
     }
@@ -226,10 +221,9 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
      *
      * @param sagaName the name of the saga
      * @return a collection of StoredSagaState objects associated with the specified saga name.
-     * @throws Exception if an error occurs while retrieving the saga states
      */
     @Override
-    public Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception {
+    public Collection<StoredSagaState> getSagaStates(String sagaName) {
         return new ArrayList<>(sagaStateRepository.entrySet()
                 .stream().filter(s -> s.getValue().getKey().equals(sagaName))
                 .map(s -> new StoredSagaState(s.getKey(), s.getValue().getValue()))

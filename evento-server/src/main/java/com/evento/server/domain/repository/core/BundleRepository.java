@@ -10,7 +10,6 @@ import java.util.List;
 /**
  * The BundleRepository interface provides CRUD operations for managing Bundle objects in the system.
  */
-@SuppressWarnings("Annotator")
 public interface BundleRepository extends JpaRepository<Bundle, String> {
 
 	/**

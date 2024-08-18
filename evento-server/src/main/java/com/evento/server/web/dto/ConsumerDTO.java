@@ -2,8 +2,6 @@ package com.evento.server.web.dto;
 
 import com.evento.common.modeling.bundle.types.ComponentType;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
 import java.util.HashSet;
 

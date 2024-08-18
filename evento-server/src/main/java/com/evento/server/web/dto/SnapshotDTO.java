@@ -4,9 +4,7 @@ import com.evento.server.es.snapshot.Snapshot;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
-import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.Map;
 
 @Data
 public class SnapshotDTO {

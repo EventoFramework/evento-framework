@@ -6,12 +6,37 @@ Content-Type: application/json
   "name": "aaa",
   "value": 5
 }
+
+> {%
+ client.test("Assert Create 001 OK", () => {
+     client.assert(response.status == 200, "Response status is not 200")
+ })
+ %}
 ###
 GET http://localhost:9001/api/demo/?page=0
 Content-Type: application/json
+
+> {%
+    client.test("Assert List OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+        client.assert(response.body.length == 1, "List is Empty")
+        client.assert(response.body[0].demoId == "001", "Wrong demoId")
+        client.assert(response.body[0].name == "aaa", "Wrong name")
+        client.assert(response.body[0].value == 5, "Wrong value")
+    })
+%}
 ###
 GET http://localhost:9001/api/demo/001
 Content-Type: application/json
+
+> {%
+    client.test("Assert Get 001 OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+        client.assert(response.body.demoId == "001", "Wrong demoId")
+        client.assert(response.body.name == "aaa", "Wrong name")
+        client.assert(response.body.value == 5, "Wrong value")
+    })
+%}
 ###
 POST http://localhost:9001/api/demo/
 Content-Type: application/json
@@ -21,6 +46,12 @@ Content-Type: application/json
   "name": "aaa",
   "value": 5
 }
+
+> {%
+    client.test("Assert Create 002 OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+    })
+%}
 ###
 POST http://localhost:9001/api/demo/
 Content-Type: application/json
@@ -30,6 +61,12 @@ Content-Type: application/json
   "name": "aaa",
   "value": 5
 }
+
+> {%
+    client.test("Assert Create 003 OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+    })
+%}
 ###
 POST http://localhost:9001/api/demo/
 Content-Type: application/json
@@ -39,6 +76,12 @@ Content-Type: application/json
   "name": "aaa",
   "value": 5
 }
+
+> {%
+    client.test("Assert Create 004 OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+    })
+%}
 ###
 POST http://localhost:9001/api/demo/
 Content-Type: application/json
@@ -48,6 +91,11 @@ Content-Type: application/json
   "name": "aaa",
   "value": 5
 }
+> {%
+    client.test("Assert Create 005 OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+    })
+%}
 ###
 PUT http://localhost:9001/api/demo/001
 Content-Type: application/json
@@ -57,41 +105,32 @@ Content-Type: application/json
   "name": "aaa",
   "value": 9
 }
+
+> {%
+    client.test("Assert Update 001 OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+    })
+%}
 ###
 
-PUT http://localhost:9001/api/demo/002
+GET http://localhost:9001/api/demo/?page=0
 Content-Type: application/json
 
-{
-  "demoId": "001",
-  "name": "aaa",
-  "value": 9
-}
+> {%
+    client.test("Assert List OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+        client.assert(response.body.length == 5, "List not correct quantity")
+    })
+%}
 ###
-PUT http://localhost:9001/api/demo/003
+GET http://localhost:9001/api/demo/001
 Content-Type: application/json
 
-{
-  "demoId": "001",
-  "name": "aaa",
-  "value": 9
-}
-###
-PUT http://localhost:9001/api/demo/004
-Content-Type: application/json
-
-{
-  "demoId": "001",
-  "name": "aaa",
-  "value": 9
-}
-###
-PUT http://localhost:9001/api/demo/005
-Content-Type: application/json
-
-{
-  "demoId": "001",
-  "name": "aaa",
-  "value": 9
-}
-###
+> {%
+    client.test("Assert Get 001 OK", () => {
+        client.assert(response.status == 200, "Response status is not 200")
+        client.assert(response.body.demoId == "001", "Wrong demoId")
+        client.assert(response.body.name == "aaa", "Wrong name")
+        client.assert(response.body.value == 9, "Wrong value")
+    })
+%}

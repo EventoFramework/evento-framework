@@ -34,7 +34,7 @@ public abstract class EventConsumer implements Runnable {
 
     /**
      * Retrieves the dead event queue for the current event consumer.
-     *
+     * <p>
      * This method calls the {@code getEventsFromDeadEventQueue} method of the {@code ConsumerStateStore} object
      * with the consumer ID provided during the creation of the {@code EventConsumer} object.
      * The returned dead event queue represents a collection of {@code DeadPublishedEvent} objects that were moved to the dead event queue for further handling.
@@ -52,7 +52,7 @@ public abstract class EventConsumer implements Runnable {
     /**
      * Retrieves the last consumed event sequence number for the event consumer.
      * The last consumed event sequence number represents the highest event sequence number processed by the consumer.
-     *
+     * <p>
      * This method calls the {@code getLastEventSequenceNumberSagaOrHead} method of the {@code consumerStateStore} object
      * with the consumer ID provided during the creation of the {@code EventConsumer} object.
      * If there is no last consumed event sequence number stored for the consumer, it retrieves the last event sequence number from the {@code eventoServer} and stores it as the last

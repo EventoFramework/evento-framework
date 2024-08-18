@@ -10,7 +10,7 @@ import java.time.ZonedDateTime;
  * The DeadPublishedEvent class represents a dead published event in the event sourcing architecture.
  * A dead published event occurs when a published event fails to be processed and is moved to a dead event queue for further handling.
  * It contains information about the consumer ID, event sequence number, event message, retry status, and timestamp when it was moved to the dead event queue.
- *
+ * <p>
  * This class provides a constructor to create a new DeadPublishedEvent object with the specified consumer ID, event sequence number, event message, retry status, and dead timestamp
  * .
  */
@@ -168,9 +168,9 @@ public class DeadPublishedEvent implements Serializable {
 
     /**
      * Sets the aggregate ID of the DeadPublishedEvent.
-     *
+     * <p>
      * The aggregate ID is a unique identifier for an aggregate in the event sourcing architecture. It is typically a string value that uniquely identifies an aggregate instance.
-     *
+     * <p>
      * This method allows you to set the aggregate ID for a DeadPublishedEvent object. Once set, the aggregate ID can be retrieved using the getAggregateId method.
      *
      * @param aggregateId the aggregate ID to be set as a String
@@ -193,7 +193,7 @@ public class DeadPublishedEvent implements Serializable {
 
     /**
      * Sets the context of the DeadPublishedEvent.
-     *
+     * <p>
      * This method allows you to set the context for a DeadPublishedEvent object. The context represents additional information associated with the event. It is typically a string
      *  value that provides context or details about the event.
      * @param context the context to be set as a String

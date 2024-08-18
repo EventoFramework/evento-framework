@@ -4,8 +4,6 @@ package com.evento.common.modeling.messaging.dto;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
-import java.time.ZonedDateTime;
 
 
 /**

@@ -8,10 +8,10 @@ import java.util.HashSet;
  * The BundleConsumerRegistrationMessage class represents a message used to register bundle consumers.
  * It is a serializable class that contains three HashMaps representing different types of consumers -
  * projector consumers, saga consumers, and observer consumers.
- *
+ * <p>
  * Each HashMap maps a String key to a HashSet of Strings. The keys represent the bundle names, and
  * the HashSet represents the set of consumer names associated with each bundle.
- *
+ * <p>
  * This class provides getter and setter methods for each HashMap property, allowing access and modification
  * of the consumer registration information.
  */

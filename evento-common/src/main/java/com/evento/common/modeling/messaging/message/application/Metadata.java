@@ -1,7 +1,5 @@
 package com.evento.common.modeling.messaging.message.application;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 import java.util.HashMap;
 
 /**

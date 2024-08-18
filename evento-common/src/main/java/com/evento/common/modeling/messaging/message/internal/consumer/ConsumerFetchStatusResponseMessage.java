@@ -1,17 +1,15 @@
 package com.evento.common.modeling.messaging.message.internal.consumer;
 
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
-import com.evento.common.messaging.consumer.StoredSagaState;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collection;
 
 
 /**
  * The ConsumerFetchStatusResponseMessage class represents a response message containing the status of a consumer's fetch operation.
  * It implements the Serializable interface to allow objects of this class to be serialized and deserialized.
- *
+ * <p>
  * This class provides methods to retrieve and set the last event sequence number and the collection of dead events.
  */
 public class ConsumerFetchStatusResponseMessage implements Serializable {
@@ -20,7 +18,7 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
 
     /**
      * Retrieves the last event sequence number.
-     *
+     * <p>
      * This method returns the last event sequence number of the ConsumerFetchStatusResponseMessage.
      * The last event sequence number represents the sequence number of the last event that was fetched by the consumer.
      *
@@ -32,7 +30,7 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
 
     /**
      * Sets the last event sequence number.
-     *
+     * <p>
      * This method allows you to set the last event sequence number of the ConsumerFetchStatusResponseMessage.
      * The last event sequence number represents the sequence number of the last event that was fetched by the consumer.
      *
@@ -44,7 +42,7 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
 
     /**
      * Retrieves the collection of dead published events.
-     *
+     * <p>
      * This method returns the collection of DeadPublishedEvent objects that represent dead published events in the event sourcing architecture. A dead published event occurs when
      *  a published event fails to be processed and is moved to a dead event queue for further handling.
      *
@@ -57,7 +55,7 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
 
     /**
      * Sets the collection of dead published events.
-     *
+     * <p>
      * This method allows you to set the collection of dead published events for the ConsumerFetchStatusResponseMessage object.
      * A dead published event occurs when a published event fails to be processed and is moved to a dead event queue for further handling.
      *
