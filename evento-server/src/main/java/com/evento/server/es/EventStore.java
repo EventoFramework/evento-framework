@@ -25,7 +25,6 @@ import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -57,7 +56,7 @@ public class EventStore {
     private final LruCache<String, Snapshot> snapshotCache;
     private final LruCache<String, List<EventStoreEntry>> eventsCache;
 
-    private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<String, LockWrapper>();
+    private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<>();
 
     public EventStore(EventStoreRepository repository,
                       SnapshotRepository snapshotRepository,

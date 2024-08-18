@@ -7,7 +7,7 @@ import java.util.UUID;
 public class NotificationSendSilentCommand extends ServiceCommand {
 	private String body;
 
-	private String lockId = "NOTIFY_" + UUID.randomUUID();
+	private final String lockId = "NOTIFY_" + UUID.randomUUID();
 
 	public NotificationSendSilentCommand(String body) {
 		this.body = body;

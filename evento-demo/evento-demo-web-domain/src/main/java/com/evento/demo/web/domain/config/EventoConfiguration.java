@@ -5,7 +5,6 @@ import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.common.messaging.gateway.CommandGatewayImpl;
 import com.evento.common.messaging.gateway.QueryGatewayImpl;
-import com.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.payload.Command;
@@ -82,9 +81,7 @@ public class EventoConfiguration {
                                 .filter(ServletRequestAttributes.class::isInstance)
                                 .map(ServletRequestAttributes.class::cast)
                                 .map(ServletRequestAttributes::getRequest)
-                                .ifPresent(r -> {
-                                    query.setForceTelemetry("true".equals(r.getHeader("Force-Evento-Telemetry")));
-                                });
+                                .ifPresent(r -> query.setForceTelemetry("true".equals(r.getHeader("Force-Evento-Telemetry"))));
                         return super.query(query, metadata, handledMessage);
                     }
                 })

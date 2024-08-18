@@ -338,7 +338,6 @@ public class PerformanceStoreService extends PerformanceService {
     }
 
 
-    @SuppressWarnings("Annotator")
     @Scheduled(cron = "0 0 * * * *")
     public void cleanupTelemetry() {
         var delta = Instant.now().toEpochMilli() - (ttl * 24L * 60L * 60L * 1000L);

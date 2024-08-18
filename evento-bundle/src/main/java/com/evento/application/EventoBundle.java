@@ -678,7 +678,7 @@ public class EventoBundle {
             var startThread = new Thread(() -> {
                 try {
                     wait.acquire();
-                    logger.info("All Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
+                    logger.info("All Projector Consumers head Reached! (in {} millis)", Instant.now().toEpochMilli() - start.toEpochMilli());
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
                     eventoBundle.get().startSagaEventConsumers(css, contexts);

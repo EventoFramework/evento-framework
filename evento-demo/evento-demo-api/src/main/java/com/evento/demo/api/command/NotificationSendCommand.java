@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public class NotificationSendCommand extends ServiceCommand {
 	private String body;
-	private String lockId = "NOTIFY_" + UUID.randomUUID();
+	private final String lockId = "NOTIFY_" + UUID.randomUUID();
 
 
 	public NotificationSendCommand(String body) {

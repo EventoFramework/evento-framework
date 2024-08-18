@@ -1,6 +1,7 @@
 package com.evento.demo.web.domain.web;
 
 import com.evento.application.EventoBundle;
+import com.evento.demo.api.utils.Utils;
 import com.evento.demo.api.view.DemoView;
 import com.evento.demo.web.domain.web.payload.DemoPayload;
 import org.springframework.web.bind.annotation.*;
@@ -19,11 +20,13 @@ public class DemoController {
 
 	@GetMapping("/")
 	public CompletableFuture<Collection<DemoView>> findAll(@RequestParam int page) {
+		Utils.waitForConsistency(1000);
 		return demoInvoker.findAll(page);
 	}
 
 	@GetMapping("/{identifier}")
 	public CompletableFuture<DemoView> findById(@PathVariable String identifier) {
+		Utils.waitForConsistency(1000);
 		return demoInvoker.findById(identifier);
 	}
 
