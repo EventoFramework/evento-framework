@@ -2,7 +2,7 @@
   <ion-col size="6" *ngFor="let c of consumers">
     <ion-card [class]="'component-type component-type-' + c.componentType" (click)="fetchConsumerState(c, modal)">
       <ion-card-content>
-        <ion-text class="title">{{c.componentName}} ({{c.context}})</ion-text>
+        <ion-text class="title">{{c.componentName}} - {{c.componentVersion}} ({{c.context}})</ion-text>
         <ion-text color="dark"><p>{{c.bundleId}} (v{{c.bundleVersion}})</p></ion-text>
         <ion-text color="medium">
           <ul >
@@ -18,7 +18,7 @@
   <ng-template>
     <ion-header>
     <ion-toolbar color="secondary">
-      <ion-title class="ion-padding-start">{{consumer.componentName}} (v{{consumer.componentVersion}}) - {{consumer.context}}
+      <ion-title class="ion-padding-start">{{consumer.componentName}} - {{consumer.componentVersion}} ({{consumer.context}})
         </ion-title>
       <ion-buttons slot="end">
         <ion-button (click)="modal.dismiss()">
