@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework.evento-consumer-state-store'
-version 'ev1.9.3'
+version 'ev1.10.0'
 java {
     targetCompatibility = "21"
     targetCompatibility = "21"
