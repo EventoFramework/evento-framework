@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Gradle Imported" enabled="true">
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.springframework.boot/spring-boot-configuration-processor/2.6.6/f4b65c31c47798e79dd8ede03930f3e8775f0576/spring-boot-configuration-processor-2.6.6.jar" />
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.22/9c08ea24c6eb714e2d6170e8122c069a0ba9aacf/lombok-1.18.22.jar" />
+        </processorPath>
+        <module name="evento.evento-server.main" />
+        <module name="evento.evento-demo.evento-demo-observer.main" />
+        <module name="evento.evento-demo.evento-demo-command.main" />
+        <module name="evento.evento-demo.evento-demo-pc.main" />
+        <module name="evento.evento-demo.evento-demo-web-domain.main" />
+        <module name="evento.evento-demo.evento-demo-saga.main" />
+        <module name="evento.evento-demo.evento-demo-query.main" />
+        <module name="evento.evento-demo.evento-demo-agent.main" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel target="1.8" />
+  </component>
+</project>

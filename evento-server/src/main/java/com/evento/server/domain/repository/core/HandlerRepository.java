@@ -41,4 +41,5 @@ public interface HandlerRepository extends JpaRepository<Handler, String> {
 
 
 	List<Handler> findAllByComponent(Component c);
+	List<Handler> findAllByComponentComponentName(String componentName);
 }

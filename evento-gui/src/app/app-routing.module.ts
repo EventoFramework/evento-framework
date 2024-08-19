@@ -48,7 +48,11 @@ const routes: Routes = [
   {
     path: 'dashboard',
     loadChildren: () => import('./pages/dashboard/dashboard.module').then( m => m.DashboardPageModule)
+  },  {
+    path: 'system-state-store',
+    loadChildren: () => import('./pages/system-state-store/system-state-store.module').then( m => m.SystemStateStorePageModule)
   },
+
 
 
 ];

@@ -7,6 +7,7 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.payload.Command;
 import com.evento.common.modeling.messaging.payload.Payload;
+import com.evento.common.modeling.messaging.payload.TrackablePayload;
 import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.performance.PerformanceService;
@@ -36,6 +37,8 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
     private final Message<?> handledMessage;
     private final TracingAgent tracingAgent;
+
+    private boolean forceTelemetry = false;
 
     /**
      * Constructs a new GatewayTelemetryProxy with the specified parameters.
@@ -152,6 +155,9 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     private void updateInvocationCounter(Payload message) {
         invocationCounter.putIfAbsent(message.getClass().getSimpleName(), new AtomicInteger());
         invocationCounter.get(message.getClass().getSimpleName()).incrementAndGet();
+        if(message instanceof TrackablePayload c) {
+            forceTelemetry = forceTelemetry || c.isForceTelemetry();
+        }
     }
 
     /**
@@ -163,7 +169,8 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
                 componentName,
                 handledMessage,
                 invocationCounter,
-                instanceId
+                instanceId,
+                forceTelemetry
         );
     }
 
@@ -178,7 +185,8 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
                 instanceId,
                 componentName,
                 handledMessage,
-                start
+                start,
+                forceTelemetry
         );
         sendInvocationsMetric();
     }

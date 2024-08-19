@@ -105,6 +105,7 @@ public class CommandGatewayImpl implements CommandGateway {
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
+
 			return (CompletableFuture<R>) eventoServer.request(message).thenApply(e -> {
 				try {
 					return ObjectMapperUtils.getPayloadObjectMapper()

@@ -1,5 +1,7 @@
 package com.evento.server.bus;
 
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
+import com.evento.server.service.discovery.ConsumerService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import com.evento.common.messaging.consumer.EventFetchRequest;
@@ -32,6 +34,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,6 +74,7 @@ public class MessageBus {
     private final BundleService bundleService;
 
     private final Map<String, Consumer<EventoResponse>> correlations = new ConcurrentHashMap<>();
+    private final ConsumerService consumerService;
     private boolean isShuttingDown = false;
 
     private final Executor threadPerMessageExecutor = Executors.newVirtualThreadPerTaskExecutor();
@@ -82,7 +86,7 @@ public class MessageBus {
             HandlerService handlerService,
             EventStore eventStore,
             PerformanceStoreService performanceStoreService,
-            BundleService bundleService) {
+            BundleService bundleService, ConsumerService consumerService) {
         this.socketPort = socketPort;
         this.bundleDeployService = bundleDeployService;
         this.handlerService = handlerService;
@@ -90,6 +94,7 @@ public class MessageBus {
         this.performanceStoreService = performanceStoreService;
         this.bundleService = bundleService;
         this.instanceId = instanceId;
+        this.consumerService = consumerService;
     }
 
     @PostConstruct
@@ -237,7 +242,8 @@ public class MessageBus {
             } finally {
                 eventStore.release(lockId);
             }
-        } else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
+        }
+        else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
             var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
             eventStore.acquire(lockId);
             try {
@@ -251,7 +257,8 @@ public class MessageBus {
             } finally {
                 eventStore.release(lockId);
             }
-        } else if(m.getBody() instanceof PerformanceInvocationsMessage im){
+        }
+        else if(m.getBody() instanceof PerformanceInvocationsMessage im){
             performanceStoreService.saveInvocationsPerformance(
                     im.getBundle(),
                     im.getInstanceId(),
@@ -259,7 +266,8 @@ public class MessageBus {
                     im.getAction(),
                     im.getInvocations()
             );
-        } else if(m.getBody() instanceof PerformanceServiceTimeMessage im){
+        }
+        else if(m.getBody() instanceof PerformanceServiceTimeMessage im){
             performanceStoreService.saveServiceTimePerformance(
                     im.getBundle(),
                     im.getInstanceId(),
@@ -268,6 +276,9 @@ public class MessageBus {
                     im.getStart(),
                     im.getEnd()
             );
+        }
+        else if (m.getBody() instanceof BundleConsumerRegistrationMessage cr) {
+            consumerService.registerConsumers(m.getSourceBundleId(), m.getSourceInstanceId(), m.getSourceBundleVersion(), cr);
         }
         logger.debug("Message received: {}", m);
     }
@@ -285,53 +296,75 @@ public class MessageBus {
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
+                    Instant lockAcquired = PerformanceStoreService.now();
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         var invocation = new DecoratedDomainCommandMessage();
                         invocation.setCommandMessage(c);
-                        var story = eventStore.fetchAggregateStory(c.getAggregateId());
+                        var story = eventStore.fetchAggregateStory(c.getAggregateId(),
+                                c.isInvalidateAggregateCaches(),
+                                c.isInvalidateAggregateSnapshot());
                         invocation.setSerializedAggregateState(story.state());
                         invocation.setEventStream(story.events());
-                        performanceStoreService.sendServiceTimeMetric(
+                        var retrieveDone = performanceStoreService.sendServiceTimeMetric(
                                 SERVER,
                                 instanceId,
                                 GATEWAY_COMPONENT,
                                 c,
-                                start
+                                start,
+                                c.isForceTelemetry()
                         );
                         var invocationStart = PerformanceStoreService.now();
                         message.setBody(invocation);
                         forward(message, dest, resp -> {
                             try {
-                                performanceStoreService.sendServiceTimeMetric(
+                                var computationDone = performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
                                         dest.instanceId(),
                                         getComponent(c.getCommandName()),
                                         c,
-                                        invocationStart
+                                        invocationStart,
+                                        c.isForceTelemetry()
                                 );
                                 if (resp.getBody() instanceof DomainCommandResponseMessage cr) {
-                                    var esStoreStart = PerformanceStoreService.now();
-                                    eventStore.publishEvent(cr.getDomainEventMessage(),
+                                    cr.getDomainEventMessage().setForceTelemetry(c.isForceTelemetry());
+                                    var eventSequenceNumber = eventStore.publishEvent(cr.getDomainEventMessage(),
                                             c.getAggregateId());
                                     if (cr.getSerializedAggregateState() != null) {
                                         eventStore.saveSnapshot(
                                                 c.getAggregateId(),
-                                                eventStore.getLastAggregateSequenceNumber(c.getAggregateId()),
+                                                eventSequenceNumber,
                                                 cr.getSerializedAggregateState()
                                         );
                                     }
                                     if (cr.isAggregateDeleted()) {
                                         eventStore.deleteAggregate(c.getAggregateId());
                                     }
-                                    performanceStoreService.sendServiceTimeMetric(
+                                    var published = performanceStoreService.sendServiceTimeMetric(
                                             EVENT_STORE,
                                             instanceId,
                                             EVENT_STORE_COMPONENT,
                                             cr.getDomainEventMessage(),
-                                            esStoreStart
+                                            computationDone,
+                                            c.isForceTelemetry()
                                     );
                                     resp.setBody(cr.getDomainEventMessage().getSerializedPayload().getSerializedObject());
+                                    performanceStoreService.sendAggregateServiceTimeMetric(
+                                            dest.bundleId(),
+                                            dest.instanceId(),
+                                            message.getSourceBundleId(),
+                                            message.getSourceInstanceId(),
+                                            eventSequenceNumber,
+                                            getComponent(c.getCommandName()),
+                                            c.getCommandName(),
+                                            start,
+                                            lockAcquired,
+                                            retrieveDone,
+                                            computationDone,
+                                            published,
+                                            c.getAggregateId(),
+                                            c.isForceTelemetry()
+                                    );
                                 }
                                 eventStore.release(lockId);
                                 acquired.set(false);
@@ -368,19 +401,22 @@ public class MessageBus {
                                         dest.instanceId(),
                                         getComponent(c.getCommandName()),
                                         c,
-                                        start
+                                        start,
+                                        c.isForceTelemetry()
                                 );
                                 if (resp.getBody() instanceof EventMessage<?> event) {
                                     if (event.getSerializedPayload().getObjectClass() != null) {
+                                        event.setForceTelemetry(c.isForceTelemetry());
                                         var esStoreStart = PerformanceStoreService.now();
-                                        eventStore.publishEvent((EventMessage<?>) resp.getBody(),
+                                        eventStore.publishEvent(event,
                                                 c.getAggregateId());
                                         performanceStoreService.sendServiceTimeMetric(
                                                 EVENT_STORE,
                                                 instanceId,
                                                 EVENT_STORE_COMPONENT,
                                                 event,
-                                                esStoreStart
+                                                esStoreStart,
+                                                c.isForceTelemetry()
                                         );
                                     }
                                     resp.setBody(event.getSerializedPayload().getSerializedObject());
@@ -415,7 +451,8 @@ public class MessageBus {
                                         dest.instanceId(),
                                         getComponent(q.getQueryName()),
                                         q,
-                                        invocationStart
+                                        invocationStart,
+                                        q.isForceTelemetry()
                                 );
                                 sendResponse.accept(resp);
                             }
@@ -610,7 +647,7 @@ public class MessageBus {
         var m = new EventoMessage();
         m.setBody(new ClusterNodeKillMessage());
         m.setSourceBundleId("evento-server");
-        m.setSourceInstanceId("evento-server");
+        m.setSourceInstanceId(instanceId);
         m.setSourceBundleVersion(0);
         try {
             var out = view.get(

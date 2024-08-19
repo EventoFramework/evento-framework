@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 
-@SuppressWarnings("Annotator")
 public interface PayloadRepository extends JpaRepository<Payload, String> {
 
 	@Query(value = "select p.name, p.type, p.path, p.line, p.description, p.domain, count(distinct h.uuid) as subscriptions, " +

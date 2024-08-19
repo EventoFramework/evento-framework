@@ -1,0 +1,61 @@
+<div class="ion-margin-top">
+  <ion-grid>
+    <ion-row>
+      <ion-col>
+
+        <ion-select (ionChange)="tsFormChanged()" fill="outline" labelPlacement="stacked" label="Service Time Aggregation Function"
+                    [(ngModel)]="serviceTimeAggregation" name="serviceTimeAggregation">
+          <ion-select-option value="AVG">AVG</ion-select-option>
+          <ion-select-option value="MAX">MAX</ion-select-option>
+          <ion-select-option value="MIN">MIN</ion-select-option>
+        </ion-select>
+
+      </ion-col>
+      <ion-col>
+
+        <ion-select (ionChange)="tsFormChanged()"  fill="outline" labelPlacement="stacked" label="Interval"
+                    [(ngModel)]="interval" name="interval">
+          <ion-select-option [value]="1">1 sec</ion-select-option>
+          <ion-select-option [value]="5">5 sec</ion-select-option>
+          <ion-select-option [value]="15">15 sec</ion-select-option>
+          <ion-select-option [value]="30">30 sec</ion-select-option>
+          <ion-select-option [value]="60">1 min</ion-select-option>
+          <ion-select-option [value]="120">2 min</ion-select-option>
+          <ion-select-option [value]="60*5">5 min</ion-select-option>
+          <ion-select-option [value]="60*10">10 min</ion-select-option>
+          <ion-select-option [value]="60*15">15 min</ion-select-option>
+          <ion-select-option [value]="60*30">30 min</ion-select-option>
+          <ion-select-option [value]="60*60">1 hour</ion-select-option>
+          <ion-select-option [value]="60*60*2">2 hour</ion-select-option>
+          <ion-select-option [value]="60*60*4">4 hour</ion-select-option>
+          <ion-select-option [value]="60*60*6">6 hour</ion-select-option>
+          <ion-select-option [value]="60*60*8">8 hour</ion-select-option>
+          <ion-select-option [value]="60*60*12">12 hour</ion-select-option>
+          <ion-select-option [value]="60*60*24">24 hour</ion-select-option>
+        </ion-select>
+
+      </ion-col>
+      <ion-col>
+        <ion-input (ionChange)="tsFormChanged()"  fill="outline" labelPlacement="stacked" label="From"
+                   [(ngModel)]="datetimeFrom" name="datetimeFrom" [max]="datetimeTo"
+                   type="datetime-local"></ion-input>
+
+      </ion-col>
+      <ion-col>
+        <ion-input (ionChange)="tsFormChanged()"  fill="outline" labelPlacement="stacked" label="From" [min]="datetimeFrom"
+                   [(ngModel)]="datetimeTo" name="datetimeTo"
+                   type="datetime-local"></ion-input>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+  @for(chart of charts; track chart.id){
+    <apx-chart
+      [series]="chart.series"
+      [chart]="chart.chart"
+      [xaxis]="chart.xaxis"
+      [yaxis]="chart.yaxis"
+      [title]="chart.title"
+    ></apx-chart>
+  }
+
+</div>
