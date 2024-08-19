@@ -8,6 +8,9 @@
         </ion-col>
         <ion-col size="9" class="ion-text-end">
 
+          <div class="tab-button" [class.selected]="selectedTab === 'system-state-store'"
+               (click)="tabs.select('system-state-store')" translate="system.state.store"></div>
+
           <div class="tab-button" [class.selected]="selectedTab === 'application-graph'"
                 (click)="tabs.select('application-graph')" translate="application.graph.title"></div>
           <div class="tab-button" [class.selected]="selectedTab === 'application-flows'"
@@ -20,7 +23,6 @@
                (click)="tabs.select('component-catalog')" translate="catalog.component.title"></div>
           <div class="tab-button" [class.selected]="selectedTab === 'payload-catalog'"
                (click)="tabs.select('payload-catalog')" translate="catalog.payload.title"></div>
-
         </ion-col>
       </app-wrapped-content>
 

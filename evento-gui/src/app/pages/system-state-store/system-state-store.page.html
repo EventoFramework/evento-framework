@@ -1,0 +1,27 @@
+<ion-content>
+
+  <app-wrapped-content>
+    <ion-grid>
+      <ion-row class="ion-margin-top line-under">
+        <ion-col>
+          <ion-title><h1><span translate="system.state.store"></span></h1></ion-title>
+        </ion-col>
+        <ion-col>
+          <ion-segment value="event" #segment>
+            <ion-segment-button value="event" translate="sss.event.store"></ion-segment-button>
+            <ion-segment-button value="snapshot" translate="sss.snapshot.store"></ion-segment-button>
+          </ion-segment>
+        </ion-col>
+      </ion-row>
+      @switch (segment.value){
+        @case ("event"){
+<app-event-store></app-event-store>
+        }
+        @case ("snapshot"){
+<app-snapshot-store></app-snapshot-store>
+        }
+      }
+
+    </ion-grid>
+  </app-wrapped-content>
+</ion-content>

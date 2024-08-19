@@ -1,5 +1,7 @@
 package com.evento.consumer.state.store.postgres;
 
+import com.evento.common.messaging.consumer.DeadPublishedEvent;
+import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
@@ -11,6 +13,11 @@ import com.evento.common.serialization.ObjectMapperUtils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -86,7 +93,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 		this.SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
 				+ " (id serial, name varchar(255),  state text, primary key (id))";
 		this.DEAD_EVENT_DDL = "create table if not exists " + DEAD_EVENT_TABLE
-				+ " (consumer varchar(255), eventSequenceNumber bigint, eventName varchar(255), toProcess boolean, primary key (consumer, eventSequenceNumber))";
+				+ " (consumerId varchar(255), eventSequenceNumber bigint, eventName varchar(255), retry boolean, deadAt timestamp, event json, aggregateId varchar(255), context varchar(255), exception json, primary key (consumerId, eventSequenceNumber))";
 		init();
 	}
 
@@ -177,17 +184,80 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	}
 
 	@Override
-	protected void addEventToDeadEventQueue(String consumerId, PublishedEvent event) throws Exception {
-		var q = "insert into " + DEAD_EVENT_TABLE + " (consumer, eventSequenceNumber, eventName, toProcess) values (?, ?, ?, ?)";
+	public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Exception exception) throws Exception {
+		var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId, context, exception) values (?, ?, ?, false,?,?::json,?,?,?::json)";
 		var stmt = connection.prepareStatement(q);
 		stmt.setString(1, consumerId);
 		stmt.setLong(2, event.getEventSequenceNumber());
 		stmt.setString(3, event.getEventName());
+		stmt.setTimestamp(4, new Timestamp(ZonedDateTime.now().toInstant().toEpochMilli()));
+		stmt.setString(5, getObjectMapper().writeValueAsString(event));
+		stmt.setString(6, event.getAggregateId());
+		stmt.setString(7, event.getEventMessage().getContext());
+		stmt.setString(8, getObjectMapper().writeValueAsString(new ExceptionWrapper(exception)));
 		if (stmt.executeUpdate() == 0) throw new RuntimeException("Insert into Dead Event Queue error");
 	}
 
 	@Override
-	protected StoredSagaState getSagaState(String sagaName,
+	public void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) throws Exception {
+		var q = "delete from " + DEAD_EVENT_TABLE + " where consumerId = ? and eventSequenceNumber = ?";
+		var stmt = connection.prepareStatement(q);
+		stmt.setString(1, consumerId);
+		stmt.setLong(2, eventSequenceNumber);
+		stmt.executeUpdate();
+	}
+
+	@Override
+	protected Collection<PublishedEvent> getEventsToReprocessFromDeadEventQueue(String consumerId) throws Exception {
+		var q = "select event from " + DEAD_EVENT_TABLE + " where consumerId = ? and retry = true";
+		var stmt = connection.prepareStatement(q);
+		stmt.setString(1, consumerId);
+		var rs = stmt.executeQuery();
+		var events = new ArrayList<PublishedEvent>();
+		while (rs.next()) {
+			events.add(getObjectMapper().readValue(rs.getString("event"), PublishedEvent.class));
+		}
+		return events;
+	}
+
+	@Override
+	public Collection<DeadPublishedEvent> getEventsFromDeadEventQueue(String consumerId) throws Exception {
+		var q = "select * from " + DEAD_EVENT_TABLE + " where consumerId = ?";
+		var stmt = connection.prepareStatement(q);
+		stmt.setString(1, consumerId);
+		var rs = stmt.executeQuery();
+		var events = new ArrayList<DeadPublishedEvent>();
+		while (rs.next()) {
+			events.add(
+					new DeadPublishedEvent(
+							rs.getString("consumerId"),
+							rs.getString("eventName"),
+							rs.getString("aggregateId"),
+							rs.getString("context"),
+							rs.getLong("eventSequenceNumber") + "",
+							getObjectMapper().readValue(rs.getString("event"), PublishedEvent.class),
+							rs.getBoolean("retry"),
+							getObjectMapper().readValue(rs.getString("exception"), ExceptionWrapper.class),
+							ZonedDateTime.ofInstant(rs.getTimestamp("deadAt").toInstant(), ZoneId.systemDefault())
+					));
+
+		}
+		return events;
+	}
+
+	@Override
+	public void setRetryDeadEvent(String consumerId, long eventSequenceNumber, boolean retry) throws Exception {
+		var q = "update " + DEAD_EVENT_TABLE + " set retry = ? where consumerId = ? and eventSequenceNumber = ?";
+		var stmt = connection.prepareStatement(q);
+		stmt.setBoolean(1, retry);
+		stmt.setString(2, consumerId);
+		stmt.setLong(3, eventSequenceNumber);
+		stmt.executeUpdate();
+	}
+
+
+	@Override
+	public StoredSagaState getSagaState(String sagaName,
 										   String associationProperty,
 										   String associationValue) throws Exception {
 		var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ? and json_extract_path_text(state::json->1->'associations'->1,?) = ?");
@@ -202,7 +272,20 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	}
 
 	@Override
-	protected void setSagaState(Long id, String sagaName, SagaState sagaState) throws Exception {
+	public Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception {
+		var stmt = connection.prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ?");
+		stmt.setString(1, sagaName);
+		var resultSet = stmt.executeQuery();
+		var response = new ArrayList<StoredSagaState>();
+		while (!resultSet.next()) {
+			var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
+			response.add(new StoredSagaState(resultSet.getLong(1), state));
+		}
+		return response;
+	}
+
+	@Override
+	public void setSagaState(Long id, String sagaName, SagaState sagaState) throws Exception {
         java.sql.PreparedStatement stmt;
         if (id == null)
 		{

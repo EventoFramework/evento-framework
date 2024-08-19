@@ -8,6 +8,7 @@ import com.evento.common.modeling.state.AggregateState;
 @Getter
 public class DemoAggregateState extends AggregateState {
 	private long value;
+	private long updateCount = 0;
 
 
 	public DemoAggregateState(long value) {

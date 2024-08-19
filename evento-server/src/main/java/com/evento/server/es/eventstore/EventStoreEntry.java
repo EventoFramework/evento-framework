@@ -38,7 +38,7 @@ public class EventStoreEntry {
 	public PublishedEvent toPublishedEvent() {
 		var event = new PublishedEvent();
 		event.setAggregateId(getAggregateId());
-		event.setCreatedAt(getCreatedAt());
+		event.setCreatedAt(getCreatedAt().toInstant().toEpochMilli());
 		event.setEventMessage(getEventMessage());
 		event.setEventSequenceNumber(getEventSequenceNumber());
 		event.setEventName(getEventName());

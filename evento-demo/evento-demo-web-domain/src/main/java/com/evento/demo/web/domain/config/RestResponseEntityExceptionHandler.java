@@ -37,9 +37,6 @@ public class RestResponseEntityExceptionHandler
         } else if(ex instanceof NoSuchElementException || ex.getMessage().contains("No value present")){
             return handleExceptionInternal(ex, Map.of("message", "error.not.found"),
                     new HttpHeaders(), HttpStatus.NOT_FOUND, request);
-        } else if (ex.getMessage().startsWith("com.gualaclosures.iris.error.UnauthorizedException")){
-            return handleExceptionInternal(ex, Map.of("message", last),
-                    new HttpHeaders(), HttpStatus.FORBIDDEN, request);
         }else{
             return handleExceptionInternal(ex, ex,
                     new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);

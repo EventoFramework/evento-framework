@@ -4,7 +4,7 @@ import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.Multiple;
 import com.evento.demo.api.view.NotificationView;
 
-public class NotificationFindAllQuery implements Query<Multiple<NotificationView>> {
+public class NotificationFindAllQuery extends Query<Multiple<NotificationView>> {
 	private Integer limit;
 	private Integer offset;
 
