@@ -6,12 +6,15 @@ import java.lang.reflect.ParameterizedType;
 
 
 /**
- * The Query interface represents a query object that can be sent to a system to retrieve a response.
- * It extends the Payload interface.
+ * The Query class is an abstract class that represents a query object. It extends the TrackablePayload class.
+ * It is generic, with a type parameter T that must extend the QueryResponse class.
  *
- * @param <T> The type of QueryResponse expected as the response.
+ * @param <T> The type of the response object that the Query returns.
+ *
+ * @see TrackablePayload
+ * @see QueryResponse
  */
-public interface Query<T extends QueryResponse<?>> extends Payload {
+public abstract class Query<T extends QueryResponse<?>> extends TrackablePayload {
 
 	/**
 	 * Returns the response type of the Query.
@@ -19,7 +22,7 @@ public interface Query<T extends QueryResponse<?>> extends Payload {
 	 * @return The Class object representing the response type.
 	 */
 	@SuppressWarnings("unchecked")
-	public default Class<T> getResponseType() {
+	public Class<T> getResponseType() {
 		return (Class<T>) ((ParameterizedType) ((ParameterizedType) getClass()
 				.getGenericSuperclass()).getActualTypeArguments()[0]).getRawType();
 	}

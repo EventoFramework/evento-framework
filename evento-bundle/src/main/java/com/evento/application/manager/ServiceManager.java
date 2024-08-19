@@ -22,7 +22,7 @@ import java.util.function.Function;
  * and implements the required methods for parsing and handling the service commands.
  */
 public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessage, ServiceReference> {
-    private static final Logger logger = LogManager.getLogger(AggregateManager.class);
+    private static final Logger logger = LogManager.getLogger(ServiceManager.class);
 
     /**
      * Creates a new instance of ServiceManager with the specified parameters.

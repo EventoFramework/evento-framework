@@ -2,8 +2,7 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import lombok.Getter;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.modeling.messaging.message.application.Message;
@@ -17,20 +16,24 @@ import java.util.function.Supplier;
  * The ObserverEventConsumer class is responsible for consuming and processing events
  * for a specific observer.
  */
-public class ObserverEventConsumer implements Runnable {
-    private static final Logger logger = LogManager.getLogger(ObserverEventConsumer.class);
+public class ObserverEventConsumer extends EventConsumer {
 
     // Fields for configuration and dependencies
+    @Getter
     private final String bundleId;
+    @Getter
     private final String observerName;
+    @Getter
     private final int observerVersion;
+    @Getter
     private final String context;
     private final Supplier<Boolean> isShuttingDown;
-    private final ConsumerStateStore consumerStateStore;
     private final HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
+    @Getter
     private final int sssFetchSize;
+    @Getter
     private final int sssFetchDelay;
 
 
@@ -56,13 +59,13 @@ public class ObserverEventConsumer implements Runnable {
                                  TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy,
                                  int sssFetchSize, int sssFetchDelay) {
+        super(bundleId + "_" + observerName + "_" + observerVersion + "_" + context, consumerStateStore);
         // Initialization of fields
         this.bundleId = bundleId;
         this.observerName = observerName;
         this.observerVersion = observerVersion;
         this.context = context;
         this.isShuttingDown = isShuttingDown;
-        this.consumerStateStore = consumerStateStore;
         this.observerMessageHandlers = observerMessageHandlers;
         this.tracingAgent = tracingAgent;
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
@@ -76,8 +79,6 @@ public class ObserverEventConsumer implements Runnable {
      */
     @Override
     public void run() {
-        // Construct consumer identifier
-        var consumerId = bundleId + "_" + observerName + "_" + observerVersion + "_" + context;
 
         // Main loop for event processing
         while (!isShuttingDown.get()) {
@@ -88,7 +89,8 @@ public class ObserverEventConsumer implements Runnable {
                 // Consume events from the state store and process them
                 consumedEventCount = consumerStateStore.consumeEventsForObserver(consumerId,
                         observerName,
-                        context, (publishedEvent) -> {
+                        context,
+                        (publishedEvent) -> {
                             // Retrieve handlers for the event name
                             var handlers = observerMessageHandlers
                                     .get(publishedEvent.getEventName());
@@ -127,4 +129,43 @@ public class ObserverEventConsumer implements Runnable {
             }
         }
     }
+
+    public void consumeDeadEventQueue() throws Exception {
+
+
+        consumerStateStore.consumeDeadEventsForObserver(
+                consumerId,
+                observerName,
+                (publishedEvent) -> {
+                    // Retrieve handlers for the event name
+                    var handlers = observerMessageHandlers
+                            .get(publishedEvent.getEventName());
+                    if (handlers == null) return;
+
+                    // Retrieve the handler for the current saga
+                    var handler = handlers.getOrDefault(observerName, null);
+                    if (handler == null) return;
+
+                    // Create telemetry proxy for the gateway
+                    var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
+                            publishedEvent.getEventMessage());
+
+                    // Track the event using the tracing agent
+                    tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                            null,
+                            () -> {
+                                // Invoke the handler and send telemetry metrics
+                                handler.invoke(
+                                        publishedEvent.getEventMessage(),
+                                        proxy,
+                                        proxy
+                                );
+                                proxy.sendInvocationsMetric();
+                                return null;
+                            });
+                }
+        );
+    }
+
+
 }

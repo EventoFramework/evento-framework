@@ -1,7 +1,5 @@
 package com.evento.common.modeling.annotations.component;
 
-import com.evento.common.utils.Context;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

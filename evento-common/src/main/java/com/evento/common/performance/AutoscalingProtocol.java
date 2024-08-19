@@ -1,8 +1,6 @@
 package com.evento.common.performance;
 
 import com.evento.common.modeling.messaging.message.internal.ClusterNodeIsSufferingMessage;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.modeling.messaging.message.internal.ClusterNodeIsBoredMessage;
 
