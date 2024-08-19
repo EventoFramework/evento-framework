@@ -12,6 +12,8 @@
 .idea/**/dictionaries
 .idea/**/shelf
 
+
+
 # AWS User-specific
 .idea/**/aws.xml
 
@@ -119,3 +121,4 @@ gradle-app.setting
 
 00_server_upload
 /.idea/compiler.xml
+.idea
