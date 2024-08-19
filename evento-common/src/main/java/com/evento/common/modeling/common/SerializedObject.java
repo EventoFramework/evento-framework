@@ -1,5 +1,6 @@
 package com.evento.common.modeling.common;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
@@ -16,7 +17,7 @@ import java.io.Serializable;
 
 public class SerializedObject<T extends Serializable> implements Serializable {
 
-	private transient final Logger logger = LogManager.getLogger(this.getClass());
+	private static final Logger logger = LogManager.getLogger(SerializedObject.class);
 	private String serializedObject;
 	private String objectClass;
 
@@ -85,6 +86,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 	 *
 	 * @return the deserialized object, or null if deserialization fails
 	 */
+	@JsonIgnore
 	@SuppressWarnings("unchecked")
 	public T getObject() {
 		try

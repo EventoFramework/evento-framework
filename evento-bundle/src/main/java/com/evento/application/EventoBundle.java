@@ -1,8 +1,10 @@
 package com.evento.application;
 
+import com.evento.application.consumer.EventConsumer;
 import com.evento.application.manager.*;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.performance.Track;
+import com.evento.common.modeling.messaging.message.internal.consumer.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import javassist.util.proxy.MethodHandler;
@@ -50,8 +52,9 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -227,6 +230,7 @@ public class EventoBundle {
         info.sagaMessageHandlers = sagaManager.getHandlers().keySet();
         return info;
     }
+
     /**
      * Represents information about an application.
      */
@@ -299,6 +303,7 @@ public class EventoBundle {
 
         private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
         private Map<String, Set<String>> contexts = new HashMap<>();
+        private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
 
         /**
          * The Builder class represents a builder for constructing objects.
@@ -531,6 +536,7 @@ public class EventoBundle {
                     info[1] = p.getAnnotation(Domain.class).name();
                 }
             }
+
             var registration = new BundleRegistration(
                     bundleId,
                     bundleVersion,
@@ -538,6 +544,11 @@ public class EventoBundle {
                     handlers,
                     payloadInfo
             );
+
+
+
+            final AtomicReference<EventoBundle> eventoBundle = new AtomicReference<>();
+
 
             logger.info("Starting EventoApplication %s".formatted(bundleId));
             logger.info("Connecting to Evento Server...");
@@ -550,6 +561,64 @@ public class EventoBundle {
                                 case DecoratedDomainCommandMessage cm -> aggregateManager.handle(cm);
                                 case ServiceCommandMessage sm -> serviceManager.handle(sm);
                                 case QueryMessage<?> qm -> projectionManager.handle(qm);
+                                case ConsumerFetchStatusRequestMessage cr -> {
+                                    var resp = new ConsumerFetchStatusResponseMessage();
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                                try {
+                                                    resp.setDeadEvents(c.getDeadEventQueue());
+                                                    resp.setLastEventSequenceNumber(c.getLastConsumedEvent());
+                                                } catch (Exception e) {
+                                                    throw new RuntimeException(e);
+                                                }
+                                            });
+                                    yield resp;
+                                }
+                                case ConsumerSetEventRetryRequestMessage cr -> {
+                                    var resp = new ConsumerResponseMessage();
+                                    resp.setSuccess(true);
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                                try {
+                                                    c.setDeadEventRetry(cr.getEventSequenceNumber(), cr.isRetry());
+                                                } catch (Exception e) {
+                                                    throw new RuntimeException(e);
+                                                }
+                                            });
+                                    yield resp;
+                                }
+                                case ConsumerProcessDeadQueueRequestMessage cr -> {
+                                    var resp = new ConsumerResponseMessage();
+                                    resp.setSuccess(true);
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                        try {
+                                            c.consumeDeadEventQueue();
+                                        } catch (Exception e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                    });
+
+                                    yield resp;
+                                }
+                                case ConsumerDeleteDeadEventRequestMessage cr -> {
+                                    var resp = new ConsumerResponseMessage();
+                                    resp.setSuccess(true);
+                                    eventoBundle.get()
+                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                            .ifPresent(c -> {
+                                        try {
+                                            c.deleteDeadEvent(cr.getEventSequenceNumber());
+                                        } catch (Exception e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                    });
+
+                                    yield resp;
+                                }
                                 case null, default -> throw new RuntimeException("Invalid request body: " + body);
                             }
                     )
@@ -579,9 +648,7 @@ public class EventoBundle {
             logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
             tracingAgent.setAutoscalingProtocol(autoscalingProtocol);
 
-            if(performanceService == null) {
-                performanceService = performanceServiceBuilder.apply(eventoServer);
-            }
+
             if (consumerStateStoreBuilder == null) {
                 consumerStateStoreBuilder = InMemoryConsumerStateStore::new;
             }
@@ -591,29 +658,34 @@ public class EventoBundle {
             if (queryGateway == null) {
                 queryGateway = queryGatewayBuilder.apply(eventoServer);
             }
-
+            if(performanceService == null) {
+                performanceService = performanceServiceBuilder.apply(eventoServer);
+            }
 
             var css = consumerStateStoreBuilder.apply(eventoServer, performanceService);
-            EventoBundle eventoBundle = new EventoBundle(
+            eventoBundle.set(new EventoBundle(
                     basePackage.getName(),
                     bundleId, instanceId,
                     aggregateManager, projectionManager, sagaManager, commandGateway,
                     queryGateway,
                     performanceService,
-                    serviceManager, projectorManager, observerManager, tracingAgent);
+                    serviceManager, projectorManager, observerManager, tracingAgent));
+
             logger.info("Starting projector consumers...");
             var start = Instant.now();
             var wait = new Semaphore(0);
-            eventoBundle.startProjectorEventConsumers(wait::release, css, contexts);
+            eventoBundle.get().startProjectorEventConsumers(wait::release, css, contexts);
             var startThread = new Thread(() -> {
                 try {
                     wait.acquire();
-                    logger.info("All Projector Consumers head Reached! (in " + (Instant.now().toEpochMilli() - start.toEpochMilli()) + " millis)");
+                    logger.info("All Projector Consumers head Reached! (in {} millis)", Instant.now().toEpochMilli() - start.toEpochMilli());
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
-                    eventoBundle.startSagaEventConsumers(css, contexts);
-                    eventoBundle.startObserverEventConsumers(css, contexts);
+                    eventoBundle.get().startSagaEventConsumers(css, contexts);
+                    eventoBundle.get().startObserverEventConsumers(css, contexts);
+                    eventoServer.registerConsumers(eventoBundle.get());
                     logger.info("Application Started!");
+                    Thread.startVirtualThread(() -> onEventoStartedHook.accept(eventoBundle.get()));
                 }catch (Exception e){
                     logger.error("Error during startup", e);
                     System.exit(1);
@@ -621,9 +693,25 @@ public class EventoBundle {
             });
             startThread.setName("Start Bundle Thread");
             startThread.start();
-            return eventoBundle;
+            return eventoBundle.get();
 
         }
+    }
+
+    private Optional<? extends EventConsumer> getEventConsumer(String consumerId, ComponentType componentType) {
+        return switch (componentType){
+            case Saga ->
+                    getSagaManager().getSagaEventConsumers()
+                            .stream().filter(c -> c.getConsumerId().equals(consumerId))
+                            .findFirst();
+            case Projector ->  getProjectorManager().getProjectorEvenConsumers()
+                    .stream().filter(c -> c.getConsumerId().equals(consumerId))
+                    .findFirst();
+            case Observer -> getObserverManager().getObserverEventConsumers()
+                    .stream().filter(c -> c.getConsumerId().equals(consumerId))
+                    .findFirst();
+            case null, default -> throw new RuntimeException("Invalid consumer fetch " + consumerId + " - " + componentType);
+        };
     }
 
     /**

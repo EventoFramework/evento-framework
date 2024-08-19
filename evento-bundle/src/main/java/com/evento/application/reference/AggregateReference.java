@@ -147,7 +147,7 @@ public class AggregateReference extends Reference {
             throw new IllegalArgumentException("Command handler returned null");
         }
         var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
-        var state = (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata(),
+        var state = eh == null ? null : (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata(),
                 Instant.ofEpochMilli(cm.getTimestamp()));
         if (state == null) {
             state = envelope.getAggregateState();

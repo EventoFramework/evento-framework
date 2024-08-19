@@ -4,6 +4,7 @@ import com.evento.application.consumer.ObserverEventConsumer;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
 import com.evento.common.utils.Context;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -13,6 +14,7 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -25,8 +27,18 @@ import java.util.function.Supplier;
  * It extends the ConsumerComponentManager class and overrides its parse method.
  * It also provides a handle method to handle event messages.
  */
+@Getter
 public class ObserverManager extends ConsumerComponentManager<ObserverReference> {
     private static final Logger logger = LogManager.getLogger(ObserverManager.class);
+
+
+    /**
+     * -- GETTER --
+     *  Retrieves the list of ObserverEventConsumer instances associated with the ObserverManager.
+     *
+     */
+    private final ArrayList<ObserverEventConsumer> observerEventConsumers = new ArrayList<>();
+
     /**
      * Creates a new ObserverManager.
      *
@@ -82,7 +94,7 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
                 var observerVersion = annotation.version();
                 logger.info("Starting event consumer for Observer: %s - Version: %d - Context: %s"
                         .formatted(observerName, observerVersion, context));
-                var t = new Thread(new ObserverEventConsumer(
+                var c = new ObserverEventConsumer(
                         getBundleId(),
                         observerName,
                         observerVersion,
@@ -94,7 +106,9 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
                         getGatewayTelemetryProxy(),
                         getSssFetchSize(),
                         getSssFetchDelay()
-                ));
+                );
+                observerEventConsumers.add(c);
+                var t = new Thread(c);
                 t.setName(observerName + "(v"+observerVersion+") - " + context);
                 t.start();
             }
@@ -102,4 +116,5 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
         }
 
     }
+
 }

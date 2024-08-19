@@ -3,6 +3,14 @@ package com.evento.demo.web.domain.config;
 import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
+import com.evento.common.messaging.gateway.CommandGatewayImpl;
+import com.evento.common.messaging.gateway.QueryGatewayImpl;
+import com.evento.common.modeling.messaging.message.application.Message;
+import com.evento.common.modeling.messaging.message.application.Metadata;
+import com.evento.common.modeling.messaging.payload.Command;
+import com.evento.common.modeling.messaging.payload.DomainCommand;
+import com.evento.common.modeling.messaging.payload.Query;
+import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.performance.ThreadCountAutoscalingProtocol;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import com.evento.demo.web.domain.DemoWebApplication;
@@ -12,6 +20,12 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 @Configuration
 public class EventoConfiguration {
@@ -42,6 +56,35 @@ public class EventoConfiguration {
                                 .setMaxReconnectAttempts(30)
                                 .setReconnectDelayMillis(5000)
                 )
+                .setCommandGatewayBuilder(es -> new CommandGatewayImpl(es){
+
+                    @Override
+                    public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
+                        Optional.ofNullable(RequestContextHolder.getRequestAttributes())
+                                .filter(ServletRequestAttributes.class::isInstance)
+                                .map(ServletRequestAttributes.class::cast)
+                                .map(ServletRequestAttributes::getRequest)
+                                .ifPresent(r -> {
+                                    command.setForceTelemetry(Objects.equals(r.getHeader("Force-Evento-Telemetry"),"true"));
+                                    if(command instanceof DomainCommand dc){
+                                        dc.setInvalidateAggregateCaches(Objects.equals(r.getHeader("Invalidate-Evento-Cache"),"true"));
+                                        dc.setInvalidateAggregateSnapshot(Objects.equals(r.getHeader("Invalidate-Evento-Aggregate-Snapshot"),"true"));
+                                    }
+                                });
+                        return super.send(command, metadata, handledMessage);
+                    }
+                })
+                .setQueryGatewayBuilder(es -> new QueryGatewayImpl(es){
+                    @Override
+                    public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
+                        Optional.ofNullable(RequestContextHolder.getRequestAttributes())
+                                .filter(ServletRequestAttributes.class::isInstance)
+                                .map(ServletRequestAttributes.class::cast)
+                                .map(ServletRequestAttributes::getRequest)
+                                .ifPresent(r -> query.setForceTelemetry("true".equals(r.getHeader("Force-Evento-Telemetry"))));
+                        return super.query(query, metadata, handledMessage);
+                    }
+                })
                 .setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
                 .setAutoscalingProtocolBuilder((es) -> new ThreadCountAutoscalingProtocol(
                         es,
