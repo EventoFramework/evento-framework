@@ -1,11 +1,10 @@
 package com.evento.application.reference;
 
-import com.evento.application.consumer.ProjectorEvenConsumer;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.handler.EventHandler;
-import com.evento.common.modeling.messaging.message.application.EventMessage;
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.payload.Event;
 import com.evento.common.utils.ProjectorStatus;
 import com.evento.common.utils.Sleep;
@@ -59,25 +58,25 @@ public class ProjectorReference extends Reference {
 
 
     /**
-     * Invokes an event handler for a given event message.
+     * Invokes the event handler for the given published event.
      *
-     * @param em             The event message containing the event and its metadata.
-     * @param commandGateway The command gateway.
-     * @param queryGateway   The query gateway.
+     * @param publishedEvent The published event to process.
+     * @param commandGateway The command gateway used for handling command messages.
+     * @param queryGateway The query gateway used for handling query messages.
      * @param projectorStatus The status of the projector.
      * @throws Exception If an error occurs while invoking the event handler.
      */
     public void invoke(
-            EventMessage<? extends Event> em,
+            PublishedEvent publishedEvent,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
             ProjectorStatus projectorStatus)
             throws Exception {
 
-        var handler = eventHandlerReferences.get(em.getEventName());
+        var handler = eventHandlerReferences.get(publishedEvent.getEventName());
 
         if (handler == null) {
-            throw new IllegalArgumentException("No event handler found for event: " + em.getEventName());
+            throw new IllegalArgumentException("No event handler found for event: " + publishedEvent.getEventName());
         }
 
         var a = handler.getAnnotation(EventHandler.class);
@@ -85,18 +84,19 @@ public class ProjectorReference extends Reference {
         while (true) {
             try {
                 ReflectionUtils.invoke(getRef(), handler,
-                        em.getPayload(),
+                        publishedEvent.getEventMessage().getPayload(),
                         commandGateway,
                         queryGateway,
-                        em,
-                        em.getMetadata(),
+                        publishedEvent.getEventMessage(),
+                        publishedEvent.getEventMessage().getMetadata(),
                         projectorStatus,
-                        Instant.ofEpochMilli(em.getTimestamp())
+                        Instant.ofEpochMilli(publishedEvent.getEventMessage().getTimestamp()),
+                        publishedEvent.getEventSequenceNumber()
                 );
                 return;
             }catch (Exception e){
                 retry++;
-                logger.error("Event processing failed for projector "+ getComponentName() + " event " + em.getEventName() + " (attempt " +(retry)+ ")", e);
+                logger.error("Event processing failed for projector "+ getComponentName() + " event " + publishedEvent.getEventName() + " (attempt " +(retry)+ ")", e);
                 if(a.retry() > 0){
                     if (retry > a.retry()) {
                         throw e;
