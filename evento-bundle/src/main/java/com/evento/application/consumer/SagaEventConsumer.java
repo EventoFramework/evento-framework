@@ -2,6 +2,7 @@ package com.evento.application.consumer;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
@@ -18,20 +19,25 @@ import java.util.function.Supplier;
  * Represents a consumer for saga events, responsible for processing and handling events
  * in a saga context.
  */
-public class SagaEventConsumer implements Runnable {
+public class SagaEventConsumer extends EventConsumer {
     private static final Logger logger = LogManager.getLogger(SagaEventConsumer.class);
 
     // Fields for configuration and dependencies
+    @Getter
     private final String bundleId;
+    @Getter
     private final String sagaName;
+    @Getter
     private final int sagaVersion;
     private final String context;
+    @Getter
     private final Supplier<Boolean> isShuttingDown;
-    private final ConsumerStateStore consumerStateStore;
     private final HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers;
     private final TracingAgent tracingAgent;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
+    @Getter
     private final int sssFetchSize;
+    @Getter
     private final int sssFetchDelay;
 
     /**
@@ -56,18 +62,19 @@ public class SagaEventConsumer implements Runnable {
                              TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy,
                              int sssFetchSize, int sssFetchDelay) {
+        super(bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context, consumerStateStore);
         // Initialization of fields
         this.bundleId = bundleId;
         this.sagaName = sagaName;
         this.sagaVersion = sagaVersion;
         this.context = context;
         this.isShuttingDown = isShuttingDown;
-        this.consumerStateStore = consumerStateStore;
         this.sagaMessageHandlers = sagaMessageHandlers;
         this.tracingAgent = tracingAgent;
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
+
     }
 
     /**
@@ -76,9 +83,6 @@ public class SagaEventConsumer implements Runnable {
      */
     @Override
     public void run() {
-        // Construct consumer identifier
-        var consumerId = bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context;
-
         // Main loop for event processing
         while (!isShuttingDown.get()) {
             var hasError = false;
@@ -88,7 +92,8 @@ public class SagaEventConsumer implements Runnable {
                 // Consume events from the state store and process them
                 consumedEventCount = consumerStateStore.consumeEventsForSaga(consumerId,
                         sagaName,
-                        context, (sagaStateFetcher, publishedEvent) -> {
+                        context,
+                        (sagaStateFetcher, publishedEvent) -> {
                             // Retrieve handlers for the event name
                             var handlers = sagaMessageHandlers
                                     .get(publishedEvent.getEventName());
@@ -147,5 +152,62 @@ public class SagaEventConsumer implements Runnable {
                 Sleep.apply(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
             }
         }
+    }
+
+    public void consumeDeadEventQueue() throws Exception {
+
+        consumerStateStore.consumeDeadEventsForSaga(
+                consumerId,
+                sagaName,
+                (sagaStateFetcher, publishedEvent) -> {
+                    // Retrieve handlers for the event name
+                    var handlers = sagaMessageHandlers
+                            .get(publishedEvent.getEventName());
+                    if (handlers == null) return null;
+
+                    // Retrieve the handler for the current saga
+                    var handler = handlers.getOrDefault(sagaName, null);
+                    if (handler == null) return null;
+
+                    // Extract information from SagaEventHandler annotation
+                    var a = handler.getSagaEventHandler(publishedEvent.getEventName())
+                            .getAnnotation(SagaEventHandler.class);
+                    var associationProperty = a.associationProperty();
+                    var isInit = a.init();
+                    var associationValue = publishedEvent.getEventMessage().getAssociationValue(associationProperty);
+
+
+                    // Retrieve the last state from the saga state fetcher
+                    var sagaState = sagaStateFetcher.getLastState(
+                            sagaName,
+                            associationProperty,
+                            associationValue
+                    );
+
+                    // Check for initialization condition
+                    if (sagaState == null && !isInit) {
+                        return null;
+                    }
+
+                    // Create telemetry proxy for the gateway
+                    var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
+                            publishedEvent.getEventMessage());
+
+                    // Track the event using the tracing agent
+                    return tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                            null,
+                            () -> {
+                                // Invoke the handler and send telemetry metrics
+                                var resp = handler.invoke(
+                                        publishedEvent.getEventMessage(),
+                                        sagaState,
+                                        proxy,
+                                        proxy
+                                );
+                                proxy.sendInvocationsMetric();
+                                return resp == null ? sagaState : resp;
+                            });
+                }
+        );
     }
 }

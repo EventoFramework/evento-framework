@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class PerformanceService {
 
-    private static final Logger logger = LogManager.getLogger(PerformanceService.class);
+    protected static final Logger logger = LogManager.getLogger(PerformanceService.class);
 
     /**
      * The EVENT_STORE constant is a string that represents the name of the event store.
@@ -37,14 +37,18 @@ public abstract class PerformanceService {
      */
     public static final String GATEWAY_COMPONENT = "Gateway";
     /**
+     * The LOCK_COMPONENT variable represents the component name for a lock.
+     */
+    public static final String LOCK_COMPONENT = "Lock";
+    /**
      * The SERVER variable represents the name of the server.
      * It is a constant String value.
      */
     public static final String SERVER = "server";
     protected final Executor executor = Executors.newSingleThreadExecutor();
 
-    private final Random random = new Random();
-    private double performanceRate;
+    protected final Random random = new Random();
+    protected double performanceRate;
 
     /**
      * Constructs a new PerformanceService object with the given rate.
@@ -57,28 +61,47 @@ public abstract class PerformanceService {
 
     /**
      * Sends a service time metric.
-     * <p>
-     * This method sends a service time metric with the given parameters. It calculates the service time using the provided start time and the current time. The service time metric
-     * is wrapped in a PerformanceServiceTimeMessage object and sent asynchronously using the executor. If an exception occurs while sending the metric, an error message is logged
-     *.
      *
-     * @param bundle    The bundle of the metric.
-     * @param component The component of the metric.
-     * @param message   The message associated with the metric.
-     * @param startTime The start time of the service.
+     * <p>
+     * This method sends a service time metric with the provided information. If the 'force' parameter is false,
+     * the method checks the 'performanceRate' and decides whether to send the metric based on the random value.
+     * If the 'performanceRate' is less than or equal to 0 or the random value is greater than the 'performanceRate',
+     * the method returns the 'startTime' parameter without sending the metric.
+     * </p>
+     *
+     * <p>
+     * The service time is calculated using the provided 'startTime' and the current timestamp. A new instance of
+     * 'PerformanceServiceTimeMessage' is created with the provided bundle, component, payload name, start time,
+     * current time, and instance ID. Then, the 'sendServiceTimeMetricMessage' method is called to send the
+     * service time metric asynchronously using the executor. If an exception occurs while sending the metric,
+     * an error message is logged.
+     * </p>
+     *
+     * @param bundle     The bundle associated with the service time metric.
+     * @param instanceId The instance ID associated with the service time metric.
+     * @param component  The component associated with the service time metric.
+     * @param message    The message containing the payload name associated with the service time metric.
+     * @param startTime  The start time of the service.
+     * @param force      A flag indicating whether to force send the metric.
+     *                   If set to true, the metric will always be sent.
+     *                   If set to false, the metric will be sent based on the 'performanceRate' and a random value.
+     * @return The current timestamp.
      */
-    public final void sendServiceTimeMetric(String bundle, String instanceId, String component, Message<?> message, Instant startTime) {
-        if (random.nextDouble(0.0, 1.0) > performanceRate) return;
-        var time = Instant.now().toEpochMilli();
+    public final Instant sendServiceTimeMetric(String bundle, String instanceId, String component,
+                                               Message<?> message, Instant startTime, boolean force) {
+        if(!force)
+            if (random.nextDouble(0.0, 1.0) > performanceRate) return startTime;
+        var time = Instant.now();
         executor.execute(() -> {
             var st = new PerformanceServiceTimeMessage(bundle, component, message.getPayloadName()
-                    , startTime.toEpochMilli(), time, instanceId);
+                    , startTime.toEpochMilli(), time.toEpochMilli(), instanceId);
             try {
                 sendServiceTimeMetricMessage(st);
             } catch (Exception e) {
                logger.error("Error during performance save", e);
             }
         });
+        return time;
     }
 
     /**
@@ -119,8 +142,10 @@ public abstract class PerformanceService {
      * @param invocationCounter  The invocation counter containing the number of invocations for each key.
      */
     public final void sendInvocationsMetric(String bundle, String component, Message<?> action,
-                                            HashMap<String, AtomicInteger> invocationCounter, String instanceId) {
-        if (random.nextDouble(0.0, 1.0) > performanceRate) return;
+                                            HashMap<String, AtomicInteger> invocationCounter, String instanceId,
+                                            boolean force) {
+        if(!force)
+            if (random.nextDouble(0.0, 1.0) > performanceRate) return;
         executor.execute(() -> {
             try {
 

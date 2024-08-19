@@ -3,7 +3,7 @@ package com.evento.demo.api.command;
 
 import com.evento.common.modeling.messaging.payload.DomainCommand;
 
-public class DemoCreateCommand implements DomainCommand {
+public class DemoCreateCommand extends DomainCommand {
 
 	private String demoId;
 	private String name;

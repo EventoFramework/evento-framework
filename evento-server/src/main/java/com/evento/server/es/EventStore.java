@@ -1,12 +1,12 @@
 package com.evento.server.es;
 
+import com.evento.server.es.utils.ExpiringLruCache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 import com.evento.common.modeling.state.SerializedAggregateState;
 import com.evento.common.serialization.ObjectMapperUtils;
-import com.evento.common.utils.Context;
 import com.evento.common.utils.Snowflake;
 import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.es.eventstore.EventStoreRepository;
@@ -17,14 +17,17 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -33,15 +36,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class EventStore {
 
-    private final Logger logger = LogManager.getLogger(EventStore.class);
+    private static final Logger logger = LogManager.getLogger(EventStore.class);
 
     private static final String ES_LOCK = "es-lock";
     private final long DELAY;
@@ -53,10 +55,10 @@ public class EventStore {
     private final Snowflake snowflake = new Snowflake();
     private final Connection lockConnection;
 
-    private final LruCache<String, Snapshot> snapshotCache;
-    private final LruCache<String, List<EventStoreEntry>> eventsCache;
+    private final ExpiringLruCache<String, Snapshot> snapshotCache;
+    private final ExpiringLruCache<String, List<EventStoreEntry>> eventsCache;
 
-    private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<String, LockWrapper>();
+    private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<>();
 
     public EventStore(EventStoreRepository repository,
                       SnapshotRepository snapshotRepository,
@@ -66,6 +68,10 @@ public class EventStore {
                       int aggregateSnapshotCacheSize,
                       @Value("${evento.es.aggregate.events.cache.size:1024}")
                       int aggregateEventsCacheSize,
+                      @Value("${evento.es.aggregate.state.cache.expiry:150000}")
+                      int aggregateSnapshotCacheExpiry,
+                      @Value("${evento.es.aggregate.events.cache.expiry:150000}")
+                      int aggregateEventsCacheExpiry,
                       @Value("${evento.es.fetch.delay:69}")
                       int fetchDelay,
                       @Value("${evento.es.mode:APES}")
@@ -74,8 +80,8 @@ public class EventStore {
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.lockConnection = dataSource.getConnection();
-        snapshotCache = new LruCache<>(aggregateSnapshotCacheSize);
-        eventsCache = new LruCache<>(aggregateEventsCacheSize);
+        snapshotCache = new ExpiringLruCache<>(aggregateSnapshotCacheSize, aggregateSnapshotCacheExpiry, TimeUnit.MILLISECONDS);
+        eventsCache = new ExpiringLruCache<>(aggregateEventsCacheSize, aggregateEventsCacheExpiry, TimeUnit.MILLISECONDS);
         DELAY = fetchDelay;
         MODE = mode;
 
@@ -85,9 +91,88 @@ public class EventStore {
         } else {
             logger.info("Mode: APES - Fetch Delay: {}", fetchDelay);
         }
-        logger.info("Aggregate Snapshot Cache Size: {}", aggregateSnapshotCacheSize);
-        logger.info("Aggregate Story Cache Size: {}", aggregateEventsCacheSize);
+        logger.info("Aggregate Snapshot Cache Size: {} - TTL: {}", aggregateSnapshotCacheSize, aggregateEventsCacheExpiry);
+        logger.info("Aggregate Story Cache Size: {} - TTL: {}", aggregateEventsCacheSize, aggregateEventsCacheExpiry);
 
+    }
+
+    public Page<EventStoreEntry> searchEvents(String aggregateIdentifier,
+                                              String eventName, String context,
+                                              Integer eventSequenceNumber,
+                                              Timestamp createdAtFrom,
+                                              Timestamp createdAtTo,
+                                              String contentQuery,
+                                              int page,
+                                              int size,
+                                              Sort.Direction sort,
+                                              String sortBy) {
+
+        var predicates = new ArrayList<Specification<EventStoreEntry>>();
+
+        if(aggregateIdentifier != null && !aggregateIdentifier.isBlank()){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("aggregateId"),aggregateIdentifier)
+            );
+        }
+
+        if(eventName != null && !eventName.isBlank()){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("eventName"),eventName)
+            );
+        }
+
+        if(context != null && !context.isBlank()){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("context"),context)
+            );
+        }
+
+        if(eventSequenceNumber != null ){
+            predicates.add(
+                    (r,o,cb) -> cb.equal(r.get("eventSequenceNumber"),eventSequenceNumber)
+            );
+        }
+
+        if(createdAtFrom != null ){
+            predicates.add(
+                    (r,o,cb) -> cb.greaterThanOrEqualTo(r.get("createdAt"),createdAtTo)
+            );
+        }
+
+        if(createdAtTo != null ){
+            predicates.add(
+                    (r,o,cb) -> cb.lessThanOrEqualTo(r.get("createdAt"),createdAtFrom)
+            );
+        }
+
+        if(contentQuery != null  && !contentQuery.isBlank() ){
+            predicates.add(
+                    (r,o,cb) -> cb.like(r.get("eventMessage"),contentQuery)
+            );
+        }
+
+        return eventStoreRepository.findAll(
+                Specification.allOf(predicates),
+                PageRequest.of(page, size, Sort.by(sort, sortBy))
+        );
+
+
+
+
+    }
+
+    public Page<Snapshot> searchSnapshots(String aggregateId,
+                                     int page,
+                                     int size,
+                                     Sort.Direction sort,
+                                     String sortBy){
+        var s = new Snapshot();
+        if(aggregateId != null && !aggregateId.isBlank())
+            s.setAggregateId(aggregateId);
+
+        return snapshotRepository.findAll(Example.of(s), PageRequest.of(
+                page, size, Sort.by(sort, sortBy)
+        ));
     }
 
     private static class LockWrapper {
@@ -185,8 +270,9 @@ public class EventStore {
         return v == null ? 0 : v;
     }
 
-    public void publishEvent(EventMessage<?> eventMessage, String aggregateId) {
+    public long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
+        var id = snowflake.nextId();
         try {
             if (MODE == EventStoreMode.APES) {
                 jdbcTemplate.update(
@@ -194,7 +280,7 @@ public class EventStore {
                                 "(event_sequence_number," +
                                 "aggregate_id, event_message, event_name, context) " +
                                 "values  (?, ?, ?, ?, ?)",
-                        snowflake.nextId(),
+                        id,
                         aggregateId,
                         mapper.writeValueAsString(eventMessage),
                         eventMessage.getEventName(),
@@ -202,10 +288,13 @@ public class EventStore {
                 );
             } else {
                 acquire(ES_LOCK);
+                id = jdbcTemplate.queryForRowSet("select nextval('event_sequence_number_serial') as event_sequence_number")
+                        .getLong("event_sequence_number");
                 jdbcTemplate.update(
                         "INSERT INTO es__events " +
                                 "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
-                                "values  (nextval('event_sequence_number_serial') ,?, ?, ?, ?)",
+                                "values  (? ,?, ?, ?, ?)",
+                        id,
                         aggregateId,
                         mapper.writeValueAsString(eventMessage),
                         eventMessage.getEventName(),
@@ -216,6 +305,7 @@ public class EventStore {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+        return id;
     }
 
     public Long getLastAggregateSequenceNumber(String aggregateId) {
@@ -253,40 +343,72 @@ public class EventStore {
         eventsCache.remove(aggregateIdentifier);
     }
 
-    private static class LruCache<A, B> extends LinkedHashMap<A, B> {
-        private final int maxEntries;
-
-        public LruCache(final int maxEntries) {
-            super(maxEntries + 1, 1.0f, true);
-            this.maxEntries = maxEntries;
+    /**
+     * Fetches the aggregate story for a given aggregate ID.
+     *
+     * @param aggregateId The ID of the aggregate.
+     * @param invalidateAggregateCaches A flag indicating whether to invalidate the aggregate caches.
+     * @param invalidateAggregateSnapshot A flag indicating whether to invalidate the aggregate snapshot.
+     * @return The aggregate story, consisting of the serialized aggregate state and a list of domain events.
+     */
+    public AggregateStory fetchAggregateStory(String aggregateId,
+                                              boolean invalidateAggregateCaches,
+                                              boolean invalidateAggregateSnapshot) {
+        Assert.isTrue(aggregateId != null, "Fetching aggregate state without an aggregate Id");
+        if(invalidateAggregateCaches){
+            snapshotCache.remove(aggregateId);
+            eventsCache.remove(aggregateId);
         }
-
-        @Override
-        protected boolean removeEldestEntry(final Map.Entry<A, B> eldest) {
-            return super.size() > maxEntries;
-        }
-    }
-
-    public AggregateStory fetchAggregateStory(String aggregateId) {
-        Assert.isTrue(aggregateId != null, "getAggregateId() return null!");
-        if (!snapshotCache.containsKey(aggregateId)) {
+        if (!invalidateAggregateSnapshot && !snapshotCache.containsKey(aggregateId)) {
             snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
         }
-        var snapshot = snapshotCache.get(aggregateId);
+        var snapshot = invalidateAggregateSnapshot ? null :  snapshotCache.get(aggregateId);
         var events = eventsCache.getOrDefault(aggregateId, new ArrayList<>());
-        var min = events.isEmpty() ? 0L : events.get(0).getEventSequenceNumber();
-        var max = events.isEmpty() ? 0L : events.get(events.size() - 1).getEventSequenceNumber();
+        SqlRowSet rs;
+        var max = 0L;
+        var min = events.isEmpty() ? 0L : events.getFirst().getEventSequenceNumber();
+        if(snapshot == null){
+            max = events.isEmpty() ? 0L : events.getLast().getEventSequenceNumber();
+            rs = jdbcTemplate.queryForRowSet(
+                    "select event_sequence_number, event_message " +
+                            "from es__events " +
+                            "where aggregate_id = ? " +
+                            "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) " +
+                            "order by event_sequence_number",
+                    aggregateId,
+                    min,
+                    max
+            );
+
+        }else{
+            max = events.isEmpty() ? snapshot.getEventSequenceNumber() : events.getLast().getEventSequenceNumber();
+            if(snapshot.getEventSequenceNumber() < min){
+                rs = jdbcTemplate.queryForRowSet(
+                        "select event_sequence_number, event_message " +
+                                "from es__events " +
+                                "where aggregate_id = ? " +
+                                "and ((es__events.event_sequence_number > ? and es__events.event_sequence_number < ?) or (es__events.event_sequence_number > ?)) " +
+                                "order by event_sequence_number",
+                        aggregateId,
+                        snapshot.getEventSequenceNumber(),
+                        events.getFirst().getEventSequenceNumber(),
+                        max
+                );
+
+            }else{
+                rs = jdbcTemplate.queryForRowSet(
+                        "select event_sequence_number, event_message " +
+                                "from es__events " +
+                                "where aggregate_id = ? " +
+                                "and es__events.event_sequence_number > ? " +
+                                "order by event_sequence_number",
+                        aggregateId,
+                        max
+                );
+            }
+        }
+
         var i = 0;
-        var rs = jdbcTemplate.queryForRowSet(
-                "select event_sequence_number, event_message " +
-                        "from es__events " +
-                        "where aggregate_id = ? " +
-                        "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) " +
-                        "order by event_sequence_number",
-                aggregateId,
-                min,
-                max
-        );
         while (true) {
             try {
                 if (!rs.next()) break;
