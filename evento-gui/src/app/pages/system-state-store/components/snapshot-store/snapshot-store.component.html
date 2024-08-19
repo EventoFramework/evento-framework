@@ -1,0 +1,114 @@
+<ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+  <ion-refresher-content></ion-refresher-content>
+</ion-refresher>
+
+<ion-row>
+  <ion-col>
+
+    <ion-card class="ion-no-margin" color="primary">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-grid>
+            <ion-row>
+              <ion-col>
+              <ion-input [(ngModel)]="parameters.aggregateIdentifier" (ionInput)="refresh()" [debounce]="500"
+                         [clearInput]="true" name="aggregateIdentifier" fill="outline" color="light"
+                         labelPlacement="floating"
+                         label="{{'sss.events.aggregate.id' | translate}}"
+                         type="text"></ion-input>
+            </ion-col>
+              <ion-col class="ion-padding">
+                <ion-label class="ion-margin-top">
+                  {{'sss.events.event.sequence.number' | translate}}
+                </ion-label>
+
+              </ion-col>
+
+                <ion-col class="ion-padding ion-text-end">
+                  <ion-label>
+                    {{'common.updated.at' | translate}}
+                  </ion-label>
+
+                </ion-col>
+            </ion-row>
+          </ion-grid>
+        </ion-card-title>
+      </ion-card-header>
+
+      <ion-progress-bar *ngIf="loading" color="light" type="indeterminate"></ion-progress-bar>
+    </ion-card>
+
+  </ion-col>
+</ion-row>
+@for (e of snapshots; track e.aggreagteId) {
+  <ion-row>
+    <ion-col>
+
+      <ion-card class="ion-no-margin" (click)="detailModal.present()">
+        <ion-card-content>
+          <ion-grid>
+            <ion-row>
+              <ion-col>
+                {{ e.aggregateId }}
+              </ion-col>
+              <ion-col>
+                {{ e.eventSequenceNumber }}
+              </ion-col>
+              <ion-col class="ion-text-end">
+                {{ e.updatedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+                @if (e.deletedAt) {
+                  <br/>
+                  <small>{{ e.deletedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+                  </small>
+                }
+              </ion-col>
+            </ion-row>
+          </ion-grid>
+          <ion-modal #detailModal class="modal-medium">
+            <ng-template>
+              <ion-header>
+                <ion-toolbar color="secondary">
+                  <ion-title class="ion-padding-start" translate="sss.snapshot.detail"></ion-title>
+                  <ion-buttons slot="end">
+                    <ion-button (click)="detailModal.dismiss()">
+                      <ion-icon slot="icon-only" name="close"></ion-icon>
+                    </ion-button>
+                  </ion-buttons>
+                </ion-toolbar>
+              </ion-header>
+              <ion-content class="ion-padding">
+                <ion-title>
+                  <h1 class="ion-padding-bottom">{{ e.aggregateId }} ({{ e.eventSequenceNumber }})</h1>
+                  <ion-grid class="ion-no-padding ion-margin-top line-under">
+                    <ion-row>
+                      <ion-col>
+                        {{'common.updated.at' | translate}}:  {{ e.updatedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+                        @if (e.deletedAt) {
+                          <br/>
+                          <small>{{ e.deletedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+                          </small>
+                        }
+                      </ion-col>
+
+                    </ion-row>
+                  </ion-grid>
+
+                </ion-title>
+                <ion-title class="ion-margin-top" translate="sss.aggregate.state"></ion-title>
+                <pre>{{ e.aggregateState | json }}</pre>
+                <div class="line-under ion-margin-bottom"></div>
+
+
+              </ion-content>
+
+            </ng-template>
+          </ion-modal>
+        </ion-card-content>
+      </ion-card>
+
+    </ion-col>
+  </ion-row>
+}
+<ion-infinite-scroll (ionInfinite)="onIonInfinite($event)">
+  <ion-infinite-scroll-content></ion-infinite-scroll-content>
+</ion-infinite-scroll>

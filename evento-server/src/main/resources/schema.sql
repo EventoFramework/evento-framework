@@ -47,6 +47,16 @@ create table if not exists core__component
     foreign key (bundle_id) references core__bundle (id)
 );
 
+create table if not exists core__consumer
+(
+    identifier varchar(512) not null
+        primary key,
+    component_component_name varchar(255) null,
+    instance_id    varchar(255) null,
+    consumer_id        varchar(255) null,
+    foreign key (component_component_name) references core__component (component_name)
+);
+
 create table if not exists core__payload
 (
     name                 varchar(255) not null
@@ -105,7 +115,7 @@ CREATE TABLE IF NOT EXISTS es__events
     context               varchar(100)          DEFAULT 'default',
     aggregate_id          varchar(100)          DEFAULT NULL,
     event_name            varchar(100) NOT NULL,
-    created_at            timestamp    NOT NULL default current_timestamp,
+    created_at            timestamp    NOT NULL default  (now() at time zone 'utc'),
     event_message         text         NOT NULL,
     deleted_at            timestamp             DEFAULT NULL
 );
@@ -150,15 +160,41 @@ create table if NOT EXISTS performance__handler_service_time_ts
     id        varchar(255)               not null,
     value     bigint default 0 not null,
     instance_id   varchar(255),
-    timestamp timestamp        default current_timestamp
+    timestamp bigint not null
 );
+
+create index if not exists performance__handler_service_time_ts_id_timestamp_index
+    on performance__handler_service_time_ts (id asc, timestamp desc);
 
 create table if NOT EXISTS performance__handler_invocation_count_ts
 (
     id        varchar(255)               not null,
     instance_id   varchar(255),
-    timestamp timestamp        default current_timestamp
+    timestamp bigint not null
 );
+
+create index if not exists performance__handler_invocation_count_ts_id_timestamp_index
+    on performance__handler_invocation_count_ts (id asc, timestamp desc);
+
+create table if NOT EXISTS performance__aggregate_handler_invocation_count_ts
+(
+    id        varchar(255)               not null,
+    aggregate_id        varchar(255)               not null,
+    event_sequence_number bigint not null,
+    instance_id   varchar(255),
+    source_bundle_id   varchar(255),
+    source_instance_id   varchar(255),
+    timestamp bigint not null,
+    total bigint not null,
+    lock bigint not null,
+    retrieve bigint not null,
+    compute bigint not null,
+    publish bigint not null
+);
+
+create index if not exists  performance__agg_handler_invocation_count_ts_timestamp_index
+    on performance__aggregate_handler_invocation_count_ts (id asc, timestamp desc);
+
 
 
 create index if not exists es__events_aggregate_id_event_sequence_number_index

@@ -3,11 +3,12 @@ package com.evento.server.es.eventstore;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
-public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Long> {
+public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Long>, JpaSpecificationExecutor<EventStoreEntry> {
 
     @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
             "where context like ?1 and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 order by event_sequence_number",
@@ -42,4 +43,5 @@ public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Lon
 
     @Query("select count(distinct e.aggregateId) from EventStoreEntry e")
     Long getAggregateCount();
+
 }

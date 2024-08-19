@@ -8,37 +8,29 @@ import com.evento.common.utils.Context;
  *
  * @see Payload
  */
-public abstract class Event implements Payload {
+public abstract class Event extends TrackablePayload {
+
     private String context = Context.DEFAULT;
 
+
     /**
-     * Returns the context of the event.
+     * Retrieves the context of the object.
      * <p>
      * The context is a string value representing the available context options for certain functionalities within a software system.
-     * It is set by calling the setContext method.
-     * The context can be accessed using the getContext method.
+     * It is set by calling the setContext method of the object.
      *
-     * @return the context of the event as a string
-     *
-     * @see #setContext(String)
-     * @see Event#setContext(String)
+     * @return the context of the object as a string
      */
     public String getContext() {
         return context;
     }
 
     /**
-     * Sets the context of the event.
+     * Sets the context of the Event object.
+     * <p>
      * The context is a string value representing the available context options for certain functionalities within a software system.
-     * It is set by calling the setContext method.
-     *
-     * @param context the context to be set as a string
-     * @throws IllegalArgumentException if the context provided is null
-     * @return the updated event object with the new context
-     *
-     * @see Event#getContext()
-     * @param <T> the event
-     */
+     * It is set by calling the setContext method of the Event object.
+     *  */
     @SuppressWarnings("unchecked")
     public <T extends Event> T setContext(String context) {
         if(context ==  null){
