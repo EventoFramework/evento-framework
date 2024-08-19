@@ -1,0 +1,109 @@
+<ion-row>
+  <ion-col size="6" *ngFor="let c of consumers">
+    <ion-card [class]="'component-type component-type-' + c.componentType" (click)="fetchConsumerState(c, modal)">
+      <ion-card-content>
+        <ion-text class="title">{{c.componentName}} - {{c.componentVersion}} ({{c.context}})</ion-text>
+        <ion-text color="dark"><p>{{c.bundleId}} (v{{c.bundleVersion}})</p></ion-text>
+        <ion-text color="medium">
+          <ul >
+            <li *ngFor="let i of c.instances">{{i}}</li>
+          </ul>
+        </ion-text>
+
+      </ion-card-content>
+    </ion-card>
+  </ion-col>
+</ion-row>
+<ion-modal #modal class="modal-large">
+  <ng-template>
+    <ion-header>
+    <ion-toolbar color="secondary">
+      <ion-title class="ion-padding-start">{{consumer.componentName}} - {{consumer.componentVersion}} ({{consumer.context}})
+        </ion-title>
+      <ion-buttons slot="end">
+        <ion-button (click)="modal.dismiss()">
+          <ion-icon slot="icon-only" name="close"></ion-icon>
+        </ion-button>
+      </ion-buttons>
+    </ion-toolbar>
+    </ion-header>
+    <ion-content class="ion-padding">
+      <ion-grid>
+        <ion-row>
+          <ion-col><h2 ><span translate="consumer.last.event"></span>: {{consumerState.lastEventSequenceNumber}}</h2></ion-col>
+        </ion-row>
+        <ion-row>
+            <ion-col>
+              <ion-card color="primary">
+                <ion-card-content>
+                  <ion-grid>
+                    <ion-row>
+                      <ion-col size="2" translate="sss.events.event.sequence.number"></ion-col>
+                      <ion-col size="2" translate="sss.events.event.name"></ion-col>
+                      <ion-col size="2" translate="sss.events.aggregate.id"></ion-col>
+                      <ion-col size="1" translate="consumer.dead.event.retry"></ion-col>
+                      <ion-col size="2" translate="consumer.dead.event.at"></ion-col>
+                      <ion-col size="3" class="ion-text-end" translate="common.actions"></ion-col>
+                       </ion-row>
+
+                  </ion-grid>
+                </ion-card-content>
+              </ion-card>
+              <ion-card *ngFor="let de of consumerState.deadEvents">
+                <ion-card-content>
+                  <ion-grid>
+                    <ion-row>
+                      <ion-col size="2">{{de.eventSequenceNumber}}</ion-col>
+                      <ion-col size="2">{{de.eventName}}</ion-col>
+                      <ion-col size="2">{{de.aggregateId}}</ion-col>
+                      <ion-col size="1"><ion-toggle (ionChange)="setEventRetry($event, de)" [checked]="de.retry"></ion-toggle></ion-col>
+                      <ion-col size="2">{{de.deadAt * 1000 | date:'short'}}</ion-col>
+                      <ion-col size="3" class="ion-text-end">
+                        <ion-button shape="round" size="small" translate="consumer.show.event" (click)="detail.present()"></ion-button>
+                        <ion-button shape="round" size="small" color="warning" translate="consumer.show.error" (click)="error.present()"></ion-button>
+                        <ion-button shape="round" size="small" color="danger" translate="consumer.delete.event" (click)="deleteEvent(de.consumerId, de.eventSequenceNumber)">
+                        </ion-button>
+                      </ion-col>
+                    </ion-row>
+                    <app-event-detail-modal #detail [event]="de.ev"></app-event-detail-modal>
+                    <ion-modal #error class="modal-medium">
+                      <ng-template>
+                        <ion-header>
+                          <ion-toolbar color="secondary">
+                            <ion-title class="ion-padding-start" translate="consumer.error"></ion-title>
+                            <ion-buttons slot="end">
+                              <ion-button (click)="error.dismiss()">
+                                <ion-icon slot="icon-only" name="close"></ion-icon>
+                              </ion-button>
+                            </ion-buttons>
+                          </ion-toolbar>
+                        </ion-header>
+                        <ion-content class="ion-padding">
+                          <ion-text color="danger">
+                            <h2>{{de.exception.throwable}} - {{de.exception.message}}</h2>
+                            <p>{{de.exception.detailMessage}}</p>
+                            <p *ngFor="let t of de.exception.stackTrace">
+                              {{t.className}}.{{t.methodName}}({{t.fileName}}:{{t.lineNumber}})
+                            </p>
+                          </ion-text>
+                        </ion-content>
+
+                      </ng-template>
+                    </ion-modal>
+
+                  </ion-grid>
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
+        </ion-row>
+      </ion-grid>
+    </ion-content>
+    <ion-footer>
+      <ion-toolbar class="ion-padding-horizontal">
+        <ion-button fill="outline" slot="end" (click)="reprocessDeadEventQueue(consumer)">
+          <span translate="consumer.reprocess.event"></span>
+        </ion-button>
+      </ion-toolbar>
+    </ion-footer>
+  </ng-template>
+</ion-modal>
