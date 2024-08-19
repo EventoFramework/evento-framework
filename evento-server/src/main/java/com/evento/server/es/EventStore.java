@@ -1,5 +1,6 @@
 package com.evento.server.es;
 
+import com.evento.server.es.utils.ExpiringLruCache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -53,8 +55,8 @@ public class EventStore {
     private final Snowflake snowflake = new Snowflake();
     private final Connection lockConnection;
 
-    private final LruCache<String, Snapshot> snapshotCache;
-    private final LruCache<String, List<EventStoreEntry>> eventsCache;
+    private final ExpiringLruCache<String, Snapshot> snapshotCache;
+    private final ExpiringLruCache<String, List<EventStoreEntry>> eventsCache;
 
     private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<>();
 
@@ -66,6 +68,10 @@ public class EventStore {
                       int aggregateSnapshotCacheSize,
                       @Value("${evento.es.aggregate.events.cache.size:1024}")
                       int aggregateEventsCacheSize,
+                      @Value("${evento.es.aggregate.state.cache.expiry:150000}")
+                      int aggregateSnapshotCacheExpiry,
+                      @Value("${evento.es.aggregate.events.cache.expiry:150000}")
+                      int aggregateEventsCacheExpiry,
                       @Value("${evento.es.fetch.delay:69}")
                       int fetchDelay,
                       @Value("${evento.es.mode:APES}")
@@ -74,8 +80,8 @@ public class EventStore {
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.lockConnection = dataSource.getConnection();
-        snapshotCache = new LruCache<>(aggregateSnapshotCacheSize);
-        eventsCache = new LruCache<>(aggregateEventsCacheSize);
+        snapshotCache = new ExpiringLruCache<>(aggregateSnapshotCacheSize, aggregateSnapshotCacheExpiry, TimeUnit.MILLISECONDS);
+        eventsCache = new ExpiringLruCache<>(aggregateEventsCacheSize, aggregateEventsCacheExpiry, TimeUnit.MILLISECONDS);
         DELAY = fetchDelay;
         MODE = mode;
 
@@ -85,8 +91,8 @@ public class EventStore {
         } else {
             logger.info("Mode: APES - Fetch Delay: {}", fetchDelay);
         }
-        logger.info("Aggregate Snapshot Cache Size: {}", aggregateSnapshotCacheSize);
-        logger.info("Aggregate Story Cache Size: {}", aggregateEventsCacheSize);
+        logger.info("Aggregate Snapshot Cache Size: {} - TTL: {}", aggregateSnapshotCacheSize, aggregateEventsCacheExpiry);
+        logger.info("Aggregate Story Cache Size: {} - TTL: {}", aggregateEventsCacheSize, aggregateEventsCacheExpiry);
 
     }
 
@@ -335,20 +341,6 @@ public class EventStore {
         );
         snapshotCache.remove(aggregateIdentifier);
         eventsCache.remove(aggregateIdentifier);
-    }
-
-    private static class LruCache<A, B> extends LinkedHashMap<A, B> {
-        private final int maxEntries;
-
-        public LruCache(final int maxEntries) {
-            super(maxEntries + 1, 1.0f, true);
-            this.maxEntries = maxEntries;
-        }
-
-        @Override
-        protected boolean removeEldestEntry(final Map.Entry<A, B> eldest) {
-            return super.size() > maxEntries;
-        }
     }
 
     /**
