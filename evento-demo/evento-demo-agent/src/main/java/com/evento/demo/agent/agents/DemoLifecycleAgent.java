@@ -14,7 +14,6 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-@SuppressWarnings("CallToPrintStackTrace")
 @Invoker
 public class DemoLifecycleAgent extends InvokerWrapper {
 

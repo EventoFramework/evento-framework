@@ -16,4 +16,14 @@ public class Utils {
 	public static void logMethodFlow(Object component, String method, Object message, String action) {
 		System.out.println(component.getClass() + ":" + method + "(" + message.getClass() + ") - " + action);
 	}
+
+	public static void waitForConsistency(int millis) {
+		try
+		{
+			Thread.sleep(millis);
+		} catch (InterruptedException e)
+		{
+			throw new RuntimeException(e);
+		}
+	}
 }

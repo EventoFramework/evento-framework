@@ -4,7 +4,6 @@ package com.evento.common.modeling.messaging.dto;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 
 
 /**
@@ -16,7 +15,7 @@ public class PublishedEvent implements Serializable {
 	private String aggregateId;
 	private EventMessage<?> eventMessage;
 	private String eventName;
-	private Timestamp createdAt;
+	private Long createdAt;
 
 	/**
 	 * Retrieves the event sequence number of a PublishedEvent.
@@ -95,24 +94,18 @@ public class PublishedEvent implements Serializable {
 	/**
 	 * Retrieves the creation timestamp of the PublishedEvent.
 	 *
-	 * @return the creation timestamp of the PublishedEvent as a Timestamp object
+	 * @return the creation timestamp of the PublishedEvent as a Long
 	 */
-	public Timestamp getCreatedAt() {
+	public Long getCreatedAt() {
 		return createdAt;
 	}
 
 	/**
 	 * Sets the creation timestamp of the PublishedEvent.
-	 * <p>
-	 * This method allows you to set the creation timestamp for a PublishedEvent object.
-	 * The creation timestamp represents the time when the event was created.
-	 * It should be an instance of Timestamp or its subclasses.
-	 * Once set, the creation timestamp can be retrieved using the getCreatedAt method.
 	 *
-	 * @param createdAt the creation timestamp to be set for the PublishedEvent
-	 * @see PublishedEvent#getCreatedAt()
+	 * @param createdAt the creation timestamp to be set as a Long
 	 */
-	public void setCreatedAt(Timestamp createdAt) {
+	public void setCreatedAt(Long createdAt) {
 		this.createdAt = createdAt;
 	}
 
