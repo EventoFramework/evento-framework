@@ -61,12 +61,14 @@ public class EventoConfiguration {
 				.setInjector(factory::getBean)
 				//.setConsumerStateStoreBuilder(InMemoryConsumerStateStore::new)
 				.setConsumerStateStoreBuilder((es, ps) ->{
-					try {
-						return new PostgresConsumerStateStore(es, ps, DriverManager.getConnection(
-								pgConnectionUrl, pgUsername, pgPassword));
-					} catch (SQLException e) {
-						throw new RuntimeException(e);
-					}
+						return new PostgresConsumerStateStore(es, ps, () -> {
+                            try {
+                                return DriverManager.getConnection(
+                                        pgConnectionUrl, pgUsername, pgPassword);
+                            } catch (SQLException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
 				})/*
 				.setConsumerStateStoreBuilder((es, ps) ->{
 					try {
