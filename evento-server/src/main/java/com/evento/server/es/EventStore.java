@@ -12,6 +12,7 @@ import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.es.eventstore.EventStoreRepository;
 import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.es.snapshot.SnapshotRepository;
+import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,7 +54,8 @@ public class EventStore {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
     private final Snowflake snowflake = new Snowflake();
-    private final Connection lockConnection;
+    private final DataSource lockDatasource;
+    private Connection lockCon;
 
     private final ExpiringLruCache<String, Snapshot> snapshotCache;
     private final ExpiringLruCache<String, List<EventStoreEntry>> eventsCache;
@@ -79,7 +81,7 @@ public class EventStore {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
-        this.lockConnection = dataSource.getConnection();
+        this.lockDatasource = dataSource;
         snapshotCache = new ExpiringLruCache<>(aggregateSnapshotCacheSize, aggregateSnapshotCacheExpiry, TimeUnit.MILLISECONDS);
         eventsCache = new ExpiringLruCache<>(aggregateEventsCacheSize, aggregateEventsCacheExpiry, TimeUnit.MILLISECONDS);
         DELAY = fetchDelay;
@@ -94,6 +96,14 @@ public class EventStore {
         logger.info("Aggregate Snapshot Cache Size: {} - TTL: {}", aggregateSnapshotCacheSize, aggregateEventsCacheExpiry);
         logger.info("Aggregate Story Cache Size: {} - TTL: {}", aggregateEventsCacheSize, aggregateEventsCacheExpiry);
 
+    }
+
+    @SneakyThrows
+    private synchronized Connection getLockConnection(){
+        if(lockCon == null || !lockCon.isValid(3)){
+            lockCon = lockDatasource.getConnection();
+        }
+        return lockCon;
     }
 
     public Page<EventStoreEntry> searchEvents(String aggregateIdentifier,
@@ -194,7 +204,7 @@ public class EventStore {
         if (key == null) return;
         LockWrapper lockWrapper = locks.compute(key, (k, v) -> v == null ? new LockWrapper() : v.addThreadInQueue());
         lockWrapper.lock.acquireUninterruptibly();
-        try (var stmt = this.lockConnection.prepareStatement("SELECT pg_advisory_lock(?)")) {
+        try (var stmt = this.getLockConnection().prepareStatement("SELECT pg_advisory_lock(?)")) {
             stmt.setInt(1, key.hashCode());
             var resultSet = stmt.executeQuery();
             resultSet.next();
@@ -215,7 +225,7 @@ public class EventStore {
             // NB : We pass in the specific value to remove to handle the case where another thread would queue right before the removal
             locks.remove(key, lockWrapper);
         }
-        try (var stmt = lockConnection.prepareStatement("SELECT pg_advisory_unlock(?)")) {
+        try (var stmt = getLockConnection().prepareStatement("SELECT pg_advisory_unlock(?)")) {
             stmt.setInt(1, key.hashCode());
             var resultSet = stmt.executeQuery();
             resultSet.next();
