@@ -42,7 +42,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	 * Implementation of the ConsumerStateStore interface that stores the consumer state in PostgresSQL database.
      * @param eventoServer an instance of evento server connection
      * @param performanceService  an instance of performance service
-     * @param connection a PostgresSQL java connection
+     * @param connectionFactory a PostgresSQL java connection Factory
      */
 	public PostgresConsumerStateStore(
 			EventoServer eventoServer,
