@@ -11,6 +11,7 @@ public abstract class Node {
 	private long id;
 
 	private String path;
+	private String linePrefix;
 	private List<Integer> lines;
 
 	public Node(long id) {

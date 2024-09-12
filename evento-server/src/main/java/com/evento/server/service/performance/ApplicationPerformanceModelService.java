@@ -77,6 +77,7 @@ public class ApplicationPerformanceModelService {
             generateInvocationPerformanceModel(n, handlers, p, s,
                     i.getUuid(),
                     i.getComponent().getPath(),
+                    i.getComponent().getBundle().getLinePrefix(),
                     i.getInvocations().entrySet().stream()
                             .filter(e -> e.getValue().equals(p))
                             .map(Map.Entry::getKey).toList());
@@ -95,11 +96,11 @@ public class ApplicationPerformanceModelService {
      * @param lines         The line numbers of the handler invocations.
      */
     private void generateInvocationPerformanceModel(PerformanceModel n, List<Handler> handlers, Payload p, ServiceStation source,
-                                                    String handlerId, String componentPath, List<Integer> lines) {
+                                                    String handlerId, String componentPath, String linePrefix, List<Integer> lines) {
         if (p.getType() == PayloadType.Command || p.getType() == PayloadType.DomainCommand || p.getType() == PayloadType.ServiceCommand) {
             // Invoker -> Server
             var serverRequestAgent = n.station(SERVER, "Gateway", "Gateway", p.getName(), p.getType().toString(), false, null, "Gateway_" + handlerId + "_" + p.getName(),
-                    componentPath, lines);
+                    componentPath, linePrefix, lines);
 
             source.addTarget(serverRequestAgent, performanceStoreService);
             if (!p.getHandlers().isEmpty()) {
@@ -110,6 +111,7 @@ public class ApplicationPerformanceModelService {
                     generateInvocationPerformanceModel(n, handlers, pp, a,
                             handler.getUuid(),
                             handler.getComponent().getPath(),
+                            handler.getComponent().getBundle().getLinePrefix(),
                             handler.getInvocations().entrySet().stream()
                                     .filter(e -> e.getValue().equals(pp))
                                     .map(Map.Entry::getKey).toList());
@@ -118,12 +120,13 @@ public class ApplicationPerformanceModelService {
                 // Component -> Server
                 var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType() == null ? "Void" : handler.getReturnType().getName(), handler.getReturnType() == null ? null : handler.getReturnType().getType().toString(), false, null, "Gateway_" + handler.getHandledPayload().toString() + "_" + (handler.getReturnType() == null ? "Void" : handler.getReturnType().getName())
                         , handler.getReturnType() == null ? null : handler.getReturnType().getPath(),
+                        handler.getComponent().getBundle().getLinePrefix(),
                         (handler.getReturnType() == null || handler.getReturnType().getLine() == null) ? null : List.of(handler.getReturnType().getLine()));
                 a.addTarget(serverResponseAgent, performanceStoreService);
                 if (handler.getReturnType() != null) {
                     // Server -> ES
                     var esAgent = n.station("event-store", "EventStore", "EventStore", handler.getReturnType().getName(), handler.getReturnType().getType().toString(), false, null, "EventStore_" + handler.getReturnType().getName(),
-                            null, null);
+                            null, linePrefix, null);
                     serverResponseAgent.addTarget(esAgent, performanceStoreService);
                     handlers.stream().filter(h -> h.getHandlerType() != HandlerType.EventSourcingHandler)
                             .filter(h -> h.getHandledPayload().equals(handler.getReturnType())).forEach(h -> {
@@ -153,7 +156,7 @@ public class ApplicationPerformanceModelService {
         } else if (p.getType() == PayloadType.Query) {
             // Invoker -> Server
             var serverRequestAgent = n.station(SERVER, "Gateway", "Gateway", p.getName(), p.getType().toString(),
-                    false, null, "Gateway_" + p.getName(), componentPath, lines);
+                    false, null, "Gateway_" + p.getName(), componentPath, linePrefix, lines);
             source.addTarget(serverRequestAgent, performanceStoreService);
             // Server -> Component
             if (!p.getHandlers().isEmpty()) {
@@ -163,6 +166,7 @@ public class ApplicationPerformanceModelService {
                     generateInvocationPerformanceModel(n, handlers, pp, a,
                             handler.getUuid(),
                             handler.getComponent().getPath(),
+                            handler.getComponent().getBundle().getLinePrefix(),
                             handler.getInvocations().entrySet().stream()
                                     .filter(e -> e.getValue().equals(pp))
                                     .map(Map.Entry::getKey).toList());
@@ -171,7 +175,7 @@ public class ApplicationPerformanceModelService {
                 // Component -> Server
                 var serverResponseAgent = n.station(SERVER, "Gateway", "Gateway", handler.getReturnType().getName(),
                         handler.getReturnType().getType().toString(), false, null, "Gateway_" + handler.getReturnType().getName(),
-                        null, null);
+                        null, linePrefix, null);
                 a.addTarget(serverResponseAgent, performanceStoreService);
             }
 
@@ -200,7 +204,7 @@ public class ApplicationPerformanceModelService {
                 // Server -> ES
                 var esAgent = n.station("event-store", "EventStore", "EventStore", i.getReturnType().getName()
                         , i.getHandledPayload().getType().toString(), false, null, "EventStore_" + i.getReturnType().getName(),
-                        null, null);
+                        null, i.getComponent().getBundle().getLinePrefix() ,null);
                 s.addTarget(esAgent, performanceStoreService);
 
                 // ES -> Invoker
@@ -215,6 +219,7 @@ public class ApplicationPerformanceModelService {
                                 generateInvocationPerformanceModel(n, handlers, j, ha,
                                         h.getUuid(),
                                         h.getComponent().getPath(),
+                                        h.getComponent().getBundle().getLinePrefix(),
                                         h.getInvocations().entrySet().stream()
                                                 .filter(e -> e.getValue().equals(j))
                                                 .map(Map.Entry::getKey).toList());
@@ -271,7 +276,7 @@ public class ApplicationPerformanceModelService {
                 // Server -> ES
                 var esAgent = n.station("event-store", "EventStore", "EventStore", i.getReturnType().getName()
                         , i.getHandledPayload().getType().toString(), false, null, "EventStore_" + i.getReturnType().getName(),
-                        null, null);
+                        null, i.getComponent().getBundle().getLinePrefix(), null);
                 s.addTarget(esAgent, performanceStoreService);
 
                 // ES -> Invoker
@@ -286,6 +291,7 @@ public class ApplicationPerformanceModelService {
                                 generateInvocationPerformanceModel(n, handlers, j, ha,
                                         h.getUuid(),
                                         h.getComponent().getPath(),
+                                        h.getComponent().getBundle().getLinePrefix(),
                                         h.getInvocations().entrySet().stream()
                                                 .filter(e -> e.getValue().equals(j))
                                                 .map(Map.Entry::getKey).toList());
@@ -318,7 +324,7 @@ public class ApplicationPerformanceModelService {
                 // Server -> ES
                 var esAgent = n.station("event-store", "EventStore", "EventStore", i.getReturnType().getName()
                         , i.getHandledPayload().getType().toString(), false, null, "EventStore_" + i.getReturnType().getName(),
-                        null, null);
+                        null, i.getComponent().getBundle().getLinePrefix(), null);
                 s.addTarget(esAgent, performanceStoreService);
 
                 // ES -> Invoker
@@ -333,6 +339,7 @@ public class ApplicationPerformanceModelService {
                                 generateInvocationPerformanceModel(n, handlers, j, ha,
                                         h.getUuid(),
                                         h.getComponent().getPath(),
+                                        h.getComponent().getBundle().getLinePrefix(),
                                         h.getInvocations().entrySet().stream()
                                                 .filter(e -> e.getValue().equals(j))
                                                 .map(Map.Entry::getKey).toList());
@@ -366,7 +373,7 @@ public class ApplicationPerformanceModelService {
                 // Server -> ES
                 var esAgent = n.station("event-store", "EventStore", "EventStore", i.getReturnType().getName()
                         , i.getHandledPayload().getType().toString(), false, null, "EventStore_" + i.getReturnType().getName(),
-                        null, null);
+                        null, i.getComponent().getBundle().getLinePrefix(), null);
                 s.addTarget(esAgent, performanceStoreService);
 
                 // ES -> Invoker
@@ -382,6 +389,7 @@ public class ApplicationPerformanceModelService {
                                 generateInvocationPerformanceModel(n, handlers, j, ha,
                                         h.getUuid(),
                                         h.getComponent().getPath(),
+                                        h.getComponent().getBundle().getLinePrefix(),
                                         h.getInvocations().entrySet().stream()
                                                 .filter(e -> e.getValue().equals(j))
                                                 .map(Map.Entry::getKey).toList());

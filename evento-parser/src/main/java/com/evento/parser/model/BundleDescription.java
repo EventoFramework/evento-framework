@@ -30,19 +30,23 @@ public class BundleDescription implements Serializable {
 
 	private String description;
 	private String detail;
+	private String linePrefix;
+
+	private boolean deployable;
 
 	/**
-	 * Creates a new BundleDescription object with the specified parameters.
+	 * Constructs a new BundleDescription with the specified parameters.
 	 *
-	 * @param bundleId            the ID of the bundle
-	 * @param bundleVersion       the version of the bundle
-	 * @param autorun             whether the bundle should autorun
-	 * @param minInstances        the minimum number of instances allowed for the bundle
-	 * @param maxInstances        the maximum number of instances allowed for the bundle
-	 * @param components          the list of components included in the bundle
+	 * @param bundleId the unique identifier of the bundle
+	 * @param bundleVersion the version number of the bundle
+	 * @param autorun indicates whether the bundle should automatically run
+	 * @param minInstances the minimum number of instances allowed for the bundle
+	 * @param maxInstances the maximum number of instances allowed for the bundle
+	 * @param components the list of components included in the bundle
 	 * @param payloadDescriptions the list of payload descriptions included in the bundle
-	 * @param description         the description of the bundle
-	 * @param detail              the detailed information about the bundle
+	 * @param description a brief description of the bundle
+	 * @param detail detailed information about the bundle
+	 * @param linePrefix a prefix for each line in the bundle
 	 */
 	public BundleDescription(String bundleId, long bundleVersion, boolean autorun,
 							 int minInstances,
@@ -50,7 +54,9 @@ public class BundleDescription implements Serializable {
 							 ArrayList<Component> components,
 							 ArrayList<PayloadDescription> payloadDescriptions,
 							 String description,
-							 String detail) {
+							 String detail,
+							 String linePrefix,
+							 boolean deployable) {
 		this.components = components;
 		this.payloadDescriptions = payloadDescriptions;
 		this.bundleId = bundleId;
@@ -60,6 +66,8 @@ public class BundleDescription implements Serializable {
 		this.maxInstances = maxInstances;
 		this.description = description;
 		this.detail = detail;
+		this.linePrefix = linePrefix;
+		this.deployable = deployable;
 	}
 
 	/**
@@ -229,4 +237,39 @@ public class BundleDescription implements Serializable {
 	public void setDetail(String detail) {
 		this.detail = detail;
 	}
+
+	/**
+	 * Retrieves the prefix for each line in the bundle*/
+	public String getLinePrefix() {
+		return linePrefix;
+	}
+
+	/**
+	 * Sets the prefix for each line in the bundle.
+	 *
+	 * @param linePrefix the prefix to be set for each line in the bundle
+	 */
+	public void setLinePrefix(String linePrefix) {
+		this.linePrefix = linePrefix;
+	}
+
+	/**
+	 * Retrieves the deployable status of the bundle.
+	 *
+	 * @return true if the bundle is deployable, false otherwise
+	 */
+	public boolean getDeployable() {
+		return deployable;
+	}
+
+	/**
+	 * Sets the deployable status of the bundle.
+	 *
+	 * @param deployable whether the bundle is deployable
+	 */
+	public void setDeployable(boolean deployable) {
+		this.deployable = deployable;
+    }
+
+
 }

@@ -30,6 +30,7 @@ public interface PayloadProjection {
 	String getUsedBy();
 
 	String getPath();
+	String getLinePrefix();
 	Integer getLine();
 
 }

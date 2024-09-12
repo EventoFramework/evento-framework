@@ -16,7 +16,7 @@
             <ion-col class="ion-text-end" size="2">
               <ng-container *ngIf="payload.path">
                 <ion-buttons class="ion-float-end">
-                  <ion-button href="{{payload.path}}#L{{payload.line}}" target="_blank">
+                  <ion-button href="{{payload.path}}#{{payload.linePrefix}}{{payload.line}}" target="_blank">
                     <ion-icon slot="icon-only" [name]="payload.path | repositoryLogo"></ion-icon>
                   </ion-button>
                 </ion-buttons>
@@ -76,7 +76,7 @@
                 </ion-chip>
                 <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#L{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
                       <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>
@@ -99,7 +99,7 @@
                 </ion-chip>
                 <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#L{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
                       <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>
@@ -122,7 +122,7 @@
                 </ion-chip>
                 <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#L{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
                       <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>
@@ -145,7 +145,7 @@
                 </ion-chip>
                 <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#L{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
                       <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>

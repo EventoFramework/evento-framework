@@ -18,19 +18,22 @@ export class BundleListPage implements OnInit {
   constructor(private bundleService: BundleService) {
   }
 
-  async ngOnInit() {
+  async ionViewWillEnter(){
     this.allBundles = await this.bundleService.findAll();
-    this.domains = new Set();
+    const domains = new Set();
     for (const b of this.allBundles) {
       b.color = stringToColour(b.id);
       b.domains = (b.domains?.split(',') || []);
       for(const d of b.domains){
-        this.domains.add(d);
+        domains.add(d);
       }
     }
-
+    this.domains = domains;
 
     this.checkFilters();
+  }
+  async ngOnInit() {
+
   }
 
   public checkFilters() {

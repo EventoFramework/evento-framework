@@ -9,12 +9,13 @@ import java.io.File;
  */
 public interface BundleParser {
 	/**
-	 * Parses a directory and returns a {@link BundleDescription} object.
+	 * Parses a given directory to create a BundleDescription object.
 	 *
-	 * @param file           the directory to parse
-	 * @param repositoryRoot the root URL of the repository
-	 * @return the parsed {@link BundleDescription} object
+	 * @param file the directory to parse for bundle information
+	 * @param repositoryRoot the root directory of the repository
+	 * @param linePrefix the prefix for each line in the parsed output
+	 * @return a BundleDescription object containing the parsed bundle information
 	 * @throws Exception if an error occurs during parsing
 	 */
-	BundleDescription parseDirectory(File file, String repositoryRoot) throws Exception;
+	BundleDescription parseDirectory(File file, String repositoryRoot, String linePrefix) throws Exception;
 }

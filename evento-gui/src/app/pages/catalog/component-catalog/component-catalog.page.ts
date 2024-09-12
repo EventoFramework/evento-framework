@@ -22,22 +22,30 @@ export class ComponentCatalogPage implements OnInit {
   constructor(private catalogService: CatalogService) {
   }
 
-  async ngOnInit() {
+  async ionViewWillEnter(){
     this.allComponents = await this.catalogService.findAllComponent();
-    this.types = new Set();
-    this.bundles = new Set();
-    this.domains = new Set();
+    const types = new Set();
+    const bundles = new Set();
+    const domains = new Set();
     for (const msg of this.allComponents) {
       msg.domains = (msg.domains?.split(',') || []);
-      this.types.add(msg.componentType);
-      this.bundles.add(msg.bundleId);
+      types.add(msg.componentType);
+      bundles.add(msg.bundleId);
       for(const d of msg.domains){
-        this.domains.add(d);
+        domains.add(d);
       }
     }
 
+    this.types = types;
+    this.domains = domains;
+    this.bundles = bundles;
+
 
     this.checkFilters();
+  }
+
+  async ngOnInit() {
+
   }
 
   public checkFilters() {

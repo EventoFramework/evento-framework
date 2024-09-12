@@ -29,6 +29,13 @@ public interface BundleListProjection {
 	Boolean getAutorun();
 
 	/**
+	 * Retrieves the deployable status of the bundle.
+	 *
+	 * @return The deployable status as a Boolean. Returns true if the bundle is deployable, false otherwise.
+	 */
+	Boolean getDeployable();
+
+	/**
 	 * Retrieves the BucketType associated with the BundleListProjection.
 	 * <p>
 	 * The BucketType enum represents the different types of buckets that can be used in the Bundle class.

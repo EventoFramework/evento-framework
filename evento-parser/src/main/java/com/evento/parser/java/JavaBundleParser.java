@@ -71,7 +71,7 @@ public class JavaBundleParser implements BundleParser {
      */
     public static final String EVENTO_BUNDLE_INSTANCES_MAX_PROPERTY = "evento.bundle.instances.max";
 
-    public BundleDescription parseDirectory(File directory, String repositoryRoot) throws Exception {
+    public BundleDescription parseDirectory(File directory, String repositoryRoot, String repositoryLinePrefix) throws Exception {
         LanguageVersionHandler java = LanguageRegistry.getLanguage("Java").getDefaultVersion().getLanguageVersionHandler();
         Parser parser = java.getParser(java.getDefaultParserOptions());
         if (!directory.isDirectory()) throw new RuntimeException("error.not.dir");
@@ -254,7 +254,9 @@ public class JavaBundleParser implements BundleParser {
                 new ArrayList<>(components),
                 payloads,
                 bundleDescription.get(),
-                bundleDetail.get());
+                bundleDetail.get(),
+                repositoryLinePrefix,
+                false);
     }
 
     private Component toComponent(Node node) throws Exception {

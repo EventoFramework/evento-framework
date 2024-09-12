@@ -102,7 +102,7 @@ public class MessageBus {
 
         var t = new Thread(() -> {
             for (Bundle bundle : bundleService.findAllBundles()) {
-                if (bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral)
+                if (bundle.isDeployable() && bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral)
                     waitUntilAvailable(bundle);
             }
         });
@@ -491,7 +491,8 @@ public class MessageBus {
         var addresses = getEnabledAddressesFormMessage(messageType);
         if (addresses == null || addresses.isEmpty()) {
             var handler = handlerService.findByPayloadName(messageType);
-            if (handler != null && handler.getComponent().getBundle().isAutorun()) {
+            if (handler != null && handler.getComponent().getBundle().isAutorun()
+                    && handler.getComponent().getBundle().isDeployable()) {
                 waitUntilAvailable(handler.getComponent().getBundle());
             }
             addresses = getEnabledAddressesFormMessage(messageType);
