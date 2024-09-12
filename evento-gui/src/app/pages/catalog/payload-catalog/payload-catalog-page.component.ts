@@ -22,7 +22,7 @@ export class PayloadCatalogPage implements OnInit {
   constructor(private libraryService: CatalogService) {
   }
 
-  async ionVIewWillEnter() {
+  async ionViewWillEnter() {
     this.allPayloads = await this.libraryService.findAllPayload();
     const types = new Set();
     const components = new Set();
