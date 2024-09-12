@@ -1,7 +1,5 @@
 name: Java CI to create and upload release on pull request
-on:
-  push:
-    branches: [ "release" ]
+on: workflow_dispatch
 
 jobs:
   build:
