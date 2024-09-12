@@ -84,6 +84,9 @@ public class BundleDeployService {
 		if(bundle.getBucketType() == BucketType.Ephemeral){
 			throw new IllegalArgumentException("Cannot spawn an Ephemeral bundle");
 		}
+		if(!bundle.isDeployable()){
+			throw new IllegalArgumentException("Cannot spawn an Non Deployable Bundle");
+		}
 		var mapper = new ObjectMapper();
 		mapper.registerModule(new JavaTimeModule());
 		Process p = Runtime.getRuntime().exec(new String[]{spawnScript ,

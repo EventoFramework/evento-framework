@@ -42,5 +42,10 @@ public enum BucketType {
 	 *
 	 * @see Bundle
 	 */
-	LibraryOnly
+	LibraryOnly,
+	/**
+	 * Represents a state where no bucket type is specified.
+	 * This is one of the possible values for the bucket type in the {@link Bundle} class.
+	 */
+	None
 }

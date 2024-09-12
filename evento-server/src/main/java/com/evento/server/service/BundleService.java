@@ -95,6 +95,8 @@ public class BundleService {
                 b.setMaxInstances(bundleDescription.getMaxInstances());
                 b.setDescription(bundleDescription.getDescription());
                 b.setDetail(bundleDescription.getDetail());
+                b.setLinePrefix(bundleDescription.getLinePrefix());
+                b.setDeployable(bundleDescription.getDeployable());
                 b.setUpdatedAt(Instant.now());
                 return bundleRepository.save(b);
             }).orElseGet(() -> {
@@ -104,6 +106,7 @@ public class BundleService {
                         bundleDescription.getBundleVersion(),
                         bundleDescription.getDescription(),
                         bundleDescription.getDetail(),
+                        bundleDescription.getLinePrefix(),
                         bundleDeploymentBucketType,
                         bundleDeploymentArtifactCoordinates,
                         jarOriginalName,
@@ -111,6 +114,7 @@ public class BundleService {
                         new HashMap<>(),
                         new HashMap<>(),
                         bundleDescription.getAutorun(),
+                        bundleDescription.getDeployable(),
                         bundleDescription.getMinInstances(),
                         bundleDescription.getMaxInstances(),
                         Instant.now()));
@@ -713,7 +717,7 @@ public class BundleService {
         }
 
 
-        if (bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral) {
+        if (bundle.isDeployable() && bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral) {
             try {
                 bundleDeployService.spawn(bundle);
             } catch (Exception e) {

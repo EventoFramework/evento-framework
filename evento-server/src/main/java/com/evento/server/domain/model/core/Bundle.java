@@ -49,6 +49,9 @@ public class Bundle {
 	@Column(columnDefinition = "TEXT")
 	private String detail;
 
+	private String linePrefix;
+
+
 	@Enumerated(EnumType.STRING)
 	private BucketType bucketType;
 	private String artifactCoordinates;
@@ -61,6 +64,7 @@ public class Bundle {
 	@JoinTable(name = "core__bundle__vm_option")
 	private Map<String, String> vmOptions;
 	private boolean autorun;
+	private boolean deployable;
 	private int minInstances;
 	private int maxInstances;
 

@@ -27,16 +27,17 @@ public class PerformanceModel {
                 i.getComponent().getComponentType().toString(),
                 i.getHandledPayload().getName()
                 , i.getHandledPayload().getType().toString(), async, numServers, i.getUuid(),
-				i.getComponent().getPath(), i.getLine() == null ? List.of() : List.of(i.getLine()));
+				i.getComponent().getPath(), i.getComponent().getBundle().getLinePrefix(), i.getLine() == null ? List.of() : List.of(i.getLine()));
     }
 
     public ServiceStation station(String bundleId, String componentName, String componentType,
                                   String action, String actionType, boolean async, Integer numServers, String handlerId,
-								  String path, List<Integer> lines) {
+								  String path, String linePrefix, List<Integer> lines) {
         var p = performanceFetcher.getMeanServiceTime(bundleId, componentName, action);
         var ss = new ServiceStation(idGenerator.getAndIncrement(), bundleId, componentName,
                 componentType, action, actionType, async, numServers, p, handlerId);
 		ss.setPath(path);
+        ss.setLinePrefix(linePrefix);
 		ss.setLines(lines);
 		nodes.add(ss);
         return ss;
@@ -75,6 +76,7 @@ public class PerformanceModel {
 				h.getHandledPayload().getName()
 				, h.getHandledPayload().getType().toString(), b, integer, perf, h.getUuid());
         s.setPath(h.getComponent().getPath());
+        s.setLinePrefix(h.getComponent().getBundle().getLinePrefix());
         if(h.getLine() != null)
             s.setLines(List.of(h.getLine()));
         return s;

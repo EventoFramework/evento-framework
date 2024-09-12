@@ -22,24 +22,34 @@ export class PayloadCatalogPage implements OnInit {
   constructor(private libraryService: CatalogService) {
   }
 
-  async ngOnInit() {
+  async ionVIewWillEnter() {
     this.allPayloads = await this.libraryService.findAllPayload();
-    this.types = new Set();
-    this.components = new Set();
-    this.domains = new Set();
+    const types = new Set();
+    const components = new Set();
+    const domains = new Set();
     for (const msg of this.allPayloads) {
-      this.types.add(msg.type);
-      if (msg.domain)
-        {this.domains.add(msg.domain);}
+      types.add(msg.type);
+      if (msg.domain) {
+        domains.add(msg.domain);
+      }
       msg.subscribers = (msg.subscribers || '').split(',');
       for (const h of msg.subscribers) {
-        if (h)
-          {this.components.add(h);}
+        if (h) {
+          components.add(h);
+        }
       }
     }
 
+    this.types = types;
+    this.domains = domains;
+    this.components = components;
+
 
     this.checkFilters();
+  }
+
+  async ngOnInit() {
+
   }
 
   public checkFilters() {
@@ -52,12 +62,15 @@ export class PayloadCatalogPage implements OnInit {
         match = match && (p.name.toLowerCase().includes(this.search.toLowerCase())
           || p.description?.toLowerCase().includes(this.search.toLowerCase()));
       }
-      if (hasSelectedTypes)
-        {match = match && this.selectedTypes[p.type];}
-      if (hasSelectedComponents)
-        {match = match && p.subscribers.filter(h => this.selectedComponents[h.componentName]).length > 0;}
-      if (hasSelectedDomains)
-        {match = match && this.selectedDomains[p.domain];}
+      if (hasSelectedTypes) {
+        match = match && this.selectedTypes[p.type];
+      }
+      if (hasSelectedComponents) {
+        match = match && p.subscribers.filter(h => this.selectedComponents[h.componentName]).length > 0;
+      }
+      if (hasSelectedDomains) {
+        match = match && this.selectedDomains[p.domain];
+      }
       return match;
     });
   }

@@ -408,7 +408,7 @@ export class ApplicationFlowsPage implements OnInit {
                 for (const line of t.lines) {
                   menu.addItem('Open Repository (' + line + ')','',
                     () => {
-                      window.open(t.path + '#L' + line, '_blank');
+                      window.open(t.path + '#' + t.linePrefix + line, '_blank');
                     });
                 }
               }

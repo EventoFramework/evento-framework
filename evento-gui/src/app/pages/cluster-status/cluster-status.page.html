@@ -15,50 +15,50 @@
       </ion-row>
       @if (segment.value === 'bundles'){
         <ion-row class="line-under">
-          <ion-col size="6" *ngFor="let component of attendedView">
-            <ion-card class="bundle"  [style.background]="bundleColor[component]">
+          <ion-col size="6" *ngFor="let bundle of attendedView">
+            <ion-card class="bundle"  [style.background]="bundleColor[bundle]">
               <ion-card-content>
-                <ion-text class="title">{{component}}
-                  <a routerLink="/bundle-info/{{component}}"><ion-icon name="open-outline"></ion-icon></a></ion-text>
+                <ion-text class="title">{{bundle}}
+                  <a routerLink="/bundle-info/{{bundle}}"><ion-icon name="open-outline"></ion-icon></a></ion-text>
                 <ion-grid class="ion-no-padding table">
                   <ion-row>
                     <ion-col><span translate="common.status"></span>:</ion-col>
                     <ion-col size="3">
-                      <ng-container *ngIf="!view[component].isOnline">
+                      <ng-container *ngIf="!view[bundle].isOnline">
                         <b class="node-status-offline" translate="node.status.offline"></b>
                       </ng-container>
-                      <ng-container *ngIf="view[component].isOnline && !view[component].isAvailable">
+                      <ng-container *ngIf="view[bundle].isOnline && !view[bundle].isAvailable">
                         <b class="node-status-not-available" translate="node.status.not.available"></b>
                       </ng-container>
-                      <ng-container *ngIf="view[component].isOnline && view[component].isAvailable">
+                      <ng-container *ngIf="view[bundle].isOnline && view[bundle].isAvailable">
                         <b class="node-status-available" translate="node.status.available"></b>
                       </ng-container>
                     </ion-col>
                   </ion-row>
-                  <ion-row *ngIf="view[component].isOnline">
+                  <ion-row *ngIf="view[bundle].isOnline">
                     <ion-col>
                       <span translate="node.replica.count"></span>:
                     </ion-col>
                     <ion-col size="3">
-                      {{view[component].replicaCount}}
+                      {{view[bundle].replicaCount}}
                     </ion-col>
                   </ion-row>
-                  <ion-row *ngFor="let replica of view[component].replicasKeys">
-                    <ion-col>{{view[component].replicas[replica].instanceId}} (v{{view[component].replicas[replica].bundleVersion}})</ion-col>
+                  <ion-row *ngFor="let replica of view[bundle].replicasKeys">
+                    <ion-col>{{view[bundle].replicas[replica].instanceId}} (v{{view[bundle].replicas[replica].bundleVersion}})</ion-col>
                     <ion-col size="3">
-                      <ng-container *ngIf="!view[component].replicas[replica].isAvailable">
+                      <ng-container *ngIf="!view[bundle].replicas[replica].isAvailable">
                         <b class="node-status-not-available" translate="node.status.not.available"></b>
                       </ng-container>
-                      <ng-container *ngIf="view[component].replicas[replica].isAvailable">
+                      <ng-container *ngIf="view[bundle].replicas[replica].isAvailable">
                         <b class="node-status-available" translate="node.status.available"></b>
-                        <ion-text class="ion-margin-start" style="text-decoration: underline; cursor:pointer;" color="danger" (click)="kill(view[component].replicas[replica])">(<span translate="cluster.node.kill"></span>)</ion-text>
+                        <ion-text class="ion-margin-start" style="text-decoration: underline; cursor:pointer;" color="danger" (click)="kill(view[bundle].replicas[replica])">(<span translate="cluster.node.kill"></span>)</ion-text>
                       </ng-container>
                     </ion-col>
                   </ion-row>
-                  <ion-row class="ion-margin-top ion-padding-top">
+                  <ion-row class="ion-margin-top ion-padding-top" *ngIf="deployableBundles[bundle]">
                     <ion-col></ion-col>
                     <ion-col size="3">
-                      <ion-button class="ion-no-margin" fill="outline" size="small" color="primary" (click)="spawnBundle(component)"
+                      <ion-button class="ion-no-margin" fill="outline" size="small" color="primary" (click)="spawnBundle(bundle)"
                                   translate="cluster.node.spawn"></ion-button>
                     </ion-col>
                   </ion-row>

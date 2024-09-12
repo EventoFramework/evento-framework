@@ -2,6 +2,7 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {ClusterStatusService} from '../../services/cluster-status.service';
 import {Subscription} from 'rxjs';
 import {stringToColour} from '../../services/utils';
+import {BundleService} from "../../services/bundle.service";
 
 @Component({
   selector: 'app-cluster-status',
@@ -15,12 +16,19 @@ export class ClusterStatusPage implements OnInit, OnDestroy {
   public attendedView = [];
   public externalView = [];
   private viewSubscription: Subscription;
-  constructor(private clusterStatusService: ClusterStatusService) {
+  deployableBundles = {}
+  constructor(private clusterStatusService: ClusterStatusService,
+              private bundleService: BundleService) {
   }
 
   async ngOnInit() {
 
+    this.deployableBundles = {}
     const attendedView = await this.clusterStatusService.getAttendedView();
+    const deployableBundles = await this.bundleService.findAll();
+    for(const b of deployableBundles){
+      deployableBundles[b.id] = b.deplpyable;
+    }
     for (const node of attendedView) {
       this.bundleColor[node] = stringToColour(node);
       this.view[node] = {
