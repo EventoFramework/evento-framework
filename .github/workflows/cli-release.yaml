@@ -18,6 +18,7 @@ jobs:
           java-version: '21'
           distribution: 'corretto'
           cache: 'gradle'
+      - run: chmod +x gradlew
       - run: ./gradlew run :evento-cli:clean :evento-cli:shadowJar
         name: Build Jar
       - run: mkdir staging && cp evento-cli/build/libs/*.jar staging
