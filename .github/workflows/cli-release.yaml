@@ -1,0 +1,39 @@
+name: Java CI to create and upload release on pull request
+on:
+  push:
+    branches: [ "release" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Get current version
+        id: version
+        uses: dolittle/read-version-from-file-action@v2
+        with:
+          path: evento-server/version.json
+      - uses: actions/setup-java@v3
+        name: Setup-Java
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'gradle'
+      - run: gradlew run :evento-cli:clean :evento-cli:shadowJar
+        name: Build Jar
+      - run: mkdir staging && cp evento-cli/build/libs/*.jar staging
+        name: Copy Outputs
+      - uses: actions/upload-artifact@v3
+        name: Push Cli Artifact
+        with:
+          name: Package
+          path: staging
+          retention-days: 1
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.YOUR-GITHUB-TOKEN }}"
+          automatic_release_tag: "${{ steps.version.outputs.current-version }}"
+          title: "Automated Build ${{ steps.version.outputs.current-version }}"
+          prerelease: true
+          files: staging/*.jar
