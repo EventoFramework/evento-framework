@@ -38,10 +38,6 @@ public class PublishBundle {
 	public static void run(String bundlePath, String serverUrl, String repositoryUrl, String repositoryLinePrefix,
 						   boolean deployable,
 						   String token) throws Exception {
-		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
-				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
-				.findFirst().orElseThrow();
-		System.out.println("JAR detected: " + jar.getPath());
 
 		System.out.println("Parsing bundle in: " + bundlePath);
 		JavaBundleParser applicationParser = new JavaBundleParser();
@@ -67,6 +63,12 @@ public class PublishBundle {
 		outputStream.closeEntry();
 
 		if(deployable) {
+
+			var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
+					.filter(f -> f.getAbsolutePath().endsWith(".jar"))
+					.findFirst().orElseThrow();
+			System.out.println("JAR detected: " + jar.getPath());
+
 			outputStream.putNextEntry(new ZipEntry(jar.getName()));
 			bytes = Files.readAllBytes(jar.toPath());
 			outputStream.write(bytes, 0, bytes.length);
