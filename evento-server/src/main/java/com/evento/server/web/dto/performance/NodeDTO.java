@@ -46,12 +46,15 @@ public class NodeDTO implements Serializable {
 	@Getter
 	private String path;
 	@Getter
+	private String linePrefix;
+	@Getter
 	private List<Integer> lines;
 
 	public NodeDTO(Node node) {
 		this.id = node.getId();
 		this.type = node.getClass().getSimpleName();
 		this.path = node.getPath();
+		this.linePrefix = node.getLinePrefix();
 		this.lines = node.getLines();
 		if (node instanceof ServiceStation s)
 		{

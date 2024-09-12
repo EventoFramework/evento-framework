@@ -24,15 +24,19 @@ import static com.evento.common.serialization.ObjectMapperUtils.getPayloadObject
 public class PublishBundle {
 
 	/**
-	 * Runs the bundle publishing process.
+	 * Executes the bundle publishing process.
 	 *
-	 * @param bundlePath    the path to the bundle directory
-	 * @param serverUrl     the URL of the server to upload the bundle to
-	 * @param repositoryUrl the URL of the repository
-	 * @param token         the authorization token
-	 * @throws Exception if an error occurs during the publishing process
+	 * @param bundlePath           The file path to the bundle directory.
+	 * @param serverUrl            The URL of the server to upload the bundle to.
+	 * @param repositoryUrl        The URL of the repository.
+	 * @param repositoryLinePrefix The repository line prefix string.
+	 * @param deployable           Indicates if the bundle is deployable.
+	 * @param token                The authorization token for the server.
+	 *
+	 * @throws Exception if an error occurs during the publishing process.
 	 */
-	public static void run(String bundlePath, String serverUrl, String repositoryUrl,
+	public static void run(String bundlePath, String serverUrl, String repositoryUrl, String repositoryLinePrefix,
+						   boolean deployable,
 						   String token) throws Exception {
 		var jar = Arrays.stream(Objects.requireNonNull(new File(bundlePath + "/build/libs").listFiles()))
 				.filter(f -> f.getAbsolutePath().endsWith(".jar"))
@@ -42,7 +46,8 @@ public class PublishBundle {
 		System.out.println("Parsing bundle in: " + bundlePath);
 		JavaBundleParser applicationParser = new JavaBundleParser();
 		var bundleDescription = applicationParser.parseDirectory(
-				new File(bundlePath), repositoryUrl);
+				new File(bundlePath), repositoryUrl, repositoryLinePrefix);
+		bundleDescription.setDeployable(deployable);
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(bundleDescription);
 		System.out.println("JSON created");
 
@@ -55,15 +60,18 @@ public class PublishBundle {
 				bundleFile
 		));
 		// PUT THE JAR
-		outputStream.putNextEntry(new ZipEntry(jar.getName()));
-		byte[] bytes = Files.readAllBytes(jar.toPath());
+
+		outputStream.putNextEntry(new ZipEntry("description.json"));
+		byte[] bytes = jsonDescription.getBytes();
 		outputStream.write(bytes, 0, bytes.length);
 		outputStream.closeEntry();
 
-		outputStream.putNextEntry(new ZipEntry("description.json"));
-		bytes = jsonDescription.getBytes();
-		outputStream.write(bytes, 0, bytes.length);
-		outputStream.closeEntry();
+		if(deployable) {
+			outputStream.putNextEntry(new ZipEntry(jar.getName()));
+			bytes = Files.readAllBytes(jar.toPath());
+			outputStream.write(bytes, 0, bytes.length);
+			outputStream.closeEntry();
+		}
 
 		outputStream.close();
 
@@ -97,10 +105,12 @@ public class PublishBundle {
 	 *             - args[0]: the path to the bundle directory
 	 *             - args[1]: the URL of the server to upload the bundle to
 	 *             - args[2]: the URL of the repository
-	 *             - args[3]: the authorization token
+	 *             - args[3]: the repository line prefix
+	 *             - args[4]: the bundle is deployable by evento server (true)
+	 *             - args[4]: the authorization token
 	 * @throws Exception if an error occurs during the publishing process
 	 */
 	public static void main(String[] args) throws Exception {
-		run(args[0],  args[1], args[2], args[3]);
+		run(args[0],  args[1], args[2], args[3], args[4].equals("true"), args[5]);
 	}
 }

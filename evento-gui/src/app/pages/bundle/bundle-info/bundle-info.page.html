@@ -43,109 +43,115 @@
                   <ion-col size="3"><span translate="bundle.version"></span>:</ion-col>
                   <ion-col size="9">{{bundle.version}}</ion-col>
                 </ion-row>
-                <ion-row class="ion-margin-bottom">
-                  <ion-col size="3"><span translate="bundle.bucket.type"></span>:</ion-col>
-                  <ion-col size="9">{{bundle.bucketType}}</ion-col>
-                </ion-row>
-                <ion-row class="ion-margin-bottom">
-                  <ion-col size="3"><span translate="bundle.artifact.coordinates"></span>:</ion-col>
-                  <ion-col size="9">{{bundle.artifactCoordinates}}</ion-col>
-                </ion-row>
-                <ion-row class="ion-margin-bottom">
-                  <ion-col size="3"><span translate="bundle.artifact.original.name"></span>:</ion-col>
-                  <ion-col size="9">{{bundle.artifactOriginalName}}</ion-col>
-                </ion-row>
-                <ion-row class="ion-margin-bottom">
-                  <ion-col size="3"><span translate="bundle.autorun"></span>:</ion-col>
-                  <ion-col size="9">{{bundle.autorun}}</ion-col>
-                </ion-row>
-                <ion-row class="ion-margin-bottom">
-                  <ion-col size="3"><span translate="bundle.instances.min"></span>:</ion-col>
-                  <ion-col size="3">{{bundle.minInstances}}</ion-col>
-                  <ion-col size="3"><span translate="bundle.instances.max"></span>:</ion-col>
-                  <ion-col size="3">{{bundle.maxInstances}}</ion-col>
-                </ion-row>
+                <ng-container *ngIf="bundle.deployable">
+                  <ion-row class="ion-margin-bottom">
+                    <ion-col size="3"><span translate="bundle.bucket.type"></span>:</ion-col>
+                    <ion-col size="9">{{bundle.bucketType}}</ion-col>
+                  </ion-row>
+                  <ion-row class="ion-margin-bottom">
+                    <ion-col size="3"><span translate="bundle.artifact.coordinates"></span>:</ion-col>
+                    <ion-col size="9">{{bundle.artifactCoordinates}}</ion-col>
+                  </ion-row>
+                  <ion-row class="ion-margin-bottom">
+                    <ion-col size="3"><span translate="bundle.artifact.original.name"></span>:</ion-col>
+                    <ion-col size="9">{{bundle.artifactOriginalName}}</ion-col>
+                  </ion-row>
+                  <ion-row class="ion-margin-bottom">
+                    <ion-col size="3"><span translate="bundle.autorun"></span>:</ion-col>
+                    <ion-col size="9">{{bundle.autorun}}</ion-col>
+                  </ion-row>
+                  <ion-row class="ion-margin-bottom">
+                    <ion-col size="3"><span translate="bundle.instances.min"></span>:</ion-col>
+                    <ion-col size="3">{{bundle.minInstances}}</ion-col>
+                    <ion-col size="3"><span translate="bundle.instances.max"></span>:</ion-col>
+                    <ion-col size="3">{{bundle.maxInstances}}</ion-col>
+                  </ion-row>
+                </ng-container>
+
               </ion-grid>
             </ion-col>
           </ion-row>
 
-          <ion-row>
-            <ion-col>
-              <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                         translate="bundle.environment"></ion-title>
-              <ion-row>
-                <ion-col size="5">
-                  <ion-item>
-                    <ion-label position="floating" translate="common.key"></ion-label>
-                    <ion-input #envKey
-                               (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
-                  </ion-item>
-                </ion-col>
-                <ion-col size="6">
-                  <ion-item>
-                    <ion-label position="floating" translate="common.value"></ion-label>
-                    <ion-input #envValue
-                               (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
-                  </ion-item>
-                </ion-col>
-                <ion-col size="1" class="ion-text-center">
-                  <ion-button (click)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';">
-                    <ion-icon slot="icon-only" name="add-circle"></ion-icon>
-                  </ion-button>
-                </ion-col>
-              </ion-row>
-              <ion-row *ngFor="let key of environmentKeys">
-                <ion-col size="5">{{key}}</ion-col>
-                <ion-col size="6">{{bundle.environment[key]}}</ion-col>
-                <ion-col size="1" class="ion-text-center">
-                  <ion-button color="danger" (click)="removeEnv(key)">
-                    <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
-                  </ion-button>
-                </ion-col>
-              </ion-row>
+          <ng-container *ngIf="bundle.deployable">
 
-            </ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col>
+            <ion-row>
+              <ion-col>
+                <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                           translate="bundle.environment"></ion-title>
+                <ion-row>
+                  <ion-col size="5">
+                    <ion-item>
+                      <ion-label position="floating" translate="common.key"></ion-label>
+                      <ion-input #envKey
+                                 (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
+                    </ion-item>
+                  </ion-col>
+                  <ion-col size="6">
+                    <ion-item>
+                      <ion-label position="floating" translate="common.value"></ion-label>
+                      <ion-input #envValue
+                                 (keydown.enter)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';"></ion-input>
+                    </ion-item>
+                  </ion-col>
+                  <ion-col size="1" class="ion-text-center">
+                    <ion-button (click)="putEnv(envKey.value, envValue.value); envKey.value = ''; envValue.value = '';">
+                      <ion-icon slot="icon-only" name="add-circle"></ion-icon>
+                    </ion-button>
+                  </ion-col>
+                </ion-row>
+                <ion-row *ngFor="let key of environmentKeys">
+                  <ion-col size="5">{{key}}</ion-col>
+                  <ion-col size="6">{{bundle.environment[key]}}</ion-col>
+                  <ion-col size="1" class="ion-text-center">
+                    <ion-button color="danger" (click)="removeEnv(key)">
+                      <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
+                    </ion-button>
+                  </ion-col>
+                </ion-row>
 
-              <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                         translate="bundle.vm.options"></ion-title>
+              </ion-col>
+            </ion-row>
+            <ion-row>
+              <ion-col>
+
+                <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                           translate="bundle.vm.options"></ion-title>
 
 
-              <ion-row>
-                <ion-col size="5">
-                  <ion-item>
-                    <ion-label translate="common.key"></ion-label>
-                    <ion-input #vmoKey
-                               (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
-                  </ion-item>
-                </ion-col>
-                <ion-col size="6">
-                  <ion-item>
-                    <ion-label translate="common.value"></ion-label>
-                    <ion-input #vmoValue
-                               (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
-                  </ion-item>
-                </ion-col>
-                <ion-col size="1" class="ion-text-center">
-                  <ion-button
-                    (click)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';">
-                    <ion-icon slot="icon-only" name="add-circle"></ion-icon>
-                  </ion-button>
-                </ion-col>
-              </ion-row>
-              <ion-row *ngFor="let key of vmOptionsKeys">
-                <ion-col size="5">{{key}}</ion-col>
-                <ion-col size="6">{{bundle.vmOptions[key]}}</ion-col>
-                <ion-col size="1" class="ion-text-center">
-                  <ion-button color="danger" (click)="removeVmOption(key)">
-                    <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
-                  </ion-button>
-                </ion-col>
-              </ion-row>
-            </ion-col>
-          </ion-row>
+                <ion-row>
+                  <ion-col size="5">
+                    <ion-item>
+                      <ion-label translate="common.key"></ion-label>
+                      <ion-input #vmoKey
+                                 (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
+                    </ion-item>
+                  </ion-col>
+                  <ion-col size="6">
+                    <ion-item>
+                      <ion-label translate="common.value"></ion-label>
+                      <ion-input #vmoValue
+                                 (keydown.enter)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';"></ion-input>
+                    </ion-item>
+                  </ion-col>
+                  <ion-col size="1" class="ion-text-center">
+                    <ion-button
+                      (click)="putVmOption(vmoKey.value, vmoValue.value); vmoKey.value = ''; vmoValue.value = '';">
+                      <ion-icon slot="icon-only" name="add-circle"></ion-icon>
+                    </ion-button>
+                  </ion-col>
+                </ion-row>
+                <ion-row *ngFor="let key of vmOptionsKeys">
+                  <ion-col size="5">{{key}}</ion-col>
+                  <ion-col size="6">{{bundle.vmOptions[key]}}</ion-col>
+                  <ion-col size="1" class="ion-text-center">
+                    <ion-button color="danger" (click)="removeVmOption(key)">
+                      <ion-icon slot="icon-only" name="remove-circle"></ion-icon>
+                    </ion-button>
+                  </ion-col>
+                </ion-row>
+              </ion-col>
+            </ion-row>
+          </ng-container>
 
           <ion-row>
             <ion-col class="ion-text-end">

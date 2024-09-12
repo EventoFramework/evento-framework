@@ -57,6 +57,11 @@ public class ComponentDTO {
 	private String path;
 
     /**
+	 * Prefix for each line of the component's source code.
+	 */
+	private String linePrefix;
+
+    /**
      * Line number in code where component starts
      */
 	private Integer line;
@@ -76,6 +81,7 @@ public class ComponentDTO {
 		this.updatedAt = c.getUpdatedAt();
 		this.handlers = handlers.stream().map(HandlerDto::new).toList();
 		this.path = c.getPath();
+		this.linePrefix = c.getBundle().getLinePrefix();
 		this.line = c.getLine();
 	}
 }

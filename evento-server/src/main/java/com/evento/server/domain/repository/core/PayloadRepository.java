@@ -32,6 +32,7 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"       p.domain, " +
 			"       p.path, " +
 			"       p.line, " +
+			"       max(b.line_prefix) as linePrefix, " +
 			"       p.is_valid_json_schema as validJsonSchema, " +
 			"       string_agg(distinct case when hc.component_name is null then null else concat(hc.component_name, '$$$', hc.component_type, '$$$', hc.path, '$$$', h.line) end, ',')   as subscribers, " +
 			"       string_agg(distinct case when hic.component_name is null then null else concat(hic.component_name, '$$$', hic.component_type, '$$$', hic.path, '$$$', hi.line) end, ',') as invokers, " +
@@ -42,6 +43,7 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"         left join core__handler h on p.name = h.handled_payload_name and " +
 			"                                      ((p.type != 'DomainEvent') or (h.handler_type != 'EventSourcingHandler')) " +
 			"         left join core__component hc on h.component_component_name = hc.component_name " +
+			"         left join core__bundle b on p.registered_in = b.id " +
 			"         left join core__handler__invocation i on i.invocations_name = p.name " +
 			"         left join core__handler hi on hi.uuid = i.handler_uuid " +
 			"         left join core__component hic on hi.component_component_name = hic.component_name " +
