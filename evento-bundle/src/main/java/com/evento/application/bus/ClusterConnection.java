@@ -2,6 +2,8 @@ package com.evento.application.bus;
 
 import com.evento.common.messaging.bus.SendFailedException;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -12,6 +14,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Represents a cluster connection that manages connections to multiple nodes in a cluster.
  */
 public class ClusterConnection {
+
+    private final static Logger LOGGER = LogManager.getLogger(ClusterConnection.class);
+
     private final List<ClusterNodeAddress> addressList;
 
     private final BundleRegistration bundleRegistration;
@@ -61,7 +66,9 @@ public class ClusterConnection {
 
                 // Successful send, exit the loop
                 return;
-            } catch (SendFailedException e) {
+            } catch (Exception e) {
+                LOGGER.warn("Message send over socket failed. Attempt {}/{}", attempt + 1 , maxRetryAttempts);
+                LOGGER.warn("Fail reason", e);
                 // Sleep before the next retry
                 try {
                     Thread.sleep(retryDelayMillis);
