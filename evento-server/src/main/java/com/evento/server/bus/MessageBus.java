@@ -1,7 +1,9 @@
 package com.evento.server.bus;
 
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
+import com.evento.common.serialization.ObjectMapperUtils;
 import com.evento.server.service.discovery.ConsumerService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import com.evento.common.messaging.consumer.EventFetchRequest;
@@ -73,11 +75,11 @@ public class MessageBus {
 
     private final BundleService bundleService;
 
-    private final Map<String, Consumer<EventoResponse>> correlations = new ConcurrentHashMap<>();
+    private final Map<String, Correlation> correlations = new ConcurrentHashMap<>();
     private final ConsumerService consumerService;
     private boolean isShuttingDown = false;
 
-    private final Executor threadPerMessageExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final Executor threadPerMessageExecutor = Executors.newCachedThreadPool();
 
     public MessageBus(
             @Value("${socket.port}") int socketPort,
@@ -110,7 +112,7 @@ public class MessageBus {
         t.start();
 
         t = new Thread(() -> {
-            try(ServerSocket server = new ServerSocket(socketPort)) {
+            try (ServerSocket server = new ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
                     logger.info("New connection: " + conn.getInetAddress() + ":" + conn.getPort());
@@ -147,7 +149,7 @@ public class MessageBus {
                                             } else if (message instanceof EventoResponse r) {
                                                 var c = correlations.get(r.getCorrelationId());
                                                 correlations.remove(r.getCorrelationId());
-                                                c.accept(r);
+                                                c.response().accept(r);
                                             } else if (message instanceof EventoMessage m) {
                                                 handleMessage(m);
                                             }
@@ -157,12 +159,12 @@ public class MessageBus {
                                     });
                                 }
                             } catch (Exception e) {
-                                for (Map.Entry<String, Consumer<EventoResponse>> ek : correlations.entrySet()) {
+                                for (Map.Entry<String, Correlation> ek : correlations.entrySet()) {
                                     var resp = new EventoResponse();
                                     resp.setCorrelationId(ek.getKey());
                                     resp.setBody(new ExceptionWrapper(e));
                                     try {
-                                        ek.getValue().accept(resp);
+                                        ek.getValue().response().accept(resp);
                                     } catch (Exception ex) {
                                         logger.error("Error during correlation fail management", ex);
                                     }
@@ -209,6 +211,15 @@ public class MessageBus {
             var retry = 0;
             while (!correlations.isEmpty() && retry < maxDisableAttempts) {
                 System.out.printf("Graceful Shutdown - Remaining correlations: %d%n", correlations.size());
+                correlations.forEach((k, v) -> {
+                    System.out.printf("Graceful Shutdown - Pending correlation: %s%n", k);
+                    System.out.println("Graceful Shutdown - Body:");
+                    try {
+                        System.out.println(ObjectMapperUtils.getPayloadObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(v.request()));
+                    } catch (JsonProcessingException ignored) {
+                    }
+
+                });
                 System.out.println("Graceful Shutdown - Sleep...");
                 Sleep.apply(disableDelayMillis);
                 retry++;
@@ -224,6 +235,7 @@ public class MessageBus {
     }
 
     private void handleMessage(EventoMessage m) {
+        logger.debug("Message received: {}", m);
         if (m.getBody() instanceof ClusterNodeIsBoredMessage b) {
             var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
             eventStore.acquire(lockId);
@@ -242,8 +254,7 @@ public class MessageBus {
             } finally {
                 eventStore.release(lockId);
             }
-        }
-        else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
+        } else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
             var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
             eventStore.acquire(lockId);
             try {
@@ -257,8 +268,7 @@ public class MessageBus {
             } finally {
                 eventStore.release(lockId);
             }
-        }
-        else if(m.getBody() instanceof PerformanceInvocationsMessage im){
+        } else if (m.getBody() instanceof PerformanceInvocationsMessage im) {
             performanceStoreService.saveInvocationsPerformance(
                     im.getBundle(),
                     im.getInstanceId(),
@@ -266,8 +276,7 @@ public class MessageBus {
                     im.getAction(),
                     im.getInvocations()
             );
-        }
-        else if(m.getBody() instanceof PerformanceServiceTimeMessage im){
+        } else if (m.getBody() instanceof PerformanceServiceTimeMessage im) {
             performanceStoreService.saveServiceTimePerformance(
                     im.getBundle(),
                     im.getInstanceId(),
@@ -276,11 +285,9 @@ public class MessageBus {
                     im.getStart(),
                     im.getEnd()
             );
-        }
-        else if (m.getBody() instanceof BundleConsumerRegistrationMessage cr) {
+        } else if (m.getBody() instanceof BundleConsumerRegistrationMessage cr) {
             consumerService.registerConsumers(m.getSourceBundleId(), m.getSourceInstanceId(), m.getSourceBundleVersion(), cr);
         }
-        logger.debug("Message received: {}", m);
     }
 
 
@@ -292,10 +299,12 @@ public class MessageBus {
             var request = message.getBody();
             switch (request) {
                 case DomainCommandMessage c -> {
+                    logger.debug("Handle DomainCommandMessage: {}", message);
                     var dest = peekMessageHandlerAddress(c.getCommandName());
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
+                    logger.trace("Handle DomainCommandMessage({}) - lock acquired: {}", message.getCorrelationId(), lockId);
                     Instant lockAcquired = PerformanceStoreService.now();
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
@@ -304,6 +313,7 @@ public class MessageBus {
                         var story = eventStore.fetchAggregateStory(c.getAggregateId(),
                                 c.isInvalidateAggregateCaches(),
                                 c.isInvalidateAggregateSnapshot());
+                        logger.trace("Handle DomainCommandMessage({}) - Story Fetched: {}", message.getCorrelationId(), story.events().size());
                         invocation.setSerializedAggregateState(story.state());
                         invocation.setEventStream(story.events());
                         var retrieveDone = performanceStoreService.sendServiceTimeMetric(
@@ -316,8 +326,10 @@ public class MessageBus {
                         );
                         var invocationStart = PerformanceStoreService.now();
                         message.setBody(invocation);
+                        logger.trace("Handle DomainCommandMessage({}) - Forward Invocation: {}", message.getCorrelationId(), invocation);
                         forward(message, dest, resp -> {
                             try {
+                                logger.trace("Handle DomainCommandMessage({}) - Invocation Response: {}", message.getCorrelationId(), resp);
                                 var computationDone = performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
                                         dest.instanceId(),
@@ -330,15 +342,18 @@ public class MessageBus {
                                     cr.getDomainEventMessage().setForceTelemetry(c.isForceTelemetry());
                                     var eventSequenceNumber = eventStore.publishEvent(cr.getDomainEventMessage(),
                                             c.getAggregateId());
+                                    logger.trace("Handle DomainCommandMessage({}) - Event Published: {} - {}", message.getCorrelationId(), c.getAggregateId(), cr.getDomainEventMessage());
                                     if (cr.getSerializedAggregateState() != null) {
                                         eventStore.saveSnapshot(
                                                 c.getAggregateId(),
                                                 eventSequenceNumber,
                                                 cr.getSerializedAggregateState()
                                         );
+                                        logger.trace("Handle DomainCommandMessage({}) - Snapshot Saved: {} - {}", message.getCorrelationId(), c.getAggregateId(), cr.getSerializedAggregateState());
                                     }
                                     if (cr.isAggregateDeleted()) {
                                         eventStore.deleteAggregate(c.getAggregateId());
+                                        logger.trace("Handle DomainCommandMessage({}) - Aggregate Deleted: {}", message.getCorrelationId(), c.getAggregateId());
                                     }
                                     var published = performanceStoreService.sendServiceTimeMetric(
                                             EVENT_STORE,
@@ -371,15 +386,16 @@ public class MessageBus {
                                 sendResponse.accept(resp);
                             } catch (Exception e) {
                                 try {
-                                    if(acquired.get()) {
+                                    if (acquired.get()) {
                                         eventStore.release(lockId);
                                     }
-                                }catch (Exception ie){
+                                } catch (Exception ie) {
                                     logger.error("Error unlocking after exception", ie);
                                 }
                                 resp.setBody(new ExceptionWrapper(e));
                                 sendResponse.accept(resp);
                             }
+                            logger.trace("Handle DomainCommandMessage({}) - Response Sent: {}", message.getCorrelationId(), resp);
 
                         });
                     } catch (Exception e) {
@@ -388,14 +404,18 @@ public class MessageBus {
                     }
                 }
                 case ServiceCommandMessage c -> {
+                    logger.debug("Handle ServiceCommandMessage: {}", message);
                     var dest = peekMessageHandlerAddress(c.getCommandName());
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
                     eventStore.acquire(lockId);
+                    logger.trace("Handle ServiceCommandMessage({}) - lock acquired: {}", message.getCorrelationId(), lockId);
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
+                        logger.trace("Handle ServiceCommandMessage({}) - Forward Invocation: {}", message.getCorrelationId(), message);
                         forward(message, dest, resp -> {
                             try {
+                                logger.trace("Handle ServiceCommandMessage({}) - Invocation Response: {}", message.getCorrelationId(), resp);
                                 performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
                                         dest.instanceId(),
@@ -410,6 +430,7 @@ public class MessageBus {
                                         var esStoreStart = PerformanceStoreService.now();
                                         eventStore.publishEvent(event,
                                                 c.getAggregateId());
+                                        logger.trace("Handle ServiceCommandMessage({}) - Event Published: {} - {}", message.getCorrelationId(), c.getAggregateId(), event);
                                         performanceStoreService.sendServiceTimeMetric(
                                                 EVENT_STORE,
                                                 instanceId,
@@ -426,15 +447,16 @@ public class MessageBus {
                                 sendResponse.accept(resp);
                             } catch (Exception e) {
                                 try {
-                                    if(acquired.get()) {
+                                    if (acquired.get()) {
                                         eventStore.release(lockId);
                                     }
-                                }catch (Exception ie){
+                                } catch (Exception ie) {
                                     logger.error("Error unlocking after exception", ie);
                                 }
                                 resp.setBody(new ExceptionWrapper(e));
                                 sendResponse.accept(resp);
                             }
+                            logger.trace("Handle ServiceCommandMessage({}) - Response Sent: {}", message.getCorrelationId(), resp);
                         });
                     } catch (Exception e) {
                         eventStore.release(lockId);
@@ -442,10 +464,13 @@ public class MessageBus {
                     }
                 }
                 case QueryMessage<?> q -> {
+                    logger.debug("Handle QueryMessage: {}", message);
                     var dest = peekMessageHandlerAddress(q.getQueryName());
                     var invocationStart = PerformanceStoreService.now();
+                    logger.trace("Handle QueryMessage({}) - Forward Invocation: {}", message.getCorrelationId(), message);
                     forward(message, dest,
                             resp -> {
+                                logger.trace("Handle QueryMessage({}) - Invocation Response: {}", message.getCorrelationId(), resp);
                                 performanceStoreService.sendServiceTimeMetric(
                                         dest.bundleId(),
                                         dest.instanceId(),
@@ -455,6 +480,7 @@ public class MessageBus {
                                         q.isForceTelemetry()
                                 );
                                 sendResponse.accept(resp);
+                                logger.trace("Handle QueryMessage({}) - Response Sent: {}", message.getCorrelationId(), resp);
                             }
                     );
 
@@ -479,7 +505,8 @@ public class MessageBus {
                     resp.setBody(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
                     sendResponse.accept(resp);
                 }
-                case null, default -> throw new IllegalArgumentException("Missing Handler for " + (request != null ? request.getClass() : null));
+                case null, default ->
+                        throw new IllegalArgumentException("Missing Handler for " + (request != null ? request.getClass() : null));
             }
         } catch (Exception e) {
             logger.error("Error handling message in server", e);
@@ -664,7 +691,7 @@ public class MessageBus {
 
 
     public void forward(EventoRequest eventoRequest, NodeAddress address, Consumer<EventoResponse> response) throws Exception {
-        correlations.put(eventoRequest.getCorrelationId(), response);
+        correlations.put(eventoRequest.getCorrelationId(), new Correlation(eventoRequest, response));
         try {
             var out = view.get(address);
             synchronized (out) {

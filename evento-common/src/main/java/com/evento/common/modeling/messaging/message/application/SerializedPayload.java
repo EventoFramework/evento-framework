@@ -27,4 +27,9 @@ public class SerializedPayload<T extends Payload> extends SerializedObject<T> {
      */
 	public SerializedPayload() {
 	}
+
+	@Override
+	public String toString() {
+		return "SerializedPayload{} " + super.toString();
+	}
 }

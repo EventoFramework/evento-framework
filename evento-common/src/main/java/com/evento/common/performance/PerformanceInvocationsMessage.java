@@ -137,4 +137,15 @@ public class PerformanceInvocationsMessage implements Serializable {
 	public void setInstanceId(String instanceId) {
 		this.instanceId = instanceId;
 	}
+
+	@Override
+	public String toString() {
+		return "PerformanceInvocationsMessage{" +
+				"bundle='" + bundle + '\'' +
+				", component='" + component + '\'' +
+				", action='" + action + '\'' +
+				", invocations=" + invocations +
+				", instanceId='" + instanceId + '\'' +
+				'}';
+	}
 }

@@ -83,4 +83,14 @@ public class EventoMessage implements Serializable {
     public void setBody(Serializable body) {
         this.body = body;
     }
+
+    @Override
+    public String toString() {
+        return "EventoMessage{" +
+                "sourceBundleId='" + sourceBundleId + '\'' +
+                ", sourceInstanceId='" + sourceInstanceId + '\'' +
+                ", sourceBundleVersion=" + sourceBundleVersion +
+                ", body=" + body +
+                '}';
+    }
 }

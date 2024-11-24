@@ -12,6 +12,9 @@ import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.modeling.messaging.query.SerializedQueryResponse;
 import com.evento.common.modeling.state.AggregateState;
 import com.evento.common.modeling.state.SagaState;
+
+import java.io.Serializable;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,15 +36,7 @@ public class ObjectMapperUtils {
 		if (instance == null)
 		{
 			PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-					.allowIfSubType(Payload.class)
-					.allowIfSubType(QueryResponse.class)
-					.allowIfSubType(AggregateState.class)
-					.allowIfSubType(SagaState.class)
-					.allowIfSubType(SerializedQueryResponse.class)
-					.allowIfSubType(Number.class)
-					.allowIfSubType(List.class)
-					.allowIfSubType(Map.class)
-					.allowIfSubType(Set.class)
+					.allowIfSubType(Serializable.class)
 					.allowIfSubType("com.evento.")
 					.build();
 

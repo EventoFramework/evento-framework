@@ -79,4 +79,11 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 	public void setContext(String context) {
 		this.context = context;
 	}
+
+	@Override
+	public String toString() {
+		return "EventMessage{" +
+				"context='" + context + '\'' +
+				"} " + super.toString();
+	}
 }

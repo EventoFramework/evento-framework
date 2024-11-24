@@ -31,4 +31,9 @@ public class DomainEventMessage extends EventMessage<DomainEvent> {
 	 */
 	public DomainEventMessage() {
 	}
+
+	@Override
+	public String toString() {
+		return "DomainEventMessage{} " + super.toString();
+	}
 }

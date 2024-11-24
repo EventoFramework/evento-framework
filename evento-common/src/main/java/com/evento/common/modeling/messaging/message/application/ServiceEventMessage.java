@@ -25,4 +25,9 @@ public class ServiceEventMessage extends EventMessage<ServiceEvent> {
 	 */
 	public ServiceEventMessage() {
 	}
+
+	@Override
+	public String toString() {
+		return "ServiceEventMessage{} " + super.toString();
+	}
 }

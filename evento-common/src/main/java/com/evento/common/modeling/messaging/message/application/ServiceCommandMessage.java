@@ -31,5 +31,8 @@ public class ServiceCommandMessage extends CommandMessage<ServiceCommand> {
 	public ServiceCommandMessage() {
 	}
 
-
+	@Override
+	public String toString() {
+		return "ServiceCommandMessage{} " + super.toString();
+	}
 }
