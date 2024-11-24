@@ -68,4 +68,13 @@ public class EventoResponse implements Serializable {
         this.timestamp = timestamp;
         return this;
     }
+
+    @Override
+    public String toString() {
+        return "EventoResponse{" +
+                "correlationId='" + correlationId + '\'' +
+                ", body=" + body +
+                ", timestamp=" + timestamp +
+                '}';
+    }
 }

@@ -216,6 +216,7 @@ public class EventoSocketConnection {
                 o.writeObject(new EnableMessage());
             }
         } catch (Exception e) {
+            enabled = false;
             logger.error("Enabling failed", e);
         }
     }
@@ -244,7 +245,10 @@ public class EventoSocketConnection {
         try {
             socket.close();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            if (socket != null && !socket.isClosed()) {
+                throw new RuntimeException(e);
+            }
+
         }
     }
 
