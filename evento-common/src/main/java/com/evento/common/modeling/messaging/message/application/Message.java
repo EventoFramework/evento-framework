@@ -153,4 +153,14 @@ public abstract class Message<T extends Payload> implements Serializable {
 	public void setForceTelemetry(boolean forceTelemetry) {
 		this.forceTelemetry = forceTelemetry;
 	}
+
+	@Override
+	public String toString() {
+		return "Message{" +
+				"serializedPayload=" + serializedPayload +
+				", timestamp=" + timestamp +
+				", metadata=" + metadata +
+				", forceTelemetry=" + forceTelemetry +
+				'}';
+	}
 }

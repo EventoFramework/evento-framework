@@ -79,4 +79,13 @@ public class DecoratedDomainCommandMessage implements Serializable {
 	public void setCommandMessage(DomainCommandMessage commandMessage) {
 		this.commandMessage = commandMessage;
 	}
+
+	@Override
+	public String toString() {
+		return "DecoratedDomainCommandMessage{" +
+				"commandMessage=" + commandMessage +
+				", serializedAggregateState=" + serializedAggregateState +
+				", eventStream=" + eventStream +
+				'}';
+	}
 }

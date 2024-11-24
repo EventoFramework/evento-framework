@@ -124,4 +124,16 @@ public class EventoRequest implements Serializable {
         this.timestamp = timestamp;
         return this;
     }
+
+    @Override
+    public String toString() {
+        return "EventoRequest{" +
+                "sourceBundleId='" + sourceBundleId + '\'' +
+                ", sourceInstanceId='" + sourceInstanceId + '\'' +
+                ", correlationId='" + correlationId + '\'' +
+                ", sourceBundleVersion=" + sourceBundleVersion +
+                ", body=" + body +
+                ", timestamp=" + timestamp +
+                '}';
+    }
 }

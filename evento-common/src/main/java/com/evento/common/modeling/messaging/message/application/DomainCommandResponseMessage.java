@@ -94,4 +94,13 @@ public class DomainCommandResponseMessage implements Serializable {
 	public void setAggregateDeleted(boolean aggregateDeleted) {
 		this.aggregateDeleted = aggregateDeleted;
 	}
+
+	@Override
+	public String toString() {
+		return "DomainCommandResponseMessage{" +
+				"domainEventMessage=" + domainEventMessage +
+				", serializedAggregateState=" + serializedAggregateState +
+				", aggregateDeleted=" + aggregateDeleted +
+				'}';
+	}
 }

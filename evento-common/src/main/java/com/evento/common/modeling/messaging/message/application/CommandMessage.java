@@ -90,4 +90,12 @@ public abstract class CommandMessage<T extends Command> extends Message<T> {
 		this.lockId = payload.getLockId();
 		this.aggregateId = payload.getAggregateId();
 	}
+
+	@Override
+	public String toString() {
+		return "CommandMessage{" +
+				"aggregateId='" + aggregateId + '\'' +
+				", lockId='" + lockId + '\'' +
+				"} " + super.toString();
+	}
 }

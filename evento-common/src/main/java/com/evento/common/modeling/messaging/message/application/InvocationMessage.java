@@ -111,4 +111,13 @@ public class InvocationMessage extends Message<Invocation> {
 	public void setAction(String action) {
 		this.action = action;
 	}
+
+	@Override
+	public String toString() {
+		return "InvocationMessage{" +
+				"name='" + name + '\'' +
+				", componentName='" + componentName + '\'' +
+				", action='" + action + '\'' +
+				"} " + super.toString();
+	}
 }

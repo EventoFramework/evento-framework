@@ -24,7 +24,7 @@ public class ClusterConnection {
 
     private final int maxRetryAttempts;
     private final long retryDelayMillis;
-    private final List<EventoSocketConnection> sockets = new ArrayList<>();
+    private final List<EventoSocketConnection> nodeConnection = new ArrayList<>();
     private final AtomicInteger nextNodeToUse = new AtomicInteger(0);
 
     /**
@@ -55,34 +55,32 @@ public class ClusterConnection {
         // Attempt to send the message to a node, with retry logic
         while (attempt < (1 + maxRetryAttempts)) {
 
-            EventoSocketConnection socket = null;
             try {
-                // Get the socket for the current node and attempt
-                socket = sockets.get((n + attempt) % nodes);
                 // Increment the attempt counter
                 attempt++;
+
+                // Get the socket for the current node and attempt
+                var node = nodeConnection.get((n + attempt - 1) % nodes);
+
                 // Send the message using the socket
-                socket.send(message);
+                node.send(message);
 
                 // Successful send, exit the loop
                 return;
             } catch (Exception e) {
                 LOGGER.warn("Message send over socket failed. Attempt {}/{}", attempt + 1 , maxRetryAttempts);
                 LOGGER.warn("Fail reason", e);
+
+                // If this is the last attempt, throw the SendFailedException
+                if (attempt >= maxRetryAttempts) {
+                    throw e;
+                }
+
                 // Sleep before the next retry
                 try {
                     Thread.sleep(retryDelayMillis);
                 } catch (InterruptedException ignored) {
                     // Handle InterruptedException (if needed)
-                }
-
-                if(socket != null && socket.isClosed()){
-                    sockets.remove(socket);
-                }
-
-                // If this is the last attempt, throw the SendFailedException
-                if (attempt == maxRetryAttempts) {
-                    throw e;
                 }
             }
         }
@@ -97,7 +95,7 @@ public class ClusterConnection {
      */
     private void connect(int maxReconnectAttempts, long reconnectDelayMillis, MessageHandler handler) throws InterruptedException {
         for (ClusterNodeAddress clusterNodeAddress : addressList) {
-            sockets.add(new EventoSocketConnection.Builder(
+            nodeConnection.add(new EventoSocketConnection.Builder(
                     clusterNodeAddress.serverAddress(),
                     clusterNodeAddress.serverPort(),
                     bundleRegistration,
@@ -112,7 +110,7 @@ public class ClusterConnection {
      * Enables communication with all cluster nodes.
      */
     public void enable() {
-        for (EventoSocketConnection socket : sockets) {
+        for (EventoSocketConnection socket : nodeConnection) {
             socket.enable();
         }
     }
@@ -121,7 +119,7 @@ public class ClusterConnection {
      * Disables communication with all cluster nodes.
      */
     public void disable() {
-        for (EventoSocketConnection socket : sockets) {
+        for (EventoSocketConnection socket : nodeConnection) {
             socket.disable();
         }
     }
@@ -130,7 +128,7 @@ public class ClusterConnection {
      * Closes connections to all cluster nodes.
      */
     public void close() {
-        for (EventoSocketConnection socket : sockets) {
+        for (EventoSocketConnection socket : nodeConnection) {
             socket.close();
         }
     }

@@ -66,4 +66,13 @@ public class DomainCommandMessage extends CommandMessage<DomainCommand> {
 	public void setInvalidateAggregateSnapshot(boolean invalidateAggregateSnapshot) {
 		this.invalidateAggregateSnapshot = invalidateAggregateSnapshot;
 	}
+
+
+	@Override
+	public String toString() {
+		return "DomainCommandMessage{" +
+				"invalidateAggregateCaches=" + invalidateAggregateCaches +
+				", invalidateAggregateSnapshot=" + invalidateAggregateSnapshot +
+				"} " + super.toString();
+	}
 }
