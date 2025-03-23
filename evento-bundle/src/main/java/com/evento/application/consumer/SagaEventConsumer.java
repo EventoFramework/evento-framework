@@ -1,5 +1,6 @@
 package com.evento.application.consumer;
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
 import lombok.Getter;
@@ -39,21 +40,23 @@ public class SagaEventConsumer extends EventConsumer {
     private final int sssFetchSize;
     @Getter
     private final int sssFetchDelay;
+    private final MessageHandlerInterceptor messageHandlerInterceptor;
 
     /**
-     * Constructs a new SagaEventConsumer with the specified parameters.
+     * Constructs a SagaEventConsumer, responsible for handling saga events with the specified parameters.
      *
-     * @param bundleId              The bundle identifier.
-     * @param sagaName              The name of the saga.
-     * @param sagaVersion           The version of the saga.
-     * @param context               The context in which the saga operates.
-     * @param isShuttingDown        A supplier indicating whether the consumer is shutting down.
-     * @param consumerStateStore    The state store for tracking consumer state.
-     * @param sagaMessageHandlers   The map of event names to saga handlers.
-     * @param tracingAgent          The tracing agent for tracking events.
-     * @param gatewayTelemetryProxy The function for creating a telemetry proxy for a gateway.
-     * @param sssFetchSize          The fetch size for consuming events from the state store.
-     * @param sssFetchDelay         The delay for fetching events from the state store.
+     * @param bundleId The unique identifier for the bundle associated with the saga.
+     * @param sagaName The name of the saga being consumed.
+     * @param sagaVersion The version of the saga.
+     * @param context The context under which this saga event consumer operates.
+     * @param isShuttingDown A supplier function that indicates whether the consumer should shut down.
+     * @param consumerStateStore The state store to manage the consumer's state.
+     * @param sagaMessageHandlers A map containing saga message handlers for handling events.
+     * @param tracingAgent The tracing agent for monitoring and tracing saga events.
+     * @param gatewayTelemetryProxy A function providing telemetry proxies for gateway messages.
+     * @param sssFetchSize The number of events to fetch in a single operation.
+     * @param sssFetchDelay The delay between successive fetch operations.
+     * @param messageHandlerInterceptor The interceptor for handling message processing within the consumer.
      */
     public SagaEventConsumer(String bundleId, String sagaName, int sagaVersion,
                              String context, Supplier<Boolean> isShuttingDown,
@@ -61,7 +64,7 @@ public class SagaEventConsumer extends EventConsumer {
                              HashMap<String, HashMap<String, SagaReference>> sagaMessageHandlers,
                              TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy,
-                             int sssFetchSize, int sssFetchDelay) {
+                             int sssFetchSize, int sssFetchDelay, MessageHandlerInterceptor messageHandlerInterceptor) {
         super(bundleId + "_" + sagaName + "_" + sagaVersion + "_" + context, consumerStateStore);
         // Initialization of fields
         this.bundleId = bundleId;
@@ -75,6 +78,7 @@ public class SagaEventConsumer extends EventConsumer {
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
 
+        this.messageHandlerInterceptor = messageHandlerInterceptor;
     }
 
     /**
@@ -133,10 +137,11 @@ public class SagaEventConsumer extends EventConsumer {
                                     () -> {
                                         // Invoke the handler and send telemetry metrics
                                         var resp = handler.invoke(
-                                                publishedEvent.getEventMessage(),
+                                                publishedEvent,
                                                 sagaState,
                                                 proxy,
-                                                proxy
+                                                proxy,
+                                                messageHandlerInterceptor
                                         );
                                         proxy.sendInvocationsMetric();
                                         return resp == null ? sagaState : resp;
@@ -202,8 +207,8 @@ public class SagaEventConsumer extends EventConsumer {
                                         publishedEvent.getEventMessage(),
                                         sagaState,
                                         proxy,
-                                        proxy
-                                );
+                                        proxy,
+                                        messageHandlerInterceptor);
                                 proxy.sendInvocationsMetric();
                                 return resp == null ? sagaState : resp;
                             });

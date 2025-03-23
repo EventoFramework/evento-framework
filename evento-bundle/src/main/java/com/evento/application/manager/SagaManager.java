@@ -40,17 +40,24 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
      */
     private final ArrayList<SagaEventConsumer> sagaEventConsumers = new ArrayList<>();
     /**
-     * Creates a new instance of SagaManager.
+     * Constructs a new SagaManager instance with the specified configuration parameters.
      *
-     * @param bundleId                the bundle ID
-     * @param gatewayTelemetryProxy   the gateway telemetry proxy
-     * @param tracingAgent            the tracing agent
-     * @param isShuttingDown          the supplier for checking if the application is shutting down
-     * @param sssFetchSize            the size of the SSS fetch
-     * @param sssFetchDelay           the delay for SSS fetch
+     * @param bundleId                 the ID of the bundle associated with the SagaManager
+     * @param gatewayTelemetryProxy    a BiFunction that provides a GatewayTelemetryProxy instance
+     *                                 based on a given bundle ID and message
+     * @param tracingAgent             the TracingAgent used for tracing operations
+     * @param isShuttingDown           a Supplier providing a Boolean indicating whether the system
+     *                                 is shutting down
+     * @param sssFetchSize             the size of the fetch operation for fetching Saga state storage
+     * @param sssFetchDelay            the delay between fetch operations, in milliseconds
+     * @param messageHandlerInterceptor a MessageHandlerInterceptor that provides additional behavior
+     *                                  for message handling
      */
-    public SagaManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
+    public SagaManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
+                       TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown,
+                       int sssFetchSize, int sssFetchDelay, MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay,
+                messageHandlerInterceptor);
     }
 
     /**
@@ -108,7 +115,8 @@ public class SagaManager extends ConsumerComponentManager<SagaReference> {
                         getTracingAgent(),
                         getGatewayTelemetryProxy(),
                         getSssFetchSize(),
-                        getSssFetchDelay()
+                        getSssFetchDelay(),
+                        getMessageHandlerInterceptor()
                 );
                 sagaEventConsumers.add(c);
                 var t = new Thread(c);

@@ -1,5 +1,6 @@
 package com.evento.application.consumer;
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ProjectorReference;
 import lombok.Getter;
@@ -43,6 +44,7 @@ public class ProjectorEvenConsumer extends EventConsumer {
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
+    private final MessageHandlerInterceptor messageHandlerInterceptor;
 
     /**
      * Constructs a new ProjectorEvenConsumer with the specified parameters.
@@ -59,7 +61,8 @@ public class ProjectorEvenConsumer extends EventConsumer {
      * @param sssFetchSize             The fetch size for consuming events from the state store.
      * @param sssFetchDelay            The delay for fetching events from the state store.
      * @param alignmentCounter         The atomic counter for tracking alignment.
-     * @param onAllHeadReached            The runnable to execute when the head is reached.
+     * @param onAllHeadReached         The runnable to execute when the head is reached.
+     * @param messageHandlerInterceptor       The message interceptor
      */
     public ProjectorEvenConsumer(String bundleId,
                                  String projectorName, int projectorVersion,
@@ -69,7 +72,7 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                  TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy, int sssFetchSize,
                                  int sssFetchDelay, AtomicInteger alignmentCounter,
-                                 Runnable onAllHeadReached) {
+                                 Runnable onAllHeadReached, MessageHandlerInterceptor messageHandlerInterceptor) {
         super(bundleId + "_" + projectorName + "_" + projectorVersion + "_" + context, consumerStateStore);
         // Initialization of fields
         this.bundleId = bundleId;
@@ -84,6 +87,7 @@ public class ProjectorEvenConsumer extends EventConsumer {
         this.sssFetchDelay = sssFetchDelay;
         this.alignmentCounter = alignmentCounter;
         this.onAllHeadReached = onAllHeadReached;
+        this.messageHandlerInterceptor = messageHandlerInterceptor;
     }
 
     /**
@@ -132,7 +136,8 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                                 publishedEvent,
                                                 proxy,
                                                 proxy,
-                                                ps
+                                                ps,
+                                                messageHandlerInterceptor
                                         );
                                         proxy.sendInvocationsMetric();
                                         return null;
@@ -194,8 +199,8 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                         publishedEvent,
                                         proxy,
                                         proxy,
-                                        ps
-                                );
+                                        ps,
+                                        messageHandlerInterceptor);
                                 proxy.sendInvocationsMetric();
                                 return null;
                             });

@@ -24,24 +24,28 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
     private static final Logger logger = LogManager.getLogger(ProjectionManager.class);
 
     /**
-     * Creates a new instance of ProjectionManager.
+     * Constructs a new ProjectionManager instance.
      *
-     * @param bundleId                   The identifier of the bundle.
-     * @param gatewayTelemetryProxy      The function used to create GatewayTelemetryProxy instances.
-     * @param tracingAgent               The tracing agent used for tracing.
+     * @param bundleId              The unique identifier of the bundle.
+     * @param gatewayTelemetryProxy A function that, given a bundle ID and a message, provides an instance of the {@code GatewayTelemetryProxy}.
+     * @param tracingAgent          The tracing agent used for telemetry and monitoring.
+     * @param messageHandlerInterceptor    The interceptor for processing messages before or after execution.
      */
-    public ProjectionManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent);
+    public ProjectionManager(String bundleId, BiFunction<String, Message<?>,
+                                     GatewayTelemetryProxy> gatewayTelemetryProxy,
+                             TracingAgent tracingAgent,
+                             MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, messageHandlerInterceptor);
     }
 
     /**
      * Parses the classes annotated with @Projection and registers the query handlers.
      *
-     * @param reflections            The reflections instance used for scanning classes.
-     * @param findInjectableObject   The function used to find injectable objects.
-     * @throws InvocationTargetException    If the class instantiation fails.
-     * @throws InstantiationException       If the class instantiation fails.
-     * @throws IllegalAccessException       If the class instantiation fails.
+     * @param reflections          The reflections instance used for scanning classes.
+     * @param findInjectableObject The function used to find injectable objects.
+     * @throws InvocationTargetException If the class instantiation fails.
+     * @throws InstantiationException    If the class instantiation fails.
+     * @throws IllegalAccessException    If the class instantiation fails.
      */
     @Override
     public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject)
@@ -60,7 +64,7 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
      *
      * @param q The query message to handle.
      * @return The serialized query response.
-     * @throws Exception If an error occurs while handling the query.
+     * @throws Exception                If an error occurs while handling the query.
      * @throws HandlerNotFoundException If no handler is found for the query in the bundle.
      */
     @Override
@@ -75,7 +79,8 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
                     var result = handler.invoke(
                             q,
                             proxy,
-                            proxy
+                            proxy,
+                            getMessageHandlerInterceptor()
                     );
                     var rm = new SerializedQueryResponse<>(result);
                     proxy.sendInvocationsMetric();

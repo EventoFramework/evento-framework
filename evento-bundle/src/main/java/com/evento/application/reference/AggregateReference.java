@@ -1,5 +1,6 @@
 package com.evento.application.reference;
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import lombok.Getter;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
@@ -98,11 +99,12 @@ public class AggregateReference extends Reference {
     /**
      * Invoke a domain command on the aggregate and update its state.
      *
-     * @param cm             The domain command message.
-     * @param envelope       The aggregate state envelope.
-     * @param eventStream    The collection of domain event messages.
-     * @param commandGateway The command gateway for issuing commands.
-     * @param queryGateway   The query gateway for querying data.
+     * @param cm                 The domain command message.
+     * @param envelope           The aggregate state envelope.
+     * @param eventStream        The collection of domain event messages.
+     * @param commandGateway     The command gateway for issuing commands.
+     * @param queryGateway       The query gateway for querying data.
+     * @param messageHandlerInterceptor The message interceptor
      * @return The domain event resulting from the command execution.
      * @throws Exception If there is an error during command handling.
      */
@@ -111,8 +113,8 @@ public class AggregateReference extends Reference {
             AggregateStateEnvelope envelope,
             Collection<DomainEventMessage> eventStream,
             CommandGateway commandGateway,
-            QueryGateway queryGateway)
-            throws Exception {
+            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor)
+            throws Throwable {
 
         var commandHandler = aggregateCommandHandlerReferences.get(cm.getCommandName());
 
@@ -134,26 +136,55 @@ public class AggregateReference extends Reference {
                     throw AggregateDeletedError.build(cm.getAggregateId());
             }
         }
-        var resp =  (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
-                cm.getPayload(),
+        messageHandlerInterceptor.beforeAggregateCommandHandling(
+                getRef(),
                 envelope.getAggregateState(),
-                commandGateway,
-                queryGateway,
                 cm,
-                cm.getMetadata(),
-                Instant.ofEpochMilli(cm.getTimestamp())
+                commandGateway,
+                queryGateway
         );
-        if (resp == null) {
-            throw new IllegalArgumentException("Command handler returned null");
+        try {
+            var resp = (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+                    cm.getPayload(),
+                    envelope.getAggregateState(),
+                    commandGateway,
+                    queryGateway,
+                    cm,
+                    cm.getMetadata(),
+                    Instant.ofEpochMilli(cm.getTimestamp())
+            );
+            resp = messageHandlerInterceptor.afterAggregateCommandHandling(
+                    getRef(),
+                    envelope.getAggregateState(),
+                    cm,
+                    commandGateway,
+                    queryGateway,
+                    resp
+            );
+
+            if (resp == null) {
+                throw new IllegalArgumentException("Command handler returned null");
+            }
+            var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
+            var state = eh == null ? null : (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata(),
+                    Instant.ofEpochMilli(cm.getTimestamp()));
+            if (state == null) {
+                state = envelope.getAggregateState();
+            }
+            envelope.setAggregateState(state);
+            return resp;
+
+        }catch (Throwable t){
+            throw messageHandlerInterceptor.onExceptionAggregateCommandHandling(
+                    getRef(),
+                    envelope.getAggregateState(),
+                    cm,
+                    commandGateway,
+                    queryGateway,
+                    t
+            );
         }
-        var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
-        var state = eh == null ? null : (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata(),
-                Instant.ofEpochMilli(cm.getTimestamp()));
-        if (state == null) {
-            state = envelope.getAggregateState();
-        }
-        envelope.setAggregateState(state);
-        return resp;
+
     }
 
     /**
