@@ -1,5 +1,6 @@
 package com.evento.application.reference;
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
@@ -58,20 +59,23 @@ public class ProjectorReference extends Reference {
 
 
     /**
-     * Invokes the event handler for the given published event.
+     * Invokes the registered event handler for the specified published event.
+     * The method processes an event and interacts with various gateway and status components.
+     * The event is retried on failure based on the retry policy defined in the associated handler's annotation.
      *
-     * @param publishedEvent The published event to process.
-     * @param commandGateway The command gateway used for handling command messages.
-     * @param queryGateway The query gateway used for handling query messages.
-     * @param projectorStatus The status of the projector.
-     * @throws Exception If an error occurs while invoking the event handler.
+     * @param publishedEvent The event object containing details such as the event name, message, and metadata.
+     * @param commandGateway The gateway used for sending commands.
+     * @param queryGateway The gateway used for querying event-related data.
+     * @param projectorStatus The current status of the projector handling the event.
+     * @param messageHandlerInterceptor The interceptor used for pre-processing or modifying the event message before handling.
+     * @throws Exception If the event processing fails and exceeds the allowed retries.
      */
     public void invoke(
             PublishedEvent publishedEvent,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
-            ProjectorStatus projectorStatus)
-            throws Exception {
+            ProjectorStatus projectorStatus, MessageHandlerInterceptor messageHandlerInterceptor)
+            throws Throwable {
 
         var handler = eventHandlerReferences.get(publishedEvent.getEventName());
 
@@ -83,6 +87,13 @@ public class ProjectorReference extends Reference {
         var retry = 0;
         while (true) {
             try {
+                messageHandlerInterceptor.beforeProjectorEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway,
+                        projectorStatus
+                );
                 ReflectionUtils.invoke(getRef(), handler,
                         publishedEvent.getEventMessage().getPayload(),
                         commandGateway,
@@ -91,15 +102,31 @@ public class ProjectorReference extends Reference {
                         publishedEvent.getEventMessage().getMetadata(),
                         projectorStatus,
                         Instant.ofEpochMilli(publishedEvent.getEventMessage().getTimestamp()),
-                        publishedEvent.getEventSequenceNumber()
+                        publishedEvent.getEventSequenceNumber(),
+                        publishedEvent
+                );
+                messageHandlerInterceptor.afterProjectorEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway,
+                        projectorStatus
                 );
                 return;
-            }catch (Exception e){
+            }catch (Throwable t){
+                logger.error("Event processing failed for projector {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, t);
+                Throwable throwable = messageHandlerInterceptor.onExceptionProjectorEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway,
+                        projectorStatus,
+                        t
+                );
                 retry++;
-                logger.error("Event processing failed for projector "+ getComponentName() + " event " + publishedEvent.getEventName() + " (attempt " +(retry)+ ")", e);
                 if(a.retry() > 0){
                     if (retry > a.retry()) {
-                        throw e;
+                        throw throwable;
                     }
                 }
                 Sleep.apply(a.retryDelay());

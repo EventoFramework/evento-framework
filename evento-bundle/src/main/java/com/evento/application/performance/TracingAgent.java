@@ -108,9 +108,9 @@ public class TracingAgent {
          * Runs the transaction.
          *
          * @return The result of the transaction.
-         * @throws Exception If an exception occurs during the transaction.
+         * @throws Throwable If an exception occurs during the transaction.
          */
-        T run() throws Exception;
+        T run() throws Throwable;
     }
 
 

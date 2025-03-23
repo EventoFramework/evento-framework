@@ -1,5 +1,6 @@
 package com.evento.application.consumer;
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
 import lombok.Getter;
@@ -35,22 +36,24 @@ public class ObserverEventConsumer extends EventConsumer {
     private final int sssFetchSize;
     @Getter
     private final int sssFetchDelay;
+    private final MessageHandlerInterceptor messageHandlerInterceptor;
 
 
     /**
-     * ObserverEventConsumer is a class that represents a consumer for observing events.
+     * Constructs an ObserverEventConsumer with the specified parameters.
      *
-     * @param bundleId                The bundle id of the observer.
-     * @param observerName            The name of the observer.
-     * @param observerVersion         The version of the observer.
-     * @param context                 The context of the observer.
-     * @param isShuttingDown          A supplier that determines if the consumer is shutting down.
-     * @param consumerStateStore      The state store for the consumer.
-     * @param observerMessageHandlers The message handlers for the observer.
-     * @param tracingAgent            The agent for tracing.
-     * @param gatewayTelemetryProxy   The proxy for gateway telemetry.
-     * @param sssFetchSize            The fetch size for the state store.
-     * @param sssFetchDelay           The fetch delay for the state store.
+     * @param bundleId               The unique identifier for the bundle.
+     * @param observerName           The name of the observer.
+     * @param observerVersion        The version of the observer.
+     * @param context                The context under which the consumer operates.
+     * @param isShuttingDown         A supplier providing the shutdown condition.
+     * @param consumerStateStore     A state store for tracking the consumer's state.
+     * @param observerMessageHandlers A map of observer message handlers grouped by message type and handler name.
+     * @param tracingAgent           The tracing agent used for distributed tracing.
+     * @param gatewayTelemetryProxy  A function to create a telemetry proxy for messages and gateway.
+     * @param sssFetchSize           The fetch size for processing events.
+     * @param sssFetchDelay          The delay in milliseconds between fetch operations.
+     * @param messageHandlerInterceptor An interceptor for handling and modifying messages during processing.
      */
     public ObserverEventConsumer(String bundleId, String observerName, int observerVersion,
                                  String context, Supplier<Boolean> isShuttingDown,
@@ -58,7 +61,7 @@ public class ObserverEventConsumer extends EventConsumer {
                                  HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers,
                                  TracingAgent tracingAgent, BiFunction<String, Message<?>,
             GatewayTelemetryProxy> gatewayTelemetryProxy,
-                                 int sssFetchSize, int sssFetchDelay) {
+                                 int sssFetchSize, int sssFetchDelay, MessageHandlerInterceptor messageHandlerInterceptor) {
         super(bundleId + "_" + observerName + "_" + observerVersion + "_" + context, consumerStateStore);
         // Initialization of fields
         this.bundleId = bundleId;
@@ -71,6 +74,7 @@ public class ObserverEventConsumer extends EventConsumer {
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
+        this.messageHandlerInterceptor = messageHandlerInterceptor;
     }
 
     /**
@@ -110,9 +114,10 @@ public class ObserverEventConsumer extends EventConsumer {
                                     () -> {
                                         // Invoke the handler and send telemetry metrics
                                         handler.invoke(
-                                                publishedEvent.getEventMessage(),
+                                                publishedEvent,
                                                 proxy,
-                                                proxy
+                                                proxy,
+                                                messageHandlerInterceptor
                                         );
                                         proxy.sendInvocationsMetric();
                                         return null;
@@ -156,10 +161,10 @@ public class ObserverEventConsumer extends EventConsumer {
                             () -> {
                                 // Invoke the handler and send telemetry metrics
                                 handler.invoke(
-                                        publishedEvent.getEventMessage(),
+                                        publishedEvent,
                                         proxy,
-                                        proxy
-                                );
+                                        proxy,
+                                        messageHandlerInterceptor);
                                 proxy.sendInvocationsMetric();
                                 return null;
                             });

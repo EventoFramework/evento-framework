@@ -40,17 +40,21 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
     private final ArrayList<ObserverEventConsumer> observerEventConsumers = new ArrayList<>();
 
     /**
-     * Creates a new ObserverManager.
+     * Constructs a new ObserverManager with the specified parameters for managing observer event listeners and consumers.
      *
-     * @param bundleId              the ID of the bundle
-     * @param gatewayTelemetryProxy the function to create a GatewayTelemetryProxy
-     * @param tracingAgent          the TracingAgent instance
-     * @param isShuttingDown        the function to check if the application is shutting down
-     * @param sssFetchSize          the fetch size for SSS requests
-     * @param sssFetchDelay         the fetch delay for SSS requests
+     * @param bundleId                 The unique identifier for the bundle this manager is associated with.
+     * @param gatewayTelemetryProxy    A function to retrieve a GatewayTelemetryProxy instance for processing telemetry data.
+     * @param tracingAgent             The TracingAgent responsible for collecting telemetry and trace information.
+     * @param isShuttingDown           A supplier indicating whether the system is currently shutting down.
+     * @param sssFetchSize             The fetch size used for retrieving data in batches from the state storage system.
+     * @param sssFetchDelay            The delay in milliseconds between consecutive fetch operations from the state storage system.
+     * @param messageHandlerInterceptor The interceptor used for handling messages before they are processed.
      */
-    public ObserverManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
+    public ObserverManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
+                           TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown,
+                           int sssFetchSize, int sssFetchDelay, MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay,
+                messageHandlerInterceptor);
     }
 
     /**
@@ -105,7 +109,8 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
                         getTracingAgent(),
                         getGatewayTelemetryProxy(),
                         getSssFetchSize(),
-                        getSssFetchDelay()
+                        getSssFetchDelay(),
+                        getMessageHandlerInterceptor()
                 );
                 observerEventConsumers.add(c);
                 var t = new Thread(c);

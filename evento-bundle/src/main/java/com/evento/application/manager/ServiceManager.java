@@ -31,8 +31,11 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
      * @param gatewayTelemetryProxy      a function that maps a service name and a Message object to a GatewayTelemetryProxy
      * @param tracingAgent               the tracing agent to be used by the ServiceManager
      */
-    public ServiceManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent);
+    public ServiceManager(String bundleId, BiFunction<String, Message<?>,
+            GatewayTelemetryProxy> gatewayTelemetryProxy,
+                          TracingAgent tracingAgent,
+                          MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, messageHandlerInterceptor);
     }
 
     /**
@@ -77,7 +80,8 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
                     var event = handler.invoke(
                             c,
                             proxy,
-                            proxy
+                            proxy,
+                            getMessageHandlerInterceptor()
                     );
                     var em = new ServiceEventMessage(event);
                     getTracingAgent().correlate(c, em);

@@ -1,5 +1,6 @@
 package com.evento.application.reference;
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
@@ -62,29 +63,52 @@ public class ProjectionReference extends Reference {
     }
 
     /**
-     * Invokes a query handler method based on the given query message.
+     * Invokes the appropriate query handler method based on the specified QueryMessage.
      *
-     * @param qm              The query message containing the query and its payload.
-     * @param commandGateway  The command gateway used for sending commands.
-     * @param queryGateway    The query gateway used for sending queries.
-     * @return The result of invoking the query handler method.
-     * @throws Exception if an error occurs while invoking the query handler method.
+     * @param qm                      The QueryMessage containing the query to be handled.
+     * @param commandGateway          The gateway used for sending commands as part of the query processing.
+     * @param queryGateway            The gateway used for sending and handling queries.
+     * @param messageHandlerInterceptor The interceptor for handling operations before and after query execution, and for managing exceptions.
+     * @return The result of the query execution wrapped in a QueryResponse object.
+     * @throws Throwable              If an exception occurs during the invocation or query execution.
      */
     public QueryResponse<?> invoke(
             QueryMessage<?> qm,
             CommandGateway commandGateway,
-            QueryGateway queryGateway)
-            throws Exception {
+            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor)
+            throws Throwable {
 
         var handler = queryHandlerReferences.get(qm.getQueryName());
 
-        return (QueryResponse<?>) ReflectionUtils.invoke(getRef(), handler,
-                qm.getPayload(),
-                commandGateway,
-                queryGateway,
-                qm,
-                qm.getMetadata(),
-                Instant.ofEpochMilli(qm.getTimestamp())
-        );
+        try {
+            messageHandlerInterceptor.beforeProjectionQueryHandling(
+                    getRef().getClass(),
+                    qm,
+                    queryGateway
+            );
+
+            var resp = (QueryResponse<?>) ReflectionUtils.invoke(getRef(), handler,
+                    qm.getPayload(),
+                    commandGateway,
+                    queryGateway,
+                    qm,
+                    qm.getMetadata(),
+                    Instant.ofEpochMilli(qm.getTimestamp())
+            );
+
+            return messageHandlerInterceptor.afterProjectionQueryHandling(
+                    getRef().getClass(),
+                    qm,
+                    queryGateway,
+                    resp
+            );
+        }catch (Throwable t){
+            throw messageHandlerInterceptor.onExceptionProjectionQueryHandling(
+                    getRef().getClass(),
+                    qm,
+                    queryGateway,
+                    t
+            );
+        }
     }
 }

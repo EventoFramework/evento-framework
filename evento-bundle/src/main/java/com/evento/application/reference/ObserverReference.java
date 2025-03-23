@@ -1,10 +1,11 @@
 package com.evento.application.reference;
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.handler.EventHandler;
-import com.evento.common.modeling.messaging.message.application.EventMessage;
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.payload.Event;
 import com.evento.common.utils.Sleep;
 import org.apache.logging.log4j.LogManager;
@@ -55,43 +56,69 @@ public class ObserverReference extends Reference {
 
 
     /**
-     * Invokes the event handler method for the given EventMessage.
+     * Invokes the event handler for the given published event.
      *
-     * @param em the EventMessage to invoke the handler for
-     * @param commandGateway the CommandGateway to use for command dispatch
-     * @param queryGateway the QueryGateway to use for query dispatch
-     * @throws Exception if an error occurs during invocation
+     * This method handles an event by identifying the appropriate event handler
+     * based on the event name. It uses a retry mechanism for handling exceptions
+     * during event processing as defined by the {@code EventHandler} annotation's retry configuration.
+     * The method also applies message handling interceptors before, after, and during exception scenarios.
+     *
+     * @param publishedEvent the event to be handled, containing event details such as name and message
+     * @param commandGateway the command gateway to be used for handling commands
+     * @param queryGateway the query gateway to be used for handling queries
+     * @param messageHandlerInterceptor the interceptor for managing message handling behavior
+     * @throws Throwable if event processing fails and retry attempts are exhausted
      */
     public void invoke(
-            EventMessage<? extends Event> em,
+            PublishedEvent publishedEvent,
             CommandGateway commandGateway,
-            QueryGateway queryGateway)
-            throws Exception {
+            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor)
+            throws Throwable {
 
-        var handler = eventHandlerReferences.get(em.getEventName());
+        var handler = eventHandlerReferences.get(publishedEvent.getEventName());
 
         if (handler == null) {
-            throw new IllegalArgumentException("No event handler found for event: " + em.getEventName());
+            throw new IllegalArgumentException("No event handler found for event: " + publishedEvent.getEventName());
         }
 
         var a = handler.getAnnotation(EventHandler.class);
         var retry = 0;
         while (true) {
             try {
+                messageHandlerInterceptor.beforeObserverEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway
+                );
                 ReflectionUtils.invoke(getRef(), handler,
-                        em.getPayload(),
+                        publishedEvent.getEventMessage().getPayload(),
                         commandGateway,
                         queryGateway,
-                        em,
-                        em.getMetadata()
+                        publishedEvent.getEventMessage(),
+                        publishedEvent,
+                        publishedEvent.getEventMessage().getMetadata()
+                );
+                messageHandlerInterceptor.afterObserverEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway
                 );
                 return;
-            }catch (Exception e){
+            }catch (Throwable e){
                 retry++;
-                logger.error("Event processing failed for observer "+ getComponentName() + " event " + em.getEventName() + " (attempt " +(retry)+ ")", e);
+                logger.error("Event processing failed for observer {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, e);
+                var throwable = messageHandlerInterceptor.onExceptionObserverEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway,
+                        e
+                );
                 if(a.retry() > 0){
                     if (retry > a.retry()) {
-                        throw e;
+                        throw throwable;
                     }
                 }
                 Sleep.apply(a.retryDelay());

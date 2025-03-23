@@ -20,6 +20,7 @@ public abstract class ComponentManager {
     private final String bundleId;
     private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
     private final TracingAgent tracingAgent;
+    private final MessageHandlerInterceptor messageHandlerInterceptor;
 
     /**
      * Constructs a `ComponentManager`.
@@ -27,11 +28,15 @@ public abstract class ComponentManager {
      * @param bundleId              The bundle identifier.
      * @param gatewayTelemetryProxy A function to create a `GatewayTelemetryProxy`.
      * @param tracingAgent          The tracing agent for telemetry.
+     * @param messageHandlerInterceptor    Message Interceptor
      */
-    protected ComponentManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent) {
+    protected ComponentManager(String bundleId, BiFunction<String, Message<?>,
+                                       GatewayTelemetryProxy> gatewayTelemetryProxy,
+                               TracingAgent tracingAgent, MessageHandlerInterceptor messageHandlerInterceptor) {
         this.bundleId = bundleId;
         this.gatewayTelemetryProxy = gatewayTelemetryProxy;
         this.tracingAgent = tracingAgent;
+        this.messageHandlerInterceptor = messageHandlerInterceptor;
     }
 
     /**

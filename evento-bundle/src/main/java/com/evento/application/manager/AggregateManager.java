@@ -27,14 +27,17 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
     private static final Logger logger = LogManager.getLogger(AggregateManager.class);
 
     /**
-     * Constructs an `AggregateManager`.
+     * Constructs an instance of AggregateManager.
      *
-     * @param bundleId              The bundle identifier.
-     * @param gatewayTelemetryProxy A function to create a `GatewayTelemetryProxy`.
-     * @param tracingAgent          The tracing agent for telemetry.
+     * @param bundleId The unique identifier for the bundle associated with this AggregateManager.
+     * @param gatewayTelemetryProxy A function that facilitates interactions between the gateway and telemetry proxy,
+     *                              taking a string and a message as input and returning a GatewayTelemetryProxy.
+     * @param tracingAgent The tracing agent used to track and monitor system activities and interactions.
+     * @param messageHandlerInterceptor The message interceptor used to process and manipulate incoming or outgoing messages.
      */
-    public AggregateManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent);
+    public AggregateManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent,
+                            MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, messageHandlerInterceptor);
     }
 
     /**
@@ -85,7 +88,8 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                             envelope,
                             c.getEventStream(),
                             proxy,
-                            proxy
+                            proxy,
+                            getMessageHandlerInterceptor()
                     );
                     var em = new DomainEventMessage(event);
                     getTracingAgent().correlate(c.getCommandMessage(), em);
