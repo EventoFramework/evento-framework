@@ -4,8 +4,10 @@ import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.common.performance.ThreadCountAutoscalingProtocol;
+import com.evento.common.utils.Context;
 import com.evento.consumer.state.store.postgres.PostgresConsumerStateStore;
 import com.evento.demo.DemoQueryApplication;
+import com.evento.demo.memory.query.DemoProjector;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -78,7 +80,7 @@ public class EventoConfiguration {
 						throw new RuntimeException(e);
 					}
 				})*/
-				// .setContexts(Map.of(DemoProjector.class.getSimpleName(), Set.of(Context.DEFAULT, "other")))
+				.setComponentContexts(DemoProjector.class, Context.DEFAULT, "other")
 				.setOnEventoStartedHook((eb) -> {
 					/*
 					while (true) {
