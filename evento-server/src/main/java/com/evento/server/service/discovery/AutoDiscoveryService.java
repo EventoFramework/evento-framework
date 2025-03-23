@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Objects;
 
 /**
  * Service class for auto-discovery of bundles, handlers, and payloads.
@@ -32,12 +33,12 @@ public class AutoDiscoveryService {
     /**
      * Service responsible for auto-discovery of components in the system.
      *
-     * @param messageBus       The message bus used for communication between components.
-     * @param bundleRepository The repository for managing bundles of components.
-     * @param handlerRepository The repository for managing component handlers.
-     * @param payloadRepository The repository for managing component payloads.
-     * @param bundleService    The service for managing bundles of components.
-     * @param lockRegistry     The registry for managing locks.
+     * @param messageBus          The message bus used for communication between components.
+     * @param bundleRepository    The repository for managing bundles of components.
+     * @param handlerRepository   The repository for managing component handlers.
+     * @param payloadRepository   The repository for managing component payloads.
+     * @param bundleService       The service for managing bundles of components.
+     * @param lockRegistry        The registry for managing locks.
      * @param componentRepository The repository for managing components.
      */
     public AutoDiscoveryService(MessageBus messageBus,
@@ -89,6 +90,7 @@ public class AutoDiscoveryService {
                                         Instant.now()));
                             }
                     );
+                    var handlers = handlerRepository.findAllByComponent_Bundle(bundle);
                     for (RegisteredHandler registeredHandler : bundleRegistration.getHandlers()) {
                         if (!handlerRepository.exists(
                                 bundleRegistration.getBundleId(),
@@ -162,8 +164,17 @@ public class AutoDiscoveryService {
                             handler.setAssociationProperty(registeredHandler.getAssociationProperty());
                             handler.generateId();
                             handlerRepository.save(handler);
+                        } else {
+                            handlers.removeIf(h ->
+                                    Objects.equals(h.getComponent().getBundle().getId(), bundleRegistration.getBundleId())
+                                            && h.getComponent().getComponentName().equals(registeredHandler.getComponentName())
+                                            && h.getComponent().getComponentType().equals(registeredHandler.getComponentType())
+                                            && h.getHandledPayload().getName().equals(registeredHandler.getHandledPayload())
+                                            && h.getHandlerType().equals(registeredHandler.getHandlerType())
+                            );
                         }
                     }
+                    handlerRepository.deleteAll(handlers);
                 }
                 if (bundleRegistration.getPayloadInfo() != null)
                     bundleRegistration.getPayloadInfo().forEach((k, v) -> payloadRepository.findById(k).ifPresent(p -> {
