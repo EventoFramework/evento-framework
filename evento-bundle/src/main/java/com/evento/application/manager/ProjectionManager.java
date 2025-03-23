@@ -64,11 +64,11 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
      *
      * @param q The query message to handle.
      * @return The serialized query response.
-     * @throws Exception                If an error occurs while handling the query.
+     * @throws Throwable                If an error occurs while handling the query.
      * @throws HandlerNotFoundException If no handler is found for the query in the bundle.
      */
     @Override
-    public SerializedQueryResponse<?> handle(QueryMessage<?> q) throws Exception {
+    public SerializedQueryResponse<?> handle(QueryMessage<?> q) throws Throwable {
         var handler = getHandlers().get(q.getQueryName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));

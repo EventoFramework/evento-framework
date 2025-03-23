@@ -135,7 +135,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 	 * @param event the published event to be added
      */
 	@Override
-    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Exception exception) {
+    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Throwable exception) {
         deadEventQueue.add(new DeadPublishedEvent(
                 consumerId,
                 event.getEventName(),

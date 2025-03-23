@@ -65,10 +65,10 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
      * @param c the ServiceCommandMessage object containing the command name and payload
      * @return a ServiceEventMessage object representing the result of the command execution
      * @throws HandlerNotFoundException   if no handler is found for the specified command name
-     * @throws Exception                  if an error occurs during command handling
+     * @throws Throwable                  if an error occurs during command handling
      */
     @Override
-    public ServiceEventMessage handle(ServiceCommandMessage c) throws Exception {
+    public ServiceEventMessage handle(ServiceCommandMessage c) throws Throwable {
         var handler = getHandlers().get(c.getCommandName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s"
