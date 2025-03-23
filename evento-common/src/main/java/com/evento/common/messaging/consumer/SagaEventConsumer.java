@@ -14,7 +14,7 @@ public interface SagaEventConsumer {
 	 * @param sagaStateFetcher  the saga state fetcher used to retrieve the last state of the saga
 	 * @param event  the published event to be consumed
 	 * @return the updated saga state
-	 * @throws Exception if an error occurs during consumption
+	 * @throws Throwable if an error occurs during consumption
 	 */
-    SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Exception;
+    SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Throwable;
 }

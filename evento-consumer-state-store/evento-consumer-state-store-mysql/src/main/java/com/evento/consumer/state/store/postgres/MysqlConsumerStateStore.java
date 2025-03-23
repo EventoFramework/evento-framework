@@ -185,7 +185,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     }
 
     @Override
-    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Exception exception) throws Exception {
+    public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Throwable exception) throws Exception {
         var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId, context, exception) values (?, ?, ?, false,?,?,?,?,?)";
         var stmt = getConnection().prepareStatement(q);
         stmt.setString(1, consumerId);

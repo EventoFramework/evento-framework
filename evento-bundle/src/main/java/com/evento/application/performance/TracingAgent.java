@@ -49,13 +49,13 @@ public class TracingAgent {
      * @param transaction         The transaction to be tracked.
      * @param <T>                 The type of the result returned by the transaction.
      * @return                    The result of the transaction.
-     * @throws Exception          If an exception occurs during the transaction.
+     * @throws Throwable          If an exception occurs during the transaction.
      */
     public final <T> T track(Message<?> message,
                        String component,
                        Track trackingAnnotation,
                        Transaction<T> transaction)
-            throws Exception {
+            throws Throwable {
         try {
             if(autoscalingProtocol != null){
                 autoscalingProtocol.arrival();
@@ -69,20 +69,20 @@ public class TracingAgent {
     }
 
     /**
-     * Tracks the internal implementation
+     * Tracks the execution of a transaction with the specified parameters.
      *
-     * @param message             The message being tracked.
-     * @param component           The component associated with the tracking.
-     * @param trackingAnnotation  The tracking annotation (unused in this example).
-     * @param transaction         The transaction to be tracked.
-     * @param <T>                 The type of the result returned by the transaction.
-     * @return                    The result of the transaction.
-     * @throws Exception          If an exception occurs during the transaction.
+     * @param message            The message being tracked. Contains metadata and payload information.
+     * @param component          The component associated with the tracking operation.
+     * @param trackingAnnotation The tracking annotation providing context for the tracking (unused in the logic).
+     * @param transaction        The transaction to be executed and tracked.
+     * @param <T>                The type of the result returned by the transaction.
+     * @return The result of the executed transaction.
+     * @throws Throwable         If an exception occurs during the execution of the transaction.
      */
     protected <T> T doTrack(Message<?> message,
                             String component,
                             Track trackingAnnotation,
-                            Transaction<T> transaction) throws Exception {
+                            Transaction<T> transaction) throws Throwable {
         return transaction.run();
     }
 
