@@ -31,17 +31,23 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
     private final ArrayList<ProjectorEvenConsumer> projectorEvenConsumers = new ArrayList<>();
 
     /**
-     * Constructs a ProjectorManager object with the specified parameters.
+     * Constructs an instance of the ProjectorManager.
      *
-     * @param bundleId                 the bundle ID associated with the ProjectorManager
-     * @param gatewayTelemetryProxy    a function that takes a String and a Message object and returns a GatewayTelemetryProxy
-     * @param tracingAgent             the TracingAgent object used for tracing
-     * @param isShuttingDown           a supplier that provides a Boolean value indicating if the application is shutting down
-     * @param sssFetchSize             the fetch size for SSS
-     * @param sssFetchDelay            the fetch delay for SSS
+     * @param bundleId               The bundle identifier associated with the projector manager.
+     * @param gatewayTelemetryProxy  A BiFunction that provides a gateway telemetry proxy for a given bundle ID
+     *                                and message.
+     * @param tracingAgent           The tracing agent used for monitoring and tracing events within the manager.
+     * @param isShuttingDown         A supplier that indicates whether the application is in the process of shutting down.
+     * @param sssFetchSize           The size of the fetch operation used in state storage synchronizations.
+     * @param sssFetchDelay          The delay between fetch operations in state storage synchronizations in milliseconds.
+     * @param messageHandlerInterceptor     The interceptor used for pre- and post-processing of messages handled by the manager.
      */
-    public ProjectorManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy, TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay);
+    public ProjectorManager(String bundleId, BiFunction<String, Message<?>,
+                                    GatewayTelemetryProxy> gatewayTelemetryProxy,
+                            TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown,
+                            int sssFetchSize, int sssFetchDelay,
+                            MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, isShuttingDown, sssFetchSize, sssFetchDelay, messageHandlerInterceptor);
     }
 
 
@@ -95,7 +101,8 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
                         getSssFetchSize(),
                         getSssFetchDelay(),
                         counter,
-                        onAllHeadReached
+                        onAllHeadReached,
+                        getMessageHandlerInterceptor()
                 );
                 projectorEvenConsumers.add(c);
                 var t = new Thread(c);

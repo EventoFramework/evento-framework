@@ -1,11 +1,12 @@
 package com.evento.application.reference;
 
 
+import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.handler.SagaEventHandler;
-import com.evento.common.modeling.messaging.message.application.EventMessage;
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.payload.Event;
 import com.evento.common.modeling.state.SagaState;
 import com.evento.common.utils.Sleep;
@@ -69,48 +70,69 @@ public class SagaReference extends Reference {
     }
 
     /**
-     * Invokes the saga event handler method for the given event and returns the updated saga state.
+     * Invokes a saga event handler based on the provided published event, current saga state,
+     * and gateway interfaces, while managing retries and invoking the appropriate interceptors.
      *
-     * @param em            the event message containing the event
-     * @param sagaState     the current saga state
-     * @param commandGateway the command gateway for sending commands
-     * @param queryGateway  the query gateway for querying data
-     * @return the updated saga state
-     * @throws Exception if an error occurs during the invocation
+     * @param publishedEvent the published event containing the necessary event information
+     * @param sagaState the current state of the saga
+     * @param commandGateway the gateway for sending commands within the saga
+     * @param queryGateway the gateway for performing queries within the saga
+     * @param messageHandlerInterceptor the interceptor for handling pre- and post-processing logic
+     * @return the updated saga state after the event handler execution
+     * @throws Throwable if an exception occurs during the event handling process
      */
     public SagaState invoke(
-            EventMessage<? extends Event> em,
+            PublishedEvent publishedEvent,
             SagaState sagaState,
             CommandGateway commandGateway,
-            QueryGateway queryGateway)
-            throws Exception {
+            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor)
+            throws Throwable {
 
-        var handler = sagaEventHandlerReferences.get(em.getEventName());
+        var handler = sagaEventHandlerReferences.get(publishedEvent.getEventName());
 
         var a = handler.getAnnotation(SagaEventHandler.class);
         var retry = 0;
         while (true) {
             try {
+                messageHandlerInterceptor.beforeSagaEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway,
+                        sagaState
+
+                );
                 var state = (SagaState) ReflectionUtils.invoke(getRef(), handler,
-                        em.getPayload(),
+                        publishedEvent.getEventMessage().getPayload(),
                         sagaState,
                         commandGateway,
                         queryGateway,
-                        em,
-                        em.getMetadata(),
-                        Instant.ofEpochMilli(em.getTimestamp())
+                        publishedEvent,
+                        publishedEvent.getEventMessage().getMetadata(),
+                        Instant.ofEpochMilli(publishedEvent.getEventMessage().getTimestamp())
                 );
-                if (state == null) {
-                    return sagaState;
-                } else {
-                    return state;
-                }
-            }catch (Exception e){
+
+                return messageHandlerInterceptor.afterSagaEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway,
+                        state == null ? sagaState : state
+                );
+            }catch (Throwable e){
                 retry++;
-                logger.error("Event processing failed for saga "+ getComponentName() + " event " + em.getEventName() + " (attempt " +(retry)+ ")", e);
+                logger.error("Event processing failed for saga {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, e);
+                var throwable = messageHandlerInterceptor.onExceptionSagaEventHandling(
+                        getRef(),
+                        publishedEvent,
+                        commandGateway,
+                        queryGateway,
+                        sagaState,
+                        e
+                );
                 if(a.retry() > 0){
                     if (retry > a.retry()) {
-                        throw e;
+                        throw throwable;
                     }
                 }
                 Sleep.apply(a.retryDelay());

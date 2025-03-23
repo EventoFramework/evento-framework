@@ -23,17 +23,20 @@ public abstract class ReceiverComponentManager<M extends Serializable, R extends
     private final HashMap<String, R> handlers = new HashMap<>();
 
     /**
-     * Constructs a `ReceiverComponentManager`.
+     * Constructs a new instance of `ReceiverComponentManager` with the specified parameters.
      *
-     * @param bundleId              The bundle identifier.
-     * @param gatewayTelemetryProxy A function to create a `GatewayTelemetryProxy`.
-     * @param tracingAgent          The tracing agent for telemetry.
+     * @param bundleId The unique identifier of the bundle associated with this manager.
+     * @param gatewayTelemetryProxy A bi-function that generates a `GatewayTelemetryProxy` instance for telemetry data,
+     *                               based on the bundle identifier and a message.
+     * @param tracingAgent An instance of the `TracingAgent` used for distributed tracing and context propagation.
+     * @param messageHandlerInterceptor An interceptor used to process or modify messages before handling them.
      */
     protected ReceiverComponentManager(
             String bundleId,
             BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
-            TracingAgent tracingAgent) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent);
+            TracingAgent tracingAgent,
+            MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, messageHandlerInterceptor);
     }
 
     /**

@@ -36,20 +36,23 @@ public abstract class ConsumerComponentManager<R extends Reference> extends Comp
     private final int sssFetchDelay;
 
     /**
-     * Constructs a `ConsumerComponentManager`.
+     * Constructs a `ConsumerComponentManager` with the specified parameters.
      *
-     * @param bundleId              The bundle identifier.
-     * @param gatewayTelemetryProxy A function to create a `GatewayTelemetryProxy`.
-     * @param tracingAgent          The tracing agent for telemetry.
-     * @param isShuttingDown        A supplier to check if the application is shutting down.
-     * @param sssFetchSize          Size of events to fetch from the state store.
-     * @param sssFetchDelay         Delay between fetching events from the state store.
+     * @param bundleId                 The ID of the bundle associated with this consumer component manager.
+     * @param gatewayTelemetryProxy    A function that provides a telemetry proxy for gateway operations,
+     *                                  based on the bundle ID and a message.
+     * @param tracingAgent             The tracing agent to use for distributed tracing functionalities.
+     * @param isShuttingDown           A supplier that indicates whether the application is shutting down.
+     * @param sssFetchSize             The size of events to fetch from the state store.
+     * @param sssFetchDelay            The delay, in milliseconds, between fetching events from the state store.
+     * @param messageHandlerInterceptor       The interceptor for managing logic before or after message handling.
      */
     protected ConsumerComponentManager(
             String bundleId,
             BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
-            TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay) {
-        super(bundleId, gatewayTelemetryProxy, tracingAgent);
+            TracingAgent tracingAgent, Supplier<Boolean> isShuttingDown, int sssFetchSize, int sssFetchDelay,
+            MessageHandlerInterceptor messageHandlerInterceptor) {
+        super(bundleId, gatewayTelemetryProxy, tracingAgent, messageHandlerInterceptor);
         this.isShuttingDown = isShuttingDown;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;

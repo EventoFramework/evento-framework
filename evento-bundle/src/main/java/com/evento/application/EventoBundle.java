@@ -298,6 +298,7 @@ public class EventoBundle {
         private int sssFetchDelay = 1000;
 
         private TracingAgent tracingAgent;
+        private MessageHandlerInterceptor messageHandlerInterceptor;
 
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
 
@@ -342,7 +343,7 @@ public class EventoBundle {
             }
 
 
-            if (instanceId == null || instanceId.isBlank() || instanceId.isEmpty()) {
+            if (instanceId == null || instanceId.isBlank()) {
                 instanceId = UUID.randomUUID().toString();
             }
 
@@ -356,6 +357,9 @@ public class EventoBundle {
             if (tracingAgent == null) {
                 tracingAgent = new TracingAgent(bundleId, bundleVersion);
             }
+            if (messageHandlerInterceptor == null) {
+                messageHandlerInterceptor = new LogTracesMessageHandlerInterceptor();
+            }
 
 
             var isShuttingDown = new AtomicBoolean();
@@ -364,19 +368,22 @@ public class EventoBundle {
                     bundleId,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
-                    tracingAgent
+                    tracingAgent,
+                    messageHandlerInterceptor
             );
             var serviceManager = new ServiceManager(
                     bundleId,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
-                    tracingAgent
+                    tracingAgent,
+                    messageHandlerInterceptor
             );
             var projectionManager = new ProjectionManager(
                     bundleId,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
-                    tracingAgent
+                    tracingAgent,
+                    messageHandlerInterceptor
             );
             var projectorManager = new ProjectorManager(
                     bundleId,
@@ -385,7 +392,8 @@ public class EventoBundle {
                     tracingAgent,
                     isShuttingDown::get,
                     sssFetchSize,
-                    sssFetchDelay
+                    sssFetchDelay,
+                    messageHandlerInterceptor
             );
             var sagaManager = new SagaManager(
                     bundleId,
@@ -394,7 +402,8 @@ public class EventoBundle {
                     tracingAgent,
                     isShuttingDown::get,
                     sssFetchSize,
-                    sssFetchDelay
+                    sssFetchDelay,
+                    messageHandlerInterceptor
             );
             var observerManager = new ObserverManager(
                     bundleId,
@@ -403,7 +412,8 @@ public class EventoBundle {
                     tracingAgent,
                     isShuttingDown::get,
                     sssFetchSize,
-                    sssFetchDelay
+                    sssFetchDelay,
+                    messageHandlerInterceptor
             );
             var invokerManager = new InvokerManager();
 
