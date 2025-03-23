@@ -204,7 +204,7 @@ public class SagaEventConsumer extends EventConsumer {
                             () -> {
                                 // Invoke the handler and send telemetry metrics
                                 var resp = handler.invoke(
-                                        publishedEvent.getEventMessage(),
+                                        publishedEvent,
                                         sagaState,
                                         proxy,
                                         proxy,
