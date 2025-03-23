@@ -13,7 +13,7 @@ public interface RequestHandler {
      *
      * @param serializable the serializable object to be handled
      * @return the handled serializable object
-     * @throws Exception if an error occurs during handling
+     * @throws Throwable if an error occurs during handling
      */
-    Serializable handle(Serializable serializable) throws Exception;
+    Serializable handle(Serializable serializable) throws Throwable;
 }

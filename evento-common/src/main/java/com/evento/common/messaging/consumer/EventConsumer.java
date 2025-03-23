@@ -12,7 +12,7 @@ public interface EventConsumer {
 	 * Consumes a published event.
 	 *
 	 * @param event the event to consume
-	 * @throws Exception if an error occurs during consumption
+	 * @throws Throwable if an error occurs during consumption
 	 */
-    void consume(PublishedEvent event) throws Exception;
+    void consume(PublishedEvent event) throws Throwable;
 }

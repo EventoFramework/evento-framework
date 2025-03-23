@@ -69,7 +69,7 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
      * @return The domain command response message.
      * @throws Exception If an exception occurs during handling.
      */
-    public DomainCommandResponseMessage handle(DecoratedDomainCommandMessage c) throws Exception {
+    public DomainCommandResponseMessage handle(DecoratedDomainCommandMessage c) throws Throwable {
         var handler = getHandlers().get(c.getCommandMessage().getCommandName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s"

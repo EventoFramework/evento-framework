@@ -119,7 +119,7 @@ public class EventoServerClient implements EventoServer {
                     var body = request.getBody();
                     resp.setBody(requestHandler.handle(body));
                     responseSender.send(resp);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     resp.setBody(new ExceptionWrapper(e));
                     try {
                         responseSender.send(resp);

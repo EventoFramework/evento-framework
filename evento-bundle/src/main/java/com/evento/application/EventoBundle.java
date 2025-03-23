@@ -147,7 +147,7 @@ public class EventoBundle {
         factory.setSuperclass(invokerClass);
         var h = new MethodHandler() {
             @Override
-            public Object invoke(Object self, Method method, Method proceed, Object[] args) throws Exception {
+            public Object invoke(Object self, Method method, Method proceed, Object[] args) throws Throwable {
 
                 if (method.getDeclaredAnnotation(InvocationHandler.class) != null) {
                     var payload = new InvocationMessage(

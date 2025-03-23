@@ -29,7 +29,7 @@ public class SentryTracingAgent extends TracingAgent {
     @Override
     protected <T> T doTrack(Message<?> message, String component,
                             Track trackingAnnotation,
-                            Transaction<T> transaction) throws Exception {
+                            Transaction<T> transaction) throws Throwable {
         if (message == null) return transaction.run();
         var metadata = message.getMetadata();
         if (metadata == null) {
