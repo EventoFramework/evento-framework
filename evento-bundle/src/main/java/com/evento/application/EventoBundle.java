@@ -306,6 +306,15 @@ public class EventoBundle {
         private Map<String, Set<String>> contexts = new HashMap<>();
         private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
 
+        public Builder setComponentContexts(Class<?> componentClass, String... contexts) {
+            this.contexts.put(componentClass.getSimpleName(), new HashSet<>(Arrays.asList(contexts)));
+            return this;
+        }
+        public Builder removeComponentContexts(Class<?> componentClass) {
+            this.contexts.remove(componentClass.getSimpleName());
+            return this;
+        }
+
         /**
          * The Builder class represents a builder for constructing objects.
          */
