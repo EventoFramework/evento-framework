@@ -298,13 +298,10 @@ public class EventStore {
                 );
             } else {
                 acquire(ES_LOCK);
-                id = jdbcTemplate.queryForRowSet("select nextval('event_sequence_number_serial') as event_sequence_number")
-                        .getLong("event_sequence_number");
                 jdbcTemplate.update(
                         "INSERT INTO es__events " +
                                 "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
-                                "values  (? ,?, ?, ?, ?)",
-                        id,
+                                "values  (nextval('event_sequence_number_serial') ,?, ?, ?, ?)",
                         aggregateId,
                         mapper.writeValueAsString(eventMessage),
                         eventMessage.getEventName(),
