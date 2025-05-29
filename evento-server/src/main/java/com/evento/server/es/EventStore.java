@@ -298,10 +298,17 @@ public class EventStore {
                 );
             } else {
                 acquire(ES_LOCK);
+                SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT nextval('event_sequence_number_serial') AS event_sequence_number");
+                if (rowSet.next()) {
+                    id = rowSet.getLong("event_sequence_number");
+                } else {
+                    throw new IllegalStateException("Failed to retrieve next event sequence number.");
+                }
                 jdbcTemplate.update(
                         "INSERT INTO es__events " +
                                 "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
-                                "values  (nextval('event_sequence_number_serial') ,?, ?, ?, ?)",
+                                "values  (? ,?, ?, ?, ?)",
+                        id,
                         aggregateId,
                         mapper.writeValueAsString(eventMessage),
                         eventMessage.getEventName(),

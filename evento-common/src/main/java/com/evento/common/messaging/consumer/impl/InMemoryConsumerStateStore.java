@@ -43,7 +43,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
      */
     public InMemoryConsumerStateStore(EventoServer eventoServer,
                                       PerformanceService performanceService) {
-        this(eventoServer, performanceService, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newVirtualThreadPerTaskExecutor());
+        this(eventoServer, performanceService, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newCachedThreadPool());
     }
 
     /**
