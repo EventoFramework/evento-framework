@@ -704,7 +704,7 @@ public class EventoBundle {
                     eventoBundle.get().startObserverEventConsumers(css, contexts);
                     eventoServer.registerConsumers(eventoBundle.get());
                     logger.info("Application Started!");
-                    Thread.startVirtualThread(() -> onEventoStartedHook.accept(eventoBundle.get()));
+                    Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
                 }catch (Exception e){
                     logger.error("Error during startup", e);
                     System.exit(1);
