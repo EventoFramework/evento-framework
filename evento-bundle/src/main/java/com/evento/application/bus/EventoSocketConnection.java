@@ -48,7 +48,7 @@ public class EventoSocketConnection {
     private final int conn = instanceCounter.incrementAndGet();
     private boolean isClosed = false;
     private final HashSet<String> pendingCorrelations = new HashSet<>();
-    private final Executor threadPerRequestExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final Executor threadPerRequestExecutor = Executors.newCachedThreadPool();
 
     /**
      * Private constructor to create an EventoSocketConnection instance.

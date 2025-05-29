@@ -48,7 +48,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 			EventoServer eventoServer,
 			PerformanceService performanceService,
 			Supplier<Connection> connectionFactory) {
-		this(eventoServer, performanceService, connectionFactory, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newVirtualThreadPerTaskExecutor(),
+		this(eventoServer, performanceService, connectionFactory, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newCachedThreadPool(),
 				"", "");
 	}
 
@@ -66,7 +66,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 			Supplier<Connection> connectionFactory,
 			String tablePrefix,
 			String tableSuffix) {
-		this(eventoServer, performanceService, connectionFactory, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newVirtualThreadPerTaskExecutor(),
+		this(eventoServer, performanceService, connectionFactory, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newCachedThreadPool(),
 				tablePrefix, tableSuffix);
 	}
 
