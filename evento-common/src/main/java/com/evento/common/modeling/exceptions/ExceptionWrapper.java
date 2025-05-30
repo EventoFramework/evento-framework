@@ -143,20 +143,22 @@ public class ExceptionWrapper implements Serializable {
 		try
 		{
 			if(cause != null){
-				Exception ex = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable)
+				Exception ex = (Exception) Thread.currentThread().getContextClassLoader()
+						.loadClass(throwable)
 						.getConstructor(String.class, Throwable.class)
 						.newInstance(getMessage(), cause.toException());
 				ex.setStackTrace(stackTrace);
 				return ex;
 			}else{
-				Exception ex = (Exception) ClassLoader.getSystemClassLoader().loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
+				Exception ex = (Exception) Thread.currentThread().getContextClassLoader()
+						.loadClass(throwable).getConstructor(String.class).newInstance(getMessage());
 				ex.setStackTrace(stackTrace);
 				return ex;
 			}
 
-		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | InvocationTargetException |
-				 NoSuchMethodException e)
+		} catch (Throwable e)
 		{
+			e.printStackTrace();
 			Exception ex = new RuntimeException(throwable + ": " + getMessage());
 			ex.setStackTrace(stackTrace);
 			return ex;
