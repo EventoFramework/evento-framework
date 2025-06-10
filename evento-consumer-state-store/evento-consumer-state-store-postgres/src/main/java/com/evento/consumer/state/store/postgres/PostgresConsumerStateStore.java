@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -36,7 +37,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	private final String DEAD_EVENT_DDL;
 
 	private Connection conn;
-	private final Supplier<Connection> connectionFactory;
+	protected final Supplier<Connection> connectionFactory;
 
 	/**
 	 * Implementation of the ConsumerStateStore interface that stores the consumer state in PostgresSQL database.
@@ -102,7 +103,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
 
 
-	private synchronized Connection getConnection(){
+	protected synchronized Connection getConnection(){
 		try {
 			if(conn == null || !conn.isValid(3)){
 				conn = connectionFactory.get();
@@ -143,11 +144,27 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 		if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state delete error");
 	}
 
+	private final HashMap<String, Connection> lockConnectionMap = new HashMap<>();
+
+
+	protected synchronized Connection getConnection(String id){
+		var lockConn = lockConnectionMap.get(id);
+		try {
+			if(lockConn == null || !lockConn.isValid(3)){
+				lockConn = connectionFactory.get();
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
+		lockConnectionMap.put(id, lockConn);
+		return lockConn;
+	}
+
 	@Override
 	protected void leaveExclusiveZone(String consumerId) {
 		try
 		{
-            try (var stmt = getConnection().prepareStatement("SELECT pg_advisory_unlock(?)")) {
+            try (var stmt = getConnection(consumerId).prepareStatement("SELECT pg_advisory_unlock(?)")) {
 				stmt.setInt(1, consumerId.hashCode());
 				var resultSet = stmt.executeQuery();
 				resultSet.next();
@@ -165,7 +182,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 	protected boolean enterExclusiveZone(String consumerId) {
 		try
 		{
-            try (var stmt = getConnection().prepareStatement("SELECT pg_advisory_lock(?)")) {
+            try (var stmt = getConnection(consumerId).prepareStatement("SELECT pg_advisory_lock(?)")) {
 				stmt.setInt(1, consumerId.hashCode());
 				var resultSet = stmt.executeQuery();
 				resultSet.next();
