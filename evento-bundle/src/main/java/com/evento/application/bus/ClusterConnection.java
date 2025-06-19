@@ -53,7 +53,7 @@ public class ClusterConnection {
         var attempt = 0;
 
         // Attempt to send the message to a node, with retry logic
-        while (attempt < (1 + maxRetryAttempts)) {
+        while (attempt <= (maxRetryAttempts)) {
 
             try {
                 // Increment the attempt counter
@@ -67,7 +67,7 @@ public class ClusterConnection {
 
                 // Successful send, exit the loop
                 return;
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 LOGGER.warn("Message send over socket failed. Attempt {}/{}", attempt + 1 , maxRetryAttempts);
                 LOGGER.warn("Fail reason", e);
 
@@ -99,7 +99,14 @@ public class ClusterConnection {
                     clusterNodeAddress.serverAddress(),
                     clusterNodeAddress.serverPort(),
                     bundleRegistration,
-                    handler
+                    handler,
+                    n -> {
+                        nodeConnection.remove(n);
+                        if (nodeConnection.isEmpty()) {
+                            LOGGER.error("All cluster nodes disconnected");
+                            System.exit(1);
+                        }
+                    }
             ).setMaxReconnectAttempts(maxReconnectAttempts)
                     .setReconnectDelayMillis(reconnectDelayMillis)
                     .connect());

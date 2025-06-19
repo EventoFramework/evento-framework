@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Represents a socket connection for communication with an Evento server.
@@ -38,6 +39,7 @@ public class EventoSocketConnection {
 
     // Message handler for processing incoming messages
     private final MessageHandler handler;
+    private final Consumer<EventoSocketConnection> onCloseCallback;
 
     // Connection state variables
     private int reconnectAttempt = 0;
@@ -51,14 +53,15 @@ public class EventoSocketConnection {
     private final Executor threadPerRequestExecutor = Executors.newCachedThreadPool();
 
     /**
-     * Private constructor to create an EventoSocketConnection instance.
+     * Creates a new EventoSocketConnection instance.
      *
-     * @param serverAddress        The address of the Evento server.
-     * @param serverPort           The port on which the server is listening.
-     * @param maxReconnectAttempts The maximum number of attempts to reconnect in case of connection failure.
-     * @param reconnectDelayMillis The delay between reconnection attempts in milliseconds.
-     * @param bundleRegistration   The registration information for the connection.
-     * @param handler              The message handler for processing incoming messages.
+     * @param serverAddress        the address of the server to connect to
+     * @param serverPort           the port of the server to connect to
+     * @param maxReconnectAttempts the maximum number of reconnect attempts allowed
+     * @param reconnectDelayMillis the delay in milliseconds between reconnect attempts
+     * @param bundleRegistration   the bundle registration containing relevant registration details
+     * @param handler              the MessageHandler instance to handle incoming messages
+     * @param onCloseCallback      the callback function to be executed when the connection is closed
      */
     private EventoSocketConnection(
             String serverAddress,
@@ -66,7 +69,8 @@ public class EventoSocketConnection {
             int maxReconnectAttempts,
             long reconnectDelayMillis,
             BundleRegistration bundleRegistration,
-            MessageHandler handler) {
+            MessageHandler handler,
+            Consumer<EventoSocketConnection> onCloseCallback) {
         // Initialization of parameters
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
@@ -74,6 +78,7 @@ public class EventoSocketConnection {
         this.reconnectDelayMillis = reconnectDelayMillis;
         this.handler = handler;
         this.bundleRegistration = bundleRegistration;
+        this.onCloseCallback = onCloseCallback;
     }
 
     /**
@@ -83,6 +88,9 @@ public class EventoSocketConnection {
      * @throws SendFailedException Thrown if the message fails to be sent.
      */
     public synchronized void send(Serializable message) throws SendFailedException {
+        if(isClosed()){
+            throw new SendFailedException(new IllegalStateException("Socket connection is closed"));
+        }
         if (message instanceof EventoRequest r) {
             this.pendingCorrelations.add(r.getCorrelationId());
         }
@@ -91,7 +99,10 @@ public class EventoSocketConnection {
             synchronized (o) {
                 o.writeObject(message);
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            if (message instanceof EventoRequest r) {
+                this.pendingCorrelations.add(r.getCorrelationId());
+            }
             throw new SendFailedException(e);
         }
     }
@@ -187,6 +198,7 @@ public class EventoSocketConnection {
             // Log an error if the server is unreachable after maximum attempts
             logger.error("Server unreachable after {} attempts. Dead socket.", reconnectAttempt);
             isClosed = true;
+            onCloseCallback.accept(this);
         });
         t.setName("EventoConnection - " + serverAddress + ":" + serverPort);
         t.start();
@@ -202,6 +214,15 @@ public class EventoSocketConnection {
      */
     public boolean isClosed() {
         return isClosed;
+    }
+
+    /**
+     * Checks if the socket connection is enabled.
+     *
+     * @return {@code true} if the socket connection is enabled, {@code false} otherwise
+     */
+    public boolean isEnabled() {
+        return enabled;
     }
 
     /**
@@ -261,6 +282,7 @@ public class EventoSocketConnection {
         private final int serverPort;
         private final BundleRegistration bundleRegistration;
         private final MessageHandler handler;
+        private final Consumer<EventoSocketConnection> onCloseCallback;
 
         // Optional parameters with default values
         private int maxReconnectAttempts = -1;
@@ -276,11 +298,13 @@ public class EventoSocketConnection {
          */
         public Builder(String serverAddress, int serverPort,
                        BundleRegistration bundleRegistration,
-                       MessageHandler handler) {
+                       MessageHandler handler,
+                       Consumer<EventoSocketConnection> onCloseCallback) {
             this.serverAddress = serverAddress;
             this.serverPort = serverPort;
             this.bundleRegistration = bundleRegistration;
             this.handler = handler;
+            this.onCloseCallback = onCloseCallback;
         }
 
         /**
@@ -317,7 +341,8 @@ public class EventoSocketConnection {
                     maxReconnectAttempts,
                     reconnectDelayMillis,
                     bundleRegistration,
-                    handler);
+                    handler,
+                    onCloseCallback);
             s.start();
             return s;
         }
