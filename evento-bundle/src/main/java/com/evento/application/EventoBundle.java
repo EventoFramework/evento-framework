@@ -78,6 +78,7 @@ public class EventoBundle {
     private final transient CommandGateway commandGateway;
     private final transient QueryGateway queryGateway;
     private final TracingAgent tracingAgent;
+    private final EventoServerClient eventoServerClient;
 
     private EventoBundle(
             String basePackage,
@@ -90,7 +91,8 @@ public class EventoBundle {
             QueryGateway queryGateway,
             PerformanceService performanceService,
             ServiceManager serviceManager, ProjectorManager projectorManager,
-            ObserverManager observerManager, TracingAgent tracingAgent
+            ObserverManager observerManager, TracingAgent tracingAgent,
+            EventoServerClient eventoServerClient
 
     ) {
         this.basePackage = basePackage;
@@ -106,6 +108,7 @@ public class EventoBundle {
         this.projectorManager = projectorManager;
         this.tracingAgent = tracingAgent;
         this.observerManager = observerManager;
+        this.eventoServerClient = eventoServerClient;
     }
 
     /**
@@ -688,7 +691,8 @@ public class EventoBundle {
                     aggregateManager, projectionManager, sagaManager, commandGateway,
                     queryGateway,
                     performanceService,
-                    serviceManager, projectorManager, observerManager, tracingAgent));
+                    serviceManager, projectorManager, observerManager, tracingAgent,
+                    eventoServer));
 
             logger.info("Starting projector consumers...");
             var start = Instant.now();
