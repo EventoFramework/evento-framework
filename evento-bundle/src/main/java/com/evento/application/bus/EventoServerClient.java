@@ -35,6 +35,7 @@ public class EventoServerClient implements EventoServer {
 
     @SuppressWarnings("rawtypes")
     private final Map<String, Correlation> correlations = new ConcurrentHashMap<>();
+    @Getter
     private ClusterConnection clusterConnection;
 
     private final RequestHandler requestHandler;
@@ -409,4 +410,17 @@ public class EventoServerClient implements EventoServer {
             return bus;
         }
     }
+
+    /**
+     * Retrieves the collection of pending correlations.
+     *
+     * This method returns a collection of {@link Correlation} objects currently pending in the system.
+     *
+     * @return a collection of {@link Correlation} objects representing the pending correlations.
+     */
+    @SuppressWarnings("rawtypes")
+    public Collection<Correlation> getPendingCorrelations(){
+        return correlations.values();
+    }
+
 }
