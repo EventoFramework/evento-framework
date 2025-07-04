@@ -28,7 +28,12 @@ if __name__ == "__main__":
 
     print(resp.text)
 
-    #resp = requests.post("https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/com.eventoframework?publishing_type=user_managed",
-    #                    auth=(props['mavenCentralUsername'], props['mavenCentralPassword']))
+    resp = requests.post("https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/com.eventoframework?publishing_type=user_managed",
+                        auth=(props['mavenCentralUsername'], props['mavenCentralPassword']))
+
+    print(resp.text)
+
+    resp = requests.get("https://ossrh-staging-api.central.sonatype.com/manual/search/repositories",
+                        auth=(props['mavenCentralUsername'], props['mavenCentralPassword']))
 
     print(resp.text)

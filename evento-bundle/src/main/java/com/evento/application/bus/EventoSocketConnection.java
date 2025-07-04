@@ -13,6 +13,7 @@ import com.evento.common.modeling.messaging.message.internal.discovery.BundleReg
 import com.evento.common.utils.Sleep;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.HashSet;
 import java.util.concurrent.Executor;
@@ -58,16 +59,19 @@ public class EventoSocketConnection {
     @Getter
     private Thread socketReadThread;
 
+    private final EventoSocketConfig socketConfig;
+
     /**
-     * Creates a new EventoSocketConnection instance.
+     * Constructs an instance of EventoSocketConnection with specified configuration parameters.
      *
-     * @param serverAddress        the address of the server to connect to
-     * @param serverPort           the port of the server to connect to
-     * @param maxReconnectAttempts the maximum number of reconnect attempts allowed
-     * @param reconnectDelayMillis the delay in milliseconds between reconnect attempts
-     * @param bundleRegistration   the bundle registration containing relevant registration details
-     * @param handler              the MessageHandler instance to handle incoming messages
-     * @param onCloseCallback      the callback function to be executed when the connection is closed
+     * @param serverAddress          the address of the server to connect to
+     * @param serverPort             the port of the server to connect to
+     * @param maxReconnectAttempts   the maximum number of reconnect attempts when the connection is lost
+     * @param reconnectDelayMillis   the delay in milliseconds between reconnect attempts
+     * @param bundleRegistration     the bundle registration containing details about the bundle
+     * @param handler                the handler used to process incoming messages
+     * @param onCloseCallback        a callback function to invoke when the connection is closed
+     * @param socketConfig           the configuration options for the socket connection
      */
     private EventoSocketConnection(
             String serverAddress,
@@ -76,7 +80,8 @@ public class EventoSocketConnection {
             long reconnectDelayMillis,
             BundleRegistration bundleRegistration,
             MessageHandler handler,
-            Consumer<EventoSocketConnection> onCloseCallback) {
+            Consumer<EventoSocketConnection> onCloseCallback,
+            EventoSocketConfig socketConfig) {
         // Initialization of parameters
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
@@ -85,6 +90,7 @@ public class EventoSocketConnection {
         this.handler = handler;
         this.bundleRegistration = bundleRegistration;
         this.onCloseCallback = onCloseCallback;
+        this.socketConfig = socketConfig;
     }
 
     /**
@@ -104,6 +110,7 @@ public class EventoSocketConnection {
             var o = out.get();
             synchronized (o) {
                 o.writeObject(message);
+                o.flush();
             }
         } catch (Throwable e) {
             if (message instanceof EventoRequest r) {
@@ -132,7 +139,10 @@ public class EventoSocketConnection {
                         serverPort,
                         reconnectAttempt + 1);
 
-                try (Socket socket = new Socket(serverAddress, serverPort)) {
+                try{
+                    Socket socket = socketConfig.apply(serverAddress, serverPort);
+
+
                     // Initialize the output stream for sending messages
                     var dataOutputStream = new ObjectOutputStream(socket.getOutputStream());
                     this.socket = socket;
@@ -143,6 +153,7 @@ public class EventoSocketConnection {
 
                     // Send the bundle registration information to the server
                     dataOutputStream.writeObject(bundleRegistration);
+                    dataOutputStream.flush();
                     logger.info("Registration message sent");
 
                     // Initialize the input stream for receiving messages
@@ -225,6 +236,7 @@ public class EventoSocketConnection {
             var o = out.get();
             synchronized (o) {
                 o.writeObject(new EnableMessage());
+                o.flush();
             }
         } catch (Exception e) {
             enabled = false;
@@ -242,6 +254,7 @@ public class EventoSocketConnection {
             var o = out.get();
             synchronized (o) {
                 o.writeObject(new DisableMessage());
+                o.flush();
             }
         } catch (Exception e) {
             logger.error("Disabling failed", e);
@@ -278,23 +291,30 @@ public class EventoSocketConnection {
         private int maxReconnectAttempts = -1;
         private long reconnectDelayMillis = 2000;
 
+        private final EventoSocketConfig socketConfig;
+
         /**
-         * Constructs a Builder instance with required parameters.
+         * Constructs a Builder instance with the specified parameters.
+         * This is used to configure and initialize an EventoSocketConnection object.
          *
-         * @param serverAddress      The address of the Evento server.
-         * @param serverPort         The port on which the server is listening.
-         * @param bundleRegistration The registration information for the connection.
-         * @param handler            The message handler for processing incoming messages.
+         * @param serverAddress      The address of the server to connect to.
+         * @param serverPort         The port of the server to connect to.
+         * @param bundleRegistration The BundleRegistration instance containing bundle-specific information.
+         * @param handler            The MessageHandler responsible for processing incoming messages and sending responses.
+         * @param onCloseCallback    A Consumer callback to handle actions when the EventoSocketConnection is closed.
+         * @param socketConfig       The configuration settings for the EventoSocketConnection.
          */
         public Builder(String serverAddress, int serverPort,
                        BundleRegistration bundleRegistration,
                        MessageHandler handler,
-                       Consumer<EventoSocketConnection> onCloseCallback) {
+                       Consumer<EventoSocketConnection> onCloseCallback,
+                       EventoSocketConfig socketConfig) {
             this.serverAddress = serverAddress;
             this.serverPort = serverPort;
             this.bundleRegistration = bundleRegistration;
             this.handler = handler;
             this.onCloseCallback = onCloseCallback;
+            this.socketConfig = socketConfig;
         }
 
         /**
@@ -332,7 +352,9 @@ public class EventoSocketConnection {
                     reconnectDelayMillis,
                     bundleRegistration,
                     handler,
-                    onCloseCallback);
+                    onCloseCallback,
+                    socketConfig
+                    );
             s.start();
             return s;
         }

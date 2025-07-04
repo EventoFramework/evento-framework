@@ -125,6 +125,7 @@ public class MessageBus {
                                 final var a = join((BundleRegistration) in.readObject(), out);
                                 synchronized (out) {
                                     out.writeObject(true);
+                                    out.flush();
                                 }
                                 address = a;
 
@@ -141,6 +142,7 @@ public class MessageBus {
                                                     try {
                                                         synchronized (out) {
                                                             out.writeObject(resp);
+                                                            out.flush();
                                                         }
                                                     } catch (IOException e) {
                                                         throw new RuntimeException(e);
@@ -683,6 +685,7 @@ public class MessageBus {
             );
             synchronized (out) {
                 out.writeObject(m);
+                out.flush();
             }
         } catch (Exception e) {
             logger.error("Send kill failed", e);
@@ -696,6 +699,7 @@ public class MessageBus {
             var out = view.get(address);
             synchronized (out) {
                 out.writeObject(eventoRequest);
+                out.flush();
             }
         } catch (Exception e) {
             correlations.remove(eventoRequest.getCorrelationId());
