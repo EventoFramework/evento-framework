@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework.evento-consumer-state-store'
-version 'ev1.11.3'
+version 'ev1.11.3' // + '-SNAPSHOT'
 java {
     targetCompatibility = "21"
     targetCompatibility = "21"
@@ -63,10 +63,12 @@ publishing {
                 }
             }
 
+
+
             repositories {
                 maven {
-                    name = "OSSRH"
-                    url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+                    name = 'ossrh-staging-api'
+                    url = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
                     credentials {
                         username = project.properties["mavenCentralUsername"]
                         password = project.properties["mavenCentralPassword"]
