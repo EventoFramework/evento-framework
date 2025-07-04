@@ -106,7 +106,8 @@ public class ClusterConnection {
                             LOGGER.error("All cluster nodes disconnected");
                             System.exit(1);
                         }
-                    }
+                    },
+                    clusterNodeAddress.socketConfig()
             ).setMaxReconnectAttempts(maxReconnectAttempts)
                     .setReconnectDelayMillis(reconnectDelayMillis)
                     .connect());
