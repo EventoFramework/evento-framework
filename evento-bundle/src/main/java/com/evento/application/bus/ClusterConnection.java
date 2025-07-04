@@ -222,4 +222,22 @@ public class ClusterConnection {
             return c;
         }
     }
+
+    /**
+     * Retrieves the list of cluster node addresses.
+     *
+     * @return A list of {@code ClusterNodeAddress} objects representing the addresses of cluster nodes.
+     */
+    public List<ClusterNodeAddress> getAddressList() {
+        return new ArrayList<>(addressList);
+    }
+
+    /**
+     * Retrieves the list of active connections to cluster nodes.
+     *
+     * @return A list of {@code EventoSocketConnection} objects representing the current connections to cluster nodes.
+     */
+    public List<EventoSocketConnection> getNodeConnection() {
+        return new ArrayList<>(nodeConnection);
+    }
 }
