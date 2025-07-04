@@ -1,5 +1,6 @@
 package com.evento.application.bus;
 
+import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.common.messaging.bus.SendFailedException;
@@ -44,13 +45,18 @@ public class EventoSocketConnection {
     // Connection state variables
     private int reconnectAttempt = 0;
     private final AtomicReference<ObjectOutputStream> out = new AtomicReference<>();
+    @Getter
     private Socket socket;
+    @Getter
     private boolean enabled;
     private static final AtomicInteger instanceCounter = new AtomicInteger(0);
     private final int conn = instanceCounter.incrementAndGet();
-    private boolean isClosed = false;
+    @Getter
+    private boolean closed = false;
     private final HashSet<String> pendingCorrelations = new HashSet<>();
     private final Executor threadPerRequestExecutor = Executors.newCachedThreadPool();
+    @Getter
+    private Thread socketReadThread;
 
     /**
      * Creates a new EventoSocketConnection instance.
@@ -88,7 +94,7 @@ public class EventoSocketConnection {
      * @throws SendFailedException Thrown if the message fails to be sent.
      */
     public synchronized void send(Serializable message) throws SendFailedException {
-        if(isClosed()){
+        if(closed){
             throw new SendFailedException(new IllegalStateException("Socket connection is closed"));
         }
         if (message instanceof EventoRequest r) {
@@ -118,7 +124,7 @@ public class EventoSocketConnection {
 
         var t = new Thread(() -> {
             // Loop until the connection is closed or the maximum reconnect attempts are reached
-            while (!isClosed && (maxReconnectAttempts < 0 || reconnectAttempt < maxReconnectAttempts)) {
+            while (!closed && (maxReconnectAttempts < 0 || reconnectAttempt < maxReconnectAttempts)) {
                 // Log the current attempt to connect
                 logger.info("Socket Connection #{} to {}:{} attempt {}",
                         conn,
@@ -197,33 +203,17 @@ public class EventoSocketConnection {
 
             // Log an error if the server is unreachable after maximum attempts
             logger.error("Server unreachable after {} attempts. Dead socket.", reconnectAttempt);
-            isClosed = true;
+            closed = true;
             onCloseCallback.accept(this);
         });
         t.setName("EventoConnection - " + serverAddress + ":" + serverPort);
         t.start();
+        this.socketReadThread = t;
 
         // Wait for the connection to be ready (or for the maximum attempts to be reached)
         connectionReady.acquire();
     }
 
-    /**
-     * Checks if the socket connection is closed.
-     *
-     * @return {@code true} if the socket connection is closed, {@code false} otherwise
-     */
-    public boolean isClosed() {
-        return isClosed;
-    }
-
-    /**
-     * Checks if the socket connection is enabled.
-     *
-     * @return {@code true} if the socket connection is enabled, {@code false} otherwise
-     */
-    public boolean isEnabled() {
-        return enabled;
-    }
 
     /**
      * Enables the socket connection.
@@ -262,7 +252,7 @@ public class EventoSocketConnection {
      * Closes the socket connection.
      */
     public void close() {
-        isClosed = true;
+        closed = true;
         try {
             socket.close();
         } catch (IOException e) {
@@ -347,4 +337,16 @@ public class EventoSocketConnection {
             return s;
         }
     }
+    /**
+     * Retrieves the set of pending correlation identifiers.
+     *
+     * This method returns a collection of strings representing the identifiers
+     * of messages or requests that are currently pending within the system.
+     *
+     * @return a HashSet containing the pending correlation identifiers
+     */
+    public HashSet<String> getPendingCorrelations() {
+        return new HashSet<>(pendingCorrelations);
+    }
+
 }
