@@ -8,7 +8,7 @@ import java.net.Socket;
 
 public class EventoSocketConfig {
     private int connectTimeout = 5000;     // in milliseconds
-    private int readTimeout = -1;        // in milliseconds
+    private int readTimeout = 0;        // in milliseconds
     private boolean keepAlive = true;
     private boolean tcpNoDelay = true;
     private boolean reuseAddress = true;
