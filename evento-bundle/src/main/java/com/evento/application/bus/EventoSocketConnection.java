@@ -64,14 +64,14 @@ public class EventoSocketConnection {
     /**
      * Constructs an instance of EventoSocketConnection with specified configuration parameters.
      *
-     * @param serverAddress          the address of the server to connect to
-     * @param serverPort             the port of the server to connect to
-     * @param maxReconnectAttempts   the maximum number of reconnect attempts when the connection is lost
-     * @param reconnectDelayMillis   the delay in milliseconds between reconnect attempts
-     * @param bundleRegistration     the bundle registration containing details about the bundle
-     * @param handler                the handler used to process incoming messages
-     * @param onCloseCallback        a callback function to invoke when the connection is closed
-     * @param socketConfig           the configuration options for the socket connection
+     * @param serverAddress        the address of the server to connect to
+     * @param serverPort           the port of the server to connect to
+     * @param maxReconnectAttempts the maximum number of reconnect attempts when the connection is lost
+     * @param reconnectDelayMillis the delay in milliseconds between reconnect attempts
+     * @param bundleRegistration   the bundle registration containing details about the bundle
+     * @param handler              the handler used to process incoming messages
+     * @param onCloseCallback      a callback function to invoke when the connection is closed
+     * @param socketConfig         the configuration options for the socket connection
      */
     private EventoSocketConnection(
             String serverAddress,
@@ -93,6 +93,20 @@ public class EventoSocketConnection {
         this.socketConfig = socketConfig;
     }
 
+    private synchronized void write(Serializable message) throws IOException {
+
+        try {
+            var o = out.get();
+            o.writeObject(message);
+            o.flush();
+        } catch (Throwable e) {
+            if (socketConfig.isCloseOnSendError()) {
+                close();
+            }
+            throw e;
+        }
+    }
+
     /**
      * Sends a serializable message over the socket connection.
      *
@@ -100,18 +114,14 @@ public class EventoSocketConnection {
      * @throws SendFailedException Thrown if the message fails to be sent.
      */
     public synchronized void send(Serializable message) throws SendFailedException {
-        if(closed){
+        if (closed) {
             throw new SendFailedException(new IllegalStateException("Socket connection is closed"));
         }
         if (message instanceof EventoRequest r) {
             this.pendingCorrelations.add(r.getCorrelationId());
         }
         try {
-            var o = out.get();
-            synchronized (o) {
-                o.writeObject(message);
-                o.flush();
-            }
+            write(message);
         } catch (Throwable e) {
             if (message instanceof EventoRequest r) {
                 this.pendingCorrelations.add(r.getCorrelationId());
@@ -139,7 +149,7 @@ public class EventoSocketConnection {
                         serverPort,
                         reconnectAttempt + 1);
 
-                try{
+                try {
                     Socket socket = socketConfig.apply(serverAddress, serverPort);
 
 
@@ -187,7 +197,7 @@ public class EventoSocketConnection {
                         } catch (OptionalDataException ignored) {
                         }
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     // Log connection error and handle pending correlations
                     logger.error("Connection error %s:%d".formatted(reconnectAttempt, serverPort), e);
                     for (String pendingCorrelation : pendingCorrelations) {
@@ -233,11 +243,7 @@ public class EventoSocketConnection {
         enabled = true;
         logger.info("Enabling connection #{}", conn);
         try {
-            var o = out.get();
-            synchronized (o) {
-                o.writeObject(new EnableMessage());
-                o.flush();
-            }
+            write(new EnableMessage());
         } catch (Exception e) {
             enabled = false;
             logger.error("Enabling failed", e);
@@ -251,11 +257,7 @@ public class EventoSocketConnection {
         enabled = false;
         logger.info("Disabling connection #{}", conn);
         try {
-            var o = out.get();
-            synchronized (o) {
-                o.writeObject(new DisableMessage());
-                o.flush();
-            }
+            write(new DisableMessage());
         } catch (Exception e) {
             logger.error("Disabling failed", e);
         }
@@ -354,14 +356,15 @@ public class EventoSocketConnection {
                     handler,
                     onCloseCallback,
                     socketConfig
-                    );
+            );
             s.start();
             return s;
         }
     }
+
     /**
      * Retrieves the set of pending correlation identifiers.
-     *
+     * <p>
      * This method returns a collection of strings representing the identifiers
      * of messages or requests that are currently pending within the system.
      *

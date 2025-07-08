@@ -1,15 +1,19 @@
 package com.evento.application.bus;
 
+import lombok.Getter;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
 public class EventoSocketConfig {
     private int connectTimeout = 5000;     // in milliseconds
-    private int readTimeout = 5000;        // in milliseconds
+    private int readTimeout = -1;        // in milliseconds
     private boolean keepAlive = true;
     private boolean tcpNoDelay = true;
     private boolean reuseAddress = true;
+    @Getter
+    private boolean closeOnSendError = true;
 
     public EventoSocketConfig() {}
 
@@ -54,4 +58,10 @@ public class EventoSocketConfig {
         this.reuseAddress = reuseAddress;
         return this;
     }
+
+    public EventoSocketConfig setCloseOnSendError(boolean closeOnSendError) {
+        this.closeOnSendError = closeOnSendError;
+        return this;
+    }
+
 }
