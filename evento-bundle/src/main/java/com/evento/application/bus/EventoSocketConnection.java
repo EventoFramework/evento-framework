@@ -1,14 +1,11 @@
 package com.evento.application.bus;
 
+import com.evento.common.modeling.messaging.message.internal.*;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.common.messaging.bus.SendFailedException;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
-import com.evento.common.modeling.messaging.message.internal.DisableMessage;
-import com.evento.common.modeling.messaging.message.internal.EnableMessage;
-import com.evento.common.modeling.messaging.message.internal.EventoRequest;
-import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import com.evento.common.utils.Sleep;
 
@@ -124,7 +121,7 @@ public class EventoSocketConnection {
             write(message);
         } catch (Throwable e) {
             if (message instanceof EventoRequest r) {
-                this.pendingCorrelations.add(r.getCorrelationId());
+                this.pendingCorrelations.remove(r.getCorrelationId());
             }
             throw new SendFailedException(e);
         }
@@ -230,6 +227,25 @@ public class EventoSocketConnection {
         t.setName("EventoConnection - " + serverAddress + ":" + serverPort);
         t.start();
         this.socketReadThread = t;
+
+        t = new Thread(() -> {
+            // Loop until the connection is closed or the maximum reconnect attempts are reached
+            while (!closed) {
+              var o = out.get();
+              if(o != null && enabled){
+                  try {
+                      o.writeObject(new ClientHeartBeatMessage(bundleRegistration.getBundleId(), bundleRegistration.getInstanceId()));
+                  }catch (Exception e){
+                      logger.error("Error sending heartbeat", e);
+                      close();
+                      return;
+                  }
+              }
+              Sleep.apply(socketConfig.getHeartBeat());
+            }
+        });
+        t.setName("EventoConnection HB - " + serverAddress + ":" + serverPort);
+        t.start();
 
         // Wait for the connection to be ready (or for the maximum attempts to be reached)
         connectionReady.acquire();

@@ -14,6 +14,8 @@ public class EventoSocketConfig {
     private boolean reuseAddress = true;
     @Getter
     private boolean closeOnSendError = true;
+    @Getter
+    private long heartBeat = 15000;
 
     public EventoSocketConfig() {}
 
@@ -61,6 +63,11 @@ public class EventoSocketConfig {
 
     public EventoSocketConfig setCloseOnSendError(boolean closeOnSendError) {
         this.closeOnSendError = closeOnSendError;
+        return this;
+    }
+
+    public EventoSocketConfig setHeartBeat(long heartBeat) {
+        this.heartBeat = heartBeat;
         return this;
     }
 

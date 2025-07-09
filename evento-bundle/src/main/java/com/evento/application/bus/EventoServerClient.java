@@ -136,6 +136,9 @@ public class EventoServerClient implements EventoServer {
                     System.exit(0);
                 }
             }
+            case ServerHeartBeatMessage hb -> {
+                logger.debug("Received heartbeat from server instance {}", hb.getInstanceId());
+            }
             case null, default ->
                 // Invalid message type
                     throw new RuntimeException("Invalid message: " + message);

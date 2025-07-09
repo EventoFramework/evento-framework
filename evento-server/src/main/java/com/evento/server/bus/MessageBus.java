@@ -80,6 +80,9 @@ public class MessageBus {
     private boolean isShuttingDown = false;
 
     private final Executor threadPerMessageExecutor = Executors.newCachedThreadPool();
+    private final long disableDelayMillis;
+    private final long maxDisableAttempts;
+    private final long heartbeatInterval;
 
     public MessageBus(
             @Value("${socket.port}") int socketPort,
@@ -88,7 +91,10 @@ public class MessageBus {
             HandlerService handlerService,
             EventStore eventStore,
             PerformanceStoreService performanceStoreService,
-            BundleService bundleService, ConsumerService consumerService) {
+            BundleService bundleService, ConsumerService consumerService,
+            @Value("${evento.server.disable.delay.millis:3000}") long disableDelayMillis,
+            @Value("${evento.server.max.disable.attempts:30}") long maxDisableAttempts,
+            @Value("${evento.server.heart.beat.interval:15000}") long heartbeatInterval) {
         this.socketPort = socketPort;
         this.bundleDeployService = bundleDeployService;
         this.handlerService = handlerService;
@@ -97,6 +103,9 @@ public class MessageBus {
         this.bundleService = bundleService;
         this.instanceId = instanceId;
         this.consumerService = consumerService;
+        this.disableDelayMillis = disableDelayMillis;
+        this.maxDisableAttempts = maxDisableAttempts;
+        this.heartbeatInterval = heartbeatInterval;
     }
 
     @PostConstruct
@@ -197,14 +206,36 @@ public class MessageBus {
         });
         t.setName("MessageBus ConnectionHandler Thread");
         t.start();
+
+        t = new Thread(() -> {
+            while (!isShuttingDown) {
+                for (Map.Entry<NodeAddress, ObjectOutputStream> nodeAddressObjectOutputStreamEntry : view.entrySet()) {
+                    var value = nodeAddressObjectOutputStreamEntry.getValue();
+                    try {
+                        value.writeObject(new ServerHeartBeatMessage(instanceId));
+                        value.flush();
+                    } catch (Throwable e) {
+                        logger.error("Error during server heart beat", e);
+                        try{
+                            value.close();
+                        }catch (Throwable ex){
+                            logger.error("Error during server heart beat close", ex);
+                        }
+                        leave(nodeAddressObjectOutputStreamEntry.getKey());
+                    }
+                }
+                Sleep.apply(heartbeatInterval);
+            }
+
+        });
+        t.setName("MessageBus Hearthbeat Thread");
+        t.start();
     }
 
 
     @PreDestroy
     public void destroy() {
         try {
-            var disableDelayMillis = 3000;
-            var maxDisableAttempts = 30;
             System.out.println("Graceful Shutdown - Started");
             this.isShuttingDown = true;
             System.out.println("Graceful Shutdown - Bus Disabled");
@@ -229,7 +260,7 @@ public class MessageBus {
             if (correlations.isEmpty()) {
                 System.out.println("Graceful Shutdown - No more correlations, bye!");
             } else {
-                System.out.println("Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " sec of retry... so... bye!");
+                System.out.println("Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " millis of retry... so... bye!");
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -289,6 +320,8 @@ public class MessageBus {
             );
         } else if (m.getBody() instanceof BundleConsumerRegistrationMessage cr) {
             consumerService.registerConsumers(m.getSourceBundleId(), m.getSourceInstanceId(), m.getSourceBundleVersion(), cr);
+        }else if (m.getBody() instanceof ClientHeartBeatMessage cr) {
+            logger.debug("Received heartbeat from bundle {} client {}", cr.getBundleId(), cr.getInstanceId());
         }
     }
 
