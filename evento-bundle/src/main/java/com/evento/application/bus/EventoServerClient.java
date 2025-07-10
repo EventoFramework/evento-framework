@@ -96,7 +96,7 @@ public class EventoServerClient implements EventoServer {
      * @param responseSender The sender for responding to the message.
      */
     @SuppressWarnings("unchecked")
-    private void onMessage(Serializable message, EventoResponseSender responseSender) {
+    private void onMessage(Serializable message, EventoResponseSender responseSender, ResponseSender conn) {
         switch (message) {
             case EventoResponse response -> {
                 // Handling response messages
@@ -138,6 +138,13 @@ public class EventoServerClient implements EventoServer {
             }
             case ServerHeartBeatMessage hb -> {
                 logger.debug("Received heartbeat from server instance {}", hb.getInstanceId());
+                try {
+                    conn.send(new ClientHeartBeatMessage(bundleId, instanceId, hb.getHb()));
+                }catch (Throwable e){
+                    logger.error("Error sending heartbeat to server instance {}", hb.getInstanceId());
+                    logger.error("Cause: ", e);
+                }
+
             }
             case null, default ->
                 // Invalid message type
@@ -362,7 +369,7 @@ public class EventoServerClient implements EventoServer {
                     (message, sender) -> bus.onMessage(message, r -> {
                         r.setTimestamp(Instant.now().toEpochMilli());
                         sender.send(r);
-                    })
+                    }, sender)
             ).setMaxReconnectAttempts(maxReconnectAttempts)
                     .setReconnectDelayMillis(reconnectDelayMillis)
                     .setMaxRetryAttempts(maxRetryAttempts)

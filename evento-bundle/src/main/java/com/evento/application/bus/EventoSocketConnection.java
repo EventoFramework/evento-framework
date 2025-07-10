@@ -12,7 +12,9 @@ import com.evento.common.utils.Sleep;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.HashSet;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -182,16 +184,28 @@ public class EventoSocketConnection {
                     connectionReady.release();
 
                     // Continuously listen for incoming messages
+                    var timeoutHits = 0;
                     while (true) {
                         try {
                             var data = dataInputStream.readObject();
+                            timeoutHits = 0;
                             if (data instanceof EventoResponse r) {
                                 // Remove correlation ID from pending set on receiving a response
                                 this.pendingCorrelations.remove(r.getCorrelationId());
                             }
                             // Process the incoming message in a new thread using the message handler
                             threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, this::send));
-                        } catch (OptionalDataException ignored) {
+                        } catch (OptionalDataException ex) {
+                            logger.error("Optional data exception", ex);
+                        } catch (SocketTimeoutException ex){
+                            logger.warn("Socket timeout after {} attempts", timeoutHits);
+                            timeoutHits++;
+                            if (timeoutHits > socketConfig.getTimeoutLimit()) {
+                                logger.error("Socket timeout after {} attempts. Closing connection", socketConfig.getTimeoutLimit());
+                                close();
+                                break;
+                            }
+
                         }
                     }
                 } catch (Throwable e) {
@@ -203,7 +217,8 @@ public class EventoSocketConnection {
                         resp.setBody(new ExceptionWrapper(e));
                         try {
                             handler.handle(resp, this::send);
-                        } catch (Exception ignored) {
+                        } catch (Exception e1) {
+                            logger.error(e1.getMessage(), e1);
                         }
                     }
                     pendingCorrelations.clear();
@@ -227,25 +242,6 @@ public class EventoSocketConnection {
         t.setName("EventoConnection - " + serverAddress + ":" + serverPort);
         t.start();
         this.socketReadThread = t;
-
-        t = new Thread(() -> {
-            // Loop until the connection is closed or the maximum reconnect attempts are reached
-            while (!closed) {
-              var o = out.get();
-              if(o != null && enabled){
-                  try {
-                      o.writeObject(new ClientHeartBeatMessage(bundleRegistration.getBundleId(), bundleRegistration.getInstanceId()));
-                  }catch (Exception e){
-                      logger.error("Error sending heartbeat", e);
-                      close();
-                      return;
-                  }
-              }
-              Sleep.apply(socketConfig.getHeartBeat());
-            }
-        });
-        t.setName("EventoConnection HB - " + serverAddress + ":" + serverPort);
-        t.start();
 
         // Wait for the connection to be ready (or for the maximum attempts to be reached)
         connectionReady.acquire();
