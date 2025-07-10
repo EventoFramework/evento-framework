@@ -376,6 +376,10 @@ public class EventoBundle {
 
             var isShuttingDown = new AtomicBoolean();
 
+            Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().unstarted(() -> {
+                isShuttingDown.set(true);
+            }));
+
             var aggregateManager = new AggregateManager(
                     bundleId,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
