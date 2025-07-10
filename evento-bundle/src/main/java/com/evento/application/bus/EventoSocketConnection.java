@@ -100,7 +100,7 @@ public class EventoSocketConnection {
             o.flush();
         } catch (Throwable e) {
             if (socketConfig.isCloseOnSendError()) {
-                close();
+                socket.close();
             }
             throw e;
         }
@@ -202,8 +202,7 @@ public class EventoSocketConnection {
                             timeoutHits++;
                             if (timeoutHits > socketConfig.getTimeoutLimit()) {
                                 logger.error("Socket timeout after {} attempts. Closing connection", socketConfig.getTimeoutLimit());
-                                close();
-                                break;
+                                throw ex;
                             }
 
                         }

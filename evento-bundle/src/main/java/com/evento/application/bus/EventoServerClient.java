@@ -137,7 +137,10 @@ public class EventoServerClient implements EventoServer {
                 }
             }
             case ServerHeartBeatMessage hb -> {
-                logger.debug("Received heartbeat from server instance {}", hb.getInstanceId());
+                var now = System.currentTimeMillis();
+                logger.debug("Received heartbeat from server instance {} hb: {}. {} -> {} ({}ms)", hb.getInstanceId(), hb.getHb(),
+                        hb.getTimestamp(), now,
+                        now - hb.getTimestamp());
                 try {
                     conn.send(new ClientHeartBeatMessage(bundleId, instanceId, hb.getHb()));
                 }catch (Throwable e){
