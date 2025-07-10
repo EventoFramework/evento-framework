@@ -121,7 +121,7 @@ public class MessageBus {
         t.start();
 
         t = new Thread(() -> {
-            try (ServerSocket server = new ServerSocket(socketPort)) {
+            try (ServerSocket server = new  ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
                     logger.info("New connection: " + conn.getInetAddress() + ":" + conn.getPort());
@@ -163,6 +163,8 @@ public class MessageBus {
                                                 c.response().accept(r);
                                             } else if (message instanceof EventoMessage m) {
                                                 handleMessage(m);
+                                            } else if (message instanceof ClientHeartBeatMessage hb) {
+                                                logger.debug("Received heartbeat from bundle {} client {}", hb.getBundleId(), hb.getInstanceId());
                                             }
                                         } catch (Exception e) {
                                             throw new RuntimeException(e);
@@ -209,10 +211,12 @@ public class MessageBus {
 
         t = new Thread(() -> {
             while (!isShuttingDown) {
-                for (Map.Entry<NodeAddress, ObjectOutputStream> nodeAddressObjectOutputStreamEntry : view.entrySet()) {
+                var hb = UUID.randomUUID() + "_" + System.currentTimeMillis();
+                var view = this.view.entrySet();
+                for (Map.Entry<NodeAddress, ObjectOutputStream> nodeAddressObjectOutputStreamEntry : view) {
                     var value = nodeAddressObjectOutputStreamEntry.getValue();
                     try {
-                        value.writeObject(new ServerHeartBeatMessage(instanceId));
+                        value.writeObject(new ServerHeartBeatMessage(instanceId, hb));
                         value.flush();
                     } catch (Throwable e) {
                         logger.error("Error during server heart beat", e);
@@ -320,8 +324,6 @@ public class MessageBus {
             );
         } else if (m.getBody() instanceof BundleConsumerRegistrationMessage cr) {
             consumerService.registerConsumers(m.getSourceBundleId(), m.getSourceInstanceId(), m.getSourceBundleVersion(), cr);
-        }else if (m.getBody() instanceof ClientHeartBeatMessage cr) {
-            logger.debug("Received heartbeat from bundle {} client {}", cr.getBundleId(), cr.getInstanceId());
         }
     }
 

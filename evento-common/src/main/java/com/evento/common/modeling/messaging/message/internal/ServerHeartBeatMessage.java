@@ -12,11 +12,17 @@ public class ServerHeartBeatMessage implements Serializable {
 
     private String instanceId;
 
+    private String hb;
+
+    private long timestamp;
+
     public ServerHeartBeatMessage() {
     }
 
-    public ServerHeartBeatMessage(String instanceId) {
+    public ServerHeartBeatMessage(String instanceId, String hb) {
         this.instanceId = instanceId;
+        this.hb = hb;
+        this.timestamp = System.currentTimeMillis();
     }
 
     public String getInstanceId() {
@@ -25,5 +31,21 @@ public class ServerHeartBeatMessage implements Serializable {
 
     public void setInstanceId(String instanceId) {
         this.instanceId = instanceId;
+    }
+
+    public String getHb() {
+        return hb;
+    }
+
+    public void setHb(String hb) {
+        this.hb = hb;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
     }
 }

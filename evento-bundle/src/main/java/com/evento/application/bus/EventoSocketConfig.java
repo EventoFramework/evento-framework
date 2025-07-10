@@ -8,14 +8,14 @@ import java.net.Socket;
 
 public class EventoSocketConfig {
     private int connectTimeout = 5000;     // in milliseconds
-    private int readTimeout = 0;        // in milliseconds
+    private int readTimeout = 20000;        // in milliseconds
     private boolean keepAlive = true;
     private boolean tcpNoDelay = true;
     private boolean reuseAddress = true;
     @Getter
     private boolean closeOnSendError = true;
     @Getter
-    private long heartBeat = 15000;
+    private int timeoutLimit = 3;
 
     public EventoSocketConfig() {}
 
@@ -66,8 +66,8 @@ public class EventoSocketConfig {
         return this;
     }
 
-    public EventoSocketConfig setHeartBeat(long heartBeat) {
-        this.heartBeat = heartBeat;
+    public EventoSocketConfig setTimeoutLimit(int timeoutLimit) {
+        this.timeoutLimit = timeoutLimit;
         return this;
     }
 
