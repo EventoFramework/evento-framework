@@ -53,7 +53,7 @@ public class EventoConfiguration {
                         )
                                 .setDisableDelayMillis(1000)
                                 .setMaxDisableAttempts(3)
-                                .setMaxReconnectAttempts(3)
+                                .setMaxReconnectAttempts(30)
                                 .setReconnectDelayMillis(5000)
                 )
                 .setCommandGatewayBuilder(es -> new CommandGatewayImpl(es){
