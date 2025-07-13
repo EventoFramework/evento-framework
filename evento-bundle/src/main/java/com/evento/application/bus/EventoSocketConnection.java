@@ -195,8 +195,6 @@ public class EventoSocketConnection {
                             }
                             // Process the incoming message in a new thread using the message handler
                             threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, this::send));
-                        } catch (OptionalDataException ex) {
-                            logger.error("Optional data exception", ex);
                         } catch (SocketTimeoutException ex){
                             logger.warn("Socket timeout after {} attempts", timeoutHits);
                             timeoutHits++;
