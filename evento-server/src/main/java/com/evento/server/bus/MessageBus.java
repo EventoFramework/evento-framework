@@ -229,9 +229,8 @@ public class MessageBus {
         t = new Thread(() -> {
             while (!isShuttingDown) {
                 var hb = UUID.randomUUID() + "_" + System.currentTimeMillis();
-                var view = this.view.entrySet();
-                for (Map.Entry<NodeAddress, ObjectOutputStream> nodeAddressObjectOutputStreamEntry : view) {
-                    var value = nodeAddressObjectOutputStreamEntry.getValue();
+                for (NodeAddress nodeAddress : this.availableView) {
+                    var value = view.get(nodeAddress);
                     try {
                         value.writeObject(new ServerHeartBeatMessage(instanceId, hb));
                         value.flush();
@@ -242,7 +241,7 @@ public class MessageBus {
                         } catch (Throwable ex) {
                             logger.error("Error during server heart beat close", ex);
                         }
-                        leave(nodeAddressObjectOutputStreamEntry.getKey());
+                        leave(nodeAddress);
                     }
                 }
                 Sleep.apply(heartbeatInterval);
