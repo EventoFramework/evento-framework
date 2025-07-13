@@ -22,6 +22,10 @@ public class EventoResponse implements Serializable {
         return body;
     }
 
+    public EventoResponse() {
+        this.timestamp = System.currentTimeMillis();
+    }
+
     /**
      * Sets the body of the EventoResponse.
      *
