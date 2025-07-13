@@ -1,6 +1,7 @@
 package com.evento.server.bus;
 
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistered;
 import com.evento.common.serialization.ObjectMapperUtils;
 import com.evento.server.service.discovery.ConsumerService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -121,79 +122,95 @@ public class MessageBus {
         t.start();
 
         t = new Thread(() -> {
-            try (ServerSocket server = new  ServerSocket(socketPort)) {
+            try (ServerSocket server = new ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
                     logger.info("New connection: " + conn.getInetAddress() + ":" + conn.getPort());
                     var it = new Thread(() -> {
                         NodeAddress address = null;
                         try {
+                            var in = new ObjectInputStream(conn.getInputStream());
+                            var out = new ObjectOutputStream(conn.getOutputStream());
+                            boolean registered = false;
+                            ExceptionWrapper registrationException = null;
+                            var registration = (BundleRegistration) in.readObject();
                             try {
-                                var in = new ObjectInputStream(conn.getInputStream());
-                                var out = new ObjectOutputStream(conn.getOutputStream());
-                                final var a = join((BundleRegistration) in.readObject(), out);
-                                synchronized (out) {
-                                    out.writeObject(true);
-                                    out.flush();
-                                }
-                                address = a;
-
-                                while (true) {
-                                    var message = in.readObject();
-                                    threadPerMessageExecutor.execute(() -> {
-                                        try {
-                                            if (message instanceof DisableMessage) {
-                                                disable(a);
-                                            } else if (message instanceof EnableMessage) {
-                                                enable(a);
-                                            } else if (message instanceof EventoRequest r) {
-                                                handleRequest(r, resp -> {
-                                                    try {
-                                                        synchronized (out) {
-                                                            out.writeObject(resp);
-                                                            out.flush();
-                                                        }
-                                                    } catch (IOException e) {
-                                                        throw new RuntimeException(e);
-                                                    }
-                                                });
-                                            } else if (message instanceof EventoResponse r) {
-                                                var c = correlations.get(r.getCorrelationId());
-                                                correlations.remove(r.getCorrelationId());
-                                                c.response().accept(r);
-                                            } else if (message instanceof EventoMessage m) {
-                                                handleMessage(m);
-                                            } else if (message instanceof ClientHeartBeatMessage hb) {
-                                                logger.debug("Received heartbeat from bundle {} client {}", hb.getBundleId(), hb.getInstanceId());
-                                            }
-                                        } catch (Exception e) {
-                                            throw new RuntimeException(e);
-                                        }
-                                    });
-                                }
+                                address = join(registration, out);
+                                registered = true;
                             } catch (Exception e) {
-                                for (Map.Entry<String, Correlation> ek : correlations.entrySet()) {
-                                    var resp = new EventoResponse();
-                                    resp.setCorrelationId(ek.getKey());
-                                    resp.setBody(new ExceptionWrapper(e));
+                                registrationException = new ExceptionWrapper(e);
+                            }
+                            synchronized (out) {
+                                out.writeObject(new BundleRegistered(
+                                        registration.getBundleId(),
+                                        registration.getBundleVersion(),
+                                        registration.getInstanceId(),
+                                        instanceId,
+                                        registered,
+                                        registrationException
+                                ));
+                                out.flush();
+                            }
+                            if (!registered) {
+                                logger.error("Error during bundle registration: {}", registrationException);
+                                throw new IllegalStateException("Error during bundle registration", registrationException.toException());
+                            }
+
+                            while (true) {
+                                var message = in.readObject();
+                                NodeAddress finalAddress = address;
+                                threadPerMessageExecutor.execute(() -> {
                                     try {
-                                        ek.getValue().response().accept(resp);
-                                    } catch (Exception ex) {
-                                        logger.error("Error during correlation fail management", ex);
+                                        if (message instanceof DisableMessage) {
+                                            disable(finalAddress);
+                                        } else if (message instanceof EnableMessage) {
+                                            enable(finalAddress);
+                                        } else if (message instanceof EventoRequest r) {
+                                            handleRequest(r, resp -> {
+                                                try {
+                                                    synchronized (out) {
+                                                        out.writeObject(resp);
+                                                        out.flush();
+                                                    }
+                                                } catch (IOException e) {
+                                                    throw new RuntimeException(e);
+                                                }
+                                            });
+                                        } else if (message instanceof EventoResponse r) {
+                                            var c = correlations.get(r.getCorrelationId());
+                                            correlations.remove(r.getCorrelationId());
+                                            c.response().accept(r);
+                                        } else if (message instanceof EventoMessage m) {
+                                            handleMessage(m);
+                                        } else if (message instanceof ClientHeartBeatMessage hb) {
+                                            logger.debug("Received heartbeat from bundle {} client {}", hb.getBundleId(), hb.getInstanceId());
+                                        }
+                                    } catch (Exception e) {
+                                        throw new RuntimeException(e);
                                     }
-                                }
+                                });
+                            }
+                        } catch (Exception e) {
+                            for (Map.Entry<String, Correlation> ek : correlations.entrySet()) {
+                                var resp = new EventoResponse();
+                                resp.setCorrelationId(ek.getKey());
+                                resp.setBody(new ExceptionWrapper(e));
                                 try {
-                                    if (!conn.isClosed())
-                                        conn.close();
-                                } catch (IOException ex) {
-                                    throw new RuntimeException(ex);
-                                }
-                                if (!conn.isClosed()) {
-                                    throw new RuntimeException(e);
+                                    ek.getValue().response().accept(resp);
+                                } catch (Exception ex) {
+                                    logger.error("Error during correlation fail management", ex);
                                 }
                             }
-                        } finally {
                             leave(address);
+                            try {
+                                if (!conn.isClosed())
+                                    conn.close();
+                            } catch (IOException ex) {
+                                throw new RuntimeException(ex);
+                            }
+                            if (!conn.isClosed()) {
+                                throw new RuntimeException(e);
+                            }
                         }
 
 
@@ -220,9 +237,9 @@ public class MessageBus {
                         value.flush();
                     } catch (Throwable e) {
                         logger.error("Error during server heart beat", e);
-                        try{
+                        try {
                             value.close();
-                        }catch (Throwable ex){
+                        } catch (Throwable ex) {
                             logger.error("Error during server heart beat close", ex);
                         }
                         leave(nodeAddressObjectOutputStreamEntry.getKey());
@@ -331,7 +348,11 @@ public class MessageBus {
     private void handleRequest(EventoRequest message, Consumer<EventoResponse> sendResponse) {
         try {
             if (this.isShuttingDown) {
-                throw new IllegalStateException("Server is shutting down");
+                var resp = new EventoResponse();
+                resp.setCorrelationId(message.getCorrelationId());
+                resp.setBody(new ExceptionWrapper(new IllegalStateException("Server is shutting down")));
+                sendResponse.accept(resp);
+                return;
             }
             var request = message.getBody();
             switch (request) {
