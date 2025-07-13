@@ -1,6 +1,7 @@
 package com.evento.application.bus;
 
 import com.evento.common.modeling.messaging.message.internal.*;
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistered;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -99,7 +100,7 @@ public class EventoSocketConnection {
             o.writeObject(message);
             o.flush();
         } catch (Throwable e) {
-            if (socketConfig.isCloseOnSendError()) {
+            if (socketConfig.isCloseOnSendError() && socket != null) {
                 socket.close();
             }
             throw e;
@@ -149,12 +150,19 @@ public class EventoSocketConnection {
                         reconnectAttempt + 1);
 
                 try {
-                    Socket socket = socketConfig.apply(serverAddress, serverPort);
+                    if(this.socket != null){
+                        disable();
+                        this.socket.close();
+                        this.socket = null;
+                        this.pendingCorrelations.clear();
+                        logger.info("Previous socket Connection #{} closed", conn);
+                        Sleep.apply(reconnectDelayMillis);
+                    }
+                    this.socket = socketConfig.apply(serverAddress, serverPort);
 
 
                     // Initialize the output stream for sending messages
                     var dataOutputStream = new ObjectOutputStream(socket.getOutputStream());
-                    this.socket = socket;
                     logger.info("Connected to {}:{}", serverAddress, serverPort);
 
                     // Reset the reconnect attempt count
@@ -168,9 +176,9 @@ public class EventoSocketConnection {
                     // Initialize the input stream for receiving messages
                     var dataInputStream = new ObjectInputStream(socket.getInputStream());
 
-                    var ok = dataInputStream.readObject();
-                    if (!((boolean) ok)) {
-                        throw new IllegalStateException("Bundle registration failed");
+                    var ok = (BundleRegistered) dataInputStream.readObject();
+                    if (!ok.isRegistered()) {
+                        throw new IllegalStateException("Bundle registration failed", ok.getException().toException());
                     }
 
                     out.set(dataOutputStream);
@@ -195,8 +203,6 @@ public class EventoSocketConnection {
                             }
                             // Process the incoming message in a new thread using the message handler
                             threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, this::send));
-                        } catch (OptionalDataException ex) {
-                            logger.error("Optional data exception", ex);
                         } catch (SocketTimeoutException ex){
                             logger.warn("Socket timeout after {} attempts", timeoutHits);
                             timeoutHits++;
