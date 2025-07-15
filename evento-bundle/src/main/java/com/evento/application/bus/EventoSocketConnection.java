@@ -15,6 +15,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -36,6 +37,9 @@ public class EventoSocketConnection {
     private final int maxReconnectAttempts;
     private final long reconnectDelayMillis;
 
+    private boolean connecting = true;
+    private final Object connectingLock = new Object();
+
     // Bundle registration information
     private final BundleRegistration bundleRegistration;
 
@@ -46,6 +50,7 @@ public class EventoSocketConnection {
     // Connection state variables
     private int reconnectAttempt = 0;
     private final AtomicReference<ObjectOutputStream> out = new AtomicReference<>();
+    private final AtomicReference<ObjectInputStream> in = new AtomicReference<>();
     @Getter
     private Socket socket;
     @Getter
@@ -93,12 +98,13 @@ public class EventoSocketConnection {
         this.socketConfig = socketConfig;
     }
 
-    private synchronized void write(Serializable message) throws IOException {
-
+    private void write(Serializable message) throws IOException {
         try {
-            var o = out.get();
-            o.writeObject(message);
-            o.flush();
+            synchronized (connectingLock) {
+                var o = out.get();
+                o.writeObject(message);
+                o.flush();
+            }
         } catch (Throwable e) {
             if (socketConfig.isCloseOnSendError() && socket != null) {
                 socket.close();
@@ -113,9 +119,12 @@ public class EventoSocketConnection {
      * @param message The message to be sent.
      * @throws SendFailedException Thrown if the message fails to be sent.
      */
-    public synchronized void send(Serializable message) throws SendFailedException {
+    public void send(Serializable message) throws SendFailedException {
         if (closed) {
             throw new SendFailedException(new IllegalStateException("Socket connection is closed"));
+        }
+        if(connecting){
+            throw new SendFailedException(new IllegalStateException("Socket connection is connecting"));
         }
         if (message instanceof EventoRequest r) {
             this.pendingCorrelations.add(r.getCorrelationId());
@@ -148,41 +157,46 @@ public class EventoSocketConnection {
                         serverAddress,
                         serverPort,
                         reconnectAttempt + 1);
-
                 try {
-                    if(this.socket != null){
-                        this.socket.close();
-                        this.socket = null;
-                        this.pendingCorrelations.clear();
-                        logger.info("Previous socket Connection #{} closed", conn);
-                        Sleep.apply(reconnectDelayMillis);
+                    synchronized (connectingLock) {
+                        connecting = true;
+                        if (this.socket != null) {
+                            this.socket.close();
+                            this.socket = null;
+                            this.pendingCorrelations.clear();
+                            logger.info("Previous socket Connection #{} closed", conn);
+                            Sleep.apply(reconnectDelayMillis);
+                        }
+                        this.socket = socketConfig.apply(serverAddress, serverPort);
+
+
+                        // Initialize the output stream for sending messages
+                        var dataOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                        logger.info("Connected to {}:{}", serverAddress, serverPort);
+
+                        // Reset the reconnect attempt count
+                        reconnectAttempt = 0;
+
+                        // Send the bundle registration information to the server
+                        dataOutputStream.writeObject(bundleRegistration);
+                        dataOutputStream.flush();
+                        logger.info("Registration message sent");
+
+                        // Initialize the input stream for receiving messages
+                        var dataInputStream = new ObjectInputStream(socket.getInputStream());
+
+                        var ok = (BundleRegistered) dataInputStream.readObject();
+                        if (!ok.isRegistered()) {
+                            throw new IllegalStateException("Bundle registration failed", ok.getException().toException());
+                        } else {
+                            logger.info("Bundle registered successfully in server {}", ok.getServerInstance());
+                        }
+
+                        out.set(dataOutputStream);
+                        in.set(dataInputStream);
+
+                        connecting = false;
                     }
-                    this.socket = socketConfig.apply(serverAddress, serverPort);
-
-
-                    // Initialize the output stream for sending messages
-                    var dataOutputStream = new ObjectOutputStream(socket.getOutputStream());
-                    logger.info("Connected to {}:{}", serverAddress, serverPort);
-
-                    // Reset the reconnect attempt count
-                    reconnectAttempt = 0;
-
-                    // Send the bundle registration information to the server
-                    dataOutputStream.writeObject(bundleRegistration);
-                    dataOutputStream.flush();
-                    logger.info("Registration message sent");
-
-                    // Initialize the input stream for receiving messages
-                    var dataInputStream = new ObjectInputStream(socket.getInputStream());
-
-                    var ok = (BundleRegistered) dataInputStream.readObject();
-                    if (!ok.isRegistered()) {
-                        throw new IllegalStateException("Bundle registration failed", ok.getException().toException());
-                    }else{
-                        logger.info("Bundle registered successfully in server {}", ok.getServerInstance());
-                    }
-
-                    out.set(dataOutputStream);
 
                     // If the connection is enabled, send an enable message
                     if(enabled){
@@ -196,7 +210,7 @@ public class EventoSocketConnection {
                     var timeoutHits = 0;
                     while (true) {
                         try {
-                            var data = dataInputStream.readObject();
+                            var data = in.get().readObject();
                             timeoutHits = 0;
                             if (data instanceof EventoResponse r) {
                                 // Remove correlation ID from pending set on receiving a response
