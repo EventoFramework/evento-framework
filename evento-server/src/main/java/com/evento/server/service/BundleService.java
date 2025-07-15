@@ -12,10 +12,7 @@ import com.evento.server.domain.model.core.BucketType;
 import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.domain.model.core.Handler;
 import com.evento.server.domain.model.core.Payload;
-import com.evento.server.domain.repository.core.BundleRepository;
-import com.evento.server.domain.repository.core.ComponentRepository;
-import com.evento.server.domain.repository.core.HandlerRepository;
-import com.evento.server.domain.repository.core.PayloadRepository;
+import com.evento.server.domain.repository.core.*;
 import com.evento.server.domain.repository.core.projection.BundleListProjection;
 import com.evento.server.service.deploy.BundleDeployService;
 import org.springframework.stereotype.Service;
@@ -44,18 +41,20 @@ public class BundleService {
     private final ComponentRepository componentRepository;
 
     private final PlatformTransactionManager tm;
+    private final ConsumerRepository consumerRepository;
 
     /**
      * The BundleService class is responsible for managing bundles in the system.
      */
     public BundleService(BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository, BundleDeployService bundleDeployService,
-                         ComponentRepository componentRepository, PlatformTransactionManager tm) {
+                         ComponentRepository componentRepository, PlatformTransactionManager tm, ConsumerRepository consumerRepository) {
         this.bundleRepository = bundleRepository;
         this.handlerRepository = handlerRepository;
         this.payloadRepository = payloadRepository;
         this.bundleDeployService = bundleDeployService;
         this.componentRepository = componentRepository;
         this.tm = tm;
+        this.consumerRepository = consumerRepository;
     }
 
 
@@ -739,8 +738,10 @@ public class BundleService {
             handlerRepository.delete(handler);
             handler.getHandledPayload().getHandlers().remove(handler);
         }
+        var components = componentRepository.findAllByBundle_Id(bundleId);
+        consumerRepository.deleteAllByComponentIn(components);
 
-        componentRepository.deleteAll(componentRepository.findAllByBundle_Id(bundleId));
+        componentRepository.deleteAll(components);
 
         bundleRepository.findById(bundleId).ifPresent(bundleRepository::delete);
         for (Payload payload : payloadRepository.findAll()) {
