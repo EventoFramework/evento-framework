@@ -229,9 +229,11 @@ public class MessageBus {
         t = new Thread(() -> {
             while (!isShuttingDown) {
                 var hb = UUID.randomUUID() + "_" + System.currentTimeMillis();
+                logger.debug("Sending heartbeat {} from {}", hb, instanceId);
                 for (NodeAddress nodeAddress : this.availableView) {
                     var value = view.get(nodeAddress);
                     try {
+                        logger.trace("Sending heartbeat {} to {} - {}", hb, nodeAddress.toString(), nodeAddress.instanceId());
                         value.writeObject(new ServerHeartBeatMessage(instanceId, hb));
                         value.flush();
                     } catch (Throwable e) {
