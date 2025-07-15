@@ -199,16 +199,20 @@ public class AutoDiscoveryService {
      * @param node The address of the leaving node.
      */
     public void onNodeLeave(NodeAddress node) {
-        var lock = lockRegistry.obtain("DISCOVERY:" + node.instanceId());
-        lock.lock();
         try {
-            bundleRepository.findById(node.bundleId()).ifPresent(b -> {
-                if (b.getBucketType().equals(BucketType.Ephemeral) && b.getArtifactCoordinates().equals(node.instanceId())) {
-                    bundleService.unregister(node.bundleId());
-                }
-            });
-        } finally {
-            lock.unlock();
+            var lock = lockRegistry.obtain("DISCOVERY:" + node.instanceId());
+            lock.lock();
+            try {
+                bundleRepository.findById(node.bundleId()).ifPresent(b -> {
+                    if (b.getBucketType().equals(BucketType.Ephemeral) && b.getArtifactCoordinates().equals(node.instanceId())) {
+                        bundleService.unregister(node.bundleId());
+                    }
+                });
+            } finally {
+                lock.unlock();
+            }
+        }catch (Exception e){
+            logger.error(e.getMessage(), e);
         }
     }
 }
