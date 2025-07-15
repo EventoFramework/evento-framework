@@ -151,7 +151,6 @@ public class EventoSocketConnection {
 
                 try {
                     if(this.socket != null){
-                        disable();
                         this.socket.close();
                         this.socket = null;
                         this.pendingCorrelations.clear();
@@ -186,7 +185,9 @@ public class EventoSocketConnection {
                     out.set(dataOutputStream);
 
                     // If the connection is enabled, send an enable message
-                    enable();
+                    if(enabled){
+                        enable();
+                    }
 
                     // Signal that the connection is ready
                     connectionReady.release();
