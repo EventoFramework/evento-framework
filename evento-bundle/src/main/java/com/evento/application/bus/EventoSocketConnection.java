@@ -179,14 +179,14 @@ public class EventoSocketConnection {
                     var ok = (BundleRegistered) dataInputStream.readObject();
                     if (!ok.isRegistered()) {
                         throw new IllegalStateException("Bundle registration failed", ok.getException().toException());
+                    }else{
+                        logger.info("Bundle registered successfully in server {}", ok.getServerInstance());
                     }
 
                     out.set(dataOutputStream);
 
                     // If the connection is enabled, send an enable message
-                    if (enabled) {
-                        enable();
-                    }
+                    enable();
 
                     // Signal that the connection is ready
                     connectionReady.release();
