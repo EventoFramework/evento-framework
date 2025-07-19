@@ -4,15 +4,16 @@ import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.consumer.*;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
+import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.bus.MessageBus;
 import com.evento.server.domain.model.core.Consumer;
 import com.evento.server.domain.repository.core.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
+import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -37,18 +38,20 @@ import java.util.stream.Collectors;
 public class ConsumerService {
 
     private static final Logger logger = LogManager.getLogger(ConsumerService.class);
-    private final LockRegistry lockRegistry;
     private final ComponentRepository componentRepository;
     private final ConsumerRepository consumerRepository;
     private final String eventoServerInstanceId;
 
-    public ConsumerService(LockRegistry lockRegistry, ComponentRepository componentRepository,
+    private final PgDistributedLock distributedLock;
+
+    public ConsumerService(ComponentRepository componentRepository,
                            ConsumerRepository consumerRepository,
-                           @Value("${evento.server.instance.id}") String eventoServerInstanceId) {
-        this.lockRegistry = lockRegistry;
+                           @Value("${evento.server.instance.id}") String eventoServerInstanceId,
+                           DataSource dataSource) {
         this.componentRepository = componentRepository;
         this.consumerRepository = consumerRepository;
         this.eventoServerInstanceId = eventoServerInstanceId;
+        this.distributedLock = new PgDistributedLock(dataSource);
     }
 
     /**
@@ -68,10 +71,8 @@ public class ConsumerService {
                                   long sourceBundleVersion,
                                   BundleConsumerRegistrationMessage cr) {
         try {
-            var lock = lockRegistry.obtain("CONSUMER_DISCOVERY:" + sourceInstanceId);
-            if (!lock.tryLock())
-                return;
-            try {
+            var key = "CONSUMER_DISCOVERY:" + sourceInstanceId;
+            this.distributedLock.lockedArea(key, () -> {
                 logger.info("Discovering consumers in bundle: %s and instance: %s".formatted(sourceBundleId, sourceInstanceId));
                 var consumers = new ArrayList<Consumer>();
                 cr.getProjectorConsumers().forEach((k,v) -> {
@@ -105,10 +106,7 @@ public class ConsumerService {
                     }
                 });
                 consumerRepository.saveAll(consumers);
-            } finally {
-                lock.unlock();
-            }
-
+            });
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         }

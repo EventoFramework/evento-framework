@@ -1,5 +1,6 @@
 package com.evento.server.service.discovery;
 
+import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.domain.model.core.*;
 import com.evento.server.domain.repository.core.*;
 import org.apache.logging.log4j.LogManager;
@@ -10,9 +11,9 @@ import com.evento.common.modeling.messaging.message.internal.discovery.Registere
 import com.evento.server.bus.MessageBus;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.service.BundleService;
-import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.stereotype.Service;
 
+import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Objects;
@@ -27,33 +28,35 @@ public class AutoDiscoveryService {
     private final HandlerRepository handlerRepository;
     private final PayloadRepository payloadRepository;
     private final BundleService bundleService;
-    private final LockRegistry lockRegistry;
     private final ComponentRepository componentRepository;
 
+    private final PgDistributedLock pgDistributedLock;
+
     /**
-     * Service responsible for auto-discovery of components in the system.
+     * Constructs an instance of the AutoDiscoveryService responsible for managing the
+     * discovery of bundles, components, handlers, and payloads in a distributed environment.
      *
-     * @param messageBus          The message bus used for communication between components.
-     * @param bundleRepository    The repository for managing bundles of components.
-     * @param handlerRepository   The repository for managing component handlers.
-     * @param payloadRepository   The repository for managing component payloads.
-     * @param bundleService       The service for managing bundles of components.
-     * @param lockRegistry        The registry for managing locks.
-     * @param componentRepository The repository for managing components.
+     * @param messageBus The message bus used for inter-service communication and event handling.
+     * @param bundleRepository Repository for managing bundle entities.
+     * @param handlerRepository Repository for managing handler entities.
+     * @param payloadRepository Repository for managing payload entities.
+     * @param bundleService Service responsible for bundle-related operations.
+     * @param componentRepository Repository for managing component entities.
+     * @param dataSource The data source used for distributed locking and database interactions.
      */
     public AutoDiscoveryService(MessageBus messageBus,
                                 BundleRepository bundleRepository,
                                 HandlerRepository handlerRepository,
-                                PayloadRepository payloadRepository, BundleService bundleService, LockRegistry lockRegistry,
-                                ComponentRepository componentRepository, ConsumerRepository consumerRepository) {
+                                PayloadRepository payloadRepository, BundleService bundleService,
+                                ComponentRepository componentRepository, DataSource dataSource) {
         this.bundleRepository = bundleRepository;
         this.handlerRepository = handlerRepository;
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
-        this.lockRegistry = lockRegistry;
         messageBus.addJoinListener(this::onNodeJoin);
         messageBus.addLeaveListener(this::onNodeLeave);
         this.componentRepository = componentRepository;
+        this.pgDistributedLock = new PgDistributedLock(dataSource);
     }
 
     /**
@@ -63,10 +66,8 @@ public class AutoDiscoveryService {
      */
     private void onNodeJoin(BundleRegistration bundleRegistration) {
         try {
-            var lock = lockRegistry.obtain("DISCOVERY:" + bundleRegistration.getBundleId());
-            if (!lock.tryLock())
-                return;
-            try {
+            var key = "DISCOVERY:" + bundleRegistration.getBundleId();
+            pgDistributedLock.lockedArea(key, () -> {
                 logger.info("Discovering bundle: %s".formatted(bundleRegistration.getBundleId()));
                 if (!bundleRegistration.getHandlers().isEmpty()) {
                     var bundle = bundleRepository.findById(bundleRegistration.getBundleId()).orElseGet(() -> {
@@ -184,9 +185,7 @@ public class AutoDiscoveryService {
                         p.setUpdatedAt(Instant.now());
                         payloadRepository.save(p);
                     }));
-            } finally {
-                lock.unlock();
-            }
+            });
 
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
@@ -200,17 +199,14 @@ public class AutoDiscoveryService {
      */
     public void onNodeLeave(NodeAddress node) {
         try {
-            var lock = lockRegistry.obtain("DISCOVERY:" + node.instanceId());
-            lock.lock();
-            try {
+            var key = "DISCOVERY:" + node.instanceId();
+            pgDistributedLock.lockedArea(key, () -> {
                 bundleRepository.findById(node.bundleId()).ifPresent(b -> {
                     if (b.getBucketType().equals(BucketType.Ephemeral) && b.getArtifactCoordinates().equals(node.instanceId())) {
                         bundleService.unregister(node.bundleId());
                     }
                 });
-            } finally {
-                lock.unlock();
-            }
+            });
         }catch (Exception e){
             logger.error(e.getMessage(), e);
         }
