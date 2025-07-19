@@ -676,7 +676,9 @@ public class EventoBundle {
 
 
             if (consumerStateStoreBuilder == null) {
-                consumerStateStoreBuilder = InMemoryConsumerStateStore::new;
+                consumerStateStoreBuilder = (es, ps) ->InMemoryConsumerStateStore.builder(
+                      es, ps
+                ).build();
             }
             if (commandGateway == null) {
                 commandGateway = commandGatewayBuilder.apply(eventoServer);

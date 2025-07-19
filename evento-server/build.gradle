@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.evento'
-version = 'ev1.12.4'
+version = 'ev1.13.0'
 java {
 	targetCompatibility = "21"
 	targetCompatibility = "21"
@@ -27,7 +27,6 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.springframework.integration:spring-integration-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     compileOnly 'org.projectlombok:lombok'
 	

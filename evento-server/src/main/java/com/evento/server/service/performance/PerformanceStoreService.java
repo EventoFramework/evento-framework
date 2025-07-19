@@ -4,6 +4,7 @@ import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.performance.PerformanceInvocationsMessage;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.performance.PerformanceServiceTimeMessage;
+import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.domain.model.core.Handler;
 import com.evento.server.domain.model.performance.HandlerInvocationCountPerformance;
 import com.evento.server.domain.model.performance.HandlerServiceTimePerformance;
@@ -15,12 +16,12 @@ import com.evento.server.service.performance.model.AggregatePerformancePoint;
 import com.evento.server.service.performance.model.AggregationFunction;
 import com.evento.server.service.performance.model.PerformancePoint;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.integration.support.locks.LockRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import javax.sql.DataSource;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Collection;
@@ -38,10 +39,11 @@ public class PerformanceStoreService extends PerformanceService {
 
     private final HandlerRepository handlerRepository;
 
-    private final LockRegistry lockRegistry;
     private final PayloadRepository payloadRepository;
 
     private final JdbcTemplate jdbcTemplate;
+
+    private final PgDistributedLock distributedLock;
 
     @Value("${evento.telemetry.ttl}")
     private int ttl;
@@ -49,17 +51,18 @@ public class PerformanceStoreService extends PerformanceService {
     public PerformanceStoreService(
             HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository,
             HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository,
-            HandlerRepository handlerRepository, LockRegistry lockRegistry,
+            HandlerRepository handlerRepository,
             @Value("${evento.performance.capture.rate:1}") double performanceCaptureRate,
-            PayloadRepository payloadRepository, JdbcTemplate jdbcTemplate) {
+            PayloadRepository payloadRepository, JdbcTemplate jdbcTemplate,
+            DataSource dataSource) {
         super(performanceCaptureRate);
         this.handlerServiceTimePerformanceRepository = handlerServiceTimePerformanceRepository;
         this.handlerInvocationCountPerformanceRepository = handlerInvocationCountPerformanceRepository;
         this.handlerRepository = handlerRepository;
 
-        this.lockRegistry = lockRegistry;
         this.payloadRepository = payloadRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.distributedLock = new PgDistributedLock(dataSource);
     }
 
     public static Instant now() {
@@ -72,109 +75,93 @@ public class PerformanceStoreService extends PerformanceService {
         ).orElse(null);
     }
 
-    private static boolean tryLock(Lock lock) {
-        try {
-            return lock.tryLock();
-        } catch (Exception e) {
-            return false;
-        }
-    }
+
 
     public void saveServiceTimePerformance(String bundle, String instanceId, String component, String action, long start, long end) {
         var pId = bundle + "_" + component + "_" + action;
-        var lock = lockRegistry.obtain(pId);
         var duration = end - start;
-        if (tryLock(lock)) {
-            try {
-                var hp = handlerServiceTimePerformanceRepository.findById(pId);
-                HandlerServiceTimePerformance handlerServiceTimePerformance;
-                if (hp.isPresent()) {
-                    handlerServiceTimePerformance = hp.get();
-                    handlerServiceTimePerformance.setAgedMeanServiceTime((((duration) * (1 - ALPHA)) + handlerServiceTimePerformance.getAgedMeanServiceTime() * ALPHA));
-                    handlerServiceTimePerformance.setLastServiceTime(duration);
-                    handlerServiceTimePerformance.setMaxServiceTime(Math.max(handlerServiceTimePerformance.getMaxServiceTime(), duration));
-                    handlerServiceTimePerformance.setMinServiceTime(Math.min(handlerServiceTimePerformance.getMinServiceTime(), duration));
+        distributedLock.tryLockedArea(pId, () -> {
+            var hp = handlerServiceTimePerformanceRepository.findById(pId);
+            HandlerServiceTimePerformance handlerServiceTimePerformance;
+            if (hp.isPresent()) {
+                handlerServiceTimePerformance = hp.get();
+                handlerServiceTimePerformance.setAgedMeanServiceTime((((duration) * (1 - ALPHA)) + handlerServiceTimePerformance.getAgedMeanServiceTime() * ALPHA));
+                handlerServiceTimePerformance.setLastServiceTime(duration);
+                handlerServiceTimePerformance.setMaxServiceTime(Math.max(handlerServiceTimePerformance.getMaxServiceTime(), duration));
+                handlerServiceTimePerformance.setMinServiceTime(Math.min(handlerServiceTimePerformance.getMinServiceTime(), duration));
 
-                    if (handlerServiceTimePerformance.getLastArrival() < start) {
-                        var interval = start - handlerServiceTimePerformance.getLastArrival();
-                        handlerServiceTimePerformance.setAgedMeanArrivalInterval((((duration) * (1 - ALPHA)) + handlerServiceTimePerformance.getAgedMeanArrivalInterval() * ALPHA));
-                        handlerServiceTimePerformance.setLastArrivalInterval(interval);
-                        handlerServiceTimePerformance.setMaxArrivalInterval(Math.max(handlerServiceTimePerformance.getMaxArrivalInterval(), interval));
-                        handlerServiceTimePerformance.setMinArrivalInterval(Math.min(handlerServiceTimePerformance.getMinArrivalInterval(), interval));
+                if (handlerServiceTimePerformance.getLastArrival() < start) {
+                    var interval = start - handlerServiceTimePerformance.getLastArrival();
+                    handlerServiceTimePerformance.setAgedMeanArrivalInterval((((duration) * (1 - ALPHA)) + handlerServiceTimePerformance.getAgedMeanArrivalInterval() * ALPHA));
+                    handlerServiceTimePerformance.setLastArrivalInterval(interval);
+                    handlerServiceTimePerformance.setMaxArrivalInterval(Math.max(handlerServiceTimePerformance.getMaxArrivalInterval(), interval));
+                    handlerServiceTimePerformance.setMinArrivalInterval(Math.min(handlerServiceTimePerformance.getMinArrivalInterval(), interval));
 
-                        handlerServiceTimePerformance.setLastArrival(start);
-                    }
-                    handlerServiceTimePerformance.setCount(handlerServiceTimePerformance.getCount() + 1);
-                } else {
-                    handlerServiceTimePerformance = new HandlerServiceTimePerformance(
-                            pId,
-                            duration,
-                            duration,
-                            duration,
-                            duration,
-                            0,
-                            start,
-                            0,
-                            start,
-                            start, 1
-                    );
+                    handlerServiceTimePerformance.setLastArrival(start);
                 }
-                handlerServiceTimePerformanceRepository.save(handlerServiceTimePerformance);
-                jdbcTemplate.update("insert into performance__handler_service_time_ts (id, value, instance_id, timestamp) values (?,?,?,?)",
+                handlerServiceTimePerformance.setCount(handlerServiceTimePerformance.getCount() + 1);
+            } else {
+                handlerServiceTimePerformance = new HandlerServiceTimePerformance(
                         pId,
                         duration,
-                        instanceId,
-                        Instant.now().toEpochMilli());
-            } finally {
-                lock.unlock();
+                        duration,
+                        duration,
+                        duration,
+                        0,
+                        start,
+                        0,
+                        start,
+                        start, 1
+                );
             }
-        }
+            handlerServiceTimePerformanceRepository.save(handlerServiceTimePerformance);
+            jdbcTemplate.update("insert into performance__handler_service_time_ts (id, value, instance_id, timestamp) values (?,?,?,?)",
+                    pId,
+                    duration,
+                    instanceId,
+                    Instant.now().toEpochMilli());
+        });
     }
 
 
     public void saveInvocationsPerformance(String bundle, String instanceId, String component, String action, HashMap<String, Integer> invocations) {
         var pId = "ic__" + bundle + "_" + component + "_" + action;
-        var lock = lockRegistry.obtain(pId);
-        if (tryLock(lock)) {
-            try {
-                var hId = Handler.generateId(bundle, component, action);
-                handlerRepository.findById(hId).ifPresent(handler -> {
-                    var edited = false;
-                    for (String payload : invocations.keySet()) {
-                        if (handler.getInvocations().values().stream().noneMatch(p -> p.getName().equals(payload))) {
-                            var p = payloadRepository.findById(payload);
-                            if (p.isPresent()) {
-                                var line = Math.min(0, handler.getInvocations().keySet().stream().mapToInt(i -> i).min().orElse(0)) - 1;
-                                handler.getInvocations().put(line, p.get());
-                                edited = true;
-                            }
+        distributedLock.tryLockedArea(pId, ()-> {
+            var hId = Handler.generateId(bundle, component, action);
+            handlerRepository.findById(hId).ifPresent(handler -> {
+                var edited = false;
+                for (String payload : invocations.keySet()) {
+                    if (handler.getInvocations().values().stream().noneMatch(p -> p.getName().equals(payload))) {
+                        var p = payloadRepository.findById(payload);
+                        if (p.isPresent()) {
+                            var line = Math.min(0, handler.getInvocations().keySet().stream().mapToInt(i -> i).min().orElse(0)) - 1;
+                            handler.getInvocations().put(line, p.get());
+                            edited = true;
                         }
                     }
-                    if (edited) {
-                        handler = handlerRepository.save(handler);
-                    }
-                    for (var payload : new HashSet<>(handler.getInvocations().values())) {
-                        var id = bundle + "_" + component + "_" + action + '_' + payload.getName();
-                        var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(()
-                                -> {
-                            var hi = new HandlerInvocationCountPerformance();
-                            hi.setId(id);
-                            hi.setLastCount(0);
-                            hi.setMeanProbability(0);
-                            return handlerInvocationCountPerformanceRepository.save(hi);
-                        });
-                        hip.setLastCount(invocations.getOrDefault(payload.getName(), 0));
-                        hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) +
-                                (ALPHA * invocations.getOrDefault(payload.getName(), 0)));
-                        handlerInvocationCountPerformanceRepository.save(hip);
-                        jdbcTemplate.update("insert into performance__handler_invocation_count_ts (id, instance_id, timestamp) values (?, ?, ?)",
-                                id, instanceId, Instant.now().toEpochMilli());
-                    }
-                });
-            } finally {
-                lock.unlock();
-            }
-        }
+                }
+                if (edited) {
+                    handler = handlerRepository.save(handler);
+                }
+                for (var payload : new HashSet<>(handler.getInvocations().values())) {
+                    var id = bundle + "_" + component + "_" + action + '_' + payload.getName();
+                    var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(()
+                            -> {
+                        var hi = new HandlerInvocationCountPerformance();
+                        hi.setId(id);
+                        hi.setLastCount(0);
+                        hi.setMeanProbability(0);
+                        return handlerInvocationCountPerformanceRepository.save(hi);
+                    });
+                    hip.setLastCount(invocations.getOrDefault(payload.getName(), 0));
+                    hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) +
+                            (ALPHA * invocations.getOrDefault(payload.getName(), 0)));
+                    handlerInvocationCountPerformanceRepository.save(hip);
+                    jdbcTemplate.update("insert into performance__handler_invocation_count_ts (id, instance_id, timestamp) values (?, ?, ?)",
+                            id, instanceId, Instant.now().toEpochMilli());
+                }
+            });
+        });
     }
 
 
