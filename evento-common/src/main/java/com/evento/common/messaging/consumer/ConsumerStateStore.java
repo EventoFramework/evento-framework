@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -27,14 +28,18 @@ public abstract class ConsumerStateStore {
 
     private final Executor observerExecutor;
 
+    private final long timeoutMillis;
+
     protected ConsumerStateStore(
             EventoServer eventoServer,
             PerformanceService performanceService,
-            ObjectMapper objectMapper, Executor observerExecutor) {
+            ObjectMapper objectMapper,
+            Executor observerExecutor, long timeoutMillis) {
         this.eventoServer = eventoServer;
         this.performanceService = performanceService;
         this.objectMapper = objectMapper;
         this.observerExecutor = observerExecutor;
+        this.timeoutMillis = timeoutMillis;
     }
 
     /**
@@ -67,7 +72,7 @@ public abstract class ConsumerStateStore {
                             context,
                             lastEventSequenceNumber,
                             fetchSize,
-                            projectorName)).get());
+                            projectorName)).get(timeoutMillis, TimeUnit.MILLISECONDS));
             for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 try {
@@ -162,7 +167,8 @@ public abstract class ConsumerStateStore {
             }
             var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
             var resp = ((EventFetchResponse) eventoServer.request(
-                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, observerName)).get());
+                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, observerName))
+                    .get(timeoutMillis, TimeUnit.MILLISECONDS));
             for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 observerExecutor.execute(() -> {
@@ -267,7 +273,8 @@ public abstract class ConsumerStateStore {
             }
             var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
             var resp = ((EventFetchResponse) eventoServer.request(
-                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName)).get());
+                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName))
+                    .get(timeoutMillis, TimeUnit.MILLISECONDS));
             for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 var sagaStateId = new AtomicReference<Long>();
@@ -368,7 +375,8 @@ public abstract class ConsumerStateStore {
     public long getLastEventSequenceNumberSagaOrHead(String consumerId) throws Exception {
         var last = getLastEventSequenceNumber(consumerId);
         if (last == null) {
-            var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest()).get()).getNumber();
+            var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest())
+                    .get(timeoutMillis, TimeUnit.MILLISECONDS)).getNumber();
             setLastEventSequenceNumber(consumerId, head);
             return head;
         }

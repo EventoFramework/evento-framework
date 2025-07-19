@@ -33,7 +33,9 @@ public class EventoConfiguration {
 	) throws Exception {
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoSagaApplication.class.getPackage())
-				.setConsumerStateStoreBuilder(InMemoryConsumerStateStore::new)
+				.setConsumerStateStoreBuilder((b,p) -> InMemoryConsumerStateStore.builder(
+						b,p
+				).build())
 				.setInjector(factory::getBean)
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)
