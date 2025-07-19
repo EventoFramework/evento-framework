@@ -11,12 +11,9 @@ import com.evento.common.modeling.messaging.message.internal.discovery.BundleReg
 import com.evento.common.utils.Sleep;
 
 import java.io.*;
-import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.HashSet;
-import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -163,7 +160,7 @@ public class EventoSocketConnection {
                         if (this.socket != null) {
                             this.socket.close();
                             this.socket = null;
-                            this.pendingCorrelations.clear();
+                            handleCorrelationLoss(new IOException("Socket closed"));
                             logger.info("Previous socket Connection #{} closed", conn);
                             Sleep.apply(reconnectDelayMillis);
                         }
@@ -219,7 +216,7 @@ public class EventoSocketConnection {
                             // Process the incoming message in a new thread using the message handler
                             threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, this::send));
                         } catch (SocketTimeoutException ex){
-                            logger.warn("Socket timeout after {} attempts", timeoutHits);
+                            logger.warn("Socket timeout after {} attempts", timeoutHits + 1);
                             timeoutHits++;
                             if (timeoutHits > socketConfig.getTimeoutLimit()) {
                                 logger.error("Socket timeout after {} attempts. Closing connection", socketConfig.getTimeoutLimit());
@@ -229,20 +226,7 @@ public class EventoSocketConnection {
                         }
                     }
                 } catch (Throwable e) {
-                    // Log connection error and handle pending correlations
-                    logger.error("Connection error %s:%d".formatted(reconnectAttempt, serverPort), e);
-                    for (String pendingCorrelation : pendingCorrelations) {
-                        var resp = new EventoResponse();
-                        resp.setCorrelationId(pendingCorrelation);
-                        resp.setBody(new ExceptionWrapper(e));
-                        try {
-                            handler.handle(resp, this::send);
-                        } catch (Exception e1) {
-                            logger.error(e1.getMessage(), e1);
-                        }
-                    }
-                    pendingCorrelations.clear();
-
+                    handleCorrelationLoss(e);
                     // Sleep before attempting to reconnect
                     Sleep.apply(reconnectDelayMillis);
 
@@ -265,6 +249,28 @@ public class EventoSocketConnection {
 
         // Wait for the connection to be ready (or for the maximum attempts to be reached)
         connectionReady.acquire();
+    }
+
+    private void handleCorrelationLoss(Throwable e, String correlationId){
+        var resp = new EventoResponse();
+        resp.setCorrelationId(correlationId);
+        resp.setBody(new ExceptionWrapper(e));
+        try {
+            handler.handle(resp, this::send);
+        } catch (Exception e1) {
+            logger.error(e1.getMessage(), e1);
+        }
+        pendingCorrelations.remove(correlationId);
+    }
+
+    private void handleCorrelationLoss(Throwable e){
+        // Log connection error and handle pending correlations
+        logger.error("Connection error %s:%d".formatted(reconnectAttempt, serverPort), e);
+        var old = new HashSet<>(pendingCorrelations);
+        for (String pendingCorrelation : old) {
+           this.handleCorrelationLoss(e, pendingCorrelation);
+        }
+
     }
 
 
