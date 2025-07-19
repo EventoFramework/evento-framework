@@ -36,29 +36,113 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     private final ArrayList<DeadPublishedEvent> deadEventQueue = new ArrayList<>();
 
     /**
-     * Constructs a new InMemoryConsumerStateStore object.
-     *
-     * @param eventoServer       the EventoServer used for sending and receiving messages in an Evento cluster
-     * @param performanceService the PerformanceService used for performance monitoring
+     * Builder for InMemoryConsumerStateStore.
+     * Use this builder to create instances of InMemoryConsumerStateStore with the desired configuration.
      */
-    public InMemoryConsumerStateStore(EventoServer eventoServer,
-                                      PerformanceService performanceService) {
-        this(eventoServer, performanceService, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newCachedThreadPool());
+    public static class Builder {
+        // Required parameters
+        private final EventoServer eventoServer;
+        private final PerformanceService performanceService;
+        
+        // Optional parameters with default values
+        private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
+        private Executor observerExecutor = Executors.newCachedThreadPool();
+        private long timeoutMillis = 30000; // Default timeout: 30 seconds
+
+        /**
+         * Creates a new Builder with the required parameters.
+         *
+         * @param eventoServer       an instance of evento server connection
+         * @param performanceService an instance of performance service
+         */
+        public Builder(
+                EventoServer eventoServer,
+                PerformanceService performanceService) {
+            this.eventoServer = eventoServer;
+            this.performanceService = performanceService;
+        }
+
+        /**
+         * Sets the object mapper to use for serialization.
+         *
+         * @param objectMapper an object mapper to manage serialization
+         * @return this builder for method chaining
+         */
+        public Builder withObjectMapper(ObjectMapper objectMapper) {
+            this.objectMapper = objectMapper;
+            return this;
+        }
+
+        /**
+         * Sets the executor to use for observers.
+         *
+         * @param observerExecutor observer executor
+         * @return this builder for method chaining
+         */
+        public Builder withObserverExecutor(Executor observerExecutor) {
+            this.observerExecutor = observerExecutor;
+            return this;
+        }
+
+        /**
+         * Sets the timeout in milliseconds for event fetching operations.
+         *
+         * @param timeoutMillis timeout in milliseconds
+         * @return this builder for method chaining
+         */
+        public Builder withTimeoutMillis(long timeoutMillis) {
+            this.timeoutMillis = timeoutMillis;
+            return this;
+        }
+
+        /**
+         * Builds a new InMemoryConsumerStateStore with the configured parameters.
+         *
+         * @return a new InMemoryConsumerStateStore instance
+         */
+        public InMemoryConsumerStateStore build() {
+            return new InMemoryConsumerStateStore(
+                    eventoServer,
+                    performanceService,
+                    objectMapper,
+                    observerExecutor,
+                    timeoutMillis
+            );
+        }
     }
 
     /**
-     * This class represents an in-memory implementation of the ConsumerStateStore interface.
-     * It stores the state of the consumer such as last event sequence number and saga state.
+     * Creates a new Builder for InMemoryConsumerStateStore.
      *
-     * @param eventoServer       an evento server connection instance
-     * @param performanceService a performance service connection instance
-     * @param objectMapper       an object mapper to convert messages
-     * @param observerExecutor   an executor for observers
+     * @param eventoServer       an instance of evento server connection
+     * @param performanceService an instance of performance service
+     * @return a new Builder instance
      */
-    public InMemoryConsumerStateStore(EventoServer eventoServer,
-                                      PerformanceService performanceService, ObjectMapper objectMapper,
-                                      Executor observerExecutor) {
-        super(eventoServer, performanceService, objectMapper, observerExecutor);
+    public static Builder builder(
+            EventoServer eventoServer,
+            PerformanceService performanceService) {
+        return new Builder(eventoServer, performanceService);
+    }
+
+
+    
+    /**
+     * Private constructor used by the Builder and deprecated constructors.
+     * Use {@link #builder(EventoServer, PerformanceService)} to create instances.
+     *
+     * @param eventoServer       an instance of evento server connection
+     * @param performanceService an instance of performance service
+     * @param objectMapper       an object mapper to manage serialization
+     * @param observerExecutor   observer executor
+     * @param timeoutMillis      timeout in milliseconds for event fetching operations
+     */
+    private InMemoryConsumerStateStore(
+            EventoServer eventoServer,
+            PerformanceService performanceService,
+            ObjectMapper objectMapper,
+            Executor observerExecutor,
+            long timeoutMillis) {
+        super(eventoServer, performanceService, objectMapper, observerExecutor, timeoutMillis);
     }
 
     /**
