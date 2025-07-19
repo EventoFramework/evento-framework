@@ -13,7 +13,10 @@ import com.evento.common.utils.Sleep;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -56,7 +59,7 @@ public class EventoSocketConnection {
     private final int conn = instanceCounter.incrementAndGet();
     @Getter
     private boolean closed = false;
-    private final HashSet<String> pendingCorrelations = new HashSet<>();
+    private final Set<String> pendingCorrelations = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Executor threadPerRequestExecutor = Executors.newCachedThreadPool();
     @Getter
     private Thread socketReadThread;
@@ -218,7 +221,7 @@ public class EventoSocketConnection {
                         } catch (SocketTimeoutException ex){
                             logger.warn("Socket timeout after {} attempts", timeoutHits + 1);
                             timeoutHits++;
-                            if (timeoutHits > socketConfig.getTimeoutLimit()) {
+                            if (timeoutHits >= socketConfig.getTimeoutLimit()) {
                                 logger.error("Socket timeout after {} attempts. Closing connection", socketConfig.getTimeoutLimit());
                                 throw ex;
                             }
@@ -252,6 +255,7 @@ public class EventoSocketConnection {
     }
 
     private void handleCorrelationLoss(Throwable e, String correlationId){
+        logger.error("Correlation lost for message with correlation ID {}. Closing connection", correlationId, e);
         var resp = new EventoResponse();
         resp.setCorrelationId(correlationId);
         resp.setBody(new ExceptionWrapper(e));

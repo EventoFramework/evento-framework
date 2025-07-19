@@ -40,57 +40,150 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
     protected final Supplier<Connection> connectionFactory;
 
     /**
-     * Implementation of the ConsumerStateStore interface that stores the consumer state in PostgresSQL database.
+     * Builder for PostgresConsumerStateStore.
+     * Use this builder to create instances of PostgresConsumerStateStore with the desired configuration.
+     */
+    public static class Builder {
+        // Required parameters
+        private final EventoServer eventoServer;
+        private final PerformanceService performanceService;
+        private final Supplier<Connection> connectionFactory;
+        
+        // Optional parameters with default values
+        private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
+        private Executor observerExecutor = Executors.newCachedThreadPool();
+        private String tablePrefix = "";
+        private String tableSuffix = "";
+        private long timeoutMillis = 30000; // Default timeout: 30 seconds
+
+        /**
+         * Creates a new Builder with the required parameters.
+         *
+         * @param eventoServer       an instance of evento server connection
+         * @param performanceService an instance of performance service
+         * @param connectionFactory  a PostgresSQL java connection Factory
+         */
+        public Builder(
+                EventoServer eventoServer,
+                PerformanceService performanceService,
+                Supplier<Connection> connectionFactory) {
+            this.eventoServer = eventoServer;
+            this.performanceService = performanceService;
+            this.connectionFactory = connectionFactory;
+        }
+
+        /**
+         * Sets the object mapper to use for serialization.
+         *
+         * @param objectMapper an object mapper to manage serialization
+         * @return this builder for method chaining
+         */
+        public Builder withObjectMapper(ObjectMapper objectMapper) {
+            this.objectMapper = objectMapper;
+            return this;
+        }
+
+        /**
+         * Sets the executor to use for observers.
+         *
+         * @param observerExecutor observer executor
+         * @return this builder for method chaining
+         */
+        public Builder withObserverExecutor(Executor observerExecutor) {
+            this.observerExecutor = observerExecutor;
+            return this;
+        }
+
+        /**
+         * Sets the table prefix to use for database tables.
+         *
+         * @param tablePrefix prefix to add to tables
+         * @return this builder for method chaining
+         */
+        public Builder withTablePrefix(String tablePrefix) {
+            this.tablePrefix = tablePrefix;
+            return this;
+        }
+
+        /**
+         * Sets the table suffix to use for database tables.
+         *
+         * @param tableSuffix suffix to add to tables
+         * @return this builder for method chaining
+         */
+        public Builder withTableSuffix(String tableSuffix) {
+            this.tableSuffix = tableSuffix;
+            return this;
+        }
+
+        /**
+         * Sets the timeout in milliseconds for event fetching operations.
+         *
+         * @param timeoutMillis timeout in milliseconds
+         * @return this builder for method chaining
+         */
+        public Builder withTimeoutMillis(long timeoutMillis) {
+            this.timeoutMillis = timeoutMillis;
+            return this;
+        }
+
+        /**
+         * Builds a new PostgresConsumerStateStore with the configured parameters.
+         *
+         * @return a new PostgresConsumerStateStore instance
+         */
+        public PostgresConsumerStateStore build() {
+            return new PostgresConsumerStateStore(
+                    eventoServer,
+                    performanceService,
+                    connectionFactory,
+                    objectMapper,
+                    observerExecutor,
+                    tablePrefix,
+                    tableSuffix,
+                    timeoutMillis
+            );
+        }
+    }
+
+    /**
+     * Creates a new Builder for PostgresConsumerStateStore.
      *
      * @param eventoServer       an instance of evento server connection
      * @param performanceService an instance of performance service
      * @param connectionFactory  a PostgresSQL java connection Factory
+     * @return a new Builder instance
      */
-    public PostgresConsumerStateStore(
+    public static Builder builder(
             EventoServer eventoServer,
             PerformanceService performanceService,
             Supplier<Connection> connectionFactory) {
-        this(eventoServer, performanceService, connectionFactory, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newCachedThreadPool(),
-                "", "");
+        return new Builder(eventoServer, performanceService, connectionFactory);
     }
 
     /**
-     * Implementation of the ConsumerStateStore interface that stores the consumer state in PostgresSQL database.
-     *
-     * @param eventoServer       an instance of evento server connection
-     * @param performanceService an instance of performance service
-     * @param connectionFactory  a PostgresSQL java connection factory
-     * @param tablePrefix        prefix to add to tables
-     * @param tableSuffix        suffix to add to tables
-     */
-    public PostgresConsumerStateStore(
-            EventoServer eventoServer,
-            PerformanceService performanceService,
-            Supplier<Connection> connectionFactory,
-            String tablePrefix,
-            String tableSuffix) {
-        this(eventoServer, performanceService, connectionFactory, ObjectMapperUtils.getPayloadObjectMapper(), Executors.newCachedThreadPool(),
-                tablePrefix, tableSuffix);
-    }
-
-    /**
-     * Represents a consumer state store implementation that stores the consumer state in a PostgresSQL database.
+     * Private constructor used by the Builder and deprecated constructors.
+     * Use {@link #builder(EventoServer, PerformanceService, Supplier)} to create instances.
      *
      * @param eventoServer       an instance of evento server connection
      * @param performanceService an instance of performance service
      * @param connectionFactory  a PostgresSQL java connection factory
      * @param objectMapper       an object mapper to manage serialization
      * @param observerExecutor   observer executor
+     * @param tablePrefix        prefix to add to tables
+     * @param tableSuffix        suffix to add to tables
+     * @param timeoutMillis      timeout in milliseconds for event fetching operations
      */
-    public PostgresConsumerStateStore(
+    private PostgresConsumerStateStore(
             EventoServer eventoServer,
             PerformanceService performanceService,
             Supplier<Connection> connectionFactory,
             ObjectMapper objectMapper,
             Executor observerExecutor,
             String tablePrefix,
-            String tableSuffix) {
-        super(eventoServer, performanceService, objectMapper, observerExecutor);
+            String tableSuffix,
+            long timeoutMillis) {
+        super(eventoServer, performanceService, objectMapper, observerExecutor, timeoutMillis);
         this.connectionFactory = connectionFactory;
         this.CONSUMER_STATE_TABLE = tablePrefix + "evento__consumer_state" + tableSuffix;
         this.SAGA_STATE_TABLE = tablePrefix + "evento__saga_state" + tableSuffix;
