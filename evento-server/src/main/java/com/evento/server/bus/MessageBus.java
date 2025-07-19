@@ -57,7 +57,7 @@ public class MessageBus {
 
     private final Map<NodeAddress, ObjectOutputStream> view = new ConcurrentHashMap<>();
     private final Map<NodeAddress, BundleRegistration> registrations = new ConcurrentHashMap<>();
-    private final Set<NodeAddress> availableView = new HashSet<>();
+    private final Set<NodeAddress> availableView = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Map<String, Set<NodeAddress>> handlers = new ConcurrentHashMap<>();
 
     private final BundleDeployService bundleDeployService;
@@ -183,8 +183,7 @@ public class MessageBus {
                                                 }
                                             });
                                         } else if (message instanceof EventoResponse r) {
-                                            var c = correlations.get(r.getCorrelationId());
-                                            correlations.remove(r.getCorrelationId());
+                                            var c = correlations.remove(r.getCorrelationId());
                                             c.response().accept(r);
                                         } else if (message instanceof EventoMessage m) {
                                             handleMessage(m);
