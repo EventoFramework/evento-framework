@@ -3,6 +3,7 @@ package com.evento.server.bus;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistered;
 import com.evento.common.serialization.ObjectMapperUtils;
+import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.service.discovery.ConsumerService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.annotation.PostConstruct;
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -85,6 +87,8 @@ public class MessageBus {
     private final long maxDisableAttempts;
     private final long heartbeatInterval;
 
+    private final PgDistributedLock distributedLock;
+
     public MessageBus(
             @Value("${socket.port}") int socketPort,
             @Value("${evento.server.instance.id}") String instanceId,
@@ -95,7 +99,8 @@ public class MessageBus {
             BundleService bundleService, ConsumerService consumerService,
             @Value("${evento.server.disable.delay.millis:3000}") long disableDelayMillis,
             @Value("${evento.server.max.disable.attempts:30}") long maxDisableAttempts,
-            @Value("${evento.server.heart.beat.interval:15000}") long heartbeatInterval) {
+            @Value("${evento.server.heart.beat.interval:15000}") long heartbeatInterval,
+            DataSource dataSource) {
         this.socketPort = socketPort;
         this.bundleDeployService = bundleDeployService;
         this.handlerService = handlerService;
@@ -107,6 +112,7 @@ public class MessageBus {
         this.disableDelayMillis = disableDelayMillis;
         this.maxDisableAttempts = maxDisableAttempts;
         this.heartbeatInterval = heartbeatInterval;
+        this.distributedLock = new PgDistributedLock(dataSource);
     }
 
     @PostConstruct
@@ -293,8 +299,7 @@ public class MessageBus {
         logger.debug("Message received: {}", m);
         if (m.getBody() instanceof ClusterNodeIsBoredMessage b) {
             var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
-            eventStore.acquire(lockId);
-            try {
+            distributedLock.lockedArea(lockId, () -> {
                 var bundle = bundleService.findById(b.getBundleId());
                 if (bundle.getBucketType() != BucketType.Ephemeral &&
                         bundle.getMinInstances() <
@@ -306,13 +311,10 @@ public class MessageBus {
                     } catch (Exception e) {
                         logger.error("Error trying to kill node %s".formatted(b.getInstanceId()), e);
                     }
-            } finally {
-                eventStore.release(lockId);
-            }
+            });
         } else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
             var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
-            eventStore.acquire(lockId);
-            try {
+            distributedLock.lockedArea(lockId, () -> {
                 var bundle = bundleService.findById(b.getBundleId());
                 if (bundle.getMaxInstances() > getCurrentAvailableView().stream().filter(n -> n.bundleId().equals(b.getBundleId())).count())
                     try {
@@ -320,9 +322,7 @@ public class MessageBus {
                     } catch (Exception e) {
                         logger.error("Error trying to spawn bundle %s".formatted(b.getBundleId()), e);
                     }
-            } finally {
-                eventStore.release(lockId);
-            }
+            });
         } else if (m.getBody() instanceof PerformanceInvocationsMessage im) {
             performanceStoreService.saveInvocationsPerformance(
                     im.getBundle(),
@@ -362,7 +362,7 @@ public class MessageBus {
                     var dest = peekMessageHandlerAddress(c.getCommandName());
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
-                    eventStore.acquire(lockId);
+                    distributedLock.acquire(lockId);
                     logger.trace("Handle DomainCommandMessage({}) - lock acquired: {}", message.getCorrelationId(), lockId);
                     Instant lockAcquired = PerformanceStoreService.now();
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
@@ -440,13 +440,13 @@ public class MessageBus {
                                             c.isForceTelemetry()
                                     );
                                 }
-                                eventStore.release(lockId);
+                                distributedLock.release(lockId);
                                 acquired.set(false);
                                 sendResponse.accept(resp);
                             } catch (Exception e) {
                                 try {
                                     if (acquired.get()) {
-                                        eventStore.release(lockId);
+                                        distributedLock.release(lockId);
                                     }
                                 } catch (Exception ie) {
                                     logger.error("Error unlocking after exception", ie);
@@ -458,7 +458,7 @@ public class MessageBus {
 
                         });
                     } catch (Exception e) {
-                        eventStore.release(lockId);
+                        distributedLock.release(lockId);
                         throw e;
                     }
                 }
@@ -467,7 +467,7 @@ public class MessageBus {
                     var dest = peekMessageHandlerAddress(c.getCommandName());
                     var start = PerformanceStoreService.now();
                     var lockId = c.getLockId() == null ? null : RESOURCE_LOCK_PREFIX + c.getLockId();
-                    eventStore.acquire(lockId);
+                    distributedLock.acquire(lockId);
                     logger.trace("Handle ServiceCommandMessage({}) - lock acquired: {}", message.getCorrelationId(), lockId);
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
@@ -501,13 +501,13 @@ public class MessageBus {
                                     }
                                     resp.setBody(event.getSerializedPayload().getSerializedObject());
                                 }
-                                eventStore.release(lockId);
+                                distributedLock.release(lockId);
                                 acquired.set(false);
                                 sendResponse.accept(resp);
                             } catch (Exception e) {
                                 try {
                                     if (acquired.get()) {
-                                        eventStore.release(lockId);
+                                        distributedLock.release(lockId);
                                     }
                                 } catch (Exception ie) {
                                     logger.error("Error unlocking after exception", ie);
@@ -518,7 +518,7 @@ public class MessageBus {
                             logger.trace("Handle ServiceCommandMessage({}) - Response Sent: {}", message.getCorrelationId(), resp);
                         });
                     } catch (Exception e) {
-                        eventStore.release(lockId);
+                        distributedLock.release(lockId);
                         throw e;
                     }
                 }
@@ -567,7 +567,7 @@ public class MessageBus {
                 case null, default ->
                         throw new IllegalArgumentException("Missing Handler for " + (request != null ? request.getClass() : null));
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.error("Error handling message in server", e);
             sendResponse.accept(tw(message.getCorrelationId(), e));
         }
@@ -591,7 +591,7 @@ public class MessageBus {
                 .orElseThrow(() -> new RuntimeException("No Bundle available to handle " + messageType));
     }
 
-    private EventoResponse tw(String ci, Exception e) {
+    private EventoResponse tw(String ci, Throwable e) {
         var resp = new EventoResponse();
         resp.setCorrelationId(ci);
         resp.setBody(new ExceptionWrapper(e));
@@ -780,7 +780,7 @@ public class MessageBus {
             logger.info("Bundle %s not available, spawning a new one".formatted(bundleId));
             var lockId = BUNDLE_LOCK_PREFIX + bundleId;
             try {
-                eventStore.acquire(lockId);
+                distributedLock.acquire(lockId);
                 var semaphore = semaphoreMap.getOrDefault(bundleId, new Semaphore(0));
                 semaphoreMap.put(bundleId, semaphore);
                 if (isBundleAvailable(bundleId)) return;
@@ -795,7 +795,7 @@ public class MessageBus {
                 throw new RuntimeException(e);
             } finally {
                 semaphoreMap.remove(bundleId);
-                eventStore.release(lockId);
+                distributedLock.release(lockId);
             }
         }
     }
