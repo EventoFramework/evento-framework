@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -27,14 +28,18 @@ public abstract class ConsumerStateStore {
 
     private final Executor observerExecutor;
 
+    private final long timeoutMillis;
+
     protected ConsumerStateStore(
             EventoServer eventoServer,
             PerformanceService performanceService,
-            ObjectMapper objectMapper, Executor observerExecutor) {
+            ObjectMapper objectMapper,
+            Executor observerExecutor, long timeoutMillis) {
         this.eventoServer = eventoServer;
         this.performanceService = performanceService;
         this.objectMapper = objectMapper;
         this.observerExecutor = observerExecutor;
+        this.timeoutMillis = timeoutMillis;
     }
 
     /**
@@ -55,42 +60,42 @@ public abstract class ConsumerStateStore {
             EventConsumer projectorEventConsumer,
             int fetchSize) throws Throwable {
         var consumedEventCount = 0;
-        if (enterExclusiveZone(consumerId)) {
-            try {
-                var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
-                if (lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
-
-                var resp = ((EventFetchResponse) eventoServer.request(
-                        new EventFetchRequest(
-                                context,
-                                lastEventSequenceNumber,
-                                fetchSize,
-                                projectorName)).get());
-                for (PublishedEvent event : resp.getEvents()) {
-                    var start = Instant.now();
-                    try {
-                        projectorEventConsumer.consume(event);
-                    } catch (Exception e) {
-                        addEventToDeadEventQueue(consumerId, event, e);
-                        logger.error("Event consumption Error for projection %s and event %s after retry policy. Event added to Dead Event Queue".formatted(projectorName, event.getEventName()), e);
-                    }
-                    setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
-                    consumedEventCount++;
-                    performanceService.sendServiceTimeMetric(
-                            eventoServer.getBundleId(),
-                            eventoServer.getInstanceId(),
-                            projectorName,
-                            event.getEventMessage(),
-                            start,
-                            event.getEventMessage().isForceTelemetry()
-                    );
-                }
-            } finally {
-                leaveExclusiveZone(consumerId);
+        try {
+            if (!enterExclusiveZone(consumerId)) {
+                return -1;
             }
-        } else {
-            return -1;
+            var lastEventSequenceNumber = getLastEventSequenceNumber(consumerId);
+            if (lastEventSequenceNumber == null) lastEventSequenceNumber = 0L;
+
+            var resp = ((EventFetchResponse) eventoServer.request(
+                    new EventFetchRequest(
+                            context,
+                            lastEventSequenceNumber,
+                            fetchSize,
+                            projectorName)).get(timeoutMillis, TimeUnit.MILLISECONDS));
+            for (PublishedEvent event : resp.getEvents()) {
+                var start = Instant.now();
+                try {
+                    projectorEventConsumer.consume(event);
+                } catch (Throwable e) {
+                    addEventToDeadEventQueue(consumerId, event, e);
+                    logger.error("Event consumption Error for projection %s and event %s after retry policy. Event added to Dead Event Queue".formatted(projectorName, event.getEventName()), e);
+                }
+                setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
+                consumedEventCount++;
+                performanceService.sendServiceTimeMetric(
+                        eventoServer.getBundleId(),
+                        eventoServer.getInstanceId(),
+                        projectorName,
+                        event.getEventMessage(),
+                        start,
+                        event.getEventMessage().isForceTelemetry()
+                );
+            }
+        } finally {
+            leaveExclusiveZone(consumerId);
         }
+
         return consumedEventCount;
 
     }
@@ -106,32 +111,35 @@ public abstract class ConsumerStateStore {
     public void consumeDeadEventsForProjector(
             String consumerId,
             String projectorName,
-            EventConsumer projectorEventConsumer) throws Exception{
-        if (enterExclusiveZone(consumerId)) {
-            try {
-                var events = getEventsToReprocessFromDeadEventQueue(consumerId);
-                for (PublishedEvent event : events) {
-                    var start = Instant.now();
-                    try {
-                        removeEventFromDeadEventQueue(consumerId, event);
-                        projectorEventConsumer.consume(event);
-                    } catch (Throwable e) {
-                        addEventToDeadEventQueue(consumerId, event, e);
-                        logger.error("Event consumption Error for projection %s and event %s after retry policy. Event added to Dead Event Queue".formatted(projectorName, event.getEventName()), e);
-                    }
-                    performanceService.sendServiceTimeMetric(
-                            eventoServer.getBundleId(),
-                            eventoServer.getInstanceId(),
-                            projectorName,
-                            event.getEventMessage(),
-                            start,
-                            event.getEventMessage().isForceTelemetry()
-                    );
-                }
-            } finally {
-                leaveExclusiveZone(consumerId);
+            EventConsumer projectorEventConsumer) throws Exception {
+
+        try {
+            if (!enterExclusiveZone(consumerId)) {
+                return;
             }
+            var events = getEventsToReprocessFromDeadEventQueue(consumerId);
+            for (PublishedEvent event : events) {
+                var start = Instant.now();
+                try {
+                    removeEventFromDeadEventQueue(consumerId, event);
+                    projectorEventConsumer.consume(event);
+                } catch (Throwable e) {
+                    addEventToDeadEventQueue(consumerId, event, e);
+                    logger.error("Event consumption Error for projection %s and event %s after retry policy. Event added to Dead Event Queue".formatted(projectorName, event.getEventName()), e);
+                }
+                performanceService.sendServiceTimeMetric(
+                        eventoServer.getBundleId(),
+                        eventoServer.getInstanceId(),
+                        projectorName,
+                        event.getEventMessage(),
+                        start,
+                        event.getEventMessage().isForceTelemetry()
+                );
+            }
+        } finally {
+            leaveExclusiveZone(consumerId);
         }
+
     }
 
 
@@ -153,42 +161,42 @@ public abstract class ConsumerStateStore {
             EventConsumer observerEventConsumer,
             int fetchSize) throws Throwable {
         var consumedEventCount = 0;
-        if (enterExclusiveZone(consumerId)) {
-            try {
-                var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
-                var resp = ((EventFetchResponse) eventoServer.request(
-                        new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, observerName)).get());
-                for (PublishedEvent event : resp.getEvents()) {
-                    var start = Instant.now();
-                    observerExecutor.execute(() -> {
-                        try {
-                            observerEventConsumer.consume(event);
-                        } catch (Throwable e) {
-                            try {
-                                addEventToDeadEventQueue(consumerId, event, e);
-                                logger.error("Event consumption Error for consumer %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()), e);
-                            } catch (Exception ex) {
-                                logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()));
-                            }
-
-                        }
-                    });
-                    setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
-                    consumedEventCount++;
-                    performanceService.sendServiceTimeMetric(
-                            eventoServer.getBundleId(),
-                            eventoServer.getInstanceId(),
-                            observerName,
-                            event.getEventMessage(),
-                            start,
-                            event.getEventMessage().isForceTelemetry()
-                    );
-                }
-            } finally {
-                leaveExclusiveZone(consumerId);
+        try {
+            if (!enterExclusiveZone(consumerId)) {
+                return -1;
             }
-        } else {
-            return -1;
+            var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
+            var resp = ((EventFetchResponse) eventoServer.request(
+                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, observerName))
+                    .get(timeoutMillis, TimeUnit.MILLISECONDS));
+            for (PublishedEvent event : resp.getEvents()) {
+                var start = Instant.now();
+                observerExecutor.execute(() -> {
+                    try {
+                        observerEventConsumer.consume(event);
+                    } catch (Throwable e) {
+                        try {
+                            addEventToDeadEventQueue(consumerId, event, e);
+                            logger.error("Event consumption Error for consumer %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()), e);
+                        } catch (Exception ex) {
+                            logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()));
+                        }
+
+                    }
+                });
+                setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
+                consumedEventCount++;
+                performanceService.sendServiceTimeMetric(
+                        eventoServer.getBundleId(),
+                        eventoServer.getInstanceId(),
+                        observerName,
+                        event.getEventMessage(),
+                        start,
+                        event.getEventMessage().isForceTelemetry()
+                );
+            }
+        } finally {
+            leaveExclusiveZone(consumerId);
         }
         return consumedEventCount;
 
@@ -198,7 +206,7 @@ public abstract class ConsumerStateStore {
     /**
      * Consumes dead events for an observer.
      *
-     * @param consumerId             the ID of the consumer
+     * @param consumerId            the ID of the consumer
      * @param observerName          the name of the observer
      * @param observerEventConsumer the event consumer for the observer
      * @throws Exception if an error occurs during event consumption
@@ -207,40 +215,40 @@ public abstract class ConsumerStateStore {
             String consumerId,
             String observerName,
             EventConsumer observerEventConsumer) throws Exception {
-        if (enterExclusiveZone(consumerId)) {
-            try {
-                var events = getEventsToReprocessFromDeadEventQueue(consumerId);
-                for (PublishedEvent event : events) {
-                    var start = Instant.now();
-                    observerExecutor.execute(() -> {
-                        try {
-                            removeEventFromDeadEventQueue(consumerId, event);
-                            observerEventConsumer.consume(event);
-                        } catch (Throwable e) {
-                            try {
-                                addEventToDeadEventQueue(consumerId, event, e);
-                                logger.error("Event consumption Error for consumer %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()), e);
-                            } catch (Exception ex) {
-                                logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()));
-                            }
-
-                        }
-                    });
-                    setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
-                    performanceService.sendServiceTimeMetric(
-                            eventoServer.getBundleId(),
-                            eventoServer.getInstanceId(),
-                            observerName,
-                            event.getEventMessage(),
-                            start,
-                            event.getEventMessage().isForceTelemetry()
-                    );
-                }
-            } finally {
-                leaveExclusiveZone(consumerId);
+        try {
+            if (!enterExclusiveZone(consumerId)) {
+                return;
             }
-        }
+            var events = getEventsToReprocessFromDeadEventQueue(consumerId);
+            for (PublishedEvent event : events) {
+                var start = Instant.now();
+                observerExecutor.execute(() -> {
+                    try {
+                        removeEventFromDeadEventQueue(consumerId, event);
+                        observerEventConsumer.consume(event);
+                    } catch (Throwable e) {
+                        try {
+                            addEventToDeadEventQueue(consumerId, event, e);
+                            logger.error("Event consumption Error for consumer %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()), e);
+                        } catch (Exception ex) {
+                            logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()));
+                        }
 
+                    }
+                });
+                setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
+                performanceService.sendServiceTimeMetric(
+                        eventoServer.getBundleId(),
+                        eventoServer.getInstanceId(),
+                        observerName,
+                        event.getEventMessage(),
+                        start,
+                        event.getEventMessage().isForceTelemetry()
+                );
+            }
+        } finally {
+            leaveExclusiveZone(consumerId);
+        }
     }
 
     /**
@@ -259,47 +267,47 @@ public abstract class ConsumerStateStore {
                                     SagaEventConsumer sagaEventConsumer,
                                     int fetchSize) throws Throwable {
         var consumedEventCount = 0;
-        if (enterExclusiveZone(consumerId)) {
-            try {
-                var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
-                var resp = ((EventFetchResponse) eventoServer.request(
-                        new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName)).get());
-                for (PublishedEvent event : resp.getEvents()) {
-                    var start = Instant.now();
-                    var sagaStateId = new AtomicReference<Long>();
-                    try {
-                        var newState = sagaEventConsumer.consume((name, associationProperty, associationValue) -> {
-                            var state = getSagaState(name, associationProperty, associationValue);
-                            sagaStateId.set(state.getId());
-                            return state.getState();
-                        }, event);
-                        if (newState != null) {
-                            if (newState.isEnded()) {
-                                removeSagaState(sagaStateId.get());
-                            } else {
-                                setSagaState(sagaStateId.get(), sagaName, newState);
-                            }
-                        }
-                    } catch (Exception e) {
-                        addEventToDeadEventQueue(consumerId, event, e);
-                        logger.error("Event consumption Error for consumer %s and saga %s after retry policy. Event added to Dead Event Queue".formatted(sagaName, event.getEventName()), e);
-                    }
-                    setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
-                    consumedEventCount++;
-                    performanceService.sendServiceTimeMetric(
-                            eventoServer.getBundleId(),
-                            eventoServer.getInstanceId(),
-                            sagaName,
-                            event.getEventMessage(),
-                            start,
-                            event.getEventMessage().isForceTelemetry()
-                    );
-                }
-            } finally {
-                leaveExclusiveZone(consumerId);
+        try {
+            if (!enterExclusiveZone(consumerId)) {
+                return -1;
             }
-        } else {
-            return -1;
+            var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
+            var resp = ((EventFetchResponse) eventoServer.request(
+                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName))
+                    .get(timeoutMillis, TimeUnit.MILLISECONDS));
+            for (PublishedEvent event : resp.getEvents()) {
+                var start = Instant.now();
+                var sagaStateId = new AtomicReference<Long>();
+                try {
+                    var newState = sagaEventConsumer.consume((name, associationProperty, associationValue) -> {
+                        var state = getSagaState(name, associationProperty, associationValue);
+                        sagaStateId.set(state.getId());
+                        return state.getState();
+                    }, event);
+                    if (newState != null) {
+                        if (newState.isEnded()) {
+                            removeSagaState(sagaStateId.get());
+                        } else {
+                            setSagaState(sagaStateId.get(), sagaName, newState);
+                        }
+                    }
+                } catch (Exception e) {
+                    addEventToDeadEventQueue(consumerId, event, e);
+                    logger.error("Event consumption Error for consumer %s and saga %s after retry policy. Event added to Dead Event Queue".formatted(sagaName, event.getEventName()), e);
+                }
+                setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
+                consumedEventCount++;
+                performanceService.sendServiceTimeMetric(
+                        eventoServer.getBundleId(),
+                        eventoServer.getInstanceId(),
+                        sagaName,
+                        event.getEventMessage(),
+                        start,
+                        event.getEventMessage().isForceTelemetry()
+                );
+            }
+        } finally {
+            leaveExclusiveZone(consumerId);
         }
         return consumedEventCount;
     }
@@ -307,51 +315,51 @@ public abstract class ConsumerStateStore {
     /**
      * Consume dead events for a saga.
      *
-     * @param consumerId The ID of the consumer processing the dead events.
-     * @param sagaName The name of the saga.
+     * @param consumerId        The ID of the consumer processing the dead events.
+     * @param sagaName          The name of the saga.
      * @param sagaEventConsumer The implementation of the SagaEventConsumer interface that will consume the dead events.
-     *
      */
     public void consumeDeadEventsForSaga(
             String consumerId, String sagaName,
             SagaEventConsumer sagaEventConsumer) throws Exception {
-        if (enterExclusiveZone(consumerId)) {
-            try {
-                var events = getEventsToReprocessFromDeadEventQueue(consumerId);
-                for (PublishedEvent event : events) {
-                    var start = Instant.now();
-                    var sagaStateId = new AtomicReference<Long>();
-                    try {
-                        removeEventFromDeadEventQueue(consumerId, event);
-                        var newState = sagaEventConsumer.consume((name, associationProperty, associationValue) -> {
-                            var state = getSagaState(name, associationProperty, associationValue);
-                            sagaStateId.set(state.getId());
-                            return state.getState();
-                        }, event);
-                        if (newState != null) {
-                            if (newState.isEnded()) {
-                                removeSagaState(sagaStateId.get());
-                            } else {
-                                setSagaState(sagaStateId.get(), sagaName, newState);
-                            }
-                        }
-                    } catch (Throwable e) {
-                        addEventToDeadEventQueue(consumerId, event, e);
-                        logger.error("Event consumption Error for consumer %s and saga %s after retry policy. Event added to Dead Event Queue".formatted(sagaName, event.getEventName()), e);
-                    }
-                    setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
-                    performanceService.sendServiceTimeMetric(
-                            eventoServer.getBundleId(),
-                            eventoServer.getInstanceId(),
-                            sagaName,
-                            event.getEventMessage(),
-                            start,
-                            event.getEventMessage().isForceTelemetry()
-                    );
-                }
-            } finally {
-                leaveExclusiveZone(consumerId);
+        try {
+            if (!enterExclusiveZone(consumerId)) {
+                return;
             }
+            var events = getEventsToReprocessFromDeadEventQueue(consumerId);
+            for (PublishedEvent event : events) {
+                var start = Instant.now();
+                var sagaStateId = new AtomicReference<Long>();
+                try {
+                    removeEventFromDeadEventQueue(consumerId, event);
+                    var newState = sagaEventConsumer.consume((name, associationProperty, associationValue) -> {
+                        var state = getSagaState(name, associationProperty, associationValue);
+                        sagaStateId.set(state.getId());
+                        return state.getState();
+                    }, event);
+                    if (newState != null) {
+                        if (newState.isEnded()) {
+                            removeSagaState(sagaStateId.get());
+                        } else {
+                            setSagaState(sagaStateId.get(), sagaName, newState);
+                        }
+                    }
+                } catch (Throwable e) {
+                    addEventToDeadEventQueue(consumerId, event, e);
+                    logger.error("Event consumption Error for consumer %s and saga %s after retry policy. Event added to Dead Event Queue".formatted(sagaName, event.getEventName()), e);
+                }
+                setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
+                performanceService.sendServiceTimeMetric(
+                        eventoServer.getBundleId(),
+                        eventoServer.getInstanceId(),
+                        sagaName,
+                        event.getEventMessage(),
+                        start,
+                        event.getEventMessage().isForceTelemetry()
+                );
+            }
+        } finally {
+            leaveExclusiveZone(consumerId);
         }
 
     }
@@ -367,7 +375,8 @@ public abstract class ConsumerStateStore {
     public long getLastEventSequenceNumberSagaOrHead(String consumerId) throws Exception {
         var last = getLastEventSequenceNumber(consumerId);
         if (last == null) {
-            var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest()).get()).getNumber();
+            var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest())
+                    .get(timeoutMillis, TimeUnit.MILLISECONDS)).getNumber();
             setLastEventSequenceNumber(consumerId, head);
             return head;
         }
@@ -419,9 +428,9 @@ public abstract class ConsumerStateStore {
     /**
      * Adds a published event to the dead event queue for a specific consumer.
      *
-     * @param consumerId the ID of the consumer to which the event belongs
+     * @param consumerId     the ID of the consumer to which the event belongs
      * @param publishedEvent the PublishedEvent object representing the event to be added to the dead event queue
-     * @param throwable the Throwable object representing the error that caused the event to be moved to the dead event queue
+     * @param throwable      the Throwable object representing the error that caused the event to be moved to the dead event queue
      * @throws Exception if an error occurs while adding the event to the dead event queue
      */
     public abstract void addEventToDeadEventQueue(String consumerId, PublishedEvent publishedEvent, Throwable throwable) throws Exception;
@@ -430,7 +439,7 @@ public abstract class ConsumerStateStore {
     /**
      * Removes a published event from the dead event queue for a specific consumer.
      *
-     * @param consumerId the ID of the consumer
+     * @param consumerId     the ID of the consumer
      * @param publishedEvent the PublishedEvent object representing the event to be removed
      * @throws Exception if an error occurs during the removal of the event from the dead event queue
      */
@@ -442,8 +451,8 @@ public abstract class ConsumerStateStore {
     /**
      * Removes an event from the dead event queue for a specific consumer.
      *
-     * @param consumerId             the ID of the consumer
-     * @param eventSequenceNumber    the sequence number of the event to be removed
+     * @param consumerId          the ID of the consumer
+     * @param eventSequenceNumber the sequence number of the event to be removed
      * @throws Exception if an error occurs during the removal of the event from the dead event queue
      */
     public abstract void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) throws Exception;
@@ -457,7 +466,6 @@ public abstract class ConsumerStateStore {
      * @throws Exception if an error occurs during retrieval of events from the dead event queue
      */
     protected abstract Collection<PublishedEvent> getEventsToReprocessFromDeadEventQueue(String consumerId) throws Exception;
-
 
 
     /**

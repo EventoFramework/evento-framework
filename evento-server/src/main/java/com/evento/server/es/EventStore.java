@@ -1,5 +1,6 @@
 package com.evento.server.es;
 
+import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.es.utils.ExpiringLruCache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +13,6 @@ import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.es.eventstore.EventStoreRepository;
 import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.es.snapshot.SnapshotRepository;
-import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,19 +26,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -54,13 +49,12 @@ public class EventStore {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
     private final Snowflake snowflake = new Snowflake();
-    private final DataSource lockDatasource;
-    private Connection lockCon;
 
     private final ExpiringLruCache<String, Snapshot> snapshotCache;
     private final ExpiringLruCache<String, List<EventStoreEntry>> eventsCache;
 
-    private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<>();
+    private final PgDistributedLock distributedLock;
+
 
     public EventStore(EventStoreRepository repository,
                       SnapshotRepository snapshotRepository,
@@ -81,7 +75,7 @@ public class EventStore {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
-        this.lockDatasource = dataSource;
+        this.distributedLock = new PgDistributedLock(dataSource);
         snapshotCache = new ExpiringLruCache<>(aggregateSnapshotCacheSize, aggregateSnapshotCacheExpiry, TimeUnit.MILLISECONDS);
         eventsCache = new ExpiringLruCache<>(aggregateEventsCacheSize, aggregateEventsCacheExpiry, TimeUnit.MILLISECONDS);
         DELAY = fetchDelay;
@@ -98,13 +92,6 @@ public class EventStore {
 
     }
 
-    @SneakyThrows
-    private synchronized Connection getLockConnection(){
-        if(lockCon == null || !lockCon.isValid(3)){
-            lockCon = lockDatasource.getConnection();
-        }
-        return lockCon;
-    }
 
     public Page<EventStoreEntry> searchEvents(String aggregateIdentifier,
                                               String eventName, String context,
@@ -119,45 +106,45 @@ public class EventStore {
 
         var predicates = new ArrayList<Specification<EventStoreEntry>>();
 
-        if(aggregateIdentifier != null && !aggregateIdentifier.isBlank()){
+        if (aggregateIdentifier != null && !aggregateIdentifier.isBlank()) {
             predicates.add(
-                    (r,o,cb) -> cb.equal(r.get("aggregateId"),aggregateIdentifier)
+                    (r, o, cb) -> cb.equal(r.get("aggregateId"), aggregateIdentifier)
             );
         }
 
-        if(eventName != null && !eventName.isBlank()){
+        if (eventName != null && !eventName.isBlank()) {
             predicates.add(
-                    (r,o,cb) -> cb.equal(r.get("eventName"),eventName)
+                    (r, o, cb) -> cb.equal(r.get("eventName"), eventName)
             );
         }
 
-        if(context != null && !context.isBlank()){
+        if (context != null && !context.isBlank()) {
             predicates.add(
-                    (r,o,cb) -> cb.equal(r.get("context"),context)
+                    (r, o, cb) -> cb.equal(r.get("context"), context)
             );
         }
 
-        if(eventSequenceNumber != null ){
+        if (eventSequenceNumber != null) {
             predicates.add(
-                    (r,o,cb) -> cb.equal(r.get("eventSequenceNumber"),eventSequenceNumber)
+                    (r, o, cb) -> cb.equal(r.get("eventSequenceNumber"), eventSequenceNumber)
             );
         }
 
-        if(createdAtFrom != null ){
+        if (createdAtFrom != null) {
             predicates.add(
-                    (r,o,cb) -> cb.greaterThanOrEqualTo(r.get("createdAt"),createdAtTo)
+                    (r, o, cb) -> cb.greaterThanOrEqualTo(r.get("createdAt"), createdAtTo)
             );
         }
 
-        if(createdAtTo != null ){
+        if (createdAtTo != null) {
             predicates.add(
-                    (r,o,cb) -> cb.lessThanOrEqualTo(r.get("createdAt"),createdAtFrom)
+                    (r, o, cb) -> cb.lessThanOrEqualTo(r.get("createdAt"), createdAtFrom)
             );
         }
 
-        if(contentQuery != null  && !contentQuery.isBlank() ){
+        if (contentQuery != null && !contentQuery.isBlank()) {
             predicates.add(
-                    (r,o,cb) -> cb.like(r.get("eventMessage"),contentQuery)
+                    (r, o, cb) -> cb.like(r.get("eventMessage"), contentQuery)
             );
         }
 
@@ -167,17 +154,15 @@ public class EventStore {
         );
 
 
-
-
     }
 
     public Page<Snapshot> searchSnapshots(String aggregateId,
-                                     int page,
-                                     int size,
-                                     Sort.Direction sort,
-                                     String sortBy){
+                                          int page,
+                                          int size,
+                                          Sort.Direction sort,
+                                          String sortBy) {
         var s = new Snapshot();
-        if(aggregateId != null && !aggregateId.isBlank())
+        if (aggregateId != null && !aggregateId.isBlank())
             s.setAggregateId(aggregateId);
 
         return snapshotRepository.findAll(Example.of(s), PageRequest.of(
@@ -185,57 +170,6 @@ public class EventStore {
         ));
     }
 
-    private static class LockWrapper {
-        private final Semaphore lock = new Semaphore(1);
-        private final AtomicInteger numberOfThreadsInQueue = new AtomicInteger(1);
-
-        private LockWrapper addThreadInQueue() {
-            numberOfThreadsInQueue.incrementAndGet();
-            return this;
-        }
-
-        private int removeThreadFromQueue() {
-            return numberOfThreadsInQueue.decrementAndGet();
-        }
-
-    }
-
-    public void acquire(String key) {
-        if (key == null) return;
-        LockWrapper lockWrapper = locks.compute(key, (k, v) -> v == null ? new LockWrapper() : v.addThreadInQueue());
-        lockWrapper.lock.acquireUninterruptibly();
-        try (var stmt = this.getLockConnection().prepareStatement("SELECT pg_advisory_lock(?)")) {
-            stmt.setInt(1, key.hashCode());
-            var resultSet = stmt.executeQuery();
-            resultSet.next();
-            if (resultSet.wasNull()) throw new IllegalMonitorStateException();
-            var status = resultSet.getString(1);
-            if (!"".equals(status)) throw new IllegalMonitorStateException();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-
-    }
-
-    public void release(String key) {
-        if (key == null) return;
-        LockWrapper lockWrapper = locks.get(key);
-        lockWrapper.lock.release();
-        if (lockWrapper.removeThreadFromQueue() == 0) {
-            // NB : We pass in the specific value to remove to handle the case where another thread would queue right before the removal
-            locks.remove(key, lockWrapper);
-        }
-        try (var stmt = getLockConnection().prepareStatement("SELECT pg_advisory_unlock(?)")) {
-            stmt.setInt(1, key.hashCode());
-            var resultSet = stmt.executeQuery();
-            resultSet.next();
-            if (resultSet.wasNull()) throw new IllegalMonitorStateException();
-            var status = resultSet.getBoolean(1);
-            if (!status) throw new IllegalMonitorStateException("Lock key: " + key);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit) {
         if (seq == null) seq = -1L;
@@ -282,7 +216,7 @@ public class EventStore {
 
     public long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
 
-        var id = snowflake.nextId();
+        var id = new AtomicLong(snowflake.nextId());
         try {
             if (MODE == EventStoreMode.APES) {
                 jdbcTemplate.update(
@@ -290,36 +224,39 @@ public class EventStore {
                                 "(event_sequence_number," +
                                 "aggregate_id, event_message, event_name, context) " +
                                 "values  (?, ?, ?, ?, ?)",
-                        id,
+                        id.get(),
                         aggregateId,
                         mapper.writeValueAsString(eventMessage),
                         eventMessage.getEventName(),
                         eventMessage.getContext()
                 );
             } else {
-                acquire(ES_LOCK);
-                SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT nextval('event_sequence_number_serial') AS event_sequence_number");
-                if (rowSet.next()) {
-                    id = rowSet.getLong("event_sequence_number");
-                } else {
-                    throw new IllegalStateException("Failed to retrieve next event sequence number.");
-                }
-                jdbcTemplate.update(
-                        "INSERT INTO es__events " +
-                                "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
-                                "values  (? ,?, ?, ?, ?)",
-                        id,
-                        aggregateId,
-                        mapper.writeValueAsString(eventMessage),
-                        eventMessage.getEventName(),
-                        eventMessage.getContext()
+                distributedLock.lockedArea(
+                        ES_LOCK,
+                        () -> {
+                            SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT nextval('event_sequence_number_serial') AS event_sequence_number");
+                            if (rowSet.next()) {
+                                id.set(rowSet.getLong("event_sequence_number"));
+                            } else {
+                                throw new IllegalStateException("Failed to retrieve next event sequence number.");
+                            }
+                            jdbcTemplate.update(
+                                    "INSERT INTO es__events " +
+                                            "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
+                                            "values  (? ,?, ?, ?, ?)",
+                                    id.get(),
+                                    aggregateId,
+                                    mapper.writeValueAsString(eventMessage),
+                                    eventMessage.getEventName(),
+                                    eventMessage.getContext()
+                            );
+                        }
                 );
-                release(ES_LOCK);
             }
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
-        return id;
+        return id.get();
     }
 
     public Long getLastAggregateSequenceNumber(String aggregateId) {
@@ -360,8 +297,8 @@ public class EventStore {
     /**
      * Fetches the aggregate story for a given aggregate ID.
      *
-     * @param aggregateId The ID of the aggregate.
-     * @param invalidateAggregateCaches A flag indicating whether to invalidate the aggregate caches.
+     * @param aggregateId                 The ID of the aggregate.
+     * @param invalidateAggregateCaches   A flag indicating whether to invalidate the aggregate caches.
      * @param invalidateAggregateSnapshot A flag indicating whether to invalidate the aggregate snapshot.
      * @return The aggregate story, consisting of the serialized aggregate state and a list of domain events.
      */
@@ -369,19 +306,19 @@ public class EventStore {
                                               boolean invalidateAggregateCaches,
                                               boolean invalidateAggregateSnapshot) {
         Assert.isTrue(aggregateId != null, "Fetching aggregate state without an aggregate Id");
-        if(invalidateAggregateCaches){
+        if (invalidateAggregateCaches) {
             snapshotCache.remove(aggregateId);
             eventsCache.remove(aggregateId);
         }
         if (!invalidateAggregateSnapshot && !snapshotCache.containsKey(aggregateId)) {
             snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
         }
-        var snapshot = invalidateAggregateSnapshot ? null :  snapshotCache.get(aggregateId);
+        var snapshot = invalidateAggregateSnapshot ? null : snapshotCache.get(aggregateId);
         var events = eventsCache.getOrDefault(aggregateId, new ArrayList<>());
         SqlRowSet rs;
         var max = 0L;
         var min = events.isEmpty() ? 0L : events.getFirst().getEventSequenceNumber();
-        if(snapshot == null){
+        if (snapshot == null) {
             max = events.isEmpty() ? 0L : events.getLast().getEventSequenceNumber();
             rs = jdbcTemplate.queryForRowSet(
                     "select event_sequence_number, event_message " +
@@ -394,9 +331,9 @@ public class EventStore {
                     max
             );
 
-        }else{
+        } else {
             max = events.isEmpty() ? snapshot.getEventSequenceNumber() : events.getLast().getEventSequenceNumber();
-            if(snapshot.getEventSequenceNumber() < min){
+            if (snapshot.getEventSequenceNumber() < min) {
                 rs = jdbcTemplate.queryForRowSet(
                         "select event_sequence_number, event_message " +
                                 "from es__events " +
@@ -409,7 +346,7 @@ public class EventStore {
                         max
                 );
 
-            }else{
+            } else {
                 rs = jdbcTemplate.queryForRowSet(
                         "select event_sequence_number, event_message " +
                                 "from es__events " +

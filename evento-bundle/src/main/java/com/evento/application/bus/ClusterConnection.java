@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -24,7 +25,7 @@ public class ClusterConnection {
 
     private final int maxRetryAttempts;
     private final long retryDelayMillis;
-    private final List<EventoSocketConnection> nodeConnection = new ArrayList<>();
+    private final List<EventoSocketConnection> nodeConnection = new CopyOnWriteArrayList<>();
     private final AtomicInteger nextNodeToUse = new AtomicInteger(0);
 
     /**

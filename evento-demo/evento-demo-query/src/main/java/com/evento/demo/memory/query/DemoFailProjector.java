@@ -20,7 +20,7 @@ public class DemoFailProjector {
 		memoryService.put(eventSequenceNumber, hits + 1);
 		if(hits <= 3){
 			Utils.logMethodFlow(this, "on", event, "FAIL FOR TEST");
-			throw new RuntimeException("FAIL FOR TEST");
+			// throw new RuntimeException("FAIL FOR TEST");
 		}
 
 		Utils.logMethodFlow(this, "on", event, "OK DURING REPROCESS");

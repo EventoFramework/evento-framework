@@ -43,10 +43,10 @@ public class EventoServerClient implements EventoServer {
     /**
      * Private constructor for creating an EventoServerClient instance.
      *
-     * @param bundleId                   The bundle ID of the client.
-     * @param bundleVersion              The bundle version of the client.
-     * @param instanceId                 The instance ID of the client.
-     * @param requestHandler             The handler for processing incoming requests.
+     * @param bundleId       The bundle ID of the client.
+     * @param bundleVersion  The bundle version of the client.
+     * @param instanceId     The instance ID of the client.
+     * @param requestHandler The handler for processing incoming requests.
      */
     private EventoServerClient(String bundleId,
                                long bundleVersion,
@@ -100,17 +100,20 @@ public class EventoServerClient implements EventoServer {
         switch (message) {
             case EventoResponse response -> {
                 // Handling response messages
-                var c = correlations.get(response.getCorrelationId());
-                if (response.getBody() instanceof ExceptionWrapper tw) {
-                    c.getCallback().completeExceptionally(tw.toException());
-                } else {
-                    try {
-                        c.getCallback().complete(response.getBody());
-                    } catch (Exception e) {
-                        c.getCallback().completeExceptionally(e);
-                    }
+                var c = correlations.remove(response.getCorrelationId());
+                if (c == null) {
+                    logger.warn("Received response for unknown correlation id: {}", response.getCorrelationId());
+                    return;
                 }
-                correlations.remove(response.getCorrelationId());
+                try {
+                    if (response.getBody() instanceof ExceptionWrapper tw) {
+                        c.getCallback().completeExceptionally(tw.toException());
+                    } else {
+                        c.getCallback().complete(response.getBody());
+                    }
+                } catch (Exception e) {
+                    c.getCallback().completeExceptionally(e);
+                }
             }
             case EventoRequest request -> {
                 // Handling request messages
@@ -143,7 +146,7 @@ public class EventoServerClient implements EventoServer {
                         now - hb.getTimestamp());
                 try {
                     conn.send(new ClientHeartBeatMessage(bundleId, instanceId, hb.getHb()));
-                }catch (Throwable e){
+                } catch (Throwable e) {
                     logger.error("Error sending heartbeat to server instance {}", hb.getInstanceId());
                     logger.error("Cause: ", e);
                 }
@@ -260,10 +263,10 @@ public class EventoServerClient implements EventoServer {
         /**
          * Constructs a Builder instance with required parameters.
          *
-         * @param bundleRegistration         The registration information for the client.
-         * @param objectMapper               The ObjectMapper for JSON serialization/deserialization.
-         * @param addresses                  The addresses of the cluster nodes.
-         * @param requestHandler             The handler for processing incoming requests.
+         * @param bundleRegistration The registration information for the client.
+         * @param objectMapper       The ObjectMapper for JSON serialization/deserialization.
+         * @param addresses          The addresses of the cluster nodes.
+         * @param requestHandler     The handler for processing incoming requests.
          */
         public Builder(BundleRegistration bundleRegistration, ObjectMapper objectMapper,
                        List<ClusterNodeAddress> addresses,
@@ -384,31 +387,32 @@ public class EventoServerClient implements EventoServer {
                 try {
 
                     System.out.println("Graceful Shutdown - Started!");
-                    System.out.println( "Graceful Shutdown - Disabling Bus");
+                    System.out.println("Graceful Shutdown - Disabling Bus");
                     bus.disable();
-                    System.out.println( "Graceful Shutdown - Waiting for bus disabled propagation...");
+                    System.out.println("Graceful Shutdown - Waiting for bus disabled propagation...");
                     Sleep.apply(disableDelayMillis);
-                    System.out.println( "Graceful Shutdown - Bus Disabled");
+                    System.out.println("Graceful Shutdown - Bus Disabled");
                     var retry = 0;
                     while (true) {
                         var keys = bus.correlations.keySet();
                         System.out.printf("Graceful Shutdown - Remaining correlations: %s%n", keys.size());
                         bus.correlations.forEach((k, v) -> {
-                            System.out.printf( "Graceful Shutdown - Pending correlation: %s%n", k);
-                            System.out.println( "Graceful Shutdown - Body:");
+                            System.out.printf("Graceful Shutdown - Pending correlation: %s%n", k);
+                            System.out.println("Graceful Shutdown - Body:");
                             try {
                                 System.out.println(ObjectMapperUtils.getPayloadObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(v.getRequest()));
-                            } catch (JsonProcessingException ignored) {}
+                            } catch (JsonProcessingException ignored) {
+                            }
 
                         });
-                        System.out.println( "Graceful Shutdown - Sleep...");
+                        System.out.println("Graceful Shutdown - Sleep...");
                         Sleep.apply(disableDelayMillis);
                         if (bus.correlations.isEmpty()) {
-                            System.out.println( "Graceful Shutdown - No more correlations, bye!");
+                            System.out.println("Graceful Shutdown - No more correlations, bye!");
                             bus.close();
                             return;
                         } else if (keys.containsAll(bus.correlations.keySet()) && retry > maxDisableAttempts) {
-                            System.out.println( "Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " sec of retry... so... bye!");
+                            System.out.println("Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " sec of retry... so... bye!");
                             bus.close();
                             return;
                         }
@@ -426,13 +430,13 @@ public class EventoServerClient implements EventoServer {
 
     /**
      * Retrieves the collection of pending correlations.
-     *
+     * <p>
      * This method returns a collection of {@link Correlation} objects currently pending in the system.
      *
      * @return a collection of {@link Correlation} objects representing the pending correlations.
      */
     @SuppressWarnings("rawtypes")
-    public Collection<Correlation> getPendingCorrelations(){
+    public Collection<Correlation> getPendingCorrelations() {
         return correlations.values();
     }
 
