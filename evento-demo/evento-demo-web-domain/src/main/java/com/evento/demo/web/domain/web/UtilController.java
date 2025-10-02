@@ -2,6 +2,7 @@ package com.evento.demo.web.domain.web;
 
 import com.evento.application.EventoBundle;
 import com.evento.demo.api.view.enums.FailStage;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,13 +19,18 @@ public class UtilController {
         utilInvoker = eventoBundle.getInvoker(UtilInvoker.class);
     }
 
-    @PostMapping("/send")
+    @GetMapping("/send")
     public CompletableFuture<?> send(FailStage failStage) {
         return utilInvoker.failSend(failStage);
     }
 
-    @PostMapping("/send-wait")
+    @GetMapping("/send-wait")
     public void sendAndWait(FailStage failStage) throws InterruptedException {
         utilInvoker.failSendAndWait(failStage);
+    }
+
+    @GetMapping("/send-event")
+    public CompletableFuture<?> sendEvent(int failures, FailStage failStage) {
+        return utilInvoker.failEventSend(failures,failStage);
     }
 }
