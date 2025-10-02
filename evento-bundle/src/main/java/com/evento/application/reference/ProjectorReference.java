@@ -114,15 +114,20 @@ public class ProjectorReference extends Reference {
                 );
                 return;
             }catch (Throwable t){
-                logger.error("Event processing failed for projector {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, t);
-                Throwable throwable = messageHandlerInterceptor.onExceptionProjectorEventHandling(
-                        getRef(),
-                        publishedEvent,
-                        commandGateway,
-                        queryGateway,
-                        projectorStatus,
-                        t
-                );
+                Throwable throwable = t;
+                logger.error("Event processing failed for projector {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, throwable);
+                try{
+                    throwable = messageHandlerInterceptor.onExceptionProjectorEventHandling(
+                            getRef(),
+                            publishedEvent,
+                            commandGateway,
+                            queryGateway,
+                            projectorStatus,
+                            throwable
+                    );
+                }catch (Throwable t1){
+                    throwable = t1;
+                }
                 retry++;
                 if(a.retry() > 0){
                     if (retry > a.retry()) {
