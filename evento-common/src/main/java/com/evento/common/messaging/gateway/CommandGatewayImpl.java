@@ -43,19 +43,26 @@ public class CommandGatewayImpl implements CommandGateway {
 	@SuppressWarnings("unchecked")
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata,
-							 Message<?> handledMessage) {
-		try
-		{
-			return (R) send(command, metadata, handledMessage).get();
-		} catch (ExecutionException | CompletionException e )
-		{
-			throw new RuntimeException(e.getCause());
-		}
-		catch (InterruptedException e)
-		{
-			throw new RuntimeException(e);
-		}
-	}
+							 Message<?> handledMessage) throws InterruptedException {
+
+        try {
+            return (R) send(command, metadata, handledMessage).get();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException re) {
+                // Get the original stack trace
+                StackTraceElement[] originalTrace = re.getStackTrace();
+                // Get the current stack trace
+                StackTraceElement[] currentTrace = e.getStackTrace();
+                StackTraceElement[] combined = new StackTraceElement[originalTrace.length + currentTrace.length - 2];
+                System.arraycopy(originalTrace, 0, combined, 0, originalTrace.length);
+                // Skip the first 2 elements of currentTrace (getStackTrace + this method)
+                System.arraycopy(currentTrace, 2, combined, originalTrace.length, currentTrace.length - 2);
+                re.setStackTrace(combined);
+                throw re;
+            }
+            throw new RuntimeException(e);
+        }
+    }
 
 	/**
 	 * Sends a command synchronously and waits for the result.
@@ -72,18 +79,25 @@ public class CommandGatewayImpl implements CommandGateway {
 	@SuppressWarnings("unchecked")
 	@Override
 	public <R> R sendAndWait(Command command, Metadata metadata,
-							 Message<?> handledMessage, long timeout, TimeUnit unit) {
-		try
-		{
-			return (R) send(command, metadata, handledMessage).get(timeout, unit);
-		}catch (ExecutionException | CompletionException e)
-		{
-			throw new RuntimeException(e.getCause());
-		}
-		catch (InterruptedException | TimeoutException e)
-		{
-			throw new RuntimeException(e);
-		}
+							 Message<?> handledMessage, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
+
+        try {
+            return (R) send(command, metadata, handledMessage).get(timeout, unit);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException re) {
+                // Get the original stack trace
+                StackTraceElement[] originalTrace = re.getStackTrace();
+                // Get the current stack trace
+                StackTraceElement[] currentTrace = e.getStackTrace();
+                StackTraceElement[] combined = new StackTraceElement[originalTrace.length + currentTrace.length - 2];
+                System.arraycopy(originalTrace, 0, combined, 0, originalTrace.length);
+                // Skip the first 2 elements of currentTrace (getStackTrace + this method)
+                System.arraycopy(currentTrace, 2, combined, originalTrace.length, currentTrace.length - 2);
+                re.setStackTrace(combined);
+                throw re;
+            }
+            throw new RuntimeException(e);
+        }
 	}
 
 	/**

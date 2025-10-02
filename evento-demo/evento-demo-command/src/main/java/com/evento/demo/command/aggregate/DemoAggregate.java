@@ -28,7 +28,7 @@ public class DemoAggregate {
 							CommandGateway commandGateway,
 							CommandMessage<DemoCreateCommand> commandMessage,
 							Metadata metadata,
-							Instant instant) {
+							Instant instant) throws InterruptedException {
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
 		commandGateway.sendAndWait(new NotificationSendCommand(command.getName()));
 		Assert.isTrue(command.getDemoId() != null, "error.command.not.valid.id");
