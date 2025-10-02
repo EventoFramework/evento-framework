@@ -3,6 +3,7 @@ package com.evento.application.consumer;
 import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ProjectorReference;
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,8 +13,10 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.utils.ProjectorStatus;
 import com.evento.common.utils.Sleep;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -45,6 +48,8 @@ public class ProjectorEvenConsumer extends EventConsumer {
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
     private final MessageHandlerInterceptor messageHandlerInterceptor;
+
+    private PublishedEvent lastConsumedEvent = null;
 
     /**
      * Constructs a new ProjectorEvenConsumer with the specified parameters.
@@ -97,17 +102,19 @@ public class ProjectorEvenConsumer extends EventConsumer {
     @Override
     public void run() {
 
+
+        var consumptionStart = Instant.now().toEpochMilli();
         // Initialize projector status
         var ps = new ProjectorStatus();
         ps.setHeadReached(false);
-
-
         // Main loop for event processing
         while (!isShuttingDown.get()) {
             var hasError = false;
             var consumedEventCount = 0;
 
             try {
+                logger.debug("Fetching events for Projector: {} - Version: {} - Context: {} - Last Event: {}",
+                        projectorName, projectorVersion, context, lastConsumedEvent);
                 // Consume events from the state store and process them
                 consumedEventCount = consumerStateStore.consumeEventsForProjector(
                         consumerId,
@@ -140,6 +147,7 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                                 messageHandlerInterceptor
                                         );
                                         proxy.sendInvocationsMetric();
+                                        lastConsumedEvent = publishedEvent;
                                         return null;
                                     });
 
@@ -157,12 +165,20 @@ public class ProjectorEvenConsumer extends EventConsumer {
             // Check for head reached condition and execute onHeadReached if necessary
             if (!hasError && !ps.isHeadReached() && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
                 ps.setHeadReached(true);
-                logger.info("Event consumer head Reached for Projector: %s - Version: %d - Context: %s"
-                        .formatted(projectorName, projectorVersion, context));
+                logger.info("Projector head reached: {} - Version: {} - Context: {}"
+                        ,projectorName, projectorVersion, context);
                 var aligned = alignmentCounter.decrementAndGet();
                 if (aligned == 0) {
                     onAllHeadReached.run();
                 }
+            }
+
+            if(!ps.isHeadReached() && lastConsumedEvent != null) {
+                var now = Instant.now().toEpochMilli();
+                logger.info("Aligning to head Projector: {} - Version: {} - Context: {} - Last Event: {} - Now: {} - Diff: {}"
+                            ,projectorName, projectorVersion, context, lastConsumedEvent, now, now - lastConsumedEvent.getCreatedAt());
+
+
             }
         }
     }
