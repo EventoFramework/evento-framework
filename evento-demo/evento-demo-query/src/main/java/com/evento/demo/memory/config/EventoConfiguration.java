@@ -69,16 +69,9 @@ public class EventoConfiguration {
 						maxUnderflow, 60 * 1000))
 				.setInjector(factory::getBean)
 				//.setConsumerStateStoreBuilder(InMemoryConsumerStateStore::new)
-    .setConsumerStateStoreBuilder((es, ps) ->{
-						return PostgresConsumerStateStore.builder(es, ps, () -> {
-                            try {
-                                return DriverManager.getConnection(
-                                        pgConnectionUrl, pgUsername, pgPassword);
-                            } catch (SQLException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }).build();
-				})/*
+    .setConsumerStateStoreBuilder((es, ps) ->
+            PostgresConsumerStateStore.builder(es, ps, () ->
+                    DriverManager.getConnection(pgConnectionUrl, pgUsername, pgPassword)).build())/*
 				.setConsumerStateStoreBuilder((es, ps) ->{
 					try {
 						return MysqlConsumerStateStore.builder(es, ps, () -> {
