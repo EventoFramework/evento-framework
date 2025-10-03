@@ -23,7 +23,7 @@ jobs:
         name: Build Jar
       - run: mkdir staging && cp evento-cli/build/libs/*.jar staging
         name: Copy Outputs
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         name: Push Cli Artifact
         with:
           name: Package
