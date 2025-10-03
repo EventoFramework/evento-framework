@@ -3,6 +3,7 @@ package com.evento.consumer.state.store.postgres;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
+import com.evento.common.utils.ConnectionFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
@@ -36,7 +37,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     private final String SAGA_STATE_DDL;
     private final String DEAD_EVENT_DDL;
     private Connection conn;
-    private final Supplier<Connection> connectionFactory;
+    private final ConnectionFactory connectionFactory;
 
     /**
      * Builder for MysqlConsumerStateStore.
@@ -46,7 +47,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         // Required parameters
         private final EventoServer eventoServer;
         private final PerformanceService performanceService;
-        private final Supplier<Connection> connectionFactory;
+        private final ConnectionFactory connectionFactory;
         
         // Optional parameters with default values
         private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
@@ -65,7 +66,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         public Builder(
                 EventoServer eventoServer,
                 PerformanceService performanceService,
-                Supplier<Connection> connectionFactory) {
+                ConnectionFactory connectionFactory) {
             this.eventoServer = eventoServer;
             this.performanceService = performanceService;
             this.connectionFactory = connectionFactory;
@@ -156,13 +157,13 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     public static Builder builder(
             EventoServer eventoServer,
             PerformanceService performanceService,
-            Supplier<Connection> connectionFactory) {
+            ConnectionFactory connectionFactory) {
         return new Builder(eventoServer, performanceService, connectionFactory);
     }
     
     /**
      * Private constructor used by the Builder and deprecated constructors.
-     * Use {@link #builder(EventoServer, PerformanceService, Supplier)} to create instances.
+     * Use {@link #builder(EventoServer, PerformanceService, ConnectionFactory)} to create instances.
      *
      * @param eventoServer       an instance of evento server connection
      * @param performanceService an instance of performance service
@@ -176,7 +177,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     private MysqlConsumerStateStore(
             EventoServer eventoServer,
             PerformanceService performanceService,
-            Supplier<Connection> connectionFactory,
+            ConnectionFactory connectionFactory,
             ObjectMapper objectMapper,
             Executor observerExecutor,
             String tablePrefix,
@@ -199,9 +200,12 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     private synchronized Connection getConnection(){
         try {
             if(conn == null || !conn.isValid(3)){
-                conn = connectionFactory.get();
+                conn = connectionFactory.getConnection();
             }
-        } catch (SQLException e) {
+        } catch (Throwable e) {
+            if(e instanceof RuntimeException re){
+                throw re;
+            }
             throw new RuntimeException(e);
         }
         return conn;
