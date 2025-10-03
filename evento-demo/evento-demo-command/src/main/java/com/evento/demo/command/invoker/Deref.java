@@ -14,7 +14,7 @@ public class Deref implements ApplicationContextAware {
         this.applicationContext = applicationContext;
     }
 
-    public void send(String body){
+    public void send(String body) throws InterruptedException {
         applicationContext.getBean(NotService.class).send(body);
     }
 }
