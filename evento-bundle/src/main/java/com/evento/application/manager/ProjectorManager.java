@@ -86,8 +86,8 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
             for (var context : contexts.getOrDefault(projector.getComponentName(), Set.of(Context.ALL))) {
                 var projectorName = projector.getRef().getClass().getSimpleName();
                 var projectorVersion = annotation.version();
-                logger.info("Starting event consumer for Projector: %s - Version: %d - Context: %s"
-                        .formatted(projectorName, projectorVersion, context));
+                logger.info("Starting event consumer for Projector: {} - Version: {} - Context: %{}"
+                        ,projectorName, projectorVersion, context);
                 var c = new ProjectorEvenConsumer(
                         getBundleId(),
                         projectorName,
