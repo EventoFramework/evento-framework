@@ -3,6 +3,7 @@ package com.evento.consumer.state.store.postgres;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
+import com.evento.common.utils.ConnectionFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
@@ -37,7 +38,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
     private final String DEAD_EVENT_DDL;
 
     private Connection conn;
-    protected final Supplier<Connection> connectionFactory;
+    protected final ConnectionFactory connectionFactory;
 
     /**
      * Builder for PostgresConsumerStateStore.
@@ -47,7 +48,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
         // Required parameters
         private final EventoServer eventoServer;
         private final PerformanceService performanceService;
-        private final Supplier<Connection> connectionFactory;
+        private final ConnectionFactory connectionFactory;
         
         // Optional parameters with default values
         private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
@@ -66,7 +67,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
         public Builder(
                 EventoServer eventoServer,
                 PerformanceService performanceService,
-                Supplier<Connection> connectionFactory) {
+                ConnectionFactory connectionFactory) {
             this.eventoServer = eventoServer;
             this.performanceService = performanceService;
             this.connectionFactory = connectionFactory;
@@ -157,13 +158,13 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
     public static Builder builder(
             EventoServer eventoServer,
             PerformanceService performanceService,
-            Supplier<Connection> connectionFactory) {
+            ConnectionFactory connectionFactory) {
         return new Builder(eventoServer, performanceService, connectionFactory);
     }
 
     /**
      * Private constructor used by the Builder and deprecated constructors.
-     * Use {@link #builder(EventoServer, PerformanceService, Supplier)} to create instances.
+     * Use {@link #builder(EventoServer, PerformanceService, ConnectionFactory)} to create instances.
      *
      * @param eventoServer       an instance of evento server connection
      * @param performanceService an instance of performance service
@@ -177,7 +178,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
     private PostgresConsumerStateStore(
             EventoServer eventoServer,
             PerformanceService performanceService,
-            Supplier<Connection> connectionFactory,
+            ConnectionFactory connectionFactory,
             ObjectMapper objectMapper,
             Executor observerExecutor,
             String tablePrefix,
@@ -201,9 +202,12 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
     protected synchronized Connection getConnection() {
         try {
             if (conn == null || !conn.isValid(3)) {
-                conn = connectionFactory.get();
+                conn = connectionFactory.getConnection();
             }
-        } catch (SQLException e) {
+        } catch (Throwable e) {
+            if(e instanceof RuntimeException re){
+                throw re;
+            }
             throw new RuntimeException(e);
         }
         return conn;
@@ -246,9 +250,12 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
         var lockConn = lockConnectionMap.get(id);
         try {
             if (lockConn == null || !lockConn.isValid(3)) {
-                lockConn = connectionFactory.get();
+                lockConn = connectionFactory.getConnection();
             }
-        } catch (SQLException e) {
+        } catch (Throwable e) {
+            if(e instanceof RuntimeException re){
+                throw re;
+            }
             throw new RuntimeException(e);
         }
         lockConnectionMap.put(id, lockConn);

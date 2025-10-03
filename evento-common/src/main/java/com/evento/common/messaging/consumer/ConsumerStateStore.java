@@ -79,7 +79,7 @@ public abstract class ConsumerStateStore {
                     projectorEventConsumer.consume(event);
                 } catch (Throwable e) {
                     addEventToDeadEventQueue(consumerId, event, e);
-                    logger.error("Event consumption Error for projection %s and event %s after retry policy. Event added to Dead Event Queue".formatted(projectorName, event.getEventName()), e);
+                    logger.error("Event consumption Error for projector {} and event {} after retry policy. Event added to Dead Event Queue",projectorName, event.getEventName());
                 }
                 setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                 consumedEventCount++;
@@ -125,7 +125,7 @@ public abstract class ConsumerStateStore {
                     projectorEventConsumer.consume(event);
                 } catch (Throwable e) {
                     addEventToDeadEventQueue(consumerId, event, e);
-                    logger.error("Event consumption Error for projection %s and event %s after retry policy. Event added to Dead Event Queue".formatted(projectorName, event.getEventName()), e);
+                    logger.error("Event consumption Error for projector dead event queue {} and event {} after retry policy. Event added to Dead Event Queue",projectorName, event.getEventName());
                 }
                 performanceService.sendServiceTimeMetric(
                         eventoServer.getBundleId(),
@@ -177,9 +177,9 @@ public abstract class ConsumerStateStore {
                     } catch (Throwable e) {
                         try {
                             addEventToDeadEventQueue(consumerId, event, e);
-                            logger.error("Event consumption Error for consumer %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()), e);
+                            logger.error("Event consumption Error for observer {} and event {} after retry policy. Event added to Dead Event Queue",observerName, event.getEventName());
                         } catch (Exception ex) {
-                            logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()));
+                            logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()), ex);
                         }
 
                     }
@@ -229,9 +229,9 @@ public abstract class ConsumerStateStore {
                     } catch (Throwable e) {
                         try {
                             addEventToDeadEventQueue(consumerId, event, e);
-                            logger.error("Event consumption Error for consumer %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()), e);
+                            logger.error("Event consumption Error for observer dead event queue %s and event %s after retry policy. Event added to Dead Event Queue".formatted(observerName, event.getEventName()));
                         } catch (Exception ex) {
-                            logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()));
+                            logger.error("Dead event queue insert failed for consumer %s and event %s. Will be ignored".formatted(observerName, event.getEventName()), ex);
                         }
 
                     }
@@ -293,7 +293,7 @@ public abstract class ConsumerStateStore {
                     }
                 } catch (Exception e) {
                     addEventToDeadEventQueue(consumerId, event, e);
-                    logger.error("Event consumption Error for consumer %s and saga %s after retry policy. Event added to Dead Event Queue".formatted(sagaName, event.getEventName()), e);
+                    logger.error("Event consumption Error for saga {} and event {} after retry policy. Event added to Dead Event Queue",sagaName, event.getEventName());
                 }
                 setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                 consumedEventCount++;
@@ -346,7 +346,7 @@ public abstract class ConsumerStateStore {
                     }
                 } catch (Throwable e) {
                     addEventToDeadEventQueue(consumerId, event, e);
-                    logger.error("Event consumption Error for consumer %s and saga %s after retry policy. Event added to Dead Event Queue".formatted(sagaName, event.getEventName()), e);
+                    logger.error("Event consumption Error for saga dead letter queue {} and event {} after retry policy. Event added to Dead Event Queue",sagaName, event.getEventName());
                 }
                 setLastEventSequenceNumber(consumerId, event.getEventSequenceNumber());
                 performanceService.sendServiceTimeMetric(

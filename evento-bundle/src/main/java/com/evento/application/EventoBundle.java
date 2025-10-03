@@ -186,6 +186,11 @@ public class EventoBundle {
                                     result = proceed.invoke(target, args);
                                 }catch (Exception e){
                                     gProxy.sendServiceTimeMetric(start);
+                                    if(e instanceof InvocationTargetException ite){
+                                        var t =  ite.getTargetException();
+                                        t.setStackTrace(Arrays.stream(t.getStackTrace()).filter(s -> !s.getClassName().contains("_$$_")).toArray(StackTraceElement[]::new));
+                                        throw t;
+                                    }
                                     throw e;
                                 }
                                 if(result instanceof CompletableFuture<?> cf){
@@ -343,7 +348,7 @@ public class EventoBundle {
             if (basePackage == null) {
                 throw new IllegalArgumentException("Invalid basePackage");
             }
-            if (bundleId == null || bundleId.isBlank() || bundleId.isEmpty()) {
+            if (bundleId == null || bundleId.isBlank()) {
                 throw new IllegalArgumentException("Invalid bundleId");
             }
             if (eventoServerMessageBusConfiguration == null) {

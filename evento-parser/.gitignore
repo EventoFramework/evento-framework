@@ -1,2 +1,4 @@
 build
 .gradle
+
+/src/test/java/com/evento/parser/ExternalAppParserTest.java

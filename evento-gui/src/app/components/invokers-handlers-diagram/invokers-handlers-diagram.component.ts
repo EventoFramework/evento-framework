@@ -1,9 +1,11 @@
 import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
 import {componentColor, graphCenterFit, payloadColor} from '../../services/utils';
 import {NavController} from '@ionic/angular';
+import {setZoom} from "../common";
 
 declare const mxGraph: any;
 declare const mxConstants: any;
+declare const mxUtils: any;
 declare const mxEvent: any;
 declare const mxHierarchicalLayout: any;
 declare const mxOrthogonalLayout: any;
@@ -41,15 +43,10 @@ export class InvokersHandlersDiagramComponent implements OnInit {
     graph.setPanning(true);
     graph.resizeContainer = false;
 
-    container.addEventListener('wheel', (e: any) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.wheelDelta > 0) {
-        graph.zoomIn();
-      } else {
-        graph.zoomOut();
-      }
-    });
+
+    mxEvent.disableContextMenu(container);
+    setZoom(container, graph)
+
     const edges = [];
     const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;' +
       'endArrow=block;endFill=1;orthogonal=1;strokeColor=#999999;strokeWidth=1;';
@@ -75,6 +72,7 @@ export class InvokersHandlersDiagramComponent implements OnInit {
           const l = graph.insertVertex(parent,'/component-info/'+  r.name, r.name, 0, 0,  r.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[r.type] +
             ';fontColor=#333333;strokeWidth=3;');
+          l.handler = r;
           edges.push(graph.insertEdge(parent, null, null, l, p, edgeStyle));
         }
 
@@ -89,6 +87,7 @@ export class InvokersHandlersDiagramComponent implements OnInit {
           const l = graph.insertVertex(parent,'/component-info/'+ s.name, s.name, 0, 0, s.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[s.type] +
             ';fontColor=#333333;strokeWidth=3;');
+          l.handler = s;
           edges.push(graph.insertEdge(parent, null, null, p, l, edgeStyle));
         }
 
@@ -97,7 +96,24 @@ export class InvokersHandlersDiagramComponent implements OnInit {
         graph.getModel().endUpdate();
       }
 
-      graph.addListener(mxEvent.CLICK, (sender, evt) => {
+      // Configures automatic expand on mouseover
+      graph.popupMenuHandler.autoExpand = true;
+      // Installs a popupmenu handler using local function (see below).
+      graph.popupMenuHandler.factoryMethod = (menu, cell, evt) => {
+        if(cell?.vertex){
+          const t = cell.handler;
+          if (t) {
+            if (t.path) {
+              menu.addItem('Open Repository (' + t.line + ')', '',
+                () => {
+                  window.open(t.path + '#' + this.payload.linePrefix + t.line, '_blank');
+                });
+            }
+          }
+        }
+      }
+
+      graph.addListener(mxEvent.DOUBLE_CLICK, (sender, evt) => {
         const cell = evt.getProperty('cell'); // Get the cell that was clicked
         if (cell?.id) {
           return this.navController.navigateForward(cell.id);

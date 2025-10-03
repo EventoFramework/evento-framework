@@ -7,7 +7,7 @@ import com.evento.common.messaging.gateway.QueryGateway;
  * The InvokerWrapper class is an abstract class that serves as a wrapper for the command and query gateways.
  * It provides methods to retrieve the command and query gateways.
  */
-public abstract class InvokerWrapper {
+public class InvokerWrapper {
 
 	/**
 	 * Retrieves the command gateway.

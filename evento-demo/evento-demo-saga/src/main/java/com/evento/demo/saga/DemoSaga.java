@@ -65,11 +65,11 @@ public class DemoSaga {
 		return demoSagaState;
 	}
 
-	public NotificationSentEvent jump(CommandGateway commandGateway, String msg) {
+	public NotificationSentEvent jump(CommandGateway commandGateway, String msg) throws InterruptedException {
 		return sendNotification(commandGateway, msg);
 	}
 
-	public NotificationSentEvent sendNotification(CommandGateway commandGateway, String msg) {
+	public NotificationSentEvent sendNotification(CommandGateway commandGateway, String msg) throws InterruptedException {
 		return commandGateway.sendAndWait(new NotificationSendCommand(msg));
 	}
 

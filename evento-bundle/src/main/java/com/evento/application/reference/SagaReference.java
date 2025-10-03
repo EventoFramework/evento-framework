@@ -120,17 +120,24 @@ public class SagaReference extends Reference {
                         state == null ? sagaState : state
                 );
             }catch (Throwable e){
+
+                Throwable throwable = e;
                 retry++;
                 logger.error("Event processing failed for saga {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, e);
-                var throwable = messageHandlerInterceptor.onExceptionSagaEventHandling(
-                        getRef(),
-                        publishedEvent,
-                        commandGateway,
-                        queryGateway,
-                        sagaState,
-                        e
-                );
-                if(a.retry() > 0){
+                try {
+                    throwable = messageHandlerInterceptor.onExceptionSagaEventHandling(
+                            getRef(),
+                            publishedEvent,
+                            commandGateway,
+                            queryGateway,
+                            sagaState,
+                            e
+                    );
+                }catch (Exception ex){
+                    logger.error("Exception while handling exception for saga {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, ex);
+                    throwable = ex;
+                }
+                if(a.retry() >= 0){
                     if (retry > a.retry()) {
                         throw throwable;
                     }

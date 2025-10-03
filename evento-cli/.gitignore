@@ -1,2 +1,3 @@
 build
 .gradle
+/src/test/java/com/evento/cli/ExternalAppTest.java

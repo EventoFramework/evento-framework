@@ -57,15 +57,15 @@ public class ObserverReference extends Reference {
 
     /**
      * Invokes the event handler for the given published event.
-     *
+     * <p>
      * This method handles an event by identifying the appropriate event handler
      * based on the event name. It uses a retry mechanism for handling exceptions
      * during event processing as defined by the {@code EventHandler} annotation's retry configuration.
      * The method also applies message handling interceptors before, after, and during exception scenarios.
      *
-     * @param publishedEvent the event to be handled, containing event details such as name and message
-     * @param commandGateway the command gateway to be used for handling commands
-     * @param queryGateway the query gateway to be used for handling queries
+     * @param publishedEvent            the event to be handled, containing event details such as name and message
+     * @param commandGateway            the command gateway to be used for handling commands
+     * @param queryGateway              the query gateway to be used for handling queries
      * @param messageHandlerInterceptor the interceptor for managing message handling behavior
      * @throws Throwable if event processing fails and retry attempts are exhausted
      */
@@ -106,17 +106,23 @@ public class ObserverReference extends Reference {
                         queryGateway
                 );
                 return;
-            }catch (Throwable e){
+            } catch (Throwable e) {
+                Throwable throwable = e;
                 retry++;
                 logger.error("Event processing failed for observer {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, e);
-                var throwable = messageHandlerInterceptor.onExceptionObserverEventHandling(
-                        getRef(),
-                        publishedEvent,
-                        commandGateway,
-                        queryGateway,
-                        e
-                );
-                if(a.retry() > 0){
+                try {
+                    throwable = messageHandlerInterceptor.onExceptionObserverEventHandling(
+                            getRef(),
+                            publishedEvent,
+                            commandGateway,
+                            queryGateway,
+                            e
+                    );
+                } catch (Exception ex) {
+                    logger.error("Exception while handling exception for observer {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, ex);
+                    throwable = ex;
+                }
+                if (a.retry() >= 0) {
                     if (retry > a.retry()) {
                         throw throwable;
                     }

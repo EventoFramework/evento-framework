@@ -6,6 +6,7 @@ import com.evento.common.modeling.messaging.payload.Command;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The CommandGateway interface defines methods for sending commands and interacting with a command handler.
@@ -19,7 +20,7 @@ public interface CommandGateway {
 	 * @param <R> the type of the expected result
 	 * @return the result of the command execution
 	 */
-	default <R> R sendAndWait(Command command) {
+	default <R> R sendAndWait(Command command) throws InterruptedException {
 		return sendAndWait(command, null);
 	}
 
@@ -32,7 +33,7 @@ public interface CommandGateway {
 	 * @param <R>     the type of the expected result
 	 * @return the result of the command execution
 	 */
-	default <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
+	default <R> R sendAndWait(Command command, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
 		return sendAndWait(command, null, timeout, unit);
 	}
 
@@ -57,7 +58,7 @@ public interface CommandGateway {
 	 * @param <R> the type of the expected result
 	 * @return the result of the command execution
 	 */
-	default <R> R sendAndWait(Command command, Metadata metadata) {
+	default <R> R sendAndWait(Command command, Metadata metadata) throws InterruptedException {
 		return sendAndWait(command, metadata, null);
 	}
 
@@ -72,7 +73,7 @@ public interface CommandGateway {
 	 * @param <R>      the type of the expected result
 	 * @return the result of the command execution
 	 */
-	default <R> R sendAndWait(Command command, Metadata metadata, long timeout, TimeUnit unit) {
+	default <R> R sendAndWait(Command command, Metadata metadata, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
 		return sendAndWait(command, metadata, null, timeout, unit);
 	}
 
@@ -98,7 +99,7 @@ public interface CommandGateway {
 	 * @param <R>              the type of the expected result
 	 * @return the result of the command execution
 	 */
-	<R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage);
+	<R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) throws InterruptedException;
 
 	/**
 	 * Sends a command and waits for its execution to complete.
@@ -111,7 +112,7 @@ public interface CommandGateway {
 	 * @param <R>           the type of the expected result
 	 * @return the result of the command execution
 	 */
-	<R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit);
+	<R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
 
 	/**
 	 * Sends a command and waits for its execution to complete.

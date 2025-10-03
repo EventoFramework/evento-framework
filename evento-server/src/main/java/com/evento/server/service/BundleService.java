@@ -15,6 +15,8 @@ import com.evento.server.domain.model.core.Payload;
 import com.evento.server.domain.repository.core.*;
 import com.evento.server.domain.repository.core.projection.BundleListProjection;
 import com.evento.server.service.deploy.BundleDeployService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -31,6 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Service
 public class BundleService {
+
+    private static final Logger log = LoggerFactory.getLogger(BundleService.class);
 
     private final BundleRepository bundleRepository;
 
@@ -65,11 +69,11 @@ public class BundleService {
      * deletes payloads not registered in the bundle repository,
      * saves payload descriptions, components, and handlers associated with the bundle.
      *
-     * @param bundleId                      the ID of the bundle
-     * @param bundleDeploymentBucketType    the type of bucket for the bundle deployment
-     * @param bundleDeploymentArtifactCoordinates    the artifact coordinates for the bundle deployment
-     * @param jarOriginalName               the original name of the JAR file
-     * @param bundleDescription             the description of the bundle
+     * @param bundleId                            the ID of the bundle
+     * @param bundleDeploymentBucketType          the type of bucket for the bundle deployment
+     * @param bundleDeploymentArtifactCoordinates the artifact coordinates for the bundle deployment
+     * @param jarOriginalName                     the original name of the JAR file
+     * @param bundleDescription                   the description of the bundle
      */
     public synchronized void register(
             String bundleId,
@@ -79,11 +83,23 @@ public class BundleService {
             BundleDescription bundleDescription) {
         AtomicBoolean isNew = new AtomicBoolean(false);
 
+        log.info("[BundleService] Register called for bundleId={}, bucketType={}, coords={}, jar={}, describedVersion={}, components={}, payloads={}",
+                bundleId, bundleDeploymentBucketType, bundleDeploymentArtifactCoordinates, jarOriginalName,
+                bundleDescription.getBundleVersion(),
+                bundleDescription.getComponents() != null ? bundleDescription.getComponents().size() : 0,
+                bundleDescription.getPayloadDescriptions() != null ? bundleDescription.getPayloadDescriptions().size() : 0);
+
         final Bundle bundle;
         var t = tm.getTransaction(TransactionDefinition.withDefaults());
+        log.info("[BundleService] Transaction started for bundleId={}", bundleId);
+        int deletedHandlers = 0;
+        int deletedComponents = 0;
+        int cleanedPayloads = 0;
+        int savedPayloadDescriptions = 0;
 
         try {
             bundle = bundleRepository.findById(bundleId).map(b -> {
+                log.info("[BundleService] Updating existing bundle {} to version {}", bundleId, bundleDescription.getBundleVersion());
                 b.setVersion(bundleDescription.getBundleVersion());
                 b.setBucketType(bundleDeploymentBucketType);
                 b.setArtifactCoordinates(bundleDeploymentArtifactCoordinates);
@@ -100,6 +116,7 @@ public class BundleService {
                 return bundleRepository.save(b);
             }).orElseGet(() -> {
                 isNew.set(true);
+                log.info("[BundleService] Creating new bundle {} with version {}", bundleId, bundleDescription.getBundleVersion());
                 return bundleRepository.save(new Bundle(
                         bundleId,
                         bundleDescription.getBundleVersion(),
@@ -119,21 +136,35 @@ public class BundleService {
                         Instant.now()));
             });
 
+            log.info("[BundleService] Cleaning up existing data for bundleId={}", bundleId);
             for (Handler handler : handlerRepository.findAll()) {
                 if (!handler.getComponent().getBundle().getId().equals(bundleId)) continue;
+                log.info("[BundleService] Deleting handler id={} type={} component={} bundle={}", handler.getUuid(), handler.getHandlerType(), handler.getComponent().getComponentName(), bundleId);
                 handlerRepository.delete(handler);
+                deletedHandlers++;
                 handler.getHandledPayload().getHandlers().remove(handler);
             }
+            log.info("[BundleService] Deleted {} handlers for bundleId={}", deletedHandlers, bundleId);
 
-            componentRepository.deleteAll(componentRepository.findAllByBundle_Id(bundleId));
+            var componentsToDelete = componentRepository.findAllByBundle_Id(bundleId);
+            deletedComponents = componentsToDelete.size();
+            for (var c : componentsToDelete) {
+                log.info("[BundleService] Deleting component name='{}' type='{}' from bundleId={}", c.getComponentName(), c.getComponentType(), bundleId);
+            }
+            componentRepository.deleteAll(componentsToDelete);
+            log.info("[BundleService] Deleted {} components for bundleId={}", deletedComponents, bundleId);
 
             for (Payload payload : payloadRepository.findAll()) {
                 try {
-                    if (!bundleRepository.existsById(payload.getRegisteredIn()))
+                    if (!bundleRepository.existsById(payload.getRegisteredIn())) {
+                        log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
                         payloadRepository.delete(payload);
+                        cleanedPayloads++;
+                    }
                 } catch (Exception ignored) {
                 }
             }
+            log.info("[BundleService] Cleaned {} orphan payloads", cleanedPayloads);
 
             if (!isNew.get() && bundle.getVersion() > bundleDescription.getBundleVersion())
                 throw new IllegalArgumentException("Bundle " + bundleId + " with version " + bundle.getVersion() + " exists!");
@@ -152,9 +183,14 @@ public class BundleService {
                 payload.setLine(payloadDescription.getLine());
                 payload.setDomain(payloadDescription.getDomain());
                 payloadRepository.save(payload);
+                log.info("[BundleService] Saved payload description name='{}' type={} path='{}' line={} domain='{}'", payload.getName(), payload.getType(), payload.getPath(), payload.getLine(), payload.getDomain());
+                savedPayloadDescriptions++;
             }
+            log.info("[BundleService] Saved/updated {} payload descriptions for bundleId={}", savedPayloadDescriptions, bundleId);
 
+            log.info("[BundleService] Processing {} components for bundleId={}", bundleDescription.getComponents().size(), bundleId);
             for (Component component : bundleDescription.getComponents()) {
+                log.info("[BundleService] -> Component name='{}', type='{}'", component.getComponentName(), component.getClass().getSimpleName());
                 componentRepository.findById(component.getComponentName())
                         .ifPresent(c -> Assert.isTrue(c.getBundle().getId().equals(bundleId),
                                 "Component Duplicated: The component %s is already registered in bundle %s"
@@ -255,6 +291,12 @@ public class BundleService {
                             handler.setInvocations(invocations);
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
                         }
                         for (EventSourcingHandler eventSourcingHandler : a.getEventSourcingHandlers()) {
                             var handler = new Handler();
@@ -298,6 +340,12 @@ public class BundleService {
                             handler.setInvocations(new HashMap<>());
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
                         }
                     }
                     case Saga s -> {
@@ -368,6 +416,12 @@ public class BundleService {
                             handler.setInvocations(invocations);
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
                         }
                     }
                     case Projection p -> {
@@ -431,6 +485,12 @@ public class BundleService {
                             handler.setInvocations(invocations);
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
 
                         }
                     }
@@ -484,6 +544,12 @@ public class BundleService {
                             handler.setInvocations(invocations);
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
 
                         }
                     }
@@ -551,6 +617,12 @@ public class BundleService {
                             handler.setInvocations(invocations);
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
 
                         }
                     }
@@ -645,6 +717,12 @@ public class BundleService {
                             handler.setInvocations(invocations);
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
                         }
                     }
                     case Invoker i -> {
@@ -702,6 +780,12 @@ public class BundleService {
                             handler.setInvocations(invocations);
                             handler.generateId();
                             handlerRepository.save(handler);
+                            log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
+                                    handler.getUuid(), handler.getHandlerType(),
+                                    handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
+                                    handler.getHandledPayload() != null ? handler.getHandledPayload().getName() : "null",
+                                    handler.getReturnType() != null ? handler.getReturnType().getName() : "null",
+                                    handler.getInvocations() != null ? handler.getInvocations().size() : 0);
                         }
                     }
                     default -> {
@@ -709,21 +793,39 @@ public class BundleService {
                 }
             }
 
+            checkIsDAG();
+
+            log.info("[BundleService] Committing transaction for bundleId={}", bundleId);
             tm.commit(t);
+            log.info("[BundleService] Transaction committed for bundleId={}", bundleId);
         } catch (Exception e) {
-            tm.rollback(t);
+            log.error("[BundleService] Error during register for bundleId={}, rolling back. Error: {}", bundleId, e.getMessage(), e);
+            if (!t.isCompleted()) {
+                tm.rollback(t);
+                log.info("[BundleService] Transaction rolled back for bundleId={}", bundleId);
+            }
             throw e;
         }
 
 
         if (bundle.isDeployable() && bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral) {
             try {
+                log.info("[BundleService] Spawning deployable and autorun bundleId={} with {}:{}, instances min={}, max={}", bundleId, bundle.getBucketType(), bundle.getArtifactCoordinates(), bundle.getMinInstances(), bundle.getMaxInstances());
                 bundleDeployService.spawn(bundle);
+                log.info("[BundleService] Spawn requested for bundleId={} completed (async)", bundleId);
             } catch (Exception e) {
+                log.error("[BundleService] Spawn failed for bundleId={} - {}", bundleId, e.getMessage(), e);
                 throw new RuntimeException(e);
             }
+        } else {
+            log.info("[BundleService] Skipping spawn for bundleId={} (deployable={}, autorun={}, bucketType={})", bundleId, bundle.isDeployable(), bundle.isAutorun(), bundle.getBucketType());
         }
 
+    }
+
+    private void checkIsDAG() {
+        List<Handler> handlers = handlerRepository.findAll();
+        HandlerGraphUtils.getTopologicalOrder(handlers);
     }
 
     /**
@@ -733,24 +835,45 @@ public class BundleService {
      */
     public void unregister(
             String bundleId) {
+        log.info("[BundleService] Unregister called for bundleId={}", bundleId);
+        int removedHandlers = 0;
         for (Handler handler : handlerRepository.findAll()) {
             if (!handler.getComponent().getBundle().getId().equals(bundleId)) continue;
+            log.info("[BundleService] Deleting handler id={} type={} component={} bundle={}", handler.getUuid(), handler.getHandlerType(), handler.getComponent().getComponentName(), bundleId);
             handlerRepository.delete(handler);
+            removedHandlers++;
             handler.getHandledPayload().getHandlers().remove(handler);
         }
+        log.info("[BundleService] Removed {} handlers for bundleId={}", removedHandlers, bundleId);
         var components = componentRepository.findAllByBundle_Id(bundleId);
         consumerRepository.deleteAllByComponentIn(components);
+        log.info("[BundleService] Removed {} consumers for bundleId={}", components.size(), bundleId);
 
+        for (var c : components) {
+            log.info("[BundleService] Deleting component name='{}' type='{}' from bundleId={}", c.getComponentName(), c.getComponentType(), bundleId);
+        }
         componentRepository.deleteAll(components);
+        log.info("[BundleService] Removed {} components for bundleId={}", components.size(), bundleId);
 
-        bundleRepository.findById(bundleId).ifPresent(bundleRepository::delete);
+        var deletedBundle = bundleRepository.findById(bundleId).orElse(null);
+        if (deletedBundle != null) {
+            bundleRepository.delete(deletedBundle);
+            log.info("[BundleService] Deleted bundle record for bundleId={}", bundleId);
+        } else {
+            log.info("[BundleService] Bundle record not found for bundleId={}", bundleId);
+        }
+        int removedOrphanPayloads = 0;
         for (Payload payload : payloadRepository.findAll()) {
             try {
-                if (!bundleRepository.existsById(payload.getRegisteredIn()))
+                if (!bundleRepository.existsById(payload.getRegisteredIn())) {
+                    log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
                     payloadRepository.delete(payload);
+                    removedOrphanPayloads++;
+                }
             } catch (Exception ignored) {
             }
         }
+        log.info("[BundleService] Removed {} orphan payloads after unregister of bundleId={}", removedOrphanPayloads, bundleId);
     }
 
     /**
@@ -759,6 +882,7 @@ public class BundleService {
      * @return A list of bundles.
      */
     public List<Bundle> findAllBundles() {
+        log.info("[BundleService] Retrieving all bundles");
         return bundleRepository.findAll();
     }
 
@@ -768,10 +892,10 @@ public class BundleService {
      * The findAllProjection method executes a native SQL query to fetch the required data from the database.
      *
      * @return A list of BundleListProjection objects representing the projected view of Bundle objects.
-     *
      * @see BundleListProjection
      */
     public List<BundleListProjection> findAllProjection() {
+        log.info("[BundleService] Retrieving bundle projections");
         return bundleRepository.findAllProjection();
     }
 
@@ -783,6 +907,7 @@ public class BundleService {
      * @throws java.util.NoSuchElementException if no bundle with the given ID is found
      */
     public Bundle findById(String bundleId) {
+        log.info("[BundleService] Retrieving bundle by id={}", bundleId);
         return bundleRepository.findById(bundleId).orElseThrow();
     }
 
@@ -793,14 +918,16 @@ public class BundleService {
      * The updated value is saved in the bundle's environment map, and the bundle's updatedAt timestamp is updated.
      *
      * @param bundleId the ID of the bundle to update the environment variable for
-     * @param key the key of the environment variable
-     * @param value the new value of the environment variable
+     * @param key      the key of the environment variable
+     * @param value    the new value of the environment variable
      */
     public void putEnv(String bundleId, String key, String value) {
+        log.info("[BundleService] Setting env var for bundleId={} key='{}' value='{}'", bundleId, key, value);
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().put(key, value);
         bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
+        log.info("[BundleService] Env var set for bundleId={} key='{}'", bundleId, key);
     }
 
     /**
@@ -814,40 +941,46 @@ public class BundleService {
      * Finally, the updated bundle is saved in the bundle repository.
      *
      * @param bundleId the ID of the bundle to remove the environment variable for
-     * @param key the key of the environment variable to remove
+     * @param key      the key of the environment variable to remove
      */
     public void removeEnv(String bundleId, String key) {
+        log.info("[BundleService] Removing env var for bundleId={} key='{}'", bundleId, key);
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getEnvironment().remove(key);
         bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
+        log.info("[BundleService] Env var removed for bundleId={} key='{}'", bundleId, key);
     }
 
     /**
      * Updates the virtual machine option of a given bundle with the provided key-value pair.
      *
      * @param bundleId the ID of the bundle to update
-     * @param key the key of the virtual machine option to update
-     * @param value the value of the virtual machine option to update
+     * @param key      the key of the virtual machine option to update
+     * @param value    the value of the virtual machine option to update
      * @throws NoSuchElementException if the bundle with the provided ID does not exist
      */
     public void putVmOption(String bundleId, String key, String value) {
+        log.info("[BundleService] Setting VM option for bundleId={} key='{}' value='{}'", bundleId, key, value);
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().put(key, value);
         bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
+        log.info("[BundleService] VM option set for bundleId={} key='{}'", bundleId, key);
     }
 
     /**
      * Removes a specific VM option from a bundle identified by bundleId.
      *
      * @param bundleId the identifier of the bundle to remove the VM option from
-     * @param key the key of the VM option to be removed
+     * @param key      the key of the VM option to be removed
      */
     public void removeVmOption(String bundleId, String key) {
+        log.info("[BundleService] Removing VM option for bundleId={} key='{}'", bundleId, key);
         var bundle = bundleRepository.findById(bundleId).orElseThrow();
         bundle.getVmOptions().remove(key);
         bundle.setUpdatedAt(Instant.now());
         bundleRepository.save(bundle);
+        log.info("[BundleService] VM option removed for bundleId={} key='{}'", bundleId, key);
     }
 }
