@@ -30,19 +30,25 @@ public class PublishBundle {
 	 * @param serverUrl            The URL of the server to upload the bundle to.
 	 * @param repositoryUrl        The URL of the repository.
 	 * @param repositoryLinePrefix The repository line prefix string.
+	 * @param javaLanguageVersion  The java language version for parsing
 	 * @param deployable           Indicates if the bundle is deployable.
 	 * @param token                The authorization token for the server.
 	 *
 	 * @throws Exception if an error occurs during the publishing process.
 	 */
-	public static void run(String bundlePath, String serverUrl, String repositoryUrl, String repositoryLinePrefix,
+	public static void run(String bundlePath,
+                           String serverUrl,
+                           String repositoryUrl,
+                           String repositoryLinePrefix,
+                           String javaLanguageVersion,
 						   boolean deployable,
 						   String token) throws Exception {
 
 		System.out.println("Parsing bundle in: " + bundlePath);
 		JavaBundleParser applicationParser = new JavaBundleParser();
 		var bundleDescription = applicationParser.parseDirectory(
-				new File(bundlePath), repositoryUrl, repositoryLinePrefix);
+				new File(bundlePath), repositoryUrl, repositoryLinePrefix,
+                javaLanguageVersion);
 		bundleDescription.setDeployable(deployable);
 		var jsonDescription = getPayloadObjectMapper().writeValueAsString(bundleDescription);
 		System.out.println("JSON created");
@@ -108,11 +114,12 @@ public class PublishBundle {
 	 *             - args[1]: the URL of the server to upload the bundle to
 	 *             - args[2]: the URL of the repository
 	 *             - args[3]: the repository line prefix
-	 *             - args[4]: the bundle is deployable by evento server (true)
-	 *             - args[4]: the authorization token
+	 *             - args[4]: the java language version
+	 *             - args[5]: the bundle is deployable by evento server (true)
+	 *             - args[6]: the authorization token
 	 * @throws Exception if an error occurs during the publishing process
 	 */
 	public static void main(String[] args) throws Exception {
-		run(args[0],  args[1], args[2], args[3], args[4].equals("true"), args[5]);
+		run(args[0],  args[1], args[2], args[3], args[4], args[5].equals("true"), args[6]);
 	}
 }
