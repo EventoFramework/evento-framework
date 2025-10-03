@@ -8,7 +8,7 @@ Content-Type: application/json
 }
 
 ###
-POST http://localhost:9001/api/util/send?failStage=INVOKER
+GET http://localhost:9001/api/util/send?failStage=INVOKER
 Accept: application/json
 
 > {%
@@ -18,7 +18,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send-wait?failStage=INVOKER
+GET http://localhost:9001/api/util/send-wait?failStage=INVOKER
 Accept: application/json
 
 > {%
@@ -28,7 +28,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send?failStage=GATEWAY
+GET http://localhost:9001/api/util/send?failStage=GATEWAY
 Accept: application/json
 
 > {%
@@ -38,7 +38,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send-wait?failStage=GATEWAY
+GET http://localhost:9001/api/util/send-wait?failStage=GATEWAY
 Accept: application/json
 
 > {%
@@ -48,7 +48,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send?failStage=BEFORE_HANDLING
+GET http://localhost:9001/api/util/send?failStage=BEFORE_HANDLING
 Accept: application/json
 
 > {%
@@ -58,7 +58,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send-wait?failStage=BEFORE_HANDLING
+GET http://localhost:9001/api/util/send-wait?failStage=BEFORE_HANDLING
 Accept: application/json
 
 > {%
@@ -68,7 +68,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send?failStage=HANDLING
+GET http://localhost:9001/api/util/send?failStage=HANDLING
 Accept: application/json
 
 > {%
@@ -78,7 +78,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send-wait?failStage=HANDLING
+GET http://localhost:9001/api/util/send-wait?failStage=HANDLING
 Accept: application/json
 
 > {%
@@ -88,7 +88,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send?failStage=AFTER_HANDLING
+GET http://localhost:9001/api/util/send?failStage=AFTER_HANDLING
 Accept: application/json
 
 > {%
@@ -98,7 +98,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send-wait?failStage=AFTER_HANDLING
+GET http://localhost:9001/api/util/send-wait?failStage=AFTER_HANDLING
 Accept: application/json
 
 > {%
@@ -108,7 +108,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send?failStage=AFTER_HANDLING_EXCEPTION
+GET http://localhost:9001/api/util/send?failStage=AFTER_HANDLING_EXCEPTION
 Accept: application/json
 
 > {%
@@ -118,7 +118,7 @@ Accept: application/json
     })
 %}
 ###
-POST http://localhost:9001/api/util/send-wait?failStage=AFTER_HANDLING_EXCEPTION
+GET http://localhost:9001/api/util/send-wait?failStage=AFTER_HANDLING_EXCEPTION
 Accept: application/json
 
 > {%
