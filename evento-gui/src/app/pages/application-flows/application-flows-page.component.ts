@@ -5,6 +5,7 @@ import {FlowsService} from '../../services/flows.service';
 import {CatalogService} from '../../services/catalog.service';
 import {BundleService} from '../../services/bundle.service';
 import {AlertController, LoadingController} from "@ionic/angular";
+import {setZoom} from "../../components/common";
 
 declare let mxGraph: any;
 declare let mxHierarchicalLayout: any;
@@ -186,21 +187,7 @@ export class ApplicationFlowsPage implements OnInit {
         graph.setCellsResizable(false);
         graph.setCellsSelectable(false);
 
-        graph.panGraph = function(dx, dy) {
-          this.view.setTranslate(dx, dy); // just shift, don’t redraw
-        };
-
-
-        container.addEventListener('wheel', (e: any) => {
-          console.log(e);
-          e.preventDefault();
-          e.stopPropagation();
-          if (e.wheelDelta > 0) {
-            graph.zoomIn();
-          } else {
-            graph.zoomOut();
-          }
-        });
+        setZoom(container, graph)
 
 
         const edges = [];

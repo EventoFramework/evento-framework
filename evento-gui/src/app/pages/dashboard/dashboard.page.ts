@@ -17,7 +17,6 @@ export class DashboardPage implements OnInit {
 
   async ionViewWillEnter() {
     this.dashboard = await this.dashboardService.getDashboard();
-    console.log(this.dashboard);
   }
 
 }
