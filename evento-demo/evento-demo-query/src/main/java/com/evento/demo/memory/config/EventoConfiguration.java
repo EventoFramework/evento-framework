@@ -3,10 +3,17 @@ package com.evento.demo.memory.config;
 import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
+import com.evento.application.manager.LogTracesMessageHandlerInterceptor;
+import com.evento.common.messaging.gateway.CommandGateway;
+import com.evento.common.messaging.gateway.QueryGateway;
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.performance.ThreadCountAutoscalingProtocol;
 import com.evento.common.utils.Context;
+import com.evento.common.utils.ProjectorStatus;
 import com.evento.consumer.state.store.postgres.PostgresConsumerStateStore;
 import com.evento.demo.DemoQueryApplication;
+import com.evento.demo.api.event.UtilEvent;
+import com.evento.demo.api.view.enums.FailStage;
 import com.evento.demo.memory.query.DemoProjector;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
@@ -101,6 +108,36 @@ public class EventoConfiguration {
 								});
 					}*/
 				})
+                .setMessageHandlerInterceptor(new LogTracesMessageHandlerInterceptor(){
+                    @Override
+                    public void beforeProjectorEventHandling(Object projector, PublishedEvent publishedEvent, CommandGateway commandGateway, QueryGateway queryGateway, ProjectorStatus projectorStatus) {
+                       if(publishedEvent.getEventMessage().getPayload() instanceof UtilEvent ue){
+                           if(ue.getFailStage() == FailStage.BEFORE_HANDLING){
+                               throw new RuntimeException("Force Fail Before Handling");
+                           }
+                       }
+                    }
+
+                    @Override
+                    public void afterProjectorEventHandling(Object projector, PublishedEvent publishedEvent, CommandGateway commandGateway, QueryGateway queryGateway, ProjectorStatus projectorStatus) {
+                        if(publishedEvent.getEventMessage().getPayload() instanceof UtilEvent ue){
+                            if(ue.getFailStage() == FailStage.AFTER_HANDLING){
+                                throw new RuntimeException("Force Fail After Handling");
+                            }
+                        }
+                        super.afterProjectorEventHandling(projector, publishedEvent, commandGateway, queryGateway, projectorStatus);
+                    }
+
+                    @Override
+                    public Throwable onExceptionProjectorEventHandling(Object projector, PublishedEvent publishedEvent, CommandGateway commandGateway, QueryGateway queryGateway, ProjectorStatus projectorStatus, Throwable t) {
+                        if(publishedEvent.getEventMessage().getPayload() instanceof UtilEvent ue){
+                            if(ue.getFailStage() == FailStage.AFTER_HANDLING_EXCEPTION){
+                                throw new RuntimeException("Force Fail After Handling Exception");
+                            }
+                        }
+                        return super.onExceptionProjectorEventHandling(projector, publishedEvent, commandGateway, queryGateway, projectorStatus, t);
+                    }
+                })
 				.start();
 
 	}
