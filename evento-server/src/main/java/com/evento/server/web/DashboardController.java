@@ -35,7 +35,7 @@ public class DashboardController {
 		this.eventStore = eventStore;
 	}
 
-	@GetMapping("/")
+	@GetMapping("")
 	@Secured("ROLE_WEB")
 	public DashboardDTO getDashboard() {
 		var db = new DashboardDTO();
