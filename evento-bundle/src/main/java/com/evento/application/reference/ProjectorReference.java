@@ -114,6 +114,7 @@ public class ProjectorReference extends Reference {
                 );
                 return;
             }catch (Throwable t){
+                retry++;
                 Throwable throwable = t;
                 logger.error("Event processing failed for projector {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, throwable);
                 try{
@@ -126,10 +127,10 @@ public class ProjectorReference extends Reference {
                             throwable
                     );
                 }catch (Throwable t1){
+                    logger.error("Exception while handling exception for projector {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, t1);
                     throwable = t1;
                 }
-                retry++;
-                if(a.retry() > 0){
+                if(a.retry() >= 0){
                     if (retry > a.retry()) {
                         throw throwable;
                     }
