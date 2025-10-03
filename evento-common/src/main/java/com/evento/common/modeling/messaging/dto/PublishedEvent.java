@@ -126,4 +126,14 @@ public class PublishedEvent implements Serializable {
 	public void setEventName(String eventName) {
 		this.eventName = eventName;
 	}
+
+    @Override
+    public String toString() {
+        return "PublishedEvent{" +
+                "eventSequenceNumber=" + eventSequenceNumber +
+                ", aggregateId='" + aggregateId + '\'' +
+                ", eventName='" + eventName + '\'' +
+                ", createdAt=" + createdAt +
+                '}';
+    }
 }
