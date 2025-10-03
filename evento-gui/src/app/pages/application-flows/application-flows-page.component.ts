@@ -182,6 +182,9 @@ export class ApplicationFlowsPage implements OnInit {
         graph.setPanning(true);
         graph.resizeContainer = false;
         graph.htmlLabels = true;
+        graph.setCellsEditable(false);
+        graph.setCellsResizable(false);
+        graph.setCellsSelectable(false);
 
         graph.panGraph = function(dx, dy) {
           this.view.setTranslate(dx, dy); // just shift, don’t redraw
