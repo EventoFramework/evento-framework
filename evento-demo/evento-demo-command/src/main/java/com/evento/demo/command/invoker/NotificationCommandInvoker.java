@@ -9,7 +9,7 @@ import com.evento.demo.api.command.NotificationSendCommand;
 public class NotificationCommandInvoker extends InvokerWrapper {
 
     @InvocationHandler
-    public void send(String body){
+    public void send(String body) throws InterruptedException {
         getCommandGateway().sendAndWait(new NotificationSendCommand(body));
     }
 }

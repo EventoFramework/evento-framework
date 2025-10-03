@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -70,13 +71,13 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     }
 
     @Override
-    public <R> R sendAndWait(Command command) {
+    public <R> R sendAndWait(Command command) throws InterruptedException {
         updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
     }
 
     @Override
-    public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) {
+    public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
         updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage), timeout, unit);
 
@@ -89,14 +90,14 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     }
 
     @Override
-    public <R> R sendAndWait(Command command, Metadata metadata) {
+    public <R> R sendAndWait(Command command, Metadata metadata) throws InterruptedException {
         updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage));
 
     }
 
     @Override
-    public <R> R sendAndWait(Command command, Metadata metadata, long timeout, TimeUnit unit) {
+    public <R> R sendAndWait(Command command, Metadata metadata, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
         updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), timeout, unit);
 
@@ -109,14 +110,14 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     }
 
     @Override
-    public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) {
+    public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) throws InterruptedException {
         updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
 
     }
 
     @Override
-    public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
+    public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
         updateInvocationCounter(command);
         return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
 
