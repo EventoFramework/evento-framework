@@ -12,7 +12,7 @@ public class NotService {
         this.invoker = bundle.getInvoker(NotificationCommandInvoker.class);
     }
 
-    public void send(String body){
+    public void send(String body) throws InterruptedException {
         invoker.send(body);
     }
 }

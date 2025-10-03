@@ -46,12 +46,14 @@ export const payloadColor = {
 export const graphCenterFit = (graph, container) => {
   const bounds = graph.getGraphBounds();
   graph.fit();
+  /*
   let zoom = graph.view.scale;
   if (bounds.width > container.offsetWidth || bounds.height > container.offsetHeight) {
     zoom = Math.min(container.offsetWidth / bounds.width, container.offsetHeight / bounds.height);
   }
   zoom = zoom * 0.95;
   graph.zoomTo(zoom);
+  */
   graph.center();
   container.style.position = "absolute";
 };
