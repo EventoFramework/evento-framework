@@ -12,6 +12,9 @@ import com.evento.common.modeling.messaging.payload.DomainCommand;
 import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.performance.ThreadCountAutoscalingProtocol;
+import com.evento.demo.api.command.UtilFailCommand;
+import com.evento.demo.api.error.InvalidCommandException;
+import com.evento.demo.api.view.enums.FailStage;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import com.evento.demo.web.domain.DemoWebApplication;
 import org.springframework.beans.factory.BeanFactory;
@@ -60,6 +63,13 @@ public class EventoConfiguration {
 
                     @Override
                     public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
+
+                        if(command instanceof UtilFailCommand fc){
+                            if(fc.getFailStage() == FailStage.GATEWAY){
+                                throw new InvalidCommandException("Failed in Gateway");
+                            }
+                        }
+
                         Optional.ofNullable(RequestContextHolder.getRequestAttributes())
                                 .filter(ServletRequestAttributes.class::isInstance)
                                 .map(ServletRequestAttributes.class::cast)

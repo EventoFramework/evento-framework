@@ -14,8 +14,9 @@ public interface BundleParser {
 	 * @param file the directory to parse for bundle information
 	 * @param repositoryRoot the root directory of the repository
 	 * @param linePrefix the prefix for each line in the parsed output
+	 * @param javaVersion the version of Java used to compile the bundle
 	 * @return a BundleDescription object containing the parsed bundle information
 	 * @throws Exception if an error occurs during parsing
 	 */
-	BundleDescription parseDirectory(File file, String repositoryRoot, String linePrefix) throws Exception;
+	BundleDescription parseDirectory(File file, String repositoryRoot, String linePrefix, String  javaVersion) throws Exception;
 }
