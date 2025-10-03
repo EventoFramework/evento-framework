@@ -1,6 +1,7 @@
 import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
 import {NavController} from '@ionic/angular';
 import {componentColor, graphCenterFit, payloadColor} from '../../services/utils';
+import {setZoom} from "../common";
 
 declare const mxGraph: any;
 declare const mxEvent: any;
@@ -38,15 +39,10 @@ export class BundleComponentsDiagramComponent implements OnInit {
       graph.setPanning(true);
       graph.resizeContainer = false;
 
-      container.addEventListener('wheel', (e: any) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.wheelDelta > 0) {
-          graph.zoomIn();
-        } else {
-          graph.zoomOut();
-        }
-      });
+
+      mxEvent.disableContextMenu(container);
+      setZoom(container, graph)
+
       const edges = [];
       const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;' +
         'endArrow=block;endFill=1;orthogonal=1;strokeColor=#999999;strokeWidth=1;';
@@ -78,6 +74,7 @@ export class BundleComponentsDiagramComponent implements OnInit {
             0, 0, h.handledPayload.name.length*7, 50,
             'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] +
             ';fontColor=#333333;strokeWidth=3;');
+          t.handler = h;
           edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
 
           if (h.returnType) {
@@ -97,7 +94,7 @@ export class BundleComponentsDiagramComponent implements OnInit {
           }
         }
 
-        graph.addListener(mxEvent.CLICK, (sender, evt) => {
+        graph.addListener(mxEvent.DOUBLE_CLICK, (sender, evt) => {
           const cell = evt.getProperty('cell'); // Get the cell that was clicked
           if (cell?.id) {
             return this.navController.navigateForward(cell.id);
@@ -109,6 +106,25 @@ export class BundleComponentsDiagramComponent implements OnInit {
         graph.getModel().endUpdate();
       }
 
+
+      // Configures automatic expand on mouseover
+      graph.popupMenuHandler.autoExpand = true;
+      // Installs a popupmenu handler using local function (see below).
+      graph.popupMenuHandler.factoryMethod = (menu, cell, evt) => {
+        if(cell?.vertex){
+          const t = cell.handler;
+          if (t) {
+            if (t.path) {
+              menu.addItem('Open Repository (' + t.line + ')', '',
+                () => {
+                  window.open(t.path + '#' + this.bundle.linePrefix + t.line, '_blank');
+                });
+            }
+          }
+        }
+      }
+
+
       const layout = new mxHierarchicalLayout(graph, 'west');
       layout.traverseAncestors = false;
       layout.execute(parent);
@@ -117,6 +133,7 @@ export class BundleComponentsDiagramComponent implements OnInit {
         const state = graph.view.getState(e);
         state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
       }
+
 
 
       graphCenterFit(graph, container);

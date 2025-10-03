@@ -1,10 +1,13 @@
 /* eslint-disable guard-for-in,no-underscore-dangle,@typescript-eslint/naming-convention */
 import {Component, OnInit} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
-import {NavController} from '@ionic/angular';
+import {LoadingController, NavController} from '@ionic/angular';
 import {componentColor, getColorForBundle, graphCenterFit, payloadColor} from '../../services/utils';
+import {setZoom} from "../common";
 
 declare const mxGraph: any;
+declare const mxUtils: any;
+declare const mxEvent: any;
 declare const mxConstants: any;
 
 @Component({
@@ -18,13 +21,22 @@ export class ApplicationGraphDiagramComponent implements OnInit {
   padding = 20;
 
   constructor(private handlerService: HandlerService,
-              private navController: NavController) {
+              private navController: NavController,
+              private loadingController: LoadingController) {
   }
 
 
   async ngOnInit() {
+    const fetchLoading = await this.loadingController.create({
+      message: 'Fetching handlers...',
+    })
+    await fetchLoading.present();
     const handlers = await this.handlerService.findAll();
-
+    await fetchLoading.dismiss();
+    const renderingLoading = await this.loadingController.create({
+      message: 'Rendering application graph...',
+    });
+    await renderingLoading.present();
     const priority = ['Aggregate', 'Service', 'Projector', 'Projection', 'Saga', 'Invoker'];
     handlers.sort((a, b) => priority.indexOf(a.componentType) - priority.indexOf(b.componentType));
     let minCircleSize = 0;
@@ -123,19 +135,11 @@ export class ApplicationGraphDiagramComponent implements OnInit {
     graph.resizeContainer = false;
 
 
-    container.addEventListener('wheel', (e: any) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.wheelDelta > 0) {
-        graph.zoomIn();
-      } else {
-        graph.zoomOut();
-      }
-    });
 
-    graph.addListener('click', (source, evt) => {
+    setZoom(container, graph)
+
+    graph.addListener(mxEvent.DOUBLE_CLICK, (source, evt) => {
       const cell = evt.getProperty('cell');
-      console.log(cell);
       if (cell != null &&
         cell.value != null && cell.value.handlerId) {
 
@@ -224,7 +228,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
           }
         }
 
-
         const edgeStyle = 'opacity=10;strokeColor=#000000;';
         for (const handler of handlers) {
           for (const to of handler.h.invoke) {
@@ -238,12 +241,12 @@ export class ApplicationGraphDiagramComponent implements OnInit {
 
       } finally {
         graph.getModel().endUpdate();
+        renderingLoading.dismiss()
       }
 
       graphCenterFit(graph, container);
 
     }, 500);
-
 
     const updateStyle = (state, hover) => {
       const visited = new Set();
@@ -255,7 +258,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
         }
         if (n.cell.edges) {
           for (const e of n.cell.edges) {
-            console.log(e);
             if (e.id in visited) {
               continue;
             }
@@ -275,10 +277,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
         n.shape.apply(n);
         n.shape.redraw();
       }
-
-
     };
-
 
     graph.addMouseListener(
       {
@@ -326,17 +325,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
         dragLeave: (evt, state) => {
           if (state != null) {
             updateStyle(state, false);
-            /*
-            state.style = this.previousStyle;
-            updateStyle(state, false);
-            state.shape.apply(state);
-            state.shape.redraw();
-
-            if (state.text != null)
-            {
-              state.text.apply(state);
-              state.text.redraw();
-            }*/
           }
         }
       });
@@ -387,7 +375,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
       // as per the mathematical convention, instead of "down" as per the computer
       // graphics convention. This doesn't affect the correctness of the result.
       const upperHull = [];
-      // eslint-disable-next-line @typescript-eslint/prefer-for-of
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
         while (upperHull.length >= 2) {
@@ -462,11 +449,7 @@ export class ApplicationGraphDiagramComponent implements OnInit {
     return firstSolution ? [x2 + (k / d2) * (x3 - x2) - (h / d2) * (y3 - y2),
       y2 + (k / d2) * (y3 - y2) + (h / d2) * (x3 - x2)] : [x2 + (k / d2) * (x3 - x2) +
     (h / d2) * (y3 - y2), y2 + (k / d2) * (y3 - y2) - (h / d2) * (x3 - x2)];
-
-    //vertex_1b(1) = x2 + (k/d2)*(x3 - x2) + (h/d2)*(y3 - y2);
-    //vertex_1b(2) = y2 + (k/d2)*(y3 - y2) - (h/d2)*(x3 - x2);
   }
-
   private addCircle(circles, radius, id, name) {
     const center = this.getCenter(circles);
 
@@ -511,7 +494,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
 
       }
     }
-
     const c3 = {
       x: p3[0],
       y: p3[1],
@@ -519,11 +501,6 @@ export class ApplicationGraphDiagramComponent implements OnInit {
       n: name,
       id
     };
-
     circles.push(c3);
-
-
   }
-
-
 }
