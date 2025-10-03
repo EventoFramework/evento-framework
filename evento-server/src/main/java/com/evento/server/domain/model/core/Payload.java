@@ -44,6 +44,7 @@ public class Payload implements Serializable {
 
 	private boolean isValidJsonSchema;
 
+    @Column(columnDefinition = "TEXT")
 	private String path;
 	private Integer line;
 
