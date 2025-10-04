@@ -58,6 +58,7 @@ public class Component {
     /**
      * Represents the path where the component resides.
      */
+    @Column(columnDefinition = "TEXT")
 	private String path;
 
     /**

@@ -129,7 +129,7 @@ public abstract class JavaComponentParser<T extends Component> {
 	 * @return the XPath query string
 	 */
 	protected String getQueryForAnnotatedMethod(String annotation) {
-		return "//ClassOrInterfaceBodyDeclaration[Annotation//Name[@Image=\"" + annotation + "\"] and MethodDeclaration]//MethodDeclaration";
+		return "//ClassOrInterfaceBodyDeclaration[Annotation//Name[@Image=\"" + annotation + "\"] and MethodDeclaration]/MethodDeclaration";
 	}
 
 	/**
