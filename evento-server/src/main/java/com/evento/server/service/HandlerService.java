@@ -1,5 +1,6 @@
 package com.evento.server.service;
 
+import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.domain.model.core.Handler;
@@ -8,7 +9,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class HandlerService {
@@ -55,7 +58,26 @@ public class HandlerService {
 		return handlerRepository.findById(handlerId);
 	}
 
+    private final Map<String, List<String>> handlerCache = new ConcurrentHashMap<String, List<String> >();
+
 	public List<String> findAllHandledPayloadsNameByComponentName(String componentName) {
-		return handlerRepository.findAllHandledPayloadsNameByComponentName(componentName);
+        return handlerCache.computeIfAbsent(componentName, handlerRepository::findAllHandledPayloadsNameByComponentName);
 	}
+
+    public void clearCache(String componentName) {
+        handlerCache.remove(componentName);
+    }
+
+    public void deleteAll(List<Handler> handlers) {
+
+        handlerRepository.deleteAll(handlers);
+    }
+
+    public boolean exists(String bundleId, ComponentType componentType, String componentName, HandlerType handlerType, String handledPayload) {
+        return handlerRepository.exists(bundleId, componentType, componentName, handlerType, handledPayload);
+    }
+
+    public void delete(Handler handler) {
+        handlerRepository.delete(handler);
+    }
 }

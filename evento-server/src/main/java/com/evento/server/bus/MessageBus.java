@@ -550,7 +550,8 @@ public class MessageBus {
                             f.getLimit()) : eventStore.fetchEvents(
                             f.getContext(),
                             f.getLastSequenceNumber(),
-                            f.getLimit(), handlerService.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
+                            f.getLimit(),
+                            handlerService.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
                     var resp = new EventoResponse();
                     resp.setCorrelationId(message.getCorrelationId());
                     resp.setBody(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
