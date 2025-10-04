@@ -3,6 +3,7 @@ package com.evento.server.service.discovery;
 import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.domain.model.core.*;
 import com.evento.server.domain.repository.core.*;
+import com.evento.server.service.HandlerService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.common.modeling.bundle.types.PayloadType;
@@ -25,7 +26,7 @@ import java.util.Objects;
 public class AutoDiscoveryService {
     private static final Logger logger = LogManager.getLogger(AutoDiscoveryService.class);
     private final BundleRepository bundleRepository;
-    private final HandlerRepository handlerRepository;
+    private final HandlerService handlerService;
     private final PayloadRepository payloadRepository;
     private final BundleService bundleService;
     private final ComponentRepository componentRepository;
@@ -38,7 +39,7 @@ public class AutoDiscoveryService {
      *
      * @param messageBus The message bus used for inter-service communication and event handling.
      * @param bundleRepository Repository for managing bundle entities.
-     * @param handlerRepository Repository for managing handler entities.
+     * @param handlerService Service for managing handler entities.
      * @param payloadRepository Repository for managing payload entities.
      * @param bundleService Service responsible for bundle-related operations.
      * @param componentRepository Repository for managing component entities.
@@ -46,11 +47,11 @@ public class AutoDiscoveryService {
      */
     public AutoDiscoveryService(MessageBus messageBus,
                                 BundleRepository bundleRepository,
-                                HandlerRepository handlerRepository,
+                                HandlerService handlerService,
                                 PayloadRepository payloadRepository, BundleService bundleService,
                                 ComponentRepository componentRepository, DataSource dataSource) {
         this.bundleRepository = bundleRepository;
-        this.handlerRepository = handlerRepository;
+        this.handlerService = handlerService;
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
         messageBus.addJoinListener(this::onNodeJoin);
@@ -91,9 +92,9 @@ public class AutoDiscoveryService {
                                         Instant.now()));
                             }
                     );
-                    var handlers = handlerRepository.findAllByComponent_Bundle(bundle);
+                    var handlers = handlerService.findAllByBundleId(bundle.getId());
                     for (RegisteredHandler registeredHandler : bundleRegistration.getHandlers()) {
-                        if (!handlerRepository.exists(
+                        if (!handlerService.exists(
                                 bundleRegistration.getBundleId(),
                                 registeredHandler.getComponentType(),
                                 registeredHandler.getComponentName(),
@@ -164,7 +165,7 @@ public class AutoDiscoveryService {
                             handler.setReturnIsMultiple(registeredHandler.isReturnIsMultiple());
                             handler.setAssociationProperty(registeredHandler.getAssociationProperty());
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                         } else {
                             handlers.removeIf(h ->
                                     Objects.equals(h.getComponent().getBundle().getId(), bundleRegistration.getBundleId())
@@ -175,7 +176,7 @@ public class AutoDiscoveryService {
                             );
                         }
                     }
-                    handlerRepository.deleteAll(handlers);
+                    handlerService.deleteAll(handlers);
                 }
                 if (bundleRegistration.getPayloadInfo() != null)
                     bundleRegistration.getPayloadInfo().forEach((k, v) -> payloadRepository.findById(k).ifPresent(p -> {
@@ -185,6 +186,8 @@ public class AutoDiscoveryService {
                         p.setUpdatedAt(Instant.now());
                         payloadRepository.save(p);
                     }));
+                bundleRegistration.getHandlers().stream().map(RegisteredHandler::getComponentName)
+                        .distinct().forEach(handlerService::clearCache);
             });
 
         } catch (Exception e) {

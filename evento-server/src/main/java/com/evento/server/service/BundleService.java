@@ -38,7 +38,7 @@ public class BundleService {
 
     private final BundleRepository bundleRepository;
 
-    private final HandlerRepository handlerRepository;
+    private final HandlerService handlerService;
     private final PayloadRepository payloadRepository;
 
     private final BundleDeployService bundleDeployService;
@@ -50,10 +50,10 @@ public class BundleService {
     /**
      * The BundleService class is responsible for managing bundles in the system.
      */
-    public BundleService(BundleRepository bundleRepository, HandlerRepository handlerRepository, PayloadRepository payloadRepository, BundleDeployService bundleDeployService,
+    public BundleService(BundleRepository bundleRepository, HandlerService handlerService, PayloadRepository payloadRepository, BundleDeployService bundleDeployService,
                          ComponentRepository componentRepository, PlatformTransactionManager tm, ConsumerRepository consumerRepository) {
         this.bundleRepository = bundleRepository;
-        this.handlerRepository = handlerRepository;
+        this.handlerService = handlerService;
         this.payloadRepository = payloadRepository;
         this.bundleDeployService = bundleDeployService;
         this.componentRepository = componentRepository;
@@ -137,10 +137,10 @@ public class BundleService {
             });
 
             log.info("[BundleService] Cleaning up existing data for bundleId={}", bundleId);
-            for (Handler handler : handlerRepository.findAll()) {
+            for (Handler handler : handlerService.findAll()) {
                 if (!handler.getComponent().getBundle().getId().equals(bundleId)) continue;
                 log.info("[BundleService] Deleting handler id={} type={} component={} bundle={}", handler.getUuid(), handler.getHandlerType(), handler.getComponent().getComponentName(), bundleId);
-                handlerRepository.delete(handler);
+                handlerService.delete(handler);
                 deletedHandlers++;
                 handler.getHandledPayload().getHandlers().remove(handler);
             }
@@ -290,7 +290,7 @@ public class BundleService {
                             }
                             handler.setInvocations(invocations);
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -339,7 +339,7 @@ public class BundleService {
                             handler.setReturnType(null);
                             handler.setInvocations(new HashMap<>());
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -415,7 +415,7 @@ public class BundleService {
                             }
                             handler.setInvocations(invocations);
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -484,7 +484,7 @@ public class BundleService {
                             }
                             handler.setInvocations(invocations);
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -543,7 +543,7 @@ public class BundleService {
                             }
                             handler.setInvocations(invocations);
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -616,7 +616,7 @@ public class BundleService {
                             }
                             handler.setInvocations(invocations);
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -716,7 +716,7 @@ public class BundleService {
                             }
                             handler.setInvocations(invocations);
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -779,7 +779,7 @@ public class BundleService {
                             }
                             handler.setInvocations(invocations);
                             handler.generateId();
-                            handlerRepository.save(handler);
+                            handlerService.save(handler);
                             log.info("[BundleService] Saved handler id={} type={} component={} handledPayload={} returnType={} invocations={}",
                                     handler.getUuid(), handler.getHandlerType(),
                                     handler.getComponent() != null ? handler.getComponent().getComponentName() : "null",
@@ -798,6 +798,11 @@ public class BundleService {
             log.info("[BundleService] Committing transaction for bundleId={}", bundleId);
             tm.commit(t);
             log.info("[BundleService] Transaction committed for bundleId={}", bundleId);
+
+            bundleDescription.getComponents().stream().map(c -> c.getComponentName())
+                    .distinct()
+                    .forEach(handlerService::clearCache);
+
         } catch (Exception e) {
             log.error("[BundleService] Error during register for bundleId={}, rolling back. Error: {}", bundleId, e.getMessage(), e);
             if (!t.isCompleted()) {
@@ -824,7 +829,7 @@ public class BundleService {
     }
 
     private void checkIsDAG() {
-        List<Handler> handlers = handlerRepository.findAll();
+        List<Handler> handlers = handlerService.findAll();
         HandlerGraphUtils.getTopologicalOrder(handlers);
     }
 
@@ -837,10 +842,10 @@ public class BundleService {
             String bundleId) {
         log.info("[BundleService] Unregister called for bundleId={}", bundleId);
         int removedHandlers = 0;
-        for (Handler handler : handlerRepository.findAll()) {
+        for (Handler handler : handlerService.findAll()) {
             if (!handler.getComponent().getBundle().getId().equals(bundleId)) continue;
             log.info("[BundleService] Deleting handler id={} type={} component={} bundle={}", handler.getUuid(), handler.getHandlerType(), handler.getComponent().getComponentName(), bundleId);
-            handlerRepository.delete(handler);
+            handlerService.delete(handler);
             removedHandlers++;
             handler.getHandledPayload().getHandlers().remove(handler);
         }
@@ -873,6 +878,7 @@ public class BundleService {
             } catch (Exception ignored) {
             }
         }
+        components.forEach(c -> handlerService.clearCache(c.getComponentName()));
         log.info("[BundleService] Removed {} orphan payloads after unregister of bundleId={}", removedOrphanPayloads, bundleId);
     }
 
