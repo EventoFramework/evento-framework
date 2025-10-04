@@ -43,7 +43,7 @@ create table if not exists core__component
     description    text         null,
     detail         text         null,
     line           int          null,
-    path           varchar(255) null,
+    path           text         null,
     updated_at     timestamp    null,
     bundle_id      varchar(255) null,
     foreign key (bundle_id) references core__bundle (id)
@@ -69,7 +69,7 @@ create table if not exists core__payload
     is_valid_json_schema boolean      not null,
     json_schema          text         null,
     line                 int          null,
-    path                 varchar(255) null,
+    path                 text         null,
     registered_in        varchar(255) null,
     type                 varchar(255) null,
     updated_at           timestamp    null
