@@ -3,6 +3,7 @@ package com.evento.common.modeling.messaging.message.internal.consumer;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 
 import java.io.Serializable;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 
 
@@ -15,6 +16,11 @@ import java.util.Collection;
 public class ConsumerFetchStatusResponseMessage implements Serializable {
     private long lastEventSequenceNumber;
     private Collection<DeadPublishedEvent> deadEvents;
+    private boolean isInError;
+    private ZonedDateTime errorStartAt;
+    private ZonedDateTime lastErrorAt;
+    private long errorCount;
+    private String error;
 
     /**
      * Retrieves the last event sequence number.
@@ -64,5 +70,45 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
      */
     public void setDeadEvents(Collection<DeadPublishedEvent> deadEvents) {
         this.deadEvents = deadEvents;
+    }
+
+    public boolean isInError() {
+        return isInError;
+    }
+
+    public void setInError(boolean inError) {
+        isInError = inError;
+    }
+
+    public ZonedDateTime getErrorStartAt() {
+        return errorStartAt;
+    }
+
+    public void setErrorStartAt(ZonedDateTime errorStartAt) {
+        this.errorStartAt = errorStartAt;
+    }
+
+    public ZonedDateTime getLastErrorAt() {
+        return lastErrorAt;
+    }
+
+    public void setLastErrorAt(ZonedDateTime lastErrorAt) {
+        this.lastErrorAt = lastErrorAt;
+    }
+
+    public long getErrorCount() {
+        return errorCount;
+    }
+
+    public void setErrorCount(long errorCount) {
+        this.errorCount = errorCount;
+    }
+
+    public String getError() {
+        return error;
+    }
+
+    public void setError(String error) {
+        this.error = error;
     }
 }

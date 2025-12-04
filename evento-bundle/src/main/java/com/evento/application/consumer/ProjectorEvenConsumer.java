@@ -144,7 +144,8 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                                 proxy,
                                                 proxy,
                                                 ps,
-                                                messageHandlerInterceptor
+                                                messageHandlerInterceptor,
+                                                t -> consumerStateStore.setLastError(consumerId, t)
                                         );
                                         proxy.sendInvocationsMetric();
                                         lastConsumedEvent = publishedEvent;
@@ -183,6 +184,17 @@ public class ProjectorEvenConsumer extends EventConsumer {
         }
     }
 
+    /**
+     * Reprocesses events from the dead event queue for this projector.
+     * <p>
+     * Each dead event is passed to the corresponding projector handler. Successful handling does not
+     * automatically delete the event; callers should explicitly remove processed items via
+     * {@link #deleteDeadEvent(long)} when appropriate. Any error during reprocessing is forwarded to
+     * {@code ConsumerStateStore#setLastError(String, Throwable)} through the interceptor callback to
+     * update the consumer status.
+     *
+     * @throws Exception if fetching or dispatching dead events fails
+     */
     public void consumeDeadEventQueue() throws Exception {
 
         // Initialize projector status
@@ -216,7 +228,8 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                         proxy,
                                         proxy,
                                         ps,
-                                        messageHandlerInterceptor);
+                                        messageHandlerInterceptor,
+                                        t -> consumerStateStore.setLastError(consumerId, t));
                                 proxy.sendInvocationsMetric();
                                 return null;
                             });

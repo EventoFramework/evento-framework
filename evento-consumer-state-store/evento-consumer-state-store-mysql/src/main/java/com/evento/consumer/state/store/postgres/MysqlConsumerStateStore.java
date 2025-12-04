@@ -3,6 +3,7 @@ package com.evento.consumer.state.store.postgres;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.utils.ConnectionFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
@@ -146,6 +147,44 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         }
     }
 
+    @Override
+    public ConsumerFetchStatusResponseMessage toConsumerStatus(String consumerId) {
+        var resp = new ConsumerFetchStatusResponseMessage();
+        try {
+            resp.setLastEventSequenceNumber(getLastEventSequenceNumberSagaOrHead(consumerId));
+        } catch (Exception e) {
+            resp.setLastEventSequenceNumber(0L);
+        }
+        try {
+            resp.setDeadEvents(getEventsFromDeadEventQueue(consumerId));
+        } catch (Exception e) {
+            resp.setDeadEvents(new ArrayList<>());
+        }
+
+        try (var stmt = getConnection().prepareStatement(
+                "select is_in_error, error_start_at, last_error_at, error_count, error from " + CONSUMER_STATE_TABLE + " where id = ?")) {
+            stmt.setString(1, consumerId);
+            var rs = stmt.executeQuery();
+            if (rs.next()) {
+                resp.setInError(rs.getObject("is_in_error") != null && rs.getBoolean("is_in_error"));
+                var startTs = rs.getTimestamp("error_start_at");
+                var lastTs = rs.getTimestamp("last_error_at");
+                resp.setErrorStartAt(startTs == null ? null : ZonedDateTime.ofInstant(startTs.toInstant(), ZoneId.systemDefault()));
+                resp.setLastErrorAt(lastTs == null ? null : ZonedDateTime.ofInstant(lastTs.toInstant(), ZoneId.systemDefault()));
+                resp.setErrorCount(rs.getObject("error_count") == null ? 0L : rs.getLong("error_count"));
+                resp.setError(rs.getString("error"));
+            } else {
+                resp.setInError(false);
+                resp.setErrorCount(0L);
+            }
+        } catch (Exception e) {
+            resp.setInError(false);
+            resp.setErrorCount(0L);
+        }
+
+        return resp;
+    }
+
     /**
      * Creates a new Builder for MysqlConsumerStateStore.
      *
@@ -189,7 +228,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         this.SAGA_STATE_TABLE = tablePrefix + "evento__saga_state" + tableSuffix;
         this.DEAD_EVENT_TABLE = tablePrefix + "evento__dead_event" + tableSuffix;
         this.CONSUMER_STATE_DDL = "create table if not exists " + CONSUMER_STATE_TABLE
-                + " (id varchar(255), lastEventSequenceNumber bigint, primary key (id))";
+                + " (id varchar(255), lastEventSequenceNumber bigint, is_in_error boolean default false, error_start_at timestamp, last_error_at timestamp, error_count bigint default 0, error text, primary key (id))";
         this.SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
                 + " (id int auto_increment, name varchar(255),  state text, primary key (id))";
         this.DEAD_EVENT_DDL = "create table if not exists " + DEAD_EVENT_TABLE
@@ -225,6 +264,20 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
                 stmt.execute(CONSUMER_STATE_DDL);
                 stmt.execute(SAGA_STATE_DDL);
                 stmt.execute(DEAD_EVENT_DDL);
+                // Ensure additional consumer state columns exist (idempotent on MySQL 8+)
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists is_in_error boolean default false");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error_start_at timestamp");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists last_error_at timestamp");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error_count bigint default 0");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error text");
+
+                // Ensure defaults are enforced even if columns existed without defaults (use MODIFY for MySQL compatibility)
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " modify column is_in_error boolean default false");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " modify column error_count bigint default 0");
+
+                // Backfill nulls to comply with expected defaults
+                stmt.execute("update " + CONSUMER_STATE_TABLE + " set is_in_error = false where is_in_error is null");
+                stmt.execute("update " + CONSUMER_STATE_TABLE + " set error_count = 0 where error_count is null");
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -274,121 +327,137 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
     @Override
     protected Long getLastEventSequenceNumber(String consumerId) throws Exception {
 
-        var stmt = getConnection().prepareStatement("SELECT lastEventSequenceNumber from " + CONSUMER_STATE_TABLE + " where id = ?");
-        stmt.setString(1, consumerId);
-        var resultSet = stmt.executeQuery();
-        if (!resultSet.next()) return null;
-        return resultSet.getLong(1);
+        try (var stmt = getConnection().prepareStatement("SELECT lastEventSequenceNumber from " + CONSUMER_STATE_TABLE + " where id = ?")) {
+            stmt.setString(1, consumerId);
+            var resultSet = stmt.executeQuery();
+            if (!resultSet.next()) return null;
+            return resultSet.getLong(1);
+        }
+
     }
 
     @Override
     public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Throwable exception) throws Exception {
         var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId, context, exception) values (?, ?, ?, false,?,?,?,?,?)";
-        var stmt = getConnection().prepareStatement(q);
-        stmt.setString(1, consumerId);
-        stmt.setLong(2, event.getEventSequenceNumber());
-        stmt.setString(3, event.getEventName());
-        stmt.setTimestamp(4, new Timestamp(ZonedDateTime.now().toInstant().toEpochMilli()));
-        stmt.setString(5, getObjectMapper().writeValueAsString(event));
-        stmt.setString(6, event.getAggregateId());
-        stmt.setString(7, event.getEventMessage().getContext());
-        stmt.setString(8, getObjectMapper().writeValueAsString(new ExceptionWrapper(exception)));
-        if (stmt.executeUpdate() == 0) throw new RuntimeException("Insert into Dead Event Queue error");
+        try(var stmt = getConnection().prepareStatement(q)) {
+            stmt.setString(1, consumerId);
+            stmt.setLong(2, event.getEventSequenceNumber());
+            stmt.setString(3, event.getEventName());
+            stmt.setTimestamp(4, new Timestamp(ZonedDateTime.now().toInstant().toEpochMilli()));
+            stmt.setString(5, getObjectMapper().writeValueAsString(event));
+            stmt.setString(6, event.getAggregateId());
+            stmt.setString(7, event.getEventMessage().getContext());
+            stmt.setString(8, getObjectMapper().writeValueAsString(new ExceptionWrapper(exception)));
+            if (stmt.executeUpdate() == 0) throw new RuntimeException("Insert into Dead Event Queue error");
+        }
     }
 
     @Override
     public void removeEventFromDeadEventQueue(String consumerId, long eventSequenceNumber) throws Exception {
         var q = "delete from " + DEAD_EVENT_TABLE + " where consumerId = ? and eventSequenceNumber = ?";
-        var stmt = getConnection().prepareStatement(q);
-        stmt.setString(1, consumerId);
-        stmt.setLong(2, eventSequenceNumber);
-        stmt.executeUpdate();
+        try(var stmt = getConnection().prepareStatement(q)){
+            stmt.setString(1, consumerId);
+            stmt.setLong(2, eventSequenceNumber);
+            stmt.executeUpdate();
+        }
     }
 
     @Override
     protected Collection<PublishedEvent> getEventsToReprocessFromDeadEventQueue(String consumerId) throws Exception {
         var q = "select event from " + DEAD_EVENT_TABLE + " where consumerId = ? and retry = true";
-        var stmt = getConnection().prepareStatement(q);
-        stmt.setString(1, consumerId);
-        var rs = stmt.executeQuery();
-        var events = new ArrayList<PublishedEvent>();
-        while (rs.next()) {
-            events.add(getObjectMapper().readValue(rs.getString("event"), PublishedEvent.class));
+        try(var stmt = getConnection().prepareStatement(q)){
+            stmt.setString(1, consumerId);
+            var rs = stmt.executeQuery();
+            var events = new ArrayList<PublishedEvent>();
+            while (rs.next()) {
+                events.add(getObjectMapper().readValue(rs.getString("event"), PublishedEvent.class));
+            }
+            return events;
         }
-        return events;
+
     }
 
     @Override
     public Collection<DeadPublishedEvent> getEventsFromDeadEventQueue(String consumerId) throws Exception {
         var q = "select * from " + DEAD_EVENT_TABLE + " where consumerId = ?";
-        var stmt = getConnection().prepareStatement(q);
-        stmt.setString(1, consumerId);
-        var rs = stmt.executeQuery();
-        var events = new ArrayList<DeadPublishedEvent>();
-        while (rs.next()) {
-            events.add(
-                    new DeadPublishedEvent(
-                            rs.getString("consumerId"),
-                            rs.getString("eventName"),
-                            rs.getString("aggregateId"),
-                            rs.getString("context"),
-                            rs.getLong("eventSequenceNumber") + "",
-                            getObjectMapper().readValue(rs.getString("event"), PublishedEvent.class),
-                            rs.getBoolean("retry"),
-                            getObjectMapper().readValue(rs.getString("exception"), ExceptionWrapper.class),
-                            ZonedDateTime.ofInstant(rs.getTimestamp("deadAt").toInstant(), ZoneId.systemDefault())
-                    ));
+        try(var stmt = getConnection().prepareStatement(q)) {
+            stmt.setString(1, consumerId);
+            var rs = stmt.executeQuery();
+            var events = new ArrayList<DeadPublishedEvent>();
+            while (rs.next()) {
+                events.add(
+                        new DeadPublishedEvent(
+                                rs.getString("consumerId"),
+                                rs.getString("eventName"),
+                                rs.getString("aggregateId"),
+                                rs.getString("context"),
+                                rs.getLong("eventSequenceNumber") + "",
+                                getObjectMapper().readValue(rs.getString("event"), PublishedEvent.class),
+                                rs.getBoolean("retry"),
+                                getObjectMapper().readValue(rs.getString("exception"), ExceptionWrapper.class),
+                                ZonedDateTime.ofInstant(rs.getTimestamp("deadAt").toInstant(), ZoneId.systemDefault())
+                        ));
 
+            }
+            return events;
         }
-        return events;
     }
 
     @Override
     public void setRetryDeadEvent(String consumerId, long eventSequenceNumber, boolean retry) throws Exception {
 		var q = "update " + DEAD_EVENT_TABLE + " set retry = ? where consumerId = ? and eventSequenceNumber = ?";
-		var stmt = getConnection().prepareStatement(q);
-		stmt.setBoolean(1, retry);
-		stmt.setString(2, consumerId);
-		stmt.setLong(3, eventSequenceNumber);
-		stmt.executeUpdate();
+		try(var stmt = getConnection().prepareStatement(q)) {
+            stmt.setBoolean(1, retry);
+            stmt.setString(2, consumerId);
+            stmt.setLong(3, eventSequenceNumber);
+            stmt.executeUpdate();
+        }
     }
 
     @Override
     protected void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) throws Exception {
         var q = "insert into " + CONSUMER_STATE_TABLE + " (id, lastEventSequenceNumber) value (?, ?) on duplicate key update lastEventSequenceNumber = ?";
-        var stmt = getConnection().prepareStatement(q);
-        stmt.setString(1, consumerId);
-        stmt.setLong(2, eventSequenceNumber);
-        stmt.setLong(3, eventSequenceNumber);
-        if (stmt.executeUpdate() == 0) throw new RuntimeException("Consumer state update error");
+        try(var stmt = getConnection().prepareStatement(q)) {
+            stmt.setString(1, consumerId);
+            stmt.setLong(2, eventSequenceNumber);
+            stmt.setLong(3, eventSequenceNumber);
+            if (stmt.executeUpdate() == 0) throw new RuntimeException("Consumer state update error");
+        }
+    }
+
+    @Override
+    public void setLastError(String consumerId, Throwable error) throws Exception {
+
     }
 
     @Override
     public StoredSagaState getSagaState(String sagaName,
                                            String associationProperty,
                                            String associationValue) throws Exception {
-        var stmt = getConnection().prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ? and JSON_EXTRACT(state, concat('$[1].associations[1].', ?)) = ?");
-        stmt.setString(1, sagaName);
-        stmt.setString(2, associationProperty);
-        stmt.setString(3, associationValue);
-        var resultSet = stmt.executeQuery();
-        if (!resultSet.next()) return new StoredSagaState(null, null);
-        var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
-        return new StoredSagaState(resultSet.getLong(1), state);
+        try(var stmt = getConnection().prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ? and JSON_EXTRACT(state, concat('$[1].associations[1].', ?)) = ?")) {
+            stmt.setString(1, sagaName);
+            stmt.setString(2, associationProperty);
+            stmt.setString(3, associationValue);
+            var resultSet = stmt.executeQuery();
+            if (!resultSet.next()) return new StoredSagaState(null, null);
+            var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
+            return new StoredSagaState(resultSet.getLong(1), state);
+        }
 
     }
 
     @Override
     public Collection<StoredSagaState> getSagaStates(String sagaName) throws Exception {
-        var stmt = getConnection().prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ?");
-        stmt.setString(1, sagaName);
-        var resultSet = stmt.executeQuery();
-        var response = new ArrayList<StoredSagaState>();
-        while (!resultSet.next()) {
-            var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
-            response.add(new StoredSagaState(resultSet.getLong(1), state));
+        try(var stmt = getConnection().prepareStatement("select id, state from " + SAGA_STATE_TABLE + " where name = ?")) {
+            stmt.setString(1, sagaName);
+            var resultSet = stmt.executeQuery();
+            var response = new ArrayList<StoredSagaState>();
+            while (!resultSet.next()) {
+                var state = getObjectMapper().readValue(resultSet.getString(2), SagaState.class);
+                response.add(new StoredSagaState(resultSet.getLong(1), state));
+            }
+            return response;
         }
-        return response;
     }
 
     @Override

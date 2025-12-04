@@ -1,5 +1,6 @@
 package com.evento.application.reference;
 
+import com.evento.application.manager.ConsumerSetError;
 import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
@@ -68,13 +69,15 @@ public class ProjectorReference extends Reference {
      * @param queryGateway The gateway used for querying event-related data.
      * @param projectorStatus The current status of the projector handling the event.
      * @param messageHandlerInterceptor The interceptor used for pre-processing or modifying the event message before handling.
+     * @param setError The error setter
      * @throws Exception If the event processing fails and exceeds the allowed retries.
      */
     public void invoke(
             PublishedEvent publishedEvent,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
-            ProjectorStatus projectorStatus, MessageHandlerInterceptor messageHandlerInterceptor)
+            ProjectorStatus projectorStatus, MessageHandlerInterceptor messageHandlerInterceptor,
+            ConsumerSetError setError)
             throws Throwable {
 
         var handler = eventHandlerReferences.get(publishedEvent.getEventName());
@@ -130,6 +133,7 @@ public class ProjectorReference extends Reference {
                     logger.error("Exception while handling exception for projector {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, t1);
                     throwable = t1;
                 }
+                setError.setError(throwable);
                 if(a.retry() >= 0){
                     if (retry > a.retry()) {
                         throw throwable;

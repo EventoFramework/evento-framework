@@ -141,7 +141,8 @@ public class SagaEventConsumer extends EventConsumer {
                                                 sagaState,
                                                 proxy,
                                                 proxy,
-                                                messageHandlerInterceptor
+                                                messageHandlerInterceptor,
+                                                t -> consumerStateStore.setLastError(consumerId, t)
                                         );
                                         proxy.sendInvocationsMetric();
                                         return resp == null ? sagaState : resp;
@@ -159,6 +160,17 @@ public class SagaEventConsumer extends EventConsumer {
         }
     }
 
+    /**
+     * Reprocesses events from the dead event queue for this saga consumer.
+     * <p>
+     * Each dead event is dispatched using the registered saga handler, potentially restoring
+     * the saga state if handling completes successfully. Note that successful handling does not
+     * automatically purge the dead event; a managing component should explicitly call
+     * {@link #deleteDeadEvent(long)} when appropriate. Errors are reported via
+     * {@code ConsumerStateStore#setLastError(String, Throwable)} to keep status updated.
+     *
+     * @throws Exception if fetching or dispatching dead events fails
+     */
     public void consumeDeadEventQueue() throws Exception {
 
         consumerStateStore.consumeDeadEventsForSaga(
@@ -208,7 +220,8 @@ public class SagaEventConsumer extends EventConsumer {
                                         sagaState,
                                         proxy,
                                         proxy,
-                                        messageHandlerInterceptor);
+                                        messageHandlerInterceptor,
+                                        t -> consumerStateStore.setLastError(consumerId, t));
                                 proxy.sendInvocationsMetric();
                                 return resp == null ? sagaState : resp;
                             });

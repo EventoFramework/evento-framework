@@ -592,20 +592,10 @@ public class EventoBundle {
                                 case DecoratedDomainCommandMessage cm -> aggregateManager.handle(cm);
                                 case ServiceCommandMessage sm -> serviceManager.handle(sm);
                                 case QueryMessage<?> qm -> projectionManager.handle(qm);
-                                case ConsumerFetchStatusRequestMessage cr -> {
-                                    var resp = new ConsumerFetchStatusResponseMessage();
-                                    eventoBundle.get()
-                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
-                                            .ifPresent(c -> {
-                                                try {
-                                                    resp.setDeadEvents(c.getDeadEventQueue());
-                                                    resp.setLastEventSequenceNumber(c.getLastConsumedEvent());
-                                                } catch (Exception e) {
-                                                    throw new RuntimeException(e);
-                                                }
-                                            });
-                                    yield resp;
-                                }
+                                case ConsumerFetchStatusRequestMessage cr -> eventoBundle.get()
+                                        .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
+                                        .map(EventConsumer::toConsumerStatus)
+                                        .orElseThrow();
                                 case ConsumerSetEventRetryRequestMessage cr -> {
                                     var resp = new ConsumerResponseMessage();
                                     resp.setSuccess(true);
