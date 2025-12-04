@@ -32,6 +32,60 @@
         <ion-row>
           <ion-col><h2 ><span translate="consumer.last.event"></span>: {{consumerState.lastEventSequenceNumber}}</h2></ion-col>
         </ion-row>
+        <ion-row *ngIf="consumerState">
+          <ion-col>
+            <ion-card color="light">
+              <ion-card-content>
+                <ion-grid>
+                  <ion-row class="ion-align-items-center">
+                    <ion-col size="12" sizeMd="6">
+                      <ion-chip [color]="consumerState.inError ? 'danger' : 'success'">
+                        <ion-label>
+                          {{ consumerState.inError ? 'In Error' : 'Healthy' }}
+                        </ion-label>
+                      </ion-chip>
+                      <ion-chip color="medium">
+                        <ion-label>Errors: {{consumerState.errorCount || 0}}</ion-label>
+                      </ion-chip>
+                    </ion-col>
+                    <ion-col size="12" sizeMd="6" class="ion-text-right">
+                      <div *ngIf="consumerState.errorStartAt">Start: {{consumerState.errorStartAt * 1000 | date:'short'}}</div>
+                      <div *ngIf="consumerState.lastErrorAt">Last: {{consumerState.lastErrorAt * 1000 | date:'short'}}</div>
+                    </ion-col>
+                  </ion-row>
+                  <!-- Last error accordion: visible if an error exists; auto-open only when currently in error -->
+                  <ion-row *ngIf="consumerState.error">
+                    <ion-col>
+                      <ion-card [color]="consumerState.inError ? 'danger' : 'light'">
+                        <ion-card-content>
+                          <ion-accordion-group [value]="consumerState.inError ? 'last-error' : undefined">
+                            <ion-accordion value="last-error">
+                              <ion-item slot="header" [color]="consumerState.inError ? 'danger' : 'light'">
+                                <ion-label>Last Error</ion-label>
+                                <ion-chip slot="end" color="medium" *ngIf="consumerState.lastErrorAt">
+                                  <ion-label>{{consumerState.lastErrorAt * 1000 | date:'short'}}</ion-label>
+                                </ion-chip>
+                              </ion-item>
+                              <div class="ion-padding" slot="content">
+                                <ion-text color="danger">
+                                                                  <pre style="white-space: pre-wrap; font-family: monospace;">
+{{consumerState.error}}
+                                </pre>
+                                </ion-text>
+
+
+                              </div>
+                            </ion-accordion>
+                          </ion-accordion-group>
+                        </ion-card-content>
+                      </ion-card>
+                    </ion-col>
+                  </ion-row>
+                </ion-grid>
+              </ion-card-content>
+            </ion-card>
+          </ion-col>
+        </ion-row>
         <ion-row>
             <ion-col>
               <ion-card color="primary">
