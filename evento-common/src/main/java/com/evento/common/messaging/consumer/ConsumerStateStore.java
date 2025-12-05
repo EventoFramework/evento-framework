@@ -1,5 +1,6 @@
 package com.evento.common.messaging.consumer;
 
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
@@ -426,6 +427,15 @@ public abstract class ConsumerStateStore {
 
 
     /**
+     * Sets the last error encountered for the specified consumer.
+     *
+     * @param consumerId the unique identifier of the consumer for whom the error is being set
+     * @param error the Throwable instance representing the error to be recorded
+     * @throws Exception if an error occurs while setting the last error
+     */
+    public abstract void setLastError(String consumerId, Throwable error) throws Exception;
+
+    /**
      * Adds a published event to the dead event queue for a specific consumer.
      *
      * @param consumerId     the ID of the consumer to which the event belongs
@@ -525,4 +535,17 @@ public abstract class ConsumerStateStore {
     protected ObjectMapper getObjectMapper() {
         return objectMapper;
     }
+
+    /**
+     * Builds a snapshot of the consumer processing status for the given consumer identifier.
+     * <p>
+     * Implementations should populate at least:
+     * - last processed event sequence number (or head for stateless consumers)
+     * - current dead event queue entries for this consumer
+     * - error state details (in error flag, first/last error timestamps, count, and last error payload)
+     *
+     * @param consumerId the unique consumer identifier to describe
+     * @return a {@link ConsumerFetchStatusResponseMessage} representing the current status of the consumer
+     */
+    public abstract ConsumerFetchStatusResponseMessage toConsumerStatus(String consumerId);
 }

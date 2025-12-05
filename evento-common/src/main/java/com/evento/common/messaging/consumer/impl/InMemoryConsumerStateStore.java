@@ -3,6 +3,7 @@ package com.evento.common.messaging.consumer.impl;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
@@ -28,6 +29,13 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
 
     private final Map<Object, Lock> lockRegistry = new ConcurrentHashMap<>();
     private final Map<String, Long> lastEventSequenceNumberRepository = new ConcurrentHashMap<>();
+
+    // Error state repositories per consumer
+    private final Map<String, Boolean> isInErrorRepository = new ConcurrentHashMap<>();
+    private final Map<String, ZonedDateTime> errorStartAtRepository = new ConcurrentHashMap<>();
+    private final Map<String, ZonedDateTime> lastErrorAtRepository = new ConcurrentHashMap<>();
+    private final Map<String, Long> errorCountRepository = new ConcurrentHashMap<>();
+    private final Map<String, String> errorRepository = new ConcurrentHashMap<>();
 
     private final Map<Long, Map.Entry<String, SagaState>> sagaStateRepository = new ConcurrentHashMap<>();
 
@@ -210,6 +218,45 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     @Override
     protected void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) {
         lastEventSequenceNumberRepository.put(consumerId, eventSequenceNumber);
+        // Reset error state upon successful progress
+        isInErrorRepository.put(consumerId, false);
+        errorCountRepository.put(consumerId, 0L);
+    }
+
+    @Override
+    public void setLastError(String consumerId, Throwable error) throws Exception {
+        var now = ZonedDateTime.now();
+        var wasInError = isInErrorRepository.getOrDefault(consumerId, false);
+        if (!wasInError) {
+            errorStartAtRepository.put(consumerId, now);
+        }
+        lastErrorAtRepository.put(consumerId, now);
+        var count = errorCountRepository.getOrDefault(consumerId, 0L) + 1;
+        errorCountRepository.put(consumerId, count);
+        isInErrorRepository.put(consumerId, true);
+        errorRepository.put(consumerId, getObjectMapper().writeValueAsString(new ExceptionWrapper(error)));
+    }
+
+    @Override
+    public ConsumerFetchStatusResponseMessage toConsumerStatus(String consumerId) {
+        var resp = new ConsumerFetchStatusResponseMessage();
+        try {
+            resp.setLastEventSequenceNumber(getLastEventSequenceNumberSagaOrHead(consumerId));
+        } catch (Exception e) {
+            // If we cannot compute it, default to 0
+            resp.setLastEventSequenceNumber(0L);
+        }
+        try {
+            resp.setDeadEvents(getEventsFromDeadEventQueue(consumerId));
+        } catch (Exception e) {
+            resp.setDeadEvents(Collections.emptyList());
+        }
+        resp.setInError(isInErrorRepository.getOrDefault(consumerId, false));
+        resp.setErrorStartAt(errorStartAtRepository.get(consumerId));
+        resp.setLastErrorAt(lastErrorAtRepository.get(consumerId));
+        resp.setErrorCount(errorCountRepository.getOrDefault(consumerId, 0L));
+        resp.setError(errorRepository.get(consumerId));
+        return resp;
     }
 
     /**
@@ -324,7 +371,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     @Override
     public void setSagaState(Long id, String sagaName, SagaState sagaState) {
         sagaStateRepository.put(Objects.requireNonNullElseGet(id,
-                        () -> (long) sagaCounter.getAndIncrement()),
+                        () -> ((long) sagaCounter.getAndIncrement())),
                 new Map.Entry<>() {
                     @Override
                     public String getKey() {

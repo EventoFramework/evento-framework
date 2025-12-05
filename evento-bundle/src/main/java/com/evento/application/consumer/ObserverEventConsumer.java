@@ -3,6 +3,7 @@ package com.evento.application.consumer;
 import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import lombok.Getter;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
@@ -117,7 +118,8 @@ public class ObserverEventConsumer extends EventConsumer {
                                                 publishedEvent,
                                                 proxy,
                                                 proxy,
-                                                messageHandlerInterceptor
+                                                messageHandlerInterceptor,
+                                                t -> consumerStateStore.setLastError(consumerId, t)
                                         );
                                         proxy.sendInvocationsMetric();
                                         return null;
@@ -135,6 +137,16 @@ public class ObserverEventConsumer extends EventConsumer {
         }
     }
 
+    /**
+     * Reprocesses events from the dead event queue for this observer.
+     * <p>
+     * Each dead event is dispatched to the registered observer handler. If handling succeeds,
+     * the event will remain available until explicitly deleted via {@link #deleteDeadEvent(long)}
+     * from the managing component. Errors encountered during reprocessing are propagated to the
+     * underlying {@code ConsumerStateStore#setLastError(String, Throwable)} through the interceptor callback.
+     *
+     * @throws Exception if an error occurs while fetching or dispatching dead events
+     */
     public void consumeDeadEventQueue() throws Exception {
 
 
@@ -164,13 +176,16 @@ public class ObserverEventConsumer extends EventConsumer {
                                         publishedEvent,
                                         proxy,
                                         proxy,
-                                        messageHandlerInterceptor);
+                                        messageHandlerInterceptor,
+                                        t -> consumerStateStore.setLastError(consumerId, t));
                                 proxy.sendInvocationsMetric();
                                 return null;
                             });
                 }
         );
     }
+
+
 
 
 }

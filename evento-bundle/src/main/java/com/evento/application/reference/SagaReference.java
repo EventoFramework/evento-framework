@@ -1,6 +1,7 @@
 package com.evento.application.reference;
 
 
+import com.evento.application.manager.ConsumerSetError;
 import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
@@ -78,6 +79,7 @@ public class SagaReference extends Reference {
      * @param commandGateway the gateway for sending commands within the saga
      * @param queryGateway the gateway for performing queries within the saga
      * @param messageHandlerInterceptor the interceptor for handling pre- and post-processing logic
+     * @param setError the error setter
      * @return the updated saga state after the event handler execution
      * @throws Throwable if an exception occurs during the event handling process
      */
@@ -85,7 +87,8 @@ public class SagaReference extends Reference {
             PublishedEvent publishedEvent,
             SagaState sagaState,
             CommandGateway commandGateway,
-            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor)
+            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor,
+            ConsumerSetError setError)
             throws Throwable {
 
         var handler = sagaEventHandlerReferences.get(publishedEvent.getEventName());
@@ -137,6 +140,7 @@ public class SagaReference extends Reference {
                     logger.error("Exception while handling exception for saga {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, ex);
                     throwable = ex;
                 }
+                setError.setError(throwable);
                 if(a.retry() >= 0){
                     if (retry > a.retry()) {
                         throw throwable;
