@@ -3,7 +3,7 @@ COPY --chown=gradle:gradle . /evento
 WORKDIR /evento
 RUN gradle :evento-server:bootJar --no-daemon
 
-FROM openjdk:21
+FROM ibm-semeru-runtimes:open-21-jdk
 
 EXPOSE 3000
 EXPOSE 3030
