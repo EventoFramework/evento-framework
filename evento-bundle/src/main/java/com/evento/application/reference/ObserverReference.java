@@ -1,5 +1,6 @@
 package com.evento.application.reference;
 
+import com.evento.application.manager.ConsumerSetError;
 import com.evento.application.manager.MessageHandlerInterceptor;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
@@ -15,6 +16,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * ObserverReference is a subclass of Reference and provides functionality for managing event handler references.
@@ -67,12 +69,14 @@ public class ObserverReference extends Reference {
      * @param commandGateway            the command gateway to be used for handling commands
      * @param queryGateway              the query gateway to be used for handling queries
      * @param messageHandlerInterceptor the interceptor for managing message handling behavior
+     * @param setLastError              the error setter
      * @throws Throwable if event processing fails and retry attempts are exhausted
      */
     public void invoke(
             PublishedEvent publishedEvent,
             CommandGateway commandGateway,
-            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor)
+            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor,
+            ConsumerSetError setLastError)
             throws Throwable {
 
         var handler = eventHandlerReferences.get(publishedEvent.getEventName());
@@ -107,7 +111,7 @@ public class ObserverReference extends Reference {
                 );
                 return;
             } catch (Throwable e) {
-                Throwable throwable = e;
+                Throwable throwable;
                 retry++;
                 logger.error("Event processing failed for observer {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, e);
                 try {
@@ -122,6 +126,7 @@ public class ObserverReference extends Reference {
                     logger.error("Exception while handling exception for observer {} event {} (attempt {})", getComponentName(), publishedEvent.getEventName(), retry, ex);
                     throwable = ex;
                 }
+                setLastError.setError(throwable);
                 if (a.retry() >= 0) {
                     if (retry > a.retry()) {
                         throw throwable;

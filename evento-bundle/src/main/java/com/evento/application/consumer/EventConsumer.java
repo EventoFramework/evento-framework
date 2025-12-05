@@ -2,6 +2,7 @@ package com.evento.application.consumer;
 
 import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,8 +81,26 @@ public abstract class EventConsumer implements Runnable {
         consumerStateStore.setRetryDeadEvent(consumerId, eventSequenceNumber, retry);
     }
 
+    /**
+     * Permanently removes a dead event from the consumer's dead event queue.
+     * <p>
+     * Use this to discard an event that should no longer be retried or inspected.
+     *
+     * @param eventSequenceNumber the sequence number of the dead event to delete
+     * @throws Exception if an error occurs while removing the event from the state store
+     */
     public void deleteDeadEvent(long eventSequenceNumber) throws Exception {
         logger.trace("Delete Event: {} - {}", consumerId, eventSequenceNumber);
         consumerStateStore.removeEventFromDeadEventQueue(consumerId, eventSequenceNumber);
+    }
+
+    /**
+     * Builds a snapshot of the consumer status, including last processed sequence number,
+     * dead event list, and error information (if any).
+     *
+     * @return a {@link ConsumerFetchStatusResponseMessage} representing the current consumer status
+     */
+    public ConsumerFetchStatusResponseMessage toConsumerStatus() {
+        return consumerStateStore.toConsumerStatus(consumerId);
     }
 }

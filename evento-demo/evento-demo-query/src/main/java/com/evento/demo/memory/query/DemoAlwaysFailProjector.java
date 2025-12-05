@@ -8,10 +8,9 @@ import com.evento.demo.api.utils.Utils;
 
 import java.util.HashMap;
 
-// @Projector(version =1)
+@Projector(version =1)
 public class DemoAlwaysFailProjector {
 
-    /*
     @EventHandler
 	void on(DemoCreatedEvent event,
             Long eventSequenceNumber) {
@@ -24,6 +23,6 @@ public class DemoAlwaysFailProjector {
         Utils.logMethodFlow(this, "on", event, "ALWAYS FAIL : " + eventSequenceNumber);
 		throw new RuntimeException("FAIL FOR TEST");
 
-	}*/
+	}
 
 }

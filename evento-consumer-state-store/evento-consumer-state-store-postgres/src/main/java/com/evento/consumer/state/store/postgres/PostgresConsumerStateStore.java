@@ -7,11 +7,14 @@ import com.evento.common.utils.ConnectionFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.messaging.consumer.StoredSagaState;
 import com.evento.common.modeling.state.SagaState;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.serialization.ObjectMapperUtils;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -162,6 +165,49 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
         return new Builder(eventoServer, performanceService, connectionFactory);
     }
 
+    @Override
+    public ConsumerFetchStatusResponseMessage toConsumerStatus(String consumerId) {
+        var resp = new ConsumerFetchStatusResponseMessage();
+        try {
+            // Last sequence number (fallback to head if null handled inside helper)
+            resp.setLastEventSequenceNumber(getLastEventSequenceNumberSagaOrHead(consumerId));
+        } catch (Exception e) {
+            resp.setLastEventSequenceNumber(0L);
+        }
+
+        // Dead events
+        try {
+            resp.setDeadEvents(getEventsFromDeadEventQueue(consumerId));
+        } catch (Exception e) {
+            resp.setDeadEvents(new ArrayList<>());
+        }
+
+        // Error state from consumer state table
+        try (var stmt = getConnection().prepareStatement(
+                "select is_in_error, error_start_at, last_error_at, error_count, error from " + CONSUMER_STATE_TABLE + " where id = ?")) {
+            stmt.setString(1, consumerId);
+            var rs = stmt.executeQuery();
+            if (rs.next()) {
+                resp.setInError(rs.getObject("is_in_error") != null && rs.getBoolean("is_in_error"));
+                var startTs = rs.getTimestamp("error_start_at");
+                var lastTs = rs.getTimestamp("last_error_at");
+                resp.setErrorStartAt(startTs == null ? null : ZonedDateTime.ofInstant(startTs.toInstant(), ZoneId.systemDefault()));
+                resp.setLastErrorAt(lastTs == null ? null : ZonedDateTime.ofInstant(lastTs.toInstant(), ZoneId.systemDefault()));
+                resp.setErrorCount(rs.getObject("error_count") == null ? 0L : rs.getLong("error_count"));
+                resp.setError(rs.getString("error"));
+            } else {
+                resp.setInError(false);
+                resp.setErrorCount(0L);
+            }
+        } catch (Exception e) {
+            // in case of any issue, default conservative values
+            resp.setInError(false);
+            resp.setErrorCount(0L);
+        }
+
+        return resp;
+    }
+
     /**
      * Private constructor used by the Builder and deprecated constructors.
      * Use {@link #builder(EventoServer, PerformanceService, ConnectionFactory)} to create instances.
@@ -190,7 +236,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
         this.SAGA_STATE_TABLE = tablePrefix + "evento__saga_state" + tableSuffix;
         this.DEAD_EVENT_TABLE = tablePrefix + "evento__dead_event" + tableSuffix;
         this.CONSUMER_STATE_DDL = "create table if not exists " + CONSUMER_STATE_TABLE
-                + " (id varchar(255), lastEventSequenceNumber bigint, primary key (id))";
+                + " (id varchar(255), lastEventSequenceNumber bigint, is_in_error boolean default false, error_start_at timestamp, last_error_at timestamp, error_count bigint default 0, error text, primary key (id))";
         this.SAGA_STATE_DDL = "create table if not exists " + SAGA_STATE_TABLE
                 + " (id serial, name varchar(255),  state text, primary key (id))";
         this.DEAD_EVENT_DDL = "create table if not exists " + DEAD_EVENT_TABLE
@@ -227,6 +273,20 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
                 stmt.execute(CONSUMER_STATE_DDL);
                 stmt.execute(SAGA_STATE_DDL);
                 stmt.execute(DEAD_EVENT_DDL);
+                // Ensure additional consumer state columns exist (idempotent on Postgres)
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists is_in_error boolean default false");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error_start_at timestamp");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists last_error_at timestamp");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error_count bigint default 0");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error text");
+
+                // Make sure defaults are set even if columns already existed without defaults
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " alter column is_in_error set default false");
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " alter column error_count set default 0");
+
+                // Backfill nulls to comply with expected defaults
+                stmt.execute("update " + CONSUMER_STATE_TABLE + " set is_in_error = false where is_in_error is null");
+                stmt.execute("update " + CONSUMER_STATE_TABLE + " set error_count = 0 where error_count is null");
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -305,19 +365,51 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
     @Override
     protected void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) throws Exception {
-        var q = "insert into " + CONSUMER_STATE_TABLE + " (id, lastEventSequenceNumber) values (?, ?) on conflict (id) do update set lasteventsequencenumber = ?";
+        // Also reset error flags when we successfully move forward
+        var q = "insert into " + CONSUMER_STATE_TABLE + " (id, lastEventSequenceNumber, is_in_error, error_count) values (?, ?, false, 0) " +
+                "on conflict (id) do update set lasteventsequencenumber = excluded.lasteventsequencenumber, is_in_error = false, error_count = 0";
         try (var stmt = getConnection().prepareStatement(q)) {
             stmt.setString(1, consumerId);
             stmt.setLong(2, eventSequenceNumber);
-            stmt.setLong(3, eventSequenceNumber);
             if (stmt.executeUpdate() == 0) throw new RuntimeException("Consumer state update error");
         }
 
     }
 
     @Override
+    public void setLastError(String consumerId, Throwable error) throws Exception {
+        // Record error details and increment the error counter. Set error_start_at only on transition from false->true
+        var q = "insert into " + CONSUMER_STATE_TABLE + " (id, is_in_error, error_start_at, last_error_at, error_count, error) " +
+                "values (?, true, now(), now(), 1, ?) " +
+                "on conflict (id) do update set " +
+                "is_in_error = true, " +
+                "last_error_at = excluded.last_error_at, " +
+                "error = excluded.error, " +
+                "error_count = coalesce(" + CONSUMER_STATE_TABLE + ".error_count, 0) + 1, " +
+                "error_start_at = case when " + CONSUMER_STATE_TABLE + ".is_in_error = false then excluded.error_start_at else " + CONSUMER_STATE_TABLE + ".error_start_at end";
+        try (var stmt = getConnection().prepareStatement(q)) {
+            stmt.setString(1, consumerId);
+            StringWriter sw = new StringWriter();
+            error.printStackTrace(new PrintWriter(sw));
+            String stack = sw.toString();
+            stmt.setString(2, stack);
+            if (stmt.executeUpdate() == 0) throw new RuntimeException("Consumer state last error update error");
+        }
+    }
+
+    @Override
     public void addEventToDeadEventQueue(String consumerId, PublishedEvent event, Throwable exception) throws Exception {
-        var q = "insert into " + DEAD_EVENT_TABLE + "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId, context, exception) values (?, ?, ?, false,?,?::json,?,?,?::json)";
+        var q = "insert into " + DEAD_EVENT_TABLE +
+                "  (consumerId, eventSequenceNumber, eventName, retry, deadAt, event, aggregateId, context, exception) " +
+                "values (?, ?, ?, false,?,?::json,?,?,?::json) " +
+                "on conflict (consumerId, eventSequenceNumber) do update set " +
+                "eventName = EXCLUDED.eventName, " +
+                "deadAt = EXCLUDED.deadAt, " +
+                "event = EXCLUDED.event, " +
+                "aggregateId = EXCLUDED.aggregateId, " +
+                "context = EXCLUDED.context, " +
+                "exception = EXCLUDED.exception, " +
+                "retry = false";
         try (var stmt = getConnection().prepareStatement(q)) {
             stmt.setString(1, consumerId);
             stmt.setLong(2, event.getEventSequenceNumber());
