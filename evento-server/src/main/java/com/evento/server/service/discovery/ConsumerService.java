@@ -150,7 +150,7 @@ public class ConsumerService {
         request.setSourceBundleVersion(0);
         request.setBody(new ConsumerFetchStatusRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
         var future = new CompletableFuture<ConsumerFetchStatusResponseMessage>();
-        messageBus.forward(request, address, (c) -> {
+        messageBus.forward(null, address, request, (c) -> {
             if(c.getBody() instanceof ConsumerFetchStatusResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {
@@ -208,7 +208,7 @@ public class ConsumerService {
         request.setBody(new ConsumerSetEventRetryRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
                 eventSequenceNumber, retry));
         var future = new CompletableFuture<ConsumerResponseMessage>();
-        messageBus.forward(request, address, (c) -> {
+        messageBus.forward(null, address, request, (c) -> {
             if(c.getBody() instanceof ConsumerResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {
@@ -245,7 +245,7 @@ public class ConsumerService {
         request.setSourceBundleVersion(0);
         request.setBody(new ConsumerProcessDeadQueueRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
         var future = new CompletableFuture<ConsumerResponseMessage>();
-        messageBus.forward(request, address, (c) -> {
+        messageBus.forward(null, address, request, (c) -> {
             if(c.getBody() instanceof ConsumerResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {
@@ -291,7 +291,7 @@ public class ConsumerService {
         request.setBody(new ConsumerDeleteDeadEventRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
                 eventSequenceNumber));
         var future = new CompletableFuture<ConsumerResponseMessage>();
-        messageBus.forward(request, address, (c) -> {
+        messageBus.forward(null, address, request, (c) -> {
             if(c.getBody() instanceof ConsumerResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {
