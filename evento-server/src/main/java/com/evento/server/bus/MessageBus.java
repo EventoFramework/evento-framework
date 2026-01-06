@@ -1,5 +1,6 @@
 package com.evento.server.bus;
 
+import com.evento.common.messaging.bus.RequestTargetNodeLeftTheClusterException;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistered;
 import com.evento.common.serialization.ObjectMapperUtils;
@@ -43,6 +44,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -133,7 +135,7 @@ public class MessageBus {
                     var conn = server.accept();
                     logger.info("New connection: " + conn.getInetAddress() + ":" + conn.getPort());
                     var it = new Thread(() -> {
-                        NodeAddress address = null;
+                        AtomicReference<NodeAddress> address = new AtomicReference<>();
                         try {
                             var in = new ObjectInputStream(conn.getInputStream());
                             var out = new ObjectOutputStream(conn.getOutputStream());
@@ -141,7 +143,7 @@ public class MessageBus {
                             ExceptionWrapper registrationException = null;
                             var registration = (BundleRegistration) in.readObject();
                             try {
-                                address = join(registration, out);
+                                address.set(join(registration, out));
                                 registered = true;
                             } catch (Exception e) {
                                 registrationException = new ExceptionWrapper(e);
@@ -164,15 +166,14 @@ public class MessageBus {
 
                             while (true) {
                                 var message = in.readObject();
-                                NodeAddress finalAddress = address;
                                 threadPerMessageExecutor.execute(() -> {
                                     try {
                                         if (message instanceof DisableMessage) {
-                                            disable(finalAddress);
+                                            disable(address.get());
                                         } else if (message instanceof EnableMessage) {
-                                            enable(finalAddress);
+                                            enable(address.get());
                                         } else if (message instanceof EventoRequest r) {
-                                            handleRequest(r, resp -> {
+                                            handleRequest(address.get(), r, resp -> {
                                                 try {
                                                     synchronized (out) {
                                                         out.writeObject(resp);
@@ -196,17 +197,7 @@ public class MessageBus {
                                 });
                             }
                         } catch (Exception e) {
-                            for (Map.Entry<String, Correlation> ek : correlations.entrySet()) {
-                                var resp = new EventoResponse();
-                                resp.setCorrelationId(ek.getKey());
-                                resp.setBody(new ExceptionWrapper(e));
-                                try {
-                                    ek.getValue().response().accept(resp);
-                                } catch (Exception ex) {
-                                    logger.error("Error during correlation fail management", ex);
-                                }
-                            }
-                            leave(address);
+                            leave(address.get(), e);
                             try {
                                 if (!conn.isClosed())
                                     conn.close();
@@ -248,7 +239,7 @@ public class MessageBus {
                         } catch (Throwable ex) {
                             logger.error("Error during server heart beat close", ex);
                         }
-                        leave(nodeAddress);
+                        leave(nodeAddress, e);
                     }
                 }
                 Sleep.apply(heartbeatInterval);
@@ -345,7 +336,7 @@ public class MessageBus {
     }
 
 
-    private void handleRequest(EventoRequest message, Consumer<EventoResponse> sendResponse) {
+    private void handleRequest(NodeAddress from, EventoRequest message, Consumer<EventoResponse> sendResponse) {
         try {
             if (this.isShuttingDown) {
                 var resp = new EventoResponse();
@@ -385,7 +376,7 @@ public class MessageBus {
                         var invocationStart = PerformanceStoreService.now();
                         message.setBody(invocation);
                         logger.trace("Handle DomainCommandMessage({}) - Forward Invocation: {}", message.getCorrelationId(), invocation);
-                        forward(message, dest, resp -> {
+                        forward(from, dest, message, resp -> {
                             try {
                                 logger.trace("Handle DomainCommandMessage({}) - Invocation Response: {}", message.getCorrelationId(), resp);
                                 var computationDone = performanceStoreService.sendServiceTimeMetric(
@@ -471,7 +462,7 @@ public class MessageBus {
                     AtomicBoolean acquired = new AtomicBoolean(lockId != null);
                     try {
                         logger.trace("Handle ServiceCommandMessage({}) - Forward Invocation: {}", message.getCorrelationId(), message);
-                        forward(message, dest, resp -> {
+                        forward(from, dest, message, resp -> {
                             try {
                                 logger.trace("Handle ServiceCommandMessage({}) - Invocation Response: {}", message.getCorrelationId(), resp);
                                 performanceStoreService.sendServiceTimeMetric(
@@ -526,7 +517,7 @@ public class MessageBus {
                     var dest = peekMessageHandlerAddress(q.getQueryName());
                     var invocationStart = PerformanceStoreService.now();
                     logger.trace("Handle QueryMessage({}) - Forward Invocation: {}", message.getCorrelationId(), message);
-                    forward(message, dest,
+                    forward(from, dest, message,
                             resp -> {
                                 logger.trace("Handle QueryMessage({}) - Invocation Response: {}", message.getCorrelationId(), resp);
                                 performanceStoreService.sendServiceTimeMetric(
@@ -702,8 +693,29 @@ public class MessageBus {
     private final List<Consumer<NodeAddress>> leaveListeners = new ArrayList<>();
 
 
-    private void leave(NodeAddress address) {
+    private void leave(NodeAddress address, Throwable reason) {
         if (address == null) return;
+        correlations.values().stream().filter(c -> Objects.equals(
+                        c.from(), address) || Objects.equals(c.to(), address))
+                .forEach(c -> {
+                    if(Objects.equals(address, c.to())) {
+                        var resp = new EventoResponse();
+                        resp.setCorrelationId(c.request().getCorrelationId());
+                        resp.setBody(new ExceptionWrapper(
+                                new RequestTargetNodeLeftTheClusterException(
+                                        "Request Forwarded to a node no longer reachable",
+                                        reason
+                                )
+                        ));
+                        try {
+                            c.response().accept(resp);
+                        } catch (Exception ex) {
+                            logger.error("Error during correlation fail management", ex);
+                        }
+                    }
+                    correlations.remove(c.request().getCorrelationId());
+                });
+
         synchronized (handlers) {
             availableView.remove(address);
             view.remove(address);
@@ -750,10 +762,12 @@ public class MessageBus {
     }
 
 
-    public void forward(EventoRequest eventoRequest, NodeAddress address, Consumer<EventoResponse> response) throws Exception {
-        correlations.put(eventoRequest.getCorrelationId(), new Correlation(eventoRequest, response));
+    public void forward(NodeAddress from, NodeAddress to, EventoRequest eventoRequest, Consumer<EventoResponse> response) throws Exception {
+        correlations.put(eventoRequest.getCorrelationId(), new Correlation(
+                from, to,
+                eventoRequest, response));
         try {
-            var out = view.get(address);
+            var out = view.get(to);
             synchronized (out) {
                 out.writeObject(eventoRequest);
                 out.flush();
