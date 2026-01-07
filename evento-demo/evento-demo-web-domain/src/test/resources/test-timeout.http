@@ -1,0 +1,46 @@
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&beforeWriteLocal=true
+Content-Type: application/json
+
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&afterWriteLocal=true
+Content-Type: application/json
+
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&afterBrokerRead=true
+Content-Type: application/json
+
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&beforeBrokerSend=true
+Content-Type: application/json
+
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&afterBrokerSend=true
+Content-Type: application/json
+
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&afterReadRemote=true
+Content-Type: application/json
+
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&beforeWriteRemote=true
+Content-Type: application/json
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=5000&beforeWriteIgnoreLocal=true
+Content-Type: application/json
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=5000&beforeBrokerIgnoreSend=true
+Content-Type: application/json
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=5000&beforeWriteIgnoreRemote=true
+Content-Type: application/json
