@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import com.evento.common.serialization.ObjectMapperUtils;
 
@@ -119,6 +120,9 @@ public class EventoServerClient implements EventoServer {
                 // Handling request messages
                 var resp = new EventoResponse();
                 resp.setCorrelationId(request.getCorrelationId());
+                resp.setRequestTimestamp(request.getTimestamp());
+                resp.setTimeout(request.getTimeout());
+                resp.setUnit(request.getUnit());
                 try {
                     var body = request.getBody();
                     resp.setBody(requestHandler.handle(body));
@@ -166,7 +170,7 @@ public class EventoServerClient implements EventoServer {
      * @return A CompletableFuture representing the response.
      * @throws SendFailedException Thrown if the request fails to be sent.
      */
-    public <T extends Serializable> CompletableFuture<T> request(Serializable request) throws SendFailedException {
+    public <T extends Serializable> CompletableFuture<T> request(Serializable request,long timeout, TimeUnit unit) throws SendFailedException {
         var future = new CompletableFuture<T>();
 
         var message = new EventoRequest();
@@ -176,10 +180,15 @@ public class EventoServerClient implements EventoServer {
         message.setCorrelationId(UUID.randomUUID().toString());
         message.setBody(request);
         message.setTimestamp(Instant.now().toEpochMilli());
+        message.setTimeout(timeout);
+        message.setUnit(unit);
+
         correlations.put(message.getCorrelationId(), new Correlation<>(message, future));
 
 
-        future = future.whenComplete((t, throwable) -> correlations.remove(message.getCorrelationId()));
+        future = future
+                .orTimeout(timeout, unit)
+                .whenComplete((t, throwable) -> correlations.remove(message.getCorrelationId()));
 
         try {
             clusterConnection.send(message);

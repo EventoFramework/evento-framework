@@ -13,16 +13,13 @@ import com.evento.common.utils.Sleep;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import static com.evento.common.utils.BusTestUtils.check;
 
 /**
  * Represents a socket connection for communication with an Evento server.
@@ -59,12 +56,15 @@ public class EventoSocketConnection {
     private final int conn = instanceCounter.incrementAndGet();
     @Getter
     private boolean closed = false;
-    private final Set<String> pendingCorrelations = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<String, EventoRequest> pendingCorrelations = new ConcurrentHashMap<>();
     private final Executor threadPerRequestExecutor = Executors.newCachedThreadPool();
     @Getter
     private Thread socketReadThread;
 
     private final EventoSocketConfig socketConfig;
+
+    private final ScheduledExecutorService pendingCorrelationScheduler =
+            Executors.newSingleThreadScheduledExecutor();
 
     /**
      * Constructs an instance of EventoSocketConnection with specified configuration parameters.
@@ -98,18 +98,42 @@ public class EventoSocketConnection {
         this.socketConfig = socketConfig;
     }
 
-    private void write(Serializable message) throws IOException {
-        try {
-            synchronized (connectingLock) {
-                var o = out.get();
-                o.writeObject(message);
-                o.flush();
+    private void write(Serializable message) throws Exception {
+        int attempt = 0;
+        while (true) {
+            if(message instanceof Expirable expirable){
+                expirable.throwExpired();
             }
-        } catch (Throwable e) {
-            if (socketConfig.isCloseOnSendError() && socket != null) {
-                socket.close();
+            try {
+                attempt++;
+                synchronized (connectingLock) {
+                    var o = out.get();
+                    if(check(message, "beforeWriteIgnoreLocal", o)) {
+                        o.writeObject(message);
+                        o.flush();
+                    }
+                    check(message, "afterWriteLocal", o);
+                }
+                return;
+            } catch (Throwable e) {
+                logger.warn("Message send over socket failed for cluster {}:{}. Attempt {} - {}",
+                        serverAddress, serverPort, attempt, e.getMessage());
+                if (socketConfig.isCloseOnSendError() && socket != null) {
+                    socket.close();
+                }
+                if(closed || reconnectAttempt > maxReconnectAttempts){
+                    throw e;
+                }
+                try {
+                    long wait = (long) (reconnectDelayMillis * 1.5);
+                    logger.warn("Sleeping before retry message {} to {}:{} ({})....",
+                            message,  serverAddress, serverPort,
+                            wait);
+                    Thread.sleep(wait);
+                } catch (InterruptedException ignored) {
+                    // Handle InterruptedException (if needed)
+                }
             }
-            throw e;
         }
     }
 
@@ -127,7 +151,7 @@ public class EventoSocketConnection {
             throw new SendFailedException(new IllegalStateException("Socket connection is connecting"));
         }
         if (message instanceof EventoRequest r) {
-            this.pendingCorrelations.add(r.getCorrelationId());
+            this.pendingCorrelations.put(r.getCorrelationId(), r);
         }
         try {
             write(message);
@@ -163,7 +187,6 @@ public class EventoSocketConnection {
                         if (this.socket != null) {
                             this.socket.close();
                             this.socket = null;
-                            handleCorrelationLoss(new IOException("Socket closed"));
                             logger.info("Previous socket Connection #{} closed", conn);
                             Sleep.apply(reconnectDelayMillis);
                         }
@@ -211,13 +234,18 @@ public class EventoSocketConnection {
                     while (true) {
                         try {
                             var data = in.get().readObject();
+                            check(data, "afterReadRemote", in.get());
                             timeoutHits = 0;
                             if (data instanceof EventoResponse r) {
                                 // Remove correlation ID from pending set on receiving a response
                                 this.pendingCorrelations.remove(r.getCorrelationId());
                             }
                             // Process the incoming message in a new thread using the message handler
-                            threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, this::send));
+                            threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, r -> {
+                                if(check(data, "beforeWriteIgnoreRemote", out.get())) {
+                                    this.send(r);
+                                }
+                            }));
                         } catch (SocketTimeoutException ex){
                             logger.warn("Socket timeout after {} attempts", timeoutHits + 1);
                             timeoutHits++;
@@ -229,7 +257,6 @@ public class EventoSocketConnection {
                         }
                     }
                 } catch (Throwable e) {
-                    handleCorrelationLoss(e);
                     // Sleep before attempting to reconnect
                     Sleep.apply(reconnectDelayMillis);
 
@@ -252,29 +279,38 @@ public class EventoSocketConnection {
 
         // Wait for the connection to be ready (or for the maximum attempts to be reached)
         connectionReady.acquire();
-    }
 
-    private void handleCorrelationLoss(Throwable e, String correlationId){
-        logger.error("Correlation lost for message with correlation ID {}. Closing connection", correlationId, e);
-        var resp = new EventoResponse();
-        resp.setCorrelationId(correlationId);
-        resp.setBody(new ExceptionWrapper(e));
-        try {
-            handler.handle(resp, this::send);
-        } catch (Exception e1) {
-            logger.error(e1.getMessage(), e1);
-        }
-        pendingCorrelations.remove(correlationId);
-    }
+        pendingCorrelationScheduler.scheduleWithFixedDelay(() -> {
+            if (!closed && (maxReconnectAttempts < 0 || reconnectAttempt < maxReconnectAttempts)) {
+                logger.debug("Checking for pending correlations for {}:{}...", serverAddress, serverPort);
+                var now = System.currentTimeMillis();
+                var expired = pendingCorrelations.values().stream()
+                        .filter(c -> now - c.getTimestamp() > c.getUnit()
+                                .toMillis(c.getTimeout())).toList();
+                logger.debug("Found {} expired correlations of {} for {}:{}", expired.size(), pendingCorrelations.size(), serverAddress, serverPort);
+                for (EventoRequest r : expired) {
+                    var ex = new TimeoutException();
+                    logger.error("Correlation lost for message with correlation ID {}. Timeout", r.getCorrelationId(), ex);
+                    var resp = new EventoResponse();
+                    resp.setCorrelationId(r.getCorrelationId());
+                    resp.setRequestTimestamp(r.getTimestamp());
+                    resp.setTimeout(r.getTimeout());
+                    resp.setUnit(r.getUnit());
+                    resp.setBody(new ExceptionWrapper(ex));
+                    try {
+                        handler.handle(resp, this::send);
+                    } catch (Exception e1) {
+                        logger.error(e1.getMessage(), e1);
+                    }
+                    pendingCorrelations.remove(r.getCorrelationId());
+                }
+            }else{
+                pendingCorrelationScheduler.shutdown();
+            }
 
-    private void handleCorrelationLoss(Throwable e){
-        // Log connection error and handle pending correlations
-        logger.error("Connection error %s:%d".formatted(reconnectAttempt, serverPort), e);
-        var old = new HashSet<>(pendingCorrelations);
-        for (String pendingCorrelation : old) {
-           this.handleCorrelationLoss(e, pendingCorrelation);
-        }
-
+        }, socketConfig.getPendingCorrelationCheck(),
+                socketConfig.getPendingCorrelationCheck(),
+                TimeUnit.MILLISECONDS);
     }
 
 
@@ -413,7 +449,7 @@ public class EventoSocketConnection {
      * @return a HashSet containing the pending correlation identifiers
      */
     public HashSet<String> getPendingCorrelations() {
-        return new HashSet<>(pendingCorrelations);
+        return new HashSet<>(pendingCorrelations.keySet());
     }
 
 }

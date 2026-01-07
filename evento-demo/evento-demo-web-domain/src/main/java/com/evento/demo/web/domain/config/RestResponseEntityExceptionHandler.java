@@ -36,7 +36,11 @@ public class RestResponseEntityExceptionHandler
     @ExceptionHandler()
     protected ResponseEntity<Object> handleConflict(
       Exception ex, WebRequest request) {
-        var parts = ex.getMessage().split(": ");
+        var msg = ex.getMessage();
+        if(msg == null){
+            msg = "";
+        }
+        var parts = msg.split(": ");
         var last = parts[parts.length-1];
         if(ex instanceof CompletionException){
             ex.getCause().printStackTrace();
@@ -49,7 +53,7 @@ public class RestResponseEntityExceptionHandler
         if(last.startsWith("error.")){
             return handleExceptionInternal(ex, Map.of("message", last),
                     new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
-        } else if(ex instanceof NoSuchElementException || ex.getMessage().contains("No value present")){
+        } else if(ex instanceof NoSuchElementException || msg.contains("No value present")){
             return handleExceptionInternal(ex, Map.of("message", "error.not.found"),
                     new HttpHeaders(), HttpStatus.NOT_FOUND, request);
         }else{

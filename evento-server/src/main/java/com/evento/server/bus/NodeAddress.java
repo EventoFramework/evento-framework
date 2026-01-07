@@ -10,7 +10,6 @@ public record NodeAddress(String bundleId, long bundleVersion, String instanceId
 		return bundleId;
 	}
 
-	/*
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
@@ -22,7 +21,7 @@ public record NodeAddress(String bundleId, long bundleVersion, String instanceId
 	@Override
 	public int hashCode() {
 		return instanceId() != null ? instanceId().hashCode() : 0;
-	}*/
+	}
 
 	@Override
 	public int compareTo(@NotNull NodeAddress o) {
