@@ -1,6 +1,7 @@
 package com.evento.application.bus;
 
 import com.evento.common.messaging.bus.SendFailedException;
+import com.evento.common.modeling.messaging.message.internal.Expirable;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,6 +10,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -49,6 +51,14 @@ public class ClusterConnection {
      * @throws SendFailedException Thrown if the message fails to be sent after maximum retry attempts.
      */
     public void send(Serializable message) throws SendFailedException {
+
+        if(message instanceof Expirable expirable){
+            try {
+                expirable.throwExpired();
+            } catch (TimeoutException e) {
+                throw new SendFailedException(e);
+            }
+        }
         // Get the index of the next node to use in a round-robin fashion
         var n = nextNodeToUse.getAndUpdate((o) -> (o + 1) % nodes);
         var attempt = 0;
@@ -69,16 +79,18 @@ public class ClusterConnection {
                 // Successful send, exit the loop
                 return;
             } catch (Throwable e) {
-                LOGGER.warn("Message send over socket failed. Attempt {}/{} - {}", attempt + 1 , maxRetryAttempts, e.getMessage());
-                LOGGER.trace("Fail reason", e);
+                LOGGER.warn("Message send over socket failed. Attempt {}/{} - {}", attempt , maxRetryAttempts, e.getMessage());
 
                 // If this is the last attempt, throw the SendFailedException
                 if (attempt >= maxRetryAttempts) {
                     throw e;
                 }
 
+                LOGGER.trace("Fail reason", e);
+
                 // Sleep before the next retry
                 try {
+                    LOGGER.warn("Sleeping before retry ({})....", retryDelayMillis);
                     Thread.sleep(retryDelayMillis);
                 } catch (InterruptedException ignored) {
                     // Handle InterruptedException (if needed)

@@ -1,6 +1,7 @@
 package com.evento.application.bus;
 
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -9,6 +10,8 @@ import java.net.Socket;
 public class EventoSocketConfig {
     private int connectTimeout = 5000;     // in milliseconds
     private int readTimeout = 20000;        // in milliseconds
+    @Getter @Setter
+    private int pendingCorrelationCheck = 3000;
     private boolean keepAlive = true;
     private boolean tcpNoDelay = true;
     private boolean reuseAddress = true;
@@ -70,5 +73,7 @@ public class EventoSocketConfig {
         this.timeoutLimit = timeoutLimit;
         return this;
     }
+
+
 
 }

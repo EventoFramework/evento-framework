@@ -70,82 +70,76 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
         this.instanceId = instanceId;
     }
 
-    @Override
-    public <R> R sendAndWait(Command command) throws InterruptedException {
-        updateInvocationCounter(command);
-        return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
-    }
-
-    @Override
-    public <R> R sendAndWait(Command command, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
-        updateInvocationCounter(command);
-        return commandGateway.sendAndWait(command, tracingAgent.correlate((Metadata) null, this.handledMessage), timeout, unit);
-
-    }
 
     @Override
     public <R> CompletableFuture<R> send(Command command) {
-        updateInvocationCounter(command);
-        return commandGateway.send(command, tracingAgent.correlate((Metadata) null, this.handledMessage));
+       return send(command, null, handledMessage);
     }
+
 
     @Override
-    public <R> R sendAndWait(Command command, Metadata metadata) throws InterruptedException {
-        updateInvocationCounter(command);
-        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage));
-
+    public <R> CompletableFuture<R> send(Command command, long timeout, TimeUnit unit) {
+       return send(command, null, handledMessage, timeout, unit);
     }
 
-    @Override
-    public <R> R sendAndWait(Command command, Metadata metadata, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
-        updateInvocationCounter(command);
-        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), timeout, unit);
-
-    }
 
     @Override
     public <R> CompletableFuture<R> send(Command command, Metadata metadata) {
-        updateInvocationCounter(command);
-        return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage));
+       return send(command, metadata, handledMessage);
     }
 
     @Override
-    public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage) throws InterruptedException {
-        updateInvocationCounter(command);
-        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
-
+    public <R> CompletableFuture<R> send(Command command, Metadata metadata, long timeout, TimeUnit unit) {
+       return send(command, metadata, handledMessage, timeout, unit);
     }
 
-    @Override
-    public <R> R sendAndWait(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
-        updateInvocationCounter(command);
-        return commandGateway.sendAndWait(command, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
-
-    }
 
     @Override
     public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage) {
-        updateInvocationCounter(command);
-        return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage),
-                this.handledMessage);
+       return send(command, metadata, handledMessage, getDefaultTimeoutTime(), getDefaultTimeoutUnit());
     }
 
     @Override
-    public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
-        updateInvocationCounter(query);
-        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage);
+    public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
+        updateInvocationCounter(command);
+        return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage),
+                this.handledMessage, timeout, unit);
     }
+
+
+
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query) {
-        updateInvocationCounter(query);
-        return queryGateway.query(query, tracingAgent.correlate((Metadata) null, this.handledMessage));
+       return query(query, null, handledMessage);
+    }
+
+    @Override
+    public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, long timeout, TimeUnit unit) {
+        return query(query, null, handledMessage, timeout, unit);
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata) {
+       return query(query, metadata, handledMessage);
+    }
+
+
+    @Override
+    public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, long timeout, TimeUnit unit) {
+       return query(query, metadata, handledMessage, timeout, unit);
+    }
+
+    @Override
+    public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage) {
+       return query(query, metadata, handledMessage, getDefaultTimeoutTime(), getDefaultTimeoutUnit());
+    }
+
+
+    @Override
+    public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
         updateInvocationCounter(query);
-        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage));
+        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
     }
 
     /**

@@ -1,17 +1,21 @@
 package com.evento.common.modeling.messaging.message.internal;
 
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The EventoResponse class represents a response in the Evento messaging system.
  * It contains the correlation ID, body, and timestamp of the response.
  */
-public class EventoResponse implements Serializable {
+public class EventoResponse implements Serializable, Expirable {
 
     private String correlationId;
     private Serializable body;
 
     private long timestamp;
+    private long requestTimestamp;
+    private long timeout = 30;
+    private TimeUnit unit = TimeUnit.SECONDS;
 
     /**
      * Returns the body of the EventoResponse.
@@ -24,6 +28,7 @@ public class EventoResponse implements Serializable {
 
     public EventoResponse() {
         this.timestamp = System.currentTimeMillis();
+        this.requestTimestamp = System.currentTimeMillis();
     }
 
     /**
@@ -73,12 +78,44 @@ public class EventoResponse implements Serializable {
         return this;
     }
 
+    public long getRequestTimestamp() {
+        return requestTimestamp;
+    }
+
+    public void setRequestTimestamp(long requestTimestamp) {
+        this.requestTimestamp = requestTimestamp;
+    }
+
+    public long getTimeout() {
+        return timeout;
+    }
+
+    public void setTimeout(long timeout) {
+        this.timeout = timeout;
+    }
+
+    public TimeUnit getUnit() {
+        return unit;
+    }
+
+    public void setUnit(TimeUnit unit) {
+        this.unit = unit;
+    }
+
+
+    public boolean checkExpired(){
+        return System.currentTimeMillis() - requestTimestamp > unit.toMillis(timeout);
+    }
+
     @Override
     public String toString() {
         return "EventoResponse{" +
                 "correlationId='" + correlationId + '\'' +
                 ", body=" + body +
                 ", timestamp=" + timestamp +
+                ", requestTimestamp=" + requestTimestamp +
+                ", timeout=" + timeout +
+                ", unit=" + unit +
                 '}';
     }
 }

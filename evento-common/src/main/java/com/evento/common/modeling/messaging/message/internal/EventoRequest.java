@@ -1,12 +1,13 @@
 package com.evento.common.modeling.messaging.message.internal;
 
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class represents an EventoRequest that holds various metadata about the request, such as the source ID,
  * correlation ID, source bundle version, request body, and a timestamp.
  */
-public class EventoRequest implements Serializable {
+public class EventoRequest implements Serializable, Expirable {
 
     private String sourceBundleId;
     private String sourceInstanceId;
@@ -14,6 +15,8 @@ public class EventoRequest implements Serializable {
     private long sourceBundleVersion;
     private Serializable body;
     private long timestamp;
+    private long timeout = 30;
+    private TimeUnit unit = TimeUnit.SECONDS;
 
     /**
      * Gets the correlation ID of the EventoRequest.
@@ -125,6 +128,26 @@ public class EventoRequest implements Serializable {
         return this;
     }
 
+    public long getTimeout() {
+        return timeout;
+    }
+
+    public void setTimeout(long timeout) {
+        this.timeout = timeout;
+    }
+
+    public TimeUnit getUnit() {
+        return unit;
+    }
+
+    public void setUnit(TimeUnit unit) {
+        this.unit = unit;
+    }
+
+    public boolean checkExpired(){
+        return System.currentTimeMillis() - timestamp > unit.toMillis(timeout);
+    }
+
     @Override
     public String toString() {
         return "EventoRequest{" +
@@ -134,6 +157,8 @@ public class EventoRequest implements Serializable {
                 ", sourceBundleVersion=" + sourceBundleVersion +
                 ", body=" + body +
                 ", timestamp=" + timestamp +
+                ", timeout=" + timeout +
+                ", unit=" + unit +
                 '}';
     }
 }

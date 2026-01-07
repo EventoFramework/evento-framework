@@ -3,6 +3,8 @@ package com.evento.demo.command.invoker;
 import com.evento.application.EventoBundle;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.ExecutionException;
+
 @Component
 public class NotService {
 
@@ -12,7 +14,7 @@ public class NotService {
         this.invoker = bundle.getInvoker(NotificationCommandInvoker.class);
     }
 
-    public void send(String body) throws InterruptedException {
+    public void send(String body) throws InterruptedException, ExecutionException {
         invoker.send(body);
     }
 }

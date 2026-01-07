@@ -18,6 +18,7 @@ import com.evento.demo.api.utils.Utils;
 import org.springframework.util.Assert;
 
 import java.time.Instant;
+import java.util.concurrent.ExecutionException;
 
 @Aggregate(snapshotFrequency = 10)
 public class DemoAggregate {
@@ -28,9 +29,9 @@ public class DemoAggregate {
 							CommandGateway commandGateway,
 							CommandMessage<DemoCreateCommand> commandMessage,
 							Metadata metadata,
-							Instant instant) throws InterruptedException {
+							Instant instant) throws InterruptedException, ExecutionException {
 		Utils.logMethodFlow(this, "handle", command, "BEGIN");
-		commandGateway.sendAndWait(new NotificationSendCommand(command.getName()));
+		commandGateway.send(new NotificationSendCommand(command.getName())).get();
 		Assert.isTrue(command.getDemoId() != null, "error.command.not.valid.id");
 		Assert.isTrue(command.getName() != null, "error.command.not.valid.name");
 		Assert.isTrue(command.getValue() >= 0, "error.command.not.valid.value");

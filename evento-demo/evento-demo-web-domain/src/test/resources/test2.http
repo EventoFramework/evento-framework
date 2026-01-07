@@ -6,3 +6,19 @@ Content-Type: application/json
   "name": "aaa",
   "value": 5
 }
+
+###
+
+PUT http://localhost:9001/api/demo/AA2
+Content-Type: application/json
+
+{
+"name": "aaa",
+"value": 5
+}
+
+
+###
+
+GET http://localhost:9001/api/util/timeout?millis=100&times=1&timeout=60000&afterBrokerSend=true
+Content-Type: application/json
