@@ -184,7 +184,6 @@ public class MessageBus {
 
                             while (true) {
                                 var message = in.readObject();
-                                check(message, "afterBrokerRead", in);
                                 threadPerMessageExecutor.execute(() -> {
                                     try {
                                         if (message instanceof DisableMessage) {
@@ -644,12 +643,8 @@ public class MessageBus {
                     ));
                 }
                 synchronized (out) {
-                    check(message, "beforeBrokerSend", out);
-                    if(check(message, "beforeBrokerIgnoreSend", out)) {
                         out.writeObject(message);
                         out.flush();
-                    }
-                    check(message, "afterBrokerSend", out);
                 }
                 if(attempt > 1){
                     logger.warn("Message sent after {} attempts", attempt);

@@ -19,8 +19,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static com.evento.common.utils.BusTestUtils.check;
-
 /**
  * Represents a socket connection for communication with an Evento server.
  */
@@ -101,18 +99,15 @@ public class EventoSocketConnection {
     private void write(Serializable message) throws Exception {
         int attempt = 0;
         while (true) {
-            if(message instanceof Expirable expirable){
+            if (message instanceof Expirable expirable) {
                 expirable.throwExpired();
             }
             try {
                 attempt++;
                 synchronized (connectingLock) {
                     var o = out.get();
-                    if(check(message, "beforeWriteIgnoreLocal", o)) {
-                        o.writeObject(message);
-                        o.flush();
-                    }
-                    check(message, "afterWriteLocal", o);
+                    o.writeObject(message);
+                    o.flush();
                 }
                 return;
             } catch (Throwable e) {
@@ -121,13 +116,13 @@ public class EventoSocketConnection {
                 if (socketConfig.isCloseOnSendError() && socket != null) {
                     socket.close();
                 }
-                if(closed || reconnectAttempt > maxReconnectAttempts){
+                if (closed || reconnectAttempt > maxReconnectAttempts) {
                     throw e;
                 }
                 try {
                     long wait = (long) (reconnectDelayMillis * 1.5);
                     logger.warn("Sleeping before retry message {} to {}:{} ({})....",
-                            message,  serverAddress, serverPort,
+                            message, serverAddress, serverPort,
                             wait);
                     Thread.sleep(wait);
                 } catch (InterruptedException ignored) {
@@ -147,7 +142,7 @@ public class EventoSocketConnection {
         if (closed) {
             throw new SendFailedException(new IllegalStateException("Socket connection is closed"));
         }
-        if(connecting){
+        if (connecting) {
             throw new SendFailedException(new IllegalStateException("Socket connection is connecting"));
         }
         if (message instanceof EventoRequest r) {
@@ -222,7 +217,7 @@ public class EventoSocketConnection {
                     }
 
                     // If the connection is enabled, send an enable message
-                    if(enabled){
+                    if (enabled) {
                         enable();
                     }
 
@@ -234,19 +229,14 @@ public class EventoSocketConnection {
                     while (true) {
                         try {
                             var data = in.get().readObject();
-                            check(data, "afterReadRemote", in.get());
                             timeoutHits = 0;
                             if (data instanceof EventoResponse r) {
                                 // Remove correlation ID from pending set on receiving a response
                                 this.pendingCorrelations.remove(r.getCorrelationId());
                             }
                             // Process the incoming message in a new thread using the message handler
-                            threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, r -> {
-                                if(check(data, "beforeWriteIgnoreRemote", out.get())) {
-                                    this.send(r);
-                                }
-                            }));
-                        } catch (SocketTimeoutException ex){
+                            threadPerRequestExecutor.execute(() -> handler.handle((Serializable) data, this::send));
+                        } catch (SocketTimeoutException ex) {
                             logger.warn("Socket timeout after {} attempts", timeoutHits + 1);
                             timeoutHits++;
                             if (timeoutHits >= socketConfig.getTimeoutLimit()) {
@@ -281,34 +271,34 @@ public class EventoSocketConnection {
         connectionReady.acquire();
 
         pendingCorrelationScheduler.scheduleWithFixedDelay(() -> {
-            if (!closed && (maxReconnectAttempts < 0 || reconnectAttempt < maxReconnectAttempts)) {
-                logger.debug("Checking for pending correlations for {}:{}...", serverAddress, serverPort);
-                var now = System.currentTimeMillis();
-                var expired = pendingCorrelations.values().stream()
-                        .filter(c -> now - c.getTimestamp() > c.getUnit()
-                                .toMillis(c.getTimeout())).toList();
-                logger.debug("Found {} expired correlations of {} for {}:{}", expired.size(), pendingCorrelations.size(), serverAddress, serverPort);
-                for (EventoRequest r : expired) {
-                    var ex = new TimeoutException();
-                    logger.error("Correlation lost for message with correlation ID {}. Timeout", r.getCorrelationId(), ex);
-                    var resp = new EventoResponse();
-                    resp.setCorrelationId(r.getCorrelationId());
-                    resp.setRequestTimestamp(r.getTimestamp());
-                    resp.setTimeout(r.getTimeout());
-                    resp.setUnit(r.getUnit());
-                    resp.setBody(new ExceptionWrapper(ex));
-                    try {
-                        handler.handle(resp, this::send);
-                    } catch (Exception e1) {
-                        logger.error(e1.getMessage(), e1);
+                    if (!closed && (maxReconnectAttempts < 0 || reconnectAttempt < maxReconnectAttempts)) {
+                        logger.debug("Checking for pending correlations for {}:{}...", serverAddress, serverPort);
+                        var now = System.currentTimeMillis();
+                        var expired = pendingCorrelations.values().stream()
+                                .filter(c -> now - c.getTimestamp() > c.getUnit()
+                                        .toMillis(c.getTimeout())).toList();
+                        logger.debug("Found {} expired correlations of {} for {}:{}", expired.size(), pendingCorrelations.size(), serverAddress, serverPort);
+                        for (EventoRequest r : expired) {
+                            var ex = new TimeoutException();
+                            logger.error("Correlation lost for message with correlation ID {}. Timeout", r.getCorrelationId(), ex);
+                            var resp = new EventoResponse();
+                            resp.setCorrelationId(r.getCorrelationId());
+                            resp.setRequestTimestamp(r.getTimestamp());
+                            resp.setTimeout(r.getTimeout());
+                            resp.setUnit(r.getUnit());
+                            resp.setBody(new ExceptionWrapper(ex));
+                            try {
+                                handler.handle(resp, this::send);
+                            } catch (Exception e1) {
+                                logger.error(e1.getMessage(), e1);
+                            }
+                            pendingCorrelations.remove(r.getCorrelationId());
+                        }
+                    } else {
+                        pendingCorrelationScheduler.shutdown();
                     }
-                    pendingCorrelations.remove(r.getCorrelationId());
-                }
-            }else{
-                pendingCorrelationScheduler.shutdown();
-            }
 
-        }, socketConfig.getPendingCorrelationCheck(),
+                }, socketConfig.getPendingCorrelationCheck(),
                 socketConfig.getPendingCorrelationCheck(),
                 TimeUnit.MILLISECONDS);
     }
