@@ -30,75 +30,6 @@ public class CommandGatewayImpl implements CommandGateway {
 		this.eventoServer = eventoServer;
 	}
 
-	/**
-	 * Sends a command synchronously and waits for the result.
-	 *
-	 * @param command         The command to send.
-	 * @param metadata        The metadata associated with the command.
-	 * @param handledMessage The handled message.
-	 * @param <R>             The type of the result.
-	 * @return The result of the command execution.
-	 * @throws RuntimeException if an error occurs while executing the command.
-	 */
-	@SuppressWarnings("unchecked")
-	@Override
-	public <R> R sendAndWait(Command command, Metadata metadata,
-							 Message<?> handledMessage) throws InterruptedException {
-
-        try {
-            return (R) send(command, metadata, handledMessage).get();
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof RuntimeException re) {
-                // Get the original stack trace
-                StackTraceElement[] originalTrace = re.getStackTrace();
-                // Get the current stack trace
-                StackTraceElement[] currentTrace = e.getStackTrace();
-                StackTraceElement[] combined = new StackTraceElement[originalTrace.length + currentTrace.length - 2];
-                System.arraycopy(originalTrace, 0, combined, 0, originalTrace.length);
-                // Skip the first 2 elements of currentTrace (getStackTrace + this method)
-                System.arraycopy(currentTrace, 2, combined, originalTrace.length, currentTrace.length - 2);
-                re.setStackTrace(combined);
-                throw re;
-            }
-            throw new RuntimeException(e);
-        }
-    }
-
-	/**
-	 * Sends a command synchronously and waits for the result.
-	 *
-	 * @param command         The command to send.
-	 * @param metadata        The metadata associated with the command.
-	 * @param handledMessage  The handled message.
-	 * @param timeout         The maximum time to wait for the result.
-	 * @param unit            The time unit of the timeout argument.
-	 * @param <R>             The type of the result.
-	 * @return The result of the command execution.
-	 * @throws RuntimeException if an error occurs while executing the command.
-	 */
-	@SuppressWarnings("unchecked")
-	@Override
-	public <R> R sendAndWait(Command command, Metadata metadata,
-							 Message<?> handledMessage, long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
-
-        try {
-            return (R) send(command, metadata, handledMessage).get(timeout, unit);
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof RuntimeException re) {
-                // Get the original stack trace
-                StackTraceElement[] originalTrace = re.getStackTrace();
-                // Get the current stack trace
-                StackTraceElement[] currentTrace = e.getStackTrace();
-                StackTraceElement[] combined = new StackTraceElement[originalTrace.length + currentTrace.length - 2];
-                System.arraycopy(originalTrace, 0, combined, 0, originalTrace.length);
-                // Skip the first 2 elements of currentTrace (getStackTrace + this method)
-                System.arraycopy(currentTrace, 2, combined, originalTrace.length, currentTrace.length - 2);
-                re.setStackTrace(combined);
-                throw re;
-            }
-            throw new RuntimeException(e);
-        }
-	}
 
 	/**
 	 * Sends a command asynchronously and returns a CompletableFuture that will be completed with the result.
@@ -112,7 +43,7 @@ public class CommandGatewayImpl implements CommandGateway {
 	@Override
 	@SuppressWarnings("unchecked")
 	public <R> CompletableFuture<R> send(Command command, Metadata metadata,
-										 Message<?> handledMessage) {
+										 Message<?> handledMessage, long timeout, TimeUnit unit) {
 		try
 		{
 			var message = command instanceof DomainCommand ?
@@ -120,7 +51,7 @@ public class CommandGatewayImpl implements CommandGateway {
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
 
-			return (CompletableFuture<R>) eventoServer.request(message).thenApply(e -> {
+			return (CompletableFuture<R>) eventoServer.request(message, timeout, unit).thenApply(e -> {
 				try {
 					return ObjectMapperUtils.getPayloadObjectMapper()
 							.readValue(e.toString(), Serializable.class);

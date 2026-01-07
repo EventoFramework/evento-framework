@@ -73,7 +73,7 @@ public abstract class ConsumerStateStore {
                             context,
                             lastEventSequenceNumber,
                             fetchSize,
-                            projectorName)).get(timeoutMillis, TimeUnit.MILLISECONDS));
+                            projectorName),timeoutMillis, TimeUnit.MILLISECONDS).get());
             for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 try {
@@ -168,8 +168,9 @@ public abstract class ConsumerStateStore {
             }
             var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
             var resp = ((EventFetchResponse) eventoServer.request(
-                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, observerName))
-                    .get(timeoutMillis, TimeUnit.MILLISECONDS));
+                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, observerName)
+                            ,timeoutMillis, TimeUnit.MILLISECONDS)
+                    .get());
             for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 observerExecutor.execute(() -> {
@@ -274,8 +275,10 @@ public abstract class ConsumerStateStore {
             }
             var lastEventSequenceNumber = getLastEventSequenceNumberSagaOrHead(consumerId);
             var resp = ((EventFetchResponse) eventoServer.request(
-                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName))
-                    .get(timeoutMillis, TimeUnit.MILLISECONDS));
+                    new EventFetchRequest(context, lastEventSequenceNumber, fetchSize, sagaName)
+                            ,timeoutMillis, TimeUnit.MILLISECONDS
+                            )
+                    .get());
             for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 var sagaStateId = new AtomicReference<Long>();
@@ -376,8 +379,9 @@ public abstract class ConsumerStateStore {
     public long getLastEventSequenceNumberSagaOrHead(String consumerId) throws Exception {
         var last = getLastEventSequenceNumber(consumerId);
         if (last == null) {
-            var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest())
-                    .get(timeoutMillis, TimeUnit.MILLISECONDS)).getNumber();
+            var head = ((EventLastSequenceNumberResponse) this.eventoServer.request(new EventLastSequenceNumberRequest()
+                            ,timeoutMillis, TimeUnit.MILLISECONDS)
+                    .get()).getNumber();
             setLastEventSequenceNumber(consumerId, head);
             return head;
         }

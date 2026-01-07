@@ -2,6 +2,7 @@ package com.evento.common.messaging.bus;
 
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This interface represents a server for sending and receiving messages in an Evento cluster.
@@ -24,7 +25,7 @@ public interface EventoServer {
      * @return a CompletableFuture that will be completed with the response
      * @throws SendFailedException if the request sending fails
      */
-    <T extends Serializable> CompletableFuture<T> request(Serializable request) throws SendFailedException;
+    <T extends Serializable> CompletableFuture<T> request(Serializable request, long timeout, TimeUnit unit) throws SendFailedException;
 
     /**
      * Returns the instance ID of the EventoServer.

@@ -12,6 +12,19 @@ public class Utils {
 			throw new RuntimeException(e);
 		}
 	}
+	public static void doWork(long millis, long times) {
+		for (int i = 0; i <times; i++) {
+			System.out.println("working for " + millis + " milliseconds... ("+(i+1)+"/"+times+")");
+			try
+			{
+				Thread.sleep(millis);
+			} catch (InterruptedException e)
+			{
+				throw new RuntimeException(e);
+			}
+		}
+
+	}
 
 	public static void logMethodFlow(Object component, String method, Object message, String action) {
 		System.out.println(component.getClass() + ":" + method + "(" + message.getClass() + ") - " + action);

@@ -1,6 +1,6 @@
 package com.evento.server.bus;
 
-import com.evento.common.messaging.bus.RequestTargetNodeLeftTheClusterException;
+import com.evento.common.messaging.bus.EventoRequestCorrelationExpiredException;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistered;
 import com.evento.common.serialization.ObjectMapperUtils;
@@ -39,6 +39,7 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.net.ServerSocket;
 import java.time.Instant;
 import java.util.*;
@@ -49,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.evento.common.performance.PerformanceService.*;
+import static com.evento.common.utils.BusTestUtils.check;
 
 @Component
 public class MessageBus {
@@ -91,6 +93,16 @@ public class MessageBus {
 
     private final PgDistributedLock distributedLock;
 
+    private final ScheduledExecutorService heartBeatScheduler =
+            Executors.newSingleThreadScheduledExecutor();
+
+    private final long correlationCheckInterval;
+    private final long sendRetryMaxAttempts;
+    private final long sendRetryDelayMillis;
+
+    private final ScheduledExecutorService pendingCorrelationScheduler =
+            Executors.newSingleThreadScheduledExecutor();
+
     public MessageBus(
             @Value("${socket.port}") int socketPort,
             @Value("${evento.server.instance.id}") String instanceId,
@@ -102,6 +114,9 @@ public class MessageBus {
             @Value("${evento.server.disable.delay.millis:3000}") long disableDelayMillis,
             @Value("${evento.server.max.disable.attempts:30}") long maxDisableAttempts,
             @Value("${evento.server.heart.beat.interval:15000}") long heartbeatInterval,
+            @Value("${evento.server.correlation.check.interval:1000}") long correlationCheckInterval,
+            @Value("${evento.server.send.retry.max.attempts:5}") long sendRetryMaxAttempts,
+            @Value("${evento.server.send.retry.delay.millis:3000}") long sendRetryDelayMillis,
             DataSource dataSource) {
         this.socketPort = socketPort;
         this.bundleDeployService = bundleDeployService;
@@ -115,6 +130,9 @@ public class MessageBus {
         this.maxDisableAttempts = maxDisableAttempts;
         this.heartbeatInterval = heartbeatInterval;
         this.distributedLock = new PgDistributedLock(dataSource);
+        this.correlationCheckInterval = correlationCheckInterval;
+        this.sendRetryMaxAttempts = sendRetryMaxAttempts;
+        this.sendRetryDelayMillis = sendRetryDelayMillis;
     }
 
     @PostConstruct
@@ -166,6 +184,7 @@ public class MessageBus {
 
                             while (true) {
                                 var message = in.readObject();
+                                check(message, "afterBrokerRead", in);
                                 threadPerMessageExecutor.execute(() -> {
                                     try {
                                         if (message instanceof DisableMessage) {
@@ -173,19 +192,10 @@ public class MessageBus {
                                         } else if (message instanceof EnableMessage) {
                                             enable(address.get());
                                         } else if (message instanceof EventoRequest r) {
-                                            handleRequest(address.get(), r, resp -> {
-                                                try {
-                                                    synchronized (out) {
-                                                        out.writeObject(resp);
-                                                        out.flush();
-                                                    }
-                                                } catch (IOException e) {
-                                                    throw new RuntimeException(e);
-                                                }
-                                            });
+                                            handleRequest(address.get(), r);
                                         } else if (message instanceof EventoResponse r) {
                                             var c = correlations.remove(r.getCorrelationId());
-                                            c.response().accept(r);
+                                            c.getResponse().accept(r);
                                         } else if (message instanceof EventoMessage m) {
                                             handleMessage(m);
                                         } else if (message instanceof ClientHeartBeatMessage hb) {
@@ -222,32 +232,47 @@ public class MessageBus {
         t.setName("MessageBus ConnectionHandler Thread");
         t.start();
 
-        t = new Thread(() -> {
-            while (!isShuttingDown) {
-                var hb = UUID.randomUUID() + "_" + System.currentTimeMillis();
-                logger.debug("Sending heartbeat {} from {}", hb, instanceId);
-                for (NodeAddress nodeAddress : this.availableView) {
-                    var value = view.get(nodeAddress);
-                    try {
-                        logger.trace("Sending heartbeat {} to {} - {}", hb, nodeAddress.toString(), nodeAddress.instanceId());
-                        value.writeObject(new ServerHeartBeatMessage(instanceId, hb));
-                        value.flush();
-                    } catch (Throwable e) {
-                        logger.error("Error during server heart beat", e);
-                        try {
-                            value.close();
-                        } catch (Throwable ex) {
-                            logger.error("Error during server heart beat close", ex);
-                        }
-                        leave(nodeAddress, e);
+        heartBeatScheduler.scheduleWithFixedDelay(
+                () -> {
+                    if (isShuttingDown) {
+                        heartBeatScheduler.shutdown();
+                        return;
                     }
-                }
-                Sleep.apply(heartbeatInterval);
-            }
+                    var hb = UUID.randomUUID() + "_" + System.currentTimeMillis();
+                    logger.debug("Sending heartbeat {} from {}", hb, instanceId);
+                    for (NodeAddress nodeAddress : this.availableView) {
+                        var value = view.get(nodeAddress);
+                        try {
+                            logger.trace("Sending heartbeat {} to {} - {}", hb, nodeAddress.toString(), nodeAddress.instanceId());
+                            value.writeObject(new ServerHeartBeatMessage(instanceId, hb));
+                            value.flush();
+                        } catch (Throwable e) {
+                            logger.error("Error during server heart beat", e);
+                            try {
+                                value.close();
+                            } catch (Throwable ex) {
+                                logger.error("Error during server heart beat close", ex);
+                            }
+                            leave(nodeAddress, e);
+                        }
+                    }
+                },
+                0,
+                heartbeatInterval,
+                TimeUnit.MILLISECONDS);
 
-        });
-        t.setName("MessageBus Hearthbeat Thread");
-        t.start();
+        pendingCorrelationScheduler.scheduleWithFixedDelay(
+                () -> {
+                    if (isShuttingDown) {
+                        heartBeatScheduler.shutdown();
+                        return;
+                    }
+                    cleanPendingCorrelations();
+                },
+                correlationCheckInterval,
+                correlationCheckInterval,
+                TimeUnit.MILLISECONDS
+        );
     }
 
 
@@ -266,7 +291,7 @@ public class MessageBus {
                     System.out.printf("Graceful Shutdown - Pending correlation: %s%n", k);
                     System.out.println("Graceful Shutdown - Body:");
                     try {
-                        System.out.println(ObjectMapperUtils.getPayloadObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(v.request()));
+                        System.out.println(ObjectMapperUtils.getPayloadObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(v.getRequest()));
                     } catch (JsonProcessingException ignored) {
                     }
 
@@ -282,6 +307,31 @@ public class MessageBus {
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void cleanPendingCorrelations() {
+        logger.debug("Checking for pending correlations...");
+        var expired = correlations.values().stream()
+                .filter(c -> c.getRequest().checkExpired()).toList();
+        logger.debug("Found {} expired correlations of {}", expired.size(), correlations.size());
+        for (Correlation c : expired) {
+            var resp = new EventoResponse();
+            resp.setCorrelationId(c.getRequest().getCorrelationId());
+            resp.setRequestTimestamp(c.getRequest().getTimestamp());
+            resp.setTimeout(c.getRequest().getTimeout());
+            resp.setUnit(c.getRequest().getUnit());
+            resp.setBody(new ExceptionWrapper(
+                    new EventoRequestCorrelationExpiredException(
+                            "Request Expired"
+                    )
+            ));
+            try {
+                c.getResponse().accept(resp);
+            } catch (Exception ex) {
+                logger.error("Error during correlation fail management", ex);
+            }
+            correlations.remove(c.getRequest().getCorrelationId());
         }
     }
 
@@ -336,13 +386,16 @@ public class MessageBus {
     }
 
 
-    private void handleRequest(NodeAddress from, EventoRequest message, Consumer<EventoResponse> sendResponse) {
+    private void handleRequest(NodeAddress from, EventoRequest message) {
         try {
             if (this.isShuttingDown) {
                 var resp = new EventoResponse();
                 resp.setCorrelationId(message.getCorrelationId());
+                resp.setRequestTimestamp(message.getTimestamp());
+                resp.setTimeout(message.getTimeout());
+                resp.setUnit(message.getUnit());
                 resp.setBody(new ExceptionWrapper(new IllegalStateException("Server is shutting down")));
-                sendResponse.accept(resp);
+                send(from, resp);
                 return;
             }
             var request = message.getBody();
@@ -432,7 +485,7 @@ public class MessageBus {
                                 }
                                 distributedLock.release(lockId);
                                 acquired.set(false);
-                                sendResponse.accept(resp);
+                                send(from, resp);
                             } catch (Exception e) {
                                 try {
                                     if (acquired.get()) {
@@ -442,7 +495,7 @@ public class MessageBus {
                                     logger.error("Error unlocking after exception", ie);
                                 }
                                 resp.setBody(new ExceptionWrapper(e));
-                                sendResponse.accept(resp);
+                                send(from, resp);
                             }
                             logger.trace("Handle DomainCommandMessage({}) - Response Sent: {}", message.getCorrelationId(), resp);
 
@@ -493,7 +546,7 @@ public class MessageBus {
                                 }
                                 distributedLock.release(lockId);
                                 acquired.set(false);
-                                sendResponse.accept(resp);
+                                send(from, resp);
                             } catch (Exception e) {
                                 try {
                                     if (acquired.get()) {
@@ -503,7 +556,7 @@ public class MessageBus {
                                     logger.error("Error unlocking after exception", ie);
                                 }
                                 resp.setBody(new ExceptionWrapper(e));
-                                sendResponse.accept(resp);
+                                send(from, resp);
                             }
                             logger.trace("Handle ServiceCommandMessage({}) - Response Sent: {}", message.getCorrelationId(), resp);
                         });
@@ -528,7 +581,7 @@ public class MessageBus {
                                         invocationStart,
                                         q.isForceTelemetry()
                                 );
-                                sendResponse.accept(resp);
+                                send(from, resp);
                                 logger.trace("Handle QueryMessage({}) - Response Sent: {}", message.getCorrelationId(), resp);
                             }
                     );
@@ -545,22 +598,87 @@ public class MessageBus {
                             handlerService.findAllHandledPayloadsNameByComponentName(f.getComponentName()));
                     var resp = new EventoResponse();
                     resp.setCorrelationId(message.getCorrelationId());
+                    resp.setRequestTimestamp(message.getTimestamp());
+                    resp.setTimeout(message.getTimeout());
+                    resp.setUnit(message.getUnit());
                     resp.setBody(new EventFetchResponse(new ArrayList<>(events.stream().map(EventStoreEntry::toPublishedEvent).collect(Collectors.toList()))));
-                    sendResponse.accept(resp);
+                    send(from, resp);
 
                 }
                 case EventLastSequenceNumberRequest ignored -> {
                     var resp = new EventoResponse();
                     resp.setCorrelationId(message.getCorrelationId());
+                    resp.setRequestTimestamp(message.getTimestamp());
+                    resp.setTimeout(message.getTimeout());
+                    resp.setUnit(message.getUnit());
                     resp.setBody(new EventLastSequenceNumberResponse(eventStore.getLastEventSequenceNumber()));
-                    sendResponse.accept(resp);
+                    send(from, resp);
                 }
                 case null, default ->
                         throw new IllegalArgumentException("Missing Handler for " + (request != null ? request.getClass() : null));
             }
         } catch (Throwable e) {
             logger.error("Error handling message in server", e);
-            sendResponse.accept(tw(message.getCorrelationId(), e));
+            send(from, tw(message.getCorrelationId(), e));
+        }
+    }
+
+    private void send(NodeAddress to, Serializable message) {
+        long attempt = 0;
+        while (attempt <= sendRetryMaxAttempts) {
+            attempt++;
+            if(message instanceof Expirable expirable){
+                if(expirable.checkExpired()){
+                    return;
+                }
+            }
+            try {
+                var out = view.get(to);
+                if(out == null){
+                    throw new RuntimeException("No valid connection found in view for node: %s (v%s) - %s. Attempt %d/%d".formatted(
+                            to.bundleId(),
+                            to.bundleVersion(),
+                            to.instanceId(),
+                            attempt,
+                            sendRetryMaxAttempts
+                    ));
+                }
+                synchronized (out) {
+                    check(message, "beforeBrokerSend", out);
+                    if(check(message, "beforeBrokerIgnoreSend", out)) {
+                        out.writeObject(message);
+                        out.flush();
+                    }
+                    check(message, "afterBrokerSend", out);
+                }
+                if(attempt > 1){
+                    logger.warn("Message sent after {} attempts", attempt);
+                }
+                return;
+            } catch (Exception e) {
+                logger.warn("Message send over socket failed for bundle {} (v{}) and instance {}. Attempt {}/{} - {}",
+                        to.bundleId(), to.bundleVersion(), to.instanceId(), attempt , sendRetryMaxAttempts, e.getMessage());
+
+                // If this is the last attempt, throw the SendFailedException
+                if (attempt >= sendRetryMaxAttempts) {
+                    throw new RuntimeException(e);
+                }
+
+                logger.trace("Fail reason", e);
+
+                // Sleep before the next retry
+                try {
+                    logger.warn("Sleeping before retry message {} to {} (v{}) {} ({})....",
+                            message,
+                            to.bundleId(),
+                            to.bundleVersion(),
+                            to.instanceId(),
+                            sendRetryDelayMillis);
+                    Thread.sleep(sendRetryDelayMillis);
+                } catch (InterruptedException ignored) {
+                    // Handle InterruptedException (if needed)
+                }
+            }
         }
     }
 
@@ -695,27 +813,6 @@ public class MessageBus {
 
     private void leave(NodeAddress address, Throwable reason) {
         if (address == null) return;
-        correlations.values().stream().filter(c -> Objects.equals(
-                        c.from(), address) || Objects.equals(c.to(), address))
-                .forEach(c -> {
-                    if(Objects.equals(address, c.to())) {
-                        var resp = new EventoResponse();
-                        resp.setCorrelationId(c.request().getCorrelationId());
-                        resp.setBody(new ExceptionWrapper(
-                                new RequestTargetNodeLeftTheClusterException(
-                                        "Request Forwarded to a node no longer reachable",
-                                        reason
-                                )
-                        ));
-                        try {
-                            c.response().accept(resp);
-                        } catch (Exception ex) {
-                            logger.error("Error during correlation fail management", ex);
-                        }
-                    }
-                    correlations.remove(c.request().getCorrelationId());
-                });
-
         synchronized (handlers) {
             availableView.remove(address);
             view.remove(address);
@@ -762,17 +859,15 @@ public class MessageBus {
     }
 
 
-    public void forward(NodeAddress from, NodeAddress to, EventoRequest eventoRequest, Consumer<EventoResponse> response) throws Exception {
+    public void forward(NodeAddress from, NodeAddress to,
+                        EventoRequest eventoRequest,
+                        Consumer<EventoResponse> response) {
         correlations.put(eventoRequest.getCorrelationId(), new Correlation(
                 from, to,
                 eventoRequest, response));
         try {
-            var out = view.get(to);
-            synchronized (out) {
-                out.writeObject(eventoRequest);
-                out.flush();
-            }
-        } catch (Exception e) {
+            send(to, eventoRequest);
+        } catch (Throwable e) {
             correlations.remove(eventoRequest.getCorrelationId());
             throw e;
         }
