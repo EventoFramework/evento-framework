@@ -50,7 +50,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.evento.common.performance.PerformanceService.*;
-import static com.evento.common.utils.BusTestUtils.check;
 
 @Component
 public class MessageBus {
