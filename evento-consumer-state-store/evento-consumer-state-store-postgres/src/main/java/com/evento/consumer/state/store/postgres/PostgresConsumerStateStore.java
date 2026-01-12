@@ -184,7 +184,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
 
         // Error state from consumer state table
         try (var stmt = getConnection().prepareStatement(
-                "select is_in_error, error_start_at, last_error_at, error_count, error from " + CONSUMER_STATE_TABLE + " where id = ?")) {
+                "select is_in_error, error_start_at, last_error_at, error_count, error, is_enabled from " + CONSUMER_STATE_TABLE + " where id = ?")) {
             stmt.setString(1, consumerId);
             var rs = stmt.executeQuery();
             if (rs.next()) {
@@ -195,6 +195,7 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
                 resp.setLastErrorAt(lastTs == null ? null : ZonedDateTime.ofInstant(lastTs.toInstant(), ZoneId.systemDefault()));
                 resp.setErrorCount(rs.getObject("error_count") == null ? 0L : rs.getLong("error_count"));
                 resp.setError(rs.getString("error"));
+                resp.setEnabled(rs.getObject("is_enabled") != null && rs.getBoolean("is_enabled"));
             } else {
                 resp.setInError(false);
                 resp.setErrorCount(0L);
@@ -279,6 +280,8 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists last_error_at timestamp");
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error_count bigint default 0");
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error text");
+
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists is_enabled boolean default true");
 
                 // Make sure defaults are set even if columns already existed without defaults
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " alter column is_in_error set default false");
@@ -531,6 +534,28 @@ public class PostgresConsumerStateStore extends ConsumerStateStore {
                 stmt.setString(1, serializedSagaState);
             }
             if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state update error");
+        }
+    }
+
+    @Override
+    public void setEnabled(String consumerId, boolean enabled) throws Exception {
+        var stmt = getConnection().prepareStatement("update "  + CONSUMER_STATE_TABLE + " set is_enabled = ? where id = ?" );
+        stmt.setBoolean(1, enabled);
+        stmt.setString(2, consumerId);
+        stmt.executeUpdate();
+    }
+
+    @Override
+    public boolean isEnabled(String consumerId) {
+        try {
+            var stmt = getConnection().prepareStatement("select is_enabled from " + CONSUMER_STATE_TABLE + "  where id = ?");
+            stmt.setString(1, consumerId);
+            var resultSet = stmt.executeQuery();
+            if (!resultSet.next()) return true;
+            return resultSet.getBoolean(1);
+        }catch (Exception e){
+            logger.error("Error checking consumer state", e);
+            return false;
         }
     }
 }

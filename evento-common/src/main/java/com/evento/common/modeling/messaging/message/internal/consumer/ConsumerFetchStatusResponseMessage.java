@@ -21,6 +21,7 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
     private ZonedDateTime lastErrorAt;
     private long errorCount;
     private String error;
+    private boolean enabled;
 
     /**
      * Retrieves the last event sequence number.
@@ -110,5 +111,12 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
 
     public void setError(String error) {
         this.error = error;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }

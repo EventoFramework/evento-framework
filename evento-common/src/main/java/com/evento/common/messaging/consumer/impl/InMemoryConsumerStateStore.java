@@ -36,6 +36,7 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
     private final Map<String, ZonedDateTime> lastErrorAtRepository = new ConcurrentHashMap<>();
     private final Map<String, Long> errorCountRepository = new ConcurrentHashMap<>();
     private final Map<String, String> errorRepository = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> enabled = new ConcurrentHashMap<>();
 
     private final Map<Long, Map.Entry<String, SagaState>> sagaStateRepository = new ConcurrentHashMap<>();
 
@@ -257,6 +258,16 @@ public class InMemoryConsumerStateStore extends ConsumerStateStore {
         resp.setErrorCount(errorCountRepository.getOrDefault(consumerId, 0L));
         resp.setError(errorRepository.get(consumerId));
         return resp;
+    }
+
+    @Override
+    public void setEnabled(String consumerId, boolean enabled) throws Exception {
+        this.enabled.put(consumerId, enabled);
+    }
+
+    @Override
+    public boolean isEnabled(String consumerId) {
+        return enabled.computeIfAbsent(consumerId, (k) -> true);
     }
 
     /**

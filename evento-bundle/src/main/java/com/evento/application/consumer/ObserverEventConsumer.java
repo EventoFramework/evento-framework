@@ -90,44 +90,46 @@ public class ObserverEventConsumer extends EventConsumer {
             var hasError = false;
             var consumedEventCount = 0;
 
-            try {
-                // Consume events from the state store and process them
-                consumedEventCount = consumerStateStore.consumeEventsForObserver(consumerId,
-                        observerName,
-                        context,
-                        (publishedEvent) -> {
-                            // Retrieve handlers for the event name
-                            var handlers = observerMessageHandlers
-                                    .get(publishedEvent.getEventName());
-                            if (handlers == null) return;
+            if(consumerStateStore.isEnabled(consumerId)) {
+                try {
+                    // Consume events from the state store and process them
+                    consumedEventCount = consumerStateStore.consumeEventsForObserver(consumerId,
+                            observerName,
+                            context,
+                            (publishedEvent) -> {
+                                // Retrieve handlers for the event name
+                                var handlers = observerMessageHandlers
+                                        .get(publishedEvent.getEventName());
+                                if (handlers == null) return;
 
-                            // Retrieve the handler for the current saga
-                            var handler = handlers.getOrDefault(observerName, null);
-                            if (handler == null) return;
+                                // Retrieve the handler for the current saga
+                                var handler = handlers.getOrDefault(observerName, null);
+                                if (handler == null) return;
 
-                            // Create telemetry proxy for the gateway
-                            var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
-                                    publishedEvent.getEventMessage());
+                                // Create telemetry proxy for the gateway
+                                var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
+                                        publishedEvent.getEventMessage());
 
-                            // Track the event using the tracing agent
-                            tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
-                                    null,
-                                    () -> {
-                                        // Invoke the handler and send telemetry metrics
-                                        handler.invoke(
-                                                publishedEvent,
-                                                proxy,
-                                                proxy,
-                                                messageHandlerInterceptor,
-                                                t -> consumerStateStore.setLastError(consumerId, t)
-                                        );
-                                        proxy.sendInvocationsMetric();
-                                        return null;
-                                    });
-                        }, sssFetchSize);
-            } catch (Throwable e) {
-                logger.error("Error on observer consumer: " + consumerId, e);
-                hasError = true;
+                                // Track the event using the tracing agent
+                                tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                                        null,
+                                        () -> {
+                                            // Invoke the handler and send telemetry metrics
+                                            handler.invoke(
+                                                    publishedEvent,
+                                                    proxy,
+                                                    proxy,
+                                                    messageHandlerInterceptor,
+                                                    t -> consumerStateStore.handleLastError(consumerId, t)
+                                            );
+                                            proxy.sendInvocationsMetric();
+                                            return null;
+                                        });
+                            }, sssFetchSize);
+                } catch (Throwable e) {
+                    logger.error("Error on observer consumer: " + consumerId, e);
+                    hasError = true;
+                }
             }
 
             // Sleep based on fetch size and error conditions
@@ -177,7 +179,7 @@ public class ObserverEventConsumer extends EventConsumer {
                                         proxy,
                                         proxy,
                                         messageHandlerInterceptor,
-                                        t -> consumerStateStore.setLastError(consumerId, t));
+                                        t -> consumerStateStore.handleLastError(consumerId, t));
                                 proxy.sendInvocationsMetric();
                                 return null;
                             });

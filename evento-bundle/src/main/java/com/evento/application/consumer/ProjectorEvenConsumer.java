@@ -112,50 +112,52 @@ public class ProjectorEvenConsumer extends EventConsumer {
             var hasError = false;
             var consumedEventCount = 0;
 
-            try {
-                logger.debug("Fetching events for Projector: {} - Version: {} - Context: {} - Last Event: {}",
-                        projectorName, projectorVersion, context, lastConsumedEvent);
-                // Consume events from the state store and process them
-                consumedEventCount = consumerStateStore.consumeEventsForProjector(
-                        consumerId,
-                        projectorName,
-                        context,
-                        publishedEvent -> {
-                            // Retrieve handlers for the event name
-                            var handlers = projectorMessageHandlers
-                                    .get(publishedEvent.getEventName());
-                            if (handlers == null) return;
+            if(consumerStateStore.isEnabled(consumerId)) {
+                try {
+                    logger.debug("Fetching events for Projector: {} - Version: {} - Context: {} - Last Event: {}",
+                            projectorName, projectorVersion, context, lastConsumedEvent);
+                    // Consume events from the state store and process them
+                    consumedEventCount = consumerStateStore.consumeEventsForProjector(
+                            consumerId,
+                            projectorName,
+                            context,
+                            publishedEvent -> {
+                                // Retrieve handlers for the event name
+                                var handlers = projectorMessageHandlers
+                                        .get(publishedEvent.getEventName());
+                                if (handlers == null) return;
 
-                            // Retrieve the handler for the current projector
-                            var handler = handlers.getOrDefault(projectorName, null);
-                            if (handler == null) return;
+                                // Retrieve the handler for the current projector
+                                var handler = handlers.getOrDefault(projectorName, null);
+                                if (handler == null) return;
 
-                            // Create telemetry proxy for the gateway
-                            var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
-                                    publishedEvent.getEventMessage());
+                                // Create telemetry proxy for the gateway
+                                var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(),
+                                        publishedEvent.getEventMessage());
 
-                            // Track the event using the tracing agent
-                            tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
-                                    null,
-                                    () -> {
-                                        // Invoke the handler and send telemetry metrics
-                                        handler.invoke(
-                                                publishedEvent,
-                                                proxy,
-                                                proxy,
-                                                ps,
-                                                messageHandlerInterceptor,
-                                                t -> consumerStateStore.setLastError(consumerId, t)
-                                        );
-                                        proxy.sendInvocationsMetric();
-                                        lastConsumedEvent = publishedEvent;
-                                        return null;
-                                    });
+                                // Track the event using the tracing agent
+                                tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+                                        null,
+                                        () -> {
+                                            // Invoke the handler and send telemetry metrics
+                                            handler.invoke(
+                                                    publishedEvent,
+                                                    proxy,
+                                                    proxy,
+                                                    ps,
+                                                    messageHandlerInterceptor,
+                                                    t -> consumerStateStore.handleLastError(consumerId, t)
+                                            );
+                                            proxy.sendInvocationsMetric();
+                                            lastConsumedEvent = publishedEvent;
+                                            return null;
+                                        });
 
-                        }, sssFetchSize);
-            } catch (Throwable e) {
-                logger.error("Error on projector consumer: " + consumerId, e);
-                hasError = true;
+                            }, sssFetchSize);
+                } catch (Throwable e) {
+                    logger.error("Error on projector consumer: " + consumerId, e);
+                    hasError = true;
+                }
             }
 
             // Sleep based on fetch size and error conditions
@@ -229,7 +231,7 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                         proxy,
                                         ps,
                                         messageHandlerInterceptor,
-                                        t -> consumerStateStore.setLastError(consumerId, t));
+                                        t -> consumerStateStore.handleLastError(consumerId, t));
                                 proxy.sendInvocationsMetric();
                                 return null;
                             });

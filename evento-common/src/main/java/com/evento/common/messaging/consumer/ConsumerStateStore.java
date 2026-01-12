@@ -78,7 +78,10 @@ public abstract class ConsumerStateStore {
                 var start = Instant.now();
                 try {
                     projectorEventConsumer.consume(event);
-                } catch (Throwable e) {
+                }catch (ConsumerDisabledException e){
+                    logger.warn("Event ignored due to consumer disabled for projector {} and event {}.",projectorName, event.getEventName());
+                    return consumedEventCount;
+                }catch (Throwable e) {
                     addEventToDeadEventQueue(consumerId, event, e);
                     logger.error("Event consumption Error for projector {} and event {} after retry policy. Event added to Dead Event Queue",projectorName, event.getEventName());
                 }
@@ -124,6 +127,9 @@ public abstract class ConsumerStateStore {
                 try {
                     removeEventFromDeadEventQueue(consumerId, event);
                     projectorEventConsumer.consume(event);
+                }catch (ConsumerDisabledException e){
+                    logger.warn("Event ignored due to consumer disabled for projector {} and event {}.",projectorName, event.getEventName());
+                    return;
                 } catch (Throwable e) {
                     addEventToDeadEventQueue(consumerId, event, e);
                     logger.error("Event consumption Error for projector dead event queue {} and event {} after retry policy. Event added to Dead Event Queue",projectorName, event.getEventName());
@@ -176,7 +182,8 @@ public abstract class ConsumerStateStore {
                 observerExecutor.execute(() -> {
                     try {
                         observerEventConsumer.consume(event);
-                    } catch (Throwable e) {
+                    }
+                    catch (Throwable e) {
                         try {
                             addEventToDeadEventQueue(consumerId, event, e);
                             logger.error("Event consumption Error for observer {} and event {} after retry policy. Event added to Dead Event Queue",observerName, event.getEventName());
@@ -295,6 +302,9 @@ public abstract class ConsumerStateStore {
                             setSagaState(sagaStateId.get(), sagaName, newState);
                         }
                     }
+                }catch (ConsumerDisabledException e){
+                    logger.warn("Event ignored due to consumer disabled for projector {} and event {}.",sagaName, event.getEventName());
+                    return consumedEventCount;
                 } catch (Exception e) {
                     addEventToDeadEventQueue(consumerId, event, e);
                     logger.error("Event consumption Error for saga {} and event {} after retry policy. Event added to Dead Event Queue",sagaName, event.getEventName());
@@ -348,6 +358,9 @@ public abstract class ConsumerStateStore {
                             setSagaState(sagaStateId.get(), sagaName, newState);
                         }
                     }
+                }catch (ConsumerDisabledException e){
+                    logger.warn("Event ignored due to consumer disabled for projector {} and event {}.",sagaName, event.getEventName());
+                    return;
                 } catch (Throwable e) {
                     addEventToDeadEventQueue(consumerId, event, e);
                     logger.error("Event consumption Error for saga dead letter queue {} and event {} after retry policy. Event added to Dead Event Queue",sagaName, event.getEventName());
@@ -430,6 +443,13 @@ public abstract class ConsumerStateStore {
     protected abstract void setLastEventSequenceNumber(String consumerId, Long eventSequenceNumber) throws Exception;
 
 
+    public void handleLastError(String consumerId, Throwable error) throws Exception {
+        if(!isEnabled(consumerId)){
+            throw new ConsumerDisabledException();
+        }
+        setLastError(consumerId, error);
+    }
+
     /**
      * Sets the last error encountered for the specified consumer.
      *
@@ -437,7 +457,7 @@ public abstract class ConsumerStateStore {
      * @param error the Throwable instance representing the error to be recorded
      * @throws Exception if an error occurs while setting the last error
      */
-    public abstract void setLastError(String consumerId, Throwable error) throws Exception;
+    protected abstract void setLastError(String consumerId, Throwable error) throws Exception;
 
     /**
      * Adds a published event to the dead event queue for a specific consumer.
@@ -552,4 +572,21 @@ public abstract class ConsumerStateStore {
      * @return a {@link ConsumerFetchStatusResponseMessage} representing the current status of the consumer
      */
     public abstract ConsumerFetchStatusResponseMessage toConsumerStatus(String consumerId);
+
+    /**
+     * Enables or disables a specific consumer identified by the consumerId.
+     *
+     * @param consumerId the unique identifier of the consumer to be enabled or disabled
+     * @param enabled a boolean value indicating whether the consumer should be enabled (true)
+     *                or disabled (false)
+     */
+    public abstract void setEnabled(String consumerId, boolean enabled) throws Exception;
+
+    /**
+     * Checks if the feature or service is enabled for the given consumer ID.
+     *
+     * @param consumerId the identifier of the consumer to check the enabled status for
+     * @return true if the feature or service is enabled for the specified consumer ID, false otherwise
+     */
+    public abstract boolean isEnabled(String consumerId);
 }
