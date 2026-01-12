@@ -98,3 +98,6 @@ gradle-app.setting
 /.idea/compiler.xml
 maven
 .venv
+
+gradle.properties
+*.gpg

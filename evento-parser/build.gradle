@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'com.eventoframework'
-version 'ev1.15.0' // + '-SNAPSHOT'
+version 'ev1.15.1' // + '-SNAPSHOT'
 java {
     targetCompatibility = "21"
     targetCompatibility = "21"

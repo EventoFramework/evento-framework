@@ -162,7 +162,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         }
 
         try (var stmt = getConnection().prepareStatement(
-                "select is_in_error, error_start_at, last_error_at, error_count, error from " + CONSUMER_STATE_TABLE + " where id = ?")) {
+                "select is_in_error, error_start_at, last_error_at, error_count, error, is_enabled from " + CONSUMER_STATE_TABLE + " where id = ?")) {
             stmt.setString(1, consumerId);
             var rs = stmt.executeQuery();
             if (rs.next()) {
@@ -172,6 +172,7 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
                 resp.setErrorStartAt(startTs == null ? null : ZonedDateTime.ofInstant(startTs.toInstant(), ZoneId.systemDefault()));
                 resp.setLastErrorAt(lastTs == null ? null : ZonedDateTime.ofInstant(lastTs.toInstant(), ZoneId.systemDefault()));
                 resp.setErrorCount(rs.getObject("error_count") == null ? 0L : rs.getLong("error_count"));
+                resp.setEnabled(rs.getObject("is_enabled") != null && rs.getBoolean("is_enabled"));
                 resp.setError(rs.getString("error"));
             } else {
                 resp.setInError(false);
@@ -270,6 +271,8 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists last_error_at timestamp");
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error_count bigint default 0");
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists error text");
+
+                stmt.execute("alter table " + CONSUMER_STATE_TABLE + " add column if not exists is_enabled boolean default true");
 
                 // Ensure defaults are enforced even if columns existed without defaults (use MODIFY for MySQL compatibility)
                 stmt.execute("alter table " + CONSUMER_STATE_TABLE + " modify column is_in_error boolean default false");
@@ -476,4 +479,30 @@ public class MysqlConsumerStateStore extends ConsumerStateStore {
         }
         if (stmt.executeUpdate() == 0) throw new RuntimeException("Saga state update error");
     }
+
+
+    @Override
+    public void setEnabled(String consumerId, boolean enabled) throws Exception {
+        var stmt = getConnection().prepareStatement("update "  + CONSUMER_STATE_TABLE + " set is_enabled = ? where id = ?" );
+        stmt.setBoolean(1, enabled);
+        stmt.setString(2, consumerId);
+        stmt.executeUpdate();
+    }
+
+    @Override
+    public boolean isEnabled(String consumerId) {
+        try {
+            var stmt = getConnection().prepareStatement("select is_enabled from " + CONSUMER_STATE_TABLE + "  where id = ?");
+            stmt.setString(1, consumerId);
+            var resultSet = stmt.executeQuery();
+            if (!resultSet.next()) return false;
+            return resultSet.getBoolean(1);
+        }catch (Exception e){
+            logger.error("Error checking consumer state", e);
+            return false;
+        }
+    }
+
+
+
 }

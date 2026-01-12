@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.evento'
-version = 'ev1.15.0'
+version = 'ev1.15.1'
 java {
 	targetCompatibility = "21"
 	targetCompatibility = "21"
