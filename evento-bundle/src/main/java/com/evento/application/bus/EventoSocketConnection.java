@@ -260,6 +260,10 @@ public class EventoSocketConnection {
                         }
                     }
                 } catch (Throwable e) {
+                    logger.error("Socket connection failed for {}:{}. Attempt {} - {}",
+                            serverAddress, serverPort, reconnectAttempt + 1, e.getMessage());
+                    logger.error("Cause: ", e);
+
                     // Sleep before attempting to reconnect
                     Sleep.apply(reconnectDelayMillis);
 
