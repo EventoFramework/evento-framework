@@ -152,7 +152,6 @@ public class ProjectorEvenConsumer extends EventConsumer {
                                             lastConsumedEvent = publishedEvent;
                                             return null;
                                         });
-
                             }, sssFetchSize);
                 } catch (Throwable e) {
                     logger.error("Error on projector consumer: " + consumerId, e);
