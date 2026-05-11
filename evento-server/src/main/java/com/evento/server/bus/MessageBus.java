@@ -828,7 +828,7 @@ public class MessageBus {
         }
         logger.info("LEAVE: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
         if(reason != null){
-            logger.error("Leave Reason: {}", reason.getMessage());
+            logger.error("Leave Reason", reason);
         }
     }
 
