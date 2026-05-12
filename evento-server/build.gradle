@@ -5,7 +5,6 @@ plugins {
 }
 
 group = 'com.evento'
-version = 'ev1.15.7'
 java {
 	targetCompatibility = "21"
 	targetCompatibility = "21"
@@ -46,6 +45,13 @@ dependencies {
 
 	implementation project(':evento-common')
 	implementation project(':evento-parser')
+}
+
+// Expand version placeholders in resources like application.properties and version.json
+tasks.named('processResources') {
+    filesMatching(['**/application.properties', '**/version.json']) {
+        expand(version: project.version)
+    }
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {

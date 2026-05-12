@@ -6,7 +6,6 @@ plugins {
 }
 
 group 'com.eventoframework.evento-consumer-state-store'
-version 'ev1.15.7' // + '-SNAPSHOT'
 java {
     targetCompatibility = "21"
     targetCompatibility = "21"
@@ -43,8 +42,14 @@ publishing {
 
                 licenses {
                     license {
-                        name = "MIT License"
-                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                        name = 'GNU Affero General Public License v3.0 only'
+                        url = 'https://www.gnu.org/licenses/agpl-3.0-standalone.html'
+                        distribution = 'repo'
+                    }
+                    license {
+                        name = 'Evento Commercial License'
+                        url = 'https://www.eventoframework.com/commercial-license'
+                        distribution = 'repo'
                     }
                 }
 

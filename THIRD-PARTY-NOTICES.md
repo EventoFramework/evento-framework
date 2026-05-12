@@ -1,0 +1,764 @@
+# Third-Party Notices
+
+This file lists third‑party dependencies and their licenses for all modules.
+
+## evento-bundle (:evento-bundle)
+
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.5.1 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+- org.hibernate.validator:hibernate-validator:8.0.0.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.4.1.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:slf4j-api:1.7.32 —  — http://www.slf4j.org
+
+## evento-cli (:evento-cli)
+
+- com.beust:jcommander:1.48 —  — http://beust.com/jcommander
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.google.code.gson:gson:2.10 —  — https://github.com/google/gson/gson
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- info.picocli:picocli:4.7.0 —  — https://picocli.info
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- net.sourceforge.pmd:pmd-core:6.55.0 — 
+- net.sourceforge.pmd:pmd-java:6.55.0 — 
+- net.sourceforge.saxon:saxon:9.1.0.8 —  — http://saxon.sourceforge.net/
+- org.antlr:antlr4-runtime:4.7.2 —  — http://www.antlr.org
+- org.apache.commons:commons-lang3:3.8.1 —  — http://commons.apache.org/proper/commons-lang/
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.ow2.asm:asm:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-analysis:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-commons:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-tree:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-util:9.4 —  — http://asm.ow2.org
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:slf4j-api:1.7.32 —  — http://www.slf4j.org
+
+## evento-common (:evento-common)
+
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+
+## evento-consumer-state-store (:evento-consumer-state-store)
+
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+
+## evento-demo (:evento-demo)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.eventoframework.evento-consumer-state-store:evento-consumer-state-store-mysql:ev1.15.7 — 
+- com.eventoframework.evento-consumer-state-store:evento-consumer-state-store-postgres:ev1.15.7 — 
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jdk8
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson.module:jackson-module-parameter-names:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-module-parameter-names
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.5.1 —  — https://github.com/FasterXML/java-classmate
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.h2database:h2:2.2.224 —  — https://h2database.com
+- com.mysql:mysql-connector-j:8.3.0 —  — http://dev.mysql.com/doc/connector-j/en/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- com.sun.istack:istack-commons-runtime:4.1.2 —  — https://www.eclipse.org
+- com.zaxxer:HikariCP:5.0.1 —  — https://github.com/brettwooldridge/HikariCP
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.projectreactor:reactor-core:3.6.2 —  — https://github.com/reactor/reactor-core
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- io.smallrye:jandex:3.1.2 — 
+- jakarta.activation:jakarta.activation-api:2.1.2 —  — https://www.eclipse.org
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.inject:jakarta.inject-api:2.0.1 —  — https://www.eclipse.org
+- jakarta.persistence:jakarta.persistence-api:3.1.0 —  — https://www.eclipse.org
+- jakarta.transaction:jakarta.transaction-api:2.0.1 —  — https://projects.eclipse.org/projects/ee4j.jta
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- jakarta.xml.bind:jakarta.xml.bind-api:4.0.1 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- net.bytebuddy:byte-buddy:1.14.11 — 
+- org.antlr:antlr4-runtime:4.13.0 —  — https://www.antlr.org/
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.apache.tomcat.embed:tomcat-embed-core:10.1.18 —  — https://tomcat.apache.org/
+- org.apache.tomcat.embed:tomcat-embed-el:10.1.18 —  — https://tomcat.apache.org/
+- org.apache.tomcat.embed:tomcat-embed-websocket:10.1.18 —  — https://tomcat.apache.org/
+- org.aspectj:aspectjweaver:1.9.21 —  — https://www.eclipse.org/aspectj/
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.eclipse.angus:angus-activation:2.0.1 —  — https://www.eclipse.org
+- org.glassfish.jaxb:jaxb-core:4.0.4 —  — https://www.eclipse.org
+- org.glassfish.jaxb:jaxb-runtime:4.0.4 —  — https://www.eclipse.org
+- org.glassfish.jaxb:txw2:4.0.4 —  — https://eclipse-ee4j.github.io/jaxb-ri/
+- org.hibernate.common:hibernate-commons-annotations:6.0.6.Final —  — http://hibernate.org
+- org.hibernate.orm:hibernate-core:6.4.1.Final —  — https://www.hibernate.org/orm/6.4
+- org.hibernate.validator:hibernate-validator:8.0.0.Final — 
+- org.hibernate.validator:hibernate-validator:8.0.1.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.4.1.Final —  — http://www.jboss.org
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reactivestreams:reactive-streams:1.0.4 —  — http://www.reactive-streams.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:1.7.32 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-aop:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-data-jpa:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-jdbc:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-json:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-tomcat:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-web:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.data:spring-data-commons:3.2.2 —  — https://spring.io/projects/spring-data
+- org.springframework.data:spring-data-jpa:3.2.2 —  — https://projects.spring.io/spring-data-jpa
+- org.springframework.integration:spring-integration-core:6.2.1 —  — https://github.com/spring-projects/spring-integration
+- org.springframework.integration:spring-integration-jdbc:6.2.1 —  — https://github.com/spring-projects/spring-integration
+- org.springframework.retry:spring-retry:2.0.5 —  — https://www.springsource.org
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-aspects:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jdbc:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-messaging:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-orm:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-tx:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-web:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-webmvc:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml
+
+## evento-parser (:evento-parser)
+
+- com.beust:jcommander:1.48 —  — http://beust.com/jcommander
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.google.code.gson:gson:2.10 —  — https://github.com/google/gson/gson
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- net.sourceforge.pmd:pmd-core:6.55.0 — 
+- net.sourceforge.pmd:pmd-java:6.55.0 — 
+- net.sourceforge.saxon:saxon:9.1.0.8 —  — http://saxon.sourceforge.net/
+- org.antlr:antlr4-runtime:4.7.2 —  — http://www.antlr.org
+- org.apache.commons:commons-lang3:3.8.1 —  — http://commons.apache.org/proper/commons-lang/
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.ow2.asm:asm:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-analysis:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-commons:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-tree:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-util:9.4 —  — http://asm.ow2.org
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:slf4j-api:1.7.32 —  — http://www.slf4j.org
+
+## evento-server (:evento-server)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.auth0:java-jwt:4.4.0 —  — https://github.com/auth0/java-jwt
+- com.beust:jcommander:1.48 —  — http://beust.com/jcommander
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.eventoframework:evento-parser:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jdk8
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson.module:jackson-module-parameter-names:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-module-parameter-names
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.google.code.gson:gson:2.10.1 —  — https://github.com/google/gson/gson
+- com.h2database:h2:2.2.224 —  — https://h2database.com
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- com.sun.istack:istack-commons-runtime:4.1.2 —  — https://www.eclipse.org
+- com.zaxxer:HikariCP:5.0.1 —  — https://github.com/brettwooldridge/HikariCP
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-core:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-jakarta9:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.smallrye:jandex:3.1.2 — 
+- jakarta.activation:jakarta.activation-api:2.1.2 —  — https://www.eclipse.org
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.inject:jakarta.inject-api:2.0.1 —  — https://www.eclipse.org
+- jakarta.persistence:jakarta.persistence-api:3.1.0 —  — https://www.eclipse.org
+- jakarta.transaction:jakarta.transaction-api:2.0.1 —  — https://projects.eclipse.org/projects/ee4j.jta
+- jakarta.xml.bind:jakarta.xml.bind-api:4.0.1 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- net.bytebuddy:byte-buddy:1.14.11 — 
+- net.sourceforge.pmd:pmd-core:6.55.0 — 
+- net.sourceforge.pmd:pmd-java:6.55.0 — 
+- net.sourceforge.saxon:saxon:9.1.0.8 —  — http://saxon.sourceforge.net/
+- org.antlr:antlr4-runtime:4.13.0 —  — https://www.antlr.org/
+- org.apache.commons:commons-lang3:3.13.0 —  — https://commons.apache.org/proper/commons-lang/
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.apache.tomcat.embed:tomcat-embed-core:10.1.18 —  — https://tomcat.apache.org/
+- org.apache.tomcat.embed:tomcat-embed-el:10.1.18 —  — https://tomcat.apache.org/
+- org.apache.tomcat.embed:tomcat-embed-websocket:10.1.18 —  — https://tomcat.apache.org/
+- org.aspectj:aspectjweaver:1.9.21 —  — https://www.eclipse.org/aspectj/
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.eclipse.angus:angus-activation:2.0.1 —  — https://www.eclipse.org
+- org.glassfish.jaxb:jaxb-core:4.0.4 —  — https://www.eclipse.org
+- org.glassfish.jaxb:jaxb-runtime:4.0.4 —  — https://www.eclipse.org
+- org.glassfish.jaxb:txw2:4.0.4 —  — https://eclipse-ee4j.github.io/jaxb-ri/
+- org.hdrhistogram:HdrHistogram:2.1.12 —  — http://hdrhistogram.github.io/HdrHistogram/
+- org.hibernate.common:hibernate-commons-annotations:6.0.6.Final —  — http://hibernate.org
+- org.hibernate.orm:hibernate-core:6.4.1.Final —  — https://www.hibernate.org/orm/6.4
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.latencyutils:LatencyUtils:2.0.3 —  — http://latencyutils.github.io/LatencyUtils/
+- org.ow2.asm:asm:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-analysis:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-commons:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-tree:9.4 —  — http://asm.ow2.org
+- org.ow2.asm:asm-util:9.4 —  — http://asm.ow2.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-actuator:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-actuator-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-actuator:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-aop:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-data-jpa:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-jdbc:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-json:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-security:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-tomcat:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-web:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.data:spring-data-commons:3.2.2 —  — https://spring.io/projects/spring-data
+- org.springframework.data:spring-data-jpa:3.2.2 —  — https://projects.spring.io/spring-data-jpa
+- org.springframework.security:spring-security-config:6.2.1 —  — https://spring.io/projects/spring-security
+- org.springframework.security:spring-security-core:6.2.1 —  — https://spring.io/projects/spring-security
+- org.springframework.security:spring-security-crypto:6.2.1 —  — https://spring.io/projects/spring-security
+- org.springframework.security:spring-security-web:6.2.1 —  — https://spring.io/projects/spring-security
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-aspects:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jdbc:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-orm:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-tx:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-web:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-webmvc:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml
+
+## evento-consumer-state-store-mysql (:evento-consumer-state-store:evento-consumer-state-store-mysql)
+
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+
+## evento-consumer-state-store-postgres (:evento-consumer-state-store:evento-consumer-state-store-postgres)
+
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+
+## evento-demo-agent (:evento-demo:evento-demo-agent)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.hibernate.validator:hibernate-validator:8.0.1.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml
+
+## evento-demo-api (:evento-demo:evento-demo-api)
+
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.2 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.2 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.2 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.5.1 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.22.1 — 
+- org.apache.logging.log4j:log4j-core:2.22.1 — 
+- org.hibernate.validator:hibernate-validator:8.0.0.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.4.1.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:slf4j-api:1.7.32 —  — http://www.slf4j.org
+
+## evento-demo-command (:evento-demo:evento-demo-command)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.hibernate.validator:hibernate-validator:8.0.1.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml
+
+## evento-demo-observer (:evento-demo:evento-demo-observer)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.hibernate.validator:hibernate-validator:8.0.1.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml
+
+## evento-demo-pc (:evento-demo:evento-demo-pc)
+
+
+## evento-demo-query (:evento-demo:evento-demo-query)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.eventoframework.evento-consumer-state-store:evento-consumer-state-store-mysql:ev1.15.7 — 
+- com.eventoframework.evento-consumer-state-store:evento-consumer-state-store-postgres:ev1.15.7 — 
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.h2database:h2:2.2.224 —  — https://h2database.com
+- com.mysql:mysql-connector-j:8.3.0 —  — http://dev.mysql.com/doc/connector-j/en/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- com.sun.istack:istack-commons-runtime:4.1.2 —  — https://www.eclipse.org
+- com.zaxxer:HikariCP:5.0.1 —  — https://github.com/brettwooldridge/HikariCP
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.projectreactor:reactor-core:3.6.2 —  — https://github.com/reactor/reactor-core
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- io.smallrye:jandex:3.1.2 — 
+- jakarta.activation:jakarta.activation-api:2.1.2 —  — https://www.eclipse.org
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.inject:jakarta.inject-api:2.0.1 —  — https://www.eclipse.org
+- jakarta.persistence:jakarta.persistence-api:3.1.0 —  — https://www.eclipse.org
+- jakarta.transaction:jakarta.transaction-api:2.0.1 —  — https://projects.eclipse.org/projects/ee4j.jta
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- jakarta.xml.bind:jakarta.xml.bind-api:4.0.1 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- net.bytebuddy:byte-buddy:1.14.11 — 
+- org.antlr:antlr4-runtime:4.13.0 —  — https://www.antlr.org/
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.aspectj:aspectjweaver:1.9.21 —  — https://www.eclipse.org/aspectj/
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.eclipse.angus:angus-activation:2.0.1 —  — https://www.eclipse.org
+- org.glassfish.jaxb:jaxb-core:4.0.4 —  — https://www.eclipse.org
+- org.glassfish.jaxb:jaxb-runtime:4.0.4 —  — https://www.eclipse.org
+- org.glassfish.jaxb:txw2:4.0.4 —  — https://eclipse-ee4j.github.io/jaxb-ri/
+- org.hibernate.common:hibernate-commons-annotations:6.0.6.Final —  — http://hibernate.org
+- org.hibernate.orm:hibernate-core:6.4.1.Final —  — https://www.hibernate.org/orm/6.4
+- org.hibernate.validator:hibernate-validator:8.0.1.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reactivestreams:reactive-streams:1.0.4 —  — http://www.reactive-streams.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-aop:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-data-jpa:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-jdbc:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.data:spring-data-commons:3.2.2 —  — https://spring.io/projects/spring-data
+- org.springframework.data:spring-data-jpa:3.2.2 —  — https://projects.spring.io/spring-data-jpa
+- org.springframework.integration:spring-integration-core:6.2.1 —  — https://github.com/spring-projects/spring-integration
+- org.springframework.integration:spring-integration-jdbc:6.2.1 —  — https://github.com/spring-projects/spring-integration
+- org.springframework.retry:spring-retry:2.0.5 —  — https://www.springsource.org
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-aspects:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jdbc:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-messaging:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-orm:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-tx:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml
+
+## evento-demo-saga (:evento-demo:evento-demo-saga)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.hibernate.validator:hibernate-validator:8.0.1.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml
+
+## evento-demo-web-domain (:evento-demo:evento-demo-web-domain)
+
+- ch.qos.logback:logback-classic:1.4.14 —  — http://www.qos.ch
+- ch.qos.logback:logback-core:1.4.14 —  — http://www.qos.ch
+- com.eventoframework:evento-bundle:ev1.15.7 — 
+- com.eventoframework:evento-common:ev1.15.7 — 
+- com.fasterxml.jackson.core:jackson-annotations:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.core:jackson-core:2.15.3 —  — https://github.com/FasterXML/jackson-core
+- com.fasterxml.jackson.core:jackson-databind:2.15.3 —  — https://github.com/FasterXML/jackson
+- com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jdk8
+- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
+- com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3 —  — https://github.com/FasterXML/jackson-module-jsonSchema
+- com.fasterxml.jackson.module:jackson-module-parameter-names:2.15.3 —  — https://github.com/FasterXML/jackson-modules-java8/jackson-module-parameter-names
+- com.fasterxml.jackson:jackson-bom:2.15.3 —  — https://github.com/FasterXML/jackson-bom
+- com.fasterxml:classmate:1.6.0 —  — https://github.com/FasterXML/java-classmate
+- com.google.code.findbugs:jsr305:3.0.2 —  — http://findbugs.sourceforge.net/
+- com.squareup.okhttp3:okhttp:4.12.0 —  — https://square.github.io/okhttp/
+- com.squareup.okio:okio:3.6.0 —  — https://github.com/square/okio/
+- com.squareup.okio:okio-jvm:3.6.0 —  — https://github.com/square/okio/
+- io.github.classgraph:classgraph:4.8.149 —  — https://github.com/classgraph/classgraph
+- io.micrometer:micrometer-commons:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.micrometer:micrometer-observation:1.12.2 —  — https://github.com/micrometer-metrics/micrometer
+- io.sentry:sentry:6.23.0 —  — https://github.com/getsentry/sentry-java
+- jakarta.annotation:jakarta.annotation-api:2.1.1 —  — https://www.eclipse.org
+- jakarta.validation:jakarta.validation-api:3.0.2 —  — https://www.eclipse.org
+- javax.validation:validation-api:1.1.0.Final —  — http://beanvalidation.org
+- org.apache.logging.log4j:log4j-api:2.21.1 — 
+- org.apache.logging.log4j:log4j-core:2.21.1 — 
+- org.apache.logging.log4j:log4j-to-slf4j:2.21.1 — 
+- org.apache.tomcat.embed:tomcat-embed-core:10.1.18 —  — https://tomcat.apache.org/
+- org.apache.tomcat.embed:tomcat-embed-el:10.1.18 —  — https://tomcat.apache.org/
+- org.apache.tomcat.embed:tomcat-embed-websocket:10.1.18 —  — https://tomcat.apache.org/
+- org.checkerframework:checker-qual:3.31.0 —  — https://checkerframework.org
+- org.hibernate.validator:hibernate-validator:8.0.1.Final — 
+- org.javassist:javassist:3.28.0-GA —  — http://www.javassist.org/
+- org.jboss.logging:jboss-logging:3.5.3.Final —  — http://www.jboss.org
+- org.jetbrains.kotlin:kotlin-stdlib:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22 —  — https://kotlinlang.org/
+- org.jetbrains:annotations:13.0 —  — http://www.jetbrains.org
+- org.postgresql:postgresql:42.6.0 —  — https://jdbc.postgresql.org/
+- org.reflections:reflections:0.10.2 —  — http://github.com/ronmamo/reflections
+- org.slf4j:jul-to-slf4j:2.0.11 —  — http://www.slf4j.org
+- org.slf4j:slf4j-api:2.0.11 —  — http://www.slf4j.org
+- org.springframework.boot:spring-boot:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-autoconfigure:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-json:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-logging:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-tomcat:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework.boot:spring-boot-starter-web:3.2.2 —  — https://spring.io/projects/spring-boot
+- org.springframework:spring-aop:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-beans:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-context:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-core:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-expression:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-jcl:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-web:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.springframework:spring-webmvc:6.1.3 —  — https://github.com/spring-projects/spring-framework
+- org.yaml:snakeyaml:2.2 —  — https://bitbucket.org/snakeyaml/snakeyaml

@@ -1,2 +1,180 @@
+plugins {
+    // License reporting across all modules
+    id 'com.github.jk1.dependency-license-report' version '3.1.2'
+}
+
+import org.gradle.jvm.tasks.Jar
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+// Renderers from the Gradle License Report plugin
+import com.github.jk1.license.render.JsonReportRenderer
+import com.github.jk1.license.render.InventoryHtmlReportRenderer
+
 group 'com.evento'
-version '1.0-SNAPSHOT'
+
+// Single source of truth for the version (defined in gradle.properties)
+// All subprojects will inherit this value.
+// Keep the ev{major}.{minor}.{patch} format, e.g. ev1.15.7
+
+allprojects {
+    version = rootProject.version
+
+    // Inject version into JAR/Boot JAR manifest
+    tasks.withType(Jar).configureEach {
+        manifest {
+            attributes(
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.version
+            )
+        }
+    }
+
+    // If a project uses Spring Boot's bootJar, add the same manifest entries
+    tasks.matching { it.name == 'bootJar' }.configureEach {
+        manifest {
+            attributes(
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.version
+            )
+        }
+    }
+}
+
+// Apply and configure license reporting for all Java-based subprojects
+subprojects { subproj ->
+    // Apply only if project has Java plugin on classpath later; harmless otherwise
+    apply plugin: 'com.github.jk1.dependency-license-report'
+    // Minimal config to avoid buildscript classpath issues with IDE static analysis
+    // The plugin will generate reports into $buildDir/reports/dependency-license or $buildDir/licenses
+    // depending on version. We default to $buildDir/licenses when present.
+    licenseReport {
+        outputDir = "$buildDir/licenses"
+        // Ensure JSON is generated so our aggregator can read it
+        renderers = [
+                new com.github.jk1.license.render.JsonReportRenderer('licenses.json'),
+                // Keep a human-readable HTML inventory too
+                new com.github.jk1.license.render.InventoryHtmlReportRenderer()
+        ]
+        configurations = ['runtimeClasspath']
+    }
+}
+
+// Helper to run all subprojects' generateLicenseReport tasks
+tasks.register('generateAllLicenseReports') {
+    dependsOn subprojects.collect { p -> p.tasks.matching { it.name == 'generateLicenseReport' } }
+}
+
+// Aggregate all subproject license JSONs into a single combined file
+def combinedDir = layout.buildDirectory.dir('licenses')
+def combinedJsonFile = layout.buildDirectory.file('licenses/combined.json')
+
+tasks.register('aggregateLicenses') { t ->
+    group = 'Licensing'
+    description = 'Aggregates per-module license JSON reports into a single combined JSON file.'
+    dependsOn tasks.named('generateAllLicenseReports')
+    inputs.files( subprojects.collect { p ->
+        // Support both legacy and current default output locations/file names
+        [
+            p.layout.buildDirectory.file('licenses/licenses.json'),
+            p.layout.buildDirectory.file('reports/dependency-license/licenses.json')
+        ]
+    }).withPropertyName('licenseReports')
+    outputs.file combinedJsonFile
+    doLast {
+        def slurper = new JsonSlurper()
+        def combined = [ modules: [] ]
+
+        subprojects.each { p ->
+            def candidates = [
+                    p.file("${p.buildDir}/licenses/licenses.json"),
+                    p.file("${p.buildDir}/reports/dependency-license/licenses.json")
+            ]
+            def report = candidates.find { it.exists() }
+            if (report) {
+                def json = slurper.parse(report)
+                combined.modules << [
+                        module     : p.path,
+                        moduleName : p.name,
+                        dependencies: json.dependencies ?: []
+                ]
+            }
+        }
+        def outFile = combinedJsonFile.get().asFile
+        outFile.parentFile.mkdirs()
+        outFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(combined))
+        println "Wrote aggregated license report to ${outFile}"
+    }
+}
+
+// Allowed license predicates (normalized by LicenseBundleNormalizer)
+ext.allowedLicensePredicates = [
+        { s -> s ==~ /(?i).*apache.*2(\.0)?.*/ },
+        { s -> s ==~ /(?i)mit.*/ },
+        { s -> s ==~ /(?i).*bsd.*(2|3).*/ },
+        { s -> s ==~ /(?i).*eclipse public license.*2.0.*/ },
+        { s -> s ==~ /(?i).*mozilla public license.*2.0.*/ },
+        { s -> s ==~ /(?i)unlicense.*/ },
+        { s -> s ==~ /(?i)cc-?0.*/ },
+]
+
+// Verify that all runtime dependencies use allowed licenses
+tasks.register('verifyLicenses') {
+    group = 'Verification'
+    description = 'Fails the build if any dependency uses a disallowed license.'
+    dependsOn tasks.named('aggregateLicenses')
+    doLast {
+        def slurper = new JsonSlurper()
+        def json = slurper.parse(combinedJsonFile.get().asFile)
+        def offenders = []
+        json.modules.each { mod ->
+            (mod.dependencies ?: []).each { dep ->
+                def licenses = (dep.licenses ?: []).collect { it.license ?: it.licenseName ?: '' }.findAll { it }
+                if (licenses.isEmpty()) {
+                    offenders << [module: mod.moduleName, artifact: dep.moduleName ?: dep.artifact, license: 'UNKNOWN']
+                } else {
+                    def ok = licenses.any { lic -> allowedLicensePredicates.any { pred -> pred(lic as String) } }
+                    if (!ok) {
+                        offenders << [module: mod.moduleName, artifact: dep.moduleName ?: dep.artifact, license: licenses.join(', ')]
+                    }
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            println "Found dependencies with disallowed or unknown licenses:\n"
+            offenders.each { off -> println " - [${off.module}] ${off.artifact} -> ${off.license}" }
+            throw new GradleException("License check failed: ${offenders.size()} offending dependencies")
+        } else {
+            println 'All dependency licenses are allowed.'
+        }
+    }
+}
+
+// Produce a simple THIRD-PARTY-NOTICES.md from the aggregated JSON
+tasks.register('generateThirdPartyNotices') {
+    group = 'Licensing'
+    description = 'Generates a THIRD-PARTY-NOTICES.md at project root from combined licenses.'
+    dependsOn tasks.named('aggregateLicenses')
+    def outFile = file('THIRD-PARTY-NOTICES.md')
+    outputs.file outFile
+    doLast {
+        def slurper = new JsonSlurper()
+        def data = slurper.parse(combinedJsonFile.get().asFile)
+        def sb = new StringBuilder()
+        sb.append('# Third-Party Notices\n\n')
+        sb.append('This file lists third‑party dependencies and their licenses for all modules.\n\n')
+        data.modules.each { mod ->
+            sb.append("## ${mod.moduleName} (${mod.module})\n\n")
+            (mod.dependencies ?: []).each { dep ->
+                def name = dep.moduleName ?: dep.artifact ?: 'unknown'
+                def version = dep.moduleVersion ?: ''
+                def url = dep.moduleUrl ?: ''
+                def lic = (dep.licenses ?: []).collect { it.license ?: it.licenseName ?: '' }.findAll { it }.join(', ')
+                def licUrl = (dep.licenses ?: []).collect { it.licenseUrl ?: '' }.findAll { it }.unique().join(', ')
+                sb.append("- ${name}${version ? ":${version}" : ''} — ${lic}${licUrl ? " (${licUrl})" : ''}${url ? " — ${url}" : ''}\n")
+            }
+            sb.append('\n')
+        }
+        outFile.text = sb.toString()
+        println "Wrote ${outFile}"
+    }
+}

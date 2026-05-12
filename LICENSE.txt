@@ -1,7 +1,14 @@
-Copyright 2023 Gabor Galazzo
+Evento Framework — Dual License Notice
+Copyright 2023-2026 Gabor Galazzo
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+This software is dual-licensed under:
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+1) GNU Affero General Public License v3.0 only (the "AGPLv3"): you may use, modify, and redistribute this software under the terms of the AGPLv3. See https://www.gnu.org/licenses/agpl-3.0-standalone.html
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+OR
+
+2) Evento Commercial License: for users who wish to use this software under terms that are not compatible with the AGPLv3 (for example, to develop proprietary or closed-source applications or services), commercial licensing is available. See https://www.eventoframework.com/commercial-license for details.
+
+By using this software, you agree to be bound by the terms of one of the above licenses.
+
+Third-party components included in or used with this software are licensed under their own terms. See accompanying NOTICE and third-party license information where applicable.
