@@ -36,11 +36,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.ServerSocket;
+import java.net.SocketException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
@@ -828,7 +830,11 @@ public class MessageBus {
         }
         logger.info("LEAVE: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
         if(reason != null){
-            logger.error("Leave Reason", reason);
+            if (reason instanceof EOFException || (reason instanceof SocketException && "Connection reset".equals(reason.getMessage()))) {
+                logger.info("Leave Reason: {}", reason.getMessage());
+            } else {
+                logger.error("Leave Reason", reason);
+            }
         }
     }
 

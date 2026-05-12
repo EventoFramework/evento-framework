@@ -32,7 +32,7 @@ public class EventoSocketConnection {
     private final int maxReconnectAttempts;
     private final long reconnectDelayMillis;
 
-    private boolean connecting = true;
+    private volatile boolean connecting = true;
     private final Object connectingLock = new Object();
 
     // Bundle registration information
@@ -143,7 +143,19 @@ public class EventoSocketConnection {
             throw new SendFailedException(new IllegalStateException("Socket connection is closed"));
         }
         if (connecting) {
-            throw new SendFailedException(new IllegalStateException("Socket connection is connecting"));
+            synchronized (connectingLock) {
+                while (connecting && !closed) {
+                    try {
+                        connectingLock.wait(1000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new SendFailedException(e);
+                    }
+                }
+            }
+        }
+        if (closed) {
+            throw new SendFailedException(new IllegalStateException("Socket connection is closed"));
         }
         if (message instanceof EventoRequest r) {
             this.pendingCorrelations.put(r.getCorrelationId(), r);
@@ -214,6 +226,7 @@ public class EventoSocketConnection {
                         in.set(dataInputStream);
 
                         connecting = false;
+                        connectingLock.notifyAll();
                     }
 
                     // If the connection is enabled, send an enable message
@@ -336,6 +349,9 @@ public class EventoSocketConnection {
      */
     public void close() {
         closed = true;
+        synchronized (connectingLock) {
+            connectingLock.notifyAll();
+        }
         try {
             socket.close();
         } catch (IOException e) {
