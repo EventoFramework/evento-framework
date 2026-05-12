@@ -64,6 +64,14 @@ public class MessageBus {
     private final Map<NodeAddress, BundleRegistration> registrations = new ConcurrentHashMap<>();
     private final Set<NodeAddress> availableView = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Map<String, Set<NodeAddress>> handlers = new ConcurrentHashMap<>();
+    /**
+     * Per-NodeAddress token identifying the currently authoritative client connection.
+     * Used by {@link #leave(NodeAddress, UUID, Throwable)} to ignore stale "leave" calls
+     * coming from a previously-superseded connection (avoids the race condition where the
+     * reader thread of a dying socket evicts a bundle that has already reconnected with
+     * a new socket and the same NodeAddress).
+     */
+    private final Map<NodeAddress, UUID> connectionIds = new ConcurrentHashMap<>();
 
     private final BundleDeployService bundleDeployService;
 
@@ -152,9 +160,17 @@ public class MessageBus {
             try (ServerSocket server = new ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
+                    try {
+                        conn.setKeepAlive(true);
+                    } catch (SocketException keepAliveEx) {
+                        logger.warn("Unable to enable TCP keep-alive on {}:{}: {}",
+                                conn.getInetAddress(), conn.getPort(), keepAliveEx.getMessage());
+                    }
                     logger.info("New connection: {}:{}", conn.getInetAddress(), conn.getPort());
+                    // Per-connection identity token used to make join/leave race-free.
+                    final UUID connId = UUID.randomUUID();
                     var it = new Thread(() -> {
-                        logger.info("New connection thread started: {}:{}", conn.getInetAddress(), conn.getPort());
+                        logger.info("New connection thread started: {}:{} [conn={}]", conn.getInetAddress(), conn.getPort(), connId);
                         AtomicReference<NodeAddress> address = new AtomicReference<>();
                         try {
                             var in = new ObjectInputStream(conn.getInputStream());
@@ -167,7 +183,8 @@ public class MessageBus {
                             var registration = (BundleRegistration) in.readObject();
                             logger.info("Bundle Registration Received: {}", registration.getBundleId() + ":" + registration.getBundleVersion() + ":" + registration.getInstanceId());
                             try {
-                                address.set(join(registration, out));
+                                address.set(join(registration, out, connId));
+                                logger.info("Joined cluster: {} [conn={}]", address.get(), connId);
                                 registered = true;
                             } catch (Exception e) {
                                 registrationException = new ExceptionWrapper(e);
@@ -213,7 +230,7 @@ public class MessageBus {
                                 });
                             }
                         } catch (Exception e) {
-                            leave(address.get(), e);
+                            leave(address.get(), connId, e);
                             try {
                                 if (!conn.isClosed())
                                     conn.close();
@@ -259,7 +276,7 @@ public class MessageBus {
                             } catch (Throwable ex) {
                                 logger.error("Error during server heart beat close", ex);
                             }
-                            leave(nodeAddress, e);
+                            leave(nodeAddress, connectionIds.get(nodeAddress), e);
                         }
                     }
                 },
@@ -784,12 +801,17 @@ public class MessageBus {
         }
     }
 
-    private NodeAddress join(BundleRegistration registration, ObjectOutputStream conn) {
+    private NodeAddress join(BundleRegistration registration, ObjectOutputStream conn, UUID connId) {
         var a = new NodeAddress(registration.getBundleId(),
                 registration.getBundleVersion(),
                 registration.getInstanceId());
+        ObjectOutputStream previous;
         synchronized (handlers) {
-            view.put(a, conn);
+            // If a previous connection for the same NodeAddress is still tracked, close its
+            // output stream so its reader thread unblocks and exits without racing with the
+            // newly arrived registration.
+            previous = view.put(a, conn);
+            connectionIds.put(a, connId);
             registrations.put(a, registration);
             for (RegisteredHandler handler : registration.getHandlers()) {
                 if (!handlers.containsKey(handler.getHandledPayload())) {
@@ -800,13 +822,21 @@ public class MessageBus {
                 handlers.put(handler.getHandledPayload(), h);
             }
         }
+        if (previous != null && previous != conn) {
+            logger.info("JOIN: superseding previous connection for {} (closing stale stream)", a);
+            try {
+                previous.close();
+            } catch (Exception ignored) {
+                // ignore - the stale connection might already be broken
+            }
+        }
         synchronized (joinListeners) {
             joinListeners.forEach(l -> l.accept(registration));
         }
         synchronized (viewListeners) {
             viewListeners.forEach(l -> l.accept(view.keySet()));
         }
-        logger.info("JOIN: {} (v.{}) {}", registration.getBundleId(), registration.getBundleVersion(), registration.getBundleId());
+        logger.info("JOIN: {} (v.{}) {} [conn={}]", registration.getBundleId(), registration.getBundleVersion(), registration.getBundleId(), connId);
         return a;
     }
 
@@ -819,9 +849,40 @@ public class MessageBus {
     private final List<Consumer<NodeAddress>> leaveListeners = new ArrayList<>();
 
 
-    private void leave(NodeAddress address, Throwable reason) {
+    /**
+     * Removes a bundle registration from the routing tables.
+     * <p>
+     * This overload guards against stale "leave" calls coming from a connection that has
+     * already been superseded by a fresh reconnection of the same bundle
+     * (same {@code NodeAddress}). The removal is performed only when the address is still
+     * mapped to the supplied {@code connId}. Pass {@code null} to force the removal
+     * unconditionally (used only for legacy callers / forced eviction).
+     *
+     * @param address the NodeAddress to evict; no-op if {@code null}
+     * @param connId  the per-connection token of the caller, or {@code null} to force
+     * @param reason  the throwable that triggered the leave (for logging only)
+     */
+    private void leave(NodeAddress address, UUID connId, Throwable reason) {
         if (address == null) return;
         synchronized (handlers) {
+            if (connId != null) {
+                var current = connectionIds.get(address);
+                if (current != null && !current.equals(connId)) {
+                    // The address is currently bound to a different (newer) connection; this
+                    // leave originates from a stale, already-superseded reader thread.
+                    if (reason != null) {
+                        if (reason instanceof EOFException || (reason instanceof SocketException && "Connection reset".equals(reason.getMessage()))) {
+                            logger.info("Ignoring stale LEAVE for {} [conn={}]: {}", address, connId, reason.getMessage());
+                        } else {
+                            logger.info("Ignoring stale LEAVE for {} [conn={}]", address, connId, reason);
+                        }
+                    } else {
+                        logger.info("Ignoring stale LEAVE for {} [conn={}]", address, connId);
+                    }
+                    return;
+                }
+            }
+            connectionIds.remove(address);
             availableView.remove(address);
             var s = view.remove(address);
             if(s != null){
@@ -840,7 +901,7 @@ public class MessageBus {
         synchronized (viewListeners) {
             viewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(view.keySet()));
         }
-        logger.info("LEAVE: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
+        logger.info("LEAVE: {} (v.{}) {} [conn={}]", address.bundleId(), address.bundleVersion(), address.bundleId(), connId);
         if(reason != null){
             if (reason instanceof EOFException || (reason instanceof SocketException && "Connection reset".equals(reason.getMessage()))) {
                 logger.info("Leave Reason: {}", reason.getMessage());
