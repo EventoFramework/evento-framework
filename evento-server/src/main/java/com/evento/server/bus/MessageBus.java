@@ -47,6 +47,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -72,6 +73,16 @@ public class MessageBus {
      * a new socket and the same NodeAddress).
      */
     private final Map<NodeAddress, UUID> connectionIds = new ConcurrentHashMap<>();
+    /**
+     * Per-NodeAddress consecutive-heartbeat-miss counter. The server tolerates up to
+     * {@link #heartbeatMissTolerance} consecutive failed heartbeats before tearing down
+     * the connection. This avoids amplifying transient write hiccups (e.g. a brief
+     * back-pressure on the client TCP receive buffer, an interleaved write race that
+     * corrupted the stream momentarily, or a momentary I/O error) into a full
+     * reconnection storm for an otherwise healthy bundle.
+     */
+    private final Map<NodeAddress, AtomicInteger> heartbeatMisses = new ConcurrentHashMap<>();
+    private static final int heartbeatMissTolerance = 3;
 
     private final BundleDeployService bundleDeployService;
 
@@ -98,6 +109,14 @@ public class MessageBus {
     private final Executor threadPerMessageExecutor = Executors.newCachedThreadPool();
     private final long disableDelayMillis;
     private final long maxDisableAttempts;
+    /**
+     * Hard upper bound (in milliseconds) for the {@link #destroy()} graceful drain.
+     * Must stay strictly below the orchestrator's SIGKILL grace period (e.g. CloudFoundry
+     * sends SIGKILL after ~10s), otherwise the JVM is forcibly terminated mid-drain and
+     * any pending correlations are abandoned without a response — which is exactly what
+     * was causing the bundles to flood retries during a server restart.
+     */
+    private final long gracefulShutdownBudgetMillis;
     private final long heartbeatInterval;
 
     private final PgDistributedLock distributedLock;
@@ -122,6 +141,7 @@ public class MessageBus {
             BundleService bundleService, ConsumerService consumerService,
             @Value("${evento.server.disable.delay.millis:3000}") long disableDelayMillis,
             @Value("${evento.server.max.disable.attempts:30}") long maxDisableAttempts,
+            @Value("${evento.server.graceful.shutdown.budget.millis:8000}") long gracefulShutdownBudgetMillis,
             @Value("${evento.server.heart.beat.interval:15000}") long heartbeatInterval,
             @Value("${evento.server.correlation.check.interval:1000}") long correlationCheckInterval,
             @Value("${evento.server.send.retry.max.attempts:5}") long sendRetryMaxAttempts,
@@ -137,6 +157,7 @@ public class MessageBus {
         this.consumerService = consumerService;
         this.disableDelayMillis = disableDelayMillis;
         this.maxDisableAttempts = maxDisableAttempts;
+        this.gracefulShutdownBudgetMillis = gracefulShutdownBudgetMillis;
         this.heartbeatInterval = heartbeatInterval;
         this.distributedLock = new PgDistributedLock(dataSource);
         this.correlationCheckInterval = correlationCheckInterval;
@@ -265,18 +286,47 @@ public class MessageBus {
                     logger.debug("Sending heartbeat {} from {}", hb, instanceId);
                     for (NodeAddress nodeAddress : this.availableView) {
                         var value = view.get(nodeAddress);
+                        if (value == null) {
+                            // The address has just been evicted (concurrent leave); skip.
+                            heartbeatMisses.remove(nodeAddress);
+                            continue;
+                        }
+                        // Snapshot the authoritative connection id BEFORE writing, so a
+                        // failure cannot accidentally evict a freshly-reconnected bundle
+                        // (race-safe leave is keyed by this connId).
+                        var boundConnId = connectionIds.get(nodeAddress);
                         try {
                             logger.trace("Sending heartbeat {} to {} - {}", hb, nodeAddress.toString(), nodeAddress.instanceId());
-                            value.writeObject(new ServerHeartBeatMessage(instanceId, hb));
-                            value.flush();
+                            // IMPORTANT: synchronize on the same monitor used by
+                            // send()/sendKill()/BundleRegistered response writes. Without
+                            // this lock, ObjectOutputStream gets corrupted under concurrent
+                            // writers, which then throws IOException and used to tear the
+                            // bundle down on every interleave.
+                            synchronized (value) {
+                                value.writeObject(new ServerHeartBeatMessage(instanceId, hb));
+                                value.flush();
+                            }
+                            // Heartbeat succeeded: reset the miss counter.
+                            heartbeatMisses.remove(nodeAddress);
                         } catch (Throwable e) {
-                            logger.error("Error during server heart beat", e);
+                            var misses = heartbeatMisses
+                                    .computeIfAbsent(nodeAddress, k -> new AtomicInteger())
+                                    .incrementAndGet();
+                            if (misses < heartbeatMissTolerance) {
+                                logger.warn("Heartbeat to {} failed ({} / {} consecutive): {}",
+                                        nodeAddress, misses, heartbeatMissTolerance, e.getMessage());
+                                // Do NOT close or leave yet; give the connection a chance to recover.
+                                continue;
+                            }
+                            logger.error("Heartbeat to {} failed {} times in a row, tearing down the connection",
+                                    nodeAddress, misses, e);
+                            heartbeatMisses.remove(nodeAddress);
                             try {
                                 value.close();
                             } catch (Throwable ex) {
                                 logger.error("Error during server heart beat close", ex);
                             }
-                            leave(nodeAddress, connectionIds.get(nodeAddress), e);
+                            leave(nodeAddress, boundConnId, e);
                         }
                     }
                 },
@@ -305,28 +355,50 @@ public class MessageBus {
             System.out.println("Graceful Shutdown - Started");
             this.isShuttingDown = true;
             System.out.println("Graceful Shutdown - Bus Disabled");
-            System.out.println("Graceful Shutdown - Sleep...");
-            Thread.sleep(disableDelayMillis);
-            var retry = 0;
-            while (!correlations.isEmpty() && retry < maxDisableAttempts) {
-                System.out.printf("Graceful Shutdown - Remaining correlations: %d%n", correlations.size());
-                correlations.forEach((k, v) -> {
-                    System.out.printf("Graceful Shutdown - Pending correlation: %s%n", k);
-                    System.out.println("Graceful Shutdown - Body:");
-                    try {
-                        System.out.println(ObjectMapperUtils.getPayloadObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(v.getRequest()));
-                    } catch (JsonProcessingException ignored) {
-                    }
-
-                });
-                System.out.println("Graceful Shutdown - Sleep...");
-                Sleep.apply(disableDelayMillis);
-                retry++;
+            // Hard upper bound on the drain: must finish before the orchestrator's
+            // SIGKILL (CF: 10s). Beyond this point we proactively fail in-flight
+            // correlations with an EventoRequestCorrelationExpiredException so callers
+            // always get a proper response instead of being silently abandoned.
+            final long budget = Math.max(0L, gracefulShutdownBudgetMillis);
+            final long deadline = System.currentTimeMillis() + budget;
+            final long pollIntervalMillis = Math.max(50L, Math.min(disableDelayMillis, 250L));
+            final int initialPending = correlations.size();
+            System.out.printf("Graceful Shutdown - Draining up to %d ms (initial pending: %d)%n",
+                    budget, initialPending);
+            long lastReport = 0L;
+            while (!correlations.isEmpty() && System.currentTimeMillis() < deadline) {
+                long now = System.currentTimeMillis();
+                if (now - lastReport >= 1000L) {
+                    System.out.printf("Graceful Shutdown - Remaining correlations: %d%n", correlations.size());
+                    lastReport = now;
+                }
+                Sleep.apply(pollIntervalMillis);
             }
             if (correlations.isEmpty()) {
                 System.out.println("Graceful Shutdown - No more correlations, bye!");
             } else {
-                System.out.println("Graceful Shutdown - Pending correlation after " + disableDelayMillis * maxDisableAttempts + " millis of retry... so... bye!");
+                int remaining = correlations.size();
+                System.out.printf("Graceful Shutdown - Budget of %d ms exhausted with %d pending correlations; failing them with EventoRequestCorrelationExpiredException%n",
+                        budget, remaining);
+                // Snapshot to avoid ConcurrentModificationException while removing.
+                for (Correlation c : new ArrayList<>(correlations.values())) {
+                    try {
+                        var resp = new EventoResponse();
+                        resp.setCorrelationId(c.getRequest().getCorrelationId());
+                        resp.setRequestTimestamp(c.getRequest().getTimestamp());
+                        resp.setTimeout(c.getRequest().getTimeout());
+                        resp.setUnit(c.getRequest().getUnit());
+                        resp.setBody(new ExceptionWrapper(
+                                new EventoRequestCorrelationExpiredException(
+                                        "Server is shutting down")));
+                        c.getResponse().accept(resp);
+                    } catch (Exception ex) {
+                        logger.error("Error failing pending correlation during shutdown", ex);
+                    } finally {
+                        correlations.remove(c.getRequest().getCorrelationId());
+                    }
+                }
+                System.out.println("Graceful Shutdown - All pending correlations released, bye!");
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -830,12 +902,44 @@ public class MessageBus {
                 // ignore - the stale connection might already be broken
             }
         }
+        // IMPORTANT: notify join/view listeners asynchronously.
+        //
+        // AutoDiscoveryService.onNodeJoin (the main join listener) acquires a Postgres
+        // distributed lock keyed on the bundleId and performs a fan-out of DB writes for
+        // every registered handler. Running it on the registration thread blocks the
+        // subsequent `BundleRegistered` response write, which in turn makes the bundle
+        // time out waiting for the response and reconnect — perpetuating the reconnect
+        // storm that this whole patch series is trying to eliminate.
+        //
+        // The in-memory routing tables (`view`, `handlers`, `connectionIds`,
+        // `registrations`) are already fully populated above under `synchronized(handlers)`,
+        // so message routing is functional even before the listeners run; the listeners
+        // are only needed for persistence/UI metadata.
+        final List<Consumer<BundleRegistration>> joinSnapshot;
         synchronized (joinListeners) {
-            joinListeners.forEach(l -> l.accept(registration));
+            joinSnapshot = new ArrayList<>(joinListeners);
         }
+        final List<Consumer<Set<NodeAddress>>> viewSnapshot;
         synchronized (viewListeners) {
-            viewListeners.forEach(l -> l.accept(view.keySet()));
+            viewSnapshot = new ArrayList<>(viewListeners);
         }
+        threadPerMessageExecutor.execute(() -> {
+            for (Consumer<BundleRegistration> l : joinSnapshot) {
+                try {
+                    l.accept(registration);
+                } catch (Throwable t) {
+                    logger.error("Join listener failed for {}", registration.getBundleId(), t);
+                }
+            }
+            for (Consumer<Set<NodeAddress>> l : viewSnapshot) {
+                if (l == null) continue;
+                try {
+                    l.accept(view.keySet());
+                } catch (Throwable t) {
+                    logger.error("View listener failed after JOIN of {}", registration.getBundleId(), t);
+                }
+            }
+        });
         logger.info("JOIN: {} (v.{}) {} [conn={}]", registration.getBundleId(), registration.getBundleVersion(), registration.getBundleId(), connId);
         return a;
     }
@@ -883,6 +987,7 @@ public class MessageBus {
                 }
             }
             connectionIds.remove(address);
+            heartbeatMisses.remove(address);
             availableView.remove(address);
             var s = view.remove(address);
             if(s != null){
