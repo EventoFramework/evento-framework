@@ -1,30 +1,48 @@
 package com.evento.demo.agent;
 
-import io.sentry.Sentry;
-import io.sentry.protocol.User;
+import com.evento.demo.agent.agents.StressAgent;
+import com.evento.demo.api.utils.StressDB;
 import com.evento.application.EventoBundle;
-import com.evento.demo.agent.agents.DemoLifecycleAgent;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Semaphore;
+import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
 
 @SuppressWarnings("CallToPrintStackTrace")
 @Component
 public class AgentDispatcher implements CommandLineRunner {
 
 
+    private final StressDB stressDB;
 	private final EventoBundle eventoBundle;
 
-	public AgentDispatcher(EventoBundle eventoBundle) {
-		this.eventoBundle = eventoBundle;
+	public AgentDispatcher(StressDB stressDB, EventoBundle eventoBundle) {
+        this.stressDB = stressDB;
+        this.eventoBundle = eventoBundle;
 	}
 
 	@Override
 	public void run(String... args) throws Exception {
 
+        var stress = eventoBundle.getInvoker(StressAgent.class);
+
+        var instances = 3000L;
+        var identifier = stress.createService(instances, stressDB);
+        System.out.println("Created stress with identifier: " + identifier);
+
+
+        var futures = new ArrayList<CompletableFuture<?>>();
+        for (long i = 0; i < instances; i++) {
+            System.out.println("Calling stress with identifier: " + identifier + " and instance: " + i);
+            futures.add(stress.callService(identifier,
+                    i,
+                     stressDB));
+        }
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+
+        /*
 
 		var demoLifecycleAgent = eventoBundle.getInvoker(DemoLifecycleAgent.class);
 
@@ -77,7 +95,7 @@ public class AgentDispatcher implements CommandLineRunner {
             }
 			System.exit(0);
 		});
-
+*/
 
     }
 }

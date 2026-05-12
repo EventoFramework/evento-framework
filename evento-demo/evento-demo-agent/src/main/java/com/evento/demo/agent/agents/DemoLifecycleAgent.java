@@ -25,12 +25,12 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 		String id = UUID.randomUUID().toString();
 
 		System.out.println("[" + i + "] - START");
-		var resp = getCommandGateway().sendAndWait(new DemoCreateCommand(id, id, 0));
+		var resp = getCommandGateway().send(new DemoCreateCommand(id, id, 0)).get();
 		System.out.println("[" + i + "] - DemoCreateCommand: " + resp);
 		var r = 3;
 		for (int j = 1; j < r; j++)
 		{
-			resp = getCommandGateway().sendAndWait(new DemoUpdateCommand(id, id, j));
+			resp = getCommandGateway().send(new DemoUpdateCommand(id, id, j)).get();
 			System.out.println("[" + i + "] - DemoUpdateCommand: " + resp);
 		}
 		getCommandGateway().send(new DemoUpdateCommand(id, id, 1)).thenAccept(o -> {
@@ -51,7 +51,7 @@ public class DemoLifecycleAgent extends InvokerWrapper {
 			resp = getQueryGateway().query(new DemoViewFindAllQuery(10, 0)).get();
 			System.out.println("[" + i + "] - DemoViewFindAllQuery: " + resp);
 		}
-		resp = getCommandGateway().sendAndWait(new DemoDeleteCommand(id));
+		resp = getCommandGateway().send(new DemoDeleteCommand(id)).get();
 		System.out.println("[" + i + "] - DemoDeleteCommand: " + resp);
 		System.out.println("[" + i + "] - END");
 
