@@ -165,7 +165,7 @@ public class MessageBus {
                             ExceptionWrapper registrationException = null;
                             logger.info("Starting registration process for {}:{}", conn.getInetAddress(), conn.getPort());
                             var registration = (BundleRegistration) in.readObject();
-                            logger.info("Bundle Registration Received: {}", registration);
+                            logger.info("Bundle Registration Received: {}", registration.getBundleId() + ":" + registration.getBundleVersion() + ":" + registration.getInstanceId());
                             try {
                                 address.set(join(registration, out));
                                 registered = true;
