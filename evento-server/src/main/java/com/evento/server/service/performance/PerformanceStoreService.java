@@ -5,6 +5,8 @@ import com.evento.common.performance.PerformanceInvocationsMessage;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.performance.PerformanceServiceTimeMessage;
 import com.evento.common.utils.PgDistributedLock;
+import com.zaxxer.hikari.HikariDataSource;
+import jakarta.annotation.PreDestroy;
 import com.evento.server.domain.model.core.Handler;
 import com.evento.server.domain.model.performance.HandlerInvocationCountPerformance;
 import com.evento.server.domain.model.performance.HandlerServiceTimePerformance;
@@ -45,6 +47,10 @@ public class PerformanceStoreService extends PerformanceService {
 
     private final PgDistributedLock distributedLock;
 
+    private final DataSource dataSource;
+
+    private volatile boolean shuttingDown = false;
+
     @Value("${evento.telemetry.ttl}")
     private int ttl;
 
@@ -62,7 +68,27 @@ public class PerformanceStoreService extends PerformanceService {
 
         this.payloadRepository = payloadRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.dataSource = dataSource;
         this.distributedLock = new PgDistributedLock(dataSource);
+    }
+
+    @PreDestroy
+    public void onShutdown() {
+        // Stop accepting/processing async telemetry work as soon as Spring starts the shutdown sequence.
+        // The Hikari pool is typically closed shortly after, and any in-flight save would otherwise spam
+        // "HikariDataSource has been closed" errors from the pool-3-thread-1 executor.
+        shuttingDown = true;
+    }
+
+    /**
+     * Returns true if telemetry persistence should be skipped because the application is shutting down
+     * or the underlying DataSource is already closed. Used to avoid log spam from the async metric executor
+     * after Spring has begun tearing down the Hikari pool.
+     */
+    private boolean isPersistenceUnavailable() {
+        if (shuttingDown) return true;
+        if (dataSource instanceof HikariDataSource hds && hds.isClosed()) return true;
+        return false;
     }
 
     public static Instant now() {
@@ -78,6 +104,7 @@ public class PerformanceStoreService extends PerformanceService {
 
 
     public void saveServiceTimePerformance(String bundle, String instanceId, String component, String action, long start, long end) {
+        if (isPersistenceUnavailable()) return;
         var pId = bundle + "_" + component + "_" + action;
         var duration = end - start;
         distributedLock.tryLockedArea(pId, () -> {
@@ -125,6 +152,7 @@ public class PerformanceStoreService extends PerformanceService {
 
 
     public void saveInvocationsPerformance(String bundle, String instanceId, String component, String action, HashMap<String, Integer> invocations) {
+        if (isPersistenceUnavailable()) return;
         var pId = "ic__" + bundle + "_" + component + "_" + action;
         distributedLock.tryLockedArea(pId, ()-> {
             var hId = Handler.generateId(bundle, component, action);
@@ -176,8 +204,10 @@ public class PerformanceStoreService extends PerformanceService {
                                                String aggregateId, boolean force) {
         if (!force)
             if (super.random.nextDouble(0.0, 1.0) > super.performanceRate) return;
+        if (isPersistenceUnavailable()) return;
 
         executor.execute(() -> {
+            if (isPersistenceUnavailable()) return;
             try {
                 jdbcTemplate.update(
                         "insert into performance__aggregate_handler_invocation_count_ts " +
