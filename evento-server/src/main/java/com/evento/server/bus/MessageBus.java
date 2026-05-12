@@ -152,15 +152,20 @@ public class MessageBus {
             try (ServerSocket server = new ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
-                    logger.info("New connection: " + conn.getInetAddress() + ":" + conn.getPort());
+                    logger.info("New connection: {}:{}", conn.getInetAddress(), conn.getPort());
                     var it = new Thread(() -> {
+                        logger.info("New connection thread started: {}:{}", conn.getInetAddress(), conn.getPort());
                         AtomicReference<NodeAddress> address = new AtomicReference<>();
                         try {
                             var in = new ObjectInputStream(conn.getInputStream());
+                            logger.info("Input Stream Obtained for {}:{}", conn.getInetAddress(), conn.getPort());
                             var out = new ObjectOutputStream(conn.getOutputStream());
+                            logger.info("Output Stream Obtained for {}:{}", conn.getInetAddress(), conn.getPort());
                             boolean registered = false;
                             ExceptionWrapper registrationException = null;
+                            logger.info("Starting registration process for {}:{}", conn.getInetAddress(), conn.getPort());
                             var registration = (BundleRegistration) in.readObject();
+                            logger.info("Bundle Registration Received: {}", registration);
                             try {
                                 address.set(join(registration, out));
                                 registered = true;
@@ -178,6 +183,7 @@ public class MessageBus {
                                 ));
                                 out.flush();
                             }
+                            logger.info("Registration process finished for {}:{}", conn.getInetAddress(), conn.getPort());
                             if (!registered) {
                                 logger.error("Error during bundle registration: {}", registrationException);
                                 throw new IllegalStateException("Error during bundle registration", registrationException.toException());
@@ -618,8 +624,14 @@ public class MessageBus {
                         throw new IllegalArgumentException("Missing Handler for " + (request != null ? request.getClass() : null));
             }
         } catch (Throwable e) {
-            logger.error("Error handling message in server", e);
-            send(from, tw(message.getCorrelationId(), e));
+            var m = e.getMessage();
+            if(m != null && m.contains("No Bundle available to handle")){
+                send(from, tw(message.getCorrelationId(), e));
+            }else{
+                logger.error("Error handling message in server", e);
+                send(from, tw(message.getCorrelationId(), e));
+            }
+
         }
     }
 
