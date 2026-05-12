@@ -101,3 +101,5 @@ maven
 
 gradle.properties
 *.gpg
+changes.txt
+local_tests
