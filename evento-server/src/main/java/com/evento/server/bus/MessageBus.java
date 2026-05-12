@@ -809,7 +809,13 @@ public class MessageBus {
         if (address == null) return;
         synchronized (handlers) {
             availableView.remove(address);
-            view.remove(address);
+            var s = view.remove(address);
+            if(s != null){
+                try {
+                    s.close();
+                }catch (Exception ignored){
+                }
+            }
             for (Set<NodeAddress> value : handlers.values()) {
                 value.remove(address);
             }
@@ -821,6 +827,9 @@ public class MessageBus {
             viewListeners.stream().filter(Objects::nonNull).toList().forEach(l -> l.accept(view.keySet()));
         }
         logger.info("LEAVE: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
+        if(reason != null){
+            logger.error("Leave Reason: {}", reason.getMessage());
+        }
     }
 
     public void addLeaveListener(Consumer<NodeAddress> onNodeLeave) {
