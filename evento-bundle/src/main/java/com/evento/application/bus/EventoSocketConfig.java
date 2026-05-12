@@ -15,8 +15,20 @@ public class EventoSocketConfig {
     private boolean keepAlive = true;
     private boolean tcpNoDelay = true;
     private boolean reuseAddress = true;
+    /**
+     * When {@code true}, the socket is fully closed on any {@code write()} error,
+     * forcing a full reconnect cycle. This is too aggressive in practice: a single
+     * transient write hiccup (server-side back-pressure, concurrent stream contention,
+     * a momentarily corrupted ObjectOutputStream state) is enough to tear down an
+     * otherwise healthy connection and trigger a reconnection storm.
+     * <p>
+     * Default is {@code false} so the read loop (and the server's heartbeat-miss
+     * tolerance) is the authoritative liveness check; the write path will keep
+     * retrying without dropping the socket. Set to {@code true} only if you have a
+     * specific reason to fail fast on a single send error.
+     */
     @Getter
-    private boolean closeOnSendError = true;
+    private boolean closeOnSendError = false;
     @Getter
     private int timeoutLimit = 3;
 
