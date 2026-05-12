@@ -79,14 +79,13 @@ public class ClusterConnection {
                 // Successful send, exit the loop
                 return;
             } catch (Throwable e) {
-                LOGGER.warn("Message send over socket failed. Attempt {}/{} - {}", attempt , maxRetryAttempts, e.getMessage());
+                LOGGER.warn("Message send over socket failed. Attempt {}/{} - {}", attempt, maxRetryAttempts, e.getMessage());
+                LOGGER.trace("Fail reason", e);
 
                 // If this is the last attempt, throw the SendFailedException
                 if (attempt >= maxRetryAttempts) {
                     throw e;
                 }
-
-                LOGGER.trace("Fail reason", e);
 
                 // Sleep before the next retry
                 try {
