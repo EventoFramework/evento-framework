@@ -1,0 +1,92 @@
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+group 'com.eventoframework'
+version "${eventoVersion}"
+java {
+    toolchain {
+        languageVersion = javaLanguageVersion
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api project(':evento-common')
+    api "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"
+    api 'org.slf4j:slf4j-api:2.0.16'
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = group
+            artifactId = 'evento-transport-api'
+            version = version
+            from components.java
+            pom {
+                name = "Evento Framework - Transport API"
+                description = "Transport SPI for the Evento Framework: sealed Message hierarchy, Codec, Transport, ConnectionState, ReconnectStrategy, HandshakeProtocol"
+                url = "https://www.eventoframework.com/"
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-transport-api"
+                }
+            }
+            repositories {
+                maven {
+                    name = 'ossrh-staging-api'
+                    url = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
+                    credentials {
+                        username = project.properties["mavenCentralUsername"]
+                        password = project.properties["mavenCentralPassword"]
+                    }
+                }
+            }
+        }
+    }
+}
+
+signing {
+    required { gradle.taskGraph.hasTask("publish") }
+    sign publishing.publications.mavenJava
+}
+
+javadoc {
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption("html5", true)
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+}
