@@ -128,6 +128,7 @@ public final class BusLifecycle {
     public Set<NodeAddress> availableView() { return connectionRegistry.availableView(); }
     public boolean isBundleAvailable(String bundleId) { return connectionRegistry.isAvailable(bundleId); }
     public void subscribe(Consumer<BusEvent> listener) { eventBus.subscribe(listener); }
+    public int boundPort() { return transportServer.boundPort(); }
 
     /** Public hook for tests / non-TCP transports: feed an already-accepted Transport. */
     public void acceptConnection(Transport transport) {
@@ -149,6 +150,16 @@ public final class BusLifecycle {
             log.warn("event=duplicate_hello session={}", session.address().instanceId());
             return;
         }
+        // Bind + register synchronously, BEFORE sending Welcome. Otherwise the client
+        // can receive Welcome and immediately fire follow-up notifications (enable,
+        // register-handlers, even a Request) that arrive on the server before
+        // session.address() is set, and get dropped as "before-handshake".
+        long version = parseBundleVersion(hello.bundleVersion());
+        var address = new NodeAddress(hello.bundleId(), version, hello.instanceId());
+        session.bindAddress(address);
+        session.transitionTo(BundleSession.Phase.REGISTERED);
+        connectionRegistry.register(new Connection(
+                address, session.transport(), session.connectionToken(), Instant.now()));
         handshakeHandler.handle(hello, session.transport()).whenComplete((outcome, ex) -> {
             if (ex != null) {
                 log.error("event=handshake_send_failed", ex);
@@ -156,17 +167,10 @@ public final class BusLifecycle {
                 return;
             }
             if (outcome instanceof HandshakeOutcome.Rejected) {
+                // Roll back the speculative registration.
+                connectionRegistry.unregister(address, session.connectionToken(), "handshake_rejected");
                 session.transport().close();
-                return;
             }
-            var accepted = (HandshakeOutcome.Accepted) outcome;
-            long version = parseBundleVersion(accepted.info().bundleVersion());
-            var address = new NodeAddress(
-                    accepted.info().bundleId(), version, accepted.info().instanceId());
-            session.bindAddress(address);
-            session.transitionTo(BundleSession.Phase.REGISTERED);
-            connectionRegistry.register(new Connection(
-                    address, session.transport(), session.connectionToken(), Instant.now()));
         });
     }
 
@@ -277,7 +281,7 @@ public final class BusLifecycle {
     }
 
     private void replyWithError(Transport transport, UUID correlationId, Throwable cause) {
-        var error = Response.error(correlationId, ResponseError.of(cause));
+        var error = Response.failure(correlationId, ResponseError.of(cause));
         try {
             transport.send(error);
         } catch (SendFailedException sfe) {

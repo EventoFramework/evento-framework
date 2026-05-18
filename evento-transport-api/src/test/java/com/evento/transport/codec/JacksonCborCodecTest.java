@@ -68,7 +68,7 @@ class JacksonCborCodecTest {
 
     @Test
     void roundTripResponseSuccess() {
-        var resp = Response.ok(UUID.randomUUID(), "com.demo.Event", new byte[]{1, 2, 3});
+        var resp = Response.success(UUID.randomUUID(), "com.demo.Event", new byte[]{1, 2, 3});
         var decoded = (Response) codec.decode(codec.encode(resp));
         assertThat(decoded.isError()).isFalse();
         assertThat(decoded.payload()).isEqualTo(new byte[]{1, 2, 3});
@@ -77,7 +77,7 @@ class JacksonCborCodecTest {
     @Test
     void roundTripResponseError() {
         var err = ResponseError.of(new IllegalStateException("bad"));
-        var resp = Response.error(UUID.randomUUID(), err);
+        var resp = Response.failure(UUID.randomUUID(), err);
         var decoded = (Response) codec.decode(codec.encode(resp));
         assertThat(decoded.isError()).isTrue();
         assertThat(decoded.error().exceptionClassName()).isEqualTo(IllegalStateException.class.getName());

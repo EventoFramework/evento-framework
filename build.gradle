@@ -14,3 +14,12 @@ allprojects {
         lombokVersion = '1.18.40'
     }
 }
+
+subprojects {
+    apply plugin: 'java'
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+}

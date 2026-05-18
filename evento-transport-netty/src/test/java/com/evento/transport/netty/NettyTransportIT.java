@@ -116,7 +116,7 @@ class NettyTransportIT {
             if (!(msg instanceof Request req)) return;
             CreateDemoCommand cmd = payloadCodec.decode(req.payload(), CreateDemoCommand.class);
             var event = new DemoCreatedEvent(cmd.demoId(), cmd.name(), cmd.value(), 1_700_000_000_000L);
-            var resp = Response.ok(req.correlationId(), DemoCreatedEvent.class.getName(),
+            var resp = Response.success(req.correlationId(), DemoCreatedEvent.class.getName(),
                     payloadCodec.encode(event));
             serverChild.send(resp);
         });
@@ -154,7 +154,7 @@ class NettyTransportIT {
         var serverChild = serverChildren.getFirst();
         serverChild.onMessage(msg -> {
             if (!(msg instanceof Request req)) return;
-            var err = Response.error(req.correlationId(),
+            var err = Response.failure(req.correlationId(),
                     ResponseError.of(new IllegalStateException("nope")));
             serverChild.send(err);
         });
@@ -189,7 +189,7 @@ class NettyTransportIT {
             if (!(msg instanceof Request req)) return;
             CreateDemoCommand cmd = payloadCodec.decode(req.payload(), CreateDemoCommand.class);
             var event = new DemoCreatedEvent(cmd.demoId(), cmd.name(), cmd.value() * 2, 0L);
-            serverChild.send(Response.ok(req.correlationId(), DemoCreatedEvent.class.getName(),
+            serverChild.send(Response.success(req.correlationId(), DemoCreatedEvent.class.getName(),
                     payloadCodec.encode(event)));
         });
 
