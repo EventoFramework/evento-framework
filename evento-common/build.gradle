@@ -6,10 +6,11 @@ plugins {
 }
 
 group 'com.eventoframework'
-version 'ev1.15.7' // + '-SNAPSHOT'
+version "${eventoVersion}"
 java {
-    targetCompatibility = "21"
-    targetCompatibility = "21"
+    toolchain {
+        languageVersion = javaLanguageVersion
+    }
 }
 
 
@@ -18,15 +19,17 @@ repositories {
 }
 
 dependencies {
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.4'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.4'
+    testImplementation 'org.assertj:assertj-core:3.26.3'
 
-    api 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
-    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2'
-    api 'com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.2'
+    api "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"
+    api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
+    api "com.fasterxml.jackson.module:jackson-module-jsonSchema:${jacksonVersion}"
 
-    api 'org.apache.logging.log4j:log4j-api:2.22.1'
-    api 'org.apache.logging.log4j:log4j-core:2.22.1'
+    api 'org.apache.logging.log4j:log4j-api:2.24.3'
+    api 'org.apache.logging.log4j:log4j-core:2.24.3'
 }
 
 java {

@@ -1,2 +1,16 @@
 group 'com.evento'
-version '1.0-SNAPSHOT'
+version '2.0.0-SNAPSHOT'
+
+allprojects {
+    ext {
+        javaLanguageVersion = JavaLanguageVersion.of(25)
+        eventoVersion = '2.0.0-SNAPSHOT'
+        jacksonVersion = '2.18.2'
+        nettyVersion = '4.1.118.Final'
+        lz4Version = '1.8.0'
+        micrometerVersion = '1.13.6'
+        junitVersion = '5.11.4'
+        assertjVersion = '3.26.3'
+        lombokVersion = '1.18.40'
+    }
+}
