@@ -1,14 +1,15 @@
 plugins {
-	id 'org.springframework.boot' version '3.2.2'
-	id 'io.spring.dependency-management' version '1.1.4'
+	id 'org.springframework.boot' version '3.5.5'
+	id 'io.spring.dependency-management' version '1.1.7'
 	id 'java'
 }
 
 group = 'com.evento'
-version = 'ev1.15.7'
+version = "${eventoVersion}"
 java {
-	targetCompatibility = "21"
-	targetCompatibility = "21"
+	toolchain {
+		languageVersion = javaLanguageVersion
+	}
 }
 
 
@@ -28,11 +29,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    compileOnly 'org.projectlombok:lombok'
-	
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
-	annotationProcessor 'org.projectlombok:lombok'
+	annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	implementation 'com.google.code.gson:gson:2.10.1'
 
