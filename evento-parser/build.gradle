@@ -6,10 +6,11 @@ plugins {
 }
 
 group 'com.eventoframework'
-version 'ev1.15.7' // + '-SNAPSHOT'
+version "${eventoVersion}"
 java {
-    targetCompatibility = "21"
-    targetCompatibility = "21"
+    toolchain {
+        languageVersion = javaLanguageVersion
+    }
 }
 
 repositories {
