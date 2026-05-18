@@ -250,10 +250,30 @@ public final class BusLifecycle {
         session.transitionTo(BundleSession.Phase.CLOSED);
         connectionRegistry.unregister(address, session.connectionToken(), "transport_disconnected");
         clusterRegistry.removeNode(address);
-        // Surface a failure to anyone awaiting a response from/to this node.
-        var failure = new IllegalStateException("peer disconnected: " + address.instanceId());
-        forwardingTable.removeInvolving(address);
-        correlationStore.failMatching(c -> c.to().equals(address), failure);
+
+        // For every in-flight forwarded request that involved this peer, drain the
+        // entry and surface a failure to the surviving counterparty so its future
+        // doesn't hang forever. If the disconnecting peer was the *destination*
+        // (handler), we know the originator is still waiting; if it was the
+        // originator, the destination's eventual response (if any) will simply be
+        // dropped by `onResponse` because there's no forwarding entry left.
+        var drained = forwardingTable.drainInvolving(address);
+        var disconnectCause = new IllegalStateException("peer disconnected: " + address.instanceId());
+        for (var entry : drained) {
+            if (!entry.destination().equals(address)) continue;  // originator-only — nothing to surface
+            connectionRegistry.lookup(entry.originator()).ifPresent(originatorConn -> {
+                var err = Response.failure(entry.correlationId(), ResponseError.of(disconnectCause));
+                try {
+                    originatorConn.transport().send(err);
+                } catch (SendFailedException sfe) {
+                    log.warn("event=disconnect_notify_failed correlationId={} originator={}",
+                            entry.correlationId(), entry.originator().instanceId(), sfe);
+                }
+            });
+        }
+
+        // Server-initiated correlations (no forwarding involved) also fail.
+        correlationStore.failMatching(c -> c.to().equals(address), disconnectCause);
     }
 
     // ---- helpers ----

@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +30,7 @@ public final class ForwardingTable {
 
     private static final Logger log = LoggerFactory.getLogger(ForwardingTable.class);
 
-    public record Entry(NodeAddress originator, NodeAddress destination,
+    public record Entry(UUID correlationId, NodeAddress originator, NodeAddress destination,
                         String payloadType, long submittedAtMs) {}
 
     private final Map<UUID, Entry> table = new ConcurrentHashMap<>();
@@ -40,7 +42,7 @@ public final class ForwardingTable {
      */
     public boolean track(UUID correlationId, NodeAddress originator,
                          NodeAddress destination, String payloadType) {
-        var entry = new Entry(originator, destination, payloadType, System.currentTimeMillis());
+        var entry = new Entry(correlationId, originator, destination, payloadType, System.currentTimeMillis());
         return table.putIfAbsent(correlationId, entry) == null;
     }
 
@@ -72,21 +74,30 @@ public final class ForwardingTable {
     }
 
     /**
-     * Drop every entry whose originator or destination matches {@code address}.
-     * Called on disconnect to free the forwarding slot — the caller is responsible
-     * for delivering a failure Response to surviving counterparties if needed.
+     * Atomically remove and return every entry whose originator or destination
+     * matches {@code address}. Called on disconnect so the caller can notify the
+     * surviving counterparty (typically with a failure {@code Response} when the
+     * destination is the one that just left).
+     */
+    public List<Entry> drainInvolving(NodeAddress address) {
+        var drained = new ArrayList<Entry>();
+        for (var key : List.copyOf(table.keySet())) {
+            var entry = table.get(key);
+            if (entry == null) continue;
+            if (entry.originator().equals(address) || entry.destination().equals(address)) {
+                if (table.remove(key, entry)) {
+                    drained.add(entry);
+                }
+            }
+        }
+        return drained;
+    }
+
+    /**
+     * Convenience: drop entries involving {@code address} without returning them.
      */
     public int removeInvolving(NodeAddress address) {
-        int[] count = {0};
-        table.entrySet().removeIf(e -> {
-            if (e.getValue().originator().equals(address)
-                    || e.getValue().destination().equals(address)) {
-                count[0]++;
-                return true;
-            }
-            return false;
-        });
-        return count[0];
+        return drainInvolving(address).size();
     }
 
     public int size() {
