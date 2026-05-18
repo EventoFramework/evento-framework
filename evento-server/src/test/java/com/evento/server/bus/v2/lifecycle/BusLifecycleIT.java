@@ -194,7 +194,7 @@ class BusLifecycleIT {
         }
 
         void replyToRequest(Request req, byte[] body, String payloadType) {
-            clientSide.send(Response.ok(req.correlationId(), payloadType, body));
+            clientSide.send(Response.success(req.correlationId(), payloadType, body));
         }
     }
 

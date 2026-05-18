@@ -129,7 +129,7 @@ public final class CorrelationStore {
             var error = new ResponseError("com.evento.transport.RequestTimeoutException",
                     "request expired after " + (now - p.createdAt()) + "ms (timeout=" + p.timeoutMs() + ")",
                     null);
-            p.future().complete(Response.error(p.correlationId(), error));
+            p.future().complete(Response.failure(p.correlationId(), error));
             expired++;
         }
         if (expired > 0) {

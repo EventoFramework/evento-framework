@@ -37,7 +37,7 @@ class CorrelationStoreTest {
         var corr = UUID.randomUUID();
         var future = store.submit(addr("from"), addr("to"), corr, "com.X", 5000L);
 
-        var response = Response.ok(corr, "com.Y", new byte[]{1, 2, 3});
+        var response = Response.success(corr, "com.Y", new byte[]{1, 2, 3});
         boolean matched = store.complete(response);
 
         assertThat(matched).isTrue();
@@ -47,7 +47,7 @@ class CorrelationStoreTest {
 
     @Test
     void completeUnknownCorrelationReturnsFalse() {
-        boolean matched = store.complete(Response.ok(UUID.randomUUID(), "x", new byte[0]));
+        boolean matched = store.complete(Response.success(UUID.randomUUID(), "x", new byte[0]));
         assertThat(matched).isFalse();
     }
 
@@ -73,7 +73,7 @@ class CorrelationStoreTest {
         assertThat(future.isDone()).isFalse();
         assertThat(store.pendingCount()).isEqualTo(1);
 
-        store.complete(Response.ok(corr, "y", new byte[0]));
+        store.complete(Response.success(corr, "y", new byte[0]));
         assertThat(future.get(200, TimeUnit.MILLISECONDS).isError()).isFalse();
     }
 
