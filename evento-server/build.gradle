@@ -47,6 +47,11 @@ dependencies {
 
 	implementation project(':evento-common')
 	implementation project(':evento-parser')
+	implementation project(':evento-transport-api')
+	implementation project(':evento-transport-netty')
+
+	testImplementation 'org.assertj:assertj-core:3.26.3'
+	testImplementation 'org.awaitility:awaitility:4.2.2'
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {
