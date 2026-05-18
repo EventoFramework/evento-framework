@@ -104,7 +104,7 @@ class RoundTripFlowTest {
             CreateDemoCommand cmd = payloadCodec.decode(req.payload(), CreateDemoCommand.class);
             var event = new DemoCreatedEvent(cmd.demoId(), cmd.name(), cmd.value(), 1_700_000_000_000L);
             byte[] body = payloadCodec.encode(event);
-            var response = Response.ok(req.correlationId(), DemoCreatedEvent.class.getName(), body);
+            var response = Response.success(req.correlationId(), DemoCreatedEvent.class.getName(), body);
             pair.server().send(response).join();
         });
 
@@ -145,7 +145,7 @@ class RoundTripFlowTest {
             try {
                 throw new IllegalArgumentException("invalid demo id");
             } catch (Throwable t) {
-                var err = Response.error(req.correlationId(), ResponseError.of(t));
+                var err = Response.failure(req.correlationId(), ResponseError.of(t));
                 pair.server().send(err).join();
             }
         });
@@ -176,7 +176,7 @@ class RoundTripFlowTest {
             CreateDemoCommand cmd = payloadCodec.decode(req.payload(), CreateDemoCommand.class);
             // Echo: encode value*2 into a DemoCreatedEvent so we can verify per-request mapping.
             var event = new DemoCreatedEvent(cmd.demoId(), cmd.name(), cmd.value() * 2, 0L);
-            pair.server().send(Response.ok(req.correlationId(), DemoCreatedEvent.class.getName(),
+            pair.server().send(Response.success(req.correlationId(), DemoCreatedEvent.class.getName(),
                     payloadCodec.encode(event))).join();
         });
 
