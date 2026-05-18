@@ -1,0 +1,99 @@
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+group 'com.eventoframework'
+version "${eventoVersion}"
+java {
+    toolchain {
+        languageVersion = javaLanguageVersion
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api project(':evento-transport-api')
+
+    api "io.netty:netty-handler:${nettyVersion}"
+    api "io.netty:netty-codec:${nettyVersion}"
+    api "io.netty:netty-transport:${nettyVersion}"
+    api "io.netty:netty-buffer:${nettyVersion}"
+    implementation "org.lz4:lz4-java:${lz4Version}"
+    api 'org.slf4j:slf4j-api:2.0.16'
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+    testImplementation 'org.awaitility:awaitility:4.2.2'
+    testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3'
+    testImplementation project(':evento-transport-api')
+}
+
+test {
+    useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = group
+            artifactId = 'evento-transport-netty'
+            version = version
+            from components.java
+            pom {
+                name = "Evento Framework - Transport (Netty)"
+                description = "Netty-based transport implementation for the Evento Framework, with CBOR codec and length-prefixed framing"
+                url = "https://www.eventoframework.com/"
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-transport-netty"
+                }
+            }
+            repositories {
+                maven {
+                    name = 'ossrh-staging-api'
+                    url = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
+                    credentials {
+                        username = project.properties["mavenCentralUsername"]
+                        password = project.properties["mavenCentralPassword"]
+                    }
+                }
+            }
+        }
+    }
+}
+
+signing {
+    required { gradle.taskGraph.hasTask("publish") }
+    sign publishing.publications.mavenJava
+}
+
+javadoc {
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption("html5", true)
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+}
