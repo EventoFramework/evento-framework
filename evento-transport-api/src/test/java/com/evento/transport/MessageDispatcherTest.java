@@ -23,7 +23,7 @@ class MessageDispatcherTest {
         var captured = new AtomicReference<Hello>();
         dispatcher.register(Hello.class, (msg, ctx) -> captured.set(msg));
 
-        var hello = new Hello(UUID.randomUUID(), (byte) 2, "b", "i", "v", Set.of(), 0L);
+        var hello = new Hello(UUID.randomUUID(), (byte) 2, "b", "i", "v", Set.of(), null, 0L);
         dispatcher.dispatch(hello, new Ctx("ctx"));
 
         assertThat(captured.get()).isEqualTo(hello);

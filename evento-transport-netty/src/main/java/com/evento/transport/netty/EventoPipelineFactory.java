@@ -32,6 +32,10 @@ final class EventoPipelineFactory {
                    AtomicLong lastInboundMs,
                    Consumer<Message> messageListener) {
         ChannelPipeline p = ch.pipeline();
+        // TLS, if configured, must run before any framing/decoder so it operates on raw socket bytes.
+        if (config.sslContext() != null) {
+            p.addLast("tls", config.sslContext().newHandler(ch.alloc()));
+        }
         p.addLast("frameDec", new LengthFieldBasedFrameDecoder(
                 config.maxFrameLength(), 0, 4, 0, 4));
         p.addLast("frameEnc", new LengthFieldPrepender(4));

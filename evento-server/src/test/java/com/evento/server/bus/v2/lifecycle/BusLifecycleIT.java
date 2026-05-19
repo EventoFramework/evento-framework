@@ -3,7 +3,7 @@ package com.evento.server.bus.v2.lifecycle;
 import com.evento.server.bus.v2.correlation.CorrelationStore;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.bus.v2.event.BusEventBus;
-import com.evento.server.bus.v2.handshake.BundleRegistrationInfo;
+import com.evento.transport.protocol.BundleRegistrationInfo;
 import com.evento.server.bus.v2.registry.ClusterRegistry;
 import com.evento.server.bus.v2.registry.ConnectionRegistry;
 import com.evento.server.bus.v2.router.ForwardingTable;
@@ -167,7 +167,7 @@ class BusLifecycleIT {
             var future = new CompletableFuture<Welcome>();
             pendingHellos.put(corr, future);
             var hello = new Hello(corr, HandshakeProtocol.PROTOCOL_VERSION,
-                    bundleId, instanceId, "100", Set.of(), System.currentTimeMillis());
+                    bundleId, instanceId, "100", Set.of(), null, System.currentTimeMillis());
             clientSide.send(hello);
             return future;
         }

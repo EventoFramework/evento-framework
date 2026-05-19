@@ -13,6 +13,7 @@ public record Hello(
         String instanceId,
         String bundleVersion,
         Set<String> capabilities,
+        String authToken,
         long timestampMs
 ) implements Message {
 
@@ -24,6 +25,7 @@ public record Hello(
             @JsonProperty("instanceId") String instanceId,
             @JsonProperty("bundleVersion") String bundleVersion,
             @JsonProperty("capabilities") Set<String> capabilities,
+            @JsonProperty("authToken") String authToken,
             @JsonProperty("timestampMs") long timestampMs
     ) {
         this.correlationId = correlationId;
@@ -32,6 +34,7 @@ public record Hello(
         this.instanceId = instanceId;
         this.bundleVersion = bundleVersion;
         this.capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);
+        this.authToken = authToken;
         this.timestampMs = timestampMs;
     }
 }

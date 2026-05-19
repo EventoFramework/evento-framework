@@ -2,9 +2,10 @@ package com.evento.server.bus.v2.lifecycle;
 
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.v2.correlation.CorrelationStore;
+import com.evento.server.bus.v2.correlation.ForwardingDedupCache;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.bus.v2.event.BusEventBus;
-import com.evento.server.bus.v2.handshake.BundleRegistrationInfo;
+import com.evento.transport.protocol.BundleRegistrationInfo;
 import com.evento.server.bus.v2.handshake.HandshakeHandler;
 import com.evento.server.bus.v2.handshake.HandshakeHandler.HandshakeOutcome;
 import com.evento.server.bus.v2.registry.ClusterRegistry;
@@ -13,6 +14,7 @@ import com.evento.server.bus.v2.registry.ConnectionRegistry;
 import com.evento.server.bus.v2.router.BundleSession;
 import com.evento.server.bus.v2.router.ForwardingTable;
 import com.evento.server.bus.v2.router.MessageRouter;
+import com.evento.server.bus.v2.security.TokenValidator;
 import com.evento.transport.HandshakeProtocol;
 import com.evento.transport.SendFailedException;
 import com.evento.transport.Transport;
@@ -53,10 +55,10 @@ public final class BusLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(BusLifecycle.class);
 
-    // --- protocol-internal notification payload types ---
-    public static final String NOTIFY_ENABLE = "evento:enable";
-    public static final String NOTIFY_DISABLE = "evento:disable";
-    public static final String NOTIFY_KILL = "evento:kill";
+    // --- protocol-internal notification payload types (forwarded for callers convenience) ---
+    public static final String NOTIFY_ENABLE = com.evento.transport.protocol.ProtocolNotifications.ENABLE;
+    public static final String NOTIFY_DISABLE = com.evento.transport.protocol.ProtocolNotifications.DISABLE;
+    public static final String NOTIFY_KILL = com.evento.transport.protocol.ProtocolNotifications.KILL;
 
     private final TransportServer transportServer;
     private final ConnectionRegistry connectionRegistry;
@@ -66,6 +68,8 @@ public final class BusLifecycle {
     private final BusEventBus eventBus;
     private final HandshakeHandler handshakeHandler;
     private final PayloadCodec payloadCodec;
+    private final TokenValidator tokenValidator;
+    private final ForwardingDedupCache dedupCache;
     private final MessageRouter router;
     private final ConcurrentHashMap<Transport, BundleSession> sessionsByTransport = new ConcurrentHashMap<>();
 
@@ -79,7 +83,7 @@ public final class BusLifecycle {
                         Set<String> serverCapabilities) {
         this(transportServer, connectionRegistry, clusterRegistry, correlationStore,
                 forwardingTable, eventBus, serverInstanceId, serverCapabilities,
-                new JacksonCborPayloadCodec());
+                new JacksonCborPayloadCodec(), TokenValidator.acceptAll());
     }
 
     public BusLifecycle(TransportServer transportServer,
@@ -91,6 +95,37 @@ public final class BusLifecycle {
                         String serverInstanceId,
                         Set<String> serverCapabilities,
                         PayloadCodec payloadCodec) {
+        this(transportServer, connectionRegistry, clusterRegistry, correlationStore,
+                forwardingTable, eventBus, serverInstanceId, serverCapabilities,
+                payloadCodec, TokenValidator.acceptAll());
+    }
+
+    public BusLifecycle(TransportServer transportServer,
+                        ConnectionRegistry connectionRegistry,
+                        ClusterRegistry clusterRegistry,
+                        CorrelationStore correlationStore,
+                        ForwardingTable forwardingTable,
+                        BusEventBus eventBus,
+                        String serverInstanceId,
+                        Set<String> serverCapabilities,
+                        PayloadCodec payloadCodec,
+                        TokenValidator tokenValidator) {
+        this(transportServer, connectionRegistry, clusterRegistry, correlationStore,
+                forwardingTable, eventBus, serverInstanceId, serverCapabilities,
+                payloadCodec, tokenValidator, new ForwardingDedupCache());
+    }
+
+    public BusLifecycle(TransportServer transportServer,
+                        ConnectionRegistry connectionRegistry,
+                        ClusterRegistry clusterRegistry,
+                        CorrelationStore correlationStore,
+                        ForwardingTable forwardingTable,
+                        BusEventBus eventBus,
+                        String serverInstanceId,
+                        Set<String> serverCapabilities,
+                        PayloadCodec payloadCodec,
+                        TokenValidator tokenValidator,
+                        ForwardingDedupCache dedupCache) {
         this.transportServer = transportServer;
         this.connectionRegistry = connectionRegistry;
         this.clusterRegistry = clusterRegistry;
@@ -98,6 +133,8 @@ public final class BusLifecycle {
         this.forwardingTable = forwardingTable;
         this.eventBus = eventBus;
         this.payloadCodec = payloadCodec;
+        this.tokenValidator = tokenValidator;
+        this.dedupCache = dedupCache;
         this.handshakeHandler = new HandshakeHandler(
                 serverInstanceId,
                 serverCapabilities,
@@ -200,8 +237,27 @@ public final class BusLifecycle {
                     new IllegalStateException("handshake required before requests"));
             return;
         }
+        // Exactly-once at the broker: a duplicate of an already-answered request
+        // gets the cached response; a duplicate of an in-flight request is dropped.
+        var dedupOutcome = dedupCache.resolveOrClaim(request.correlationId());
+        switch (dedupOutcome) {
+            case ForwardingDedupCache.Outcome.Replay replay -> {
+                log.info("event=request_dedup_replay correlationId={} payloadType={}",
+                        request.correlationId(), request.payloadType());
+                session.transport().send(replay.response());
+                return;
+            }
+            case ForwardingDedupCache.Outcome.InFlight ignored -> {
+                log.info("event=request_dedup_drop_inflight correlationId={} payloadType={}",
+                        request.correlationId(), request.payloadType());
+                return;
+            }
+            case ForwardingDedupCache.Outcome.Claimed ignored -> { /* fresh; route below */ }
+        }
+
         var destination = clusterRegistry.pick(request.payloadType());
         if (destination.isEmpty()) {
+            dedupCache.invalidate(request.correlationId());  // don't cache routing-side failures
             replyWithError(session.transport(), request.correlationId(),
                     new IllegalStateException("no handler for " + request.payloadType()));
             return;
@@ -209,6 +265,7 @@ public final class BusLifecycle {
         var destAddress = destination.get();
         var destConnection = connectionRegistry.lookup(destAddress);
         if (destConnection.isEmpty()) {
+            dedupCache.invalidate(request.correlationId());
             replyWithError(session.transport(), request.correlationId(),
                     new IllegalStateException("handler vanished: " + destAddress.instanceId()));
             return;
@@ -216,6 +273,7 @@ public final class BusLifecycle {
         forwardingTable.track(request.correlationId(), session.address(), destAddress, request.payloadType());
         destConnection.get().transport().send(request).exceptionally(t -> {
             forwardingTable.resolve(request.correlationId());
+            dedupCache.invalidate(request.correlationId());
             replyWithError(session.transport(), request.correlationId(), t);
             return null;
         });
@@ -225,6 +283,8 @@ public final class BusLifecycle {
         if (correlationStore.complete(response)) {
             return;  // server-initiated request
         }
+        // Cache the response so duplicate requests on the way get a replay.
+        dedupCache.recordResponse(response.correlationId(), response);
         var entry = forwardingTable.resolve(response.correlationId());
         if (entry.isEmpty()) {
             log.debug("event=orphan_response correlationId={}", response.correlationId());
@@ -283,6 +343,13 @@ public final class BusLifecycle {
             return new HandshakeOutcome.Rejected(
                     com.evento.transport.message.Reject.CODE_PROTOCOL_VERSION,
                     "unsupported protocol version " + hello.protocolVersion());
+        }
+        var verdict = tokenValidator.validate(hello.bundleId(), hello.instanceId(), hello.authToken());
+        if (verdict instanceof TokenValidator.Decision.Reject reject) {
+            log.warn("event=auth_rejected bundle={} instance={} reason={}",
+                    hello.bundleId(), hello.instanceId(), reject.reason());
+            return new HandshakeOutcome.Rejected(
+                    com.evento.transport.message.Reject.CODE_AUTH_FAILED, reject.reason());
         }
         var probableAddress = new NodeAddress(hello.bundleId(),
                 parseBundleVersion(hello.bundleVersion()), hello.instanceId());

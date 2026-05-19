@@ -1,4 +1,4 @@
-package com.evento.server.bus.v2.handshake;
+package com.evento.transport.protocol;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -14,9 +14,7 @@ import java.util.Map;
  * break).
  *
  * <p>Carried as opaque CBOR bytes inside
- * {@link com.evento.transport.message.Notification#payload()}, so this record
- * is part of the {@code evento-server} contract with cooperating bundles, not
- * of the wire-level {@code Message} hierarchy.
+ * {@link com.evento.transport.message.Notification#payload()}.
  */
 public record BundleRegistrationInfo(
         long bundleVersion,
@@ -24,7 +22,8 @@ public record BundleRegistrationInfo(
         Map<String, Map<String, Object>> payloadMetadata
 ) {
 
-    public static final String PAYLOAD_TYPE = "evento:bundle-registration";
+    /** The {@link com.evento.transport.message.Notification#payloadType()} that carries this record. */
+    public static final String PAYLOAD_TYPE = ProtocolNotifications.BUNDLE_REGISTRATION;
 
     @JsonCreator
     public BundleRegistrationInfo(

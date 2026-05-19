@@ -101,3 +101,4 @@ maven
 
 gradle.properties
 *.gpg
+.DS_Store
