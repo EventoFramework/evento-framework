@@ -1,0 +1,139 @@
+package com.evento.application.client.v2;
+
+import com.evento.application.client.v2.correlation.BundleCorrelationTracker;
+import com.evento.application.client.v2.dedup.ProcessedRequestCache;
+import com.evento.application.client.v2.handler.HandlerRegistry;
+import com.evento.transport.SendFailedException;
+import com.evento.transport.message.Message;
+import com.evento.transport.message.Notification;
+import com.evento.transport.message.Request;
+import com.evento.transport.message.Response;
+import com.evento.transport.message.ResponseError;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+/**
+ * Per-bundle inbound router. Pattern-matches each inbound message to a
+ * destination:
+ *
+ * <ul>
+ *   <li>{@link Response} → complete the matching outbound future via
+ *       {@link BundleCorrelationTracker}.</li>
+ *   <li>{@link Request} → consult {@link ProcessedRequestCache} (dedup), invoke
+ *       the registered handler on the business executor, send the produced
+ *       {@link Response} back through the supplied sender. Duplicates short-
+ *       circuit to the cached response.</li>
+ *   <li>{@link Notification} → invoke the registered notification handler on
+ *       the business executor; no reply.</li>
+ * </ul>
+ *
+ * <p>Handlers run on a {@link Executor} provided at construction (virtual
+ * threads by default), keeping the network I/O thread free.
+ */
+public final class InboundDispatcher {
+
+    private static final Logger log = LoggerFactory.getLogger(InboundDispatcher.class);
+
+    private final BundleCorrelationTracker correlationTracker;
+    private final ProcessedRequestCache dedupCache;
+    private final HandlerRegistry handlerRegistry;
+    private final Executor businessExecutor;
+    private final Function<Message, java.util.concurrent.CompletableFuture<Void>> sender;
+
+    public InboundDispatcher(BundleCorrelationTracker correlationTracker,
+                              ProcessedRequestCache dedupCache,
+                              HandlerRegistry handlerRegistry,
+                              Executor businessExecutor,
+                              Function<Message, java.util.concurrent.CompletableFuture<Void>> sender) {
+        this.correlationTracker = correlationTracker;
+        this.dedupCache = dedupCache;
+        this.handlerRegistry = handlerRegistry;
+        this.businessExecutor = businessExecutor;
+        this.sender = sender;
+    }
+
+    public Consumer<Message> asMessageSink() {
+        return this::dispatch;
+    }
+
+    public void dispatch(Message message) {
+        switch (message) {
+            case Response r -> {
+                if (!correlationTracker.complete(r)) {
+                    log.debug("event=orphan_response correlationId={}", r.correlationId());
+                }
+            }
+            case Request req -> dispatchRequest(req);
+            case Notification n -> dispatchNotification(n);
+            default -> log.warn("event=unexpected_inbound type={}", message.getClass().getSimpleName());
+        }
+    }
+
+    private void dispatchRequest(Request req) {
+        var outcome = dedupCache.resolveOrClaim(req.correlationId());
+        switch (outcome) {
+            case ProcessedRequestCache.Outcome.Replay replay -> {
+                log.info("event=request_replayed correlationId={} payloadType={}",
+                        req.correlationId(), req.payloadType());
+                trySend(replay.response());
+            }
+            case ProcessedRequestCache.Outcome.InFlight ignored ->
+                    log.info("event=request_inflight_duplicate_dropped correlationId={}",
+                            req.correlationId());
+            case ProcessedRequestCache.Outcome.Claimed ignored -> businessExecutor.execute(() -> invokeAndReply(req));
+        }
+    }
+
+    private void invokeAndReply(Request req) {
+        var handler = handlerRegistry.requestHandlerFor(req.payloadType());
+        Response response;
+        if (handler == null) {
+            response = Response.failure(req.correlationId(),
+                    ResponseError.of(new IllegalStateException(
+                            "no handler registered for " + req.payloadType())));
+        } else {
+            try {
+                byte[] body = handler.handle(req.payload(),
+                        new HandlerRegistry.RequestContext(
+                                req.correlationId(), req.payloadType(),
+                                req.sourceBundleId(), req.sourceInstanceId(),
+                                req.sourceBundleVersion(), req.timestampMs()));
+                response = Response.success(req.correlationId(), req.payloadType(), body);
+            } catch (Throwable t) {
+                log.warn("event=handler_threw correlationId={} payloadType={}",
+                        req.correlationId(), req.payloadType(), t);
+                response = Response.failure(req.correlationId(), ResponseError.of(t));
+            }
+        }
+        dedupCache.recordResponse(req.correlationId(), response);
+        trySend(response);
+    }
+
+    private void dispatchNotification(Notification n) {
+        var handler = handlerRegistry.notificationHandlerFor(n.payloadType());
+        if (handler == null) {
+            log.debug("event=unhandled_notification payloadType={}", n.payloadType());
+            return;
+        }
+        businessExecutor.execute(() -> {
+            try {
+                handler.handle(n.payload(), new HandlerRegistry.NotificationContext(
+                        n.correlationId(), n.payloadType(), n.timestampMs()));
+            } catch (Throwable t) {
+                log.warn("event=notification_handler_threw payloadType={}", n.payloadType(), t);
+            }
+        });
+    }
+
+    private void trySend(Message m) {
+        try {
+            sender.apply(m);
+        } catch (SendFailedException sfe) {
+            log.warn("event=reply_send_failed type={}", m.getClass().getSimpleName(), sfe);
+        }
+    }
+}

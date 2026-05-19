@@ -25,7 +25,7 @@ class JacksonCborCodecTest {
     @Test
     void roundTripHello() {
         var hello = new Hello(UUID.randomUUID(), (byte) 2, "bundle-x", "inst-1",
-                "1.0.0", Set.of("lz4", "ping-pong"), 1700000000000L);
+                "1.0.0", Set.of("lz4", "ping-pong"), "secret-token", 1700000000000L);
         var out = codec.decode(codec.encode(hello));
         assertThat(out).isInstanceOf(Hello.class).isEqualTo(hello);
     }

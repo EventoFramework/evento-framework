@@ -4,7 +4,7 @@ import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.v2.correlation.CorrelationStore;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.bus.v2.event.BusEventBus;
-import com.evento.server.bus.v2.handshake.BundleRegistrationInfo;
+import com.evento.transport.protocol.BundleRegistrationInfo;
 import com.evento.server.bus.v2.registry.ClusterRegistry;
 import com.evento.server.bus.v2.registry.ConnectionRegistry;
 import com.evento.server.bus.v2.router.ForwardingTable;
@@ -141,7 +141,7 @@ class BusLifecycleDisconnectIT {
             var f = new CompletableFuture<Welcome>();
             hellos.put(corr, f);
             client.send(new Hello(corr, HandshakeProtocol.PROTOCOL_VERSION,
-                    bundleId, instanceId, "100", Set.of(), System.currentTimeMillis()));
+                    bundleId, instanceId, "100", Set.of(), null, System.currentTimeMillis()));
             return f.get(3, TimeUnit.SECONDS);
         }
 
