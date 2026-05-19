@@ -5,6 +5,7 @@ import com.evento.transport.codec.Codec;
 import com.evento.transport.codec.JacksonCborCodec;
 import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
 import com.evento.transport.reconnect.ReconnectStrategy;
+import io.netty.handler.ssl.SslContext;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -19,7 +20,14 @@ import java.util.concurrent.Executors;
  *   <li>Backpressure: high = 64KB, low = 32KB</li>
  *   <li>Max frame = 16MB</li>
  *   <li>Business handlers run on virtual threads</li>
+ *   <li>TLS off (set {@code sslContext} to enable)</li>
  * </ul>
+ *
+ * <p>{@code sslContext} is optional. When set, the pipeline prepends an
+ * {@code SslHandler} so that the wire is encrypted end-to-end. The same
+ * record is used for both client and server transports — pass an
+ * {@code SslContext} built with {@code forClient()} or {@code forServer()}
+ * accordingly.
  */
 public record NettyTransportConfig(
         Duration heartbeatWriteIdle,
@@ -30,7 +38,8 @@ public record NettyTransportConfig(
         int writeBufferLowWaterMark,
         ReconnectStrategy reconnectStrategy,
         Codec codec,
-        Executor businessExecutor
+        Executor businessExecutor,
+        SslContext sslContext
 ) {
 
     public NettyTransportConfig {
@@ -46,6 +55,29 @@ public record NettyTransportConfig(
         if (maxFrameLength <= 0) {
             throw new IllegalArgumentException("maxFrameLength must be > 0");
         }
+    }
+
+    /** Plaintext-friendly constructor; convenient for the common case + every existing call site. */
+    public NettyTransportConfig(
+            Duration heartbeatWriteIdle,
+            Duration heartbeatReadIdle,
+            Duration connectTimeout,
+            int maxFrameLength,
+            int writeBufferHighWaterMark,
+            int writeBufferLowWaterMark,
+            ReconnectStrategy reconnectStrategy,
+            Codec codec,
+            Executor businessExecutor
+    ) {
+        this(heartbeatWriteIdle, heartbeatReadIdle, connectTimeout, maxFrameLength,
+                writeBufferHighWaterMark, writeBufferLowWaterMark,
+                reconnectStrategy, codec, businessExecutor, null);
+    }
+
+    public NettyTransportConfig withSslContext(SslContext ssl) {
+        return new NettyTransportConfig(heartbeatWriteIdle, heartbeatReadIdle, connectTimeout,
+                maxFrameLength, writeBufferHighWaterMark, writeBufferLowWaterMark,
+                reconnectStrategy, codec, businessExecutor, ssl);
     }
 
     public static NettyTransportConfig defaults() {

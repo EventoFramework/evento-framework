@@ -15,6 +15,7 @@ public record Reject(
     public static final String CODE_PROTOCOL_VERSION = "PROTOCOL_VERSION";
     public static final String CODE_DUPLICATE_INSTANCE = "DUPLICATE_INSTANCE";
     public static final String CODE_UNKNOWN_BUNDLE = "UNKNOWN_BUNDLE";
+    public static final String CODE_AUTH_FAILED = "AUTH_FAILED";
     public static final String CODE_INTERNAL = "INTERNAL";
 
     @JsonCreator

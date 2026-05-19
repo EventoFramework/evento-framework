@@ -52,6 +52,7 @@ dependencies {
 
 	testImplementation 'org.assertj:assertj-core:3.26.3'
 	testImplementation 'org.awaitility:awaitility:4.2.2'
+	testImplementation project(':evento-bundle')
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {
