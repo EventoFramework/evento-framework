@@ -56,9 +56,48 @@ public interface Transport extends AutoCloseable {
     CompletableFuture<Void> send(Message message);
 
     /**
+     * Zero-copy send: write a pre-encoded frame body directly, bypassing the
+     * codec. Used by the broker to forward an inbound {@link Frame#rawBytes}
+     * to another peer without re-running the codec.
+     *
+     * <p>{@code frameBytes} is the CBOR body of one wire frame, exactly as
+     * produced by the codec — the transport's framing layer (length prefix,
+     * TLS, etc.) is applied as usual.
+     *
+     * <p>Default implementation falls back to {@link #send(Message)} after
+     * decoding the bytes, so transports that don't have a fast path (e.g.
+     * in-memory test doubles) remain correct. Production Netty transports
+     * override this with a direct ByteBuf write.
+     */
+    default CompletableFuture<Void> sendRaw(byte[] frameBytes) {
+        throw new UnsupportedOperationException(
+                "sendRaw is not implemented by this transport; "
+                        + "decode the bytes and call send(Message) instead");
+    }
+
+    /**
      * Register a handler for inbound messages. May be called only once during setup.
      */
     void onMessage(Consumer<Message> handler);
+
+    /**
+     * Frame-aware variant of {@link #onMessage}. The handler receives both the
+     * parsed {@link Message} and the {@link Frame#rawBytes} it was decoded
+     * from, so callers that only forward (the broker on its hot path) can
+     * route by message metadata then write the raw bytes via
+     * {@link #sendRaw} without re-encoding.
+     *
+     * <p>Default implementation wraps the parsed message into a {@link Frame}
+     * with an empty raw-byte slot — fine for in-memory test doubles where
+     * there is no on-wire representation. Production Netty transports
+     * override this to keep the actual byte buffer.
+     *
+     * <p>Calling both {@link #onMessage} and {@link #onFrame} is unsupported;
+     * pick one.
+     */
+    default void onFrame(Consumer<Frame> handler) {
+        onMessage(msg -> handler.accept(new Frame(msg, new byte[0])));
+    }
 
     /**
      * Subscribe to state transitions. Listeners are invoked synchronously on the thread

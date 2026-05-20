@@ -1,5 +1,6 @@
 package com.evento.transport.netty;
 
+import com.evento.transport.Frame;
 import com.evento.transport.message.Ping;
 import com.evento.transport.message.Pong;
 import io.netty.channel.ChannelDuplexHandler;
@@ -49,7 +50,7 @@ final class HeartbeatHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (msg instanceof Ping incoming) {
+        if (msg instanceof Frame frame && frame.message() instanceof Ping incoming) {
             var pong = new Pong(incoming.correlationId(), incoming.sequence(),
                     System.currentTimeMillis(), incoming.timestampMs());
             ctx.writeAndFlush(pong);

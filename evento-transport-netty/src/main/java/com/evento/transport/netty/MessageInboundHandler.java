@@ -1,6 +1,6 @@
 package com.evento.transport.netty;
 
-import com.evento.transport.message.Message;
+import com.evento.transport.Frame;
 import com.evento.transport.state.ConnectionState;
 import com.evento.transport.state.ConnectionStateMachine;
 import io.netty.channel.ChannelHandlerContext;
@@ -13,23 +13,23 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
- * Terminal handler: forwards each inbound {@link Message} to the application
- * listener on a business {@link Executor} (virtual threads by default) so the
- * event loop is never blocked by user logic.
+ * Terminal handler: forwards each inbound {@link Frame} (parsed {@code Message}
+ * + raw bytes) to the application listener on a business {@link Executor}
+ * (virtual threads by default) so the event loop is never blocked by user logic.
  *
  * <p>Also tracks the last-inbound timestamp for failure detection at the
  * application layer.
  */
-final class MessageInboundHandler extends SimpleChannelInboundHandler<Message> {
+final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
 
     private static final Logger log = LoggerFactory.getLogger(MessageInboundHandler.class);
 
-    private final Consumer<Message> listener;
+    private final Consumer<Frame> listener;
     private final Executor businessExecutor;
     private final AtomicLong lastInboundMs;
     private final ConnectionStateMachine state;
 
-    MessageInboundHandler(Consumer<Message> listener,
+    MessageInboundHandler(Consumer<Frame> listener,
                           Executor businessExecutor,
                           AtomicLong lastInboundMs,
                           ConnectionStateMachine state) {
@@ -40,14 +40,16 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Message> {
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, Message msg) {
+    protected void channelRead0(ChannelHandlerContext ctx, Frame frame) {
         lastInboundMs.set(System.currentTimeMillis());
         businessExecutor.execute(() -> {
             try {
-                listener.accept(msg);
+                listener.accept(frame);
             } catch (Throwable t) {
                 log.error("event=listener_error channel={} type={} correlationId={}",
-                        ctx.channel().id(), msg.getClass().getSimpleName(), msg.correlationId(), t);
+                        ctx.channel().id(),
+                        frame.message().getClass().getSimpleName(),
+                        frame.message().correlationId(), t);
             }
         });
     }
