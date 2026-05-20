@@ -1,6 +1,6 @@
 package com.evento.transport.netty;
 
-import com.evento.transport.message.Message;
+import com.evento.transport.Frame;
 import com.evento.transport.state.ConnectionStateMachine;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
@@ -30,7 +30,7 @@ final class EventoPipelineFactory {
     void configure(Channel ch,
                    ConnectionStateMachine state,
                    AtomicLong lastInboundMs,
-                   Consumer<Message> messageListener) {
+                   Consumer<Frame> frameListener) {
         ChannelPipeline p = ch.pipeline();
         // TLS, if configured, must run before any framing/decoder so it operates on raw socket bytes.
         if (config.sslContext() != null) {
@@ -49,6 +49,6 @@ final class EventoPipelineFactory {
         p.addLast("heartbeat", new HeartbeatHandler());
         p.addLast("backpressure", new BackpressureHandler(state));
         p.addLast("inbound", new MessageInboundHandler(
-                messageListener, config.businessExecutor(), lastInboundMs, state));
+                frameListener, config.businessExecutor(), lastInboundMs, state));
     }
 }
