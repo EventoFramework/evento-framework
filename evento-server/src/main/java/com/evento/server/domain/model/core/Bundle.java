@@ -24,8 +24,6 @@ import java.util.Objects;
  * - environment: A map of environment variables for the bundle.
  * - vmOptions: A map of VM options for the bundle.
  * - autorun: Indicates whether the bundle should be automatically run.
- * - minInstances: The minimum number of instances of the bundle.
- * - maxInstances: The maximum number of instances of the bundle.
  * - updatedAt: The timestamp when the bundle was last updated.
  * <p>
  * The Bundle class can be used in conjunction with other classes such as Component to represent a bundle and its components.
@@ -65,8 +63,6 @@ public class Bundle {
 	private Map<String, String> vmOptions;
 	private boolean autorun;
 	private boolean deployable;
-	private int minInstances;
-	private int maxInstances;
 
 	private Instant updatedAt;
 

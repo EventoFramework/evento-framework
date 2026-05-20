@@ -1,9 +1,11 @@
 package com.evento.application.client.v2;
 
+import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.transport.netty.NettyTransportConfig;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -32,6 +34,8 @@ public record BundleClientConfig(
         String bundleVersion,
         String authToken,
         List<String> handlerPayloadTypes,
+        List<RegisteredHandler> registeredHandlers,
+        Map<String, String[]> payloadInfo,
         Set<String> capabilities,
         Duration handshakeTimeout,
         Duration registrationTimeout,
@@ -48,6 +52,8 @@ public record BundleClientConfig(
         Objects.requireNonNull(bundleVersion, "bundleVersion");
         Objects.requireNonNull(transportConfig, "transportConfig");
         handlerPayloadTypes = handlerPayloadTypes == null ? List.of() : List.copyOf(handlerPayloadTypes);
+        registeredHandlers = registeredHandlers == null ? List.of() : List.copyOf(registeredHandlers);
+        payloadInfo = payloadInfo == null ? Map.of() : Map.copyOf(payloadInfo);
         capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);
         handshakeTimeout = handshakeTimeout == null ? Duration.ofSeconds(5) : handshakeTimeout;
         registrationTimeout = registrationTimeout == null ? Duration.ofSeconds(5) : registrationTimeout;
@@ -67,6 +73,8 @@ public record BundleClientConfig(
         private String bundleVersion = "1";
         private String authToken;
         private List<String> handlerPayloadTypes = List.of();
+        private List<RegisteredHandler> registeredHandlers = List.of();
+        private Map<String, String[]> payloadInfo = Map.of();
         private Set<String> capabilities = Set.of();
         private Duration handshakeTimeout = Duration.ofSeconds(5);
         private Duration registrationTimeout = Duration.ofSeconds(5);
@@ -82,6 +90,8 @@ public record BundleClientConfig(
         public Builder bundleVersion(String v) { this.bundleVersion = v; return this; }
         public Builder authToken(String token) { this.authToken = token; return this; }
         public Builder handlerPayloadTypes(List<String> types) { this.handlerPayloadTypes = types; return this; }
+        public Builder registeredHandlers(List<RegisteredHandler> handlers) { this.registeredHandlers = handlers; return this; }
+        public Builder payloadInfo(Map<String, String[]> info) { this.payloadInfo = info; return this; }
         public Builder capabilities(Set<String> caps) { this.capabilities = caps; return this; }
         public Builder handshakeTimeout(Duration d) { this.handshakeTimeout = d; return this; }
         public Builder registrationTimeout(Duration d) { this.registrationTimeout = d; return this; }
@@ -92,7 +102,7 @@ public record BundleClientConfig(
 
         public BundleClientConfig build() {
             return new BundleClientConfig(host, port, bundleId, instanceId, bundleVersion,
-                    authToken, handlerPayloadTypes, capabilities,
+                    authToken, handlerPayloadTypes, registeredHandlers, payloadInfo, capabilities,
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
                     transportConfig, autoEnable);
         }

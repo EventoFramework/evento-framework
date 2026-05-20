@@ -16,8 +16,5 @@ public final class ProtocolNotifications {
     /** Sent by a bundle to take itself out of routing. No payload. */
     public static final String DISABLE = "evento:disable";
 
-    /** Sent by the server to a bundle to ask it to terminate. No payload. */
-    public static final String KILL = "evento:kill";
-
     private ProtocolNotifications() {}
 }

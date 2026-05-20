@@ -220,6 +220,8 @@ public final class BundleClient implements AutoCloseable {
         public Builder bundleVersion(String v) { cfg.bundleVersion(v); return this; }
         public Builder authToken(String t) { cfg.authToken(t); return this; }
         public Builder handlerPayloadTypes(java.util.List<String> types) { cfg.handlerPayloadTypes(types); return this; }
+        public Builder registeredHandlers(java.util.List<com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler> handlers) { cfg.registeredHandlers(handlers); return this; }
+        public Builder payloadInfo(java.util.Map<String, String[]> info) { cfg.payloadInfo(info); return this; }
         public Builder capabilities(java.util.Set<String> caps) { cfg.capabilities(caps); return this; }
         public Builder handshakeTimeout(Duration d) { cfg.handshakeTimeout(d); return this; }
         public Builder defaultRequestTimeout(Duration d) { cfg.defaultRequestTimeout(d); return this; }
