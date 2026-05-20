@@ -13,7 +13,7 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 `next` will be promoted to `main` as `v2.0.0` only after PR3 ships and a
 1–2 week staging soak.
 
-## What's done (9 commits beyond `main`, ~8 500 lines of new code)
+## What's done (11 commits beyond `main`, ~9 000 lines of new code)
 
 | # | Commit | What landed |
 |---|---|---|
@@ -26,9 +26,11 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 | 7 | `3e46008a` | `feat(server-bus-v2)` disconnect handling: `ForwardingTable.drainInvolving` returns entries; `onTransportDisconnected` surfaces `Response.failure("peer disconnected: …")` to originators of in-flight forwarded requests. **`BusLifecycleDisconnectIT` adds 8 scenarios.** |
 | 8 | `e74f2ec1` | `docs`: brought Claude operating context (`CLAUDE.md`, `.claude/PLAN.md`, `.claude/STATUS.md`) into the repo for portability. |
 | 9 | `cc284865` | `feat(bundle-v2)`: full resilient bundle client + security + exactly-once. See dedicated section below. |
+| 10 | `9ef5053c` | `docs(STATUS)`: updated for the bundle slice. |
+| 11 | `4c887dca` | `feat(broker-rtt)`: zero-copy forwarding. `Frame` (Message + raw bytes), `Transport.onFrame` + `Transport.sendRaw`, `CborMessageDecoder` retains raw bytes, broker uses `sendRaw` on forwarded Request/Response → no CBOR re-encode on the broker hop. **`BusLifecycleZeroCopyIT` (2 tests)** asserts `forwardedRawCount == 2×N` and `forwardedReencodedCount == 0`. |
 
-**Test totals on JDK 25:** 104 (transport-api 45, transport-netty 7,
-server v2 52). Run with:
+**Test totals on JDK 25:** 106 (transport-api 45, transport-netty 7,
+server v2 54). Run with:
 
 ```
 JAVA_HOME=$(/usr/libexec/java_home -v 25) \
@@ -120,13 +122,13 @@ Real-TCP `NettyServerTransport` + `BundleClient`:
 8. **`requestBeforeStartFailsFast`** — `request()` while CONNECTING
    surfaces `SendFailedException` immediately.
 
-### Deferred to v2.1: zero-copy forwarding
+### Zero-copy forwarding — landed in commit 11 (4c887dca)
 
-The broker still does CBOR decode + re-encode when relaying a
-`Request` between bundles. A real but bounded RTT win (a couple of µs
-per RPC compared to network latency); needs a `Codec`/`Transport`
-extension (raw `ByteBuf` write path). The wire format permits it;
-this commit doesn't change anything that would block it.
+The broker no longer re-encodes when relaying. Hot-path saving: one
+CBOR encode + one byte[] allocation per relayed message. The
+`forwardedRawCount` / `forwardedReencodedCount` counters on
+`BusLifecycle` expose the ratio for observability. Tests pin the
+contract: every Netty-to-Netty forward must use the raw path.
 
 ## Key design decisions (load-bearing, don't undo without thinking)
 
@@ -211,8 +213,9 @@ Once 3.1–3.4 land and pass IT:
 
 ```
 evento-transport-api/src/main/java/com/evento/transport/
-  ├── Transport.java                       Transport SPI
+  ├── Transport.java                       Transport SPI (onMessage/onFrame, send/sendRaw)
   ├── TransportServer.java                 Server-side SPI
+  ├── Frame.java                           parsed Message + raw wire bytes (zero-copy)
   ├── MessageDispatcher.java               OCP message dispatcher
   ├── HandshakeProtocol.java               PROTOCOL_VERSION + constants
   ├── codec/
@@ -228,14 +231,15 @@ evento-transport-api/src/main/java/com/evento/transport/
   └── inmemory/InMemoryTransport.java      test double
 
 evento-transport-netty/src/main/java/com/evento/transport/netty/
-  ├── NettyClientTransport.java
-  ├── NettyServerTransport.java
-  ├── NettyTransportConfig.java            (now also holds optional SslContext)
+  ├── NettyClientTransport.java            onFrame + sendRaw (zero-copy)
+  ├── NettyServerTransport.java            child transports also onFrame + sendRaw
+  ├── NettyTransportConfig.java            (optional SslContext)
   ├── EventoPipelineFactory.java           (prepends SslHandler when ssl set)
-  ├── Cbor{Message,}{Encoder,Decoder}.java
-  ├── HeartbeatHandler.java                IdleStateHandler bridge
+  ├── CborMessageDecoder.java              produces Frame(message, raw bytes)
+  ├── CborMessageEncoder.java              encodes Message; passes ByteBuf through (for sendRaw)
+  ├── HeartbeatHandler.java                IdleStateHandler bridge (Frame-aware)
   ├── BackpressureHandler.java
-  └── MessageInboundHandler.java           VT-executor dispatch
+  └── MessageInboundHandler.java           Frame-typed VT-executor dispatch
 
 evento-server/src/main/java/com/evento/server/bus/v2/
   ├── event/                               BusEvent sealed + BusEventBus
