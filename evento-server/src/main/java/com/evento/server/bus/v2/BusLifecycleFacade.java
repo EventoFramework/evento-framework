@@ -5,7 +5,7 @@ import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.server.bus.BusFacade;
 import com.evento.server.bus.NodeAddress;
-import com.evento.server.bus.v2.admin.AdminPayloadCodec;
+import com.evento.common.admin.AdminPayloadCodec;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.bus.v2.lifecycle.BusLifecycle;
 import com.evento.transport.message.Response;

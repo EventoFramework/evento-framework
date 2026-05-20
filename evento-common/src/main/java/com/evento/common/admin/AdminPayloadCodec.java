@@ -1,4 +1,4 @@
-package com.evento.server.bus.v2.admin;
+package com.evento.common.admin;
 
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
