@@ -220,7 +220,7 @@ class BundleClientIT {
                 var codec = new JacksonCborPayloadCodec();
                 raw.send(new Notification(UUID.randomUUID(),
                         BundleRegistrationInfo.PAYLOAD_TYPE,
-                        codec.encode(new BundleRegistrationInfo(100L, List.of(), Map.of())),
+                        codec.encode(BundleRegistrationInfo.lean(100L, List.of())),
                         System.currentTimeMillis())).get();
                 raw.send(new Notification(UUID.randomUUID(),
                         ProtocolNotifications.ENABLE, new byte[0],

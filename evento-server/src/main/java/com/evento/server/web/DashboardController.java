@@ -1,6 +1,6 @@
 package com.evento.server.web;
 
-import com.evento.server.bus.MessageBus;
+import com.evento.server.bus.BusFacade;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.domain.repository.core.BundleRepository;
 import com.evento.server.domain.repository.core.ComponentRepository;
@@ -20,18 +20,18 @@ public class DashboardController {
 	private final PayloadRepository payloadRepository;
 	private final ComponentRepository componentRepository;
 	private final BundleRepository bundleRepository;
-	private final MessageBus messageBus;
+	private final BusFacade busFacade;
 	private final EventStore eventStore;
 	@Value("${evento.cluster.name}")
 	private String clusterName;
 	@Value("${application.version}")
 	private String version;
 
-	public DashboardController(PayloadRepository payloadRepository, ComponentRepository componentRepository, BundleRepository bundleRepository, MessageBus messageBus, EventStore eventStore) {
+	public DashboardController(PayloadRepository payloadRepository, ComponentRepository componentRepository, BundleRepository bundleRepository, BusFacade busFacade, EventStore eventStore) {
 		this.payloadRepository = payloadRepository;
 		this.componentRepository = componentRepository;
 		this.bundleRepository = bundleRepository;
-		this.messageBus = messageBus;
+		this.busFacade = busFacade;
 		this.eventStore = eventStore;
 	}
 
@@ -51,7 +51,7 @@ public class DashboardController {
 
 		db.setBundleCount(bundleRepository.count());
 		db.setDeployableBundleCount(bundleRepository.countDeployable());
-		var view = messageBus.getCurrentAvailableView();
+		var view = busFacade.currentAvailableView();
 		db.setBundleInViewCount(view.stream()
 				.map(NodeAddress::bundleId).distinct().count());
 		db.setNodeInViewCount(view.size());

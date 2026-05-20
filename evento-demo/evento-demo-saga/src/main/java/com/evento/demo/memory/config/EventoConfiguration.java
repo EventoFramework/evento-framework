@@ -4,7 +4,6 @@ import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
-import com.evento.common.performance.ThreadCountAutoscalingProtocol;
 import com.evento.demo.DemoSagaApplication;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
@@ -24,10 +23,6 @@ public class EventoConfiguration {
 			@Value("${evento.server.port}") Integer eventoServerPort,
 			@Value("${evento.bundle.id}") String bundleId,
 			@Value("${evento.bundle.version}") long bundleVersion,
-			@Value("${evento.cluster.autoscaling.max.threads}") int maxThreads,
-			@Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
-			@Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
-			@Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
 			BeanFactory factory,
 			@Value("${sentry.dns}") String sentryDns
 	) throws Exception {
@@ -45,12 +40,6 @@ public class EventoConfiguration {
 						.setMaxReconnectAttempts(30)
 						.setReconnectDelayMillis(5000))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
-				.setAutoscalingProtocolBuilder((es) -> new ThreadCountAutoscalingProtocol(
-						es,
-						maxThreads,
-						minThreads,
-						maxOverflow,
-						maxUnderflow, 60 * 1000))
 				.setInjector(factory::getBean)
 				.start();
 	}

@@ -1,11 +1,10 @@
 package com.evento.server.web;
 
-import com.evento.server.bus.MessageBus;
-import com.evento.server.bus.NodeAddress;
+import com.evento.server.bus.BusFacade;
+import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.domain.model.core.BucketType;
 import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.service.BundleService;
-import com.evento.server.service.deploy.BundleDeployService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -16,8 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -29,26 +27,14 @@ import java.util.stream.Collectors;
 public class ClusterStatusController {
 
 	private final Logger logger = LoggerFactory.getLogger(ClusterStatusController.class);
-	private final MessageBus messageBus;
+	private final BusFacade busFacade;
 	private final BundleService bundleService;
-	private final BundleDeployService bundleDeployService;
 
-	/**
-	 * The ClusterStatusController class is a REST controller that handles requests related to cluster status.
-	 * It provides endpoints for fetching cluster information and performing actions on the cluster.
-	 */
-	public ClusterStatusController(MessageBus messageBus,
-								   BundleService bundleService, BundleDeployService bundleDeployService) {
-		this.messageBus = messageBus;
+	public ClusterStatusController(BusFacade busFacade, BundleService bundleService) {
+		this.busFacade = busFacade;
 		this.bundleService = bundleService;
-		this.bundleDeployService = bundleDeployService;
 	}
 
-	/**
-	 * Finds all nodes in the system.
-	 *
-	 * @return A ResponseEntity containing a list of node IDs.
-	 */
 	@GetMapping(value = "/attended-view")
 	@Secured("ROLE_WEB")
 	public ResponseEntity<List<String>> findAllNodes() {
@@ -58,75 +44,45 @@ public class ClusterStatusController {
 	}
 
 	/**
-	 * Handle method for the "/view" endpoint.
+	 * SSE stream that emits the current full + available views, then a fresh
+	 * snapshot on every cluster change. Migrated from v1's two
+	 * {@code addViewListener} / {@code addAvailableViewListener} hooks to a
+	 * single {@code BusFacade.subscribe} that pattern-matches on
+	 * {@link BusEvent.ViewChanged} and {@link BusEvent.AvailableViewChanged}.
 	 *
-	 * @return SseEmitter - the server-sent event emitter for pushing data to the client.
-	 * @throws IOException if an I/O error occurs.
+	 * <p>BusFacade has no remove-listener API by design, so the subscription
+	 * gates itself with {@code AtomicBoolean closed} — once the emitter goes
+	 * down, the lambda becomes a no-op. The lambda then stays referenced from
+	 * the subscriber list for the lifetime of the bus, which is fine for the
+	 * dashboard use case (handful of long-lived browser tabs, not a high-churn
+	 * workload).
 	 */
 	@GetMapping(value = "/view")
 	@Secured("ROLE_WEB")
 	public SseEmitter handle() throws IOException {
 		SseEmitter emitter = new SseEmitter(15 * 60 * 1000L);
-		emitter.send(Map.of("type", "current", "view", messageBus.getCurrentView()));
-		emitter.send(Map.of("type", "available", "view", messageBus.getCurrentAvailableView()));
-		messageBus.addViewListener(new Consumer<>() {
-			/**
-			 * Sends the current view information to the SSE emitter.
-			 * If an exception occurs while sending the data, the view listener is removed.
-			 *
-			 * @param o The set of NodeAddress representing the current view.
-			 */
-			@Override
-			public void accept(Set<NodeAddress> o) {
-				try
-				{
-					emitter.send(Map.of("type", "current", "view", o));
-				} catch (Exception e)
-				{
-					messageBus.removeViewListener(this);
+		emitter.send(Map.of("type", "current", "view", busFacade.currentView()));
+		emitter.send(Map.of("type", "available", "view", busFacade.currentAvailableView()));
+		AtomicBoolean closed = new AtomicBoolean(false);
+		emitter.onCompletion(() -> closed.set(true));
+		emitter.onTimeout(() -> closed.set(true));
+		emitter.onError(t -> closed.set(true));
+		busFacade.subscribe(event -> {
+			if (closed.get()) return;
+			try {
+				switch (event) {
+					case BusEvent.ViewChanged v ->
+							emitter.send(Map.of("type", "current", "view", v.view()));
+					case BusEvent.AvailableViewChanged av ->
+							emitter.send(Map.of("type", "available", "view", av.availableView()));
+					default -> { /* ignore other event types */ }
 				}
-			}
-		});
-		messageBus.addAvailableViewListener(new Consumer<>() {
-			@Override
-			public void accept(Set<NodeAddress> o) {
-				try
-				{
-					emitter.send(Map.of("type", "available", "view", o));
-				} catch (Exception e)
-				{
-					messageBus.removeAvailableViewListener(this);
-				}
+			} catch (Exception e) {
+				closed.set(true);
+				logger.debug("SSE send failed, marking subscription closed", e);
 			}
 		});
 		return emitter;
 	}
 
-	/**
-	 * Spawns a bundle by executing a spawn script.
-	 *
-	 * @param bundleId The ID of the bundle to be spawned.
-	 * @return A ResponseEntity representing the response status of the spawn operation.
-	 * @throws Exception If an error occurs during the spawn process.
-	 */
-	@PostMapping(value = "/spawn/{bundleId}")
-	@Secured("ROLE_DEPLOY")
-	public ResponseEntity<?> spawnBundle(@PathVariable String bundleId) throws Exception {
-		bundleDeployService.spawn(bundleId);
-		return ResponseEntity.ok().build();
-	}
-
-	/**
-	 * Deletes a node in the cluster by sending a kill message to the specified node.
-	 *
-	 * @param bundleId The ID of the bundle to which the node belongs.
-	 * @param instanceId The ID of the node to be killed.
-	 * @return A ResponseEntity representing the response status of the kill operation.
-	 */
-	@DeleteMapping(value = "/kill/{bundleId}/{instanceId}")
-	@Secured("ROLE_DEPLOY")
-	public ResponseEntity<?> killNode(@PathVariable String bundleId, @PathVariable String instanceId) {
-		messageBus.sendKill(instanceId);
-		return ResponseEntity.ok().build();
-	}
 }

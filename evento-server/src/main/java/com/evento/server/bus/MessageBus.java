@@ -22,13 +22,10 @@ import com.evento.common.modeling.messaging.message.internal.discovery.Registere
 import com.evento.common.performance.PerformanceInvocationsMessage;
 import com.evento.common.performance.PerformanceServiceTimeMessage;
 import com.evento.common.utils.Sleep;
-import com.evento.server.domain.model.core.BucketType;
-import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.es.EventStore;
 import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.service.BundleService;
 import com.evento.server.service.HandlerService;
-import com.evento.server.service.deploy.BundleDeployService;
 import com.evento.server.service.performance.PerformanceStoreService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,18 +81,13 @@ public class MessageBus {
     private final Map<NodeAddress, AtomicInteger> heartbeatMisses = new ConcurrentHashMap<>();
     private static final int heartbeatMissTolerance = 3;
 
-    private final BundleDeployService bundleDeployService;
-
     private static final String RESOURCE_LOCK_PREFIX = "RESOURCE:";
-    private static final String BUNDLE_LOCK_PREFIX = "BUNDLE:";
-    private static final String CLUSTER_LOCK_PREFIX = "CLUSTER:";
     private final HandlerService handlerService;
     private final String instanceId;
 
     private final EventStore eventStore;
 
 
-    private final ConcurrentHashMap<String, Semaphore> semaphoreMap = new ConcurrentHashMap<>();
 
 
     private final PerformanceStoreService performanceStoreService;
@@ -134,7 +126,6 @@ public class MessageBus {
     public MessageBus(
             @Value("${socket.port}") int socketPort,
             @Value("${evento.server.instance.id}") String instanceId,
-            BundleDeployService bundleDeployService,
             HandlerService handlerService,
             EventStore eventStore,
             PerformanceStoreService performanceStoreService,
@@ -148,7 +139,6 @@ public class MessageBus {
             @Value("${evento.server.send.retry.delay.millis:3000}") long sendRetryDelayMillis,
             DataSource dataSource) {
         this.socketPort = socketPort;
-        this.bundleDeployService = bundleDeployService;
         this.handlerService = handlerService;
         this.eventStore = eventStore;
         this.performanceStoreService = performanceStoreService;
@@ -169,15 +159,6 @@ public class MessageBus {
     public void init() {
 
         var t = new Thread(() -> {
-            for (Bundle bundle : bundleService.findAllBundles()) {
-                if (bundle.isDeployable() && bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral)
-                    waitUntilAvailable(bundle);
-            }
-        });
-        t.setName("Bundle autostart Thread");
-        t.start();
-
-        t = new Thread(() -> {
             try (ServerSocket server = new ServerSocket(socketPort)) {
                 while (true) {
                     var conn = server.accept();
@@ -432,33 +413,7 @@ public class MessageBus {
 
     private void handleMessage(EventoMessage m) {
         logger.debug("Message received: {}", m);
-        if (m.getBody() instanceof ClusterNodeIsBoredMessage b) {
-            var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
-            distributedLock.lockedArea(lockId, () -> {
-                var bundle = bundleService.findById(b.getBundleId());
-                if (bundle.getBucketType() != BucketType.Ephemeral &&
-                        bundle.getMinInstances() <
-                                getCurrentAvailableView()
-                                        .stream()
-                                        .filter(n -> n.bundleId().equals(b.getBundleId())).count())
-                    try {
-                        sendKill(b.getInstanceId());
-                    } catch (Exception e) {
-                        logger.error("Error trying to kill node %s".formatted(b.getInstanceId()), e);
-                    }
-            });
-        } else if (m.getBody() instanceof ClusterNodeIsSufferingMessage b) {
-            var lockId = CLUSTER_LOCK_PREFIX + b.getBundleId();
-            distributedLock.lockedArea(lockId, () -> {
-                var bundle = bundleService.findById(b.getBundleId());
-                if (bundle.getMaxInstances() > getCurrentAvailableView().stream().filter(n -> n.bundleId().equals(b.getBundleId())).count())
-                    try {
-                        bundleDeployService.spawn(b.getBundleId());
-                    } catch (Exception e) {
-                        logger.error("Error trying to spawn bundle %s".formatted(b.getBundleId()), e);
-                    }
-            });
-        } else if (m.getBody() instanceof PerformanceInvocationsMessage im) {
+        if (m.getBody() instanceof PerformanceInvocationsMessage im) {
             performanceStoreService.saveInvocationsPerformance(
                     im.getBundle(),
                     im.getInstanceId(),
@@ -782,14 +737,6 @@ public class MessageBus {
     private NodeAddress peekMessageHandlerAddress(String messageType) {
         var addresses = getEnabledAddressesFormMessage(messageType);
         if (addresses == null || addresses.isEmpty()) {
-            var handler = handlerService.findByPayloadName(messageType);
-            if (handler != null && handler.getComponent().getBundle().isAutorun()
-                    && handler.getComponent().getBundle().isDeployable()) {
-                waitUntilAvailable(handler.getComponent().getBundle());
-            }
-            addresses = getEnabledAddressesFormMessage(messageType);
-        }
-        if (addresses.isEmpty()) {
             throw new RuntimeException("No Bundle available to handle " + messageType);
         }
         return addresses.stream().skip(new Random().nextInt(addresses.size()))
@@ -840,11 +787,6 @@ public class MessageBus {
         synchronized (availableViewListeners) {
             availableViewListeners.stream().filter(Objects::nonNull).toList()
                     .forEach(l -> l.accept(availableView));
-        }
-        synchronized (semaphoreMap) {
-            var s = semaphoreMap.get(address.bundleId());
-            if (s != null)
-                s.release();
         }
         logger.info("ENABLED: {} (v.{}) {}", address.bundleId(), address.bundleVersion(), address.bundleId());
     }
@@ -1026,25 +968,6 @@ public class MessageBus {
         return availableView.stream().anyMatch(n -> n.bundleId().equals(bundleId));
     }
 
-    public void sendKill(String instanceId) {
-        var m = new EventoMessage();
-        m.setBody(new ClusterNodeKillMessage());
-        m.setSourceBundleId("evento-server");
-        m.setSourceInstanceId(instanceId);
-        m.setSourceBundleVersion(0);
-        try {
-            var out = view.get(
-                    view.keySet().stream().filter(k -> k.instanceId().equals(instanceId)).findFirst().orElseThrow()
-            );
-            synchronized (out) {
-                out.writeObject(m);
-                out.flush();
-            }
-        } catch (Exception e) {
-            logger.error("Send kill failed", e);
-        }
-    }
-
 
     public void forward(NodeAddress from, NodeAddress to,
                         EventoRequest eventoRequest,
@@ -1066,33 +989,5 @@ public class MessageBus {
 
     public Set<NodeAddress> getCurrentView() {
         return view.keySet();
-    }
-
-
-    public void waitUntilAvailable(Bundle bundle) {
-
-        if (!isBundleAvailable(bundle.getId())) {
-            var bundleId = bundle.getId();
-            logger.info("Bundle %s not available, spawning a new one".formatted(bundleId));
-            var lockId = BUNDLE_LOCK_PREFIX + bundleId;
-            try {
-                distributedLock.acquire(lockId);
-                var semaphore = semaphoreMap.getOrDefault(bundleId, new Semaphore(0));
-                semaphoreMap.put(bundleId, semaphore);
-                if (isBundleAvailable(bundleId)) return;
-                bundleDeployService.spawn(bundle);
-                if (!semaphore.tryAcquire(120, TimeUnit.SECONDS)) {
-                    throw new IllegalStateException("Bundle Cannot Start");
-                }
-                logger.info("New %s bundle spawned".formatted(bundleId));
-
-            } catch (Exception e) {
-                logger.error("Spawning for %s bundle failed".formatted(bundleId), e);
-                throw new RuntimeException(e);
-            } finally {
-                semaphoreMap.remove(bundleId);
-                distributedLock.release(lockId);
-            }
-        }
     }
 }

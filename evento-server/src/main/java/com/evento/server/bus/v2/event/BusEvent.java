@@ -1,6 +1,7 @@
 package com.evento.server.bus.v2.event;
 
 import com.evento.server.bus.NodeAddress;
+import com.evento.transport.protocol.BundleRegistrationInfo;
 
 import java.time.Instant;
 
@@ -15,6 +16,7 @@ import java.time.Instant;
  */
 public sealed interface BusEvent
         permits BusEvent.NodeJoined,
+                BusEvent.BundleRegistered,
                 BusEvent.NodeLeft,
                 BusEvent.NodeEnabled,
                 BusEvent.NodeDisabled,
@@ -24,7 +26,22 @@ public sealed interface BusEvent
 
     Instant timestamp();
 
+    /**
+     * Fired when a bundle's transport handshake has completed and it has been
+     * placed in the connection registry. Carries only the {@link NodeAddress}
+     * — the bundle has not yet declared its handlers (that's
+     * {@link BundleRegistered}).
+     */
     record NodeJoined(NodeAddress node, Instant timestamp) implements BusEvent {}
+
+    /**
+     * Fired when a bundle sends its {@code evento:bundle-registration}
+     * notification with handler + payload metadata. This is the v2 analogue of
+     * v1 {@code MessageBus.addJoinListener(Consumer<BundleRegistration>)} and
+     * is the event {@code AutoDiscoveryService} pattern-matches on to populate
+     * components / handlers / payload schemas in the dashboard database.
+     */
+    record BundleRegistered(NodeAddress node, BundleRegistrationInfo registration, Instant timestamp) implements BusEvent {}
 
     /** A node disconnected. {@code reason} is best-effort context (may be null). */
     record NodeLeft(NodeAddress node, String reason, Instant timestamp) implements BusEvent {}

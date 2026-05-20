@@ -14,7 +14,6 @@ import com.evento.server.domain.model.core.Handler;
 import com.evento.server.domain.model.core.Payload;
 import com.evento.server.domain.repository.core.*;
 import com.evento.server.domain.repository.core.projection.BundleListProjection;
-import com.evento.server.service.deploy.BundleDeployService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,7 +40,6 @@ public class BundleService {
     private final HandlerService handlerService;
     private final PayloadRepository payloadRepository;
 
-    private final BundleDeployService bundleDeployService;
     private final ComponentRepository componentRepository;
 
     private final PlatformTransactionManager tm;
@@ -50,12 +48,11 @@ public class BundleService {
     /**
      * The BundleService class is responsible for managing bundles in the system.
      */
-    public BundleService(BundleRepository bundleRepository, HandlerService handlerService, PayloadRepository payloadRepository, BundleDeployService bundleDeployService,
+    public BundleService(BundleRepository bundleRepository, HandlerService handlerService, PayloadRepository payloadRepository,
                          ComponentRepository componentRepository, PlatformTransactionManager tm, ConsumerRepository consumerRepository) {
         this.bundleRepository = bundleRepository;
         this.handlerService = handlerService;
         this.payloadRepository = payloadRepository;
-        this.bundleDeployService = bundleDeployService;
         this.componentRepository = componentRepository;
         this.tm = tm;
         this.consumerRepository = consumerRepository;
@@ -106,8 +103,6 @@ public class BundleService {
                 b.setArtifactOriginalName(jarOriginalName);
                 b.setContainsHandlers(!bundleDescription.getComponents().isEmpty());
                 b.setAutorun(bundleDescription.getAutorun());
-                b.setMinInstances(bundleDescription.getMinInstances());
-                b.setMaxInstances(bundleDescription.getMaxInstances());
                 b.setDescription(bundleDescription.getDescription());
                 b.setDetail(bundleDescription.getDetail());
                 b.setLinePrefix(bundleDescription.getLinePrefix());
@@ -131,8 +126,6 @@ public class BundleService {
                         new HashMap<>(),
                         bundleDescription.getAutorun(),
                         bundleDescription.getDeployable(),
-                        bundleDescription.getMinInstances(),
-                        bundleDescription.getMaxInstances(),
                         Instant.now()));
             });
 
@@ -811,21 +804,6 @@ public class BundleService {
             }
             throw e;
         }
-
-
-        if (bundle.isDeployable() && bundle.isAutorun() && bundle.getBucketType() != BucketType.Ephemeral) {
-            try {
-                log.info("[BundleService] Spawning deployable and autorun bundleId={} with {}:{}, instances min={}, max={}", bundleId, bundle.getBucketType(), bundle.getArtifactCoordinates(), bundle.getMinInstances(), bundle.getMaxInstances());
-                bundleDeployService.spawn(bundle);
-                log.info("[BundleService] Spawn requested for bundleId={} completed (async)", bundleId);
-            } catch (Exception e) {
-                log.error("[BundleService] Spawn failed for bundleId={} - {}", bundleId, e.getMessage(), e);
-                throw new RuntimeException(e);
-            }
-        } else {
-            log.info("[BundleService] Skipping spawn for bundleId={} (deployable={}, autorun={}, bucketType={})", bundleId, bundle.isDeployable(), bundle.isAutorun(), bundle.getBucketType());
-        }
-
     }
 
     private void checkIsDAG() {

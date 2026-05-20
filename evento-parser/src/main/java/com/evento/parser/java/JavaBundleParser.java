@@ -58,18 +58,6 @@ public class JavaBundleParser implements BundleParser {
      * It is a constant string value.
      */
     public static final String EVENTO_BUNDLE_AUTORUN_PROPERTY = "evento.bundle.autorun";
-    /**
-     * This constant represents the property name for the minimum number of instances allowed for a bundle.
-     * The value of this property is "evento.bundle.instances.min".
-     * It is used in the {@link JavaBundleParser} class to define the minimum instances value for a bundle when parsing a directory.
-     */
-    public static final String EVENTO_BUNDLE_INSTANCES_MIN_PROPERTY = "evento.bundle.instances.min";
-    /**
-     * Represents the maximum number of instances allowed for a bundle.
-     * This property defines the upper limit on the number of instances that can be created for a bundle.
-     * The value of this property must be an integer.
-     */
-    public static final String EVENTO_BUNDLE_INSTANCES_MAX_PROPERTY = "evento.bundle.instances.max";
 
     public BundleDescription parseDirectory(File directory, String repositoryRoot, String repositoryLinePrefix,
                                             String javaVersion) throws Exception {
@@ -178,32 +166,6 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var minInstances = FileUtils.autoCloseWalk(directory.toPath(), s -> s
-                .filter(p -> p.toString().endsWith(".properties"))
-                .map(p -> {
-                    try {
-                        var prop = new Properties();
-                        prop.load(new FileReader(p.toFile()));
-                        var i = Integer.parseInt(prop.getProperty(EVENTO_BUNDLE_INSTANCES_MIN_PROPERTY, "0"));
-                        if (i == 0 && autorun) return 1;
-                        else return i;
-                    } catch (Exception e) {
-                        return null;
-                    }
-                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
-
-        var maxInstances = FileUtils.autoCloseWalk(directory.toPath(), s -> s
-                .filter(p -> p.toString().endsWith(".properties"))
-                .map(p -> {
-                    try {
-                        var prop = new Properties();
-                        prop.load(new FileReader(p.toFile()));
-                        return Integer.parseInt(prop.getProperty(EVENTO_BUNDLE_INSTANCES_MAX_PROPERTY, "64"));
-                    } catch (Exception e) {
-                        return null;
-                    }
-                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
-
         var bundleDetail = new AtomicReference<String>();
         var bundleDescription = new AtomicReference<String>();
         try (var s = Files.walk(directory.toPath())) {
@@ -253,8 +215,6 @@ public class JavaBundleParser implements BundleParser {
                 bundleId,
                 bundleVersion,
                 autorun,
-                minInstances,
-                maxInstances,
                 new ArrayList<>(components),
                 payloads,
                 bundleDescription.get(),

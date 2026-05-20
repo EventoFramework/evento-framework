@@ -1,10 +1,8 @@
 package com.evento.application.performance;
 
-import com.evento.common.performance.AutoscalingProtocol;
 import lombok.Getter;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
-import lombok.Setter;
 
 /**
  * The TracingAgent class provides functionality for correlating and tracking messages
@@ -16,8 +14,6 @@ public class TracingAgent {
     // Fields for bundle identification
     private final String bundleId;
     private final long bundleVersion;
-    @Setter
-    private AutoscalingProtocol autoscalingProtocol;
 
     /**
      * Constructs a new TracingAgent with the specified bundle identifier and version.
@@ -56,16 +52,7 @@ public class TracingAgent {
                        Track trackingAnnotation,
                        Transaction<T> transaction)
             throws Throwable {
-        try {
-            if(autoscalingProtocol != null){
-                autoscalingProtocol.arrival();
-            }
-            return doTrack(message, component, trackingAnnotation, transaction);
-        }finally {
-            if(autoscalingProtocol != null){
-                autoscalingProtocol.departure();
-            }
-        }
+        return doTrack(message, component, trackingAnnotation, transaction);
     }
 
     /**

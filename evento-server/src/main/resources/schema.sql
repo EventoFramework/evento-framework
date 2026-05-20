@@ -11,8 +11,6 @@ create table if not exists core__bundle
     description            text         null,
     detail                 text         null,
     line_prefix            varchar(255)         null,
-    max_instances          int          not null,
-    min_instances          int          not null,
     updated_at             timestamp    null,
     version                bigint       not null
 );

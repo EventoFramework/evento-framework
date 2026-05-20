@@ -5,7 +5,7 @@ import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.consumer.*;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.utils.PgDistributedLock;
-import com.evento.server.bus.MessageBus;
+import com.evento.server.bus.BusFacade;
 import com.evento.server.domain.model.core.Consumer;
 import com.evento.server.domain.repository.core.*;
 import org.apache.logging.log4j.LogManager;
@@ -134,12 +134,12 @@ public class ConsumerService {
      *         which contains the status of the consumer's fetch operation, or an exception if an error occurs.
      * @throws Exception if an error occurs during the retrieval of the consumer status.
      */
-    public CompletableFuture<ConsumerFetchStatusResponseMessage> getConsumerStatusFromNodes(String consumerId, MessageBus messageBus) throws Exception {
+    public CompletableFuture<ConsumerFetchStatusResponseMessage> getConsumerStatusFromNodes(String consumerId, BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
         var instances = consumers.stream()
                 .map(Consumer::getInstanceId)
                 .collect(Collectors.toSet());
-        var address =  messageBus.getCurrentView().stream().filter(n ->
+        var address =  busFacade.currentView().stream().filter(n ->
                 instances.contains(n.instanceId())).findFirst()
                 .orElseThrow();
         var request  = new EventoRequest();
@@ -150,7 +150,7 @@ public class ConsumerService {
         request.setSourceBundleVersion(0);
         request.setBody(new ConsumerFetchStatusRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
         var future = new CompletableFuture<ConsumerFetchStatusResponseMessage>();
-        messageBus.forward(null, address, request, (c) -> {
+        busFacade.forward(address, request, (c) -> {
             if(c.getBody() instanceof ConsumerFetchStatusResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {
@@ -191,12 +191,12 @@ public class ConsumerService {
      *         successfully set or not.
      * @throws Exception if an error occurs during the retrieval of the consumer status or forwarding of the request.
      */
-    public CompletableFuture<ConsumerResponseMessage> setRetryForConsumerEvent(String consumerId, long eventSequenceNumber, boolean retry, MessageBus messageBus) throws Exception {
+    public CompletableFuture<ConsumerResponseMessage> setRetryForConsumerEvent(String consumerId, long eventSequenceNumber, boolean retry, BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
         var instances = consumers.stream()
                 .map(Consumer::getInstanceId)
                 .collect(Collectors.toSet());
-        var address =  messageBus.getCurrentView().stream().filter(n ->
+        var address =  busFacade.currentView().stream().filter(n ->
                         instances.contains(n.instanceId())).findFirst()
                 .orElseThrow();
         var request  = new EventoRequest();
@@ -208,7 +208,7 @@ public class ConsumerService {
         request.setBody(new ConsumerSetEventRetryRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
                 eventSequenceNumber, retry));
         var future = new CompletableFuture<ConsumerResponseMessage>();
-        messageBus.forward(null, address, request, (c) -> {
+        busFacade.forward(address, request, (c) -> {
             if(c.getBody() instanceof ConsumerResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {
@@ -229,12 +229,12 @@ public class ConsumerService {
      *         indicating whether the dead messages were successfully consumed or not.
      * @throws Exception if an error occurs during the consumption of the dead messages.
      */
-    public CompletableFuture<ConsumerResponseMessage> consumeDeadQueue(String consumerId, MessageBus messageBus) throws Exception {
+    public CompletableFuture<ConsumerResponseMessage> consumeDeadQueue(String consumerId, BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
         var instances = consumers.stream()
                 .map(Consumer::getInstanceId)
                 .collect(Collectors.toSet());
-        var address =  messageBus.getCurrentView().stream().filter(n ->
+        var address =  busFacade.currentView().stream().filter(n ->
                         instances.contains(n.instanceId())).findFirst()
                 .orElseThrow();
         var request  = new EventoRequest();
@@ -245,7 +245,7 @@ public class ConsumerService {
         request.setSourceBundleVersion(0);
         request.setBody(new ConsumerProcessDeadQueueRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
         var future = new CompletableFuture<ConsumerResponseMessage>();
-        messageBus.forward(null, address, request, (c) -> {
+        busFacade.forward(address, request, (c) -> {
             if(c.getBody() instanceof ConsumerResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {
@@ -274,12 +274,12 @@ public class ConsumerService {
     public CompletableFuture<ConsumerResponseMessage> deleteDeadEventFromEventConsumer(
             String consumerId,
             long eventSequenceNumber,
-            MessageBus messageBus) throws Exception {
+            BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
         var instances = consumers.stream()
                 .map(Consumer::getInstanceId)
                 .collect(Collectors.toSet());
-        var address =  messageBus.getCurrentView().stream().filter(n ->
+        var address =  busFacade.currentView().stream().filter(n ->
                         instances.contains(n.instanceId())).findFirst()
                 .orElseThrow();
         var request  = new EventoRequest();
@@ -291,7 +291,7 @@ public class ConsumerService {
         request.setBody(new ConsumerDeleteDeadEventRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
                 eventSequenceNumber));
         var future = new CompletableFuture<ConsumerResponseMessage>();
-        messageBus.forward(null, address, request, (c) -> {
+        busFacade.forward(address, request, (c) -> {
             if(c.getBody() instanceof ConsumerResponseMessage resp){
                 future.complete(resp);
             } else if (c.getBody() instanceof ExceptionWrapper e) {

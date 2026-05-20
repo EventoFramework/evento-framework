@@ -251,7 +251,8 @@ public final class ConnectionSupervisor implements AutoCloseable {
         var info = new BundleRegistrationInfo(
                 parseVersion(config.bundleVersion()),
                 config.handlerPayloadTypes(),
-                Map.of());
+                config.registeredHandlers(),
+                config.payloadInfo());
         transport.send(new Notification(UUID.randomUUID(),
                 BundleRegistrationInfo.PAYLOAD_TYPE,
                 payloadCodec.encode(info),

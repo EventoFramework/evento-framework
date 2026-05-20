@@ -151,7 +151,7 @@ class BusLifecycleNettyIT {
         }
 
         void registerAndEnable(List<String> payloadTypes) {
-            var info = new BundleRegistrationInfo(100L, payloadTypes, Map.of());
+            var info = BundleRegistrationInfo.lean(100L, payloadTypes);
             client.send(new Notification(UUID.randomUUID(),
                     BundleRegistrationInfo.PAYLOAD_TYPE,
                     payloadCodec.encode(info), System.currentTimeMillis())).join();

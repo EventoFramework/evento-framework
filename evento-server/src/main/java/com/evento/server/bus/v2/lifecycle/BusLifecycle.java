@@ -48,9 +48,8 @@ import java.util.function.Consumer;
  * Boot happens in {@link #start(int)}; teardown in {@link #stop(Duration)}.
  *
  * <p>Public surface kept small on purpose: the few methods needed by the v1
- * consumers (view snapshots, sendKill, forward, isBundleAvailable) plus
- * {@link #subscribe(Consumer)} for cluster-event observers. Consumers will be
- * migrated off the v1 MessageBus to this in a follow-up commit.
+ * consumers (view snapshots, forward, isBundleAvailable) plus
+ * {@link #subscribe(Consumer)} for cluster-event observers.
  */
 public final class BusLifecycle {
 
@@ -59,7 +58,9 @@ public final class BusLifecycle {
     // --- protocol-internal notification payload types (forwarded for callers convenience) ---
     public static final String NOTIFY_ENABLE = com.evento.transport.protocol.ProtocolNotifications.ENABLE;
     public static final String NOTIFY_DISABLE = com.evento.transport.protocol.ProtocolNotifications.DISABLE;
-    public static final String NOTIFY_KILL = com.evento.transport.protocol.ProtocolNotifications.KILL;
+
+    /** {@code Request.sourceBundleId} used by server-initiated forwards. */
+    public static final String SERVER_BUNDLE_ID = "evento-server";
 
     private final TransportServer transportServer;
     private final ConnectionRegistry connectionRegistry;
@@ -72,6 +73,7 @@ public final class BusLifecycle {
     private final TokenValidator tokenValidator;
     private final ForwardingDedupCache dedupCache;
     private final MessageRouter router;
+    private final String serverInstanceId;
     private final ConcurrentHashMap<Transport, BundleSession> sessionsByTransport = new ConcurrentHashMap<>();
 
     // Hot-path counters exposing whether the zero-copy forward fired (good) or
@@ -142,6 +144,7 @@ public final class BusLifecycle {
         this.payloadCodec = payloadCodec;
         this.tokenValidator = tokenValidator;
         this.dedupCache = dedupCache;
+        this.serverInstanceId = serverInstanceId;
         this.handshakeHandler = new HandshakeHandler(
                 serverInstanceId,
                 serverCapabilities,
@@ -173,6 +176,79 @@ public final class BusLifecycle {
     public boolean isBundleAvailable(String bundleId) { return connectionRegistry.isAvailable(bundleId); }
     public void subscribe(Consumer<BusEvent> listener) { eventBus.subscribe(listener); }
     public int boundPort() { return transportServer.boundPort(); }
+
+    /**
+     * Send a server-initiated {@link Request} to a specific {@code destination}
+     * node and return a future that completes when the matching {@link Response}
+     * arrives (or fails on timeout / peer disconnect).
+     *
+     * <p>This is the primitive {@code BusFacade.forward(...)} sits on top of —
+     * it lets the server originate traffic to a chosen bundle without going
+     * through the routing table.
+     *
+     * @param destination the bundle node to send to
+     * @param payloadType the wire {@code payloadType} string (typically
+     *                    {@code ProtocolPayloadTypes.SERVER_ADMIN_REQUEST} for
+     *                    admin RPCs)
+     * @param payload     opaque CBOR bytes that the bundle will decode
+     * @param timeout     how long to wait for the response before failing the
+     *                    future
+     */
+    public java.util.concurrent.CompletableFuture<Response> forward(NodeAddress destination,
+                                                                     String payloadType,
+                                                                     byte[] payload,
+                                                                     Duration timeout) {
+        java.util.Objects.requireNonNull(destination, "destination");
+        java.util.Objects.requireNonNull(payloadType, "payloadType");
+        var destConnection = connectionRegistry.lookup(destination);
+        if (destConnection.isEmpty()) {
+            return java.util.concurrent.CompletableFuture.failedFuture(
+                    new IllegalStateException("no connection for " + destination.instanceId()));
+        }
+        var correlationId = UUID.randomUUID();
+        var request = new Request(correlationId,
+                SERVER_BUNDLE_ID, serverInstanceId, "0",
+                payloadType,
+                payload == null ? new byte[0] : payload,
+                timeout.toMillis(),
+                System.currentTimeMillis());
+        var future = correlationStore.submit(null, destination, correlationId,
+                payloadType, timeout.toMillis());
+        try {
+            destConnection.get().transport().send(request);
+        } catch (SendFailedException sfe) {
+            // Roll the correlation we just registered so the future doesn't hang
+            // waiting for a response that will never come.
+            correlationStore.failMatching(c -> c.correlationId().equals(correlationId), sfe);
+            return java.util.concurrent.CompletableFuture.failedFuture(sfe);
+        }
+        return future;
+    }
+
+    /**
+     * Block the calling thread until at least one node for {@code bundleId} is
+     * available (i.e. has sent {@code evento:enable}), or until {@code deadline}
+     * elapses. Returns true if the bundle became available in time, false on
+     * timeout.
+     *
+     * <p>Intended for boot-time waits where a controller needs a bundle online
+     * before it can start serving traffic. Implementation is a busy poll on the
+     * registry — fine because callers use it rarely, at startup only.
+     */
+    public boolean waitUntilAvailable(String bundleId, Duration deadline) {
+        java.util.Objects.requireNonNull(bundleId, "bundleId");
+        long endNanos = System.nanoTime() + deadline.toNanos();
+        while (System.nanoTime() < endNanos) {
+            if (connectionRegistry.isAvailable(bundleId)) return true;
+            try {
+                Thread.sleep(50L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return connectionRegistry.isAvailable(bundleId);
+    }
 
     /** How many forwards used the zero-copy {@code sendRaw} path (no codec hit). */
     public long forwardedRawCount() { return forwardedRawCount.get(); }
@@ -233,6 +309,7 @@ public final class BusLifecycle {
             case BundleRegistrationInfo.PAYLOAD_TYPE -> {
                 var info = payloadCodec.decode(notification.payload(), BundleRegistrationInfo.class);
                 clusterRegistry.registerHandlers(session.address(), info.handlerPayloadTypes());
+                eventBus.publish(new BusEvent.BundleRegistered(session.address(), info, Instant.now()));
             }
             case NOTIFY_ENABLE -> {
                 connectionRegistry.enable(session.address());

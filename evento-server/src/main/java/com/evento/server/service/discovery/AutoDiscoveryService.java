@@ -7,11 +7,12 @@ import com.evento.server.service.HandlerService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.evento.common.modeling.bundle.types.PayloadType;
-import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
-import com.evento.server.bus.MessageBus;
+import com.evento.server.bus.BusFacade;
 import com.evento.server.bus.NodeAddress;
+import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.service.BundleService;
+import com.evento.transport.protocol.BundleRegistrationInfo;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -45,7 +46,7 @@ public class AutoDiscoveryService {
      * @param componentRepository Repository for managing component entities.
      * @param dataSource The data source used for distributed locking and database interactions.
      */
-    public AutoDiscoveryService(MessageBus messageBus,
+    public AutoDiscoveryService(BusFacade busFacade,
                                 BundleRepository bundleRepository,
                                 HandlerService handlerService,
                                 PayloadRepository payloadRepository, BundleService bundleService,
@@ -54,48 +55,51 @@ public class AutoDiscoveryService {
         this.handlerService = handlerService;
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
-        messageBus.addJoinListener(this::onNodeJoin);
-        messageBus.addLeaveListener(this::onNodeLeave);
+        busFacade.subscribe(event -> {
+            switch (event) {
+                case BusEvent.BundleRegistered reg -> onNodeJoin(reg.node(), reg.registration());
+                case BusEvent.NodeLeft left -> onNodeLeave(left.node());
+                default -> { /* ignore other event types */ }
+            }
+        });
         this.componentRepository = componentRepository;
         this.pgDistributedLock = new PgDistributedLock(dataSource);
     }
 
     /**
-     * Handles the event when a node joins the system.
-     *
-     * @param bundleRegistration The registration information of the joining bundle.
+     * Handles the event when a node has registered its handlers (v1
+     * {@code addJoinListener}'s analogue, now fired by the
+     * {@code BusEvent.BundleRegistered} stream).
      */
-    private void onNodeJoin(BundleRegistration bundleRegistration) {
+    private void onNodeJoin(NodeAddress node, BundleRegistrationInfo registration) {
         try {
-            var key = "DISCOVERY:" + bundleRegistration.getBundleId();
+            var key = "DISCOVERY:" + node.bundleId();
             pgDistributedLock.lockedArea(key, () -> {
-                logger.info("Discovering bundle: %s".formatted(bundleRegistration.getBundleId()));
-                if (!bundleRegistration.getHandlers().isEmpty()) {
-                    var bundle = bundleRepository.findById(bundleRegistration.getBundleId()).orElseGet(() -> {
-                                logger.info("Bundle %s not found, creating an ephemeral one".formatted(bundleRegistration.getBundleId()));
+                logger.info("Discovering bundle: %s".formatted(node.bundleId()));
+                if (!registration.handlers().isEmpty()) {
+                    var bundle = bundleRepository.findById(node.bundleId()).orElseGet(() -> {
+                                logger.info("Bundle %s not found, creating an ephemeral one".formatted(node.bundleId()));
                                 return bundleRepository.save(new Bundle(
-                                        bundleRegistration.getBundleId(),
-                                        bundleRegistration.getBundleVersion(),
+                                        node.bundleId(),
+                                        registration.bundleVersion(),
                                         null,
                                         null,
                                         "L",
                                         BucketType.Ephemeral,
-                                        bundleRegistration.getInstanceId(),
+                                        node.instanceId(),
                                         null,
                                         true,
                                         new HashMap<>(),
                                         new HashMap<>(),
                                         false,
                                         false,
-                                        0,
-                                        1,
                                         Instant.now()));
                             }
                     );
                     var handlers = handlerService.findAllByBundleId(bundle.getId());
-                    for (RegisteredHandler registeredHandler : bundleRegistration.getHandlers()) {
+                    for (RegisteredHandler registeredHandler : registration.handlers()) {
                         if (!handlerService.exists(
-                                bundleRegistration.getBundleId(),
+                                node.bundleId(),
                                 registeredHandler.getComponentType(),
                                 registeredHandler.getComponentName(),
                                 registeredHandler.getHandlerType(),
@@ -168,7 +172,7 @@ public class AutoDiscoveryService {
                             handlerService.save(handler);
                         } else {
                             handlers.removeIf(h ->
-                                    Objects.equals(h.getComponent().getBundle().getId(), bundleRegistration.getBundleId())
+                                    Objects.equals(h.getComponent().getBundle().getId(), node.bundleId())
                                             && h.getComponent().getComponentName().equals(registeredHandler.getComponentName())
                                             && h.getComponent().getComponentType().equals(registeredHandler.getComponentType())
                                             && h.getHandledPayload().getName().equals(registeredHandler.getHandledPayload())
@@ -178,15 +182,15 @@ public class AutoDiscoveryService {
                     }
                     handlerService.deleteAll(handlers);
                 }
-                if (bundleRegistration.getPayloadInfo() != null)
-                    bundleRegistration.getPayloadInfo().forEach((k, v) -> payloadRepository.findById(k).ifPresent(p -> {
+                if (registration.payloadInfo() != null)
+                    registration.payloadInfo().forEach((k, v) -> payloadRepository.findById(k).ifPresent(p -> {
                         p.setJsonSchema(v[0]);
                         p.setDomain(v[1]);
                         p.setValidJsonSchema(true);
                         p.setUpdatedAt(Instant.now());
                         payloadRepository.save(p);
                     }));
-                bundleRegistration.getHandlers().stream().map(RegisteredHandler::getComponentName)
+                registration.handlers().stream().map(RegisteredHandler::getComponentName)
                         .distinct().forEach(handlerService::clearCache);
             });
 
