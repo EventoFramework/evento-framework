@@ -10,7 +10,7 @@ import java.util.ArrayList;
  * A class representing a bundle description.
  * <p>
  * A bundle description contains information about a software bundle, including its components, payload descriptions,
- * bundle ID, bundle version, autorun status, minimum and maximum instances, description, and detail.
+ * bundle ID, bundle version, autorun status, description, and detail.
  * <p>
  * The bundle description can be serialized and deserialized.
  */
@@ -24,10 +24,6 @@ public class BundleDescription implements Serializable {
 
 	private boolean autorun;
 
-	private int minInstances;
-
-	private int maxInstances;
-
 	private String description;
 	private String detail;
 	private String linePrefix;
@@ -40,8 +36,6 @@ public class BundleDescription implements Serializable {
 	 * @param bundleId the unique identifier of the bundle
 	 * @param bundleVersion the version number of the bundle
 	 * @param autorun indicates whether the bundle should automatically run
-	 * @param minInstances the minimum number of instances allowed for the bundle
-	 * @param maxInstances the maximum number of instances allowed for the bundle
 	 * @param components the list of components included in the bundle
 	 * @param payloadDescriptions the list of payload descriptions included in the bundle
 	 * @param description a brief description of the bundle
@@ -49,8 +43,6 @@ public class BundleDescription implements Serializable {
 	 * @param linePrefix a prefix for each line in the bundle
 	 */
 	public BundleDescription(String bundleId, long bundleVersion, boolean autorun,
-							 int minInstances,
-							 int maxInstances,
 							 ArrayList<Component> components,
 							 ArrayList<PayloadDescription> payloadDescriptions,
 							 String description,
@@ -62,8 +54,6 @@ public class BundleDescription implements Serializable {
 		this.bundleId = bundleId;
 		this.bundleVersion = bundleVersion;
 		this.autorun = autorun;
-		this.minInstances = minInstances;
-		this.maxInstances = maxInstances;
 		this.description = description;
 		this.detail = detail;
 		this.linePrefix = linePrefix;
@@ -164,42 +154,6 @@ public class BundleDescription implements Serializable {
 	 */
 	public void setAutorun(boolean autorun) {
 		this.autorun = autorun;
-	}
-
-	/**
-	 * Retrieves the minimum number of instances allowed for the bundle.
-	 *
-	 * @return the minimum number of instances allowed for the bundle
-	 */
-	public int getMinInstances() {
-		return minInstances;
-	}
-
-	/**
-	 * Sets the minimum number of instances allowed for the bundle.
-	 *
-	 * @param minInstances the minimum number of instances to be set
-	 */
-	public void setMinInstances(int minInstances) {
-		this.minInstances = minInstances;
-	}
-
-	/**
-	 * Retrieves the maximum number of instances allowed for the bundle.
-	 *
-	 * @return the maximum number of instances allowed for the bundle
-	 */
-	public int getMaxInstances() {
-		return maxInstances;
-	}
-
-	/**
-	 * Sets the maximum number of instances allowed for the bundle.
-	 *
-	 * @param maxInstances the maximum number of instances to be set
-	 */
-	public void setMaxInstances(int maxInstances) {
-		this.maxInstances = maxInstances;
 	}
 
 	/**

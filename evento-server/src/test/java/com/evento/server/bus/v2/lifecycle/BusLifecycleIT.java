@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 /**
@@ -132,6 +133,7 @@ class BusLifecycleIT {
         final ConcurrentHashMap<UUID, CompletableFuture<Response>> pending = new ConcurrentHashMap<>();
         final ConcurrentHashMap<UUID, CompletableFuture<Welcome>> pendingHellos = new ConcurrentHashMap<>();
         Consumer<Request> requestHandler;
+        Consumer<Notification> notificationHandler;
 
         MockBundle(String bundleId, String instanceId, BusLifecycle lifecycle, InjectableServer server) {
             this.bundleId = bundleId;
@@ -158,6 +160,9 @@ class BusLifecycleIT {
                 case Request req -> {
                     if (requestHandler != null) requestHandler.accept(req);
                 }
+                case Notification n -> {
+                    if (notificationHandler != null) notificationHandler.accept(n);
+                }
                 default -> {}
             }
         }
@@ -173,7 +178,7 @@ class BusLifecycleIT {
         }
 
         void registerHandlers(PayloadCodec codec, List<String> payloadTypes) {
-            var info = new BundleRegistrationInfo(100L, payloadTypes, Map.of());
+            var info = BundleRegistrationInfo.lean(100L, payloadTypes);
             clientSide.send(new Notification(UUID.randomUUID(),
                     BundleRegistrationInfo.PAYLOAD_TYPE,
                     codec.encode(info), System.currentTimeMillis()));
@@ -306,6 +311,97 @@ class BusLifecycleIT {
         await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.view().isEmpty());
         assertThat(lifecycle.availableView()).isEmpty();
         assertThat(seenEvents.stream().anyMatch(e -> e instanceof BusEvent.NodeLeft)).isTrue();
+    }
+
+    @Test
+    void bundleRegisteredEventCarriesFullRegistrationInfo() {
+        // The v2 analogue of v1 addJoinListener — when a bundle sends its
+        // registration notification, the lifecycle re-emits it as a typed
+        // BusEvent carrying the rich RegisteredHandler list and payload schemas
+        // that AutoDiscoveryService needs to populate the dashboard DB.
+        var bundle = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        completeHandshake(bundle);
+
+        var info = new BundleRegistrationInfo(
+                100L,
+                List.of("com.Foo"),
+                List.of(),
+                Map.of("com.Foo", new String[]{"{\"type\":\"object\"}", "demo-domain"}));
+        bundle.clientSide.send(new Notification(UUID.randomUUID(),
+                BundleRegistrationInfo.PAYLOAD_TYPE,
+                payloadCodec.encode(info), System.currentTimeMillis()));
+
+        await().atMost(2, TimeUnit.SECONDS).until(() ->
+                seenEvents.stream().anyMatch(e -> e instanceof BusEvent.BundleRegistered));
+        var registered = (BusEvent.BundleRegistered) seenEvents.stream()
+                .filter(e -> e instanceof BusEvent.BundleRegistered).findFirst().orElseThrow();
+        assertThat(registered.node().instanceId()).isEqualTo("inst-A1");
+        assertThat(registered.registration().handlerPayloadTypes()).containsExactly("com.Foo");
+        assertThat(registered.registration().payloadInfo()).containsKey("com.Foo");
+        assertThat(registered.registration().payloadInfo().get("com.Foo")[1]).isEqualTo("demo-domain");
+    }
+
+    @Test
+    void serverInitiatedForwardReachesTargetAndReturnsResponse() throws Exception {
+        // BusFacade.forward sits on top of this primitive. The server originates
+        // a request directly to a chosen NodeAddress and gets back the response
+        // (no routing table involved).
+        var bundle = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        completeHandshake(bundle);
+        bundle.enable();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.isBundleAvailable("bundle-A"));
+
+        var receivedRequests = new ArrayList<Request>();
+        bundle.requestHandler = req -> {
+            receivedRequests.add(req);
+            bundle.replyToRequest(req, new byte[]{0x4F, 0x4B}, "test:reply");
+        };
+
+        var target = lifecycle.view().iterator().next();
+        var responseFuture = lifecycle.forward(target, "evento:server-admin-request",
+                new byte[]{1, 2, 3}, Duration.ofSeconds(2));
+        var response = responseFuture.get(2, TimeUnit.SECONDS);
+
+        assertThat(response.isError()).isFalse();
+        assertThat(response.payloadType()).isEqualTo("test:reply");
+        assertThat(response.payload()).containsExactly(0x4F, 0x4B);
+        assertThat(receivedRequests).hasSize(1);
+        assertThat(receivedRequests.getFirst().payloadType()).isEqualTo("evento:server-admin-request");
+        assertThat(receivedRequests.getFirst().payload()).containsExactly(1, 2, 3);
+        assertThat(receivedRequests.getFirst().sourceBundleId()).isEqualTo(BusLifecycle.SERVER_BUNDLE_ID);
+        assertThat(receivedRequests.getFirst().sourceInstanceId()).isEqualTo("server-1");
+    }
+
+    @Test
+    void forwardToUnknownDestinationFailsImmediately() {
+        var ghost = new com.evento.server.bus.NodeAddress("nope", 1L, "ghost");
+        var fut = lifecycle.forward(ghost, "evento:server-admin-request",
+                new byte[0], Duration.ofSeconds(1));
+        assertThat(fut).isCompletedExceptionally();
+        assertThatThrownBy(fut::get).hasCauseInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no connection for ghost");
+    }
+
+    @Test
+    void waitUntilAvailableReturnsTrueWhenBundleBecomesAvailable() throws Exception {
+        var bundle = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        completeHandshake(bundle);
+
+        // Schedule enable just after waitUntilAvailable starts.
+        var pool = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        try {
+            pool.schedule(bundle::enable, 200, TimeUnit.MILLISECONDS);
+            boolean ready = lifecycle.waitUntilAvailable("bundle-A", Duration.ofSeconds(2));
+            assertThat(ready).isTrue();
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void waitUntilAvailableReturnsFalseOnTimeout() {
+        boolean ready = lifecycle.waitUntilAvailable("never-connects", Duration.ofMillis(200));
+        assertThat(ready).isFalse();
     }
 
     @Test

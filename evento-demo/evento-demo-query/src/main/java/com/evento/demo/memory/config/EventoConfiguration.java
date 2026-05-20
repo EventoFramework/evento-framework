@@ -7,7 +7,6 @@ import com.evento.application.manager.LogTracesMessageHandlerInterceptor;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
-import com.evento.common.performance.ThreadCountAutoscalingProtocol;
 import com.evento.common.utils.Context;
 import com.evento.common.utils.ProjectorStatus;
 import com.evento.consumer.state.store.postgres.PostgresConsumerStateStore;
@@ -36,10 +35,6 @@ public class EventoConfiguration {
 			@Value("${evento.server.port}") Integer eventoServerPort,
 			@Value("${evento.bundle.id}") String bundleId,
 			@Value("${evento.bundle.version}") long bundleVersion,
-			@Value("${evento.cluster.autoscaling.max.threads}") int maxThreads,
-			@Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
-			@Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
-			@Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
 			@Value("${spring.postgres.datasource.url}") String pgConnectionUrl,
 			@Value("${spring.postgres.datasource.username}") String pgUsername,
 			@Value("${spring.postgres.datasource.password}") String pgPassword,
@@ -61,12 +56,6 @@ public class EventoConfiguration {
 						.setMaxReconnectAttempts(30)
 						.setReconnectDelayMillis(5000))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
-				.setAutoscalingProtocolBuilder((es) -> new ThreadCountAutoscalingProtocol(
-						es,
-						maxThreads,
-						minThreads,
-						maxOverflow,
-						maxUnderflow, 60 * 1000))
 				.setInjector(factory::getBean)
 				//.setConsumerStateStoreBuilder(InMemoryConsumerStateStore::new)
     .setConsumerStateStoreBuilder((es, ps) ->

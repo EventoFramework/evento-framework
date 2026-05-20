@@ -137,11 +137,7 @@ public class EventoServerClient implements EventoServer {
                 }
             }
             case EventoMessage m -> {
-                // Handling general messages
-                if (m.getBody() instanceof ClusterNodeKillMessage) {
-                    logger.info("ClusterNodeKillMessage received");
-                    System.exit(0);
-                }
+                // No-op: cluster lifecycle is managed by the external orchestrator.
             }
             case ServerHeartBeatMessage hb -> {
                 var now = System.currentTimeMillis();

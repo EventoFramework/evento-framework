@@ -35,8 +35,6 @@ public class BundleDto implements Serializable {
 
 	private boolean autorun;
 	private boolean deployable;
-	private int minInstances;
-	private int maxInstances;
 
 	private Instant updatedAt;
 	private Set<String> domains;
@@ -60,8 +58,6 @@ public class BundleDto implements Serializable {
 		this.vmOptions = bundle.getVmOptions();
 		this.handlers = handlers.stream().map(HandlerDto::new).collect(Collectors.toList());
 		this.autorun = bundle.isAutorun();
-		this.minInstances = bundle.getMinInstances();
-		this.maxInstances = bundle.getMaxInstances();
 		this.description = bundle.getDescription();
 		this.detail = bundle.getDetail();
 		this.updatedAt = bundle.getUpdatedAt();

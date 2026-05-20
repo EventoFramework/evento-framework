@@ -11,7 +11,6 @@ import com.evento.common.modeling.messaging.payload.Command;
 import com.evento.common.modeling.messaging.payload.DomainCommand;
 import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
-import com.evento.common.performance.ThreadCountAutoscalingProtocol;
 import com.evento.demo.api.command.UtilFailCommand;
 import com.evento.demo.api.error.InvalidCommandException;
 import com.evento.demo.api.view.enums.FailStage;
@@ -40,10 +39,6 @@ public class EventoConfiguration {
             @Value("${evento.server.port}") Integer eventoServerPort,
             @Value("${evento.bundle.id}") String bundleId,
             @Value("${evento.bundle.version}") long bundleVersion,
-            @Value("${evento.cluster.autoscaling.max.threads}") int maxThreads,
-            @Value("${evento.cluster.autoscaling.max.overflow}") int maxOverflow,
-            @Value("${evento.cluster.autoscaling.min.threads}") int minThreads,
-            @Value("${evento.cluster.autoscaling.max.underflow}") int maxUnderflow,
             BeanFactory factory,
             @Value("${sentry.dns}") String sentryDns
     ) throws Exception {
@@ -98,12 +93,6 @@ public class EventoConfiguration {
                     }
                 })
                 .setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
-                .setAutoscalingProtocolBuilder((es) -> new ThreadCountAutoscalingProtocol(
-                        es,
-                        maxThreads,
-                        minThreads,
-                        maxOverflow,
-                        maxUnderflow, 60 * 1000))
                 .setInjector(factory::getBean)
                 .start();
 

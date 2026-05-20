@@ -37,7 +37,6 @@ import com.evento.common.modeling.messaging.message.internal.discovery.BundleReg
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.common.modeling.messaging.payload.DomainEvent;
 import com.evento.common.modeling.messaging.query.Multiple;
-import com.evento.common.performance.AutoscalingProtocol;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.performance.RemotePerformanceService;
 import com.evento.common.serialization.ObjectMapperUtils;
@@ -288,7 +287,6 @@ public class EventoBundle {
         private long bundleVersion = 1;
         private Function<Class<?>, Object> injector;
 
-        private Function<EventoServer, AutoscalingProtocol> autoscalingProtocolBuilder;
         private BiFunction<EventoServer, PerformanceService, ConsumerStateStore> consumerStateStoreBuilder;
         private Function<EventoServer, CommandGateway> commandGatewayBuilder  = CommandGatewayImpl::new;
         @Setter(AccessLevel.NONE)
@@ -650,25 +648,6 @@ public class EventoBundle {
                             .setMaxRetryAttempts(eventoServerMessageBusConfiguration.getMaxRetryAttempts())
                             .setRetryDelayMillis(eventoServerMessageBusConfiguration.getRetryDelayMillis())
                             .connect();
-
-            if(autoscalingProtocolBuilder == null){
-                autoscalingProtocolBuilder = (e) -> new AutoscalingProtocol(e) {
-
-                    @Override
-                    public void arrival() {
-
-                    }
-
-                    @Override
-                    public void departure() {
-
-                    }
-                };
-            }
-            var autoscalingProtocol = autoscalingProtocolBuilder.apply(eventoServer);
-            logger.info("Autoscaling protocol: %s".formatted(autoscalingProtocol.getClass().getName()));
-            tracingAgent.setAutoscalingProtocol(autoscalingProtocol);
-
 
             if (consumerStateStoreBuilder == null) {
                 consumerStateStoreBuilder = (es, ps) ->InMemoryConsumerStateStore.builder(

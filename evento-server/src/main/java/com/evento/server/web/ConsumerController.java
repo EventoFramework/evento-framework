@@ -2,7 +2,7 @@ package com.evento.server.web;
 
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerResponseMessage;
-import com.evento.server.bus.MessageBus;
+import com.evento.server.bus.BusFacade;
 import com.evento.server.service.discovery.ConsumerService;
 import com.evento.server.web.dto.ConsumerDTO;
 import org.springframework.security.access.annotation.Secured;
@@ -18,11 +18,11 @@ import java.util.concurrent.CompletableFuture;
 public class ConsumerController {
 
     private final ConsumerService consumerService;
-    private final MessageBus messageBus;
+    private final BusFacade busFacade;
 
-    public ConsumerController(ConsumerService consumerService, MessageBus messageBus) {
+    public ConsumerController(ConsumerService consumerService, BusFacade busFacade) {
         this.consumerService = consumerService;
-        this.messageBus = messageBus;
+        this.busFacade = busFacade;
     }
 
     @GetMapping("/")
@@ -43,7 +43,7 @@ public class ConsumerController {
                 consumer.setComponentVersion((c.getConsumerId().split("_"))[2]);
                 map.put(c.getComponent().getComponentName(), consumer);
             }
-            if(messageBus.getCurrentAvailableView().stream().anyMatch(e -> e.instanceId().equals(c.getInstanceId()))){
+            if(busFacade.currentAvailableView().stream().anyMatch(e -> e.instanceId().equals(c.getInstanceId()))){
                 map.get(c.getComponent().getComponentName()).getInstances().add(c.getInstanceId());
             }else{
                 consumerService.clearInstance(c.getInstanceId());
@@ -56,7 +56,7 @@ public class ConsumerController {
     @Secured("ROLE_WEB")
     public CompletableFuture<ConsumerFetchStatusResponseMessage>
     getConsumersByConsumerId(@PathVariable String consumerId) throws Exception {
-      return consumerService.getConsumerStatusFromNodes(consumerId, messageBus);
+      return consumerService.getConsumerStatusFromNodes(consumerId, busFacade);
     }
 
     @PutMapping("/{consumerId}/event/{eventSequenceNumber}")
@@ -65,7 +65,7 @@ public class ConsumerController {
     setRetryForConsumerEvent(@PathVariable String consumerId,
                              @PathVariable long eventSequenceNumber,
                              @RequestParam boolean retry) throws Exception {
-      return consumerService.setRetryForConsumerEvent(consumerId, eventSequenceNumber, retry, messageBus);
+      return consumerService.setRetryForConsumerEvent(consumerId, eventSequenceNumber, retry, busFacade);
     }
 
     @DeleteMapping("/{consumerId}/event/{eventSequenceNumber}")
@@ -73,13 +73,13 @@ public class ConsumerController {
     public CompletableFuture<ConsumerResponseMessage>
     deleteDeadEventFromConsumer(@PathVariable String consumerId,
                              @PathVariable long eventSequenceNumber) throws Exception {
-      return consumerService.deleteDeadEventFromEventConsumer(consumerId, eventSequenceNumber, messageBus);
+      return consumerService.deleteDeadEventFromEventConsumer(consumerId, eventSequenceNumber, busFacade);
     }
 
     @PostMapping("/{consumerId}/consume-dead-queue")
     @Secured("ROLE_ADMIN")
     public CompletableFuture<ConsumerResponseMessage>
     consumeDeadQueue(@PathVariable String consumerId) throws Exception {
-      return consumerService.consumeDeadQueue(consumerId, messageBus);
+      return consumerService.consumeDeadQueue(consumerId, busFacade);
     }
 }
