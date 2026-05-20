@@ -1,5 +1,6 @@
 package com.evento.transport.netty;
 
+import com.evento.transport.Frame;
 import com.evento.transport.codec.Codec;
 import com.evento.transport.codec.CodecException;
 import com.evento.transport.message.Message;
@@ -14,7 +15,13 @@ import java.util.List;
 /**
  * Translates a framed {@link ByteBuf} (one CBOR-encoded {@link Message} per
  * invocation, courtesy of the upstream {@code LengthFieldBasedFrameDecoder})
- * into a typed {@link Message}.
+ * into a {@link Frame} — the parsed {@link Message} paired with the raw bytes
+ * it was decoded from.
+ *
+ * <p>Holding the raw bytes enables the zero-copy forwarding path: the broker
+ * can route by message metadata and then write the original bytes back out
+ * (via {@code Transport.sendRaw}) without re-running the codec. Saves one
+ * CBOR encode + one allocation per forwarded message on the broker's hot path.
  *
  * <p>A decode failure is logged and the connection is closed: a malformed frame
  * means we lost stream alignment and continuing to read would produce garbage.
@@ -35,17 +42,11 @@ final class CborMessageDecoder extends MessageToMessageDecoder<ByteBuf> {
         if (readable == 0) {
             return;
         }
-        byte[] bytes;
-        if (in.hasArray()) {
-            bytes = new byte[readable];
-            in.readBytes(bytes);
-        } else {
-            bytes = new byte[readable];
-            in.readBytes(bytes);
-        }
+        byte[] bytes = new byte[readable];
+        in.readBytes(bytes);
         try {
             Message message = codec.decode(bytes, 0, bytes.length);
-            out.add(message);
+            out.add(new Frame(message, bytes));
         } catch (CodecException e) {
             log.error("event=decode_failure channel={} bytes={}", ctx.channel().id(), readable, e);
             ctx.close();

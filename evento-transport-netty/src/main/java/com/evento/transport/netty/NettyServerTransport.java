@@ -149,7 +149,7 @@ public final class NettyServerTransport implements TransportServer {
         private final ConnectionStateMachine state;
         private final AtomicLong lastInboundMs;
         private final NettyTransportConfig config;
-        private volatile Consumer<Message> messageHandler = msg -> {};
+        private volatile Consumer<com.evento.transport.Frame> frameHandler = f -> {};
 
         ServerChildTransport(Channel channel, ConnectionStateMachine state,
                              AtomicLong lastInboundMs, NettyTransportConfig config) {
@@ -159,8 +159,8 @@ public final class NettyServerTransport implements TransportServer {
             this.config = config;
         }
 
-        void deliver(Message msg) {
-            messageHandler.accept(msg);
+        void deliver(com.evento.transport.Frame frame) {
+            frameHandler.accept(frame);
         }
 
         @Override public String remoteId() { return String.valueOf(channel.remoteAddress()); }
@@ -194,8 +194,39 @@ public final class NettyServerTransport implements TransportServer {
             return future;
         }
 
+        @Override
+        public CompletableFuture<Void> sendRaw(byte[] frameBytes) {
+            Objects.requireNonNull(frameBytes, "frameBytes");
+            var snapshot = state.current();
+            if (!snapshot.canSend()) {
+                throw new SendFailedException("not in CONNECTED state: " + snapshot, snapshot);
+            }
+            if (!channel.isActive()) {
+                throw new SendFailedException("child channel not active", snapshot);
+            }
+            // Pre-encoded frame: ByteBuf passes through the encoder (which only
+            // handles Message) and gets length-prefixed by LengthFieldPrepender.
+            var future = new CompletableFuture<Void>();
+            channel.writeAndFlush(io.netty.buffer.Unpooled.wrappedBuffer(frameBytes))
+                    .addListener(cf -> {
+                        if (cf.isSuccess()) {
+                            future.complete(null);
+                        } else {
+                            future.completeExceptionally(new SendFailedException(
+                                    "child raw write failed: " + cf.cause().getMessage(),
+                                    state.current(), cf.cause()));
+                        }
+                    });
+            return future;
+        }
+
         @Override public void onMessage(Consumer<Message> handler) {
-            this.messageHandler = Objects.requireNonNull(handler, "handler");
+            Objects.requireNonNull(handler, "handler");
+            this.frameHandler = frame -> handler.accept(frame.message());
+        }
+
+        @Override public void onFrame(Consumer<com.evento.transport.Frame> handler) {
+            this.frameHandler = Objects.requireNonNull(handler, "handler");
         }
 
         @Override public void onStateChange(BiConsumer<ConnectionState, ConnectionState> listener) {

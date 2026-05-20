@@ -1,11 +1,13 @@
 package com.evento.transport.netty;
 
+import com.evento.transport.Frame;
 import com.evento.transport.SendFailedException;
 import com.evento.transport.Transport;
 import com.evento.transport.TransportException;
 import com.evento.transport.message.Message;
 import com.evento.transport.state.ConnectionState;
 import com.evento.transport.state.ConnectionStateMachine;
+import io.netty.buffer.Unpooled;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
@@ -46,7 +48,7 @@ public final class NettyClientTransport implements Transport {
     private final EventLoopGroup workerGroup;
     private final boolean ownsWorkerGroup;
     private volatile Channel channel;
-    private volatile Consumer<Message> messageHandler = msg -> {};
+    private volatile Consumer<Frame> frameHandler = f -> {};
 
     public NettyClientTransport(String remoteId, String host, int port, NettyTransportConfig config) {
         this(remoteId, host, port, config, null);
@@ -94,7 +96,7 @@ public final class NettyClientTransport implements Transport {
                 .option(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, config.writeBufferLowWaterMark())
                 .handler(new io.netty.channel.ChannelInitializer<SocketChannel>() {
                     @Override protected void initChannel(SocketChannel ch) {
-                        pipelineFactory.configure(ch, state, lastInboundMs, m -> messageHandler.accept(m));
+                        pipelineFactory.configure(ch, state, lastInboundMs, f -> frameHandler.accept(f));
                     }
                 });
 
@@ -149,8 +151,41 @@ public final class NettyClientTransport implements Transport {
     }
 
     @Override
+    public CompletableFuture<Void> sendRaw(byte[] frameBytes) {
+        Objects.requireNonNull(frameBytes, "frameBytes");
+        var snapshot = state.current();
+        if (!snapshot.canSend()) {
+            throw new SendFailedException("not in CONNECTED state: " + snapshot, snapshot);
+        }
+        var ch = channel;
+        if (ch == null || !ch.isActive()) {
+            throw new SendFailedException("channel not active", snapshot);
+        }
+        // Write raw bytes as a ByteBuf. The pipeline's CborMessageEncoder is
+        // a MessageToByteEncoder<Message> — non-Message types pass through
+        // unchanged; LengthFieldPrepender adds the 4-byte length prefix.
+        var future = new CompletableFuture<Void>();
+        ch.writeAndFlush(Unpooled.wrappedBuffer(frameBytes)).addListener(cf -> {
+            if (cf.isSuccess()) {
+                future.complete(null);
+            } else {
+                future.completeExceptionally(new SendFailedException(
+                        "raw write failed: " + cf.cause().getMessage(),
+                        state.current(), cf.cause()));
+            }
+        });
+        return future;
+    }
+
+    @Override
     public void onMessage(Consumer<Message> handler) {
-        this.messageHandler = Objects.requireNonNull(handler, "handler");
+        Objects.requireNonNull(handler, "handler");
+        this.frameHandler = frame -> handler.accept(frame.message());
+    }
+
+    @Override
+    public void onFrame(Consumer<Frame> handler) {
+        this.frameHandler = Objects.requireNonNull(handler, "handler");
     }
 
     @Override

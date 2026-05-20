@@ -15,6 +15,7 @@ import com.evento.server.bus.v2.router.BundleSession;
 import com.evento.server.bus.v2.router.ForwardingTable;
 import com.evento.server.bus.v2.router.MessageRouter;
 import com.evento.server.bus.v2.security.TokenValidator;
+import com.evento.transport.Frame;
 import com.evento.transport.HandshakeProtocol;
 import com.evento.transport.SendFailedException;
 import com.evento.transport.Transport;
@@ -72,6 +73,12 @@ public final class BusLifecycle {
     private final ForwardingDedupCache dedupCache;
     private final MessageRouter router;
     private final ConcurrentHashMap<Transport, BundleSession> sessionsByTransport = new ConcurrentHashMap<>();
+
+    // Hot-path counters exposing whether the zero-copy forward fired (good) or
+    // fell back to encode-on-forward (e.g. the destination is an InMemoryTransport
+    // in tests). Both are AtomicLong so they're safe to read from any thread.
+    private final java.util.concurrent.atomic.AtomicLong forwardedRawCount = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong forwardedReencodedCount = new java.util.concurrent.atomic.AtomicLong();
 
     public BusLifecycle(TransportServer transportServer,
                         ConnectionRegistry connectionRegistry,
@@ -167,11 +174,17 @@ public final class BusLifecycle {
     public void subscribe(Consumer<BusEvent> listener) { eventBus.subscribe(listener); }
     public int boundPort() { return transportServer.boundPort(); }
 
+    /** How many forwards used the zero-copy {@code sendRaw} path (no codec hit). */
+    public long forwardedRawCount() { return forwardedRawCount.get(); }
+
+    /** How many forwards fell back to the typed {@link Transport#send} path (codec re-encoded). */
+    public long forwardedReencodedCount() { return forwardedReencodedCount.get(); }
+
     /** Public hook for tests / non-TCP transports: feed an already-accepted Transport. */
     public void acceptConnection(Transport transport) {
         var session = new BundleSession(transport, UUID.randomUUID().toString());
         sessionsByTransport.put(transport, session);
-        transport.onMessage(msg -> router.route(msg, session));
+        transport.onFrame(frame -> router.route(frame, session));
         transport.onStateChange((from, to) -> {
             if (to == ConnectionState.DISCONNECTED || to == ConnectionState.CLOSED) {
                 onTransportDisconnected(session);
@@ -182,7 +195,7 @@ public final class BusLifecycle {
 
     // ---- inbound handlers ----
 
-    private void onHello(Hello hello, BundleSession session) {
+    private void onHello(Hello hello, Frame frame, BundleSession session) {
         if (session.address() != null) {
             log.warn("event=duplicate_hello session={}", session.address().instanceId());
             return;
@@ -211,7 +224,7 @@ public final class BusLifecycle {
         });
     }
 
-    private void onNotification(Notification notification, BundleSession session) {
+    private void onNotification(Notification notification, Frame frame, BundleSession session) {
         if (session.address() == null) {
             log.warn("event=notification_before_handshake type={}", notification.payloadType());
             return;
@@ -231,7 +244,7 @@ public final class BusLifecycle {
         }
     }
 
-    private void onRequest(Request request, BundleSession session) {
+    private void onRequest(Request request, Frame frame, BundleSession session) {
         if (session.address() == null) {
             replyWithError(session.transport(), request.correlationId(),
                     new IllegalStateException("handshake required before requests"));
@@ -271,7 +284,12 @@ public final class BusLifecycle {
             return;
         }
         forwardingTable.track(request.correlationId(), session.address(), destAddress, request.payloadType());
-        destConnection.get().transport().send(request).exceptionally(t -> {
+        // Zero-copy forward: the broker doesn't re-encode the Request — it writes
+        // the exact bytes that arrived on the wire to the destination's channel.
+        // Saves one CBOR pass + one byte[] allocation on every hop. Fall back to
+        // send(Request) when the destination transport doesn't support sendRaw
+        // (in-memory transports used by tests).
+        forwardOrSend(destConnection.get().transport(), frame, request).exceptionally(t -> {
             forwardingTable.resolve(request.correlationId());
             dedupCache.invalidate(request.correlationId());
             replyWithError(session.transport(), request.correlationId(), t);
@@ -279,7 +297,7 @@ public final class BusLifecycle {
         });
     }
 
-    private void onResponse(Response response, BundleSession session) {
+    private void onResponse(Response response, Frame frame, BundleSession session) {
         if (correlationStore.complete(response)) {
             return;  // server-initiated request
         }
@@ -297,7 +315,30 @@ public final class BusLifecycle {
                     response.correlationId(), originator.instanceId());
             return;
         }
-        originatorConn.get().transport().send(response);
+        forwardOrSend(originatorConn.get().transport(), frame, response);
+    }
+
+    /**
+     * Prefer the zero-copy {@link Transport#sendRaw} path if the destination
+     * supports it and we have raw bytes from the inbound frame. Otherwise fall
+     * back to the typed send (which re-encodes via the codec).
+     */
+    private java.util.concurrent.CompletableFuture<Void> forwardOrSend(Transport dest,
+                                                                        Frame frame,
+                                                                        com.evento.transport.message.Message fallback) {
+        byte[] raw = frame == null ? null : frame.rawBytes();
+        if (raw == null || raw.length == 0) {
+            forwardedReencodedCount.incrementAndGet();
+            return dest.send(fallback);
+        }
+        try {
+            var fut = dest.sendRaw(raw);
+            forwardedRawCount.incrementAndGet();
+            return fut;
+        } catch (UnsupportedOperationException uoe) {
+            forwardedReencodedCount.incrementAndGet();
+            return dest.send(fallback);
+        }
     }
 
     private void onTransportDisconnected(BundleSession session) {
