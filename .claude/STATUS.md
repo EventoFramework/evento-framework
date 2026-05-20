@@ -28,10 +28,11 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 | 9 | `cc284865` | `feat(bundle-v2)`: full resilient bundle client + security + exactly-once. See dedicated section below. |
 | 10 | `9ef5053c` | `docs(STATUS)`: updated for the bundle slice. |
 | 11 | `4c887dca` | `feat(broker-rtt)`: zero-copy forwarding. `Frame` (Message + raw bytes), `Transport.onFrame` + `Transport.sendRaw`, `CborMessageDecoder` retains raw bytes, broker uses `sendRaw` on forwarded Request/Response → no CBOR re-encode on the broker hop. **`BusLifecycleZeroCopyIT` (2 tests)** asserts `forwardedRawCount == 2×N` and `forwardedReencodedCount == 0`. |
-| 12 | _(this slice)_ | `feat(server-bus)`: PR3.1 + autoscale rip-out. Two changes that land together because the autoscale rip-out reduced the surface PR3.1 was migrating. **PR3.1:** BusFacade SPI; v1 `MessageBusFacade` adapter + v2 `BusLifecycleFacade` adapter. Migrated `DashboardController`, `ClusterStatusController`, `AutoDiscoveryService`, `ConsumerService`, `ConsumerController` to depend on `BusFacade`. Enriched `BundleRegistrationInfo` with rich `RegisteredHandler` list + `payloadInfo` so auto-discovery still works on v2. New `BusEvent.BundleRegistered` event fired by `BusLifecycle.onNotification`. New `BusLifecycle.forward(NodeAddress, payloadType, byte[], Duration)` server-initiated RPC primitive. New `evento:server-admin-request` payloadType + `AdminPayloadCodec` (Jackson-CBOR with polymorphic typing, mirrors v1 `ObjectMapperUtils`) so v1's `EventoRequest` round-trips through the v2 wire. **Autoscale rip-out:** deleted `AutoscalingProtocol`, `ThreadCountAutoscalingProtocol`, `ClusterNodeIsBoredMessage`, `ClusterNodeIsSufferingMessage`, `ClusterNodeKillMessage`, `BundleDeployService`. Dropped `Bundle.{min,max}Instances` columns from schema + DTO + parser. Removed `sendKill` from `BusFacade`/`BusLifecycle` (+ `NOTIFY_KILL` from `ProtocolNotifications`), `/spawn` + `/kill` REST endpoints, and the `TracingAgent.arrival/departure` calls + `AutoscalingProtocol` field. The cluster orchestrator (k8s/whatever) now owns spawn/kill — the framework only emits performance metrics. **+9 tests:** 5 in `BusLifecycleIT` (BundleRegistered emission, forward primitive, waitUntilAvailable) + 4 in new `BusLifecycleFacadeNettyIT`. |
+| 13 | _(this slice)_ | `feat(bundle-v2)`: PR3.2a — bundle-side admin request handler. Moved `AdminPayloadCodec` from server to `com.evento.common.admin` so bundles can decode the same wire. New `BundleAdminRequestHandler` in `evento-bundle/.../client/v2/admin/` — implements `HandlerRegistry.RequestHandler`, decodes the inner `EventoRequest`, dispatches one of the four `ConsumerXyzRequestMessage` operations via a `ConsumerLookup` SPI, encodes the `EventoResponse`. Closes the round-trip the dashboard / discovery / consumer endpoints rely on: `ConsumerService.getConsumerStatusFromNodes`, `setRetryForConsumerEvent`, `consumeDeadQueue`, `deleteDeadEventFromEventConsumer` now work end-to-end on the v2 wire. **+5 tests** in new `BundleAdminRoundTripIT`: each admin op routes correctly + unknown-consumer surfaces `ExceptionWrapper` on the facade callback. |
+| 12 | `4dacefd1` | `feat(server-bus)`: PR3.1 + autoscale rip-out. Two changes that land together because the autoscale rip-out reduced the surface PR3.1 was migrating. **PR3.1:** BusFacade SPI; v1 `MessageBusFacade` adapter + v2 `BusLifecycleFacade` adapter. Migrated `DashboardController`, `ClusterStatusController`, `AutoDiscoveryService`, `ConsumerService`, `ConsumerController` to depend on `BusFacade`. Enriched `BundleRegistrationInfo` with rich `RegisteredHandler` list + `payloadInfo` so auto-discovery still works on v2. New `BusEvent.BundleRegistered` event fired by `BusLifecycle.onNotification`. New `BusLifecycle.forward(NodeAddress, payloadType, byte[], Duration)` server-initiated RPC primitive. New `evento:server-admin-request` payloadType + `AdminPayloadCodec` (Jackson-CBOR with polymorphic typing, mirrors v1 `ObjectMapperUtils`) so v1's `EventoRequest` round-trips through the v2 wire. **Autoscale rip-out:** deleted `AutoscalingProtocol`, `ThreadCountAutoscalingProtocol`, `ClusterNodeIsBoredMessage`, `ClusterNodeIsSufferingMessage`, `ClusterNodeKillMessage`, `BundleDeployService`. Dropped `Bundle.{min,max}Instances` columns from schema + DTO + parser. Removed `sendKill` from `BusFacade`/`BusLifecycle` (+ `NOTIFY_KILL` from `ProtocolNotifications`), `/spawn` + `/kill` REST endpoints, and the `TracingAgent.arrival/departure` calls + `AutoscalingProtocol` field. The cluster orchestrator (k8s/whatever) now owns spawn/kill — the framework only emits performance metrics. **+9 tests:** 5 in `BusLifecycleIT` (BundleRegistered emission, forward primitive, waitUntilAvailable) + 4 in new `BusLifecycleFacadeNettyIT`. |
 
-**Test totals on JDK 25:** 115 (transport-api 45, transport-netty 7,
-server v2 63). Run with:
+**Test totals on JDK 25:** 120 (transport-api 45, transport-netty 7,
+server v2 68). Run with:
 
 ```
 JAVA_HOME=$(/usr/libexec/java_home -v 25) \
@@ -191,27 +192,36 @@ Key files added: `bus/BusFacade.java`,
 `bus/v2/BusLifecycleFacade.java`, `bus/v2/admin/AdminPayloadCodec.java`,
 `transport-api/protocol/ProtocolPayloadTypes.java`.
 
-### 3.2 Bundle migration (mostly done — see commit 9)
-The v2 `BundleClient` exists under
-`evento-bundle/.../client/v2/` and is fully tested. What's left here
-is *wiring* it to the existing annotation-driven framework
-(`@CommandHandler` / `@EventHandler` / `@QueryHandler` / `@Saga` /
-`@Aggregate`):
+### 3.2 Bundle migration (partial — see commit 13)
 
-- Build a scanner that maps annotated handler methods to
-  `BundleClient.registerRequestHandler(payloadType, …)` calls and
-  populates `BundleClientConfig.registeredHandlers()` +
-  `BundleClientConfig.payloadInfo()` so the server-side
-  `AutoDiscoveryService` keeps populating the dashboard DB on the v2
-  path. (Wire field already added in PR3.1.)
-- Register a v2 handler for `evento:server-admin-request` that uses
-  the matching `AdminPayloadCodec` to decode `EventoRequest`, run the
-  in-bundle dispatch (consumer status / set retry / process dead
-  queue / delete dead event), and reply with an `EventoResponse`.
-  Without this, dashboard calls through `BusFacade.forward` from PR3.1
-  time out on the v2 path even though everything else works.
-- Migrate the v1 high-level `EventoBundle.Builder` to compose on top
-  of `BundleClient` instead of `EventoSocketConnection`.
+The v2 `BundleClient` exists under `evento-bundle/.../client/v2/` and
+is fully tested. What's left here is *wiring* it to the existing
+annotation-driven framework (`@CommandHandler` / `@EventHandler` /
+`@QueryHandler` / `@Saga` / `@Aggregate`):
+
+- **3.2a — DONE (commit 13):** v2 admin handler. `BundleAdminRequestHandler`
+  decodes the `evento:server-admin-request` payload, runs the in-bundle
+  dispatch (consumer status / set retry / process dead queue / delete
+  dead event), replies with an `EventoResponse`. Closes the
+  `BusFacade.forward` round-trip end-to-end.
+- **3.2b — TODO:** Migrate `EventoBundle.Builder.start()` to compose on
+  top of `BundleClient` instead of `EventoServerClient` /
+  `EventoSocketConnection`. The existing manager scan (lines 442-575)
+  stays — its output (the `ArrayList<RegisteredHandler>` + payload
+  schema map) now feeds `BundleClientConfig.registeredHandlers` +
+  `payloadInfo`. The v1 switch-on-body-type inbound dispatch becomes
+  per-payloadType `BundleClient.registerRequestHandler` calls
+  (`DecoratedDomainCommandMessage` → AggregateManager,
+  `ServiceCommandMessage` → ServiceManager, `QueryMessage` →
+  ProjectionManager). Wire `BundleAdminRequestHandler` from 3.2a for
+  the admin path. Touch points: EventoBundle.java:585-650 and the
+  gateways consuming `EventoServer` — easiest path is a thin
+  `EventoServer`-implementing adapter over `BundleClient` so
+  gateway code stays unchanged.
+- **3.2c — TODO:** After 3.2b is stable, delete `EventoSocketConnection.java`
+  (465 LOC), `EventoServerClient.java` (448 LOC), `ClusterConnection.java`
+  (256 LOC), `EventoSocketConfig.java`. Drop the v1 `MessageBus.java`
+  on the server side too.
 - Delete the old transport classes:
   - `evento-bundle/.../bus/EventoSocketConnection.java` (465 lines)
   - `evento-bundle/.../bus/EventoServerClient.java` (452 lines)

@@ -8,7 +8,7 @@ import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.server.bus.BusFacade;
 import com.evento.server.bus.NodeAddress;
-import com.evento.server.bus.v2.admin.AdminPayloadCodec;
+import com.evento.common.admin.AdminPayloadCodec;
 import com.evento.server.bus.v2.correlation.CorrelationStore;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.bus.v2.event.BusEventBus;
