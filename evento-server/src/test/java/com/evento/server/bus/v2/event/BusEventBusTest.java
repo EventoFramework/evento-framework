@@ -104,6 +104,7 @@ class BusEventBusTest {
                 case BusEvent.HeartbeatTimeout ignored -> {}
                 case BusEvent.ViewChanged ignored -> {}
                 case BusEvent.AvailableViewChanged ignored -> {}
+                case BusEvent.AdminNotification ignored -> {}
             }
         });
         bus.publish(new BusEvent.NodeJoined(addr("i1"), Instant.now()));
