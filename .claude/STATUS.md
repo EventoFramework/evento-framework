@@ -175,6 +175,10 @@ contract: every Netty-to-Netty forward must use the raw path.
    notifications that arrive at the server before the session's
    `NodeAddress` is bound, and they get dropped as "before-handshake".
 
+## RC1 status — version bumped to `2.0.0-rc1`, tagged `v2.0.0-rc1`
+
+`build.gradle` bumped from `2.0.0-SNAPSHOT` → `2.0.0-rc1`. Clean build + all 224 tests green on JDK 25. Git tag `v2.0.0-rc1` created on `next`. Next: deploy to staging, soak 1–2 weeks, then merge `next` → `main` and tag `v2.0.0`.
+
 ## PR3 status — ALL SLICES DONE
 
 All five PR3 slices (3.1 → 3.5) are committed on `next`. The v2 rewrite
@@ -406,15 +410,14 @@ unconditional and `BusV2Configuration` no longer needs
 
 ## Resume checklist (next session)
 
-PR3 is complete. The only remaining work before `v2.0.0` is the staging
-soak and RC tag:
+RC1 tagged. Remaining work before `v2.0.0`:
 
-1. `git checkout next`
-2. `JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew clean build -x test` — confirm clean compile.
-3. Run full test suite (command above) — all 180 tests green.
-4. Deploy `next` to a staging environment with `evento-demo` + traffic generator.
-5. Soak 1 week, then tag `v2.0.0-rc1` and publish to Maven Central.
-6. Soak 1–2 more weeks with early adopters.
+1. ✅ `git checkout next`
+2. ✅ Clean compile: `./gradlew clean build -x test`
+3. ✅ Full test suite green (224 tests on JDK 25)
+4. ✅ Version bumped to `2.0.0-rc1`, git tag `v2.0.0-rc1` created
+5. Deploy `next` to staging with `evento-demo` + traffic generator.
+6. Soak 1–2 weeks with early adopters.
 7. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
 
 ## How to run locally
