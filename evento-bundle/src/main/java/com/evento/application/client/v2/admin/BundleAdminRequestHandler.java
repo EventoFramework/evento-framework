@@ -1,6 +1,7 @@
 package com.evento.application.client.v2.admin;
 
 import com.evento.application.client.v2.handler.HandlerRegistry;
+import com.evento.application.consumer.ConsumerHandle;
 import com.evento.application.consumer.EventConsumer;
 import com.evento.common.admin.AdminPayloadCodec;
 import com.evento.common.modeling.bundle.types.ComponentType;
@@ -22,7 +23,7 @@ import java.util.Optional;
  *
  * <p>Decodes the inbound CBOR bytes into an {@link EventoRequest} via
  * {@link AdminPayloadCodec}, dispatches the inner body to the matching
- * {@link EventConsumer} operation, then re-encodes the {@link EventoResponse}
+ * {@link ConsumerHandle} operation, then re-encodes the {@link EventoResponse}
  * to return as the response payload.
  *
  * <p>Closes the round-trip the dashboard / discovery / consumer endpoints
@@ -36,10 +37,16 @@ import java.util.Optional;
  */
 public final class BundleAdminRequestHandler implements HandlerRegistry.RequestHandler {
 
-    /** SPI for resolving an {@link EventConsumer} by id + component type. */
+    /**
+     * SPI for resolving a {@link ConsumerHandle} by id + component type.
+     *
+     * <p>Returns the common interface implemented by both v1 {@link EventConsumer}
+     * and the v2 engines under {@code com.evento.application.consumer.v2}, so this
+     * handler works on either runtime path without churn at the call sites.
+     */
     @FunctionalInterface
     public interface ConsumerLookup {
-        Optional<? extends EventConsumer> find(String consumerId, ComponentType componentType);
+        Optional<? extends ConsumerHandle> find(String consumerId, ComponentType componentType);
     }
 
     private final AdminPayloadCodec codec;
@@ -68,7 +75,7 @@ public final class BundleAdminRequestHandler implements HandlerRegistry.RequestH
         return switch (body) {
             case ConsumerFetchStatusRequestMessage m ->
                     consumerLookup.find(m.getConsumerId(), m.getComponentType())
-                            .map(EventConsumer::toConsumerStatus)
+                            .map(ConsumerHandle::toConsumerStatus)
                             .orElseThrow(() -> notFound(m.getConsumerId(), m.getComponentType()));
             case ConsumerSetEventRetryRequestMessage m -> {
                 var consumer = consumerLookup.find(m.getConsumerId(), m.getComponentType())
