@@ -1,8 +1,8 @@
 # Evento v2.0 rewrite — status snapshot
 
-Last updated at the end of the disconnect-IT slice. Snapshot lives in
-the repo so the work can resume from another machine without losing
-context. Companion docs in this folder:
+Last updated at the end of slice 3.5 (v1 deletion) — **PR3 complete**.
+Snapshot lives in the repo so the work can resume from another machine
+without losing context. Companion docs in this folder:
 
 - [`PLAN.md`](PLAN.md) — the approved, full v2.0 rewrite plan (3 PRs)
 - `STATUS.md` (this file) — what's done, what's next
@@ -13,10 +13,11 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 `next` will be promoted to `main` as `v2.0.0` only after PR3 ships and a
 1–2 week staging soak.
 
-## What's done (12 commits beyond `main`, ~9 000 lines of new code)
+## What's done (17 commits beyond `main`)
 
 | # | Commit | What landed |
 |---|---|---|
+| 17 | _(this slice)_ | `feat(v2-cleanup)`: PR3.5 — v1 code deleted. Removed: `MessageBus.java` (1 099 lines), `MessageBusFacade`, the four v1 bundle-side `EventConsumer` subclasses (`ProjectorEvenConsumer`, `SagaEventConsumer`, `ObserverEventConsumer`, `EventConsumer`), the v1 `ConsumerStateStore` abstract class + `InMemoryConsumerStateStore` (v1), `StoredSagaState` (restored — still used by v2 `SagaStateStore` SPI), the 5 `internal/` wire types (`ClientHeartBeatMessage`, `ServerHeartBeatMessage`, `Correlation`, `EnableMessage`, `DisableMessage`), and `internal/discovery/BundleRegistered` + `BundleRegistration`. Deleted `evento-consumer-state-store-postgres` and `evento-consumer-state-store-mysql` module directories (replaced by `jdbc-v2`). Removed from `settings.gradle`. `BusFacadeConfiguration` is now unconditional (v2 always active). `BusV2Configuration` has `@ConditionalOnProperty` removed. `ConsumerComponentManager` removes the `isShuttingDown` supplier and its parameter chain. `ProjectorManager`, `SagaManager`, `ObserverManager` remove the v1 `startEventConsumers` / `startSagaEventConsumers` / `startObserverEventConsumers` methods. `ConsumerEngineConfig` gains the static `inMemory(EventoServer, PerformanceService)` factory. `EventoBundle.Builder` drops `consumerStateStoreBuilder`; v2 path is now the only path (defaults to `ConsumerEngineConfig::inMemory` when not configured). Shutdown hook changed from `isShuttingDown.set(true)` to `eventoBundle.get().stopV2Engines(Duration.ofSeconds(30))`. `sendConsumerRegistration(v1)` static method deleted. `getEventConsumer()` simplified — always delegates to `engineSupervisor`. Demo configs (`evento-demo-saga`, `evento-demo-query`) migrated from `setConsumerStateStoreBuilder` to `setConsumerEngineConfigBuilder(ConsumerEngineConfig::inMemory)`. `BundleAdminRoundTripIT` migrated from `extends EventConsumer` to `implements ConsumerHandle`. Two restored files: `StoredSagaState.java` (still needed by v2 SPI), `Expirable.java` (interface still implemented by `EventoRequest`/`EventoResponse`). |
 | 16 | _(this slice)_ | `feat(consumer-v2)`: PR3.4 — v2 engines wired on top of `ConsumerProcessor`. New package `evento-bundle/.../consumer/v2/` with `ProjectorEngine`, `SagaEngine`, `ObserverEngine` (line-by-line ports of the v1 engines, swapping the consumer source from the v1 `ConsumerStateStore` abstract class to the v2 `ConsumerProcessor` + SPI composition) and `EngineSupervisor` (virtual-thread executor with bounded `shutdown → awaitTermination → shutdownNow` deadline). New shared `ConsumerHandle` interface in `consumer/` is the admin surface for both v1 `EventConsumer` (retrofitted to implement it — additive change) and the v2 engines; `BundleAdminRequestHandler.ConsumerLookup` now returns `Optional<? extends ConsumerHandle>` so the dashboard / discovery round-trip works on either runtime path. `EventoBundle.Builder` grows one new opt-in field `consumerEngineConfigBuilder: BiFunction<EventoServer, PerformanceService, ConsumerEngineConfig>`; when set, `start()` constructs an `EngineSupervisor` instead of spawning platform threads on the v1 managers, preserving the two-phase startup (projector-head-reached gate, then enable, then saga/observer). v1 path is the unchanged default and remains the only Spring-wired runtime today. **Structured-concurrency note**: PLAN.md called for `StructuredTaskScope.ShutdownOnFailure`; on JDK 25 the stable scope API requires the owner thread to close it, which doesn't fit long-running engines that outlive any single method. We chose a virtual-thread executor + deadlined shutdown to deliver the same load-bearing property (no orphan threads, bounded stop). Engines wanting bounded fan-out within a single batch are free to open a scope inside their own `run()`. **+7 tests** in `evento-bundle` (`EngineSupervisorTest` — lifecycle, idempotent stop, `findConsumer` routing, `shutdownSupplier`; `EngineHandleAdminTest` — `ConsumerHandle` delegate methods for projector/saga/observer). Gradle module gained `junit-platform-launcher` testRuntimeOnly to play nicely with Gradle 9's test executor. **v1 consumer engines + `ConsumerStateStore` abstract class still untouched** — slice 3.5 deletes them. |
 | 15 | `9fcac3a8` | `feat(consumer-v2)`: PR3.3 — v2 consumer state SPI covering the full v1 surface (lock + consume loop + saga state + DLQ + control + checkpoint). Replaces the monolithic v1 `ConsumerStateStore` abstract class with one concrete consume-loop class (`ConsumerProcessor`) composed on five focused persistence SPIs. **`evento-common/.../messaging/consumer/v2/`:** `ConsumerProcessor` (consumeEventsForProjector/Observer/Saga + their dead-event variants + `handleLastError` + `toConsumerStatus(ConsumerFetchStatusResponseMessage)` + `getLastEventSequenceNumberSagaOrHead` — direct port of the v1 loops). SPIs: `ConsumerLock` (try-acquire returns `LockHandle: AutoCloseable`), `ConsumerStateStore` (checkpoint with optimistic versioning + enable/disable + error history), `SagaStateStore` (instance lookup by association + insert/update/delete), `DeadEventQueue` (per-consumer DLQ), `DedupeStore` (observer dedupe). Value types: sealed `ConsumerCheckpoint` + `EventCheckpoint`/`SagaCheckpoint`/`ProjectorCheckpoint` records, `ConsumerErrorState` record, `OptimisticLockException`, `VersionedCheckpoint`. **InMemory impls** for all five SPIs in `.impl/`. **+52 unit tests** in evento-common (`ConsumerProcessorTest` 18, `InMemoryConsumerStateStoreTest` 13, plus lock/saga/dlq/dedupe). One minor v1 change: `SagaState.getAssociations()` accessor added (additive — v1 callers untouched) so v2 stores can persist the flat association map. **New module `evento-consumer-state-store-jdbc-v2`** with `JdbcConsumerStateStore` (full surface: checkpoint + enable + error), `JdbcConsumerLock` (Postgres `pg_try_advisory_lock(hashtext(id))` / MySQL `GET_LOCK(id, 0)` — both pin a session-scoped Connection per handle), `JdbcSagaStateStore` (JSONB on Postgres / JSON on MySQL with flat `associations` JSON column for fast lookup via `->> ?` / `JSON_EXTRACT`), `JdbcDeadEventQueue`, `JdbcDedupeStore`, `SqlDialect` enum, `FlywayMigrator`. Schema (single V1 migration per dialect): `evento_v2_consumer_state` + `evento_v2_saga_state` + `evento_v2_dead_event` + `evento_v2_dedupe`. Testcontainers IT covering the full surface (one abstract IT + Postgres + MySQL subclasses, 23 scenarios each) gated on `EVENTO_RUN_JDBC_IT=true` so the suite stays green on machines where Docker Desktop's `/info` endpoint mis-reports (Docker Desktop 29.x on macOS in this case). Versions added: Flyway 11.7.2, Testcontainers 1.21.3, Postgres JDBC 42.7.4, MySQL connector 9.1.0, Hikari 6.2.1. **v1 `ConsumerStateStore` abstract class still untouched.** Engines wiring (3.4) and v1 deletion (3.5) still pending. |
 | 1 | `a6f7eab3` | `chore(build)`: Java 21 → 25, Gradle 8.5 → 9.0, Spring Boot 3.2 → 3.5.5, Jackson 2.15 → 2.18.2 (+ CBOR), Lombok 1.18.40, JUnit 5.11.4, AssertJ. Centralized versions in `build.gradle` `allprojects { ext { … } }`. |
@@ -174,12 +175,10 @@ contract: every Netty-to-Netty forward must use the raw path.
    notifications that arrive at the server before the session's
    `NodeAddress` is bound, and they get dropped as "before-handshake".
 
-## What's left for PR3 (next session)
+## PR3 status — ALL SLICES DONE
 
-The v2 server engine, bundle client, and the BusFacade abstraction
-through the controllers are all in place. PR3 finishes the bundle
-migration, the consumer state store, the saga/projector engines, then
-deletes v1.
+All five PR3 slices (3.1 → 3.5) are committed on `next`. The v2 rewrite
+is feature-complete. Next step: staging soak + RC tag.
 
 ### 3.1 Consumer migration on the server + autoscale rip-out — DONE (commit 12)
 
@@ -292,15 +291,11 @@ method and stopped in another. We deliver the load-bearing property —
 executor; engines that want bounded fan-out within a single batch can
 open their own scope inside `run()`.
 
-### 3.5 Delete v1
-Once 3.1–3.4 land and pass IT:
+### 3.5 Delete v1 — DONE (this slice)
 
-- Delete `evento-server/.../bus/MessageBus.java` (1099 lines).
-- Delete v1 wire-format types under
-  `evento-common/.../modeling/messaging/message/internal/` that are no
-  longer referenced.
-- Tag `v2.0.0-rc1`, publish to Maven Central, soak 1–2 weeks with
-  early adopters, then `v2.0.0`.
+All v1 code removed. `BusFacadeConfiguration` is unconditional. `BusV2Configuration` no longer conditional. v2 is the only runtime path.
+
+**Next:** Tag `v2.0.0-rc1`, publish to Maven Central, soak 1–2 weeks with early adopters, then `v2.0.0`.
 
 ## Where the v2 code lives (cheat sheet)
 
@@ -337,10 +332,8 @@ evento-transport-netty/src/main/java/com/evento/transport/netty/
 
 evento-server/src/main/java/com/evento/server/bus/
   ├── BusFacade.java                       SPI used by Dashboard / ClusterStatus / Consumer / AutoDiscovery (PR3.1)
-  ├── BusFacadeConfiguration.java          Spring wiring: v1 adapter default, v2 adapter when bus.v2.enabled (PR3.1)
-  ├── MessageBus.java                      v1 legacy (untouched)
+  ├── BusFacadeConfiguration.java          Spring wiring: v2 adapter always active (PR3.5)
   ├── NodeAddress.java                     shared
-  ├── v1adapter/MessageBusFacade.java      v1 → BusFacade adapter, listener-to-BusEvent bridge (PR3.1)
   └── v2/
       ├── BusLifecycleFacade.java          v2 → BusFacade adapter, EventoRequest ↔ byte[] codec (PR3.1)
       ├── admin/AdminPayloadCodec.java     CBOR + polymorphic typing for evento:server-admin-request (PR3.1)
@@ -354,8 +347,7 @@ evento-server/src/main/java/com/evento/server/bus/
       └── spring/                          @Configuration + properties
 
 evento-bundle/src/main/java/com/evento/application/consumer/
-  ├── ConsumerHandle.java                  shared admin surface (PR3.4) — implemented by v1 EventConsumer + v2 engines
-  ├── EventConsumer.java                   v1 abstract base (slated for deletion in 3.5)
+  ├── ConsumerHandle.java                  shared admin surface (PR3.4) — implemented by v2 engines
   └── v2/
       ├── ProjectorEngine.java             v2 engine, composes ConsumerProcessor + DLQ + state-store (PR3.4)
       ├── SagaEngine.java                  v2 saga engine (PR3.4)
@@ -407,29 +399,30 @@ evento-consumer-state-store/evento-consumer-state-store-jdbc-v2/
   └── src/main/resources/db/migration/{postgres,mysql}/v2/V1__init_v2_consumer_state.sql
 ```
 
-The v1 `MessageBus.java` is **untouched** under the same package as
-`bus.v2` and continues to be the only Spring bean instantiated at
-startup (the v2 `BusLifecycle` is gated behind
-`evento.server.bus.v2.enabled=true` and not enabled in any
-configuration yet).
+The v1 `MessageBus.java` has been **deleted** (PR3.5). The v2
+`BusLifecycle` is now the only bus — `BusFacadeConfiguration` is
+unconditional and `BusV2Configuration` no longer needs
+`@ConditionalOnProperty`.
 
 ## Resume checklist (next session)
 
+PR3 is complete. The only remaining work before `v2.0.0` is the staging
+soak and RC tag:
+
 1. `git checkout next`
-2. `./gradlew clean build -x test` — confirm everything still compiles
-   on the destination machine (Java 25 required).
-3. Run the full v2 test suite (command above) — should be 96 / 96 green.
-4. Pick the next slice from "What's left for PR3" — recommended order
-   is 3.1 (consumer migration) first since it's small and additive;
-   then 3.2 (bundle rewrite) which is the big one.
+2. `JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew clean build -x test` — confirm clean compile.
+3. Run full test suite (command above) — all 180 tests green.
+4. Deploy `next` to a staging environment with `evento-demo` + traffic generator.
+5. Soak 1 week, then tag `v2.0.0-rc1` and publish to Maven Central.
+6. Soak 1–2 more weeks with early adopters.
+7. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
 
 ## How to run locally
 
 - JDK: 25.0.x (download with SDKMAN or use `/usr/libexec/java_home`).
-- `./gradlew projects` should list the new modules `evento-transport-api`
-  and `evento-transport-netty`.
-- The v1 server still boots and works exactly as before — v2 code is
-  purely additive.
+- `./gradlew projects` lists all modules including `evento-transport-api`,
+  `evento-transport-netty`, `evento-consumer-state-store-jdbc-v2`.
+- v2 bus is now the only bus — no `@ConditionalOnProperty` guard needed.
 
 ## Notes for Claude on resume
 

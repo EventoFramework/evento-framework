@@ -2,8 +2,9 @@ package com.evento.server.bus.v2;
 
 import com.evento.application.client.v2.BundleClient;
 import com.evento.application.client.v2.admin.BundleAdminRequestHandler;
-import com.evento.application.consumer.EventConsumer;
+import com.evento.application.consumer.ConsumerHandle;
 import com.evento.common.admin.AdminPayloadCodec;
+import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
@@ -33,7 +34,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -61,11 +61,11 @@ import static org.awaitility.Awaitility.await;
 class BundleAdminRoundTripIT {
 
     /**
-     * Test {@link EventConsumer} that captures invocations and returns canned
-     * responses. Constructed with {@code null} state store because every
-     * method we test overrides the base-class behaviour.
+     * Test {@link ConsumerHandle} that captures invocations and returns canned
+     * responses.
      */
-    static final class TestConsumer extends EventConsumer {
+    static final class TestConsumer implements ConsumerHandle {
+        final String consumerId;
         final AtomicInteger deadQueueRuns = new AtomicInteger();
         final AtomicInteger deletes = new AtomicInteger();
         final AtomicInteger retrySets = new AtomicInteger();
@@ -75,11 +75,14 @@ class BundleAdminRoundTripIT {
         final ConsumerFetchStatusResponseMessage statusToReturn;
 
         TestConsumer(String consumerId, ConsumerFetchStatusResponseMessage statusToReturn) {
-            super(consumerId, null);
+            this.consumerId = consumerId;
             this.statusToReturn = statusToReturn;
         }
 
-        @Override public void run() { /* test consumer never runs the event loop */ }
+        @Override public String getConsumerId() { return consumerId; }
+        @Override public ConsumerFetchStatusResponseMessage toConsumerStatus() { return statusToReturn; }
+        @Override public long getLastConsumedEvent() { return 0L; }
+        @Override public java.util.Collection<DeadPublishedEvent> getDeadEventQueue() { return java.util.List.of(); }
         @Override public void consumeDeadEventQueue() { deadQueueRuns.incrementAndGet(); }
         @Override public void setDeadEventRetry(long seq, boolean retry) {
             retrySets.incrementAndGet();
@@ -90,7 +93,6 @@ class BundleAdminRoundTripIT {
             deletes.incrementAndGet();
             lastDeletedSeq.set(seq);
         }
-        @Override public ConsumerFetchStatusResponseMessage toConsumerStatus() { return statusToReturn; }
     }
 
     private NettyTransportConfig nettyConfig;
