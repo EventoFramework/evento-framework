@@ -17,6 +17,7 @@ include 'evento-transport-api'
 include 'evento-transport-netty'
 include 'evento-consumer-state-store:evento-consumer-state-store-mysql'
 include 'evento-consumer-state-store:evento-consumer-state-store-postgres'
+include 'evento-consumer-state-store:evento-consumer-state-store-jdbc-v2'
 
 
 include 'evento-demo:evento-demo-command'

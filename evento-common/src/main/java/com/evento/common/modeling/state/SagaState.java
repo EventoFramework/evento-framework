@@ -1,7 +1,9 @@
 package com.evento.common.modeling.state;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * An abstract class representing the state of a saga.
@@ -53,5 +55,15 @@ public abstract class SagaState implements Serializable {
 	 */
 	public void unsetAssociation(String eventFieldName) {
 		associations.remove(eventFieldName);
+	}
+
+	/**
+	 * Read-only view of every {@code (property, value)} association currently
+	 * set on this saga. Added in v2 so a {@code SagaStateStore} can persist
+	 * the full association map alongside the state for fast lookup; v1 code
+	 * paths never call this.
+	 */
+	public Map<String, String> getAssociations() {
+		return Collections.unmodifiableMap(associations);
 	}
 }
