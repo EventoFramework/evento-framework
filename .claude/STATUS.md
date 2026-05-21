@@ -17,6 +17,7 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 
 | # | Commit | What landed |
 |---|---|---|
+| 15 | _(this slice)_ | `feat(consumer-v2)`: PR3.3 — v2 consumer state SPI covering the full v1 surface (lock + consume loop + saga state + DLQ + control + checkpoint). Replaces the monolithic v1 `ConsumerStateStore` abstract class with one concrete consume-loop class (`ConsumerProcessor`) composed on five focused persistence SPIs. **`evento-common/.../messaging/consumer/v2/`:** `ConsumerProcessor` (consumeEventsForProjector/Observer/Saga + their dead-event variants + `handleLastError` + `toConsumerStatus(ConsumerFetchStatusResponseMessage)` + `getLastEventSequenceNumberSagaOrHead` — direct port of the v1 loops). SPIs: `ConsumerLock` (try-acquire returns `LockHandle: AutoCloseable`), `ConsumerStateStore` (checkpoint with optimistic versioning + enable/disable + error history), `SagaStateStore` (instance lookup by association + insert/update/delete), `DeadEventQueue` (per-consumer DLQ), `DedupeStore` (observer dedupe). Value types: sealed `ConsumerCheckpoint` + `EventCheckpoint`/`SagaCheckpoint`/`ProjectorCheckpoint` records, `ConsumerErrorState` record, `OptimisticLockException`, `VersionedCheckpoint`. **InMemory impls** for all five SPIs in `.impl/`. **+52 unit tests** in evento-common (`ConsumerProcessorTest` 18, `InMemoryConsumerStateStoreTest` 13, plus lock/saga/dlq/dedupe). One minor v1 change: `SagaState.getAssociations()` accessor added (additive — v1 callers untouched) so v2 stores can persist the flat association map. **New module `evento-consumer-state-store-jdbc-v2`** with `JdbcConsumerStateStore` (full surface: checkpoint + enable + error), `JdbcConsumerLock` (Postgres `pg_try_advisory_lock(hashtext(id))` / MySQL `GET_LOCK(id, 0)` — both pin a session-scoped Connection per handle), `JdbcSagaStateStore` (JSONB on Postgres / JSON on MySQL with flat `associations` JSON column for fast lookup via `->> ?` / `JSON_EXTRACT`), `JdbcDeadEventQueue`, `JdbcDedupeStore`, `SqlDialect` enum, `FlywayMigrator`. Schema (single V1 migration per dialect): `evento_v2_consumer_state` + `evento_v2_saga_state` + `evento_v2_dead_event` + `evento_v2_dedupe`. Testcontainers IT covering the full surface (one abstract IT + Postgres + MySQL subclasses, 23 scenarios each) gated on `EVENTO_RUN_JDBC_IT=true` so the suite stays green on machines where Docker Desktop's `/info` endpoint mis-reports (Docker Desktop 29.x on macOS in this case). Versions added: Flyway 11.7.2, Testcontainers 1.21.3, Postgres JDBC 42.7.4, MySQL connector 9.1.0, Hikari 6.2.1. **v1 `ConsumerStateStore` abstract class still untouched.** Engines wiring (3.4) and v1 deletion (3.5) still pending. |
 | 1 | `a6f7eab3` | `chore(build)`: Java 21 → 25, Gradle 8.5 → 9.0, Spring Boot 3.2 → 3.5.5, Jackson 2.15 → 2.18.2 (+ CBOR), Lombok 1.18.40, JUnit 5.11.4, AssertJ. Centralized versions in `build.gradle` `allprojects { ext { … } }`. |
 | 2 | `0038672c` | `feat(transport-api)`: new wire SPI module — sealed `Message` records (Hello/Welcome/Reject/Ping/Pong/Request/Response/Notification), `Codec`, `PayloadCodec`, `Transport`, `TransportServer`, `ConnectionStateMachine`, `ExponentialBackoffWithJitter`, `MessageDispatcher`, `MessageTypeRegistry`, `InMemoryTransport`. **45 tests.** |
 | 3 | `a3143eed` | `feat(transport-netty)`: Netty 4.1 pipeline (length-frame → CBOR → idle → heartbeat → backpressure → inbound), `NettyClientTransport`, `NettyServerTransport`, virtual-thread business executor. **7 IT.** |
@@ -32,13 +33,23 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 | 13 | `ef6ede8e` | `feat(bundle-v2)`: PR3.2a — bundle-side admin request handler. Moved `AdminPayloadCodec` from server to `com.evento.common.admin` so bundles can decode the same wire. New `BundleAdminRequestHandler` in `evento-bundle/.../client/v2/admin/` — implements `HandlerRegistry.RequestHandler`, decodes the inner `EventoRequest`, dispatches one of the four `ConsumerXyzRequestMessage` operations via a `ConsumerLookup` SPI, encodes the `EventoResponse`. Closes the round-trip the dashboard / discovery / consumer endpoints rely on: `ConsumerService.getConsumerStatusFromNodes`, `setRetryForConsumerEvent`, `consumeDeadQueue`, `deleteDeadEventFromEventConsumer` now work end-to-end on the v2 wire. **+5 tests** in new `BundleAdminRoundTripIT`. |
 | 12 | `4dacefd1` | `feat(server-bus)`: PR3.1 + autoscale rip-out. Two changes that land together because the autoscale rip-out reduced the surface PR3.1 was migrating. **PR3.1:** BusFacade SPI; v1 `MessageBusFacade` adapter + v2 `BusLifecycleFacade` adapter. Migrated `DashboardController`, `ClusterStatusController`, `AutoDiscoveryService`, `ConsumerService`, `ConsumerController` to depend on `BusFacade`. Enriched `BundleRegistrationInfo` with rich `RegisteredHandler` list + `payloadInfo` so auto-discovery still works on v2. New `BusEvent.BundleRegistered` event fired by `BusLifecycle.onNotification`. New `BusLifecycle.forward(NodeAddress, payloadType, byte[], Duration)` server-initiated RPC primitive. New `evento:server-admin-request` payloadType + `AdminPayloadCodec` (Jackson-CBOR with polymorphic typing, mirrors v1 `ObjectMapperUtils`) so v1's `EventoRequest` round-trips through the v2 wire. **Autoscale rip-out:** deleted `AutoscalingProtocol`, `ThreadCountAutoscalingProtocol`, `ClusterNodeIsBoredMessage`, `ClusterNodeIsSufferingMessage`, `ClusterNodeKillMessage`, `BundleDeployService`. Dropped `Bundle.{min,max}Instances` columns from schema + DTO + parser. Removed `sendKill` from `BusFacade`/`BusLifecycle` (+ `NOTIFY_KILL` from `ProtocolNotifications`), `/spawn` + `/kill` REST endpoints, and the `TracingAgent.arrival/departure` calls + `AutoscalingProtocol` field. The cluster orchestrator (k8s/whatever) now owns spawn/kill — the framework only emits performance metrics. **+9 tests:** 5 in `BusLifecycleIT` (BundleRegistered emission, forward primitive, waitUntilAvailable) + 4 in new `BusLifecycleFacadeNettyIT`. |
 
-**Test totals on JDK 25:** 121 (transport-api 45, transport-netty 7,
-server v2 69). Run with:
+**Test totals on JDK 25:** 173 (transport-api 45, transport-netty 7,
+server v2 69, consumer-v2 unit 52). Postgres + MySQL JDBC IT add 46 more
+when Docker is healthy (`EVENTO_RUN_JDBC_IT=true`). Run with:
 
 ```
 JAVA_HOME=$(/usr/libexec/java_home -v 25) \
   ./gradlew :evento-transport-api:test :evento-transport-netty:test \
-            :evento-server:test --tests 'com.evento.server.bus.v2.*'
+            :evento-server:test --tests 'com.evento.server.bus.v2.*' \
+            :evento-common:test \
+            :evento-consumer-state-store:evento-consumer-state-store-jdbc-v2:test
+```
+
+To run the JDBC ITs against ephemeral containers:
+
+```
+EVENTO_RUN_JDBC_IT=true JAVA_HOME=$(/usr/libexec/java_home -v 25) \
+  ./gradlew :evento-consumer-state-store:evento-consumer-state-store-jdbc-v2:test
 ```
 
 ## Commit 9: bundle client + security + exactly-once (cc284865)
@@ -227,10 +238,36 @@ annotation-driven framework (`@CommandHandler` / `@EventHandler` /
     behind a strategy interface.
   - `evento-bundle/.../bus/EventoSocketConfig.java`
 
-### 3.3 ConsumerStateStore SPI rewrite
-`evento-consumer-state-store/**` — see `PLAN.md` Section 3.2 for the
-new SPI (`ConsumerCheckpoint` sealed, `commit` with optimistic
-versioning, `DedupeStore`).
+### 3.3 ConsumerStateStore SPI rewrite — DONE (this slice)
+
+Replaces the v1 monolithic abstract class with a SOLID-clean split:
+
+- **`ConsumerProcessor`** (concrete class in `consumer.v2.*`) owns the
+  v1-shape consume loop methods (`consumeEventsForProjector/Observer/Saga`
+  + their dead-event variants + `handleLastError` + `toConsumerStatus` +
+  `getLastEventSequenceNumberSagaOrHead`). Holds no state — all
+  correctness comes from the lock + optimistic version on the checkpoint.
+- **Five focused SPIs:**
+  - `ConsumerLock` — cross-instance exclusive zone per `consumerId`
+    (PG `pg_try_advisory_lock(hashtext(id))` / MySQL `GET_LOCK(id, 0)`).
+    `LockHandle` is `AutoCloseable`; the JDBC impl pins a session-scoped
+    `Connection` for the handle's lifetime.
+  - `ConsumerStateStore` — checkpoint (read / commit-with-optimistic-version
+    / delete / listConsumers) + enabled flag + error history.
+  - `SagaStateStore` — instance lookup by association + insert / update / delete.
+    JDBC impl persists `state` as JSON(B) and a separate flat `associations`
+    JSON(B) column for fast `->> ?` (PG) / `JSON_EXTRACT` (MySQL) lookups.
+  - `DeadEventQueue` — per-consumer DLQ with retry flag, upsert-on-add.
+  - `DedupeStore` — observer dedupe with sweep windows.
+- **Schema** (single V1 migration per dialect, side-by-side with v1 tables):
+  `evento_v2_consumer_state` + `evento_v2_saga_state` + `evento_v2_dead_event`
+  + `evento_v2_dedupe`.
+- **v1 `ConsumerStateStore` abstract class is untouched** and remains the
+  active path. Engines bind to v2 in 3.4; v1 deletion is 3.5.
+
+Note: one minor v1 change — `SagaState.getAssociations()` accessor added
+(additive — v1 callers untouched) so v2 saga stores can persist the flat
+association map without reflecting.
 
 ### 3.4 Saga / Projector / Observer engines
 Under `evento-bundle/.../consumer/v2/`, structured concurrency via JDK
@@ -307,6 +344,38 @@ evento-bundle/src/main/java/com/evento/application/client/v2/
   ├── dedup/ProcessedRequestCache.java     bundle-side exactly-once (Claimed/InFlight/Replay)
   ├── handler/HandlerRegistry.java         payloadType → handler
   └── handshake/HelloFactory.java          builds Hello with token
+
+evento-common/src/main/java/com/evento/common/messaging/consumer/v2/
+  ├── ConsumerProcessor.java               concrete v1-shape consume loop (PR3.3)
+  ├── ConsumerCheckpoint.java              sealed
+  ├── EventCheckpoint.java                 record (observer)
+  ├── SagaCheckpoint.java                  record
+  ├── ProjectorCheckpoint.java             record
+  ├── ConsumerStateStore.java              SPI: checkpoint + enable + error
+  ├── ConsumerLock.java                    SPI: cross-instance exclusive zone
+  ├── SagaStateStore.java                  SPI: saga instance lookup by association
+  ├── DeadEventQueue.java                  SPI: per-consumer DLQ
+  ├── DedupeStore.java                     SPI: observer dedupe
+  ├── ConsumerErrorState.java              record
+  ├── OptimisticLockException.java
+  ├── VersionedCheckpoint.java
+  └── impl/
+      ├── InMemoryConsumerStateStore.java
+      ├── InMemoryConsumerLock.java
+      ├── InMemorySagaStateStore.java
+      ├── InMemoryDeadEventQueue.java
+      └── InMemoryDedupeStore.java
+
+evento-consumer-state-store/evento-consumer-state-store-jdbc-v2/
+  ├── src/main/java/com/evento/consumer/state/store/jdbc/v2/
+  │   ├── SqlDialect.java                  POSTGRES / MYSQL — migration loc + upsert + JSON binds + saga lookup SQL
+  │   ├── JdbcConsumerStateStore.java      checkpoint + enable + error history
+  │   ├── JdbcConsumerLock.java            pg_try_advisory_lock / GET_LOCK; pins Connection per handle
+  │   ├── JdbcSagaStateStore.java          JSON(B) state + flat associations column
+  │   ├── JdbcDeadEventQueue.java          upsert-on-add, retry flag, getAll for dashboard
+  │   ├── JdbcDedupeStore.java
+  │   └── FlywayMigrator.java
+  └── src/main/resources/db/migration/{postgres,mysql}/v2/V1__init_v2_consumer_state.sql
 ```
 
 The v1 `MessageBus.java` is **untouched** under the same package as
