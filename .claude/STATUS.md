@@ -13,11 +13,12 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 `next` will be promoted to `main` as `v2.0.0` only after PR3 ships and a
 1–2 week staging soak.
 
-## What's done (11 commits beyond `main`, ~9 000 lines of new code)
+## What's done (12 commits beyond `main`, ~9 000 lines of new code)
 
 | # | Commit | What landed |
 |---|---|---|
-| 15 | _(this slice)_ | `feat(consumer-v2)`: PR3.3 — v2 consumer state SPI covering the full v1 surface (lock + consume loop + saga state + DLQ + control + checkpoint). Replaces the monolithic v1 `ConsumerStateStore` abstract class with one concrete consume-loop class (`ConsumerProcessor`) composed on five focused persistence SPIs. **`evento-common/.../messaging/consumer/v2/`:** `ConsumerProcessor` (consumeEventsForProjector/Observer/Saga + their dead-event variants + `handleLastError` + `toConsumerStatus(ConsumerFetchStatusResponseMessage)` + `getLastEventSequenceNumberSagaOrHead` — direct port of the v1 loops). SPIs: `ConsumerLock` (try-acquire returns `LockHandle: AutoCloseable`), `ConsumerStateStore` (checkpoint with optimistic versioning + enable/disable + error history), `SagaStateStore` (instance lookup by association + insert/update/delete), `DeadEventQueue` (per-consumer DLQ), `DedupeStore` (observer dedupe). Value types: sealed `ConsumerCheckpoint` + `EventCheckpoint`/`SagaCheckpoint`/`ProjectorCheckpoint` records, `ConsumerErrorState` record, `OptimisticLockException`, `VersionedCheckpoint`. **InMemory impls** for all five SPIs in `.impl/`. **+52 unit tests** in evento-common (`ConsumerProcessorTest` 18, `InMemoryConsumerStateStoreTest` 13, plus lock/saga/dlq/dedupe). One minor v1 change: `SagaState.getAssociations()` accessor added (additive — v1 callers untouched) so v2 stores can persist the flat association map. **New module `evento-consumer-state-store-jdbc-v2`** with `JdbcConsumerStateStore` (full surface: checkpoint + enable + error), `JdbcConsumerLock` (Postgres `pg_try_advisory_lock(hashtext(id))` / MySQL `GET_LOCK(id, 0)` — both pin a session-scoped Connection per handle), `JdbcSagaStateStore` (JSONB on Postgres / JSON on MySQL with flat `associations` JSON column for fast lookup via `->> ?` / `JSON_EXTRACT`), `JdbcDeadEventQueue`, `JdbcDedupeStore`, `SqlDialect` enum, `FlywayMigrator`. Schema (single V1 migration per dialect): `evento_v2_consumer_state` + `evento_v2_saga_state` + `evento_v2_dead_event` + `evento_v2_dedupe`. Testcontainers IT covering the full surface (one abstract IT + Postgres + MySQL subclasses, 23 scenarios each) gated on `EVENTO_RUN_JDBC_IT=true` so the suite stays green on machines where Docker Desktop's `/info` endpoint mis-reports (Docker Desktop 29.x on macOS in this case). Versions added: Flyway 11.7.2, Testcontainers 1.21.3, Postgres JDBC 42.7.4, MySQL connector 9.1.0, Hikari 6.2.1. **v1 `ConsumerStateStore` abstract class still untouched.** Engines wiring (3.4) and v1 deletion (3.5) still pending. |
+| 16 | _(this slice)_ | `feat(consumer-v2)`: PR3.4 — v2 engines wired on top of `ConsumerProcessor`. New package `evento-bundle/.../consumer/v2/` with `ProjectorEngine`, `SagaEngine`, `ObserverEngine` (line-by-line ports of the v1 engines, swapping the consumer source from the v1 `ConsumerStateStore` abstract class to the v2 `ConsumerProcessor` + SPI composition) and `EngineSupervisor` (virtual-thread executor with bounded `shutdown → awaitTermination → shutdownNow` deadline). New shared `ConsumerHandle` interface in `consumer/` is the admin surface for both v1 `EventConsumer` (retrofitted to implement it — additive change) and the v2 engines; `BundleAdminRequestHandler.ConsumerLookup` now returns `Optional<? extends ConsumerHandle>` so the dashboard / discovery round-trip works on either runtime path. `EventoBundle.Builder` grows one new opt-in field `consumerEngineConfigBuilder: BiFunction<EventoServer, PerformanceService, ConsumerEngineConfig>`; when set, `start()` constructs an `EngineSupervisor` instead of spawning platform threads on the v1 managers, preserving the two-phase startup (projector-head-reached gate, then enable, then saga/observer). v1 path is the unchanged default and remains the only Spring-wired runtime today. **Structured-concurrency note**: PLAN.md called for `StructuredTaskScope.ShutdownOnFailure`; on JDK 25 the stable scope API requires the owner thread to close it, which doesn't fit long-running engines that outlive any single method. We chose a virtual-thread executor + deadlined shutdown to deliver the same load-bearing property (no orphan threads, bounded stop). Engines wanting bounded fan-out within a single batch are free to open a scope inside their own `run()`. **+7 tests** in `evento-bundle` (`EngineSupervisorTest` — lifecycle, idempotent stop, `findConsumer` routing, `shutdownSupplier`; `EngineHandleAdminTest` — `ConsumerHandle` delegate methods for projector/saga/observer). Gradle module gained `junit-platform-launcher` testRuntimeOnly to play nicely with Gradle 9's test executor. **v1 consumer engines + `ConsumerStateStore` abstract class still untouched** — slice 3.5 deletes them. |
+| 15 | `9fcac3a8` | `feat(consumer-v2)`: PR3.3 — v2 consumer state SPI covering the full v1 surface (lock + consume loop + saga state + DLQ + control + checkpoint). Replaces the monolithic v1 `ConsumerStateStore` abstract class with one concrete consume-loop class (`ConsumerProcessor`) composed on five focused persistence SPIs. **`evento-common/.../messaging/consumer/v2/`:** `ConsumerProcessor` (consumeEventsForProjector/Observer/Saga + their dead-event variants + `handleLastError` + `toConsumerStatus(ConsumerFetchStatusResponseMessage)` + `getLastEventSequenceNumberSagaOrHead` — direct port of the v1 loops). SPIs: `ConsumerLock` (try-acquire returns `LockHandle: AutoCloseable`), `ConsumerStateStore` (checkpoint with optimistic versioning + enable/disable + error history), `SagaStateStore` (instance lookup by association + insert/update/delete), `DeadEventQueue` (per-consumer DLQ), `DedupeStore` (observer dedupe). Value types: sealed `ConsumerCheckpoint` + `EventCheckpoint`/`SagaCheckpoint`/`ProjectorCheckpoint` records, `ConsumerErrorState` record, `OptimisticLockException`, `VersionedCheckpoint`. **InMemory impls** for all five SPIs in `.impl/`. **+52 unit tests** in evento-common (`ConsumerProcessorTest` 18, `InMemoryConsumerStateStoreTest` 13, plus lock/saga/dlq/dedupe). One minor v1 change: `SagaState.getAssociations()` accessor added (additive — v1 callers untouched) so v2 stores can persist the flat association map. **New module `evento-consumer-state-store-jdbc-v2`** with `JdbcConsumerStateStore` (full surface: checkpoint + enable + error), `JdbcConsumerLock` (Postgres `pg_try_advisory_lock(hashtext(id))` / MySQL `GET_LOCK(id, 0)` — both pin a session-scoped Connection per handle), `JdbcSagaStateStore` (JSONB on Postgres / JSON on MySQL with flat `associations` JSON column for fast lookup via `->> ?` / `JSON_EXTRACT`), `JdbcDeadEventQueue`, `JdbcDedupeStore`, `SqlDialect` enum, `FlywayMigrator`. Schema (single V1 migration per dialect): `evento_v2_consumer_state` + `evento_v2_saga_state` + `evento_v2_dead_event` + `evento_v2_dedupe`. Testcontainers IT covering the full surface (one abstract IT + Postgres + MySQL subclasses, 23 scenarios each) gated on `EVENTO_RUN_JDBC_IT=true` so the suite stays green on machines where Docker Desktop's `/info` endpoint mis-reports (Docker Desktop 29.x on macOS in this case). Versions added: Flyway 11.7.2, Testcontainers 1.21.3, Postgres JDBC 42.7.4, MySQL connector 9.1.0, Hikari 6.2.1. **v1 `ConsumerStateStore` abstract class still untouched.** Engines wiring (3.4) and v1 deletion (3.5) still pending. |
 | 1 | `a6f7eab3` | `chore(build)`: Java 21 → 25, Gradle 8.5 → 9.0, Spring Boot 3.2 → 3.5.5, Jackson 2.15 → 2.18.2 (+ CBOR), Lombok 1.18.40, JUnit 5.11.4, AssertJ. Centralized versions in `build.gradle` `allprojects { ext { … } }`. |
 | 2 | `0038672c` | `feat(transport-api)`: new wire SPI module — sealed `Message` records (Hello/Welcome/Reject/Ping/Pong/Request/Response/Notification), `Codec`, `PayloadCodec`, `Transport`, `TransportServer`, `ConnectionStateMachine`, `ExponentialBackoffWithJitter`, `MessageDispatcher`, `MessageTypeRegistry`, `InMemoryTransport`. **45 tests.** |
 | 3 | `a3143eed` | `feat(transport-netty)`: Netty 4.1 pipeline (length-frame → CBOR → idle → heartbeat → backpressure → inbound), `NettyClientTransport`, `NettyServerTransport`, virtual-thread business executor. **7 IT.** |
@@ -33,15 +34,17 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 | 13 | `ef6ede8e` | `feat(bundle-v2)`: PR3.2a — bundle-side admin request handler. Moved `AdminPayloadCodec` from server to `com.evento.common.admin` so bundles can decode the same wire. New `BundleAdminRequestHandler` in `evento-bundle/.../client/v2/admin/` — implements `HandlerRegistry.RequestHandler`, decodes the inner `EventoRequest`, dispatches one of the four `ConsumerXyzRequestMessage` operations via a `ConsumerLookup` SPI, encodes the `EventoResponse`. Closes the round-trip the dashboard / discovery / consumer endpoints rely on: `ConsumerService.getConsumerStatusFromNodes`, `setRetryForConsumerEvent`, `consumeDeadQueue`, `deleteDeadEventFromEventConsumer` now work end-to-end on the v2 wire. **+5 tests** in new `BundleAdminRoundTripIT`. |
 | 12 | `4dacefd1` | `feat(server-bus)`: PR3.1 + autoscale rip-out. Two changes that land together because the autoscale rip-out reduced the surface PR3.1 was migrating. **PR3.1:** BusFacade SPI; v1 `MessageBusFacade` adapter + v2 `BusLifecycleFacade` adapter. Migrated `DashboardController`, `ClusterStatusController`, `AutoDiscoveryService`, `ConsumerService`, `ConsumerController` to depend on `BusFacade`. Enriched `BundleRegistrationInfo` with rich `RegisteredHandler` list + `payloadInfo` so auto-discovery still works on v2. New `BusEvent.BundleRegistered` event fired by `BusLifecycle.onNotification`. New `BusLifecycle.forward(NodeAddress, payloadType, byte[], Duration)` server-initiated RPC primitive. New `evento:server-admin-request` payloadType + `AdminPayloadCodec` (Jackson-CBOR with polymorphic typing, mirrors v1 `ObjectMapperUtils`) so v1's `EventoRequest` round-trips through the v2 wire. **Autoscale rip-out:** deleted `AutoscalingProtocol`, `ThreadCountAutoscalingProtocol`, `ClusterNodeIsBoredMessage`, `ClusterNodeIsSufferingMessage`, `ClusterNodeKillMessage`, `BundleDeployService`. Dropped `Bundle.{min,max}Instances` columns from schema + DTO + parser. Removed `sendKill` from `BusFacade`/`BusLifecycle` (+ `NOTIFY_KILL` from `ProtocolNotifications`), `/spawn` + `/kill` REST endpoints, and the `TracingAgent.arrival/departure` calls + `AutoscalingProtocol` field. The cluster orchestrator (k8s/whatever) now owns spawn/kill — the framework only emits performance metrics. **+9 tests:** 5 in `BusLifecycleIT` (BundleRegistered emission, forward primitive, waitUntilAvailable) + 4 in new `BusLifecycleFacadeNettyIT`. |
 
-**Test totals on JDK 25:** 173 (transport-api 45, transport-netty 7,
-server v2 69, consumer-v2 unit 52). Postgres + MySQL JDBC IT add 46 more
-when Docker is healthy (`EVENTO_RUN_JDBC_IT=true`). Run with:
+**Test totals on JDK 25:** 180 (transport-api 41, transport-netty 7,
+server v2 73, consumer-v2 unit 52, **bundle v2 engines 7**). Postgres +
+MySQL JDBC IT add 46 more when Docker is healthy
+(`EVENTO_RUN_JDBC_IT=true`). Run with:
 
 ```
 JAVA_HOME=$(/usr/libexec/java_home -v 25) \
   ./gradlew :evento-transport-api:test :evento-transport-netty:test \
             :evento-server:test --tests 'com.evento.server.bus.v2.*' \
             :evento-common:test \
+            :evento-bundle:test \
             :evento-consumer-state-store:evento-consumer-state-store-jdbc-v2:test
 ```
 
@@ -269,9 +272,25 @@ Note: one minor v1 change — `SagaState.getAssociations()` accessor added
 (additive — v1 callers untouched) so v2 saga stores can persist the flat
 association map without reflecting.
 
-### 3.4 Saga / Projector / Observer engines
-Under `evento-bundle/.../consumer/v2/`, structured concurrency via JDK
-25 `StructuredTaskScope`.
+### 3.4 Saga / Projector / Observer engines — DONE (this slice)
+
+New v2 engine classes under `evento-bundle/.../consumer/v2/` compose on
+`ConsumerProcessor` + the v2 SPI bundle (`ConsumerStateStore`,
+`DeadEventQueue`). `EngineSupervisor` owns the virtual-thread executor
+and the deadlined shutdown. `ConsumerHandle` is the new shared admin
+surface that lets the existing `BundleAdminRequestHandler.ConsumerLookup`
+route to v1 or v2 consumers uniformly during the migration window.
+v2 path is opt-in via `EventoBundle.Builder.consumerEngineConfigBuilder`;
+v1 remains the default.
+
+PLAN.md called for `StructuredTaskScope.ShutdownOnFailure`. On JDK 25
+the stable scope API is owner-thread-scoped (open + close on the same
+thread, close auto-joins). That's a great fit for short-lived parallel
+fan-out, not for long-running engines that need to be started in one
+method and stopped in another. We deliver the load-bearing property —
+*no orphan threads, bounded stop deadline* — with a virtual-thread
+executor; engines that want bounded fan-out within a single batch can
+open their own scope inside `run()`.
 
 ### 3.5 Delete v1
 Once 3.1–3.4 land and pass IT:
@@ -333,6 +352,16 @@ evento-server/src/main/java/com/evento/server/bus/
       ├── security/                        TokenValidator SPI (acceptAll / sharedSecret built-ins)
       ├── lifecycle/BusLifecycle.java      orchestrator (+ forward / sendKill / waitUntilAvailable since PR3.1)
       └── spring/                          @Configuration + properties
+
+evento-bundle/src/main/java/com/evento/application/consumer/
+  ├── ConsumerHandle.java                  shared admin surface (PR3.4) — implemented by v1 EventConsumer + v2 engines
+  ├── EventConsumer.java                   v1 abstract base (slated for deletion in 3.5)
+  └── v2/
+      ├── ProjectorEngine.java             v2 engine, composes ConsumerProcessor + DLQ + state-store (PR3.4)
+      ├── SagaEngine.java                  v2 saga engine (PR3.4)
+      ├── ObserverEngine.java              v2 observer engine (PR3.4)
+      ├── EngineSupervisor.java            virtual-thread executor + deadlined shutdown + findConsumer (PR3.4)
+      └── ConsumerEngineConfig.java        builder-side bundle of v2 SPIs the engines need (PR3.4)
 
 evento-bundle/src/main/java/com/evento/application/client/v2/
   ├── BundleClient.java                    public facade (Builder, request/notify/handlers)

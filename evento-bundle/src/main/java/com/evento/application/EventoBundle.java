@@ -4,7 +4,13 @@ import com.evento.application.client.v2.BundleClient;
 import com.evento.application.client.v2.BundleInboundDispatcher;
 import com.evento.application.client.v2.EventoServerV2Adapter;
 import com.evento.application.client.v2.admin.BundleAdminRequestHandler;
+import com.evento.application.consumer.ConsumerHandle;
 import com.evento.application.consumer.EventConsumer;
+import com.evento.application.consumer.v2.ConsumerEngineConfig;
+import com.evento.application.consumer.v2.EngineSupervisor;
+import com.evento.application.consumer.v2.ObserverEngine;
+import com.evento.application.consumer.v2.ProjectorEngine;
+import com.evento.application.consumer.v2.SagaEngine;
 import com.evento.application.manager.*;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.performance.Track;
@@ -82,6 +88,16 @@ public class EventoBundle {
     private final transient QueryGateway queryGateway;
     private final TracingAgent tracingAgent;
     private final EventoServer eventoServer;
+    /**
+     * Non-null only when the v2 consumer engine path is wired (the Builder's
+     * {@code consumerEngineConfigBuilder} was set). In that case the consumer
+     * loops run on this supervisor's virtual-thread executor and the legacy
+     * v1 {@code SagaManager/ProjectorManager/ObserverManager} thread starts
+     * are skipped. Both paths share the same admin surface via
+     * {@link ConsumerHandle}, so {@code BundleAdminRequestHandler.ConsumerLookup}
+     * resolves consumers identically.
+     */
+    private final EngineSupervisor engineSupervisor;
 
     private EventoBundle(
             String basePackage,
@@ -95,7 +111,8 @@ public class EventoBundle {
             PerformanceService performanceService,
             ServiceManager serviceManager, ProjectorManager projectorManager,
             ObserverManager observerManager, TracingAgent tracingAgent,
-            EventoServer eventoServer
+            EventoServer eventoServer,
+            EngineSupervisor engineSupervisor
 
     ) {
         this.basePackage = basePackage;
@@ -112,6 +129,7 @@ public class EventoBundle {
         this.tracingAgent = tracingAgent;
         this.observerManager = observerManager;
         this.eventoServer = eventoServer;
+        this.engineSupervisor = engineSupervisor;
     }
 
     /**
@@ -292,6 +310,17 @@ public class EventoBundle {
         private Function<Class<?>, Object> injector;
 
         private BiFunction<EventoServer, PerformanceService, ConsumerStateStore> consumerStateStoreBuilder;
+        /**
+         * Opt-in v2 consumer path. When set, the v1 {@code ConsumerStateStore}
+         * abstract class is bypassed and consumers run on
+         * {@link com.evento.application.consumer.v2.EngineSupervisor} using the
+         * v2 SPI composition (lock + checkpoint + DLQ + saga store + optional
+         * dedupe) wrapped by {@link com.evento.common.messaging.consumer.v2.ConsumerProcessor}.
+         *
+         * <p>v1 path remains the default — setting this field is the single
+         * opt-in. v1 deletion is slice 3.5.
+         */
+        private BiFunction<EventoServer, PerformanceService, ConsumerEngineConfig> consumerEngineConfigBuilder;
         private Function<EventoServer, CommandGateway> commandGatewayBuilder  = CommandGatewayImpl::new;
         @Setter(AccessLevel.NONE)
         private CommandGateway commandGateway;
@@ -612,11 +641,6 @@ public class EventoBundle {
             var eventoServer = new EventoServerV2Adapter(
                     bundleClient, bundleId, instanceId, bundleVersion, adminCodec);
 
-            if (consumerStateStoreBuilder == null) {
-                consumerStateStoreBuilder = (es, ps) ->InMemoryConsumerStateStore.builder(
-                      es, ps
-                ).build();
-            }
             if (commandGateway == null) {
                 commandGateway = commandGatewayBuilder.apply(eventoServer);
             }
@@ -627,7 +651,26 @@ public class EventoBundle {
                 performanceService = performanceServiceBuilder.apply(eventoServer);
             }
 
-            var css = consumerStateStoreBuilder.apply(eventoServer, performanceService);
+            // Two consumer paths share the start() flow:
+            //   v2 (opt-in): consumerEngineConfigBuilder set → EngineSupervisor
+            //                runs the engines on a virtual-thread executor.
+            //   v1 (default): consumerStateStoreBuilder set or defaulted to
+            //                 InMemoryConsumerStateStore → SagaManager/etc.
+            //                 spawn platform threads.
+            // Both paths preserve the projector-head-reached gate before enable().
+            final EngineSupervisor supervisor;
+            final ConsumerStateStore css;
+            if (consumerEngineConfigBuilder != null) {
+                supervisor = new EngineSupervisor();
+                css = null;
+            } else {
+                supervisor = null;
+                if (consumerStateStoreBuilder == null) {
+                    consumerStateStoreBuilder = (es, ps) -> InMemoryConsumerStateStore.builder(es, ps).build();
+                }
+                css = consumerStateStoreBuilder.apply(eventoServer, performanceService);
+            }
+
             eventoBundle.set(new EventoBundle(
                     basePackage.getName(),
                     bundleId, instanceId,
@@ -635,30 +678,55 @@ public class EventoBundle {
                     queryGateway,
                     performanceService,
                     serviceManager, projectorManager, observerManager, tracingAgent,
-                    eventoServer));
+                    eventoServer,
+                    supervisor));
 
             logger.info("Starting projector consumers...");
             var start = Instant.now();
             var wait = new Semaphore(0);
-            eventoBundle.get().startProjectorEventConsumers(wait::release, css, contexts);
-            var startThread = new Thread(() -> {
-                try {
-                    wait.acquire();
-                    logger.info("All Projector Consumers head Reached! (in {} millis)", Instant.now().toEpochMilli() - start.toEpochMilli());
-                    logger.info("Sending registration to enable the Bundle");
-                    eventoServer.enable();
-                    eventoBundle.get().startSagaEventConsumers(css, contexts);
-                    eventoBundle.get().startObserverEventConsumers(css, contexts);
-                    sendConsumerRegistration(eventoServer, eventoBundle.get());
-                    logger.info("Application Started!");
-                    Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
-                }catch (Exception e){
-                    logger.error("Error during startup", e);
-                    System.exit(1);
-                }
-            });
-            startThread.setName("Start Bundle Thread");
-            startThread.start();
+            if (supervisor != null) {
+                var engineConfig = consumerEngineConfigBuilder.apply(eventoServer, performanceService);
+                eventoBundle.get().startProjectorEnginesV2(wait::release, engineConfig, contexts, supervisor);
+                final ConsumerEngineConfig engineConfigForLater = engineConfig;
+                var startThread = new Thread(() -> {
+                    try {
+                        wait.acquire();
+                        logger.info("All Projector (v2) Consumers head Reached! (in {} millis)",
+                                Instant.now().toEpochMilli() - start.toEpochMilli());
+                        logger.info("Sending registration to enable the Bundle");
+                        eventoServer.enable();
+                        eventoBundle.get().startSagaAndObserverEnginesV2(engineConfigForLater, contexts, supervisor);
+                        sendConsumerRegistrationV2(eventoServer, supervisor);
+                        logger.info("Application Started!");
+                        Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
+                    } catch (Exception e) {
+                        logger.error("Error during startup", e);
+                        System.exit(1);
+                    }
+                });
+                startThread.setName("Start Bundle Thread (v2)");
+                startThread.start();
+            } else {
+                eventoBundle.get().startProjectorEventConsumers(wait::release, css, contexts);
+                var startThread = new Thread(() -> {
+                    try {
+                        wait.acquire();
+                        logger.info("All Projector Consumers head Reached! (in {} millis)", Instant.now().toEpochMilli() - start.toEpochMilli());
+                        logger.info("Sending registration to enable the Bundle");
+                        eventoServer.enable();
+                        eventoBundle.get().startSagaEventConsumers(css, contexts);
+                        eventoBundle.get().startObserverEventConsumers(css, contexts);
+                        sendConsumerRegistration(eventoServer, eventoBundle.get());
+                        logger.info("Application Started!");
+                        Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
+                    }catch (Exception e){
+                        logger.error("Error during startup", e);
+                        System.exit(1);
+                    }
+                });
+                startThread.setName("Start Bundle Thread");
+                startThread.start();
+            }
             return eventoBundle.get();
 
         }
@@ -695,9 +763,43 @@ public class EventoBundle {
             }
             eventoServer.send(cr);
         }
+
+        /** v2 counterpart — reads consumer ids from {@link EngineSupervisor}. */
+        private static void sendConsumerRegistrationV2(EventoServer eventoServer,
+                                                       EngineSupervisor supervisor) throws Exception {
+            var cr = new BundleConsumerRegistrationMessage();
+            cr.setProjectorConsumers(new HashMap<>());
+            for (var c : supervisor.getProjectorEngines()) {
+                cr.getProjectorConsumers()
+                        .computeIfAbsent(c.getProjectorName(), k -> new HashSet<>())
+                        .add(c.getConsumerId());
+            }
+            cr.setSagaConsumers(new HashMap<>());
+            for (var c : supervisor.getSagaEngines()) {
+                cr.getSagaConsumers()
+                        .computeIfAbsent(c.getSagaName(), k -> new HashSet<>())
+                        .add(c.getConsumerId());
+            }
+            cr.setObserverConsumers(new HashMap<>());
+            for (var c : supervisor.getObserverEngines()) {
+                cr.getObserverConsumers()
+                        .computeIfAbsent(c.getObserverName(), k -> new HashSet<>())
+                        .add(c.getConsumerId());
+            }
+            eventoServer.send(cr);
+        }
     }
 
-    private Optional<? extends EventConsumer> getEventConsumer(String consumerId, ComponentType componentType) {
+    /**
+     * Admin lookup for the {@link BundleAdminRequestHandler.ConsumerLookup} SPI.
+     * When the v2 engine path is wired, look in the supervisor first; otherwise
+     * fall back to the v1 manager registries. The two never both contain the
+     * same consumer id, so the order matters only when the supervisor is null.
+     */
+    private Optional<? extends ConsumerHandle> getEventConsumer(String consumerId, ComponentType componentType) {
+        if (engineSupervisor != null) {
+            return engineSupervisor.findConsumer(consumerId, componentType);
+        }
         return switch (componentType){
             case Saga ->
                     getSagaManager().getSagaEventConsumers()
@@ -748,5 +850,139 @@ public class EventoBundle {
      */
     private void startObserverEventConsumers(ConsumerStateStore consumerStateStore, Map<String, Set<String>> contexts) {
         observerManager.startEventConsumers(consumerStateStore, contexts);
+    }
+
+    // ------------------------------------------------------------------------
+    // v2 engine startup helpers (slice 3.4). Mirror the v1 trio above but
+    // construct {@link ProjectorEngine} / {@link SagaEngine} / {@link ObserverEngine}
+    // wired to {@link com.evento.common.messaging.consumer.v2.ConsumerProcessor}
+    // and hand them to the {@link EngineSupervisor} for execution.
+    //
+    // These helpers deliberately read references + handler maps from the
+    // existing v1 managers — the managers' parse() side still owns reflection
+    // and annotation discovery in slice 3.4. Slice 3.5 will fold those
+    // responsibilities into the v2 path and delete the v1 abstract base.
+    // ------------------------------------------------------------------------
+
+    private void startProjectorEnginesV2(Runnable onAllHeadReached,
+                                         ConsumerEngineConfig engineConfig,
+                                         Map<String, Set<String>> contexts,
+                                         EngineSupervisor supervisor) {
+        var references = projectorManager.getReferences();
+        if (references.isEmpty()) {
+            onAllHeadReached.run();
+            return;
+        }
+        int total = references.stream()
+                .mapToInt(p -> contexts.getOrDefault(p.getComponentName(),
+                        Set.of(com.evento.common.utils.Context.ALL)).size())
+                .sum();
+        var counter = new java.util.concurrent.atomic.AtomicInteger(total);
+        logger.info("Checking for projector event consumers (v2)");
+        for (var projector : references) {
+            var annotation = projector.getRef().getClass()
+                    .getAnnotation(com.evento.common.modeling.annotations.component.Projector.class);
+            var projectorName = projector.getRef().getClass().getSimpleName();
+            var projectorVersion = annotation.version();
+            for (var context : contexts.getOrDefault(projectorName,
+                    Set.of(com.evento.common.utils.Context.ALL))) {
+                logger.info("Starting v2 engine for Projector: {} - Version: {} - Context: {}",
+                        projectorName, projectorVersion, context);
+                var engine = new ProjectorEngine(
+                        bundleId,
+                        projectorName,
+                        projectorVersion,
+                        context,
+                        supervisor.shutdownSupplier(),
+                        engineConfig.processor(),
+                        engineConfig.stateStore(),
+                        engineConfig.deadEventQueue(),
+                        projectorManager.getHandlers(),
+                        tracingAgent,
+                        (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
+                                performanceService, tracingAgent, c, p),
+                        projectorManager.getSssFetchSize(),
+                        projectorManager.getSssFetchDelay(),
+                        counter,
+                        onAllHeadReached,
+                        projectorManager.getMessageHandlerInterceptor());
+                supervisor.addProjector(engine);
+            }
+        }
+        supervisor.startProjectorEngines();
+    }
+
+    private void startSagaAndObserverEnginesV2(ConsumerEngineConfig engineConfig,
+                                               Map<String, Set<String>> contexts,
+                                               EngineSupervisor supervisor) {
+        for (var saga : sagaManager.getReferences()) {
+            var annotation = saga.getRef().getClass()
+                    .getAnnotation(com.evento.common.modeling.annotations.component.Saga.class);
+            var sagaName = saga.getRef().getClass().getSimpleName();
+            var sagaVersion = annotation.version();
+            for (var context : contexts.getOrDefault(sagaName,
+                    Set.of(com.evento.common.utils.Context.ALL))) {
+                logger.info("Starting v2 engine for Saga: {} - Version: {} - Context: {}",
+                        sagaName, sagaVersion, context);
+                var engine = new SagaEngine(
+                        bundleId,
+                        sagaName,
+                        sagaVersion,
+                        context,
+                        supervisor.shutdownSupplier(),
+                        engineConfig.processor(),
+                        engineConfig.stateStore(),
+                        engineConfig.deadEventQueue(),
+                        sagaManager.getHandlers(),
+                        tracingAgent,
+                        (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
+                                performanceService, tracingAgent, c, p),
+                        sagaManager.getSssFetchSize(),
+                        sagaManager.getSssFetchDelay(),
+                        sagaManager.getMessageHandlerInterceptor());
+                supervisor.addSaga(engine);
+            }
+        }
+        for (var observer : observerManager.getReferences()) {
+            var annotation = observer.getRef().getClass()
+                    .getAnnotation(com.evento.common.modeling.annotations.component.Observer.class);
+            var observerName = observer.getRef().getClass().getSimpleName();
+            var observerVersion = annotation.version();
+            for (var context : contexts.getOrDefault(observerName,
+                    Set.of(com.evento.common.utils.Context.ALL))) {
+                logger.info("Starting v2 engine for Observer: {} - Version: {} - Context: {}",
+                        observerName, observerVersion, context);
+                var engine = new ObserverEngine(
+                        bundleId,
+                        observerName,
+                        observerVersion,
+                        context,
+                        supervisor.shutdownSupplier(),
+                        engineConfig.processor(),
+                        engineConfig.stateStore(),
+                        engineConfig.deadEventQueue(),
+                        observerManager.getHandlers(),
+                        tracingAgent,
+                        (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
+                                performanceService, tracingAgent, c, p),
+                        observerManager.getSssFetchSize(),
+                        observerManager.getSssFetchDelay(),
+                        observerManager.getMessageHandlerInterceptor());
+                supervisor.addObserver(engine);
+            }
+        }
+        supervisor.startSagaAndObserverEngines();
+    }
+
+    /**
+     * Request all v2 engines to stop and block until they do or the deadline
+     * elapses. No-op on the v1 path. Test hook + future production shutdown
+     * integration; the existing v1 path relies on the {@code AtomicBoolean}
+     * flipped in the shutdown hook + thread interrupts on JVM exit.
+     */
+    public void stopV2Engines(java.time.Duration deadline) {
+        if (engineSupervisor != null) {
+            engineSupervisor.stop(deadline);
+        }
     }
 }

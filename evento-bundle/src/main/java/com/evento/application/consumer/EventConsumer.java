@@ -12,7 +12,7 @@ import java.util.Collection;
 /**
  * Abstract class representing an event consumer.
  */
-public abstract class EventConsumer implements Runnable {
+public abstract class EventConsumer implements Runnable, ConsumerHandle {
 
     protected static final Logger logger = LogManager.getLogger(EventConsumer.class);
 
