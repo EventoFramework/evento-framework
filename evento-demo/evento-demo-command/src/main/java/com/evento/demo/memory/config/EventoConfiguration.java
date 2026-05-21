@@ -46,12 +46,7 @@ public class EventoConfiguration {
 				.setBundleVersion(bundleVersion)
 				.setEventoServerMessageBusConfiguration(new EventoServerMessageBusConfiguration(
 						new ClusterNodeAddress(eventoServerHost,eventoServerPort)
-				).setDisableDelayMillis(1000).setMaxDisableAttempts(3)
-						.setMaxReconnectAttempts(30)
-						.setReconnectDelayMillis(5000)
-								.setRetryDelayMillis(3000)
-								.setMaxRetryAttempts(5)
-				)
+				))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
 				.setInjector(factory::getBean)
                 .setMessageHandlerInterceptor(new LogTracesMessageHandlerInterceptor(){

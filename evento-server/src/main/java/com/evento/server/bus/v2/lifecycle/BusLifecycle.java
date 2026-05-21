@@ -316,8 +316,15 @@ public final class BusLifecycle {
                 session.transitionTo(BundleSession.Phase.READY);
             }
             case NOTIFY_DISABLE -> connectionRegistry.disable(session.address());
-            default -> log.debug("event=passthrough_notification type={} from={}",
-                    notification.payloadType(), session.address().instanceId());
+            default -> {
+                // Application-level notification — surface it on the event bus so
+                // server-side subscribers can pattern-match (e.g. the bundle-admin
+                // notification listener that handles performance metrics +
+                // consumer registration).
+                eventBus.publish(new BusEvent.AdminNotification(
+                        session.address(), notification.payloadType(),
+                        notification.payload(), Instant.now()));
+            }
         }
     }
 

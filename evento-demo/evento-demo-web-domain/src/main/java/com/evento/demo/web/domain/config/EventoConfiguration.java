@@ -47,15 +47,8 @@ public class EventoConfiguration {
                 .setBundleId(bundleId)
                 .setBundleVersion(bundleVersion)
                 .setEventoServerMessageBusConfiguration(new EventoServerMessageBusConfiguration(
-                                new ClusterNodeAddress(eventoServerHost, eventoServerPort)
-                        )
-                                .setDisableDelayMillis(1000)
-                                .setMaxDisableAttempts(3)
-                                .setMaxReconnectAttempts(30)
-                                .setReconnectDelayMillis(5000)
-                        .setMaxRetryAttempts(5)
-                        .setRetryDelayMillis(3000)
-                )
+                        new ClusterNodeAddress(eventoServerHost, eventoServerPort)
+                ))
                 .setCommandGatewayBuilder(es -> new CommandGatewayImpl(es){
 
                     @Override
