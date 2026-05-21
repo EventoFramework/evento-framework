@@ -5,7 +5,6 @@ import com.evento.application.client.v2.BundleInboundDispatcher;
 import com.evento.application.client.v2.EventoServerV2Adapter;
 import com.evento.application.client.v2.admin.BundleAdminRequestHandler;
 import com.evento.application.consumer.ConsumerHandle;
-import com.evento.application.consumer.EventConsumer;
 import com.evento.application.consumer.v2.ConsumerEngineConfig;
 import com.evento.application.consumer.v2.EngineSupervisor;
 import com.evento.application.consumer.v2.ObserverEngine;
@@ -32,8 +31,6 @@ import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.proxy.InvokerWrapper;
 import com.evento.common.documentation.Domain;
 import com.evento.common.messaging.bus.EventoServer;
-import com.evento.common.messaging.consumer.ConsumerStateStore;
-import com.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.CommandGatewayImpl;
 import com.evento.common.messaging.gateway.QueryGateway;
@@ -56,11 +53,11 @@ import org.reflections.util.ConfigurationBuilder;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -68,7 +65,6 @@ import java.util.function.Function;
 
 /**
  * The EventoBundle class represents a bundle of components and services related to event handling.
- * It provides functionality for starting saga event consumers and projector event consumers.
  */
 @Getter
 public class EventoBundle {
@@ -89,13 +85,10 @@ public class EventoBundle {
     private final TracingAgent tracingAgent;
     private final EventoServer eventoServer;
     /**
-     * Non-null only when the v2 consumer engine path is wired (the Builder's
-     * {@code consumerEngineConfigBuilder} was set). In that case the consumer
-     * loops run on this supervisor's virtual-thread executor and the legacy
-     * v1 {@code SagaManager/ProjectorManager/ObserverManager} thread starts
-     * are skipped. Both paths share the same admin surface via
-     * {@link ConsumerHandle}, so {@code BundleAdminRequestHandler.ConsumerLookup}
-     * resolves consumers identically.
+     * Non-null after {@code start()} — the v2 consumer engine supervisor owns
+     * all consumer loops (projector / saga / observer) on virtual-thread
+     * executors. Admin surface is via {@link ConsumerHandle}, resolved through
+     * {@link BundleAdminRequestHandler.ConsumerLookup}.
      */
     private final EngineSupervisor engineSupervisor;
 
@@ -309,16 +302,13 @@ public class EventoBundle {
         private long bundleVersion = 1;
         private Function<Class<?>, Object> injector;
 
-        private BiFunction<EventoServer, PerformanceService, ConsumerStateStore> consumerStateStoreBuilder;
         /**
-         * Opt-in v2 consumer path. When set, the v1 {@code ConsumerStateStore}
-         * abstract class is bypassed and consumers run on
-         * {@link com.evento.application.consumer.v2.EngineSupervisor} using the
-         * v2 SPI composition (lock + checkpoint + DLQ + saga store + optional
-         * dedupe) wrapped by {@link com.evento.common.messaging.consumer.v2.ConsumerProcessor}.
+         * The primary consumer path. When set, consumers run on
+         * {@link EngineSupervisor} using the v2 SPI composition
+         * (lock + checkpoint + DLQ + saga store + optional dedupe) wrapped by
+         * {@link com.evento.common.messaging.consumer.v2.ConsumerProcessor}.
          *
-         * <p>v1 path remains the default — setting this field is the single
-         * opt-in. v1 deletion is slice 3.5.
+         * <p>If not set, defaults to {@link ConsumerEngineConfig#inMemory} at startup.
          */
         private BiFunction<EventoServer, PerformanceService, ConsumerEngineConfig> consumerEngineConfigBuilder;
         private Function<EventoServer, CommandGateway> commandGatewayBuilder  = CommandGatewayImpl::new;
@@ -409,13 +399,6 @@ public class EventoBundle {
                 messageHandlerInterceptor = new LogTracesMessageHandlerInterceptor();
             }
 
-
-            var isShuttingDown = new AtomicBoolean();
-
-            Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().unstarted(() -> {
-                isShuttingDown.set(true);
-            }));
-
             var aggregateManager = new AggregateManager(
                     bundleId,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
@@ -442,7 +425,6 @@ public class EventoBundle {
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent,
-                    isShuttingDown::get,
                     sssFetchSize,
                     sssFetchDelay,
                     messageHandlerInterceptor
@@ -452,7 +434,6 @@ public class EventoBundle {
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent,
-                    isShuttingDown::get,
                     sssFetchSize,
                     sssFetchDelay,
                     messageHandlerInterceptor
@@ -462,7 +443,6 @@ public class EventoBundle {
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,
                             tracingAgent, c, p),
                     tracingAgent,
-                    isShuttingDown::get,
                     sssFetchSize,
                     sssFetchDelay,
                     messageHandlerInterceptor
@@ -651,25 +631,11 @@ public class EventoBundle {
                 performanceService = performanceServiceBuilder.apply(eventoServer);
             }
 
-            // Two consumer paths share the start() flow:
-            //   v2 (opt-in): consumerEngineConfigBuilder set → EngineSupervisor
-            //                runs the engines on a virtual-thread executor.
-            //   v1 (default): consumerStateStoreBuilder set or defaulted to
-            //                 InMemoryConsumerStateStore → SagaManager/etc.
-            //                 spawn platform threads.
-            // Both paths preserve the projector-head-reached gate before enable().
-            final EngineSupervisor supervisor;
-            final ConsumerStateStore css;
-            if (consumerEngineConfigBuilder != null) {
-                supervisor = new EngineSupervisor();
-                css = null;
-            } else {
-                supervisor = null;
-                if (consumerStateStoreBuilder == null) {
-                    consumerStateStoreBuilder = (es, ps) -> InMemoryConsumerStateStore.builder(es, ps).build();
-                }
-                css = consumerStateStoreBuilder.apply(eventoServer, performanceService);
+            // v2 is the only consumer path. Default to in-memory if not configured.
+            if (consumerEngineConfigBuilder == null) {
+                consumerEngineConfigBuilder = ConsumerEngineConfig::inMemory;
             }
+            final var supervisor = new EngineSupervisor();
 
             eventoBundle.set(new EventoBundle(
                     basePackage.getName(),
@@ -681,90 +647,41 @@ public class EventoBundle {
                     eventoServer,
                     supervisor));
 
+            // Wire shutdown hook to stop v2 engines gracefully
+            Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().unstarted(() -> {
+                eventoBundle.get().stopV2Engines(Duration.ofSeconds(30));
+            }));
+
             logger.info("Starting projector consumers...");
             var start = Instant.now();
             var wait = new Semaphore(0);
-            if (supervisor != null) {
-                var engineConfig = consumerEngineConfigBuilder.apply(eventoServer, performanceService);
-                eventoBundle.get().startProjectorEnginesV2(wait::release, engineConfig, contexts, supervisor);
-                final ConsumerEngineConfig engineConfigForLater = engineConfig;
-                var startThread = new Thread(() -> {
-                    try {
-                        wait.acquire();
-                        logger.info("All Projector (v2) Consumers head Reached! (in {} millis)",
-                                Instant.now().toEpochMilli() - start.toEpochMilli());
-                        logger.info("Sending registration to enable the Bundle");
-                        eventoServer.enable();
-                        eventoBundle.get().startSagaAndObserverEnginesV2(engineConfigForLater, contexts, supervisor);
-                        sendConsumerRegistrationV2(eventoServer, supervisor);
-                        logger.info("Application Started!");
-                        Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
-                    } catch (Exception e) {
-                        logger.error("Error during startup", e);
-                        System.exit(1);
-                    }
-                });
-                startThread.setName("Start Bundle Thread (v2)");
-                startThread.start();
-            } else {
-                eventoBundle.get().startProjectorEventConsumers(wait::release, css, contexts);
-                var startThread = new Thread(() -> {
-                    try {
-                        wait.acquire();
-                        logger.info("All Projector Consumers head Reached! (in {} millis)", Instant.now().toEpochMilli() - start.toEpochMilli());
-                        logger.info("Sending registration to enable the Bundle");
-                        eventoServer.enable();
-                        eventoBundle.get().startSagaEventConsumers(css, contexts);
-                        eventoBundle.get().startObserverEventConsumers(css, contexts);
-                        sendConsumerRegistration(eventoServer, eventoBundle.get());
-                        logger.info("Application Started!");
-                        Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
-                    }catch (Exception e){
-                        logger.error("Error during startup", e);
-                        System.exit(1);
-                    }
-                });
-                startThread.setName("Start Bundle Thread");
-                startThread.start();
-            }
+            var engineConfig = consumerEngineConfigBuilder.apply(eventoServer, performanceService);
+            eventoBundle.get().startProjectorEnginesV2(wait::release, engineConfig, contexts, supervisor);
+            final ConsumerEngineConfig engineConfigForLater = engineConfig;
+            var startThread = new Thread(() -> {
+                try {
+                    wait.acquire();
+                    logger.info("All Projector (v2) Consumers head Reached! (in {} millis)",
+                            Instant.now().toEpochMilli() - start.toEpochMilli());
+                    logger.info("Sending registration to enable the Bundle");
+                    eventoServer.enable();
+                    eventoBundle.get().startSagaAndObserverEnginesV2(engineConfigForLater, contexts, supervisor);
+                    sendConsumerRegistrationV2(eventoServer, supervisor);
+                    logger.info("Application Started!");
+                    Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
+                } catch (Exception e) {
+                    logger.error("Error during startup", e);
+                    System.exit(1);
+                }
+            });
+            startThread.setName("Start Bundle Thread (v2)");
+            startThread.start();
+
             return eventoBundle.get();
 
         }
 
-        /**
-         * Builds a {@link BundleConsumerRegistrationMessage} from the bundle's
-         * projector / saga / observer consumers and fires it as an admin
-         * notification. The server-side {@code BundleAdminNotificationListener}
-         * decodes and persists it via {@code ConsumerService}.
-         *
-         * <p>Replaces the v1 {@code EventoServerClient.registerConsumers(bundle)}
-         * method, inlined here so the EventoServer SPI itself stays narrow.
-         */
-        private static void sendConsumerRegistration(EventoServer eventoServer,
-                                                     EventoBundle bundle) throws Exception {
-            var cr = new BundleConsumerRegistrationMessage();
-            cr.setProjectorConsumers(new HashMap<>());
-            for (var c : bundle.getProjectorManager().getProjectorEvenConsumers()) {
-                cr.getProjectorConsumers()
-                        .computeIfAbsent(c.getProjectorName(), k -> new HashSet<>())
-                        .add(c.getConsumerId());
-            }
-            cr.setSagaConsumers(new HashMap<>());
-            for (var c : bundle.getSagaManager().getSagaEventConsumers()) {
-                cr.getSagaConsumers()
-                        .computeIfAbsent(c.getSagaName(), k -> new HashSet<>())
-                        .add(c.getConsumerId());
-            }
-            cr.setObserverConsumers(new HashMap<>());
-            for (var c : bundle.getObserverManager().getObserverEventConsumers()) {
-                cr.getObserverConsumers()
-                        .computeIfAbsent(c.getObserverName(), k -> new HashSet<>())
-                        .add(c.getConsumerId());
-            }
-            eventoServer.send(cr);
-        }
-
-        /** v2 counterpart — reads consumer ids from {@link EngineSupervisor}. */
+        /** v2 consumer registration — reads consumer ids from {@link EngineSupervisor}. */
         private static void sendConsumerRegistrationV2(EventoServer eventoServer,
                                                        EngineSupervisor supervisor) throws Exception {
             var cr = new BundleConsumerRegistrationMessage();
@@ -792,76 +709,15 @@ public class EventoBundle {
 
     /**
      * Admin lookup for the {@link BundleAdminRequestHandler.ConsumerLookup} SPI.
-     * When the v2 engine path is wired, look in the supervisor first; otherwise
-     * fall back to the v1 manager registries. The two never both contain the
-     * same consumer id, so the order matters only when the supervisor is null.
+     * Delegates to the engine supervisor (v2 path — always active in v2.0).
      */
     private Optional<? extends ConsumerHandle> getEventConsumer(String consumerId, ComponentType componentType) {
-        if (engineSupervisor != null) {
-            return engineSupervisor.findConsumer(consumerId, componentType);
-        }
-        return switch (componentType){
-            case Saga ->
-                    getSagaManager().getSagaEventConsumers()
-                            .stream().filter(c -> c.getConsumerId().equals(consumerId))
-                            .findFirst();
-            case Projector ->  getProjectorManager().getProjectorEvenConsumers()
-                    .stream().filter(c -> c.getConsumerId().equals(consumerId))
-                    .findFirst();
-            case Observer -> getObserverManager().getObserverEventConsumers()
-                    .stream().filter(c -> c.getConsumerId().equals(consumerId))
-                    .findFirst();
-            case null, default -> throw new RuntimeException("Invalid consumer fetch " + consumerId + " - " + componentType);
-        };
-    }
-
-    /**
-     * Starts the saga event consumers for the registered SagaReferences. Each SagaReference is checked for
-     * the Saga annotation, and for each context specified in the annotation, a new SagaEventConsumer is created
-     * and started in a new thread.
-     *
-     * @param consumerStateStore the consumer state store to track the state of event consumers
-     * @param contexts the component contexts associations
-     */
-    private void startSagaEventConsumers(ConsumerStateStore consumerStateStore, Map<String, Set<String>> contexts) {
-        sagaManager.startSagaEventConsumers(consumerStateStore, contexts);
-    }
-
-
-    /**
-     * Starts the projector event consumers for the specified contexts.
-     *
-     * @param onAllHeadReached   The callback to be executed when all heads are reached.
-     * @param consumerStateStore The consumer state store to track the state of event consumers.
-     * @param contexts           The contexts for which the projector event consumers should be started.
-     */
-    private void startProjectorEventConsumers(Runnable onAllHeadReached, ConsumerStateStore consumerStateStore, Map<String,Set<String>> contexts) {
-        projectorManager.startEventConsumers(onAllHeadReached, consumerStateStore, contexts);
-    }
-
-
-    /**
-     * Starts the observer event consumers for the registered ObserverReferences. Each ObserverReference is checked for
-     * the Observer annotation, and for each context specified in the annotation, a new ObserverEventConsumer is created
-     * and started in a new thread.
-     *
-     * @param consumerStateStore The consumer state store to track the state of event consumers.
-     * @param contexts the component contexts associations
-     */
-    private void startObserverEventConsumers(ConsumerStateStore consumerStateStore, Map<String, Set<String>> contexts) {
-        observerManager.startEventConsumers(consumerStateStore, contexts);
+        return engineSupervisor.findConsumer(consumerId, componentType);
     }
 
     // ------------------------------------------------------------------------
-    // v2 engine startup helpers (slice 3.4). Mirror the v1 trio above but
-    // construct {@link ProjectorEngine} / {@link SagaEngine} / {@link ObserverEngine}
-    // wired to {@link com.evento.common.messaging.consumer.v2.ConsumerProcessor}
-    // and hand them to the {@link EngineSupervisor} for execution.
-    //
-    // These helpers deliberately read references + handler maps from the
-    // existing v1 managers — the managers' parse() side still owns reflection
-    // and annotation discovery in slice 3.4. Slice 3.5 will fold those
-    // responsibilities into the v2 path and delete the v1 abstract base.
+    // v2 engine startup helpers. Read references + handler maps from the
+    // managers and hand engines to the EngineSupervisor for execution.
     // ------------------------------------------------------------------------
 
     private void startProjectorEnginesV2(Runnable onAllHeadReached,
@@ -976,11 +832,9 @@ public class EventoBundle {
 
     /**
      * Request all v2 engines to stop and block until they do or the deadline
-     * elapses. No-op on the v1 path. Test hook + future production shutdown
-     * integration; the existing v1 path relies on the {@code AtomicBoolean}
-     * flipped in the shutdown hook + thread interrupts on JVM exit.
+     * elapses.
      */
-    public void stopV2Engines(java.time.Duration deadline) {
+    public void stopV2Engines(Duration deadline) {
         if (engineSupervisor != null) {
             engineSupervisor.stop(deadline);
         }

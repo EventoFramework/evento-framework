@@ -3,7 +3,7 @@ package com.evento.demo.memory.config;
 import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
-import com.evento.common.messaging.consumer.impl.InMemoryConsumerStateStore;
+import com.evento.application.consumer.v2.ConsumerEngineConfig;
 import com.evento.demo.DemoSagaApplication;
 import com.evento.demo.telemetry.SentryTracingAgent;
 import org.springframework.beans.factory.BeanFactory;
@@ -28,9 +28,7 @@ public class EventoConfiguration {
 	) throws Exception {
 		return EventoBundle.Builder.builder()
 				.setBasePackage(DemoSagaApplication.class.getPackage())
-				.setConsumerStateStoreBuilder((b,p) -> InMemoryConsumerStateStore.builder(
-						b,p
-				).build())
+				.setConsumerEngineConfigBuilder(ConsumerEngineConfig::inMemory)
 				.setInjector(factory::getBean)
 				.setBundleId(bundleId)
 				.setBundleVersion(bundleVersion)

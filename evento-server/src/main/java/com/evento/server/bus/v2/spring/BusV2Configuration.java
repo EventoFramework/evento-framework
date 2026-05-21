@@ -17,7 +17,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,18 +25,13 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 
 /**
- * Spring wiring for the v2 server bus. Activated by
- * {@code evento.server.bus.v2.enabled=true}. When enabled, exposes the seven
- * collaborator beans plus a {@link BusLifecycle} that owns the Netty-backed
- * {@link TransportServer} and is started/stopped with the Spring context.
+ * Spring wiring for the v2 server bus. Exposes the seven collaborator beans
+ * plus a {@link BusLifecycle} that owns the Netty-backed {@link TransportServer}
+ * and is started/stopped with the Spring context.
  *
- * <p>This sits alongside the v1 {@code MessageBus} bean — neither replaces the
- * other yet. The bundle rewrite in PR3 will switch the wire to v2; at that
- * point the v1 component is deleted and the v2 lifecycle is promoted to the
- * primary bean.
+ * <p>v2 bus is the production bus as of v2.0.
  */
 @Configuration
-@ConditionalOnProperty(prefix = "evento.server.bus.v2", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(BusV2Properties.class)
 public class BusV2Configuration {
 
