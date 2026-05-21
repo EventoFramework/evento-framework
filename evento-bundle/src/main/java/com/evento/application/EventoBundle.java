@@ -1,12 +1,18 @@
 package com.evento.application;
 
+import com.evento.application.client.v2.BundleClient;
+import com.evento.application.client.v2.BundleInboundDispatcher;
+import com.evento.application.client.v2.EventoServerV2Adapter;
+import com.evento.application.client.v2.admin.BundleAdminRequestHandler;
 import com.evento.application.consumer.EventConsumer;
 import com.evento.application.manager.*;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.performance.Track;
-import com.evento.common.modeling.messaging.message.internal.consumer.*;
+import com.evento.common.admin.AdminPayloadCodec;
+import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
+import com.evento.transport.protocol.ProtocolPayloadTypes;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
 import lombok.AccessLevel;
@@ -15,7 +21,6 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.evento.application.bus.EventoServerClient;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.proxy.InvokerWrapper;
@@ -33,7 +38,6 @@ import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.application.*;
-import com.evento.common.modeling.messaging.message.internal.discovery.BundleRegistration;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.common.modeling.messaging.payload.DomainEvent;
 import com.evento.common.modeling.messaging.query.Multiple;
@@ -77,7 +81,7 @@ public class EventoBundle {
     private final transient CommandGateway commandGateway;
     private final transient QueryGateway queryGateway;
     private final TracingAgent tracingAgent;
-    private final EventoServerClient eventoServerClient;
+    private final EventoServer eventoServer;
 
     private EventoBundle(
             String basePackage,
@@ -91,7 +95,7 @@ public class EventoBundle {
             PerformanceService performanceService,
             ServiceManager serviceManager, ProjectorManager projectorManager,
             ObserverManager observerManager, TracingAgent tracingAgent,
-            EventoServerClient eventoServerClient
+            EventoServer eventoServer
 
     ) {
         this.basePackage = basePackage;
@@ -107,7 +111,7 @@ public class EventoBundle {
         this.projectorManager = projectorManager;
         this.tracingAgent = tracingAgent;
         this.observerManager = observerManager;
-        this.eventoServerClient = eventoServerClient;
+        this.eventoServer = eventoServer;
     }
 
     /**
@@ -566,88 +570,47 @@ public class EventoBundle {
                 }
             }
 
-            var registration = new BundleRegistration(
-                    bundleId,
-                    bundleVersion,
-                    instanceId,
-                    handlers,
-                    payloadInfo
-            );
-
-
-
             final AtomicReference<EventoBundle> eventoBundle = new AtomicReference<>();
 
 
             logger.info("Starting EventoApplication %s".formatted(bundleId));
-            logger.info("Connecting to Evento Server...");
-            var eventoServer =
-                    new EventoServerClient.Builder(
-                            registration,
-                            objectMapper,
-                            eventoServerMessageBusConfiguration.getAddresses(),
-                            (body) -> switch (body) {
-                                case DecoratedDomainCommandMessage cm -> aggregateManager.handle(cm);
-                                case ServiceCommandMessage sm -> serviceManager.handle(sm);
-                                case QueryMessage<?> qm -> projectionManager.handle(qm);
-                                case ConsumerFetchStatusRequestMessage cr -> eventoBundle.get()
-                                        .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
-                                        .map(EventConsumer::toConsumerStatus)
-                                        .orElseThrow();
-                                case ConsumerSetEventRetryRequestMessage cr -> {
-                                    var resp = new ConsumerResponseMessage();
-                                    resp.setSuccess(true);
-                                    eventoBundle.get()
-                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
-                                            .ifPresent(c -> {
-                                                try {
-                                                    c.setDeadEventRetry(cr.getEventSequenceNumber(), cr.isRetry());
-                                                } catch (Exception e) {
-                                                    throw new RuntimeException(e);
-                                                }
-                                            });
-                                    yield resp;
-                                }
-                                case ConsumerProcessDeadQueueRequestMessage cr -> {
-                                    var resp = new ConsumerResponseMessage();
-                                    resp.setSuccess(true);
-                                    eventoBundle.get()
-                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
-                                            .ifPresent(c -> {
-                                        try {
-                                            c.consumeDeadEventQueue();
-                                        } catch (Exception e) {
-                                            throw new RuntimeException(e);
-                                        }
-                                    });
+            logger.info("Connecting to Evento Server (v2 wire)...");
+            var clusterAddress = eventoServerMessageBusConfiguration.getAddresses().getFirst();
+            var adminCodec = new AdminPayloadCodec();
+            var dispatcher = new BundleInboundDispatcher(adminCodec,
+                    aggregateManager, serviceManager, projectionManager);
+            var adminHandler = new BundleAdminRequestHandler(adminCodec,
+                    (id, type) -> {
+                        var bundle = eventoBundle.get();
+                        if (bundle == null) return Optional.empty();
+                        return bundle.getEventConsumer(id, type);
+                    });
 
-                                    yield resp;
-                                }
-                                case ConsumerDeleteDeadEventRequestMessage cr -> {
-                                    var resp = new ConsumerResponseMessage();
-                                    resp.setSuccess(true);
-                                    eventoBundle.get()
-                                            .getEventConsumer(cr.getConsumerId(), cr.getComponentType())
-                                            .ifPresent(c -> {
-                                        try {
-                                            c.deleteDeadEvent(cr.getEventSequenceNumber());
-                                        } catch (Exception e) {
-                                            throw new RuntimeException(e);
-                                        }
-                                    });
+            // The payload types this bundle handles — drives the server's routing
+            // table. v2 routes on payloadType (simple class name), matching the
+            // convention v1 declared in RegisteredHandler.handledPayload.
+            var handlerPayloadTypes = new ArrayList<>(payloadInfo.keySet());
 
-                                    yield resp;
-                                }
-                                case null, default -> throw new RuntimeException("Invalid request body: " + body);
-                            }
-                    )
-                            .setMaxReconnectAttempts(eventoServerMessageBusConfiguration.getMaxReconnectAttempts())
-                            .setReconnectDelayMillis(eventoServerMessageBusConfiguration.getReconnectDelayMillis())
-                            .setMaxDisableAttempts(eventoServerMessageBusConfiguration.getMaxDisableAttempts())
-                            .setDisableDelayMillis(eventoServerMessageBusConfiguration.getDisableDelayMillis())
-                            .setMaxRetryAttempts(eventoServerMessageBusConfiguration.getMaxRetryAttempts())
-                            .setRetryDelayMillis(eventoServerMessageBusConfiguration.getRetryDelayMillis())
-                            .connect();
+            var bundleClient = BundleClient.builder(bundleId, instanceId)
+                    .host(clusterAddress.serverAddress())
+                    .port(clusterAddress.serverPort())
+                    .bundleVersion(String.valueOf(bundleVersion))
+                    .handlerPayloadTypes(handlerPayloadTypes)
+                    .registeredHandlers(handlers)
+                    .payloadInfo(payloadInfo)
+                    // We send the enable notification manually after projector
+                    // consumers have caught up to the head — matches v1 timing.
+                    .autoEnable(false)
+                    .build();
+
+            bundleClient.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, adminHandler);
+            for (String payloadType : handlerPayloadTypes) {
+                bundleClient.registerRequestHandler(payloadType, dispatcher);
+            }
+            bundleClient.start().get();
+
+            var eventoServer = new EventoServerV2Adapter(
+                    bundleClient, bundleId, instanceId, bundleVersion, adminCodec);
 
             if (consumerStateStoreBuilder == null) {
                 consumerStateStoreBuilder = (es, ps) ->InMemoryConsumerStateStore.builder(
@@ -686,7 +649,7 @@ public class EventoBundle {
                     eventoServer.enable();
                     eventoBundle.get().startSagaEventConsumers(css, contexts);
                     eventoBundle.get().startObserverEventConsumers(css, contexts);
-                    eventoServer.registerConsumers(eventoBundle.get());
+                    sendConsumerRegistration(eventoServer, eventoBundle.get());
                     logger.info("Application Started!");
                     Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
                 }catch (Exception e){
@@ -698,6 +661,39 @@ public class EventoBundle {
             startThread.start();
             return eventoBundle.get();
 
+        }
+
+        /**
+         * Builds a {@link BundleConsumerRegistrationMessage} from the bundle's
+         * projector / saga / observer consumers and fires it as an admin
+         * notification. The server-side {@code BundleAdminNotificationListener}
+         * decodes and persists it via {@code ConsumerService}.
+         *
+         * <p>Replaces the v1 {@code EventoServerClient.registerConsumers(bundle)}
+         * method, inlined here so the EventoServer SPI itself stays narrow.
+         */
+        private static void sendConsumerRegistration(EventoServer eventoServer,
+                                                     EventoBundle bundle) throws Exception {
+            var cr = new BundleConsumerRegistrationMessage();
+            cr.setProjectorConsumers(new HashMap<>());
+            for (var c : bundle.getProjectorManager().getProjectorEvenConsumers()) {
+                cr.getProjectorConsumers()
+                        .computeIfAbsent(c.getProjectorName(), k -> new HashSet<>())
+                        .add(c.getConsumerId());
+            }
+            cr.setSagaConsumers(new HashMap<>());
+            for (var c : bundle.getSagaManager().getSagaEventConsumers()) {
+                cr.getSagaConsumers()
+                        .computeIfAbsent(c.getSagaName(), k -> new HashSet<>())
+                        .add(c.getConsumerId());
+            }
+            cr.setObserverConsumers(new HashMap<>());
+            for (var c : bundle.getObserverManager().getObserverEventConsumers()) {
+                cr.getObserverConsumers()
+                        .computeIfAbsent(c.getObserverName(), k -> new HashSet<>())
+                        .add(c.getConsumerId());
+            }
+            eventoServer.send(cr);
         }
     }
 

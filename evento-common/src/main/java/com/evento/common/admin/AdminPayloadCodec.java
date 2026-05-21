@@ -1,5 +1,6 @@
 package com.evento.common.admin;
 
+import com.evento.common.modeling.messaging.message.internal.EventoMessage;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
@@ -90,6 +91,22 @@ public final class AdminPayloadCodec {
             return mapper.readValue(bytes, EventoResponse.class);
         } catch (IOException e) {
             throw new UncheckedIOException("admin response decode failed", e);
+        }
+    }
+
+    public byte[] encodeMessage(EventoMessage message) {
+        try {
+            return mapper.writeValueAsBytes(message);
+        } catch (IOException e) {
+            throw new UncheckedIOException("admin message encode failed", e);
+        }
+    }
+
+    public EventoMessage decodeMessage(byte[] bytes) {
+        try {
+            return mapper.readValue(bytes, EventoMessage.class);
+        } catch (IOException e) {
+            throw new UncheckedIOException("admin message decode failed", e);
         }
     }
 }

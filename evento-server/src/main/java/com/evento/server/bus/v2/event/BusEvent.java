@@ -22,7 +22,8 @@ public sealed interface BusEvent
                 BusEvent.NodeDisabled,
                 BusEvent.HeartbeatTimeout,
                 BusEvent.ViewChanged,
-                BusEvent.AvailableViewChanged {
+                BusEvent.AvailableViewChanged,
+                BusEvent.AdminNotification {
 
     Instant timestamp();
 
@@ -55,4 +56,14 @@ public sealed interface BusEvent
     record ViewChanged(java.util.Set<NodeAddress> view, Instant timestamp) implements BusEvent {}
 
     record AvailableViewChanged(java.util.Set<NodeAddress> availableView, Instant timestamp) implements BusEvent {}
+
+    /**
+     * Catch-all for application-level notifications from a bundle that aren't
+     * one of the framework-reserved types ({@code evento:enable},
+     * {@code evento:disable}, {@code evento:bundle-registration}). Server-side
+     * subscribers pattern-match on this to handle their own protocol
+     * extensions — e.g. the bundle-admin notification stream that carries
+     * performance metrics and consumer-registration messages.
+     */
+    record AdminNotification(NodeAddress source, String payloadType, byte[] payload, Instant timestamp) implements BusEvent {}
 }
