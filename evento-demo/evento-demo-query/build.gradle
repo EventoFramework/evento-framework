@@ -51,8 +51,6 @@ dependencies {
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     implementation project(":evento-demo:evento-demo-api")
-    implementation(project(':evento-consumer-state-store:evento-consumer-state-store-postgres'))
-    implementation(project(':evento-consumer-state-store:evento-consumer-state-store-mysql'))
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {

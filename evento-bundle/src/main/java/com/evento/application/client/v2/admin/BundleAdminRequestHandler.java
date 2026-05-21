@@ -2,7 +2,6 @@ package com.evento.application.client.v2.admin;
 
 import com.evento.application.client.v2.handler.HandlerRegistry;
 import com.evento.application.consumer.ConsumerHandle;
-import com.evento.application.consumer.EventConsumer;
 import com.evento.common.admin.AdminPayloadCodec;
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
@@ -40,9 +39,8 @@ public final class BundleAdminRequestHandler implements HandlerRegistry.RequestH
     /**
      * SPI for resolving a {@link ConsumerHandle} by id + component type.
      *
-     * <p>Returns the common interface implemented by both v1 {@link EventConsumer}
-     * and the v2 engines under {@code com.evento.application.consumer.v2}, so this
-     * handler works on either runtime path without churn at the call sites.
+     * <p>Returns the common {@link ConsumerHandle} interface implemented by v2
+     * engines under {@code com.evento.application.consumer.v2}.
      */
     @FunctionalInterface
     public interface ConsumerLookup {

@@ -3,13 +3,13 @@ package com.evento.demo.memory.config;
 import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
+import com.evento.application.consumer.v2.ConsumerEngineConfig;
 import com.evento.application.manager.LogTracesMessageHandlerInterceptor;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.utils.Context;
 import com.evento.common.utils.ProjectorStatus;
-import com.evento.consumer.state.store.postgres.PostgresConsumerStateStore;
 import com.evento.demo.DemoQueryApplication;
 import com.evento.demo.api.event.UtilEvent;
 import com.evento.demo.api.view.enums.FailStage;
@@ -22,9 +22,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
 
-import java.sql.DriverManager;
-import java.sql.SQLException;
-
 @Configuration
 public class EventoConfiguration {
 
@@ -35,12 +32,6 @@ public class EventoConfiguration {
 			@Value("${evento.server.port}") Integer eventoServerPort,
 			@Value("${evento.bundle.id}") String bundleId,
 			@Value("${evento.bundle.version}") long bundleVersion,
-			@Value("${spring.postgres.datasource.url}") String pgConnectionUrl,
-			@Value("${spring.postgres.datasource.username}") String pgUsername,
-			@Value("${spring.postgres.datasource.password}") String pgPassword,
-			@Value("${spring.mysql.datasource.url}") String myConnectionUrl,
-			@Value("${spring.mysql.datasource.username}") String myUsername,
-			@Value("${spring.mysql.datasource.password}") String myPassword,
 			BeanFactory factory,
 			@Value("${sentry.dns}") String sentryDns
 	) throws Exception {
@@ -55,38 +46,9 @@ public class EventoConfiguration {
 				))
 				.setTracingAgent(new SentryTracingAgent(bundleId, bundleVersion, sentryDns))
 				.setInjector(factory::getBean)
-				//.setConsumerStateStoreBuilder(InMemoryConsumerStateStore::new)
-    .setConsumerStateStoreBuilder((es, ps) ->
-            PostgresConsumerStateStore.builder(es, ps, () ->
-                    DriverManager.getConnection(pgConnectionUrl, pgUsername, pgPassword)).build())/*
-				.setConsumerStateStoreBuilder((es, ps) ->{
-					try {
-						return MysqlConsumerStateStore.builder(es, ps, () -> {
-								return DriverManager.getConnection(
-										myConnectionUrl, myUsername, myPassword);
-						}).build();
-					} catch (SQLException e) {
-						throw new RuntimeException(e);
-					}
-				})*/
+				.setConsumerEngineConfigBuilder(ConsumerEngineConfig::inMemory)
 				.setComponentContexts(DemoProjector.class, Context.DEFAULT, "other")
 				.setOnEventoStartedHook((eb) -> {
-					/*
-					while (true) {
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                        eb.getProjectorManager().getProjectorEvenConsumers()
-								.forEach(c -> {
-									try {
-										c.consumeDeadEventQueue();
-									} catch (Exception e) {
-										e.printStackTrace();
-									}
-								});
-					}*/
 				})
                 .setMessageHandlerInterceptor(new LogTracesMessageHandlerInterceptor(){
                     @Override
