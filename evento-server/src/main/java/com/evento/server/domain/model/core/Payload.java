@@ -15,7 +15,6 @@ import java.util.Objects;
 @Setter
 @ToString
 @RequiredArgsConstructor
-@Embeddable
 @Table(name = "core__payload")
 @AllArgsConstructor
 public class Payload implements Serializable {
