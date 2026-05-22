@@ -124,6 +124,7 @@ public class BusV2Configuration {
         public void start() {
             int port = lifecycle.start(props.port());
             log.info("event=bus_v2_started port={} server_instance={}", port, props.serverInstanceId());
+            log.info("Evento server ready — accepting bundle registrations on port {}", port);
         }
 
         @PreDestroy
