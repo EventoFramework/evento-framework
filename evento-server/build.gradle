@@ -59,6 +59,12 @@ tasks.register('prepareKotlinBuildScriptModel') {
 
 }
 
+processResources {
+	filesMatching('application.properties') {
+		filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: [version: eventoVersion])
+	}
+}
+
 test {
 	useJUnitPlatform()
 }
