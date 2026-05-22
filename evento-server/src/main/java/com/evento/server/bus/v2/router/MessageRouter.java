@@ -3,6 +3,7 @@ package com.evento.server.bus.v2.router;
 import com.evento.transport.Frame;
 import com.evento.transport.message.Hello;
 import com.evento.transport.message.Notification;
+import com.evento.transport.message.Pong;
 import com.evento.transport.message.Request;
 import com.evento.transport.message.Response;
 import org.slf4j.Logger;
@@ -48,6 +49,8 @@ public final class MessageRouter {
             case Request r -> requestHandler.handle(r, frame, session);
             case Response r -> responseHandler.handle(r, frame, session);
             case Notification n -> notificationHandler.handle(n, frame, session);
+            case Pong p -> log.trace("event=pong_received correlationId={} session={}", p.correlationId(),
+                    session.address() == null ? "<accepted>" : session.address().instanceId());
             default -> log.warn("event=unrouted_message type={} session={}",
                     frame.message().getClass().getSimpleName(),
                     session.address() == null ? "<accepted>" : session.address().instanceId());
