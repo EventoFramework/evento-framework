@@ -15,11 +15,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Integration tests for the payment saga lifecycle scenarios.
+ * Integration tests for the payment saga flow.
+ * The saga opens a payment intent on OrderCompletedEvent, then confirms or cancels the order
+ * based on PaymentStatusChangedEvent. Both saga and command bundles must run together.
  * No Docker required.
  */
 @Timeout(value = 90, unit = TimeUnit.SECONDS)
-class MsSagaIT {
+class MsPaymentSagaIT {
 
     private MsHarness harness;
 
@@ -35,39 +37,40 @@ class MsSagaIT {
     }
 
     @Test
-    void paymentSagaSuccessFlow_completedThenPaymentSuccessThenConfirmed() throws Exception {
+    void paymentSuccess_sagaOpensIntentAndConfirmsOrder() throws Exception {
         harness.withSagaBundle().withCommandBundle();
 
         await().atMost(15, TimeUnit.SECONDS)
                 .until(() -> harness.broker().lifecycle().isBundleAvailable("lab-ms-saga")
                         && harness.broker().lifecycle().isBundleAvailable("lab-ms-command"));
 
-        harness.eventStore().publishServiceEvent(new OrderCompletedEvent("saga-pay-1"));
+        harness.eventStore().publishServiceEvent(new OrderCompletedEvent("pay-success-1"));
         await().atMost(20, TimeUnit.SECONDS)
-                .until(() -> "PAYMENT_PENDING".equals(MsSagaStore.getStatus("saga-pay-1")));
-        assertThat(MsSagaStore.getStatus("saga-pay-1")).isEqualTo("PAYMENT_PENDING");
+                .until(() -> "PAYMENT_PENDING".equals(MsSagaStore.getStatus("pay-success-1")));
 
-        harness.eventStore().publishServiceEvent(new PaymentStatusChangedEvent("saga-pay-1", "PI-saga-pay-1", "SUCCESS"));
+        harness.eventStore().publishServiceEvent(new PaymentStatusChangedEvent("pay-success-1", "PI-pay-success-1", "SUCCESS"));
         await().atMost(20, TimeUnit.SECONDS)
-                .until(() -> "PAYMENT_SUCCESS".equals(MsSagaStore.getStatus("saga-pay-1")));
-        assertThat(MsSagaStore.getStatus("saga-pay-1")).isEqualTo("PAYMENT_SUCCESS");
+                .until(() -> "PAYMENT_SUCCESS".equals(MsSagaStore.getStatus("pay-success-1")));
+
+        assertThat(MsSagaStore.getStatus("pay-success-1")).isEqualTo("PAYMENT_SUCCESS");
     }
 
     @Test
-    void paymentSagaFailureFlow_completedThenPaymentFailedThenCancelled() throws Exception {
+    void paymentFailure_sagaOpensIntentAndCancelsOrder() throws Exception {
         harness.withSagaBundle().withCommandBundle();
 
         await().atMost(15, TimeUnit.SECONDS)
                 .until(() -> harness.broker().lifecycle().isBundleAvailable("lab-ms-saga")
                         && harness.broker().lifecycle().isBundleAvailable("lab-ms-command"));
 
-        harness.eventStore().publishServiceEvent(new OrderCompletedEvent("saga-pay-fail-1"));
+        harness.eventStore().publishServiceEvent(new OrderCompletedEvent("pay-fail-1"));
         await().atMost(20, TimeUnit.SECONDS)
-                .until(() -> "PAYMENT_PENDING".equals(MsSagaStore.getStatus("saga-pay-fail-1")));
+                .until(() -> "PAYMENT_PENDING".equals(MsSagaStore.getStatus("pay-fail-1")));
 
-        harness.eventStore().publishServiceEvent(new PaymentStatusChangedEvent("saga-pay-fail-1", "PI-saga-pay-fail-1", "FAILED"));
+        harness.eventStore().publishServiceEvent(new PaymentStatusChangedEvent("pay-fail-1", "PI-pay-fail-1", "FAILED"));
         await().atMost(20, TimeUnit.SECONDS)
-                .until(() -> "PAYMENT_FAILED".equals(MsSagaStore.getStatus("saga-pay-fail-1")));
-        assertThat(MsSagaStore.getStatus("saga-pay-fail-1")).isEqualTo("PAYMENT_FAILED");
+                .until(() -> "PAYMENT_FAILED".equals(MsSagaStore.getStatus("pay-fail-1")));
+
+        assertThat(MsSagaStore.getStatus("pay-fail-1")).isEqualTo("PAYMENT_FAILED");
     }
 }

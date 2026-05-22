@@ -17,6 +17,15 @@ public class OrderCreatedEvent extends DomainEvent {
         this.quantity = quantity;
     }
 
+    public OrderCreatedEvent(String orderId, String description, int quantity, String context) {
+        this.orderId = orderId;
+        this.description = description;
+        this.quantity = quantity;
+        if (context != null) {
+            this.setContext(context);
+        }
+    }
+
     public String getOrderId() {
         return orderId;
     }

@@ -52,6 +52,11 @@ public class CommandGatewayImpl implements CommandGateway {
 			message.setMetadata(metadata);
 
 			return (CompletableFuture<R>) eventoServer.request(message, timeout, unit).thenApply(e -> {
+				// If the response is already a deserialized Serializable (v2 wire adapter
+				// returns the CBOR-decoded object), use it directly.
+				if (!(e instanceof String)) {
+					return e;
+				}
 				try {
 					return ObjectMapperUtils.getPayloadObjectMapper()
 							.readValue(e.toString(), Serializable.class);

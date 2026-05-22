@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,6 +33,7 @@ public final class MsTestEventStore implements AutoCloseable {
     private final AdminPayloadCodec codec = new AdminPayloadCodec();
     private final List<PublishedEvent> store = new CopyOnWriteArrayList<>();
     private final AtomicLong seqGen = new AtomicLong(0);
+    private final ConcurrentHashMap<Long, String> eventContexts = new ConcurrentHashMap<>();
 
     public MsTestEventStore(int brokerPort) throws Exception {
         client = BundleClient.builder("ms-test-event-store", "ms-store-1")
@@ -45,8 +47,14 @@ public final class MsTestEventStore implements AutoCloseable {
             var req = (EventFetchRequest) codec.decodeRequest(payload).getBody();
             long from = req.getLastSequenceNumber();
             int limit = req.getLimit();
+            String reqContext = req.getContext();
             var events = store.stream()
                     .filter(pe -> pe.getEventSequenceNumber() > from)
+                    .filter(pe -> {
+                        if (reqContext == null || "*".equals(reqContext)) return true;
+                        String evtCtx = eventContexts.getOrDefault(pe.getEventSequenceNumber(), "*");
+                        return "*".equals(evtCtx) || reqContext.equals(evtCtx);
+                    })
                     .sorted(Comparator.comparingLong(PublishedEvent::getEventSequenceNumber))
                     .limit(limit)
                     .collect(Collectors.toCollection(ArrayList::new));
@@ -83,6 +91,23 @@ public final class MsTestEventStore implements AutoCloseable {
     }
 
     /**
+     * Publish a domain event with a context tag. Returns the assigned sequence number.
+     */
+    public long publishWithContext(DomainEvent event, String aggregateId, String context) {
+        long seq = seqGen.incrementAndGet();
+        var em = new DomainEventMessage(event);
+        var pe = new PublishedEvent();
+        pe.setEventSequenceNumber(seq);
+        pe.setAggregateId(aggregateId);
+        pe.setEventMessage(em);
+        pe.setEventName(event.getClass().getSimpleName());
+        pe.setCreatedAt(System.currentTimeMillis());
+        store.add(pe);
+        eventContexts.put(seq, context);
+        return seq;
+    }
+
+    /**
      * Publish a service event into the in-memory store. Returns the assigned sequence number.
      */
     public long publishServiceEvent(ServiceEvent event) {
@@ -94,6 +119,22 @@ public final class MsTestEventStore implements AutoCloseable {
         pe.setEventName(event.getClass().getSimpleName());
         pe.setCreatedAt(System.currentTimeMillis());
         store.add(pe);
+        return seq;
+    }
+
+    /**
+     * Publish a service event with a context tag. Returns the assigned sequence number.
+     */
+    public long publishServiceEventWithContext(ServiceEvent event, String context) {
+        long seq = seqGen.incrementAndGet();
+        var em = new ServiceEventMessage(event);
+        var pe = new PublishedEvent();
+        pe.setEventSequenceNumber(seq);
+        pe.setEventMessage(em);
+        pe.setEventName(event.getClass().getSimpleName());
+        pe.setCreatedAt(System.currentTimeMillis());
+        store.add(pe);
+        eventContexts.put(seq, context);
         return seq;
     }
 

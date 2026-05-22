@@ -7,6 +7,7 @@ public class CreateOrderCommand extends DomainCommand {
     private String orderId;
     private String description;
     private int quantity;
+    private String context;
 
     public CreateOrderCommand() {
     }
@@ -15,6 +16,13 @@ public class CreateOrderCommand extends DomainCommand {
         this.orderId = orderId;
         this.description = description;
         this.quantity = quantity;
+    }
+
+    public CreateOrderCommand(String orderId, String description, int quantity, String context) {
+        this.orderId = orderId;
+        this.description = description;
+        this.quantity = quantity;
+        this.context = context;
     }
 
     @Override
@@ -44,5 +52,13 @@ public class CreateOrderCommand extends DomainCommand {
 
     public void setQuantity(int quantity) {
         this.quantity = quantity;
+    }
+
+    public String getContext() {
+        return context;
+    }
+
+    public void setContext(String context) {
+        this.context = context;
     }
 }
