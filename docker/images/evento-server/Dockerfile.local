@@ -1,0 +1,9 @@
+FROM eclipse-temurin:25-jre-noble
+
+EXPOSE 3000 3030
+
+RUN mkdir /app
+
+COPY evento-server/build/libs/*.jar /app/spring-boot-application.jar
+
+ENTRYPOINT ["java", "-jar", "/app/spring-boot-application.jar"]
