@@ -1,14 +1,18 @@
-package com.evento.lab.ms.saga.saga;
+package com.evento.lab.ms.api.event;
 
-import com.evento.common.modeling.state.SagaState;
+import com.evento.common.modeling.messaging.payload.ServiceEvent;
 
-public class OrderSagaState extends SagaState {
+public class PaymentIntentOpenedEvent extends ServiceEvent {
 
     private String orderId;
-    private String phase;
     private String paymentIntentId;
 
-    public OrderSagaState() {
+    public PaymentIntentOpenedEvent() {
+    }
+
+    public PaymentIntentOpenedEvent(String orderId, String paymentIntentId) {
+        this.orderId = orderId;
+        this.paymentIntentId = paymentIntentId;
     }
 
     public String getOrderId() {
@@ -17,14 +21,6 @@ public class OrderSagaState extends SagaState {
 
     public void setOrderId(String orderId) {
         this.orderId = orderId;
-    }
-
-    public String getPhase() {
-        return phase;
-    }
-
-    public void setPhase(String phase) {
-        this.phase = phase;
     }
 
     public String getPaymentIntentId() {
