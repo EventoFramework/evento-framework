@@ -1,0 +1,20 @@
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+group 'com.evento'
+version "${eventoVersion}"
+java { toolchain { languageVersion = javaLanguageVersion } }
+dependencyManagement {
+    imports { mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.5' }
+}
+repositories { mavenCentral(); mavenLocal() }
+dependencies {
+    api project(':evento-bundle')
+    api project(':evento-common')
+    api project(':evento-transport-api')
+    api project(':evento-transport-netty')
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+}

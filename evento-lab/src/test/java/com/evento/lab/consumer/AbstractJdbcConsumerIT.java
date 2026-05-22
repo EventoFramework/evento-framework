@@ -13,7 +13,7 @@ import com.evento.consumer.state.store.jdbc.v2.JdbcDedupeStore;
 import com.evento.consumer.state.store.jdbc.v2.JdbcSagaStateStore;
 import com.evento.consumer.state.store.jdbc.v2.SqlDialect;
 import com.evento.lab.bundle.LabStore;
-import com.evento.lab.event.OrderCreatedEvent;
+import com.evento.lab.api.event.OrderCreatedEvent;
 import com.evento.lab.support.EmbeddedBroker;
 import com.evento.lab.support.TestEventStoreBundleClient;
 import com.fasterxml.jackson.databind.ObjectMapper;

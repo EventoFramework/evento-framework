@@ -3,11 +3,11 @@ package com.evento.lab.bundle.command;
 import com.evento.common.modeling.annotations.component.Service;
 import com.evento.common.modeling.annotations.handler.CommandHandler;
 import com.evento.lab.bundle.LabStore;
-import com.evento.lab.command.CancelOrderCommand;
-import com.evento.lab.command.ConfirmOrderCommand;
-import com.evento.lab.event.OrderCancelledEvent;
-import com.evento.lab.event.OrderConfirmedEvent;
-import com.evento.lab.view.OrderView;
+import com.evento.lab.api.command.CancelOrderCommand;
+import com.evento.lab.api.command.ConfirmOrderCommand;
+import com.evento.lab.api.event.OrderCancelledEvent;
+import com.evento.lab.api.event.OrderConfirmedEvent;
+import com.evento.lab.api.view.OrderView;
 
 @Service
 public class LabService {

@@ -5,9 +5,9 @@ import com.evento.common.modeling.annotations.handler.QueryHandler;
 import com.evento.common.modeling.messaging.query.Multiple;
 import com.evento.common.modeling.messaging.query.Single;
 import com.evento.lab.bundle.LabStore;
-import com.evento.lab.query.FindOrderByIdQuery;
-import com.evento.lab.query.ListOrdersQuery;
-import com.evento.lab.view.OrderView;
+import com.evento.lab.api.query.FindOrderByIdQuery;
+import com.evento.lab.api.query.ListOrdersQuery;
+import com.evento.lab.api.view.OrderView;
 
 import java.util.NoSuchElementException;
 

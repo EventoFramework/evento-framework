@@ -4,9 +4,9 @@ import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.component.Saga;
 import com.evento.common.modeling.annotations.handler.SagaEventHandler;
-import com.evento.lab.event.OrderCancelledEvent;
-import com.evento.lab.event.OrderConfirmedEvent;
-import com.evento.lab.event.OrderCreatedEvent;
+import com.evento.lab.api.event.OrderCancelledEvent;
+import com.evento.lab.api.event.OrderConfirmedEvent;
+import com.evento.lab.api.event.OrderCreatedEvent;
 
 @Saga(version = 1)
 public class LabSaga {
