@@ -6,6 +6,7 @@ import com.evento.application.client.v2.handler.HandlerRegistry;
 import com.evento.transport.SendFailedException;
 import com.evento.transport.message.Message;
 import com.evento.transport.message.Notification;
+import com.evento.transport.message.Pong;
 import com.evento.transport.message.Request;
 import com.evento.transport.message.Response;
 import com.evento.transport.message.ResponseError;
@@ -69,6 +70,7 @@ public final class InboundDispatcher {
             }
             case Request req -> dispatchRequest(req);
             case Notification n -> dispatchNotification(n);
+            case Pong p -> log.trace("event=pong_received correlationId={}", p.correlationId());
             default -> log.warn("event=unexpected_inbound type={}", message.getClass().getSimpleName());
         }
     }
