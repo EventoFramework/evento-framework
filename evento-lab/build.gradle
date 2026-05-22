@@ -1,0 +1,72 @@
+plugins {
+    id 'java'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group 'com.evento'
+version "${eventoVersion}"
+
+java {
+    toolchain { languageVersion = javaLanguageVersion }
+}
+
+// Pull in the Spring Boot 3.5.5 BOM so that transitive Spring deps from
+// evento-server resolve to concrete versions without specifying each one.
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.5'
+    }
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    implementation project(':evento-bundle')
+    implementation project(':evento-common')
+    implementation project(':evento-transport-api')
+    implementation project(':evento-transport-netty')
+
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+    testImplementation project(':evento-server')
+    testImplementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc-v2')
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly  "org.junit.platform:junit-platform-launcher"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testImplementation 'org.awaitility:awaitility:4.2.2'
+
+    testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+    testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
+    testImplementation "org.testcontainers:mysql:${testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+    testRuntimeOnly "org.postgresql:postgresql:${postgresJdbcVersion}"
+    testRuntimeOnly "com.mysql:mysql-connector-j:${mysqlJdbcVersion}"
+    testImplementation "com.zaxxer:HikariCP:${hikariVersion}"
+    testRuntimeOnly "org.flywaydb:flyway-core:${flywayVersion}"
+    testRuntimeOnly "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
+    testRuntimeOnly "org.flywaydb:flyway-mysql:${flywayVersion}"
+
+    testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3'
+}
+
+// Spring Boot (via evento-server test dependency) ships log4j-to-slf4j which
+// conflicts with log4j-slf4j2-impl. Exclude the bridge globally so only the
+// direct log4j→SLF4J implementation is on the classpath.
+configurations.testRuntimeClasspath {
+    exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+}
+
+test {
+    useJUnitPlatform()
+    def dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
+    environment "DOCKER_HOST", dockerHost
+    environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+    environment "DOCKER_API_VERSION", "1.45"
+}
