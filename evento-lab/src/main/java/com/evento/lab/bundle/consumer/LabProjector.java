@@ -3,10 +3,10 @@ package com.evento.lab.bundle.consumer;
 import com.evento.common.modeling.annotations.component.Projector;
 import com.evento.common.modeling.annotations.handler.EventHandler;
 import com.evento.lab.bundle.LabStore;
-import com.evento.lab.event.OrderCancelledEvent;
-import com.evento.lab.event.OrderConfirmedEvent;
-import com.evento.lab.event.OrderCreatedEvent;
-import com.evento.lab.view.OrderView;
+import com.evento.lab.api.event.OrderCancelledEvent;
+import com.evento.lab.api.event.OrderConfirmedEvent;
+import com.evento.lab.api.event.OrderCreatedEvent;
+import com.evento.lab.api.view.OrderView;
 
 @Projector(version = 1)
 public class LabProjector {

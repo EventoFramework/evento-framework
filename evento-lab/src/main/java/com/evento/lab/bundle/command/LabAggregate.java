@@ -3,8 +3,8 @@ package com.evento.lab.bundle.command;
 import com.evento.common.modeling.annotations.component.Aggregate;
 import com.evento.common.modeling.annotations.handler.AggregateCommandHandler;
 import com.evento.common.modeling.annotations.handler.EventSourcingHandler;
-import com.evento.lab.command.CreateOrderCommand;
-import com.evento.lab.event.OrderCreatedEvent;
+import com.evento.lab.api.command.CreateOrderCommand;
+import com.evento.lab.api.event.OrderCreatedEvent;
 
 @Aggregate(snapshotFrequency = 5)
 public class LabAggregate {
