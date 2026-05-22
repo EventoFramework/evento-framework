@@ -5,7 +5,7 @@ import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.application.consumer.v2.ConsumerEngineConfig;
 import com.evento.lab.bundle.LabStore;
-import com.evento.lab.event.OrderCreatedEvent;
+import com.evento.lab.api.event.OrderCreatedEvent;
 import com.evento.lab.support.EmbeddedBroker;
 import com.evento.lab.support.TestEventStoreBundleClient;
 import org.junit.jupiter.api.AfterEach;

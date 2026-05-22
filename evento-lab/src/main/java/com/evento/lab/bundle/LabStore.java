@@ -1,6 +1,6 @@
 package com.evento.lab.bundle;
 
-import com.evento.lab.view.OrderView;
+import com.evento.lab.api.view.OrderView;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
