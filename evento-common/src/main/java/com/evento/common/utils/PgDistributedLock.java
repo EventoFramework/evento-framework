@@ -55,6 +55,9 @@ public class PgDistributedLock {
         LockWrapper lockWrapper = locks.compute(key, (k, v) -> v == null ? new LockWrapper() : v.addThreadInQueue());
         lockWrapper.lock.acquireUninterruptibly();
 
+        // Skip distributed lock when no DataSource is configured (embedded/test mode)
+        if (lockDatasource == null) return;
+
         // Acquire advisory lock in PostgreSQL
         try (var stmt = this.getLockConnection().prepareStatement(
                 "SELECT pg_advisory_lock(hashtext('"+key+"'))")) {
@@ -80,6 +83,9 @@ public class PgDistributedLock {
         LockWrapper lockWrapper = locks.compute(key, (k, v) -> v == null ? new LockWrapper() : v.addThreadInQueue());
         boolean localLockAcquired = lockWrapper.lock.tryAcquire();
         if (!localLockAcquired) return false;
+
+        // Skip distributed lock when no DataSource is configured (embedded/test mode)
+        if (lockDatasource == null) return true;
 
         try (var stmt = this.getLockConnection().prepareStatement(
                 "SELECT pg_try_advisory_lock(hashtext('"+key+"'))")) {
@@ -122,6 +128,9 @@ public class PgDistributedLock {
         if (lockWrapper.removeThreadFromQueue() == 0) {
             locks.remove(key, lockWrapper);
         }
+
+        // Skip distributed unlock when no DataSource is configured (embedded/test mode)
+        if (lockDatasource == null) return;
 
         // Release advisory lock from PostgreSQL
         try (var stmt = getLockConnection().prepareStatement(
