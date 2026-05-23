@@ -3,6 +3,7 @@ package com.evento.common.messaging.gateway;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.modeling.messaging.message.application.DomainCommandMessage;
+import com.evento.common.modeling.messaging.message.application.EventMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.message.application.ServiceCommandMessage;
@@ -52,8 +53,13 @@ public class CommandGatewayImpl implements CommandGateway {
 			message.setMetadata(metadata);
 
 			return (CompletableFuture<R>) eventoServer.request(message, timeout, unit).thenApply(e -> {
-				// If the response is already a deserialized Serializable (v2 wire adapter
-				// returns the CBOR-decoded object), use it directly.
+				if (e instanceof EventMessage<?> em) {
+					// v2 path: the handler bundle returns a ServiceEventMessage/DomainEventMessage
+					// wrapper. Extract the actual event payload, mirroring what the v1 server did
+					// (it called getSerializedPayload().getSerializedObject() before forwarding).
+					var sp = em.getSerializedPayload();
+					return sp == null ? null : (R) sp.getObject();
+				}
 				if (!(e instanceof String)) {
 					return e;
 				}
