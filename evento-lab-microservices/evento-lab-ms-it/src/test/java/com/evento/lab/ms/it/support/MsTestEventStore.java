@@ -138,6 +138,27 @@ public final class MsTestEventStore implements AutoCloseable {
         return seq;
     }
 
+    /**
+     * Publish a {@link PublishedEvent} whose {@link ServiceEventMessage} was constructed with a
+     * null payload — simulating an old or corrupted DB record where {@code objectClass} was never
+     * stored. The outer {@code eventName} is set explicitly so event-name-based routing still
+     * works; only {@code ServiceEventMessage.getEventName()} is affected (returns {@code null}).
+     *
+     * <p>Used by regression tests for the fix in {@code Message.getPayloadName()}.
+     */
+    public long publishCorrupted(String eventName, String aggregateId) {
+        long seq = seqGen.incrementAndGet();
+        var em = new ServiceEventMessage(null); // null payload → objectClass = null
+        var pe = new PublishedEvent();
+        pe.setEventSequenceNumber(seq);
+        pe.setAggregateId(aggregateId);
+        pe.setEventMessage(em);
+        pe.setEventName(eventName);
+        pe.setCreatedAt(System.currentTimeMillis());
+        store.add(pe);
+        return seq;
+    }
+
     /** Returns all events currently in the store (snapshot). */
     public List<PublishedEvent> allEvents() {
         return List.copyOf(store);

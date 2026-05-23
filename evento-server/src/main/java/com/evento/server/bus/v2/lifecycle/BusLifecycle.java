@@ -76,6 +76,22 @@ public final class BusLifecycle {
     private final String serverInstanceId;
     private final ConcurrentHashMap<Transport, BundleSession> sessionsByTransport = new ConcurrentHashMap<>();
 
+    /**
+     * Server-local handlers for request payloadTypes the broker answers directly
+     * (e.g. EventFetchRequest, EventLastSequenceNumberRequest) without forwarding
+     * to a bundle. Populated after construction via {@link #registerLocalHandler}.
+     */
+    @FunctionalInterface
+    public interface LocalRequestHandler {
+        byte[] handle(byte[] payload) throws Exception;
+    }
+
+    private final ConcurrentHashMap<String, LocalRequestHandler> localHandlers = new ConcurrentHashMap<>();
+
+    public void registerLocalHandler(String payloadType, LocalRequestHandler handler) {
+        localHandlers.put(payloadType, handler);
+    }
+
     // Hot-path counters exposing whether the zero-copy forward fired (good) or
     // fell back to encode-on-forward (e.g. the destination is an InMemoryTransport
     // in tests). Both are AtomicLong so they're safe to read from any thread.
@@ -350,6 +366,22 @@ public final class BusLifecycle {
                 return;
             }
             case ForwardingDedupCache.Outcome.Claimed ignored -> { /* fresh; route below */ }
+        }
+
+        var localHandler = localHandlers.get(request.payloadType());
+        if (localHandler != null) {
+            try {
+                byte[] result = localHandler.handle(request.payload());
+                var response = Response.success(request.correlationId(), request.payloadType(), result);
+                dedupCache.recordResponse(request.correlationId(), response);
+                session.transport().send(response);
+            } catch (Throwable t) {
+                log.warn("event=local_handler_threw payloadType={} correlationId={}",
+                        request.payloadType(), request.correlationId(), t);
+                dedupCache.invalidate(request.correlationId());
+                replyWithError(session.transport(), request.correlationId(), t);
+            }
+            return;
         }
 
         var destination = clusterRegistry.pick(request.payloadType());
