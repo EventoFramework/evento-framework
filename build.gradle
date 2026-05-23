@@ -11,11 +11,11 @@ allprojects {
         micrometerVersion = '1.13.6'
         junitVersion = '5.11.4'
         assertjVersion = '3.26.3'
-        lombokVersion = '1.18.40'
-        flywayVersion = '11.8.2'
+        lombokVersion = '1.18.46'
+        flywayVersion = '12.6.1'
         testcontainersVersion = '1.21.3'
-        postgresJdbcVersion = '42.7.4'
-        mysqlJdbcVersion = '9.1.0'
+        postgresJdbcVersion = '42.7.11'
+        mysqlJdbcVersion = '9.7.0'
         hikariVersion = '6.2.1'
     }
 }
