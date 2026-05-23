@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-public class EventStore {
+public class EventStore implements BrokerEventStore {
 
     private static final Logger logger = LogManager.getLogger(EventStore.class);
 
