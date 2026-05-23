@@ -102,18 +102,18 @@ public final class SagaEngine implements Runnable, ConsumerHandle {
             var hasError = false;
             var consumedEventCount = 0;
 
-            if (stateStore.isEnabled(consumerId)) {
-                try {
+            try {
+                if (stateStore.isEnabled(consumerId)) {
                     consumedEventCount = processor.consumeEventsForSaga(
                             consumerId,
                             sagaName,
                             context,
                             perEvent,
                             sssFetchSize);
-                } catch (Throwable e) {
-                    logger.error("Error on saga consumer: " + consumerId, e);
-                    hasError = true;
                 }
+            } catch (Throwable e) {
+                logger.error("Error on saga consumer: " + consumerId, e);
+                hasError = true;
             }
 
             if (sssFetchSize - consumedEventCount > 10) {

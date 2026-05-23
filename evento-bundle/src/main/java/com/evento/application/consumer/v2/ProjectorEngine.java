@@ -114,8 +114,8 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
             var hasError = false;
             var consumedEventCount = 0;
 
-            if (stateStore.isEnabled(consumerId)) {
-                try {
+            try {
+                if (stateStore.isEnabled(consumerId)) {
                     logger.debug("Fetching events for Projector: {} - Version: {} - Context: {} - Last Event: {}",
                             projectorName, projectorVersion, context, lastConsumedEvent);
                     consumedEventCount = processor.consumeEventsForProjector(
@@ -124,10 +124,10 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             context,
                             publishedEvent -> dispatch(publishedEvent, ps),
                             sssFetchSize);
-                } catch (Throwable e) {
-                    logger.error("Error on projector consumer: " + consumerId, e);
-                    hasError = true;
                 }
+            } catch (Throwable e) {
+                logger.error("Error on projector consumer: " + consumerId, e);
+                hasError = true;
             }
 
             if (sssFetchSize - consumedEventCount > 10) {
