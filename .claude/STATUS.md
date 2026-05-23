@@ -38,9 +38,9 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 | 13 | `ef6ede8e` | `feat(bundle-v2)`: PR3.2a — bundle-side admin request handler. Moved `AdminPayloadCodec` from server to `com.evento.common.admin` so bundles can decode the same wire. New `BundleAdminRequestHandler` in `evento-bundle/.../client/v2/admin/` — implements `HandlerRegistry.RequestHandler`, decodes the inner `EventoRequest`, dispatches one of the four `ConsumerXyzRequestMessage` operations via a `ConsumerLookup` SPI, encodes the `EventoResponse`. Closes the round-trip the dashboard / discovery / consumer endpoints rely on: `ConsumerService.getConsumerStatusFromNodes`, `setRetryForConsumerEvent`, `consumeDeadQueue`, `deleteDeadEventFromEventConsumer` now work end-to-end on the v2 wire. **+5 tests** in new `BundleAdminRoundTripIT`. |
 | 12 | `4dacefd1` | `feat(server-bus)`: PR3.1 + autoscale rip-out. Two changes that land together because the autoscale rip-out reduced the surface PR3.1 was migrating. **PR3.1:** BusFacade SPI; v1 `MessageBusFacade` adapter + v2 `BusLifecycleFacade` adapter. Migrated `DashboardController`, `ClusterStatusController`, `AutoDiscoveryService`, `ConsumerService`, `ConsumerController` to depend on `BusFacade`. Enriched `BundleRegistrationInfo` with rich `RegisteredHandler` list + `payloadInfo` so auto-discovery still works on v2. New `BusEvent.BundleRegistered` event fired by `BusLifecycle.onNotification`. New `BusLifecycle.forward(NodeAddress, payloadType, byte[], Duration)` server-initiated RPC primitive. New `evento:server-admin-request` payloadType + `AdminPayloadCodec` (Jackson-CBOR with polymorphic typing, mirrors v1 `ObjectMapperUtils`) so v1's `EventoRequest` round-trips through the v2 wire. **Autoscale rip-out:** deleted `AutoscalingProtocol`, `ThreadCountAutoscalingProtocol`, `ClusterNodeIsBoredMessage`, `ClusterNodeIsSufferingMessage`, `ClusterNodeKillMessage`, `BundleDeployService`. Dropped `Bundle.{min,max}Instances` columns from schema + DTO + parser. Removed `sendKill` from `BusFacade`/`BusLifecycle` (+ `NOTIFY_KILL` from `ProtocolNotifications`), `/spawn` + `/kill` REST endpoints, and the `TracingAgent.arrival/departure` calls + `AutoscalingProtocol` field. The cluster orchestrator (k8s/whatever) now owns spawn/kill — the framework only emits performance metrics. **+9 tests:** 5 in `BusLifecycleIT` (BundleRegistered emission, forward primitive, waitUntilAvailable) + 4 in new `BusLifecycleFacadeNettyIT`. |
 
-**Test totals on JDK 25:** 211 (transport-api 41, transport-netty 7,
-server v2 73, consumer-v2 unit 52, bundle v2 engines 7, **evento-lab 12** — 6 in-memory + 6 connectivity,
-**evento-lab-ms-it 19** — 3 consumer lifecycle + 2 saga/payment + 2 reconnect + 2 order lifecycle + 2 payment saga + 3 notification + 2 multi-context + 3 RTT/stress).
+**Test totals on JDK 25:** 218 (transport-api 41, transport-netty 7,
+server v2 73, consumer-v2 unit 52, bundle v2 engines 7, **evento-lab 16** — 6 in-memory + 6 connectivity + **4 command RTT**,
+**evento-lab-ms-it 22** — 3 consumer lifecycle + 2 saga/payment + 2 reconnect + 2 order lifecycle + 2 payment saga + 3 notification + 2 multi-context + 3 RTT/stress + **3 ms command RTT**).
 Postgres + MySQL JDBC IT (evento-consumer-state-store-jdbc-v2 + evento-lab) add 50+ more when Docker is healthy
 (`EVENTO_RUN_JDBC_IT=true`). Run with:
 
@@ -180,6 +180,49 @@ contract: every Netty-to-Netty forward must use the raw path.
    `BusLifecycle.onHello` — without it, fast clients send follow-up
    notifications that arrive at the server before the session's
    `NodeAddress` is bound, and they get dropped as "before-handshake".
+
+## Command RTT integration tests + CommandBrokerHandler fix
+
+### Root cause
+
+The v2 rewrite deleted `MessageBus.java` (PR3.5) but did not port its broker-side command interception logic. As a result, bundles received plain `DomainCommandMessage` instead of `DecoratedDomainCommandMessage` (aggregate story attached), events were never written to the event store, and projectors had nothing to consume.
+
+### Fix
+
+New Spring `@Component` **`CommandBrokerHandler`** (`evento-server/src/main/java/com/evento/server/es/`) restores all v1 broker logic:
+- Subscribes to `BusEvent.BundleRegistered` and registers `BusLifecycle.LocalRequestHandler` instances for every `AggregateCommandHandler` and service `CommandHandler` payload type.
+- **Aggregate path:** acquire optional resource lock → `EventStore.fetchAggregateStory` → wrap in `DecoratedDomainCommandMessage` → forward to bundle → persist `DomainEventMessage` + optional snapshot → return event to caller.
+- **Service path:** acquire optional resource lock → forward as-is → persist `ServiceEventMessage` if `objectClass != null` → return event to caller.
+
+### `BrokerEventStore` interface
+
+`CommandBrokerHandler` was refactored to depend on a new `BrokerEventStore` interface (4 methods: `fetchAggregateStory`, `publishEvent`, `saveSnapshot`, `deleteAggregate`) instead of the concrete Spring `EventStore` class. `EventStore` implements it. This enables in-memory test implementations without a database.
+
+### `PgDistributedLock` null-DataSource mode
+
+When `DataSource` is null, `PgDistributedLock.acquire/tryAcquire/release` now skip the PostgreSQL advisory lock and fall back to the JVM-only semaphore. This is safe for embedded/single-JVM scenarios (like integration tests) where cross-process concurrency is not needed.
+
+### Command RTT integration tests
+
+**`evento-lab/src/test/java/com/evento/lab/CommandRttIT`** — 4 tests:
+- `createOrder_aggregateStoresEventAndProjectorWritesView`: full RTT through Aggregate → EventStore → Projector → Projection
+- `confirmOrder_serviceCommandWithLock_projectorUpdatesStatus`: service command with `lockId` (exercises JVM-only lock path)
+- `cancelOrder_serviceCommandWithLock_projectorMarksAsCancelled`
+- `listOrders_queryReturnsAllProjectedOrders`
+
+**`evento-lab-microservices/evento-lab-ms-it/src/test/java/com/evento/lab/ms/it/MsCommandRttIT`** — 3 tests:
+- `createOrder_commandToEventToProjection`: cross-bundle RTT (command bundle → broker → query bundle)
+- `addItemsToOrder_aggregateReplayAndProjection`: verifies aggregate event replay for subsequent commands
+- `listOrders_multipleOrdersAllProjected`
+
+### New test support classes
+
+| Class | Module | Purpose |
+|---|---|---|
+| `CommandAwareTestEventStore` | evento-lab test | Implements `BrokerEventStore` + BundleClient for `EventFetchRequest`; shared in-memory store |
+| `CommandAwareEmbeddedBroker` | evento-lab test | Broker + `CommandBrokerHandler` + `TestGatewayClient` factory |
+| `MsCommandAwareTestEventStore` | evento-lab-ms-it test | Ms equivalent of above |
+| `MsCommandAwareEmbeddedBroker` | evento-lab-ms-it test | Ms equivalent of above |
 
 ## RC1 status — version bumped to `2.0.0-rc1`, tagged `v2.0.0-rc1`
 
@@ -413,6 +456,31 @@ The v1 `MessageBus.java` has been **deleted** (PR3.5). The v2
 `BusLifecycle` is now the only bus — `BusFacadeConfiguration` is
 unconditional and `BusV2Configuration` no longer needs
 `@ConditionalOnProperty`.
+
+## Critical bug fixed: CommandBrokerHandler (post-RC1)
+
+`CommandBrokerHandler` added to `evento-server/src/main/java/com/evento/server/es/`.
+
+**What was missing:** The v1 `MessageBus` (deleted in PR3.5) contained the broker-side logic for
+domain and service commands:
+1. Acquire distributed lock on `lockId ?? aggregateId`
+2. Fetch aggregate story (`fetchAggregateStory`) from `EventStore`
+3. Wrap `DomainCommandMessage` in `DecoratedDomainCommandMessage` (with state + event stream)
+4. Forward the decorated command to the aggregate bundle via `BusLifecycle.forward()`
+5. Store the resulting `DomainEventMessage` in the event store (`publishEvent()`)
+6. Optionally save the snapshot
+7. Return the stored event to the caller (command gateway expects `EventMessage` back)
+
+For service commands: same flow but no decoration + stores `ServiceEventMessage`.
+
+**Symptom:** Event store was empty, projectors consumed nothing, bundles received plain
+`DomainCommandMessage` where `BundleInboundDispatcher` expects `DecoratedDomainCommandMessage`
+→ `IllegalArgumentException: unsupported inbound request body type`.
+
+**Fix:** `CommandBrokerHandler` subscribes to `BusEvent.BundleRegistered`. For each registered
+`AggregateCommandHandler` or service `CommandHandler`, it registers a `LocalRequestHandler` in
+`BusLifecycle` that performs the full interception flow. Registration is idempotent (overwrite on
+bundle restart).
 
 ## Resume checklist (next session)
 
