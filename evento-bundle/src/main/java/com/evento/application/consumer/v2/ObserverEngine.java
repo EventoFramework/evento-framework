@@ -96,18 +96,18 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
             var hasError = false;
             var consumedEventCount = 0;
 
-            if (stateStore.isEnabled(consumerId)) {
-                try {
+            try {
+                if (stateStore.isEnabled(consumerId)) {
                     consumedEventCount = processor.consumeEventsForObserver(
                             consumerId,
                             observerName,
                             context,
                             this::dispatch,
                             sssFetchSize);
-                } catch (Throwable e) {
-                    logger.error("Error on observer consumer: " + consumerId, e);
-                    hasError = true;
                 }
+            } catch (Throwable e) {
+                logger.error("Error on observer consumer: " + consumerId, e);
+                hasError = true;
             }
 
             if (sssFetchSize - consumedEventCount > 10) {

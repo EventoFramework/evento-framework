@@ -8,6 +8,8 @@ import com.evento.common.messaging.consumer.v2.OptimisticLockException;
 import com.evento.common.messaging.consumer.v2.ProjectorCheckpoint;
 import com.evento.common.messaging.consumer.v2.SagaCheckpoint;
 import com.evento.common.messaging.consumer.v2.VersionedCheckpoint;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -32,8 +34,22 @@ import java.util.stream.Stream;
  * <p>Schema lives in {@code db/migration/{postgres,mysql}/v2}. Apply it via
  * {@link FlywayMigrator#migrate} or by including the location in the app's own
  * Flyway configuration.
+ *
+ * <p>A single {@link Connection} is shared and reused across calls.
+ * {@link #getConn()} validates liveness ({@link Connection#isValid(int)}) and
+ * reconnects transparently if the connection is stale — this check is the only
+ * part that is synchronized. Queries run on the captured connection reference
+ * outside the lock; on {@link SQLException} the connection is invalidated via
+ * {@link #invalidateConn()} so the next call reconnects.
+ *
+ * <p>{@link #isEnabled(String)} deliberately does <em>not</em> throw when the
+ * database is unreachable: it returns {@code true} (optimistic — keep consuming)
+ * and logs at WARN. This prevents a transient network hiccup from flooding the
+ * log with one ERROR per consumer per loop iteration.
  */
 public final class JdbcConsumerStateStore implements ConsumerStateStore {
+
+    private static final Logger logger = LogManager.getLogger(JdbcConsumerStateStore.class);
 
     private static final String KIND_EVENT = "EVENT";
     private static final String KIND_SAGA = "SAGA";
@@ -41,6 +57,9 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     private final DataSource dataSource;
     private final SqlDialect dialect;
+
+    private volatile Connection sharedConn;
+    private final Object connLock = new Object();
 
     public JdbcConsumerStateStore(DataSource dataSource, SqlDialect dialect) {
         this.dataSource = dataSource;
@@ -50,22 +69,48 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
     public DataSource dataSource() { return dataSource; }
     public SqlDialect dialect() { return dialect; }
 
+    // --- Connection management ----------------------------------------------
+
+    /** Synchronized only for the validity check and reconnect; returns immediately once a live connection exists. */
+    private Connection getConn() throws SQLException {
+        synchronized (connLock) {
+            if (sharedConn == null || sharedConn.isClosed() || !sharedConn.isValid(2)) {
+                closeQuietly(sharedConn);
+                sharedConn = dataSource.getConnection();
+                logger.info("JdbcConsumerStateStore: (re)connected to database");
+            }
+            return sharedConn;
+        }
+    }
+
+    /** Marks the connection as bad so the next {@link #getConn()} call reconnects. */
+    private void invalidateConn() {
+        synchronized (connLock) { sharedConn = null; }
+    }
+
+    private static void closeQuietly(Connection c) {
+        if (c != null) try { c.close(); } catch (SQLException ignored) {}
+    }
+
     // --- Checkpoint ---------------------------------------------------------
 
     @Override
     public Optional<VersionedCheckpoint> read(String consumerId) {
         var sql = "SELECT kind, last_sequence, version FROM evento_v2_consumer_state WHERE consumer_id = ?";
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement stmt = c.prepareStatement(sql)) {
-            stmt.setString(1, consumerId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) return Optional.empty();
-                var kind = rs.getString(1);
-                var seq = rs.getLong(2);
-                var version = rs.getLong(3);
-                return Optional.of(new VersionedCheckpoint(toCheckpoint(kind, seq), version));
+        try {
+            Connection c = getConn();
+            try (PreparedStatement stmt = c.prepareStatement(sql)) {
+                stmt.setString(1, consumerId);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (!rs.next()) return Optional.empty();
+                    var kind = rs.getString(1);
+                    var seq = rs.getLong(2);
+                    var version = rs.getLong(3);
+                    return Optional.of(new VersionedCheckpoint(toCheckpoint(kind, seq), version));
+                }
             }
         } catch (SQLException e) {
+            invalidateConn();
             throw new ConsumerStateStoreException("read failed for consumer '" + consumerId + "'", e);
         }
     }
@@ -75,15 +120,17 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
             throws OptimisticLockException {
         var kind = kindOf(checkpoint);
         var seq = checkpoint.lastSequenceNumber();
-
-        try (Connection c = dataSource.getConnection()) {
+        try {
+            Connection c = getConn();
             long newVersion = expectedVersion == 0L
                     ? insertFirstCommit(c, consumerId, kind, seq)
                     : updateExisting(c, consumerId, kind, seq, expectedVersion);
-            // A successful commit clears any previously recorded error.
             clearError(c, consumerId);
             return newVersion;
+        } catch (OptimisticLockException e) {
+            throw e;
         } catch (SQLException e) {
+            invalidateConn();
             throw new ConsumerStateStoreException("commit failed for consumer '" + consumerId + "'", e);
         }
     }
@@ -137,12 +184,15 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     @Override
     public void delete(String consumerId) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement stmt = c.prepareStatement(
-                     "DELETE FROM evento_v2_consumer_state WHERE consumer_id = ?")) {
-            stmt.setString(1, consumerId);
-            stmt.executeUpdate();
+        try {
+            Connection c = getConn();
+            try (PreparedStatement stmt = c.prepareStatement(
+                    "DELETE FROM evento_v2_consumer_state WHERE consumer_id = ?")) {
+                stmt.setString(1, consumerId);
+                stmt.executeUpdate();
+            }
         } catch (SQLException e) {
+            invalidateConn();
             throw new ConsumerStateStoreException("delete failed for consumer '" + consumerId + "'", e);
         }
     }
@@ -150,12 +200,15 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
     @Override
     public Stream<String> listConsumers() {
         var ids = new ArrayList<String>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement stmt = c.prepareStatement(
-                     "SELECT consumer_id FROM evento_v2_consumer_state");
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) ids.add(rs.getString(1));
+        try {
+            Connection c = getConn();
+            try (PreparedStatement stmt = c.prepareStatement(
+                    "SELECT consumer_id FROM evento_v2_consumer_state");
+                 ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) ids.add(rs.getString(1));
+            }
         } catch (SQLException e) {
+            invalidateConn();
             throw new ConsumerStateStoreException("listConsumers failed", e);
         }
         return ids.stream();
@@ -163,25 +216,33 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     // --- Enable / disable ---------------------------------------------------
 
+    /**
+     * Returns {@code true} when the DB is unreachable rather than throwing —
+     * callers (engine loops) continue consuming optimistically and reconnection
+     * is attempted on the next call without flooding the log.
+     */
     @Override
     public boolean isEnabled(String consumerId) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement stmt = c.prepareStatement(
-                     "SELECT enabled FROM evento_v2_consumer_state WHERE consumer_id = ?")) {
-            stmt.setString(1, consumerId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) return true; // default for unknown consumer
-                return rs.getBoolean(1);
+        try {
+            Connection c = getConn();
+            try (PreparedStatement stmt = c.prepareStatement(
+                    "SELECT enabled FROM evento_v2_consumer_state WHERE consumer_id = ?")) {
+                stmt.setString(1, consumerId);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (!rs.next()) return true;
+                    return rs.getBoolean(1);
+                }
             }
         } catch (SQLException e) {
-            throw new ConsumerStateStoreException("isEnabled failed for '" + consumerId + "'", e);
+            invalidateConn();
+            logger.warn("DB unreachable checking enabled state for '{}', assuming enabled: {}",
+                    consumerId, e.getMessage());
+            return true;
         }
     }
 
     @Override
     public void setEnabled(String consumerId, boolean enabled) {
-        // Upsert: keep a row even for consumers that haven't committed yet so
-        // the admin toggle survives across restarts. Default kind = EVENT.
         var upsert = switch (dialect) {
             case POSTGRES -> "INSERT INTO evento_v2_consumer_state(consumer_id, kind, last_sequence, version, enabled) "
                     + "VALUES (?, '" + KIND_EVENT + "', 0, 0, ?) "
@@ -190,12 +251,15 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
                     + "VALUES (?, '" + KIND_EVENT + "', 0, 0, ?) "
                     + "ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)";
         };
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement stmt = c.prepareStatement(upsert)) {
-            stmt.setString(1, consumerId);
-            stmt.setBoolean(2, enabled);
-            stmt.executeUpdate();
+        try {
+            Connection c = getConn();
+            try (PreparedStatement stmt = c.prepareStatement(upsert)) {
+                stmt.setString(1, consumerId);
+                stmt.setBoolean(2, enabled);
+                stmt.executeUpdate();
+            }
         } catch (SQLException e) {
+            invalidateConn();
             throw new ConsumerStateStoreException("setEnabled failed for '" + consumerId + "'", e);
         }
     }
@@ -205,8 +269,6 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
     @Override
     public void setLastError(String consumerId, Throwable error) {
         String stack = stackTraceOf(error);
-        // First failure after a clean run pins error_start_at to now;
-        // subsequent failures keep it pinned and just bump count + last_error_at.
         var sql = switch (dialect) {
             case POSTGRES -> "INSERT INTO evento_v2_consumer_state"
                     + "(consumer_id, kind, last_sequence, version, in_error, error_start_at, last_error_at, error_count, error) "
@@ -224,12 +286,15 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
                     + "error_count = COALESCE(error_count, 0) + 1, "
                     + "error_start_at = IF(in_error = false, CURRENT_TIMESTAMP, error_start_at)";
         };
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement stmt = c.prepareStatement(sql)) {
-            stmt.setString(1, consumerId);
-            stmt.setString(2, stack);
-            stmt.executeUpdate();
+        try {
+            Connection c = getConn();
+            try (PreparedStatement stmt = c.prepareStatement(sql)) {
+                stmt.setString(1, consumerId);
+                stmt.setString(2, stack);
+                stmt.executeUpdate();
+            }
         } catch (SQLException e) {
+            invalidateConn();
             throw new ConsumerStateStoreException("setLastError failed for '" + consumerId + "'", e);
         }
     }
@@ -238,23 +303,36 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
     public ConsumerErrorState getErrorState(String consumerId) {
         var sql = "SELECT in_error, error_start_at, last_error_at, error_count, error "
                 + "FROM evento_v2_consumer_state WHERE consumer_id = ?";
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement stmt = c.prepareStatement(sql)) {
-            stmt.setString(1, consumerId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) return ConsumerErrorState.healthy();
-                boolean inError = rs.getBoolean(1);
-                Instant start = toInstant(rs.getTimestamp(2));
-                Instant last = toInstant(rs.getTimestamp(3));
-                long count = rs.getLong(4);
-                String message = rs.getString(5);
-                if (!inError && start == null && last == null && count == 0L && message == null) {
-                    return ConsumerErrorState.healthy();
+        try {
+            Connection c = getConn();
+            try (PreparedStatement stmt = c.prepareStatement(sql)) {
+                stmt.setString(1, consumerId);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (!rs.next()) return ConsumerErrorState.healthy();
+                    boolean inError = rs.getBoolean(1);
+                    Instant start = toInstant(rs.getTimestamp(2));
+                    Instant last = toInstant(rs.getTimestamp(3));
+                    long count = rs.getLong(4);
+                    String message = rs.getString(5);
+                    if (!inError && start == null && last == null && count == 0L && message == null) {
+                        return ConsumerErrorState.healthy();
+                    }
+                    return new ConsumerErrorState(inError, start, last, count, message);
                 }
-                return new ConsumerErrorState(inError, start, last, count, message);
             }
         } catch (SQLException e) {
+            invalidateConn();
             throw new ConsumerStateStoreException("getErrorState failed for '" + consumerId + "'", e);
+        }
+    }
+
+    // --- Lifecycle ----------------------------------------------------------
+
+    @Override
+    public void close() {
+        synchronized (connLock) {
+            closeQuietly(sharedConn);
+            sharedConn = null;
         }
     }
 
