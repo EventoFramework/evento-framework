@@ -102,7 +102,11 @@ public class BusV2Configuration {
     }
 
     @Bean
-    public BusV2Starter busV2Starter(BusLifecycle lifecycle, BusV2Properties props) {
+    public BusV2Starter busV2Starter(BusLifecycle lifecycle, BusV2Properties props,
+                                     javax.sql.DataSource dataSource) {
+        // dataSource is injected only to establish a destruction-order edge:
+        // Spring must destroy BusV2Starter (→ stop the bus, drain all IO callbacks)
+        // before it closes the DataSource / HikariPool.
         return new BusV2Starter(lifecycle, props);
     }
 
