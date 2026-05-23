@@ -132,8 +132,21 @@ public final class NettyServerTransport implements TransportServer {
             childChannels.close().awaitUninterruptibly(config.connectTimeout().toMillis());
             serverChannel.close().syncUninterruptibly();
         } finally {
-            if (workerGroup != null) workerGroup.shutdownGracefully();
-            if (bossGroup != null) bossGroup.shutdownGracefully();
+            // Await graceful shutdown so that NioEventLoop.closeAll() — and the
+            // CloseFuture listeners it triggers (→ onTransportDisconnected) — run
+            // and complete before stop() returns. Without sync() those callbacks
+            // fire on the IO thread after the caller has moved on and may already
+            // have torn down downstream resources (e.g. HikariPool).
+            try {
+                if (workerGroup != null) workerGroup.shutdownGracefully().sync();
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            try {
+                if (bossGroup != null) bossGroup.shutdownGracefully().sync();
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
             serverChannel = null;
             boundPort = -1;
             log.info("event=server_stopped");
