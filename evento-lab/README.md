@@ -32,7 +32,7 @@ modules without pulling in framework internals — the same convention used by `
 | Class | Role |
 |---|---|
 | `EmbeddedBroker` | Starts a real v2 broker (`BusLifecycle` + `NettyServerTransport`) on a random port |
-| `TestEventStoreBundleClient` | In-process event journal; handles `EventFetchRequest` + `EventLastSequenceNumberRequest` so consumer engines can replay events |
+| `TestEventStoreBundleClient` | In-process event journal; handles `EventFetchRequest` + `EventLastSequenceNumberRequest` so consumer engines can replay events. `publish(DomainEvent, aggregateId)` creates a `DomainEventMessage`; `publishCorrupted(eventName, aggregateId)` creates a `ServiceEventMessage(null)` with null `objectClass` for regression testing. |
 
 No mocks. The full connection stack (TCP transport → broker → bundle client → consumer engines)
 exercises real code in every test.
@@ -83,3 +83,13 @@ Bundle-to-broker handshake, multi-bundle registration, and graceful shutdown.
 Same consumer scenarios as `InMemoryConsumerIT` but backed by real JDBC state stores
 (`JdbcConsumerStateStore`, `JdbcSagaStateStore`, etc.) against Testcontainers-managed
 databases. Only run when `EVENTO_RUN_JDBC_IT=true`.
+
+## Regression notes
+
+`TestEventStoreBundleClient.publishCorrupted(eventName, aggregateId)` creates a
+`PublishedEvent` whose `ServiceEventMessage` carries a null payload (and thus a null
+`objectClass`). This simulates DB records written by old code or with null-payload events —
+the condition that caused an NPE in `Message.getPayloadName()` (fix: returns `null`).
+
+The multi-module lab (`evento-lab-microservices`) has a dedicated `MsNullPayloadRegressionIT`
+that exercises the same regression with a full consumer pipeline.

@@ -24,6 +24,7 @@ repositories {
 dependencies {
     api project(':evento-common')
     api "org.flywaydb:flyway-core:${flywayVersion}"
+    api "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
     testRuntimeOnly  "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
@@ -38,7 +39,6 @@ dependencies {
     testImplementation "org.postgresql:postgresql:${postgresJdbcVersion}"
     testImplementation "com.mysql:mysql-connector-j:${mysqlJdbcVersion}"
     testImplementation "com.zaxxer:HikariCP:${hikariVersion}"
-    testImplementation "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
     testImplementation "org.flywaydb:flyway-mysql:${flywayVersion}"
 }
 

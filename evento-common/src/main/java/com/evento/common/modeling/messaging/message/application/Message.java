@@ -105,7 +105,7 @@ public abstract class Message<T extends Payload> implements Serializable {
 	 * @return the type of the message as a String.
 	 */
 	public String getType() {
-		return serializedPayload.getObjectClass();
+		return serializedPayload == null ? null : serializedPayload.getObjectClass();
 	}
 
 	/**
@@ -114,7 +114,9 @@ public abstract class Message<T extends Payload> implements Serializable {
 	 * @return the name of the payload as a String.
 	 */
 	public String getPayloadName() {
-		var parts = getType().split("\\.");
+		var type = getType();
+		if (type == null) return null;
+		var parts = type.split("\\.");
 		return parts[parts.length - 1];
 	}
 
