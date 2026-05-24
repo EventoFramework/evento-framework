@@ -7,17 +7,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.evento.common.modeling.messaging.payload.Payload;
-import com.evento.common.modeling.messaging.query.QueryResponse;
-import com.evento.common.modeling.messaging.query.SerializedQueryResponse;
-import com.evento.common.modeling.state.AggregateState;
-import com.evento.common.modeling.state.SagaState;
-
 import java.io.Serializable;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * The ObjectMapperUtils class provides utility methods for obtaining a shared instance of ObjectMapper for serializing and deserializing objects.
