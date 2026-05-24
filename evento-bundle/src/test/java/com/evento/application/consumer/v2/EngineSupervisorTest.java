@@ -51,13 +51,12 @@ class EngineSupervisorTest {
                 processor.stateStore(),
                 processor.dlq(),
                 new HashMap<>(),
-                new TracingAgent(BUNDLE, 1),
-                (c, m) -> null,
+                new DispatchContext(new TracingAgent(BUNDLE, 1), (c, m) -> null,
+                        new com.evento.application.manager.LogTracesMessageHandlerInterceptor()),
                 /* fetchSize */ 11, // 11-0 > 10 triggers a short Sleep.apply(11) each loop
                 /* fetchDelay */ 100,
                 new AtomicInteger(1),
-                () -> {},
-                new com.evento.application.manager.LogTracesMessageHandlerInterceptor()));
+                () -> {}));
 
         supervisor.startProjectorEngines();
         // Give the engine a few iterations to spin.
@@ -86,24 +85,26 @@ class EngineSupervisorTest {
         var supervisor = new EngineSupervisor();
         var processor = newProcessor();
 
+        var dispatchCtx = new DispatchContext(new TracingAgent(BUNDLE, 1), (c, m) -> null,
+                new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
         var p = new ProjectorEngine(
                 BUNDLE, "ProjA", 1, "ctx",
                 supervisor.shutdownSupplier(),
                 processor.processor(), processor.stateStore(), processor.dlq(),
-                new HashMap<>(), new TracingAgent(BUNDLE, 1), (c, m) -> null,
-                10, 100, new AtomicInteger(1), () -> {}, new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
+                new HashMap<>(), dispatchCtx,
+                10, 100, new AtomicInteger(1), () -> {});
         var s = new SagaEngine(
                 BUNDLE, "SagaA", 1, "ctx",
                 supervisor.shutdownSupplier(),
                 processor.processor(), processor.stateStore(), processor.dlq(),
-                new HashMap<>(), new TracingAgent(BUNDLE, 1), (c, m) -> null,
-                10, 100, new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
+                new HashMap<>(), dispatchCtx,
+                10, 100);
         var o = new ObserverEngine(
                 BUNDLE, "ObsA", 1, "ctx",
                 supervisor.shutdownSupplier(),
                 processor.processor(), processor.stateStore(), processor.dlq(),
-                new HashMap<>(), new TracingAgent(BUNDLE, 1), (c, m) -> null,
-                10, 100, new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
+                new HashMap<>(), dispatchCtx,
+                10, 100);
 
         supervisor.addProjector(p);
         supervisor.addSaga(s);

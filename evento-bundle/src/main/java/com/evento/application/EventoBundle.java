@@ -6,6 +6,7 @@ import com.evento.application.client.v2.EventoServerV2Adapter;
 import com.evento.application.client.v2.admin.BundleAdminRequestHandler;
 import com.evento.application.consumer.ConsumerHandle;
 import com.evento.application.consumer.v2.ConsumerEngineConfig;
+import com.evento.application.consumer.v2.DispatchContext;
 import com.evento.application.consumer.v2.EngineSupervisor;
 import com.evento.application.consumer.v2.ObserverEngine;
 import com.evento.application.consumer.v2.ProjectorEngine;
@@ -15,8 +16,6 @@ import com.evento.application.performance.TracingAgent;
 import com.evento.application.performance.Track;
 import com.evento.common.admin.AdminPayloadCodec;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
 import com.evento.transport.protocol.ProtocolPayloadTypes;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
@@ -29,21 +28,14 @@ import org.apache.logging.log4j.Logger;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.proxy.InvokerWrapper;
-import com.evento.common.documentation.Domain;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.CommandGatewayImpl;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.messaging.gateway.QueryGatewayImpl;
 import com.evento.common.modeling.annotations.handler.InvocationHandler;
-import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.common.modeling.bundle.types.ComponentType;
-import com.evento.common.modeling.bundle.types.HandlerType;
-import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.application.*;
-import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
-import com.evento.common.modeling.messaging.payload.DomainEvent;
-import com.evento.common.modeling.messaging.query.Multiple;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.performance.RemotePerformanceService;
 import com.evento.common.serialization.ObjectMapperUtils;
@@ -52,7 +44,6 @@ import org.reflections.util.ConfigurationBuilder;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -331,7 +322,7 @@ public class EventoBundle {
 
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
 
-        private ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
+        private com.fasterxml.jackson.databind.ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
         private Map<String, Set<String>> contexts = new HashMap<>();
         private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
 
@@ -462,122 +453,10 @@ public class EventoBundle {
 
             logger.info("Discovery Complete");
 
-            var handlers = new ArrayList<RegisteredHandler>();
-            var payloads = new HashSet<Class<?>>();
-            aggregateManager.getHandlers().forEach((k, v) -> {
-                var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Aggregate,
-                        v.getRef().getClass().getSimpleName(),
-                        HandlerType.AggregateCommandHandler,
-                        PayloadType.DomainCommand,
-                        k,
-                        r,
-                        false,
-                        null
-                ));
-                var esh = v.getEventSourcingHandler(r);
-                if (esh != null) {
-                    handlers.add(new RegisteredHandler(
-                            ComponentType.Aggregate,
-                            v.getRef().getClass().getSimpleName(),
-                            HandlerType.EventSourcingHandler,
-                            PayloadType.DomainEvent,
-                            r,
-                            null,
-                            false,
-                            null
-                    ));
-
-                }
-                payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
-                payloads.add(v.getAggregateCommandHandler(k).getReturnType());
-            });
-            serviceManager.getHandlers().forEach((k, v) -> {
-                var r = v.getAggregateCommandHandler(k).getReturnType().getSimpleName();
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Service,
-                        v.getRef().getClass().getSimpleName(),
-                        HandlerType.CommandHandler,
-                        PayloadType.ServiceCommand,
-                        k,
-                        r.equals("void") ? null : r,
-                        false,
-                        null
-                ));
-                payloads.add(v.getAggregateCommandHandler(k).getParameterTypes()[0]);
-                payloads.add(v.getAggregateCommandHandler(k).getReturnType());
-            });
-            projectorManager.getHandlers().forEach((k, v) -> v.forEach((k1, v1) -> {
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Projector,
-                        v1.getRef().getClass().getSimpleName(),
-                        HandlerType.EventHandler,
-                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                        k,
-                        null,
-                        false,
-                        null
-                ));
-                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-            }));
-            observerManager.getHandlers().forEach((k, v) -> v.forEach((k1, v1) -> {
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Observer,
-                        v1.getRef().getClass().getSimpleName(),
-                        HandlerType.EventHandler,
-                        v1.getEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                        k,
-                        null,
-                        false,
-                        null
-                ));
-                payloads.add(v1.getEventHandler(k).getParameterTypes()[0]);
-            }));
-            sagaManager.getHandlers().forEach((k, v) -> v.forEach((k1, v1) -> {
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Saga,
-                        v1.getRef().getClass().getSimpleName(),
-                        HandlerType.SagaEventHandler,
-                        v1.getSagaEventHandler(k).getParameterTypes()[0].getSuperclass().isAssignableFrom(DomainEvent.class) ? PayloadType.DomainEvent : PayloadType.ServiceEvent,
-                        k,
-                        null,
-                        false,
-                        v1.getSagaEventHandler(k).getAnnotation(SagaEventHandler.class).associationProperty()
-                ));
-                payloads.add(v1.getSagaEventHandler(k).getParameterTypes()[0]);
-            }));
-            projectionManager.getHandlers().forEach((k, v) -> {
-                var r = v.getQueryHandler(k).getReturnType();
-                handlers.add(new RegisteredHandler(
-                        ComponentType.Projection,
-                        v.getRef().getClass().getSimpleName(),
-                        HandlerType.QueryHandler,
-                        PayloadType.Query,
-                        k,
-                        ((Class<?>) (((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0])).getSimpleName(),
-                        r.isAssignableFrom(Multiple.class),
-                        null
-                ));
-                payloads.add(v.getQueryHandler(k).getParameterTypes()[0]);
-                payloads.add(((Class<?>) ((ParameterizedType) v.getQueryHandler(k).getGenericReturnType()).getActualTypeArguments()[0]));
-            });
-            handlers.addAll(invokerManager.getHandlers());
-            ObjectMapper mapper = new ObjectMapper();
-            JsonSchemaGenerator schemaGen = new JsonSchemaGenerator(mapper);
-            var payloadInfo = new HashMap<String, String[]>();
-            for (Class<?> p : payloads) {
-                if (p == null) continue;
-                var info = new String[2];
-                payloadInfo.put(p.getSimpleName(), info);
-                try {
-                    info[0] = mapper.writeValueAsString(schemaGen.generateSchema(p));
-                } catch (Exception ignored) {
-                }
-                if (p.getAnnotation(Domain.class) != null) {
-                    info[1] = p.getAnnotation(Domain.class).name();
-                }
-            }
+            var meta = HandlerMetadataBuilder.build(aggregateManager, serviceManager,
+                    projectionManager, projectorManager, observerManager, sagaManager, invokerManager);
+            var handlers = meta.handlers();
+            var payloadInfo = meta.payloadInfo();
 
             final AtomicReference<EventoBundle> eventoBundle = new AtomicReference<>();
 
@@ -652,11 +531,18 @@ public class EventoBundle {
                 eventoBundle.get().stopV2Engines(Duration.ofSeconds(30));
             }));
 
+            var dispatchContext = new DispatchContext(
+                    tracingAgent,
+                    (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
+                            performanceService, tracingAgent, c, p),
+                    messageHandlerInterceptor
+            );
+
             logger.info("Starting projector consumers...");
             var start = Instant.now();
             var wait = new Semaphore(0);
             var engineConfig = consumerEngineConfigBuilder.apply(eventoServer, performanceService);
-            eventoBundle.get().startProjectorEnginesV2(wait::release, engineConfig, contexts, supervisor);
+            startProjectorEnginesV2(eventoBundle.get(), wait::release, engineConfig, contexts, supervisor, dispatchContext);
             final ConsumerEngineConfig engineConfigForLater = engineConfig;
             var startThread = new Thread(() -> {
                 try {
@@ -665,7 +551,7 @@ public class EventoBundle {
                             Instant.now().toEpochMilli() - start.toEpochMilli());
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
-                    eventoBundle.get().startSagaAndObserverEnginesV2(engineConfigForLater, contexts, supervisor);
+                    startSagaAndObserverEnginesV2(eventoBundle.get(), engineConfigForLater, contexts, supervisor, dispatchContext);
                     sendConsumerRegistrationV2(eventoServer, supervisor);
                     logger.info("Application Started!");
                     Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
@@ -705,6 +591,110 @@ public class EventoBundle {
             }
             eventoServer.send(cr);
         }
+
+        private static void startProjectorEnginesV2(
+                EventoBundle bundle,
+                Runnable onAllHeadReached,
+                ConsumerEngineConfig engineConfig,
+                Map<String, Set<String>> contexts,
+                EngineSupervisor supervisor,
+                DispatchContext dispatchContext) {
+            var references = bundle.getProjectorManager().getReferences();
+            if (references.isEmpty()) {
+                onAllHeadReached.run();
+                return;
+            }
+            int total = references.stream()
+                    .mapToInt(p -> contexts.getOrDefault(p.getComponentName(),
+                            Set.of(com.evento.common.utils.Context.ALL)).size())
+                    .sum();
+            var counter = new java.util.concurrent.atomic.AtomicInteger(total);
+            logger.info("Checking for projector event consumers (v2)");
+            for (var projector : references) {
+                var annotation = projector.getRef().getClass()
+                        .getAnnotation(com.evento.common.modeling.annotations.component.Projector.class);
+                var projectorName = projector.getRef().getClass().getSimpleName();
+                var projectorVersion = annotation.version();
+                for (var context : contexts.getOrDefault(projectorName, Set.of(com.evento.common.utils.Context.ALL))) {
+                    logger.info("Starting v2 engine for Projector: {} - Version: {} - Context: {}",
+                            projectorName, projectorVersion, context);
+                    var engine = new ProjectorEngine(
+                            bundle.getBundleId(),
+                            projectorName,
+                            projectorVersion,
+                            context,
+                            supervisor.shutdownSupplier(),
+                            engineConfig.processor(),
+                            engineConfig.stateStore(),
+                            engineConfig.deadEventQueue(),
+                            bundle.getProjectorManager().getHandlers(),
+                            dispatchContext,
+                            bundle.getProjectorManager().getSssFetchSize(),
+                            bundle.getProjectorManager().getSssFetchDelay(),
+                            counter,
+                            onAllHeadReached);
+                    supervisor.addProjector(engine);
+                }
+            }
+            supervisor.startProjectorEngines();
+        }
+
+        private static void startSagaAndObserverEnginesV2(
+                EventoBundle bundle,
+                ConsumerEngineConfig engineConfig,
+                Map<String, Set<String>> contexts,
+                EngineSupervisor supervisor,
+                DispatchContext dispatchContext) {
+            for (var saga : bundle.getSagaManager().getReferences()) {
+                var annotation = saga.getRef().getClass()
+                        .getAnnotation(com.evento.common.modeling.annotations.component.Saga.class);
+                var sagaName = saga.getRef().getClass().getSimpleName();
+                var sagaVersion = annotation.version();
+                for (var context : contexts.getOrDefault(sagaName, Set.of(com.evento.common.utils.Context.ALL))) {
+                    logger.info("Starting v2 engine for Saga: {} - Version: {} - Context: {}",
+                            sagaName, sagaVersion, context);
+                    var engine = new SagaEngine(
+                            bundle.getBundleId(),
+                            sagaName,
+                            sagaVersion,
+                            context,
+                            supervisor.shutdownSupplier(),
+                            engineConfig.processor(),
+                            engineConfig.stateStore(),
+                            engineConfig.deadEventQueue(),
+                            bundle.getSagaManager().getHandlers(),
+                            dispatchContext,
+                            bundle.getSagaManager().getSssFetchSize(),
+                            bundle.getSagaManager().getSssFetchDelay());
+                    supervisor.addSaga(engine);
+                }
+            }
+            for (var observer : bundle.getObserverManager().getReferences()) {
+                var annotation = observer.getRef().getClass()
+                        .getAnnotation(com.evento.common.modeling.annotations.component.Observer.class);
+                var observerName = observer.getRef().getClass().getSimpleName();
+                var observerVersion = annotation.version();
+                for (var context : contexts.getOrDefault(observerName, Set.of(com.evento.common.utils.Context.ALL))) {
+                    logger.info("Starting v2 engine for Observer: {} - Version: {} - Context: {}",
+                            observerName, observerVersion, context);
+                    var engine = new ObserverEngine(
+                            bundle.getBundleId(),
+                            observerName,
+                            observerVersion,
+                            context,
+                            supervisor.shutdownSupplier(),
+                            engineConfig.processor(),
+                            engineConfig.stateStore(),
+                            engineConfig.deadEventQueue(),
+                            bundle.getObserverManager().getHandlers(),
+                            dispatchContext,
+                            bundle.getObserverManager().getSssFetchSize(),
+                            bundle.getObserverManager().getSssFetchDelay());
+                    supervisor.addObserver(engine);
+                }
+            }
+            supervisor.startSagaAndObserverEngines();
+        }
     }
 
     /**
@@ -713,121 +703,6 @@ public class EventoBundle {
      */
     private Optional<? extends ConsumerHandle> getEventConsumer(String consumerId, ComponentType componentType) {
         return engineSupervisor.findConsumer(consumerId, componentType);
-    }
-
-    // ------------------------------------------------------------------------
-    // v2 engine startup helpers. Read references + handler maps from the
-    // managers and hand engines to the EngineSupervisor for execution.
-    // ------------------------------------------------------------------------
-
-    private void startProjectorEnginesV2(Runnable onAllHeadReached,
-                                         ConsumerEngineConfig engineConfig,
-                                         Map<String, Set<String>> contexts,
-                                         EngineSupervisor supervisor) {
-        var references = projectorManager.getReferences();
-        if (references.isEmpty()) {
-            onAllHeadReached.run();
-            return;
-        }
-        int total = references.stream()
-                .mapToInt(p -> contexts.getOrDefault(p.getComponentName(),
-                        Set.of(com.evento.common.utils.Context.ALL)).size())
-                .sum();
-        var counter = new java.util.concurrent.atomic.AtomicInteger(total);
-        logger.info("Checking for projector event consumers (v2)");
-        for (var projector : references) {
-            var annotation = projector.getRef().getClass()
-                    .getAnnotation(com.evento.common.modeling.annotations.component.Projector.class);
-            var projectorName = projector.getRef().getClass().getSimpleName();
-            var projectorVersion = annotation.version();
-            for (var context : contexts.getOrDefault(projectorName,
-                    Set.of(com.evento.common.utils.Context.ALL))) {
-                logger.info("Starting v2 engine for Projector: {} - Version: {} - Context: {}",
-                        projectorName, projectorVersion, context);
-                var engine = new ProjectorEngine(
-                        bundleId,
-                        projectorName,
-                        projectorVersion,
-                        context,
-                        supervisor.shutdownSupplier(),
-                        engineConfig.processor(),
-                        engineConfig.stateStore(),
-                        engineConfig.deadEventQueue(),
-                        projectorManager.getHandlers(),
-                        tracingAgent,
-                        (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
-                                performanceService, tracingAgent, c, p),
-                        projectorManager.getSssFetchSize(),
-                        projectorManager.getSssFetchDelay(),
-                        counter,
-                        onAllHeadReached,
-                        projectorManager.getMessageHandlerInterceptor());
-                supervisor.addProjector(engine);
-            }
-        }
-        supervisor.startProjectorEngines();
-    }
-
-    private void startSagaAndObserverEnginesV2(ConsumerEngineConfig engineConfig,
-                                               Map<String, Set<String>> contexts,
-                                               EngineSupervisor supervisor) {
-        for (var saga : sagaManager.getReferences()) {
-            var annotation = saga.getRef().getClass()
-                    .getAnnotation(com.evento.common.modeling.annotations.component.Saga.class);
-            var sagaName = saga.getRef().getClass().getSimpleName();
-            var sagaVersion = annotation.version();
-            for (var context : contexts.getOrDefault(sagaName,
-                    Set.of(com.evento.common.utils.Context.ALL))) {
-                logger.info("Starting v2 engine for Saga: {} - Version: {} - Context: {}",
-                        sagaName, sagaVersion, context);
-                var engine = new SagaEngine(
-                        bundleId,
-                        sagaName,
-                        sagaVersion,
-                        context,
-                        supervisor.shutdownSupplier(),
-                        engineConfig.processor(),
-                        engineConfig.stateStore(),
-                        engineConfig.deadEventQueue(),
-                        sagaManager.getHandlers(),
-                        tracingAgent,
-                        (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
-                                performanceService, tracingAgent, c, p),
-                        sagaManager.getSssFetchSize(),
-                        sagaManager.getSssFetchDelay(),
-                        sagaManager.getMessageHandlerInterceptor());
-                supervisor.addSaga(engine);
-            }
-        }
-        for (var observer : observerManager.getReferences()) {
-            var annotation = observer.getRef().getClass()
-                    .getAnnotation(com.evento.common.modeling.annotations.component.Observer.class);
-            var observerName = observer.getRef().getClass().getSimpleName();
-            var observerVersion = annotation.version();
-            for (var context : contexts.getOrDefault(observerName,
-                    Set.of(com.evento.common.utils.Context.ALL))) {
-                logger.info("Starting v2 engine for Observer: {} - Version: {} - Context: {}",
-                        observerName, observerVersion, context);
-                var engine = new ObserverEngine(
-                        bundleId,
-                        observerName,
-                        observerVersion,
-                        context,
-                        supervisor.shutdownSupplier(),
-                        engineConfig.processor(),
-                        engineConfig.stateStore(),
-                        engineConfig.deadEventQueue(),
-                        observerManager.getHandlers(),
-                        tracingAgent,
-                        (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
-                                performanceService, tracingAgent, c, p),
-                        observerManager.getSssFetchSize(),
-                        observerManager.getSssFetchDelay(),
-                        observerManager.getMessageHandlerInterceptor());
-                supervisor.addObserver(engine);
-            }
-        }
-        supervisor.startSagaAndObserverEngines();
     }
 
     /**
