@@ -13,6 +13,8 @@ import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.v2.event.BusEvent;
+import com.evento.transport.SendFailedException;
+import com.evento.transport.message.Response;
 import com.evento.server.bus.v2.lifecycle.BusLifecycle;
 import com.evento.server.bus.v2.registry.ClusterRegistry;
 import org.slf4j.Logger;
@@ -22,7 +24,9 @@ import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Restores the broker-side command interception that lived in the deleted v1
@@ -59,6 +63,8 @@ public class CommandBrokerHandler {
 
     private static final Logger log = LoggerFactory.getLogger(CommandBrokerHandler.class);
     private static final String RESOURCE_LOCK_PREFIX = "RESOURCE:";
+    private static final long SEND_RETRY_BACKOFF_INITIAL_MS = 50;
+    private static final long SEND_RETRY_BACKOFF_MAX_MS = 1_000;
 
     private final BusLifecycle lifecycle;
     private final ClusterRegistry clusterRegistry;
@@ -126,13 +132,9 @@ public class CommandBrokerHandler {
             forwardRequest.setUnit(eventoRequest.getUnit());
             forwardRequest.setTimestamp(eventoRequest.getTimestamp());
 
-            NodeAddress destination = clusterRegistry.pick(commandPayloadType)
-                    .orElseThrow(() -> new IllegalStateException("no available handler for " + commandPayloadType));
-
             long timeoutMs = eventoRequest.getUnit().toMillis(eventoRequest.getTimeout());
-            var response = lifecycle.forward(destination, commandPayloadType,
-                            codec.encodeRequest(forwardRequest), Duration.ofMillis(timeoutMs))
-                    .get(timeoutMs, TimeUnit.MILLISECONDS);
+            var response = forwardOrRetry(commandPayloadType,
+                    codec.encodeRequest(forwardRequest), timeoutMs);
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -187,14 +189,9 @@ public class CommandBrokerHandler {
                 lockAcquired = true;
             }
 
-            NodeAddress destination = clusterRegistry.pick(commandPayloadType)
-                    .orElseThrow(() -> new IllegalStateException("no available handler for " + commandPayloadType));
-
             // Forward the original payload unchanged — the bundle decodes EventoRequest{body: ServiceCommandMessage}.
             long timeoutMs = eventoRequest.getUnit().toMillis(eventoRequest.getTimeout());
-            var response = lifecycle.forward(destination, commandPayloadType,
-                            payload, Duration.ofMillis(timeoutMs))
-                    .get(timeoutMs, TimeUnit.MILLISECONDS);
+            var response = forwardOrRetry(commandPayloadType, payload, timeoutMs);
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -221,6 +218,43 @@ public class CommandBrokerHandler {
         } finally {
             if (lockAcquired) {
                 distributedLock.release(lockKey);
+            }
+        }
+    }
+
+    /**
+     * Forwards {@code payload} to any available handler node for {@code payloadType},
+     * retrying with exponential back-off when the chosen node is temporarily
+     * un-reachable (DEGRADED / CONNECTING). Re-picks the destination on each
+     * attempt so that a recovered or different node can be chosen. Stops when
+     * the original command timeout has elapsed.
+     */
+    private Response forwardOrRetry(String payloadType, byte[] payload, long timeoutMs) throws Exception {
+        long deadlineMs = System.currentTimeMillis() + timeoutMs;
+        long backoffMs = SEND_RETRY_BACKOFF_INITIAL_MS;
+        int attempt = 0;
+        while (true) {
+            long remainingMs = deadlineMs - System.currentTimeMillis();
+            if (remainingMs <= 0) {
+                throw new TimeoutException("forward timed out after " + attempt + " attempt(s) for " + payloadType);
+            }
+            var destination = clusterRegistry.pick(payloadType)
+                    .orElseThrow(() -> new IllegalStateException("no available handler for " + payloadType));
+            var future = lifecycle.forward(destination, payloadType, payload, Duration.ofMillis(remainingMs));
+            try {
+                return future.get(remainingMs, TimeUnit.MILLISECONDS);
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof SendFailedException sfe && sfe.connectionState().isActive()) {
+                    long sleep = Math.min(backoffMs, deadlineMs - System.currentTimeMillis());
+                    if (sleep > 0) {
+                        log.warn("event=forward_retry attempt={} payloadType={} state={} backoffMs={}",
+                                ++attempt, payloadType, sfe.connectionState(), sleep);
+                        Thread.sleep(sleep);
+                        backoffMs = Math.min(backoffMs * 2, SEND_RETRY_BACKOFF_MAX_MS);
+                        continue;
+                    }
+                }
+                throw e;
             }
         }
     }
