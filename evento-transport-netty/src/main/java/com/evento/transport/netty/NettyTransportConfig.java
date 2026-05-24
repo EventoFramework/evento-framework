@@ -18,7 +18,7 @@ import java.util.concurrent.Executors;
  * <ul>
  *   <li>Heartbeat: write idle = 15s (Ping cadence), read idle = 45s (close threshold)</li>
  *   <li>Backpressure: high = 64KB, low = 32KB</li>
- *   <li>Max frame = 16MB</li>
+ *   <li>Max chunk frame = 16MB (messages larger than this are automatically split into multiple frames by the chunking layer)</li>
  *   <li>Business handlers run on virtual threads</li>
  *   <li>TLS off (set {@code sslContext} to enable)</li>
  * </ul>

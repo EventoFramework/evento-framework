@@ -39,6 +39,8 @@ final class EventoPipelineFactory {
         p.addLast("frameDec", new LengthFieldBasedFrameDecoder(
                 config.maxFrameLength(), 0, 4, 0, 4));
         p.addLast("frameEnc", new LengthFieldPrepender(4));
+        p.addLast("chunkReassembler", new ChunkReassembler());
+        p.addLast("chunkEncoder", new ChunkingEncoder(config.maxFrameLength()));
         p.addLast("cborDec", new CborMessageDecoder(config.codec()));
         p.addLast("cborEnc", new CborMessageEncoder(config.codec()));
         p.addLast("idle", new IdleStateHandler(
