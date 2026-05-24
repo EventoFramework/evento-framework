@@ -324,6 +324,11 @@ public final class BusLifecycle {
         switch (notification.payloadType()) {
             case BundleRegistrationInfo.PAYLOAD_TYPE -> {
                 var info = payloadCodec.decode(notification.payload(), BundleRegistrationInfo.class);
+                // Replace (not just add): remove stale entries first so that a
+                // reconnecting bundle with a changed handler set doesn't leave
+                // old payload types dangling in the routing table.
+                var evictedTypes = clusterRegistry.removeNode(session.address());
+                evictedTypes.forEach(localHandlers::remove);
                 clusterRegistry.registerHandlers(session.address(), info.handlerPayloadTypes());
                 eventBus.publish(new BusEvent.BundleRegistered(session.address(), info, Instant.now()));
             }
@@ -465,8 +470,22 @@ public final class BusLifecycle {
             return;
         }
         session.transitionTo(BundleSession.Phase.CLOSED);
-        connectionRegistry.unregister(address, session.connectionToken(), "transport_disconnected");
-        clusterRegistry.removeNode(address);
+        var removedConn = connectionRegistry.unregister(address, session.connectionToken(), "transport_disconnected");
+        if (removedConn.isEmpty()) {
+            // Token mismatch: this session was already superseded by a newer connection
+            // for the same NodeAddress. The new session owns the cluster-registry and
+            // forwarding-table entries — do not touch them.
+            log.info("event=disconnect_superseded_skip node={} token={}",
+                    address.instanceId(), session.connectionToken());
+            return;
+        }
+        // Remove the node from the routing table and evict any local handlers
+        // (e.g. CommandBrokerHandler's aggregate/service command interceptors)
+        // whose target set just became empty. Without this, stale localHandlers
+        // entries keep "handling" requests and fail with "no available handler"
+        // instead of the cleaner "no handler for" routing-miss path.
+        var nowEmptyTypes = clusterRegistry.removeNode(address);
+        nowEmptyTypes.forEach(localHandlers::remove);
 
         // For every in-flight forwarded request that involved this peer, drain the
         // entry and surface a failure to the surviving counterparty so its future

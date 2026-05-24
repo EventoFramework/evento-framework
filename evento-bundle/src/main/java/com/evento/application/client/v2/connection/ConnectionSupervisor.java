@@ -52,6 +52,17 @@ public final class ConnectionSupervisor implements AutoCloseable {
     private final PayloadCodec payloadCodec;
     private final ReconnectStrategy reconnectStrategy;
     private final AtomicReference<BundleClientState> state = new AtomicReference<>(BundleClientState.INITIAL);
+    /**
+     * Latches to {@code true} the first time {@link #markEnabled()} is called
+     * (i.e., when the application calls {@link
+     * com.evento.application.client.v2.BundleClient#enable()}). Once set, every
+     * future reconnect session re-sends {@code evento:enable} automatically
+     * inside {@link #performRegistration} — matching the "send enable after
+     * projectors are caught up" semantics from the initial connect without
+     * requiring another application-level {@code enable()} call.
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean enabledOnce =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
     private final AtomicReference<NettyClientTransport> currentTransport = new AtomicReference<>();
     private final CopyOnWriteArrayList<BiConsumer<BundleClientState, BundleClientState>> stateListeners = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<UUID, CompletableFuture<Welcome>> pendingHellos = new ConcurrentHashMap<>();
@@ -144,6 +155,15 @@ public final class ConnectionSupervisor implements AutoCloseable {
         }
 
         transitionTo(BundleClientState.CLOSING, BundleClientState.CLOSED, "stopped");
+    }
+
+    /**
+     * Record that {@code evento:enable} has been sent at least once. After this
+     * point every reconnect session will automatically re-send the enable
+     * notification inside {@link #performRegistration}.
+     */
+    public void markEnabled() {
+        enabledOnce.set(true);
     }
 
     @Override
@@ -260,7 +280,9 @@ public final class ConnectionSupervisor implements AutoCloseable {
                 .get(config.registrationTimeout().toMillis(),
                         java.util.concurrent.TimeUnit.MILLISECONDS);
 
-        if (config.autoEnable()) {
+        // Send enable if configured for auto-enable, or if the application has
+        // already called enable() at least once (reconnect after initial enable).
+        if (config.autoEnable() || enabledOnce.get()) {
             transport.send(new Notification(UUID.randomUUID(),
                     ProtocolNotifications.ENABLE, new byte[0],
                     System.currentTimeMillis()))
