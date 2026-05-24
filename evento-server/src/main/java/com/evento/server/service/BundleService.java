@@ -148,13 +148,11 @@ public class BundleService {
             log.info("[BundleService] Deleted {} components for bundleId={}", deletedComponents, bundleId);
 
             for (Payload payload : payloadRepository.findAll()) {
-                try {
-                    if (!bundleRepository.existsById(payload.getRegisteredIn())) {
-                        log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
-                        payloadRepository.delete(payload);
-                        cleanedPayloads++;
-                    }
-                } catch (Exception ignored) {
+                if (!bundleRepository.existsById(payload.getRegisteredIn())
+                        && !handlerService.isPayloadReferenced(payload.getName())) {
+                    log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
+                    payloadRepository.delete(payload);
+                    cleanedPayloads++;
                 }
             }
             log.info("[BundleService] Cleaned {} orphan payloads", cleanedPayloads);
@@ -847,13 +845,11 @@ public class BundleService {
         }
         int removedOrphanPayloads = 0;
         for (Payload payload : payloadRepository.findAll()) {
-            try {
-                if (!bundleRepository.existsById(payload.getRegisteredIn())) {
-                    log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
-                    payloadRepository.delete(payload);
-                    removedOrphanPayloads++;
-                }
-            } catch (Exception ignored) {
+            if (!bundleRepository.existsById(payload.getRegisteredIn())
+                    && !handlerService.isPayloadReferenced(payload.getName())) {
+                log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
+                payloadRepository.delete(payload);
+                removedOrphanPayloads++;
             }
         }
         components.forEach(c -> handlerService.clearCache(c.getComponentName()));
