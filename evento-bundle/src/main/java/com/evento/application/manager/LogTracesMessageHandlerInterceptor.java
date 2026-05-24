@@ -168,7 +168,7 @@ public class LogTracesMessageHandlerInterceptor implements MessageHandlerInterce
                                         CommandGateway commandGateway,
                                         QueryGateway queryGateway,
                                         SagaState sagaState) {
-        logger.trace("Handled Event {} in Saga {}",
+        logger.trace("Handling Event {} in Saga {}",
                 publishedEvent.getEventMessage().getPayload(), saga.getClass().getSimpleName());
     }
 
@@ -178,7 +178,7 @@ public class LogTracesMessageHandlerInterceptor implements MessageHandlerInterce
                                             CommandGateway commandGateway,
                                             QueryGateway queryGateway,
                                             SagaState sagaState) {
-        logger.trace("Handling Event {} in Saga {}",
+        logger.trace("Handled Event {} in Saga {}",
                 publishedEvent.getEventMessage().getPayload(), saga.getClass().getSimpleName());
         return sagaState;
 
@@ -201,7 +201,7 @@ public class LogTracesMessageHandlerInterceptor implements MessageHandlerInterce
                                             PublishedEvent publishedEvent,
                                             CommandGateway commandGateway,
                                             QueryGateway queryGateway) {
-        logger.trace("Handled Event {} in Observer {}",
+        logger.trace("Handling Event {} in Observer {}",
                 publishedEvent.getEventMessage().getPayload(), observer.getClass().getSimpleName());
     }
 
@@ -210,7 +210,7 @@ public class LogTracesMessageHandlerInterceptor implements MessageHandlerInterce
                                            PublishedEvent publishedEvent,
                                            CommandGateway commandGateway,
                                            QueryGateway queryGateway) {
-        logger.trace("Handling Event {} in Observer {}",
+        logger.trace("Handled Event {} in Observer {}",
                 publishedEvent.getEventMessage().getPayload(), observer.getClass().getSimpleName());
 
     }

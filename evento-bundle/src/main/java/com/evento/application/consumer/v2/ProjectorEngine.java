@@ -1,16 +1,12 @@
 package com.evento.application.consumer.v2;
 
 import com.evento.application.consumer.ConsumerHandle;
-import com.evento.application.manager.MessageHandlerInterceptor;
-import com.evento.application.performance.TracingAgent;
-import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.reference.ProjectorReference;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.messaging.consumer.v2.ConsumerProcessor;
 import com.evento.common.messaging.consumer.v2.ConsumerStateStore;
 import com.evento.common.messaging.consumer.v2.DeadEventQueue;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
-import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.utils.ProjectorStatus;
 import com.evento.common.utils.Sleep;
@@ -22,7 +18,6 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -59,15 +54,13 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
     private final ConsumerStateStore stateStore;
     private final DeadEventQueue deadEventQueue;
     private final HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers;
-    private final TracingAgent tracingAgent;
-    private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
+    private final DispatchContext dispatchContext;
     @Getter
     private final int sssFetchSize;
     @Getter
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
-    private final MessageHandlerInterceptor messageHandlerInterceptor;
 
     private volatile PublishedEvent lastConsumedEvent = null;
 
@@ -80,13 +73,11 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                            ConsumerStateStore stateStore,
                            DeadEventQueue deadEventQueue,
                            HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers,
-                           TracingAgent tracingAgent,
-                           BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
+                           DispatchContext dispatchContext,
                            int sssFetchSize,
                            int sssFetchDelay,
                            AtomicInteger alignmentCounter,
-                           Runnable onAllHeadReached,
-                           MessageHandlerInterceptor messageHandlerInterceptor) {
+                           Runnable onAllHeadReached) {
         this.bundleId = bundleId;
         this.projectorName = projectorName;
         this.projectorVersion = projectorVersion;
@@ -97,13 +88,11 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
         this.stateStore = stateStore;
         this.deadEventQueue = deadEventQueue;
         this.projectorMessageHandlers = projectorMessageHandlers;
-        this.tracingAgent = tracingAgent;
-        this.gatewayTelemetryProxy = gatewayTelemetryProxy;
+        this.dispatchContext = dispatchContext;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
         this.alignmentCounter = alignmentCounter;
         this.onAllHeadReached = onAllHeadReached;
-        this.messageHandlerInterceptor = messageHandlerInterceptor;
     }
 
     @Override
@@ -160,8 +149,8 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
         var handler = handlers.getOrDefault(projectorName, null);
         if (handler == null) return;
 
-        var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(), publishedEvent.getEventMessage());
-        tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+        var proxy = dispatchContext.gatewayTelemetryProxy().apply(handler.getComponentName(), publishedEvent.getEventMessage());
+        dispatchContext.tracingAgent().track(publishedEvent.getEventMessage(), handler.getComponentName(),
                 null,
                 () -> {
                     handler.invoke(
@@ -169,7 +158,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             proxy,
                             proxy,
                             ps,
-                            messageHandlerInterceptor,
+                            dispatchContext.messageHandlerInterceptor(),
                             t -> processor.handleLastError(consumerId, t));
                     proxy.sendInvocationsMetric();
                     lastConsumedEvent = publishedEvent;

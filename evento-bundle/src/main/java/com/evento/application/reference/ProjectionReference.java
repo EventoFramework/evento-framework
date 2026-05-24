@@ -82,7 +82,7 @@ public class ProjectionReference extends Reference {
 
         try {
             messageHandlerInterceptor.beforeProjectionQueryHandling(
-                    getRef().getClass(),
+                    getRef(),
                     qm,
                     queryGateway
             );
@@ -97,14 +97,14 @@ public class ProjectionReference extends Reference {
             );
 
             return messageHandlerInterceptor.afterProjectionQueryHandling(
-                    getRef().getClass(),
+                    getRef(),
                     qm,
                     queryGateway,
                     resp
             );
         }catch (Throwable t){
             throw messageHandlerInterceptor.onExceptionProjectionQueryHandling(
-                    getRef().getClass(),
+                    getRef(),
                     qm,
                     queryGateway,
                     t

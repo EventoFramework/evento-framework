@@ -59,15 +59,13 @@ public class ReflectionUtils {
      * @return The result of the method invocation.
      * @throws IllegalAccessException If the method cannot be accessed.
      */
-    public static Object invoke(Object object, Method method, Object... params) throws IllegalAccessException {
+    public static Object invoke(Object object, Method method, Object... params) throws Throwable {
         var old = method.canAccess(object);
         try {
             method.setAccessible(true);
             return method.invoke(object, buildParameters(method, params));
         } catch (InvocationTargetException e) {
-            if (e.getTargetException() instanceof RuntimeException re)
-                throw re;
-            else throw new RuntimeException(e.getTargetException());
+            throw e.getTargetException();
         } finally {
             method.setAccessible(old);
         }

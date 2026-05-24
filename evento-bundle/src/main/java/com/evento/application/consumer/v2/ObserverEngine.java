@@ -1,16 +1,12 @@
 package com.evento.application.consumer.v2;
 
 import com.evento.application.consumer.ConsumerHandle;
-import com.evento.application.manager.MessageHandlerInterceptor;
-import com.evento.application.performance.TracingAgent;
-import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.reference.ObserverReference;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.messaging.consumer.v2.ConsumerProcessor;
 import com.evento.common.messaging.consumer.v2.ConsumerStateStore;
 import com.evento.common.messaging.consumer.v2.DeadEventQueue;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
-import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.utils.Sleep;
 import lombok.Getter;
@@ -19,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -51,13 +46,11 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
     private final ConsumerStateStore stateStore;
     private final DeadEventQueue deadEventQueue;
     private final HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers;
-    private final TracingAgent tracingAgent;
-    private final BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy;
+    private final DispatchContext dispatchContext;
     @Getter
     private final int sssFetchSize;
     @Getter
     private final int sssFetchDelay;
-    private final MessageHandlerInterceptor messageHandlerInterceptor;
 
     public ObserverEngine(String bundleId,
                           String observerName,
@@ -68,11 +61,9 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
                           ConsumerStateStore stateStore,
                           DeadEventQueue deadEventQueue,
                           HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers,
-                          TracingAgent tracingAgent,
-                          BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
+                          DispatchContext dispatchContext,
                           int sssFetchSize,
-                          int sssFetchDelay,
-                          MessageHandlerInterceptor messageHandlerInterceptor) {
+                          int sssFetchDelay) {
         this.bundleId = bundleId;
         this.observerName = observerName;
         this.observerVersion = observerVersion;
@@ -83,11 +74,9 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
         this.stateStore = stateStore;
         this.deadEventQueue = deadEventQueue;
         this.observerMessageHandlers = observerMessageHandlers;
-        this.tracingAgent = tracingAgent;
-        this.gatewayTelemetryProxy = gatewayTelemetryProxy;
+        this.dispatchContext = dispatchContext;
         this.sssFetchSize = sssFetchSize;
         this.sssFetchDelay = sssFetchDelay;
-        this.messageHandlerInterceptor = messageHandlerInterceptor;
     }
 
     @Override
@@ -122,15 +111,15 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
         var handler = handlers.getOrDefault(observerName, null);
         if (handler == null) return;
 
-        var proxy = gatewayTelemetryProxy.apply(handler.getComponentName(), publishedEvent.getEventMessage());
-        tracingAgent.track(publishedEvent.getEventMessage(), handler.getComponentName(),
+        var proxy = dispatchContext.gatewayTelemetryProxy().apply(handler.getComponentName(), publishedEvent.getEventMessage());
+        dispatchContext.tracingAgent().track(publishedEvent.getEventMessage(), handler.getComponentName(),
                 null,
                 () -> {
                     handler.invoke(
                             publishedEvent,
                             proxy,
                             proxy,
-                            messageHandlerInterceptor,
+                            dispatchContext.messageHandlerInterceptor(),
                             t -> processor.handleLastError(consumerId, t));
                     proxy.sendInvocationsMetric();
                     return null;
