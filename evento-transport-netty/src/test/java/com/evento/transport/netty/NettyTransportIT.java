@@ -253,4 +253,59 @@ class NettyTransportIT {
                 serverChild.state() == ConnectionState.DISCONNECTED ||
                 serverChild.state() == ConnectionState.CLOSED);
     }
+
+    @Test
+    void largePayloadTransparentlyChunked() throws Exception {
+        // Use a small chunk size to exercise the chunking path with many frames.
+        int chunkSize = 64 * 1024; // 64 KB
+        var chunkConfig = new NettyTransportConfig(
+                Duration.ofMillis(500), Duration.ofMillis(2000), Duration.ofSeconds(5),
+                chunkSize, 64 * 1024, 32 * 1024,
+                new com.evento.transport.reconnect.ExponentialBackoffWithJitter(),
+                new com.evento.transport.codec.JacksonCborCodec(),
+                java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor());
+
+        // Stand up a dedicated server/client pair with small chunk size.
+        var chunkServer = new NettyServerTransport(chunkConfig);
+        var chunkServerChildren = new CopyOnWriteArrayList<com.evento.transport.Transport>();
+        chunkServer.onConnection(chunkServerChildren::add);
+        int chunkPort = chunkServer.start(0);
+        var chunkClient = new NettyClientTransport("chunk-client", "127.0.0.1", chunkPort, chunkConfig);
+        try {
+            // Build a 5 MB payload — well above the 64 KB chunk size → ~80 chunks.
+            int payloadSize = 5 * 1024 * 1024;
+            byte[] sentPayload = new byte[payloadSize];
+            new java.util.Random(42).nextBytes(sentPayload);
+
+            var pending = new ConcurrentHashMap<UUID, CompletableFuture<Response>>();
+            chunkClient.onMessage(msg -> {
+                if (msg instanceof Response r) {
+                    var f = pending.remove(r.correlationId());
+                    if (f != null) f.complete(r);
+                }
+            });
+            chunkClient.connect().join();
+            await().atMost(2, TimeUnit.SECONDS).until(() -> !chunkServerChildren.isEmpty());
+
+            // Server echoes the payload back unchanged.
+            chunkServerChildren.getFirst().onMessage(msg -> {
+                if (!(msg instanceof Request req)) return;
+                chunkServerChildren.getFirst().send(
+                        Response.success(req.correlationId(), "echo", req.payload()));
+            });
+
+            var corr = UUID.randomUUID();
+            var future = new CompletableFuture<Response>();
+            pending.put(corr, future);
+            chunkClient.send(new Request(corr, "chunk-client", "i1", "1.0",
+                    "echo", sentPayload, 10_000L, System.currentTimeMillis())).join();
+
+            Response response = future.get(10, TimeUnit.SECONDS);
+            assertThat(response.isError()).isFalse();
+            assertThat(response.payload()).isEqualTo(sentPayload);
+        } finally {
+            chunkClient.close();
+            chunkServer.stop();
+        }
+    }
 }

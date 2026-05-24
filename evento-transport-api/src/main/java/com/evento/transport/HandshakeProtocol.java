@@ -13,7 +13,7 @@ public final class HandshakeProtocol {
 
     public static final byte PROTOCOL_VERSION = 0x02;
 
-    /** Frames larger than this are rejected by the decoder. */
+    /** Maximum size of a single wire frame (chunk). Messages larger than this are automatically chunked. */
     public static final int MAX_FRAME_LENGTH = 16 * 1024 * 1024;
 
     /** Standardised capability flags advertised in Hello/Welcome.acceptedCapabilities. */
