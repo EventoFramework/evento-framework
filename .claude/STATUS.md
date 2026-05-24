@@ -482,6 +482,26 @@ For service commands: same flow but no decoration + stores `ServiceEventMessage`
 `BusLifecycle` that performs the full interception flow. Registration is idempotent (overwrite on
 bundle restart).
 
+## Staging bug fixes (post-RC1)
+
+Two bugs found during staging soak and fixed (uncommitted, `next` branch):
+
+### Fix A: "no handler for …" after reconnection — `BusLifecycle.onTransportDisconnected`
+
+**Root cause:** When a bundle reconnects with the same `NodeAddress` (same `bundleId` + `instanceId`), the new `Hello` handler calls `ConnectionRegistry.register(newConn)` which supersedes the old connection and closes its transport. That close fires a `DISCONNECTED` state change, triggering `onTransportDisconnected(oldSession)`. The token mismatch in `connectionRegistry.unregister(…, oldToken, …)` correctly returns empty (no-op), but the immediately following `clusterRegistry.removeNode(address)` was unconditional — it wiped the handlers that the new connection had just submitted (or was about to submit).
+
+**Fix:** `onTransportDisconnected` now returns early when `unregister` returns empty (token mismatch = superseded session). `clusterRegistry.removeNode`, `forwardingTable.drainInvolving`, and `correlationStore.failMatching` only run when we actually removed the connection. Added `event=disconnect_superseded_skip` log line for observability.
+
+**Files changed:** `BusLifecycle.java`
+
+### Fix B: SQL `23503` FK violation on `core__handler_return_type_name_fkey`
+
+**Root cause:** The orphan-payload cleanup in `BundleService.register` and `BundleService.unregister` iterates all payloads and deletes those whose `registeredIn` bundle no longer exists. It did not check whether the payload was still referenced by handlers in *other* bundles (as `return_type_name`, `handled_payload_name`, or an invocation entry). Postgres's FK constraint correctly blocked the delete; the old code swallowed the exception with `catch (Exception ignored)`, causing noisy `SqlExceptionHelper` ERROR logs without a crash.
+
+**Fix:** Added `HandlerRepository.existsByHandledPayload_Name`, `existsByReturnType_Name`, and `existsByInvocationPayloadName` (native query on `core__handler__invocation`). `HandlerService.isPayloadReferenced(name)` combines all three. Both orphan-cleanup loops now gate deletion on `!handlerService.isPayloadReferenced(payload.getName())` and remove the `try-catch`. The noisy errors are gone and stale payloads that are still referenced are left in place (correct behaviour — they're not truly orphaned).
+
+**Files changed:** `HandlerRepository.java`, `HandlerService.java`, `BundleService.java`
+
 ## Resume checklist (next session)
 
 RC1 tagged. Remaining work before `v2.0.0`:
@@ -492,9 +512,10 @@ RC1 tagged. Remaining work before `v2.0.0`:
 4. ✅ Version bumped to `2.0.0-rc1`, git tag `v2.0.0-rc1` created
 5. ✅ `evento-lab` end-to-end integration module added (6 in-memory + 6 connectivity tests green)
 6. ✅ `evento-lab` api-package refactor (`com.evento.lab.api.*`) + `evento-lab-microservices` multi-bundle RECQ example + 7 new IT tests (total 199 on JDK 25)
-7. Deploy `next` to staging with `evento-demo` + traffic generator.
-7. Soak 1–2 weeks with early adopters.
-8. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
+7. ✅ Post-RC1 staging fixes: routing-table race on reconnect + FK violation on payload delete
+8. Deploy `next` to staging with `evento-demo` + traffic generator.
+9. Soak 1–2 weeks with early adopters.
+10. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
 
 ## How to run locally
 
