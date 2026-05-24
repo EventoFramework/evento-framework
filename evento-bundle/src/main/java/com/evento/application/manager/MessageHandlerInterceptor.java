@@ -13,125 +13,125 @@ import com.evento.common.modeling.state.SagaState;
 import com.evento.common.utils.ProjectorStatus;
 
 public interface MessageHandlerInterceptor {
-    void beforeAggregateCommandHandling(
+    default void beforeAggregateCommandHandling(
             Object aggregate,
             AggregateState aggregateState,
             CommandMessage<?> commandMessage,
             CommandGateway commandGateway,
             QueryGateway queryGateway
-    );
+    ) {}
 
-    DomainEvent afterAggregateCommandHandling(
+    default DomainEvent afterAggregateCommandHandling(
             Object aggregate,
             AggregateState aggregateState,
             CommandMessage<?> commandMessage,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
             DomainEvent event
-    );
+    ) { return event; }
 
-    Throwable onExceptionAggregateCommandHandling(
+    default Throwable onExceptionAggregateCommandHandling(
             Object aggregate,
             AggregateState aggregateState,
             CommandMessage<?> commandMessage,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
             Throwable throwable
-    );
+    ) { return throwable; }
 
-    void beforeServiceCommandHandling(
+    default void beforeServiceCommandHandling(
             Object service,
             CommandMessage<?> commandMessage,
             CommandGateway commandGateway,
             QueryGateway queryGateway
-    );
+    ) {}
 
-    ServiceEvent afterServiceCommandHandling(
+    default ServiceEvent afterServiceCommandHandling(
             Object service,
             CommandMessage<?> commandMessage,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
             ServiceEvent event
-    );
+    ) { return event; }
 
-    Throwable onExceptionServiceCommandHandling(
+    default Throwable onExceptionServiceCommandHandling(
             Object service,
             CommandMessage<?> commandMessage,
             CommandGateway commandGateway,
             QueryGateway queryGateway,
-            Throwable t);
+            Throwable t) { return t; }
 
-    void beforeProjectionQueryHandling(
+    default void beforeProjectionQueryHandling(
             Object projection,
             QueryMessage<?> commandMessage,
             QueryGateway queryGateway
-    );
+    ) {}
 
-    QueryResponse<?> afterProjectionQueryHandling(
+    default QueryResponse<?> afterProjectionQueryHandling(
             Object projection,
             QueryMessage<?> commandMessage,
             QueryGateway queryGateway,
             QueryResponse<?> response
-    );
+    ) { return response; }
 
-    Throwable onExceptionProjectionQueryHandling(
+    default Throwable onExceptionProjectionQueryHandling(
             Object projection,
             QueryMessage<?> commandMessage,
             QueryGateway queryGateway,
             Throwable t
-    );
+    ) { return t; }
 
-    void beforeProjectorEventHandling(Object projector,
+    default void beforeProjectorEventHandling(Object projector,
                                       PublishedEvent publishedEvent,
                                       CommandGateway commandGateway,
                                       QueryGateway queryGateway,
-                                      ProjectorStatus projectorStatus);
+                                      ProjectorStatus projectorStatus) {}
 
-    void afterProjectorEventHandling(Object projector,
+    default void afterProjectorEventHandling(Object projector,
                                      PublishedEvent publishedEvent,
                                      CommandGateway commandGateway,
                                      QueryGateway queryGateway,
-                                     ProjectorStatus projectorStatus);
+                                     ProjectorStatus projectorStatus) {}
 
-    Throwable onExceptionProjectorEventHandling(Object projector,
+    default Throwable onExceptionProjectorEventHandling(Object projector,
                                                 PublishedEvent publishedEvent,
                                                 CommandGateway commandGateway,
                                                 QueryGateway queryGateway,
                                                 ProjectorStatus projectorStatus,
-                                                Throwable t);
+                                                Throwable t) { return t; }
 
-    void beforeSagaEventHandling(Object saga,
+    default void beforeSagaEventHandling(Object saga,
                                  PublishedEvent publishedEvent,
                                  CommandGateway commandGateway,
                                  QueryGateway queryGateway,
-                                 SagaState sagaState);
+                                 SagaState sagaState) {}
 
-    SagaState afterSagaEventHandling(Object saga,
+    default SagaState afterSagaEventHandling(Object saga,
                                      PublishedEvent publishedEvent,
                                      CommandGateway commandGateway,
                                      QueryGateway queryGateway,
-                                     SagaState sagaState);
+                                     SagaState sagaState) { return sagaState; }
 
-    Throwable onExceptionSagaEventHandling(Object saga,
+    default Throwable onExceptionSagaEventHandling(Object saga,
                                            PublishedEvent publishedEvent,
                                            CommandGateway commandGateway,
                                            QueryGateway queryGateway,
                                            SagaState sagaState,
-                                           Throwable t);
+                                           Throwable t) { return t; }
 
-    void beforeObserverEventHandling(Object observer,
+    default void beforeObserverEventHandling(Object observer,
                                      PublishedEvent publishedEvent,
                                      CommandGateway commandGateway,
-                                     QueryGateway queryGateway);
+                                     QueryGateway queryGateway) {}
 
-    void afterObserverEventHandling(Object observer,
+    default void afterObserverEventHandling(Object observer,
                                     PublishedEvent publishedEvent,
                                     CommandGateway commandGateway,
-                                    QueryGateway queryGateway);
+                                    QueryGateway queryGateway) {}
 
-    Throwable onExceptionObserverEventHandling(Object observer,
+    default Throwable onExceptionObserverEventHandling(Object observer,
                                                PublishedEvent publishedEvent,
                                                CommandGateway commandGateway,
                                                QueryGateway queryGateway,
-                                               Throwable t);
+                                               Throwable t) { return t; }
 }

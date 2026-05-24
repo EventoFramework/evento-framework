@@ -104,31 +104,35 @@ class EngineHandleAdminTest {
 
     // --- engine constructors ----------------------------------------------
 
+    private static DispatchContext newDispatchContext() {
+        return new DispatchContext(
+                new TracingAgent("b", 1),
+                (c, m) -> null,
+                new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
+    }
+
     private ProjectorEngine newProjector() {
         return new ProjectorEngine(
                 "b", "Proj", 1, "ctx",
                 () -> false, processor, stateStore, dlq,
-                new HashMap<>(), new TracingAgent("b", 1), (c, m) -> null,
-                10, 100, new AtomicInteger(1), () -> {},
-                new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
+                new HashMap<>(), newDispatchContext(),
+                10, 100, new AtomicInteger(1), () -> {});
     }
 
     private SagaEngine newSaga() {
         return new SagaEngine(
                 "b", "Saga", 1, "ctx",
                 () -> false, processor, stateStore, dlq,
-                new HashMap<>(), new TracingAgent("b", 1), (c, m) -> null,
-                10, 100,
-                new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
+                new HashMap<>(), newDispatchContext(),
+                10, 100);
     }
 
     private ObserverEngine newObserver() {
         return new ObserverEngine(
                 "b", "Obs", 1, "ctx",
                 () -> false, processor, stateStore, dlq,
-                new HashMap<>(), new TracingAgent("b", 1), (c, m) -> null,
-                10, 100,
-                new com.evento.application.manager.LogTracesMessageHandlerInterceptor());
+                new HashMap<>(), newDispatchContext(),
+                10, 100);
     }
 
     private static PublishedEvent pubEvent(long seq) {
