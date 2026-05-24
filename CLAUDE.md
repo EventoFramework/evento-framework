@@ -21,12 +21,11 @@ load-bearing docs live in [`.claude/`](.claude/):
   JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew \
     :evento-transport-api:test \
     :evento-transport-netty:test \
-    :evento-server:test --tests 'com.evento.server.bus.v2.*'
+    :evento-server:test --tests 'com.evento.server.bus.*'
   ```
-- v2 code lives under `com.evento.transport.*` (new modules) and
-  `com.evento.server.bus.v2.*` (inside `evento-server`). The v1
-  `MessageBus` is untouched and still the only Spring bean at
-  startup; v2 is gated behind `evento.server.bus.v2.enabled=true`.
+- Bus code lives under `com.evento.transport.*` (transport modules) and
+  `com.evento.server.bus.*` (inside `evento-server`).
+  The bus is gated behind `evento.server.bus.enabled=true`.
 
 ## Working agreements
 

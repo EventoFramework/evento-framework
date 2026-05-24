@@ -1,6 +1,6 @@
 # Evento v2.0 rewrite — status snapshot
 
-Last updated after evento-bundle SOLID/DX refactor.
+Last updated after dropping .v2 package segment from all package names (refactor: `3fb33369`).
 Snapshot lives in the repo so the work can resume from another machine
 without losing context. Companion docs in this folder:
 
@@ -13,11 +13,13 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 `next` will be promoted to `main` as `v2.0.0` only after PR3 ships and a
 1–2 week staging soak.
 
-## What's done (25 commits + 1 uncommitted refactor beyond `main`)
+## What's done (44 commits beyond `main`)
 
 | # | Commit | What landed |
 |---|---|---|
-| 26 | _(uncommitted)_ | `refactor(bundle)`: SOLID/DX cleanup of `evento-bundle`. **`MessageHandlerInterceptor`** — all 24 methods converted from abstract to `default` (ISP fix): void methods get empty bodies, return-type methods pass through the last parameter, exception-returning methods return the throwable. Implementors now override only the hooks they need. **`LogTracesMessageHandlerInterceptor`** — fixed 4 swapped before/after log messages for Saga and Observer handlers. **`ProjectionReference.invoke()`** — fixed silent bug: all three interceptor calls passed `getRef().getClass()` (a `Class<?>`) instead of `getRef()` (the actual projection instance). **`ReflectionUtils.invoke()`** — propagates checked exceptions directly via `throw e.getTargetException()` instead of wrapping in `RuntimeException`; signature changed to `throws Throwable`. **`DispatchContext` record** (new) — groups `TracingAgent`, `BiFunction<String,Message<?>,GatewayTelemetryProxy>`, `MessageHandlerInterceptor` into one object; reduces `ProjectorEngine`/`SagaEngine`/`ObserverEngine` constructor from 15-16 params to 13-14. **`HandlerMetadataBuilder`** (new, package-private) — extracts the 115-line handler/payloadInfo loop from `EventoBundle.start()` into a focused class with `build(managers…) → Result(handlers, payloadInfo)`. **`EventoBundle`** — `startProjectorEnginesV2` and `startSagaAndObserverEnginesV2` moved from instance methods to `private static` methods on the nested `Builder` class; `EventoBundle` is now a pure runtime object. `start()` simplified with `HandlerMetadataBuilder` call and `DispatchContext` creation. **Tests updated** — `EngineSupervisorTest` and `EngineHandleAdminTest` updated to use `DispatchContext`-based constructors. All 45 (bundle + lab + ms-it) tests green. |
+| 28 | `3fb33369` | `refactor`: drop `.v2` segment from all package names — 126 files changed, all `com.evento.*.v2.*` packages renamed to `com.evento.*.*`, classes `EventoServerV2Adapter` → `EventoServerAdapter`, `BusV2Configuration` → `BusConfiguration`, `BusV2Properties` → `BusProperties`, inner `BusV2Starter` → `BusStarter`. Spring property prefix `evento.server.bus.v2.` → `evento.server.bus.`. Gradle module `evento-consumer-state-store-jdbc-v2` → `evento-consumer-state-store-jdbc`. `CLAUDE.md` test command and code-location description updated. One stray annotation in `BundleAdminNotificationListener` hand-fixed after agent. |
+| 27 | `0efba0f6` | `fix(transport,server)`: DEGRADED sends + QoS reconnect response delivery. **Fix C — DEGRADED drops responses:** `ConnectionState.canSend()` now returns `true` for DEGRADED (Netty high-water mark is advisory — the socket is alive). `InMemoryTransport.simulateDisconnect()` corrected from DEGRADED to DISCONNECTED. Tests updated. **Fix D — reconnect loses in-flight responses:** `ForwardingTable.drainByDestination()` added (only removes destination-side entries, leaving originator entries alive). `onTransportDisconnected()` switched to `drainByDestination()`. `reconnectBuffer` (`ConcurrentHashMap<instanceId, ConcurrentLinkedQueue<PendingResponseEntry>>`, 120 s TTL) buffers responses when originator is offline. `deliverPendingResponses()` replays buffered responses in `onHello()` after successful handshake. **+2 IT tests** in `BusLifecycleDisconnectIT`: `inFlightRequestDeliveredAfterCallerReconnects` + `inFlightResponseBufferedAndDeliveredOnCallerReconnect`. |
+| 26 | `cec10678` | `refactor(bundle)`: SOLID/DX cleanup of `evento-bundle`. **`MessageHandlerInterceptor`** — all 24 methods converted from abstract to `default` (ISP fix): void methods get empty bodies, return-type methods pass through the last parameter, exception-returning methods return the throwable. Implementors now override only the hooks they need. **`LogTracesMessageHandlerInterceptor`** — fixed 4 swapped before/after log messages for Saga and Observer handlers. **`ProjectionReference.invoke()`** — fixed silent bug: all three interceptor calls passed `getRef().getClass()` (a `Class<?>`) instead of `getRef()` (the actual projection instance). **`ReflectionUtils.invoke()`** — propagates checked exceptions directly via `throw e.getTargetException()` instead of wrapping in `RuntimeException`; signature changed to `throws Throwable`. **`DispatchContext` record** (new) — groups `TracingAgent`, `BiFunction<String,Message<?>,GatewayTelemetryProxy>`, `MessageHandlerInterceptor` into one object; reduces `ProjectorEngine`/`SagaEngine`/`ObserverEngine` constructor from 15-16 params to 13-14. **`HandlerMetadataBuilder`** (new, package-private) — extracts the 115-line handler/payloadInfo loop from `EventoBundle.start()` into a focused class with `build(managers…) → Result(handlers, payloadInfo)`. **`EventoBundle`** — `startProjectorEnginesV2` and `startSagaAndObserverEnginesV2` moved from instance methods to `private static` methods on the nested `Builder` class; `EventoBundle` is now a pure runtime object. `start()` simplified with `HandlerMetadataBuilder` call and `DispatchContext` creation. **Tests updated** — `EngineSupervisorTest` and `EngineHandleAdminTest` updated to use `DispatchContext`-based constructors. All 45 (bundle + lab + ms-it) tests green. |
 | 25 | `a9f39145` | `fix(common): remove 20 MB CBOR string cap and eliminate SerializedQueryResponse from transport`. Two independent improvements shipped together. **StreamConstraints fix:** `AdminPayloadCodec.defaultMapper()` now builds `CBORFactory` via `CBORFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()).build()` instead of `new CBORFactory()`. Jackson 2.15+ defaults to a 20 MB string-length cap on CBOR text tokens; any query response whose serialized `serializedObject` field exceeded that limit threw `StreamConstraintsException`. The fix is at the factory level and covers all codec instances. **SerializedQueryResponse eliminated from transport (Option C):** `ProjectionManager.handle()` return type changed from `SerializedQueryResponse<?>` to `QueryResponse<?>` — the result is now placed directly in `EventoResponse.body` by `BundleInboundDispatcher` (which already returns `Serializable`). `QueryGatewayImpl.query()` casts the response directly with `(T) r` instead of unwrapping a `SerializedQueryResponse`. `SerializedQueryResponse` itself is retained as an empty stub for backward-compat deserialization of any old wire format still in flight. `ObjectMapperUtils.java` had 8 unused imports removed. **Memory profile:** peak heap for an 80 MB query response dropped from ~400 MB to ~240 MB (~40% reduction) by eliminating one UTF-16 `String` copy (the `serializedObject` field) and one JSON serialization step. **Regression test:** `BundleAdminRoundTripIT.largeResponseBody_decodesWithoutStreamConstraintError` — a `LargeBody("X".repeat(80_000_000))` round-trips over real Netty TCP and decodes cleanly in under 60 s. **Build:** `evento-server/build.gradle` test task now carries `jvmArgs '-Xmx2g'` so large-payload ITs don't OOM the Gradle test JVM. **7 files changed:** `AdminPayloadCodec.java`, `ProjectionManager.java`, `QueryGatewayImpl.java`, `SerializedQueryResponse.java`, `ObjectMapperUtils.java`, `evento-server/build.gradle`, `BundleAdminRoundTripIT.java`. |
 | 24 | `44b3ffae` | `feat(transport/netty): transparent chunking layer — no message size limit`. Two new Netty pipeline handlers inserted between the length-field codec pair and the CBOR codec pair. **`ChunkingEncoder`** (outbound): wraps every outbound `ByteBuf` — from both `send(Message)` and `sendRaw(byte[])` — as a FULL frame (`0x00` + CBOR, when it fits) or one-or-more CHUNK frames (`0x01` + 16-byte stream UUID + 1-byte isLast + data). **`ChunkReassembler`** (inbound): strips the discriminator; FULL frames pass through with a `retain()`; CHUNK frames are accumulated per stream UUID in a `ByteArrayOutputStream` and fired downstream only when the last chunk arrives. `maxFrameLength` now controls per-chunk memory pressure, not message size — there is no longer any hard limit on individual message size. The `-22` chunk-data capacity formula accounts for 18 bytes of chunk header plus the `+4` that `LengthFieldBasedFrameDecoder` adds internally to the raw length field when checking against `maxFrameLength`. New `largePayloadTransparentlyChunked` IT: dedicated 64 KB chunk-size pair exchanges a 5 MB payload (~80 chunks), verifies byte-for-byte equality. |
 | 23 | `251be4f2` | `feat(transport): split bundle-registration into lean + discovery frames`. Fixes `TooLongFrameException` (34 MB bundle-registration frame exceeding the 16 MB Netty cap). The `evento:bundle-registration` notification is now lean-only (`bundleVersion` + `handlerPayloadTypes`). Rich auto-discovery metadata (`handlers` + `payloadInfo` schemas) is carried by a new `evento:bundle-discovery` notification sent after `evento:enable`. **New types:** `BundleDiscoveryInfo` record + `ProtocolNotifications.BUNDLE_DISCOVERY`. **New bus event:** `BusEvent.BundleDiscovered` added to the sealed hierarchy; `CommandBrokerHandler` and `AutoDiscoveryService` both switch from `BundleRegistered` to `BundleDiscovered`. **`ConnectionSupervisor.performRegistration`** split into 3 steps: lean registration → enable → discovery. `BundleRegistrationInfo.lean()` factory kept for backward-compatible test callsites. |
@@ -42,19 +44,19 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 | 13 | `ef6ede8e` | `feat(bundle-v2)`: PR3.2a — bundle-side admin request handler. Moved `AdminPayloadCodec` from server to `com.evento.common.admin` so bundles can decode the same wire. New `BundleAdminRequestHandler` in `evento-bundle/.../client/v2/admin/` — implements `HandlerRegistry.RequestHandler`, decodes the inner `EventoRequest`, dispatches one of the four `ConsumerXyzRequestMessage` operations via a `ConsumerLookup` SPI, encodes the `EventoResponse`. Closes the round-trip the dashboard / discovery / consumer endpoints rely on: `ConsumerService.getConsumerStatusFromNodes`, `setRetryForConsumerEvent`, `consumeDeadQueue`, `deleteDeadEventFromEventConsumer` now work end-to-end on the v2 wire. **+5 tests** in new `BundleAdminRoundTripIT`. |
 | 12 | `4dacefd1` | `feat(server-bus)`: PR3.1 + autoscale rip-out. Two changes that land together because the autoscale rip-out reduced the surface PR3.1 was migrating. **PR3.1:** BusFacade SPI; v1 `MessageBusFacade` adapter + v2 `BusLifecycleFacade` adapter. Migrated `DashboardController`, `ClusterStatusController`, `AutoDiscoveryService`, `ConsumerService`, `ConsumerController` to depend on `BusFacade`. Enriched `BundleRegistrationInfo` with rich `RegisteredHandler` list + `payloadInfo` so auto-discovery still works on v2. New `BusEvent.BundleRegistered` event fired by `BusLifecycle.onNotification`. New `BusLifecycle.forward(NodeAddress, payloadType, byte[], Duration)` server-initiated RPC primitive. New `evento:server-admin-request` payloadType + `AdminPayloadCodec` (Jackson-CBOR with polymorphic typing, mirrors v1 `ObjectMapperUtils`) so v1's `EventoRequest` round-trips through the v2 wire. **Autoscale rip-out:** deleted `AutoscalingProtocol`, `ThreadCountAutoscalingProtocol`, `ClusterNodeIsBoredMessage`, `ClusterNodeIsSufferingMessage`, `ClusterNodeKillMessage`, `BundleDeployService`. Dropped `Bundle.{min,max}Instances` columns from schema + DTO + parser. Removed `sendKill` from `BusFacade`/`BusLifecycle` (+ `NOTIFY_KILL` from `ProtocolNotifications`), `/spawn` + `/kill` REST endpoints, and the `TracingAgent.arrival/departure` calls + `AutoscalingProtocol` field. The cluster orchestrator (k8s/whatever) now owns spawn/kill — the framework only emits performance metrics. **+9 tests:** 5 in `BusLifecycleIT` (BundleRegistered emission, forward primitive, waitUntilAvailable) + 4 in new `BusLifecycleFacadeNettyIT`. |
 
-**Test totals on JDK 25:** 220 (transport-api 41, transport-netty 8,
-server v2 **74** — includes 80 MB large-payload round-trip IT, consumer-v2 unit 52, bundle v2 engines 7, **evento-lab 16** — 6 in-memory + 6 connectivity + **4 command RTT**,
+**Test totals on JDK 25:** ~230 (transport-api 41+, transport-netty 8,
+server **76+** — includes 80 MB large-payload round-trip IT + 2 new reconnect ITs, consumer unit 52, bundle engines 7, **evento-lab 16** — 6 in-memory + 6 connectivity + **4 command RTT**,
 **evento-lab-ms-it 22** — 3 consumer lifecycle + 2 saga/payment + 2 reconnect + 2 order lifecycle + 2 payment saga + 3 notification + 2 multi-context + 3 RTT/stress + **3 ms command RTT**).
-Postgres + MySQL JDBC IT (evento-consumer-state-store-jdbc-v2 + evento-lab) add 50+ more when Docker is healthy
+Postgres + MySQL JDBC IT (evento-consumer-state-store-jdbc + evento-lab) add 50+ more when Docker is healthy
 (`EVENTO_RUN_JDBC_IT=true`). Run with:
 
 ```
 JAVA_HOME=$(/usr/libexec/java_home -v 25) \
   ./gradlew :evento-transport-api:test :evento-transport-netty:test \
-            :evento-server:test --tests 'com.evento.server.bus.v2.*' \
+            :evento-server:test --tests 'com.evento.server.bus.*' \
             :evento-common:test \
             :evento-bundle:test \
-            :evento-consumer-state-store:evento-consumer-state-store-jdbc-v2:test \
+            :evento-consumer-state-store:evento-consumer-state-store-jdbc:test \
             :evento-lab:test \
             :evento-lab-microservices:evento-lab-ms-it:test
 ```
@@ -63,7 +65,7 @@ To run the JDBC ITs against ephemeral containers:
 
 ```
 EVENTO_RUN_JDBC_IT=true JAVA_HOME=$(/usr/libexec/java_home -v 25) \
-  ./gradlew :evento-consumer-state-store:evento-consumer-state-store-jdbc-v2:test
+  ./gradlew :evento-consumer-state-store:evento-consumer-state-store-jdbc:test
 ```
 
 ## Commit 9: bundle client + security + exactly-once (cc284865)
@@ -350,11 +352,11 @@ open their own scope inside `run()`.
 
 ### 3.5 Delete v1 — DONE (this slice)
 
-All v1 code removed. `BusFacadeConfiguration` is unconditional. `BusV2Configuration` no longer conditional. v2 is the only runtime path.
+All v1 code removed. `BusFacadeConfiguration` is unconditional. `BusConfiguration` (formerly `BusV2Configuration`) is always active. The bus is the only runtime path.
 
 **Next:** Tag `v2.0.0-rc1`, publish to Maven Central, soak 1–2 weeks with early adopters, then `v2.0.0`.
 
-## Where the v2 code lives (cheat sheet)
+## Where the code lives (cheat sheet)
 
 ```
 evento-transport-api/src/main/java/com/evento/transport/
@@ -391,34 +393,33 @@ evento-transport-netty/src/main/java/com/evento/transport/netty/
   └── MessageInboundHandler.java           Frame-typed VT-executor dispatch
 
 evento-server/src/main/java/com/evento/server/bus/
-  ├── BusFacade.java                       SPI used by Dashboard / ClusterStatus / Consumer / AutoDiscovery (PR3.1)
-  ├── BusFacadeConfiguration.java          Spring wiring: v2 adapter always active (PR3.5)
+  ├── BusFacade.java                       SPI used by Dashboard / ClusterStatus / Consumer / AutoDiscovery
+  ├── BusFacadeConfiguration.java          Spring wiring: BusLifecycle always active
   ├── NodeAddress.java                     shared
-  └── v2/
-      ├── BusLifecycleFacade.java          v2 → BusFacade adapter, EventoRequest ↔ byte[] codec (PR3.1)
-      ├── admin/AdminPayloadCodec.java     CBOR + polymorphic typing for evento:server-admin-request (PR3.1)
-      ├── event/                           BusEvent sealed (BundleRegistered lean + BundleDiscovered rich) + BusEventBus
-      ├── registry/                        Connection/ConnectionRegistry/ClusterRegistry
-      ├── correlation/                     CorrelationStore + ForwardingDedupCache (exactly-once)
-      ├── handshake/                       HandshakeHandler
-      ├── router/                          BundleSession + MessageRouter + ForwardingTable
-      ├── security/                        TokenValidator SPI (acceptAll / sharedSecret built-ins)
-      ├── lifecycle/BusLifecycle.java      orchestrator (+ forward / sendKill / waitUntilAvailable since PR3.1)
-      └── spring/                          @Configuration + properties
+  ├── BusLifecycleFacade.java              BusFacade adapter, EventoRequest ↔ byte[] codec
+  ├── admin/AdminPayloadCodec.java         CBOR + polymorphic typing for evento:server-admin-request
+  ├── event/                               BusEvent sealed (BundleRegistered lean + BundleDiscovered rich) + BusEventBus
+  ├── registry/                            Connection/ConnectionRegistry/ClusterRegistry
+  ├── correlation/                         CorrelationStore + ForwardingDedupCache (exactly-once)
+  ├── handshake/                           HandshakeHandler
+  ├── router/                              BundleSession + MessageRouter + ForwardingTable (+ drainByDestination for QoS)
+  ├── security/                            TokenValidator SPI (acceptAll / sharedSecret built-ins)
+  ├── lifecycle/BusLifecycle.java          orchestrator (+ reconnectBuffer + deliverPendingResponses)
+  └── spring/                              BusConfiguration + BusProperties + BusStarter
 
 evento-bundle/src/main/java/com/evento/application/consumer/
-  ├── ConsumerHandle.java                  shared admin surface (PR3.4) — implemented by v2 engines
-  └── v2/
-      ├── ProjectorEngine.java             v2 engine, composes ConsumerProcessor + DLQ + state-store (PR3.4)
-      ├── SagaEngine.java                  v2 saga engine (PR3.4)
-      ├── ObserverEngine.java              v2 observer engine (PR3.4)
-      ├── EngineSupervisor.java            virtual-thread executor + deadlined shutdown + findConsumer (PR3.4)
-      └── ConsumerEngineConfig.java        builder-side bundle of v2 SPIs the engines need (PR3.4)
+  ├── ConsumerHandle.java                  shared admin surface — implemented by engines
+  ├── ProjectorEngine.java                 composes ConsumerProcessor + DLQ + state-store
+  ├── SagaEngine.java                      saga engine
+  ├── ObserverEngine.java                  observer engine
+  ├── EngineSupervisor.java                virtual-thread executor + deadlined shutdown + findConsumer
+  └── ConsumerEngineConfig.java            builder-side bundle of SPIs the engines need
 
-evento-bundle/src/main/java/com/evento/application/client/v2/
+evento-bundle/src/main/java/com/evento/application/client/
   ├── BundleClient.java                    public facade (Builder, request/notify/handlers)
   ├── BundleClientConfig.java              record + Builder
   ├── BundleClientState.java               INITIAL → … → CLOSED
+  ├── EventoServerAdapter.java             implements EventoServer over BundleClient
   ├── InboundDispatcher.java               Response/Request/Notification dispatch
   ├── connection/ConnectionSupervisor.java Netty transport + reconnect supervisor
   ├── correlation/BundleCorrelationTracker.java
@@ -426,8 +427,8 @@ evento-bundle/src/main/java/com/evento/application/client/v2/
   ├── handler/HandlerRegistry.java         payloadType → handler
   └── handshake/HelloFactory.java          builds Hello with token
 
-evento-common/src/main/java/com/evento/common/messaging/consumer/v2/
-  ├── ConsumerProcessor.java               concrete v1-shape consume loop (PR3.3)
+evento-common/src/main/java/com/evento/common/messaging/consumer/
+  ├── ConsumerProcessor.java               concrete v1-shape consume loop
   ├── ConsumerCheckpoint.java              sealed
   ├── EventCheckpoint.java                 record (observer)
   ├── SagaCheckpoint.java                  record
@@ -447,8 +448,8 @@ evento-common/src/main/java/com/evento/common/messaging/consumer/v2/
       ├── InMemoryDeadEventQueue.java
       └── InMemoryDedupeStore.java
 
-evento-consumer-state-store/evento-consumer-state-store-jdbc-v2/
-  ├── src/main/java/com/evento/consumer/state/store/jdbc/v2/
+evento-consumer-state-store/evento-consumer-state-store-jdbc/
+  ├── src/main/java/com/evento/consumer/state/store/jdbc/
   │   ├── SqlDialect.java                  POSTGRES / MYSQL — migration loc + upsert + JSON binds + saga lookup SQL
   │   ├── JdbcConsumerStateStore.java      checkpoint + enable + error history
   │   ├── JdbcConsumerLock.java            pg_try_advisory_lock / GET_LOCK; pins Connection per handle
@@ -459,10 +460,11 @@ evento-consumer-state-store/evento-consumer-state-store-jdbc-v2/
   └── src/main/resources/db/migration/{postgres,mysql}/v2/V1__init_v2_consumer_state.sql
 ```
 
-The v1 `MessageBus.java` has been **deleted** (PR3.5). The v2
-`BusLifecycle` is now the only bus — `BusFacadeConfiguration` is
-unconditional and `BusV2Configuration` no longer needs
-`@ConditionalOnProperty`.
+The v1 `MessageBus.java` has been **deleted** (PR3.5). `BusLifecycle`
+is now the only bus — `BusFacadeConfiguration` is unconditional and
+`BusConfiguration` requires no `@ConditionalOnProperty`.
+All `.v2.` package segments removed in `3fb33369` — the package tree
+above reflects the current state.
 
 ## Critical bug fixed: CommandBrokerHandler (post-RC1)
 
@@ -509,7 +511,7 @@ Two bugs found during staging soak and fixed (uncommitted, `next` branch):
 
 **Files changed:** `HandlerRepository.java`, `HandlerService.java`, `BundleService.java`
 
-## Staging instability fixes (post-RC1, uncommitted on `next`)
+## Staging instability fixes (post-RC1, committed as `0efba0f6`)
 
 Two production bugs found during staging soak and fixed in the current session:
 
@@ -556,11 +558,12 @@ RC1 tagged. Remaining work before `v2.0.0`:
 6. ✅ `evento-lab` api-package refactor (`com.evento.lab.api.*`) + `evento-lab-microservices` multi-bundle RECQ example + 7 new IT tests (total 199 on JDK 25)
 7. ✅ Post-RC1 staging fixes: routing-table race on reconnect + FK violation on payload delete
 8. ✅ CBOR 20 MB string cap removed from `AdminPayloadCodec`; `SerializedQueryResponse` eliminated from v2 transport path; peak heap for 80 MB query response ~400 MB → ~240 MB.
-9. ✅ Staging instability: DEGRADED channel no longer drops in-flight responses; TCP disconnect + reconnect now delivers buffered responses (Fixes C + D above, uncommitted).
-10. Commit Fixes C + D.
-11. Deploy `next` to staging with `evento-demo` + traffic generator.
-12. Soak 1–2 weeks with early adopters.
-13. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
+9. ✅ Staging instability: DEGRADED channel no longer drops in-flight responses; TCP disconnect + reconnect now delivers buffered responses (Fixes C + D, committed `0efba0f6`).
+10. ✅ Committed Fixes C + D (`0efba0f6`).
+11. ✅ Removed all `.v2.` package segments — packages, class names, Spring properties, Gradle module name all cleaned up (`3fb33369`).
+12. Deploy `next` to staging with `evento-demo` + traffic generator.
+13. Soak 1–2 weeks with early adopters.
+14. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
 
 ## How to run locally
 
