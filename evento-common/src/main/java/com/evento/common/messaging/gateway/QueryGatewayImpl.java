@@ -6,7 +6,6 @@ import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;
 import com.evento.common.modeling.messaging.payload.Query;
 import com.evento.common.modeling.messaging.query.QueryResponse;
-import com.evento.common.modeling.messaging.query.SerializedQueryResponse;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +43,7 @@ public class QueryGatewayImpl implements QueryGateway {
 		{
 			var message = new QueryMessage<>((query));
 			message.setMetadata(metadata);
-			return eventoServer.request(message, timeout, unit).thenApply(r -> ((T) ((SerializedQueryResponse<?>) r).getObject()));
+			return eventoServer.request(message, timeout, unit).thenApply(r -> (T) r);
 		} catch (Exception e)
 		{
 			var future = new CompletableFuture<T>();

@@ -4,6 +4,7 @@ import com.evento.common.modeling.messaging.message.internal.EventoMessage;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -49,7 +50,12 @@ public final class AdminPayloadCodec {
                 .allowIfSubType(Serializable.class)
                 .allowIfSubType("com.evento.")
                 .build();
-        var om = new ObjectMapper(new CBORFactory())
+        var factory = CBORFactory.builder()
+                .streamReadConstraints(StreamReadConstraints.builder()
+                        .maxStringLength(Integer.MAX_VALUE)
+                        .build())
+                .build();
+        var om = new ObjectMapper(factory)
                 .registerModule(new JavaTimeModule());
         om.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
         om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

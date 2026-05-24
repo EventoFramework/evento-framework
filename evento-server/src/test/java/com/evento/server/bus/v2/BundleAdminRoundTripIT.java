@@ -243,4 +243,45 @@ class BundleAdminRoundTripIT {
             assertThat(((ExceptionWrapper) resp.getBody()).getMessage()).contains("consumer not found");
         }
     }
+
+    /**
+     * Regression test for the Jackson StreamConstraintsException that occurs when
+     * a response body contains a string field exceeding the default 20 MB limit.
+     * The fix configures the CBORFactory with maxStringLength=Integer.MAX_VALUE.
+     */
+    @Test
+    void largeResponseBody_decodesWithoutStreamConstraintError() throws Exception {
+        // Build a payload whose serialized form exceeds the old 20 MB string limit.
+        // "X".repeat(21_000_000) produces a 21 MB ASCII string; CBOR encodes it
+        // as a chunked text token whose decoded length trips the old cap.
+        var large = new LargeBody("X".repeat(80_000_000));
+
+        var client = BundleClient.builder("bundle-large", "inst-large")
+                .host("127.0.0.1").port(port).bundleVersion("100")
+                .transportConfig(nettyConfig)
+                .handlerPayloadTypes(java.util.List.of(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST))
+                .build();
+        // Register a raw handler that returns a large EventoResponse directly.
+        client.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, (payload, ctx) -> {
+            var resp = new EventoResponse();
+            resp.setCorrelationId(ctx.correlationId().toString());
+            resp.setBody(large);
+            return adminCodec.encodeResponse(resp);
+        });
+        client.start().orTimeout(3, TimeUnit.SECONDS).join();
+        await().atMost(3, TimeUnit.SECONDS).until(() -> facade.currentAvailableView().size() == 1);
+
+        try (var ignored = client) {
+            var future = new CompletableFuture<EventoResponse>();
+            facade.forward(facade.currentView().iterator().next(),
+                    adminRequest(new ConsumerFetchStatusRequestMessage("any", ComponentType.Projector)),
+                    future::complete);
+
+            var resp = future.get(60, TimeUnit.SECONDS);
+            assertThat(resp.getBody()).isInstanceOf(LargeBody.class);
+            assertThat(((LargeBody) resp.getBody()).data()).hasSize(80_000_000);
+        }
+    }
+
+    record LargeBody(String data) implements java.io.Serializable {}
 }
