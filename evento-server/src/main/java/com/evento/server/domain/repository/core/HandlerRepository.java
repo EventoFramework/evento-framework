@@ -42,4 +42,10 @@ public interface HandlerRepository extends JpaRepository<Handler, String> {
 
 	List<Handler> findAllByComponent(Component c);
 	List<Handler> findAllByComponentComponentName(String componentName);
+
+	boolean existsByHandledPayload_Name(String payloadName);
+	boolean existsByReturnType_Name(String payloadName);
+
+	@Query(value = "select exists(select 1 from core__handler__invocation where invocations_name = ?1)", nativeQuery = true)
+	boolean existsByInvocationPayloadName(String payloadName);
 }
