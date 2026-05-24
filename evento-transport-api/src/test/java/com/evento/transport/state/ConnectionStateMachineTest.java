@@ -107,9 +107,9 @@ class ConnectionStateMachineTest {
     }
 
     @Test
-    void canSendOnlyWhenConnected() {
+    void canSendWhenConnectedOrDegraded() {
         assertThat(CONNECTED.canSend()).isTrue();
-        assertThat(DEGRADED.canSend()).isFalse();
+        assertThat(DEGRADED.canSend()).isTrue();   // buffer filling but TCP still alive
         assertThat(DISCONNECTED.canSend()).isFalse();
         assertThat(CONNECTING.canSend()).isFalse();
         assertThat(HANDSHAKING.canSend()).isFalse();

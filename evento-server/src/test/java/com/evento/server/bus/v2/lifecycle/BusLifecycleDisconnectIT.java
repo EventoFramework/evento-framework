@@ -1,5 +1,7 @@
 package com.evento.server.bus.v2.lifecycle;
 
+import com.evento.application.client.v2.BundleClient;
+import com.evento.application.client.v2.BundleClientState;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.v2.correlation.CorrelationStore;
 import com.evento.server.bus.v2.event.BusEvent;
@@ -388,6 +390,119 @@ class BusLifecycleDisconnectIT {
         // surface a failure or simply close the channel; either is acceptable.
 
         caller.close();
+        handler.close();
+    }
+
+    // ---------------------------------------------------------------------
+    // 9) Caller disconnects while request in-flight; handler replies after
+    //    caller reconnects → future completes via the new transport
+    // ---------------------------------------------------------------------
+
+    @Test
+    void inFlightRequestDeliveredAfterCallerReconnects() throws Exception {
+        var handler = new MockBundle("bundle-B", "inst-B");
+        handler.sayHello();
+        handler.registerAndEnable(List.of("com.Reconnect"));
+
+        var callerClient = BundleClient.builder("bundle-A", "inst-A")
+                .host("127.0.0.1").port(port)
+                .bundleVersion("100")
+                .handlerPayloadTypes(List.of())
+                .autoEnable(true)
+                .transportConfig(clientConfig)
+                .build();
+        callerClient.start().get(5, TimeUnit.SECONDS);
+        await().atMost(5, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
+
+        var handlerSawRequest = new CountDownLatch(1);
+        var handlerCanReply  = new CountDownLatch(1);
+        var capturedRequest  = new java.util.concurrent.atomic.AtomicReference<Request>();
+        handler.requestHandler = req -> {
+            capturedRequest.set(req);
+            handlerSawRequest.countDown();
+            try { handlerCanReply.await(10, TimeUnit.SECONDS); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        };
+
+        var future = callerClient.request("com.Reconnect", new byte[]{1}, Duration.ofSeconds(15));
+        assertThat(handlerSawRequest.await(5, TimeUnit.SECONDS)).isTrue();
+
+        // Force-disconnect the caller; the future must survive in the tracker.
+        callerClient.currentTransportForTest().close();
+
+        // Wait for reconnect to complete (BundleClientState returns to READY).
+        await().atMost(10, TimeUnit.SECONDS)
+                .until(() -> callerClient.state() == BundleClientState.READY);
+
+        // Handler now replies — the server routes the response to the new transport.
+        handlerCanReply.countDown();
+        var captured = capturedRequest.get();
+        handler.client.send(Response.success(captured.correlationId(), "ack", new byte[]{42})).join();
+
+        var response = future.get(5, TimeUnit.SECONDS);
+        assertThat(response.isError()).isFalse();
+        assertThat(response.payload()).containsExactly(42);
+
+        callerClient.close();
+        handler.close();
+    }
+
+    // ---------------------------------------------------------------------
+    // 10) Caller disconnects while request in-flight; handler replies
+    //     BEFORE the caller reconnects → server buffers the response and
+    //     delivers it once the caller comes back
+    // ---------------------------------------------------------------------
+
+    @Test
+    void inFlightResponseBufferedAndDeliveredOnCallerReconnect() throws Exception {
+        var handler = new MockBundle("bundle-B", "inst-B");
+        handler.sayHello();
+        handler.registerAndEnable(List.of("com.Buffered"));
+
+        var callerClient = BundleClient.builder("bundle-A", "inst-A")
+                .host("127.0.0.1").port(port)
+                .bundleVersion("100")
+                .handlerPayloadTypes(List.of())
+                .autoEnable(true)
+                .transportConfig(clientConfig)
+                .build();
+        callerClient.start().get(5, TimeUnit.SECONDS);
+        await().atMost(5, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
+
+        var handlerSawRequest = new CountDownLatch(1);
+        var handlerCanReply  = new CountDownLatch(1);
+        var capturedRequest  = new java.util.concurrent.atomic.AtomicReference<Request>();
+        handler.requestHandler = req -> {
+            capturedRequest.set(req);
+            handlerSawRequest.countDown();
+            try { handlerCanReply.await(10, TimeUnit.SECONDS); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        };
+
+        var future = callerClient.request("com.Buffered", new byte[]{2}, Duration.ofSeconds(15));
+        assertThat(handlerSawRequest.await(5, TimeUnit.SECONDS)).isTrue();
+
+        // Force-disconnect the caller.
+        callerClient.currentTransportForTest().close();
+
+        // Wait for the server to register the disconnect before the handler replies.
+        await().atMost(5, TimeUnit.SECONDS).until(() -> lifecycle.view().size() == 1);
+
+        // Handler replies while the caller is still disconnected: the server
+        // should buffer the response in reconnectBuffer.
+        handlerCanReply.countDown();
+        var captured = capturedRequest.get();
+        handler.client.send(Response.success(captured.correlationId(), "ack", new byte[]{99})).join();
+
+        // Now let the caller reconnect; the buffered response must be replayed.
+        await().atMost(10, TimeUnit.SECONDS)
+                .until(() -> callerClient.state() == BundleClientState.READY);
+
+        var response = future.get(5, TimeUnit.SECONDS);
+        assertThat(response.isError()).isFalse();
+        assertThat(response.payload()).containsExactly(99);
+
+        callerClient.close();
         handler.close();
     }
 
