@@ -15,7 +15,7 @@ include 'evento-common'
 include 'evento-bundle'
 include 'evento-transport-api'
 include 'evento-transport-netty'
-include 'evento-consumer-state-store:evento-consumer-state-store-jdbc-v2'
+include 'evento-consumer-state-store:evento-consumer-state-store-jdbc'
 
 
 include 'evento-demo:evento-demo-command'

@@ -1,6 +1,6 @@
 package com.evento.lab.consumer;
 
-import com.evento.consumer.state.store.jdbc.v2.SqlDialect;
+import com.evento.consumer.state.store.jdbc.SqlDialect;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;

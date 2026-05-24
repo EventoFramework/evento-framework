@@ -1,17 +1,17 @@
 package com.evento.lab.ms.it.support;
 
-import com.evento.application.client.v2.BundleClient;
-import com.evento.application.client.v2.EventoServerV2Adapter;
+import com.evento.application.client.BundleClient;
+import com.evento.application.client.EventoServerAdapter;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.CommandGatewayImpl;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.messaging.gateway.QueryGatewayImpl;
-import com.evento.server.bus.v2.correlation.CorrelationStore;
-import com.evento.server.bus.v2.event.BusEventBus;
-import com.evento.server.bus.v2.lifecycle.BusLifecycle;
-import com.evento.server.bus.v2.registry.ClusterRegistry;
-import com.evento.server.bus.v2.registry.ConnectionRegistry;
-import com.evento.server.bus.v2.router.ForwardingTable;
+import com.evento.server.bus.correlation.CorrelationStore;
+import com.evento.server.bus.event.BusEventBus;
+import com.evento.server.bus.lifecycle.BusLifecycle;
+import com.evento.server.bus.registry.ClusterRegistry;
+import com.evento.server.bus.registry.ConnectionRegistry;
+import com.evento.server.bus.router.ForwardingTable;
 import com.evento.server.es.CommandBrokerHandler;
 import com.evento.transport.HandshakeProtocol;
 import com.evento.transport.netty.NettyServerTransport;
@@ -67,7 +67,7 @@ public final class MsCommandAwareEmbeddedBroker implements AutoCloseable {
                 .handlerPayloadTypes(List.of())
                 .build();
         client.start().get(10, TimeUnit.SECONDS);
-        var server = new EventoServerV2Adapter(client, "ms-test-gateway-client", "tc-1", 1L);
+        var server = new EventoServerAdapter(client, "ms-test-gateway-client", "tc-1", 1L);
         return new TestGatewayClient(client, new CommandGatewayImpl(server), new QueryGatewayImpl(server));
     }
 

@@ -1,12 +1,12 @@
 package com.evento.lab.support;
 
-import com.evento.server.bus.v2.correlation.CorrelationStore;
-import com.evento.server.bus.v2.correlation.ForwardingDedupCache;
-import com.evento.server.bus.v2.event.BusEventBus;
-import com.evento.server.bus.v2.lifecycle.BusLifecycle;
-import com.evento.server.bus.v2.registry.ClusterRegistry;
-import com.evento.server.bus.v2.registry.ConnectionRegistry;
-import com.evento.server.bus.v2.router.ForwardingTable;
+import com.evento.server.bus.correlation.CorrelationStore;
+import com.evento.server.bus.correlation.ForwardingDedupCache;
+import com.evento.server.bus.event.BusEventBus;
+import com.evento.server.bus.lifecycle.BusLifecycle;
+import com.evento.server.bus.registry.ClusterRegistry;
+import com.evento.server.bus.registry.ConnectionRegistry;
+import com.evento.server.bus.router.ForwardingTable;
 import com.evento.transport.HandshakeProtocol;
 import com.evento.transport.netty.NettyServerTransport;
 import com.evento.transport.netty.NettyTransportConfig;

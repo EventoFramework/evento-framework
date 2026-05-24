@@ -1,0 +1,102 @@
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+group 'com.eventoframework.evento-consumer-state-store'
+version "${eventoVersion}"
+
+java {
+    toolchain {
+        languageVersion = javaLanguageVersion
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    api project(':evento-common')
+    api "org.flywaydb:flyway-core:${flywayVersion}"
+    api "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
+    testRuntimeOnly  "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
+    testRuntimeOnly  'org.junit.platform:junit-platform-launcher:1.11.4'
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3'
+
+    testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+    testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
+    testImplementation "org.testcontainers:mysql:${testcontainersVersion}"
+    testImplementation "org.postgresql:postgresql:${postgresJdbcVersion}"
+    testImplementation "com.mysql:mysql-connector-j:${mysqlJdbcVersion}"
+    testImplementation "com.zaxxer:HikariCP:${hikariVersion}"
+    testImplementation "org.flywaydb:flyway-mysql:${flywayVersion}"
+}
+
+test {
+    useJUnitPlatform()
+    // Testcontainers needs DOCKER_HOST when the default unix socket lookup
+    // fails (common on Docker Desktop / macOS, where the socket lives under
+    // ~/.docker/run). Forward the env if set; otherwise fall back to the
+    // symlink Docker Desktop installs at /var/run/docker.sock.
+    def dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
+    environment "DOCKER_HOST", dockerHost
+    environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+    // Docker Desktop 29.x returns empty fields for older API versions; force a
+    // recent one so docker-java's `/info` probe gets a populated ServerVersion.
+    environment "DOCKER_API_VERSION", "1.45"
+}
+
+javadoc {
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption("html5", true)
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = group
+            artifactId = 'evento-consumer-state-store-jdbc'
+            version = version
+            from components.java
+            pom {
+                name = "Evento Framework - Consumer State Store - JDBC"
+                description = "JDBC implementation of the Evento consumer state SPI (Postgres + MySQL)."
+                url = "https://www.eventoframework.com/"
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework"
+                }
+            }
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.mavenJava
+}

@@ -8,7 +8,7 @@ import java.util.Collection;
 /**
  * Admin-side handle for a consumer instance, regardless of whether the
  * instance is the v1 {@link EventConsumer} abstract class or one of the
- * new v2 engines in {@code com.evento.application.consumer.v2}.
+ * new v2 engines in {@code com.evento.application.consumer}.
  *
  * <p>Introduced in slice 3.4 so {@code BundleAdminRequestHandler.ConsumerLookup}
  * can return v1 or v2 engines uniformly without leaking the {@code EventConsumer}

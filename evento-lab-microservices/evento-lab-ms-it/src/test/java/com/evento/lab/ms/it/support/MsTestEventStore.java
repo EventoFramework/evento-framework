@@ -1,6 +1,6 @@
 package com.evento.lab.ms.it.support;
 
-import com.evento.application.client.v2.BundleClient;
+import com.evento.application.client.BundleClient;
 import com.evento.common.admin.AdminPayloadCodec;
 import com.evento.common.messaging.consumer.EventFetchRequest;
 import com.evento.common.messaging.consumer.EventFetchResponse;

@@ -16,7 +16,7 @@ dependencies {
     testImplementation project(':evento-lab-microservices:evento-lab-ms-saga')
     testImplementation project(':evento-lab-microservices:evento-lab-ms-observer')
     testImplementation project(':evento-server')
-    testImplementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc-v2')
+    testImplementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
     testRuntimeOnly  "org.junit.platform:junit-platform-launcher"
     testImplementation "org.assertj:assertj-core:${assertjVersion}"

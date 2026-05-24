@@ -2,7 +2,7 @@ package com.evento.server.bus;
 
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
-import com.evento.server.bus.v2.event.BusEvent;
+import com.evento.server.bus.event.BusEvent;
 
 import java.util.Set;
 import java.util.function.Consumer;
@@ -10,7 +10,7 @@ import java.util.function.Consumer;
 /**
  * Stable contract that the dashboard, discovery and consumer services depend on
  * — implemented by both the legacy v1 {@code MessageBus} and the new v2
- * {@code BusLifecycle} (via thin adapters). Lets {@code evento.server.bus.v2.enabled}
+ * {@code BusLifecycle} (via thin adapters). Lets {@code evento.server.bus.enabled}
  * flip the implementation under the controllers without code changes.
  *
  * <p>The surface is intentionally smaller than v1's {@code MessageBus}: the four
