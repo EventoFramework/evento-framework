@@ -9,7 +9,7 @@ import com.evento.common.modeling.annotations.component.Projection;
 import com.evento.common.modeling.exceptions.HandlerNotFoundException;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;
-import com.evento.common.modeling.messaging.query.SerializedQueryResponse;
+import com.evento.common.modeling.messaging.query.QueryResponse;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
@@ -68,7 +68,7 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
      * @throws HandlerNotFoundException If no handler is found for the query in the bundle.
      */
     @Override
-    public SerializedQueryResponse<?> handle(QueryMessage<?> q) throws Throwable {
+    public QueryResponse<?> handle(QueryMessage<?> q) throws Throwable {
         var handler = getHandlers().get(q.getQueryName());
         if (handler == null)
             throw new HandlerNotFoundException("No handler found for %s in %s".formatted(q.getQueryName(), getBundleId()));
@@ -82,9 +82,8 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
                             proxy,
                             getMessageHandlerInterceptor()
                     );
-                    var rm = new SerializedQueryResponse<>(result);
                     proxy.sendInvocationsMetric();
-                    return rm;
+                    return result;
                 });
     }
 }

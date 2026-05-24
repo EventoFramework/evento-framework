@@ -67,4 +67,5 @@ processResources {
 
 test {
 	useJUnitPlatform()
+	jvmArgs '-Xmx2g'
 }
