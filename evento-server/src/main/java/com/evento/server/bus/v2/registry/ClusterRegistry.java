@@ -52,12 +52,23 @@ public final class ClusterRegistry {
     }
 
     /**
-     * Remove a node from every payload binding. Called on node leave.
+     * Remove a node from every payload binding.
+     *
+     * @return the set of payload types whose handler set became <em>empty</em>
+     *         after removal — callers use this to evict matching local-handler
+     *         registrations (e.g. {@code BusLifecycle.localHandlers}).
      */
-    public void removeNode(NodeAddress node) {
-        handlers.values().forEach(set -> set.remove(node));
-        // Compact empty entries.
+    public Set<String> removeNode(NodeAddress node) {
+        Set<String> nowEmpty = ConcurrentHashMap.newKeySet();
+        handlers.forEach((pt, nodes) -> {
+            if (nodes.remove(node) && nodes.isEmpty()) {
+                nowEmpty.add(pt);
+            }
+        });
+        // Compact entries that became empty.
         handlers.entrySet().removeIf(e -> e.getValue().isEmpty());
+        log.info("event=node_removed node={} emptyTypes={}", node.instanceId(), nowEmpty.size());
+        return Collections.unmodifiableSet(nowEmpty);
     }
 
     /**

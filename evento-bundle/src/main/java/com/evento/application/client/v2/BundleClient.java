@@ -170,6 +170,11 @@ public final class BundleClient implements AutoCloseable {
      * the transport. Useful for graceful drain.
      */
     public CompletableFuture<Void> enable() {
+        // Mark the supervisor so future reconnect sessions re-send NOTIFY_ENABLE
+        // automatically — without this, a reconnected bundle would be registered
+        // in ClusterRegistry.handlers but never appear in ConnectionRegistry.enabledView,
+        // causing permanent "no handler for X" routing failures.
+        supervisor.markEnabled();
         return supervisor.send(new Notification(UUID.randomUUID(),
                 ProtocolNotifications.ENABLE, new byte[0], System.currentTimeMillis()));
     }
