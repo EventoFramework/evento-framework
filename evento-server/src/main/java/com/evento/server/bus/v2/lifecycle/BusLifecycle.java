@@ -39,6 +39,7 @@ import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 
 /**
@@ -99,6 +100,17 @@ public final class BusLifecycle {
     // in tests). Both are AtomicLong so they're safe to read from any thread.
     private final java.util.concurrent.atomic.AtomicLong forwardedRawCount = new java.util.concurrent.atomic.AtomicLong();
     private final java.util.concurrent.atomic.AtomicLong forwardedReencodedCount = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * Holds responses whose originator was disconnected at the time the handler
+     * replied. Keyed by originator instanceId. On reconnect the buffered entries
+     * are replayed to the new transport so in-flight futures can complete.
+     * Entries expire after {@link #RECONNECT_BUFFER_TTL_MS} to bound memory.
+     */
+    private record PendingResponseEntry(Response response, Frame frame, long expiresAtMs) {}
+    private final ConcurrentHashMap<String, ConcurrentLinkedQueue<PendingResponseEntry>> reconnectBuffer
+            = new ConcurrentHashMap<>();
+    private static final long RECONNECT_BUFFER_TTL_MS = 120_000L;
 
     public BusLifecycle(TransportServer transportServer,
                         ConnectionRegistry connectionRegistry,
@@ -314,7 +326,10 @@ public final class BusLifecycle {
                 // Roll back the speculative registration.
                 connectionRegistry.unregister(address, session.connectionToken(), "handshake_rejected");
                 session.transport().close();
+                return;
             }
+            // Replay any responses buffered while this instance was disconnected.
+            deliverPendingResponses(address, session.transport());
         });
     }
 
@@ -442,7 +457,13 @@ public final class BusLifecycle {
         var originator = entry.get().originator();
         var originatorConn = connectionRegistry.lookup(originator);
         if (originatorConn.isEmpty()) {
-            log.warn("event=response_originator_gone correlationId={} originator={}",
+            // Originator disconnected before the handler replied. Buffer the
+            // response so it can be replayed when the originator reconnects.
+            reconnectBuffer
+                    .computeIfAbsent(originator.instanceId(), k -> new ConcurrentLinkedQueue<>())
+                    .add(new PendingResponseEntry(response, frame,
+                            System.currentTimeMillis() + RECONNECT_BUFFER_TTL_MS));
+            log.info("event=response_buffered_for_reconnect correlationId={} originator={}",
                     response.correlationId(), originator.instanceId());
             return;
         }
@@ -497,16 +518,18 @@ public final class BusLifecycle {
         var nowEmptyTypes = clusterRegistry.removeNode(address);
         nowEmptyTypes.forEach(localHandlers::remove);
 
-        // For every in-flight forwarded request that involved this peer, drain the
-        // entry and surface a failure to the surviving counterparty so its future
-        // doesn't hang forever. If the disconnecting peer was the *destination*
-        // (handler), we know the originator is still waiting; if it was the
-        // originator, the destination's eventual response (if any) will simply be
-        // dropped by `onResponse` because there's no forwarding entry left.
-        var drained = forwardingTable.drainInvolving(address);
+        // Only drain entries where the disconnecting peer was the *destination*
+        // (handler). Surface a failure to each originator so its future resolves
+        // immediately rather than timing out.
+        //
+        // Entries where the disconnecting peer is the *originator* are left in
+        // the table intentionally: if the originator reconnects before the
+        // handler replies, the response will find the new connection via
+        // connectionRegistry.lookup(); if the handler replies while the
+        // originator is still disconnected, onResponse() buffers the response
+        // in reconnectBuffer for replay on reconnect.
         var disconnectCause = new IllegalStateException("peer disconnected: " + address.instanceId());
-        for (var entry : drained) {
-            if (!entry.destination().equals(address)) continue;  // originator-only — nothing to surface
+        for (var entry : forwardingTable.drainByDestination(address)) {
             connectionRegistry.lookup(entry.originator()).ifPresent(originatorConn -> {
                 var err = Response.failure(entry.correlationId(), ResponseError.of(disconnectCause));
                 try {
@@ -523,6 +546,22 @@ public final class BusLifecycle {
     }
 
     // ---- helpers ----
+
+    private void deliverPendingResponses(NodeAddress address, Transport transport) {
+        var queue = reconnectBuffer.remove(address.instanceId());
+        if (queue == null || queue.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        for (var pending : queue) {
+            if (now > pending.expiresAtMs()) {
+                log.debug("event=buffered_response_expired correlationId={}",
+                        pending.response().correlationId());
+                continue;
+            }
+            log.info("event=buffered_response_delivered correlationId={} originator={}",
+                    pending.response().correlationId(), address.instanceId());
+            forwardOrSend(transport, pending.frame(), pending.response());
+        }
+    }
 
     private HandshakeOutcome validateHello(Hello hello) {
         if (hello.protocolVersion() != HandshakeProtocol.PROTOCOL_VERSION) {
