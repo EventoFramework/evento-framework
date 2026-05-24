@@ -5,7 +5,9 @@ import com.evento.server.bus.v2.correlation.CorrelationStore;
 import com.evento.server.bus.v2.correlation.ForwardingDedupCache;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.bus.v2.event.BusEventBus;
+import com.evento.transport.protocol.BundleDiscoveryInfo;
 import com.evento.transport.protocol.BundleRegistrationInfo;
+import com.evento.transport.protocol.ProtocolNotifications;
 import com.evento.server.bus.v2.handshake.HandshakeHandler;
 import com.evento.server.bus.v2.handshake.HandshakeHandler.HandshakeOutcome;
 import com.evento.server.bus.v2.registry.ClusterRegistry;
@@ -335,6 +337,14 @@ public final class BusLifecycle {
             case NOTIFY_ENABLE -> {
                 connectionRegistry.enable(session.address());
                 session.transitionTo(BundleSession.Phase.READY);
+            }
+            case ProtocolNotifications.BUNDLE_DISCOVERY -> {
+                if (session.address() == null) {
+                    log.warn("event=discovery_before_handshake");
+                    return;
+                }
+                var discovery = payloadCodec.decode(notification.payload(), BundleDiscoveryInfo.class);
+                eventBus.publish(new BusEvent.BundleDiscovered(session.address(), discovery, Instant.now()));
             }
             case NOTIFY_DISABLE -> connectionRegistry.disable(session.address());
             default -> {

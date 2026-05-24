@@ -3,6 +3,7 @@ package com.evento.server.bus.v2.lifecycle;
 import com.evento.server.bus.v2.correlation.CorrelationStore;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.bus.v2.event.BusEventBus;
+import com.evento.transport.protocol.BundleDiscoveryInfo;
 import com.evento.transport.protocol.BundleRegistrationInfo;
 import com.evento.server.bus.v2.registry.ClusterRegistry;
 import com.evento.server.bus.v2.registry.ConnectionRegistry;
@@ -314,31 +315,42 @@ class BusLifecycleIT {
     }
 
     @Test
-    void bundleRegisteredEventCarriesFullRegistrationInfo() {
-        // The v2 analogue of v1 addJoinListener — when a bundle sends its
-        // registration notification, the lifecycle re-emits it as a typed
-        // BusEvent carrying the rich RegisteredHandler list and payload schemas
-        // that AutoDiscoveryService needs to populate the dashboard DB.
+    void bundleDiscoveredEventCarriesFullDiscoveryInfo() {
+        // The two-phase registration protocol: lean BundleRegistrationInfo first
+        // (instant routing), then BundleDiscoveryInfo after enable (rich metadata).
         var bundle = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
         completeHandshake(bundle);
 
-        var info = new BundleRegistrationInfo(
-                100L,
-                List.of("com.Foo"),
-                List.of(),
-                Map.of("com.Foo", new String[]{"{\"type\":\"object\"}", "demo-domain"}));
+        // Step 1: lean registration
+        var lean = new BundleRegistrationInfo(100L, List.of("com.Foo"));
         bundle.clientSide.send(new Notification(UUID.randomUUID(),
                 BundleRegistrationInfo.PAYLOAD_TYPE,
-                payloadCodec.encode(info), System.currentTimeMillis()));
+                payloadCodec.encode(lean), System.currentTimeMillis()));
 
+        // BundleRegistered (lean) must fire
         await().atMost(2, TimeUnit.SECONDS).until(() ->
                 seenEvents.stream().anyMatch(e -> e instanceof BusEvent.BundleRegistered));
         var registered = (BusEvent.BundleRegistered) seenEvents.stream()
                 .filter(e -> e instanceof BusEvent.BundleRegistered).findFirst().orElseThrow();
         assertThat(registered.node().instanceId()).isEqualTo("inst-A1");
         assertThat(registered.registration().handlerPayloadTypes()).containsExactly("com.Foo");
-        assertThat(registered.registration().payloadInfo()).containsKey("com.Foo");
-        assertThat(registered.registration().payloadInfo().get("com.Foo")[1]).isEqualTo("demo-domain");
+
+        // Step 2: rich discovery notification (sent after routing is live)
+        var discovery = new BundleDiscoveryInfo(
+                100L,
+                List.of(),
+                Map.of("com.Foo", new String[]{"{\"type\":\"object\"}", "demo-domain"}));
+        bundle.clientSide.send(new Notification(UUID.randomUUID(),
+                BundleDiscoveryInfo.PAYLOAD_TYPE,
+                payloadCodec.encode(discovery), System.currentTimeMillis()));
+
+        await().atMost(2, TimeUnit.SECONDS).until(() ->
+                seenEvents.stream().anyMatch(e -> e instanceof BusEvent.BundleDiscovered));
+        var discovered = (BusEvent.BundleDiscovered) seenEvents.stream()
+                .filter(e -> e instanceof BusEvent.BundleDiscovered).findFirst().orElseThrow();
+        assertThat(discovered.node().instanceId()).isEqualTo("inst-A1");
+        assertThat(discovered.discovery().payloadInfo()).containsKey("com.Foo");
+        assertThat(discovered.discovery().payloadInfo().get("com.Foo")[1]).isEqualTo("demo-domain");
     }
 
     @Test
@@ -383,18 +395,15 @@ class BusLifecycleIT {
     }
 
     @Test
-    void waitUntilAvailableReturnsTrueWhenBundleBecomesAvailable() throws Exception {
+    void waitUntilAvailableReturnsTrueWhenBundleBecomesAvailable() {
         var bundle = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
         completeHandshake(bundle);
 
         // Schedule enable just after waitUntilAvailable starts.
-        var pool = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
-        try {
+        try (var pool = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()) {
             pool.schedule(bundle::enable, 200, TimeUnit.MILLISECONDS);
             boolean ready = lifecycle.waitUntilAvailable("bundle-A", Duration.ofSeconds(2));
             assertThat(ready).isTrue();
-        } finally {
-            pool.shutdownNow();
         }
     }
 

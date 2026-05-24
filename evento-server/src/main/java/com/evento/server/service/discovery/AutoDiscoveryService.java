@@ -12,7 +12,7 @@ import com.evento.server.bus.BusFacade;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.v2.event.BusEvent;
 import com.evento.server.service.BundleService;
-import com.evento.transport.protocol.BundleRegistrationInfo;
+import com.evento.transport.protocol.BundleDiscoveryInfo;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -57,7 +57,7 @@ public class AutoDiscoveryService {
         this.bundleService = bundleService;
         busFacade.subscribe(event -> {
             switch (event) {
-                case BusEvent.BundleRegistered reg -> onNodeJoin(reg.node(), reg.registration());
+                case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
                 case BusEvent.NodeLeft left -> onNodeLeave(left.node());
                 default -> { /* ignore other event types */ }
             }
@@ -71,7 +71,7 @@ public class AutoDiscoveryService {
      * {@code addJoinListener}'s analogue, now fired by the
      * {@code BusEvent.BundleRegistered} stream).
      */
-    private void onNodeJoin(NodeAddress node, BundleRegistrationInfo registration) {
+    private void onNodeJoin(NodeAddress node, BundleDiscoveryInfo registration) {
         try {
             var key = "DISCOVERY:" + node.bundleId();
             pgDistributedLock.lockedArea(key, () -> {

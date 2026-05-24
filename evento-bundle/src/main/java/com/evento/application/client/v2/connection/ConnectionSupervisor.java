@@ -14,6 +14,7 @@ import com.evento.transport.message.Reject;
 import com.evento.transport.message.Welcome;
 import com.evento.transport.netty.NettyClientTransport;
 import com.evento.transport.reconnect.ReconnectStrategy;
+import com.evento.transport.protocol.BundleDiscoveryInfo;
 import com.evento.transport.protocol.BundleRegistrationInfo;
 import com.evento.transport.protocol.ProtocolNotifications;
 import org.slf4j.Logger;
@@ -268,11 +269,10 @@ public final class ConnectionSupervisor implements AutoCloseable {
     }
 
     private void performRegistration(NettyClientTransport transport) throws Exception {
+        // Step 1: lean registration — server builds routing table immediately
         var info = new BundleRegistrationInfo(
                 parseVersion(config.bundleVersion()),
-                config.handlerPayloadTypes(),
-                config.registeredHandlers(),
-                config.payloadInfo());
+                config.handlerPayloadTypes());
         transport.send(new Notification(UUID.randomUUID(),
                 BundleRegistrationInfo.PAYLOAD_TYPE,
                 payloadCodec.encode(info),
@@ -280,7 +280,7 @@ public final class ConnectionSupervisor implements AutoCloseable {
                 .get(config.registrationTimeout().toMillis(),
                         java.util.concurrent.TimeUnit.MILLISECONDS);
 
-        // Send enable if configured for auto-enable, or if the application has
+        // Step 2: enable if configured for auto-enable, or if the application has
         // already called enable() at least once (reconnect after initial enable).
         if (config.autoEnable() || enabledOnce.get()) {
             transport.send(new Notification(UUID.randomUUID(),
@@ -289,6 +289,18 @@ public final class ConnectionSupervisor implements AutoCloseable {
                     .get(config.registrationTimeout().toMillis(),
                             java.util.concurrent.TimeUnit.MILLISECONDS);
         }
+
+        // Step 3: rich discovery — may be large; sent after routing is live
+        var discovery = new BundleDiscoveryInfo(
+                parseVersion(config.bundleVersion()),
+                config.registeredHandlers(),
+                config.payloadInfo());
+        transport.send(new Notification(UUID.randomUUID(),
+                BundleDiscoveryInfo.PAYLOAD_TYPE,
+                payloadCodec.encode(discovery),
+                System.currentTimeMillis()))
+                .get(config.registrationTimeout().toMillis(),
+                        java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
     private long parseVersion(String version) {

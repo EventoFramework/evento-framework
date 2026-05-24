@@ -76,8 +76,8 @@ public class CommandBrokerHandler {
         this.distributedLock = new PgDistributedLock(dataSource);
 
         lifecycle.subscribe(busEvent -> {
-            if (!(busEvent instanceof BusEvent.BundleRegistered registered)) return;
-            for (var handler : registered.registration().handlers()) {
+            if (!(busEvent instanceof BusEvent.BundleDiscovered discovered)) return;
+            for (var handler : discovered.discovery().handlers()) {
                 if (handler.getHandlerType() == HandlerType.AggregateCommandHandler) {
                     var pt = handler.getHandledPayload();
                     lifecycle.registerLocalHandler(pt, payload -> handleAggregateCommand(pt, payload));

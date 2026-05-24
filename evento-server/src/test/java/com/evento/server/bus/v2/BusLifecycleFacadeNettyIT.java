@@ -29,6 +29,7 @@ import com.evento.transport.message.Welcome;
 import com.evento.transport.netty.NettyClientTransport;
 import com.evento.transport.netty.NettyServerTransport;
 import com.evento.transport.netty.NettyTransportConfig;
+import com.evento.transport.protocol.BundleDiscoveryInfo;
 import com.evento.transport.protocol.BundleRegistrationInfo;
 import com.evento.transport.protocol.ProtocolPayloadTypes;
 import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
@@ -180,12 +181,19 @@ class BusLifecycleFacadeNettyIT {
 
         void registerRich(List<RegisteredHandler> handlers, Map<String, String[]> payloadInfo) {
             var payloadTypes = handlers.stream().map(RegisteredHandler::getHandledPayload).toList();
-            var info = new BundleRegistrationInfo(100L, payloadTypes, handlers, payloadInfo);
+            // Step 1: lean registration
+            var info = new BundleRegistrationInfo(100L, payloadTypes);
             client.send(new Notification(UUID.randomUUID(),
                     BundleRegistrationInfo.PAYLOAD_TYPE,
                     payloadCodec.encode(info), System.currentTimeMillis())).join();
+            // Step 2: enable
             client.send(new Notification(UUID.randomUUID(),
                     BusLifecycle.NOTIFY_ENABLE, new byte[0], System.currentTimeMillis())).join();
+            // Step 3: rich discovery
+            var discovery = new BundleDiscoveryInfo(100L, handlers, payloadInfo);
+            client.send(new Notification(UUID.randomUUID(),
+                    BundleDiscoveryInfo.PAYLOAD_TYPE,
+                    payloadCodec.encode(discovery), System.currentTimeMillis())).join();
         }
 
         @Override public void close() { client.close(); }
@@ -205,7 +213,7 @@ class BusLifecycleFacadeNettyIT {
     }
 
     @Test
-    void facadeSubscribeReceivesBundleRegisteredWithRichData() throws Exception {
+    void facadeSubscribeReceivesBundleDiscoveredWithRichData() throws Exception {
         var seen = new ArrayList<BusEvent>();
         facade.subscribe(seen::add);
 
@@ -219,14 +227,14 @@ class BusLifecycleFacadeNettyIT {
                     Map.of("com.DemoCommand", new String[]{"{\"type\":\"object\"}", "demo-domain"}));
 
             await().atMost(3, TimeUnit.SECONDS).until(() ->
-                    seen.stream().anyMatch(e -> e instanceof BusEvent.BundleRegistered));
-            var registered = (BusEvent.BundleRegistered) seen.stream()
-                    .filter(e -> e instanceof BusEvent.BundleRegistered).findFirst().orElseThrow();
-            assertThat(registered.node().bundleId()).isEqualTo("bundle-X");
-            assertThat(registered.registration().handlers()).hasSize(1);
-            assertThat(registered.registration().handlers().getFirst().getComponentName())
+                    seen.stream().anyMatch(e -> e instanceof BusEvent.BundleDiscovered));
+            var discovered = (BusEvent.BundleDiscovered) seen.stream()
+                    .filter(e -> e instanceof BusEvent.BundleDiscovered).findFirst().orElseThrow();
+            assertThat(discovered.node().bundleId()).isEqualTo("bundle-X");
+            assertThat(discovered.discovery().handlers()).hasSize(1);
+            assertThat(discovered.discovery().handlers().getFirst().getComponentName())
                     .isEqualTo("DemoService");
-            assertThat(registered.registration().payloadInfo()).containsKey("com.DemoCommand");
+            assertThat(discovered.discovery().payloadInfo()).containsKey("com.DemoCommand");
         }
     }
 
