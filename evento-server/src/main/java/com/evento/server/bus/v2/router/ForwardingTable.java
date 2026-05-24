@@ -94,6 +94,26 @@ public final class ForwardingTable {
     }
 
     /**
+     * Atomically remove and return every entry where {@code address} is the
+     * <em>destination</em> (handler peer). Used on handler-disconnect to surface
+     * failures to originators while leaving originator-side entries alive for
+     * reconnect delivery.
+     */
+    public List<Entry> drainByDestination(NodeAddress address) {
+        var drained = new ArrayList<Entry>();
+        for (var key : List.copyOf(table.keySet())) {
+            var entry = table.get(key);
+            if (entry == null) continue;
+            if (entry.destination().equals(address)) {
+                if (table.remove(key, entry)) {
+                    drained.add(entry);
+                }
+            }
+        }
+        return drained;
+    }
+
+    /**
      * Convenience: drop entries involving {@code address} without returning them.
      */
     public int removeInvolving(NodeAddress address) {

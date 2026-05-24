@@ -509,6 +509,41 @@ Two bugs found during staging soak and fixed (uncommitted, `next` branch):
 
 **Files changed:** `HandlerRepository.java`, `HandlerService.java`, `BundleService.java`
 
+## Staging instability fixes (post-RC1, uncommitted on `next`)
+
+Two production bugs found during staging soak and fixed in the current session:
+
+### Fix C: DEGRADED channel drops in-flight responses (primary production issue)
+
+**Root cause:** `ConnectionState.canSend()` returned `true` only for CONNECTED. When a channel's outbound buffer crossed the high-water mark, Netty set the state to DEGRADED. `ServerChildTransport.send()` and `sendRaw()` both guarded on `canSend()` → threw `SendFailedException: not in CONNECTED state: DEGRADED`. In-flight responses from handler bundles were silently dropped; the originator bundle waited 30 seconds for its correlation timer to fire.
+
+**Fix:** `ConnectionState.canSend()` now returns `true` for DEGRADED as well. DEGRADED is advisory backpressure — the TCP socket is alive, Netty will queue the write and flush it when the buffer drains. Responses are critical-path traffic and must never be dropped due to backpressure.
+
+**Collateral changes:**
+- `InMemoryTransport.simulateDisconnect()` corrected from DEGRADED → DISCONNECTED (was conflating two semantically different states).
+- `ConnectionStateMachineTest.canSendOnlyWhenConnected` renamed and updated to assert DEGRADED is sendable.
+- `RoundTripFlowTest.sendWhileDisconnectedFails` error-message assertion updated from "DEGRADED" to "DISCONNECTED".
+
+**Files changed:** `ConnectionState.java`, `InMemoryTransport.java`, `ConnectionStateMachineTest.java`, `RoundTripFlowTest.java`
+
+### Fix D: TCP disconnect + reconnect loses in-flight responses (QoS reconnect delivery)
+
+**Root cause A (server-side):** `onTransportDisconnected()` called `forwardingTable.drainInvolving(address)` which removed *both* destination-side and originator-side forwarding entries. When the originator disconnected mid-flight, the handler's eventual reply found no forwarding entry and was treated as an orphan response.
+
+**Root cause B (server-side):** When the handler replied after the originator disconnected, `connectionRegistry.lookup(originator)` returned empty and the response was dropped with `event=response_originator_gone`.
+
+**Fix:**
+1. `ForwardingTable.drainByDestination(NodeAddress)` — new method that drains only entries where the address is the *destination* (handler). Originator-side entries remain in the table.
+2. `onTransportDisconnected()` now calls `drainByDestination()` instead of `drainInvolving()`. Handler-disconnect errors still surface immediately to the originator; originator-disconnect entries stay alive so the handler's eventual reply can be routed to the reconnected transport.
+3. `onResponse()` — if `connectionRegistry.lookup(originator)` is empty (originator still disconnected), the response is buffered in `reconnectBuffer` (keyed by `instanceId`, 2-minute TTL) instead of being dropped.
+4. `onHello()` — after a successful handshake, `deliverPendingResponses(address, transport)` drains any buffered responses for the reconnecting instance and forwards them to the new transport. The bundle's `BundleCorrelationTracker` still has the pending futures (it does not call `failAll()` on disconnect, only on shutdown), so the futures complete normally.
+
+**New tests in `BusLifecycleDisconnectIT`:**
+- Test 9: `inFlightRequestDeliveredAfterCallerReconnects` — handler replies after caller reconnects; ForwardingTable entry routes to new transport.
+- Test 10: `inFlightResponseBufferedAndDeliveredOnCallerReconnect` — handler replies while caller is disconnected; server buffers response; replays on reconnect.
+
+**Files changed:** `ConnectionState.java` (shared with Fix C), `ForwardingTable.java`, `BusLifecycle.java`, `BusLifecycleDisconnectIT.java`
+
 ## Resume checklist (next session)
 
 RC1 tagged. Remaining work before `v2.0.0`:
@@ -521,9 +556,11 @@ RC1 tagged. Remaining work before `v2.0.0`:
 6. ✅ `evento-lab` api-package refactor (`com.evento.lab.api.*`) + `evento-lab-microservices` multi-bundle RECQ example + 7 new IT tests (total 199 on JDK 25)
 7. ✅ Post-RC1 staging fixes: routing-table race on reconnect + FK violation on payload delete
 8. ✅ CBOR 20 MB string cap removed from `AdminPayloadCodec`; `SerializedQueryResponse` eliminated from v2 transport path; peak heap for 80 MB query response ~400 MB → ~240 MB.
-9. Deploy `next` to staging with `evento-demo` + traffic generator.
-10. Soak 1–2 weeks with early adopters.
-11. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
+9. ✅ Staging instability: DEGRADED channel no longer drops in-flight responses; TCP disconnect + reconnect now delivers buffered responses (Fixes C + D above, uncommitted).
+10. Commit Fixes C + D.
+11. Deploy `next` to staging with `evento-demo` + traffic generator.
+12. Soak 1–2 weeks with early adopters.
+13. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
 
 ## How to run locally
 

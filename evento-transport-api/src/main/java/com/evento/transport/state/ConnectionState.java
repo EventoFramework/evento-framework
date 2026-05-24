@@ -10,7 +10,7 @@ public enum ConnectionState {
     CLOSED;
 
     public boolean canSend() {
-        return this == CONNECTED;
+        return this == CONNECTED || this == DEGRADED;
     }
 
     public boolean isTerminal() {

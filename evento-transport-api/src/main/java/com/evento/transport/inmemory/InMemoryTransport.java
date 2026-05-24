@@ -155,11 +155,11 @@ public final class InMemoryTransport implements Transport {
         this.failNextSends = n;
     }
 
-    /** Simulate an abrupt disconnect: state → DEGRADED on this side, peer → DEGRADED. */
+    /** Simulate an abrupt disconnect: state → DISCONNECTED on this side, peer → DISCONNECTED. */
     public void simulateDisconnect() {
-        state.compareAndTransition(ConnectionState.CONNECTED, ConnectionState.DEGRADED, "simulate_disconnect");
+        state.compareAndTransition(ConnectionState.CONNECTED, ConnectionState.DISCONNECTED, "simulate_disconnect");
         if (peer != null) {
-            peer.state.compareAndTransition(ConnectionState.CONNECTED, ConnectionState.DEGRADED, "peer_disconnect");
+            peer.state.compareAndTransition(ConnectionState.CONNECTED, ConnectionState.DISCONNECTED, "peer_disconnect");
         }
     }
 

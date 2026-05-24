@@ -215,7 +215,7 @@ class RoundTripFlowTest {
 
         assertThatThrownBy(() -> pair.client().send(req))
                 .isInstanceOf(com.evento.transport.SendFailedException.class)
-                .hasMessageContaining("DEGRADED");
+                .hasMessageContaining("DISCONNECTED");
     }
 
     @Test
