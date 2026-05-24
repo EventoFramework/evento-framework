@@ -167,10 +167,30 @@ public final class ConnectionRegistry {
     }
 
     private void publishViewChanged() {
+        if (log.isTraceEnabled()) {
+            log.trace("event=view_changed\n{}", formatViewTable());
+        }
         eventBus.publish(new BusEvent.ViewChanged(view(), Instant.now()));
     }
 
     private void publishAvailableViewChanged() {
+        if (log.isTraceEnabled()) {
+            log.trace("event=available_view_changed\n{}", formatViewTable());
+        }
         eventBus.publish(new BusEvent.AvailableViewChanged(availableView(), Instant.now()));
+    }
+
+    private String formatViewTable() {
+        var sb = new StringBuilder();
+        sb.append(String.format("  %-40s  %-30s  %10s  %s%n", "instance", "bundle", "version", "available"));
+        sb.append(String.format("  %-40s  %-30s  %10s  %s%n", "-".repeat(40), "-".repeat(30), "-".repeat(10), "---------"));
+        view.keySet().stream()
+                .sorted()
+                .forEach(addr -> sb.append(String.format("  %-40s  %-30s  %10d  %s%n",
+                        addr.instanceId(),
+                        addr.bundleId(),
+                        addr.bundleVersion(),
+                        enabledView.containsKey(addr) ? "YES" : "no")));
+        return sb.toString().stripTrailing();
     }
 }
