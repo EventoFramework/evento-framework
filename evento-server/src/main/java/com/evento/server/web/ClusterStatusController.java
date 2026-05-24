@@ -1,7 +1,7 @@
 package com.evento.server.web;
 
 import com.evento.server.bus.BusFacade;
-import com.evento.server.bus.v2.event.BusEvent;
+import com.evento.server.bus.event.BusEvent;
 import com.evento.server.domain.model.core.BucketType;
 import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.service.BundleService;

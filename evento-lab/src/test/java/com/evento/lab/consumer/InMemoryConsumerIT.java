@@ -3,7 +3,7 @@ package com.evento.lab.consumer;
 import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
-import com.evento.application.consumer.v2.ConsumerEngineConfig;
+import com.evento.application.consumer.ConsumerEngineConfig;
 import com.evento.lab.bundle.LabStore;
 import com.evento.lab.api.event.OrderCreatedEvent;
 import com.evento.lab.support.EmbeddedBroker;

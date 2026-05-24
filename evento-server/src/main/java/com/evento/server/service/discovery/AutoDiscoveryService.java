@@ -10,7 +10,7 @@ import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.server.bus.BusFacade;
 import com.evento.server.bus.NodeAddress;
-import com.evento.server.bus.v2.event.BusEvent;
+import com.evento.server.bus.event.BusEvent;
 import com.evento.server.service.BundleService;
 import com.evento.transport.protocol.BundleDiscoveryInfo;
 import org.springframework.stereotype.Service;

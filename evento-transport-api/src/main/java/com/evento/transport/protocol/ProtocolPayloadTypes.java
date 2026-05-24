@@ -27,12 +27,12 @@ public final class ProtocolPayloadTypes {
      * Fire-and-forget admin notification from a bundle to the server, payload
      * is a CBOR-encoded v1
      * {@code com.evento.common.modeling.messaging.message.internal.EventoMessage}.
-     * Used by {@code EventoServerV2Adapter.send(...)} so the existing
+     * Used by {@code EventoServerAdapter.send(...)} so the existing
      * performance-metric / consumer-registration flows keep working without
      * the framework needing a dedicated payloadType per message body.
      *
      * <p>The server-side {@code BundleAdminNotificationListener} subscribes to
-     * the {@link com.evento.server.bus.v2.event.BusEvent.AdminNotification}
+     * the {@link com.evento.server.bus.event.BusEvent.AdminNotification}
      * event stream, decodes the inner {@code EventoMessage}, and dispatches
      * its body to {@code PerformanceStoreService} / {@code ConsumerService}.
      */

@@ -35,7 +35,7 @@ dependencies {
     testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
     testImplementation project(':evento-server')
-    testImplementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc-v2')
+    testImplementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')
 
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
     testRuntimeOnly  "org.junit.platform:junit-platform-launcher"

@@ -6,7 +6,7 @@ import com.evento.common.messaging.consumer.EventFetchResponse;
 import com.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
 import com.evento.common.messaging.consumer.EventLastSequenceNumberResponse;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
-import com.evento.server.bus.v2.lifecycle.BusLifecycle;
+import com.evento.server.bus.lifecycle.BusLifecycle;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

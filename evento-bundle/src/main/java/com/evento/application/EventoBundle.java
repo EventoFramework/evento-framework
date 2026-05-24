@@ -1,16 +1,16 @@
 package com.evento.application;
 
-import com.evento.application.client.v2.BundleClient;
-import com.evento.application.client.v2.BundleInboundDispatcher;
-import com.evento.application.client.v2.EventoServerV2Adapter;
-import com.evento.application.client.v2.admin.BundleAdminRequestHandler;
+import com.evento.application.client.BundleClient;
+import com.evento.application.client.BundleInboundDispatcher;
+import com.evento.application.client.EventoServerAdapter;
+import com.evento.application.client.admin.BundleAdminRequestHandler;
 import com.evento.application.consumer.ConsumerHandle;
-import com.evento.application.consumer.v2.ConsumerEngineConfig;
-import com.evento.application.consumer.v2.DispatchContext;
-import com.evento.application.consumer.v2.EngineSupervisor;
-import com.evento.application.consumer.v2.ObserverEngine;
-import com.evento.application.consumer.v2.ProjectorEngine;
-import com.evento.application.consumer.v2.SagaEngine;
+import com.evento.application.consumer.ConsumerEngineConfig;
+import com.evento.application.consumer.DispatchContext;
+import com.evento.application.consumer.EngineSupervisor;
+import com.evento.application.consumer.ObserverEngine;
+import com.evento.application.consumer.ProjectorEngine;
+import com.evento.application.consumer.SagaEngine;
 import com.evento.application.manager.*;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.performance.Track;
@@ -297,7 +297,7 @@ public class EventoBundle {
          * The primary consumer path. When set, consumers run on
          * {@link EngineSupervisor} using the v2 SPI composition
          * (lock + checkpoint + DLQ + saga store + optional dedupe) wrapped by
-         * {@link com.evento.common.messaging.consumer.v2.ConsumerProcessor}.
+         * {@link com.evento.common.messaging.consumer.ConsumerProcessor}.
          *
          * <p>If not set, defaults to {@link ConsumerEngineConfig#inMemory} at startup.
          */
@@ -497,7 +497,7 @@ public class EventoBundle {
             }
             bundleClient.start().get();
 
-            var eventoServer = new EventoServerV2Adapter(
+            var eventoServer = new EventoServerAdapter(
                     bundleClient, bundleId, instanceId, bundleVersion, adminCodec);
 
             if (commandGateway == null) {

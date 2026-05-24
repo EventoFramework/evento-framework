@@ -3,7 +3,7 @@ package com.evento.demo.memory.config;
 import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
-import com.evento.application.consumer.v2.ConsumerEngineConfig;
+import com.evento.application.consumer.ConsumerEngineConfig;
 import com.evento.application.manager.LogTracesMessageHandlerInterceptor;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
