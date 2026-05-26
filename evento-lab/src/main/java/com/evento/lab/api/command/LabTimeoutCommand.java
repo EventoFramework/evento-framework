@@ -6,6 +6,8 @@ public class LabTimeoutCommand extends ServiceCommand {
 
     private long millis;
     private long times;
+    private boolean failBeforeHandling;
+    private boolean failAfterHandling;
 
     public LabTimeoutCommand() {}
 
@@ -18,4 +20,8 @@ public class LabTimeoutCommand extends ServiceCommand {
     public void setMillis(long millis) { this.millis = millis; }
     public long getTimes() { return times; }
     public void setTimes(long times) { this.times = times; }
+    public boolean isFailBeforeHandling() { return failBeforeHandling; }
+    public void setFailBeforeHandling(boolean b) { this.failBeforeHandling = b; }
+    public boolean isFailAfterHandling() { return failAfterHandling; }
+    public void setFailAfterHandling(boolean b) { this.failAfterHandling = b; }
 }
