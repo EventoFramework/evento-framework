@@ -8,6 +8,7 @@ import com.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
 import com.evento.common.messaging.consumer.EventLastSequenceNumberResponse;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
+import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.message.application.ServiceEventMessage;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.common.modeling.messaging.payload.DomainEvent;
@@ -16,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -102,6 +104,28 @@ public final class TestEventStoreBundleClient implements AutoCloseable {
         pe.setAggregateId(aggregateId);
         pe.setEventMessage(em);
         pe.setEventName(eventName);
+        pe.setCreatedAt(System.currentTimeMillis());
+        store.add(pe);
+        return seq;
+    }
+
+    /**
+     * Publish a domain event with custom metadata entries. Allows consumer
+     * interceptor tests to inject flags like {@code failBeforeProjector=true}.
+     */
+    public long publishWithMetadata(DomainEvent event, String aggregateId, Map<String, String> metaEntries) {
+        long seq = seqGen.incrementAndGet();
+        var em = new DomainEventMessage(event);
+        if (!metaEntries.isEmpty()) {
+            var meta = new Metadata();
+            meta.putAll(metaEntries);
+            em.setMetadata(meta);
+        }
+        var pe = new PublishedEvent();
+        pe.setEventSequenceNumber(seq);
+        pe.setAggregateId(aggregateId);
+        pe.setEventMessage(em);
+        pe.setEventName(event.getClass().getSimpleName());
         pe.setCreatedAt(System.currentTimeMillis());
         store.add(pe);
         return seq;
