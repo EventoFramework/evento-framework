@@ -1,3 +1,0 @@
-###
-GET http://localhost:9001/api/util/send-event?failures=1
-Accept: application/json
