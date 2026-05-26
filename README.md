@@ -2,8 +2,7 @@
 
 # [Evento Framework](https://www.eventoframework.com/)
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit)
-![Code style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg)
+[![License](https://img.shields.io/badge/License-AGPL%203.0%20%2F%20Commercial-blue.svg)](LICENSE.txt)
 [![](https://img.shields.io/github/v/release/EventoFramework/evento-framework)](https://github.com/EventoFramework/evento-framework/releases)
 [![](https://img.shields.io/maven-central/v/com.eventoframework/evento-bundle?logo=gradle)](https://central.sonatype.com/artifact/com.eventoframework/evento-bundle)
 [![](https://img.shields.io/docker/v/eventoframework/evento-server?logo=docker&label=image)
@@ -51,6 +50,18 @@ The Evento Server acts as the central nervous system for your distributed applic
 
 **Together, the Evento Framework and its Server form a cohesive ecosystem that simplifies and streamlines the creation of distributed applications. Embrace the Evento philosophy and experience the power of event sourcing and CQRS!**
 
+## v2.0 — What's New
+
+Evento Framework v2.0 is a ground-up rewrite of the transport and server bus:
+
+- **CBOR wire protocol** — binary framing (4-byte length prefix + CBOR), replacing the v1 JSON/socket protocol. Wire-format compatibility with v1 is intentionally broken.
+- **Netty transport** — fully async, virtual-thread business executor, transparent chunking (no message-size limit), optional TLS.
+- **Sealed `Message` records** — exhaustive dispatch enforced by the compiler; adding a new wire type is a one-liner.
+- **Exactly-once QoS** — dedup cache on both broker and bundle sides; callers can retry with the same `correlationId`.
+- **v2 consumer engines** — `ProjectorEngine`, `SagaEngine`, `ObserverEngine` composed on focused SPIs (`ConsumerLock`, `ConsumerStateStore`, `SagaStateStore`, `DeadEventQueue`, `DedupeStore`). JDBC impls for Postgres and MySQL included.
+- **Autoscale rip-out** — the framework emits performance metrics only; cluster orchestration (k8s / Nomad) owns spawn and kill.
+- **Zero-copy forwarding** — broker relays `Request`/`Response` as raw bytes without re-encoding.
+
 ## Getting Started
 
 To start using Evento Framework, see the [Getting Started documentation](https://docs.eventoframework.com/getting-started/quick-start).
@@ -78,6 +89,9 @@ The Evento Framework is in its early stages, actively evolving with the contribu
 By joining forces, we can make Evento a valuable tool for building the next generation of distributed applications!
 
 ## License
-Copyright 2020-2024 © Gabor Galazzo. All rights reserved.
+Copyright 2020-2026 © Gabor Galazzo. All rights reserved.
 
-Licensed under the MIT Licence: http://www.apache.org/licenses/MIT
+Evento Framework v2.0 is dual-licensed:
+
+- **AGPL-3.0** — free for open-source projects. See [`LICENSE.txt`](LICENSE.txt).
+- **Commercial licence** — for proprietary / closed-source use. See [`LICENSE-COMMERCIAL.txt`](LICENSE-COMMERCIAL.txt) or contact the author.
