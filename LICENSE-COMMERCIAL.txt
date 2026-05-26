@@ -1,0 +1,161 @@
+Evento Framework — Commercial License Agreement
+
+Copyright (c) 2023–2026 Gabor Galazzo ("Licensor"). All rights reserved.
+
+This Commercial License Agreement ("Agreement") is entered into between
+Gabor Galazzo ("Licensor") and the entity or individual identified in the
+purchase order or license certificate ("Licensee").
+
+────────────────────────────────────────────────────────────────────────────
+1. DEFINITIONS
+────────────────────────────────────────────────────────────────────────────
+
+"Software" means the Evento Framework source code, compiled artifacts,
+documentation, and all associated files distributed by the Licensor.
+
+"Deployment" means installing, executing, hosting, or operating the Software
+or any product that incorporates the Software in a production, staging, or
+development environment for commercial purposes.
+
+"Commercial Use" means any use by a for-profit entity, any use that
+generates revenue (directly or indirectly), or any internal deployment by an
+organisation with annual revenue exceeding USD 50,000.
+
+"Authorized Users" means employees, contractors, and agents of the Licensee
+who are authorized by the Licensee to use the Software solely on behalf of
+and for the benefit of the Licensee.
+
+────────────────────────────────────────────────────────────────────────────
+2. GRANT OF LICENSE
+────────────────────────────────────────────────────────────────────────────
+
+Subject to the terms of this Agreement and timely payment of applicable
+license fees, the Licensor grants the Licensee a non-exclusive,
+non-transferable, worldwide license to:
+
+  a) Use, reproduce, and modify the Software for internal development
+     purposes.
+
+  b) Deploy the Software in production and non-production environments
+     operated by or for the Licensee.
+
+  c) Distribute the Software solely as incorporated into Licensee's own
+     products or services, provided that the Software is not distributed as
+     a standalone framework or development toolkit.
+
+This license does not grant the Licensee the right to sublicense the
+Software to third parties as a standalone product or framework.
+
+────────────────────────────────────────────────────────────────────────────
+3. RESTRICTIONS
+────────────────────────────────────────────────────────────────────────────
+
+The Licensee shall not:
+
+  a) Remove, alter, or obscure any copyright, trademark, or proprietary
+     notice contained in the Software.
+
+  b) Use the Software to build a competing framework, event bus library, or
+     developer toolkit intended for distribution to third parties.
+
+  c) Sublicense, resell, rent, lease, or otherwise transfer rights in the
+     Software to any third party except as expressly permitted in Section 2.
+
+  d) Use the Software outside the scope described in the applicable license
+     certificate or purchase order.
+
+────────────────────────────────────────────────────────────────────────────
+4. LICENSE TIERS
+────────────────────────────────────────────────────────────────────────────
+
+Licenses are issued per deployment scope. The Licensor offers (indicatively):
+
+  Startup License     — Up to 5 production services, revenue < USD 1M/yr
+  Business License    — Up to 25 production services, revenue < USD 10M/yr
+  Enterprise License  — Unlimited services, unlimited revenue, OEM rights
+
+Exact pricing, scope, and terms are defined in the signed purchase order or
+license certificate provided at time of purchase. Contact the Licensor for
+a quote.
+
+────────────────────────────────────────────────────────────────────────────
+5. FEES AND PAYMENT
+────────────────────────────────────────────────────────────────────────────
+
+License fees are due as specified in the applicable purchase order. Failure
+to pay fees within 30 days of the due date may result in suspension of the
+license. All fees are non-refundable unless otherwise agreed in writing.
+
+────────────────────────────────────────────────────────────────────────────
+6. INTELLECTUAL PROPERTY
+────────────────────────────────────────────────────────────────────────────
+
+The Licensor retains all intellectual property rights in the Software.
+Nothing in this Agreement transfers ownership of the Software or any part
+thereof to the Licensee. The Licensee acquires only the limited license
+rights expressly stated in this Agreement.
+
+────────────────────────────────────────────────────────────────────────────
+7. TERM AND TERMINATION
+────────────────────────────────────────────────────────────────────────────
+
+This Agreement is effective from the date of license issuance and continues
+for the term specified in the purchase order (typically perpetual for the
+licensed version, with optional annual subscriptions for updates).
+
+The Licensor may terminate this Agreement immediately upon written notice if
+the Licensee materially breaches any term and fails to cure the breach within
+30 days of notice. Upon termination, the Licensee must cease all use and
+Deployment of the Software and destroy all copies in its possession.
+
+────────────────────────────────────────────────────────────────────────────
+8. WARRANTY DISCLAIMER
+────────────────────────────────────────────────────────────────────────────
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. THE LICENSOR
+EXPRESSLY DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+AND NON-INFRINGEMENT.
+
+────────────────────────────────────────────────────────────────────────────
+9. LIMITATION OF LIABILITY
+────────────────────────────────────────────────────────────────────────────
+
+IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO
+LOSS OF PROFITS, LOSS OF DATA, OR BUSINESS INTERRUPTION) ARISING OUT OF OR
+IN CONNECTION WITH THIS AGREEMENT, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGES. THE LICENSOR'S TOTAL LIABILITY SHALL NOT EXCEED THE FEES PAID
+BY THE LICENSEE IN THE 12 MONTHS PRECEDING THE CLAIM.
+
+────────────────────────────────────────────────────────────────────────────
+10. GOVERNING LAW AND JURISDICTION
+────────────────────────────────────────────────────────────────────────────
+
+This Agreement shall be governed by and construed in accordance with the
+laws of Italy, as a member state of the European Union. Where applicable,
+mandatory provisions of EU law (including but not limited to Regulation (EU)
+2016/679 — GDPR, and the EU Software Directive 2009/24/EC) shall prevail
+over conflicting national provisions.
+
+Any dispute arising under or in connection with this Agreement that cannot be
+resolved amicably shall be subject to the exclusive jurisdiction of the
+competent courts of Italy. Nothing in this clause limits either party's right
+to seek urgent injunctive or other interim relief before any court of
+competent jurisdiction within the European Union.
+
+────────────────────────────────────────────────────────────────────────────
+CONTACT — OBTAIN A COMMERCIAL LICENSE
+────────────────────────────────────────────────────────────────────────────
+
+To purchase a Commercial License, request a quote, or ask licensing
+questions, visit:
+
+  https://www.eventoframework.com/licensing
+
+or contact the copyright holder directly:
+
+  Gabor Galazzo
+  Website: https://www.eventoframework.com
+  Email  : gabor.galazzo@gmail.com
+  GitHub : https://github.com/ggalazzo

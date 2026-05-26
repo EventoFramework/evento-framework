@@ -61,8 +61,8 @@ publishing {
 
                 licenses {
                     license {
-                        name = "MIT License"
-                        url = "https://raw.githubusercontent.com/EventoFramework/evento-framework/main/LICENSE.txt"
+                        name = "Dual License: AGPL-3.0 or Commercial"
+                        url = "https://www.eventoframework.com/licensing"
                     }
                 }
 
