@@ -7,6 +7,8 @@ public class UpdateOrderCommand extends DomainCommand {
     private String orderId;
     private String description;
     private int quantity;
+    private boolean failBeforeHandling;
+    private boolean failAfterHandling;
 
     public UpdateOrderCommand() {}
 
@@ -25,4 +27,8 @@ public class UpdateOrderCommand extends DomainCommand {
     public void setDescription(String description) { this.description = description; }
     public int getQuantity() { return quantity; }
     public void setQuantity(int quantity) { this.quantity = quantity; }
+    public boolean isFailBeforeHandling() { return failBeforeHandling; }
+    public void setFailBeforeHandling(boolean failBeforeHandling) { this.failBeforeHandling = failBeforeHandling; }
+    public boolean isFailAfterHandling() { return failAfterHandling; }
+    public void setFailAfterHandling(boolean failAfterHandling) { this.failAfterHandling = failAfterHandling; }
 }

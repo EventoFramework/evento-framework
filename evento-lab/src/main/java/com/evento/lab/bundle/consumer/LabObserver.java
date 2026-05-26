@@ -3,6 +3,7 @@ package com.evento.lab.bundle.consumer;
 import com.evento.common.modeling.annotations.component.Observer;
 import com.evento.common.modeling.annotations.handler.EventHandler;
 import com.evento.lab.bundle.LabStore;
+import com.evento.lab.api.event.LabObserverFailEvent;
 import com.evento.lab.api.event.OrderConfirmedEvent;
 import com.evento.lab.api.event.OrderCreatedEvent;
 
@@ -17,5 +18,11 @@ public class LabObserver {
     @EventHandler
     void on(OrderConfirmedEvent e) {
         LabStore.recordEvent("confirmed:" + e.getOrderId());
+    }
+
+    /** Exercises observer HANDLER-level failure (no interceptor involved). */
+    @EventHandler
+    void on(LabObserverFailEvent e) {
+        throw new RuntimeException("LabObserver: deliberate observer handler failure");
     }
 }

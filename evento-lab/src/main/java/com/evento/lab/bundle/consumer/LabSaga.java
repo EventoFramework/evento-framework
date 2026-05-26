@@ -4,6 +4,7 @@ import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.annotations.component.Saga;
 import com.evento.common.modeling.annotations.handler.SagaEventHandler;
+import com.evento.lab.api.event.LabSagaFailEvent;
 import com.evento.lab.api.event.OrderCancelledEvent;
 import com.evento.lab.api.event.OrderConfirmedEvent;
 import com.evento.lab.api.event.OrderCreatedEvent;
@@ -37,5 +38,11 @@ public class LabSaga {
     LabSagaState on(OrderCancelledEvent e, LabSagaState state) {
         state.setStatus("CANCELLED");
         return state;
+    }
+
+    /** Exercises saga HANDLER-level failure (no interceptor involved). */
+    @SagaEventHandler(init = true, associationProperty = "none")
+    LabSagaState on(LabSagaFailEvent e) {
+        throw new RuntimeException("LabSaga: deliberate saga handler failure");
     }
 }
