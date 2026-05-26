@@ -1,0 +1,57 @@
+# ── Version control ──────────────────────────────────────────────────────────
+.git
+
+# ── IDE and AI tooling (not needed in image) ─────────────────────────────────
+.idea
+.claude
+.junie
+.cursor
+.vscode
+.windsurf
+.copilot
+.aider
+.cody
+
+# ── Gradle local cache (rebuilt inside Docker) ────────────────────────────────
+.gradle
+.gradletasknamecache
+
+# ── Build outputs (rebuilt inside Docker) ─────────────────────────────────────
+# evento-server/src/main/resources/public/ is under src/, NOT build/,
+# so the Ionic GUI output is preserved in the context.
+**/build/
+
+# ── Frontend source and deps ──────────────────────────────────────────────────
+# The compiled GUI lands in evento-server/src/main/resources/public/ (built in
+# CI before this docker step). The source tree and node_modules are not needed.
+evento-gui/node_modules/
+evento-gui/.angular/
+evento-gui/.ionic/
+evento-gui/.sass-cache/
+evento-gui/www/
+evento-gui/platforms/
+evento-gui/plugins/
+evento-gui/coverage/
+evento-gui/dist/
+
+# ── Credentials and secrets ───────────────────────────────────────────────────
+# Version is defined in build.gradle — gradle.properties only carries credentials.
+gradle.properties
+*.gpg
+signing-key.gpg
+
+# ── OS and tooling artifacts ──────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+*.hprof
+
+# ── Python tooling ────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.venv
+
+# ── Docs, scripts, and local tooling ─────────────────────────────────────────
+docs/
+script/
+publish.py
+build.bat

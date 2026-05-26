@@ -1,50 +1,45 @@
 # Evento Framework — Claude operating notes
 
-Project-level notes that Claude sessions should read first. The two
+Project-level notes that Claude sessions should read first. Three
 load-bearing docs live in [`.claude/`](.claude/):
 
-- [`.claude/PLAN.md`](.claude/PLAN.md) — the approved v2.0 rewrite
-  plan, 3 PRs (transport / server / bundle). Authoritative for design
-  decisions.
-- [`.claude/STATUS.md`](.claude/STATUS.md) — current snapshot: what's
-  committed, what's left, where to pick up. **Update this at the end
-  of every session.**
+- [`.claude/ARCHITECTURE.md`](.claude/ARCHITECTURE.md) — **start here**: module map,
+  wire protocol, key classes, design decisions, test strategy, conventions. The
+  single authoritative reference for agents and developers.
+- [`.claude/STATUS.md`](.claude/STATUS.md) — session-level delta: what changed,
+  what's in flight, what's next. **Update this at the end of every session.**
+- [`.claude/PLAN.md`](.claude/PLAN.md) — original v2.0 rewrite plan (all 3 PRs shipped;
+  useful for historical rationale and design intent).
 
 ## Quick orientation
 
-- Active branch: `next` (v2.0 rewrite). `main` is the v1 production
-  line; do not push to `main` until v2.0 is RC-ready.
+- Active branch: **`main`** (`next` merged; `v2.0.0-rc1` tagged).
 - Toolchain: **JDK 25**, Gradle 9.0, Spring Boot 3.5.5. Use
   `/usr/libexec/java_home -v 25` on macOS.
-- Test command:
+- Full test command:
   ```
   JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew \
     :evento-transport-api:test \
     :evento-transport-netty:test \
-    :evento-server:test --tests 'com.evento.server.bus.*'
+    :evento-server:test --tests 'com.evento.server.bus.*' \
+    :evento-common:test \
+    :evento-bundle:test \
+    :evento-consumer-state-store:evento-consumer-state-store-jdbc:test \
+    :evento-lab:test \
+    :evento-lab-microservices:evento-lab-ms-it:test
   ```
-- Bus code lives under `com.evento.transport.*` (transport modules) and
-  `com.evento.server.bus.*` (inside `evento-server`).
-  The bus is gated behind `evento.server.bus.enabled=true`.
 
 ## Working agreements
 
-- Wire-format compat with v1 is intentionally broken (this is a major
-  release). The v2 wire is CBOR + sealed `Message` records, framed
-  with a 4-byte length prefix.
-- Server is payload-agnostic: it routes by `payloadType: String` and
-  carries the body as opaque `byte[]`. Bundles deserialize locally.
-- Sealed types + records + closed registries are the OCP idiom — add
-  a new wire message by extending `permits` + registering a tag in
-  `MessageTypeRegistry`. The compiler enforces exhaustive dispatch.
-- Commits follow Conventional Commits with rich bodies (the why, not
-  just the what). `git show <hash>` should be enough to recover
-  context.
-- Tests at the boundary, not the implementation. Disconnect / failure
-  paths get real-TCP IT in `BusLifecycleDisconnectIT`.
+- Wire format: CBOR + sealed `Message` records, 4-byte length-prefixed frames,
+  transparent chunking (no message size limit). Wire compat with v1 is intentionally broken.
+- Server is payload-agnostic: routes by `payloadType: String`, carries body as opaque `byte[]`.
+- Sealed types + records + closed registries are the OCP idiom — adding a wire
+  message = extend `permits` + register a byte tag in `MessageTypeRegistry`.
+- Commits follow Conventional Commits with rich bodies (the why, not the what).
+- Tests at the boundary: integration tests use real TCP transports, not mocks.
 
 ## When in doubt
 
-Read `STATUS.md` first, then `git log --oneline next ^main --reverse`
-to see what landed in order. `PLAN.md` documents the larger plan
-behind each commit.
+Read `ARCHITECTURE.md` first. Then `STATUS.md` for the current session delta.
+`git log --oneline -20` shows recent work; `git show <hash>` recovers full context.
