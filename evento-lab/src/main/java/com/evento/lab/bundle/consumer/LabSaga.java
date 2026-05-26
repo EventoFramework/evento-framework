@@ -7,6 +7,9 @@ import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.lab.api.event.OrderCancelledEvent;
 import com.evento.lab.api.event.OrderConfirmedEvent;
 import com.evento.lab.api.event.OrderCreatedEvent;
+import com.evento.lab.api.query.FindOrderRichByIdQuery;
+
+import java.util.concurrent.ExecutionException;
 
 @Saga(version = 1)
 public class LabSaga {
@@ -21,7 +24,11 @@ public class LabSaga {
     }
 
     @SagaEventHandler(associationProperty = "orderId")
-    LabSagaState on(OrderConfirmedEvent e, LabSagaState state) {
+    LabSagaState on(OrderConfirmedEvent e, LabSagaState state,
+                    QueryGateway qg) throws ExecutionException, InterruptedException {
+        // Query enrichment: fetch the rich view to log a full picture at confirmation time.
+        var rich = qg.query(new FindOrderRichByIdQuery(e.getOrderId())).get();
+        System.out.println("LabSaga confirmed — rich view: " + rich.getData());
         state.setStatus("CONFIRMED");
         return state;
     }
