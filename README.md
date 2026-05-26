@@ -3,10 +3,12 @@
 # [Evento Framework](https://www.eventoframework.com/)
 
 [![License](https://img.shields.io/badge/License-AGPL%203.0%20%2F%20Commercial-blue.svg)](LICENSE.txt)
+[![CI](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/EventoFramework/evento-framework/badge)](https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework)
 [![](https://img.shields.io/github/v/release/EventoFramework/evento-framework)](https://github.com/EventoFramework/evento-framework/releases)
 [![](https://img.shields.io/maven-central/v/com.eventoframework/evento-bundle?logo=gradle)](https://central.sonatype.com/artifact/com.eventoframework/evento-bundle)
-[![](https://img.shields.io/docker/v/eventoframework/evento-server?logo=docker&label=image)
-](https://hub.docker.com/r/eventoframework/evento-server)
+[![](https://img.shields.io/docker/v/eventoframework/evento-server?logo=docker&label=image)](https://hub.docker.com/r/eventoframework/evento-server)
 
 
 ## What is Evento Framework?
@@ -77,6 +79,14 @@ The documentation of Evento Framework includes:
 - [Evento Server](https://docs.eventoframework.com/evento-server/evento-server-introduction)
 - [Evento GUI](https://docs.eventoframework.com/evento-gui/explore-recq-systems-visually)
 - [Evento CLI](https://docs.eventoframework.com/evento-cli/evento-cli-introduction)
+
+## Enterprise Repository Resources
+
+- [Contributing guide](CONTRIBUTING.md) — environment setup, tests, branching, commits, and PR process.
+- [Security policy](SECURITY.md) — supported versions and responsible disclosure process.
+- [Support guide](SUPPORT.md) — where to ask questions, report bugs, and request commercial support.
+- [Governance](GOVERNANCE.md) and [maintainers](MAINTAINERS.md) — project roles, decisions, releases, and ownership.
+- [Agent notes](CLAUDE.md) — repository orientation for developer agents and maintainers.
 
 ## Community & Author
 

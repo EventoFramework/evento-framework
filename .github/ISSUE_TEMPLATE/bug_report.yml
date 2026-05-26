@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem in Evento Framework
+title: "fix: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Evento Framework. Please include enough detail to reproduce the issue.
+        Before filing, check the [documentation](https://docs.eventoframework.com/) and [existing issues](https://github.com/EventoFramework/evento-framework/issues).
+  - type: input
+    id: version
+    attributes:
+      label: Evento version or commit
+      description: Provide the released version, tag, or commit SHA.
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Affected module
+      options:
+        - evento-transport-api
+        - evento-transport-netty
+        - evento-server
+        - evento-bundle
+        - evento-common
+        - evento-consumer-state-store
+        - evento-cli
+        - evento-gui
+        - evento-lab
+        - documentation
+        - unknown
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal reproducer, failing test, or command sequence when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Java version, OS, Gradle version, Docker/Testcontainers versions if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and stack traces
+      render: text
