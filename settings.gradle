@@ -18,13 +18,6 @@ include 'evento-transport-netty'
 include 'evento-consumer-state-store:evento-consumer-state-store-jdbc'
 
 
-include 'evento-demo:evento-demo-command'
-include 'evento-demo:evento-demo-query'
-include 'evento-demo:evento-demo-saga'
-include 'evento-demo:evento-demo-api'
-include 'evento-demo:evento-demo-web-domain'
-include 'evento-demo:evento-demo-agent'
-include 'evento-demo:evento-demo-observer'
 include 'evento-lab'
 include 'evento-lab-microservices:evento-lab-ms-api'
 include 'evento-lab-microservices:evento-lab-ms-command'
