@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+          cache: gradle
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+
+      - name: Run core tests
+        run: |
+          ./gradlew --no-daemon \
+            :evento-transport-api:test \
+            :evento-transport-netty:test \
+            :evento-server:test --tests 'com.evento.server.bus.*' \
+            :evento-common:test \
+            :evento-bundle:test \
+            :evento-lab:test \
+            :evento-lab-microservices:evento-lab-ms-it:test
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7

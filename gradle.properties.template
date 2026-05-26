@@ -1,0 +1,13 @@
+# Copy this file to `gradle.properties` for local publishing/signing.
+# Never commit real credentials, tokens, passwords, or private signing keys.
+
+# Maven Central / publishing credentials
+mavenCentralUsername=
+mavenCentralPassword=
+
+# In-memory signing configuration for Gradle signing plugin
+signingKey=
+signingPassword=
+
+# Optional project metadata overrides
+org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8

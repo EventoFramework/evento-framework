@@ -1,9 +1,9 @@
-FROM gradle:8.6-jdk21 AS build
-COPY --chown=gradle:gradle . /evento
+FROM eclipse-temurin:25-jdk-noble AS build
 WORKDIR /evento
-RUN gradle :evento-server:bootJar --no-daemon
+COPY . .
+RUN chmod +x gradlew && ./gradlew :evento-server:bootJar --no-daemon
 
-FROM ibm-semeru-runtimes:open-21-jdk
+FROM eclipse-temurin:25-jre-noble
 
 EXPOSE 3000
 EXPOSE 3030

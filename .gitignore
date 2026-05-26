@@ -101,4 +101,21 @@ maven
 
 gradle.properties
 *.gpg
+signing-key.gpg
 .DS_Store
+
+# AI coding assistant local state
+# (.claude/ is intentionally tracked — contains architecture docs)
+.junie/
+.cursor/
+.copilot/
+.aider/
+.windsurf/
+.cody/
+
+# Python
+__pycache__/
+*.pyc
+
+# Node (root-level safety net; module-level node_modules are covered per-directory)
+node_modules/

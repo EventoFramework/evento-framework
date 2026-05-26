@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose an improvement or new capability
+title: "feat: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to propose a new feature for Evento Framework.
+        Check [docs.eventoframework.com](https://docs.eventoframework.com/) and [open issues](https://github.com/EventoFramework/evento-framework/issues) first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user or developer problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior, API, or documentation change you want.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      description: Note API, wire-protocol, persistence, migration, or operational impact.
+  - type: textarea
+    id: tests
+    attributes:
+      label: Validation ideas
+      description: Suggest unit, integration, or manual tests that would prove the feature works.
