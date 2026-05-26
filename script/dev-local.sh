@@ -30,7 +30,7 @@ echo "==> [3/3] Publishing libraries to Maven Local..."
   :evento-transport-api:publishToMavenLocal \
   :evento-transport-netty:publishToMavenLocal \
   :evento-bundle:publishToMavenLocal \
-  ':evento-consumer-state-store:evento-consumer-state-store-jdbc-v2:publishToMavenLocal' \
+  ':evento-consumer-state-store:evento-consumer-state-store-jdbc:publishToMavenLocal' \
   -x test
 
 echo ""
