@@ -44,9 +44,9 @@ All work is on **`next`**, branched off `main`. Do not push to `main`;
 | 13 | `ef6ede8e` | `feat(bundle-v2)`: PR3.2a — bundle-side admin request handler. Moved `AdminPayloadCodec` from server to `com.evento.common.admin` so bundles can decode the same wire. New `BundleAdminRequestHandler` in `evento-bundle/.../client/v2/admin/` — implements `HandlerRegistry.RequestHandler`, decodes the inner `EventoRequest`, dispatches one of the four `ConsumerXyzRequestMessage` operations via a `ConsumerLookup` SPI, encodes the `EventoResponse`. Closes the round-trip the dashboard / discovery / consumer endpoints rely on: `ConsumerService.getConsumerStatusFromNodes`, `setRetryForConsumerEvent`, `consumeDeadQueue`, `deleteDeadEventFromEventConsumer` now work end-to-end on the v2 wire. **+5 tests** in new `BundleAdminRoundTripIT`. |
 | 12 | `4dacefd1` | `feat(server-bus)`: PR3.1 + autoscale rip-out. Two changes that land together because the autoscale rip-out reduced the surface PR3.1 was migrating. **PR3.1:** BusFacade SPI; v1 `MessageBusFacade` adapter + v2 `BusLifecycleFacade` adapter. Migrated `DashboardController`, `ClusterStatusController`, `AutoDiscoveryService`, `ConsumerService`, `ConsumerController` to depend on `BusFacade`. Enriched `BundleRegistrationInfo` with rich `RegisteredHandler` list + `payloadInfo` so auto-discovery still works on v2. New `BusEvent.BundleRegistered` event fired by `BusLifecycle.onNotification`. New `BusLifecycle.forward(NodeAddress, payloadType, byte[], Duration)` server-initiated RPC primitive. New `evento:server-admin-request` payloadType + `AdminPayloadCodec` (Jackson-CBOR with polymorphic typing, mirrors v1 `ObjectMapperUtils`) so v1's `EventoRequest` round-trips through the v2 wire. **Autoscale rip-out:** deleted `AutoscalingProtocol`, `ThreadCountAutoscalingProtocol`, `ClusterNodeIsBoredMessage`, `ClusterNodeIsSufferingMessage`, `ClusterNodeKillMessage`, `BundleDeployService`. Dropped `Bundle.{min,max}Instances` columns from schema + DTO + parser. Removed `sendKill` from `BusFacade`/`BusLifecycle` (+ `NOTIFY_KILL` from `ProtocolNotifications`), `/spawn` + `/kill` REST endpoints, and the `TracingAgent.arrival/departure` calls + `AutoscalingProtocol` field. The cluster orchestrator (k8s/whatever) now owns spawn/kill — the framework only emits performance metrics. **+9 tests:** 5 in `BusLifecycleIT` (BundleRegistered emission, forward primitive, waitUntilAvailable) + 4 in new `BusLifecycleFacadeNettyIT`. |
 
-**Test totals on JDK 25:** ~230 (transport-api 41+, transport-netty 8,
-server **76+** — includes 80 MB large-payload round-trip IT + 2 new reconnect ITs, consumer unit 52, bundle engines 7, **evento-lab 16** — 6 in-memory + 6 connectivity + **4 command RTT**,
-**evento-lab-ms-it 22** — 3 consumer lifecycle + 2 saga/payment + 2 reconnect + 2 order lifecycle + 2 payment saga + 3 notification + 2 multi-context + 3 RTT/stress + **3 ms command RTT**).
+**Test totals on JDK 25:** ~245 (transport-api 41+, transport-netty 8,
+server **76+** — includes 80 MB large-payload round-trip IT + 2 new reconnect ITs, consumer unit 52, bundle engines 7, **evento-lab 31** — 6 in-memory + 6 connectivity + 4 command RTT + **9 FailureMatrix + 2 ProjectorRetry + 2 Stress + 2 ConsumerInterceptor**,
+**evento-lab-ms-it 22** — 3 consumer lifecycle + 2 saga/payment + 2 reconnect + 2 order lifecycle + 2 payment saga + 3 notification + 2 multi-context + 3 RTT/stress + 3 ms command RTT).
 Postgres + MySQL JDBC IT (evento-consumer-state-store-jdbc + evento-lab) add 50+ more when Docker is healthy
 (`EVENTO_RUN_JDBC_IT=true`). Run with:
 
@@ -561,7 +561,8 @@ RC1 tagged. Remaining work before `v2.0.0`:
 9. ✅ Staging instability: DEGRADED channel no longer drops in-flight responses; TCP disconnect + reconnect now delivers buffered responses (Fixes C + D, committed `0efba0f6`).
 10. ✅ Committed Fixes C + D (`0efba0f6`).
 11. ✅ Removed all `.v2.` package segments — packages, class names, Spring properties, Gradle module name all cleaned up (`3fb33369`).
-12. Deploy `next` to staging with `evento-demo` + traffic generator.
+12. ✅ Added FailureMatrixIT (9), ProjectorRetryIT (2), StressIT (2), ConsumerInterceptorIT (2) — 15 new evento-lab ITs (`9dd97282`). `TestEventStoreBundleClient.publishWithMetadata()` added for metadata-flag injection. `dev-local.sh` module name corrected.
+13. Deploy `next` to staging with real traffic generator.
 13. Soak 1–2 weeks with early adopters.
 14. Merge `next` → `main`, tag `v2.0.0`, push to Maven Central.
 
