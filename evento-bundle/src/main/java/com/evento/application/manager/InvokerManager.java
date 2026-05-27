@@ -13,7 +13,9 @@ import org.reflections.Reflections;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The InvokerManager class is responsible for parsing the classes and methods annotated with specific annotations
@@ -24,6 +26,7 @@ public class InvokerManager {
     private static final Logger logger = LogManager.getLogger(InvokerManager.class);
 
     private final List<RegisteredHandler> handlers = new ArrayList<>();
+    private final Map<RegisteredHandler, Method> handlerMethods = new IdentityHashMap<>();
 
     /**
      * Parses the given Reflections object to find class methods annotated with @Invoker and @InvocationHandler.
@@ -36,7 +39,7 @@ public class InvokerManager {
             for (Method declaredMethod : aClass.getDeclaredMethods()) {
                 if (declaredMethod.getAnnotation(InvocationHandler.class) != null) {
                     var payload = aClass.getSimpleName() + "::" + declaredMethod.getName();
-                    handlers.add(new RegisteredHandler(
+                    var handler = new RegisteredHandler(
                             ComponentType.Invoker,
                             aClass.getSimpleName(),
                             HandlerType.InvocationHandler,
@@ -45,10 +48,11 @@ public class InvokerManager {
                             null,
                             false,
                             null
-                    ));
+                    );
+                    handlers.add(handler);
+                    handlerMethods.put(handler, declaredMethod);
 
                     logger.info("Invoker invocation handler for %s found in %s".formatted(payload, aClass.getName()));
-
                 }
             }
         }

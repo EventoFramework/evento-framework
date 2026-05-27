@@ -337,9 +337,10 @@ class BusLifecycleIT {
 
         // Step 2: rich discovery notification (sent after routing is live)
         var discovery = new BundleDiscoveryInfo(
-                100L,
+                100L, "", "", "", "L",
                 List.of(),
-                Map.of("com.Foo", new String[]{"{\"type\":\"object\"}", "demo-domain"}));
+                Map.of("com.Foo", new com.evento.transport.protocol.PayloadDiscoveryInfo(
+                        "{\"type\":\"object\"}", "demo-domain", "", "", "", 0)));
         bundle.clientSide.send(new Notification(UUID.randomUUID(),
                 BundleDiscoveryInfo.PAYLOAD_TYPE,
                 payloadCodec.encode(discovery), System.currentTimeMillis()));
@@ -350,7 +351,7 @@ class BusLifecycleIT {
                 .filter(e -> e instanceof BusEvent.BundleDiscovered).findFirst().orElseThrow();
         assertThat(discovered.node().instanceId()).isEqualTo("inst-A1");
         assertThat(discovered.discovery().payloadInfo()).containsKey("com.Foo");
-        assertThat(discovered.discovery().payloadInfo().get("com.Foo")[1]).isEqualTo("demo-domain");
+        assertThat(discovered.discovery().payloadInfo().get("com.Foo").domain()).isEqualTo("demo-domain");
     }
 
     @Test

@@ -49,6 +49,9 @@ public class Bundle {
 
 	private String linePrefix;
 
+	/** Base URL for the repository browser, used to build source links: {@code {repositoryUrl}/{path}#{linePrefix}{line}}. */
+	@Column(columnDefinition = "TEXT")
+	private String repositoryUrl;
 
 	@Enumerated(EnumType.STRING)
 	private BucketType bucketType;

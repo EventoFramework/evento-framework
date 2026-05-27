@@ -17,11 +17,20 @@ import java.util.Map;
  * {@link BundleRegistrationInfo#handlerPayloadTypes()} on the hot path;
  * this record is only needed by {@code AutoDiscoveryService} and
  * {@code CommandBrokerHandler}, which consume it off the event-bus thread.
+ *
+ * <p>Source-link URL formula (assembled by the server dashboard):
+ * <pre>{@code {repositoryUrl}/{component.path}#{linePrefix}{line} }</pre>
+ * Example (Bitbucket): {@code .../OrderAggregate.java#lines-42}
+ * Example (GitHub):    {@code .../OrderAggregate.java#L42}
  */
 public record BundleDiscoveryInfo(
         long bundleVersion,
+        String description,
+        String detail,
+        String repositoryUrl,
+        String linePrefix,
         List<RegisteredHandler> handlers,
-        Map<String, String[]> payloadInfo
+        Map<String, PayloadDiscoveryInfo> payloadInfo
 ) {
 
     /** The {@link com.evento.transport.message.Notification#payloadType()} that carries this record. */
@@ -30,11 +39,19 @@ public record BundleDiscoveryInfo(
     @JsonCreator
     public BundleDiscoveryInfo(
             @JsonProperty("bundleVersion") long bundleVersion,
-            @JsonProperty("handlers") List<RegisteredHandler> handlers,
-            @JsonProperty("payloadInfo") Map<String, String[]> payloadInfo
+            @JsonProperty("description")   String description,
+            @JsonProperty("detail")        String detail,
+            @JsonProperty("repositoryUrl") String repositoryUrl,
+            @JsonProperty("linePrefix")    String linePrefix,
+            @JsonProperty("handlers")      List<RegisteredHandler> handlers,
+            @JsonProperty("payloadInfo")   Map<String, PayloadDiscoveryInfo> payloadInfo
     ) {
         this.bundleVersion = bundleVersion;
-        this.handlers = handlers == null ? List.of() : List.copyOf(handlers);
-        this.payloadInfo = payloadInfo == null ? Map.of() : Map.copyOf(payloadInfo);
+        this.description   = description   == null ? "" : description;
+        this.detail        = detail        == null ? "" : detail;
+        this.repositoryUrl = repositoryUrl == null ? "" : repositoryUrl;
+        this.linePrefix    = linePrefix    == null ? "L" : linePrefix;
+        this.handlers      = handlers  == null ? List.of() : List.copyOf(handlers);
+        this.payloadInfo   = payloadInfo == null ? Map.of() : Map.copyOf(payloadInfo);
     }
 }

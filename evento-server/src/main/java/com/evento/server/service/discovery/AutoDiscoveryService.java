@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -34,18 +35,6 @@ public class AutoDiscoveryService {
 
     private final PgDistributedLock pgDistributedLock;
 
-    /**
-     * Constructs an instance of the AutoDiscoveryService responsible for managing the
-     * discovery of bundles, components, handlers, and payloads in a distributed environment.
-     *
-     * @param messageBus The message bus used for inter-service communication and event handling.
-     * @param bundleRepository Repository for managing bundle entities.
-     * @param handlerService Service for managing handler entities.
-     * @param payloadRepository Repository for managing payload entities.
-     * @param bundleService Service responsible for bundle-related operations.
-     * @param componentRepository Repository for managing component entities.
-     * @param dataSource The data source used for distributed locking and database interactions.
-     */
     public AutoDiscoveryService(BusFacade busFacade,
                                 BundleRepository bundleRepository,
                                 HandlerService handlerService,
@@ -66,11 +55,6 @@ public class AutoDiscoveryService {
         this.pgDistributedLock = new PgDistributedLock(dataSource);
     }
 
-    /**
-     * Handles the event when a node has registered its handlers (v1
-     * {@code addJoinListener}'s analogue, now fired by the
-     * {@code BusEvent.BundleRegistered} stream).
-     */
     private void onNodeJoin(NodeAddress node, BundleDiscoveryInfo registration) {
         try {
             var key = "DISCOVERY:" + node.bundleId();
@@ -85,6 +69,7 @@ public class AutoDiscoveryService {
                                         null,
                                         null,
                                         "L",
+                                        null,
                                         BucketType.Ephemeral,
                                         node.instanceId(),
                                         null,
@@ -96,6 +81,31 @@ public class AutoDiscoveryService {
                                         Instant.now()));
                             }
                     );
+
+                    // Apply bundle-level metadata from discovery
+                    boolean bundleChanged = false;
+                    if (!registration.description().isEmpty() &&
+                            (bundle.getDescription() == null || bundle.getDescription().isEmpty())) {
+                        bundle.setDescription(registration.description());
+                        bundleChanged = true;
+                    }
+                    if (!registration.detail().isEmpty() &&
+                            (bundle.getDetail() == null || bundle.getDetail().isEmpty())) {
+                        bundle.setDetail(registration.detail());
+                        bundleChanged = true;
+                    }
+                    if (!registration.repositoryUrl().isEmpty() &&
+                            (bundle.getRepositoryUrl() == null || bundle.getRepositoryUrl().isEmpty())) {
+                        bundle.setRepositoryUrl(registration.repositoryUrl());
+                        bundleChanged = true;
+                    }
+                    if (!registration.linePrefix().isEmpty() &&
+                            (bundle.getLinePrefix() == null || bundle.getLinePrefix().isEmpty())) {
+                        bundle.setLinePrefix(registration.linePrefix());
+                        bundleChanged = true;
+                    }
+                    if (bundleChanged) bundleRepository.save(bundle);
+
                     var handlers = handlerService.findAllByBundleId(bundle.getId());
                     for (RegisteredHandler registeredHandler : registration.handlers()) {
                         if (!handlerService.exists(
@@ -113,9 +123,13 @@ public class AutoDiscoveryService {
                                 c.setBundle(bundle);
                                 c.setComponentName(registeredHandler.getComponentName());
                                 c.setComponentType(registeredHandler.getComponentType());
+                                c.setDescription(registeredHandler.getComponentDescription());
+                                c.setDetail(registeredHandler.getComponentDetail());
+                                c.setPath(registeredHandler.getComponentPath());
+                                c.setLine(registeredHandler.getComponentLine() > 0
+                                        ? registeredHandler.getComponentLine() : null);
                                 c.setUpdatedAt(Instant.now());
                                 return componentRepository.save(c);
-
                             }));
                             handler.setHandledPayload(payloadRepository.findById(registeredHandler.getHandledPayload())
                                     .map(p -> {
@@ -144,7 +158,8 @@ public class AutoDiscoveryService {
                                 case Projection -> PayloadType.View;
                                 default -> null;
                             };
-                            handler.setReturnType(registeredHandler.getReturnType() == null ? null : payloadRepository.findById(registeredHandler.getReturnType())
+                            handler.setReturnType(registeredHandler.getReturnType() == null ? null :
+                                    payloadRepository.findById(registeredHandler.getReturnType())
                                     .map(p -> {
                                         if (p.getType() != type) {
                                             p.setType(type);
@@ -168,24 +183,59 @@ public class AutoDiscoveryService {
                             handler.setHandlerType(registeredHandler.getHandlerType());
                             handler.setReturnIsMultiple(registeredHandler.isReturnIsMultiple());
                             handler.setAssociationProperty(registeredHandler.getAssociationProperty());
+                            handler.setLine(registeredHandler.getHandlerLine() > 0
+                                    ? registeredHandler.getHandlerLine() : null);
+                            handler.setInvocations(buildInvocations(registeredHandler, bundle.getId()));
                             handler.generateId();
                             handlerService.save(handler);
                         } else {
-                            handlers.removeIf(h ->
-                                    Objects.equals(h.getComponent().getBundle().getId(), node.bundleId())
+                            handlers.stream()
+                                    .filter(h ->
+                                            Objects.equals(h.getComponent().getBundle().getId(), node.bundleId())
                                             && h.getComponent().getComponentName().equals(registeredHandler.getComponentName())
                                             && h.getComponent().getComponentType().equals(registeredHandler.getComponentType())
                                             && h.getHandledPayload().getName().equals(registeredHandler.getHandledPayload())
                                             && h.getHandlerType().equals(registeredHandler.getHandlerType())
-                            );
+                                    )
+                                    .findFirst()
+                                    .ifPresent(existing -> {
+                                        handlers.remove(existing);
+                                        boolean changed = false;
+                                        if (existing.getInvocations() == null || existing.getInvocations().isEmpty()) {
+                                            existing.setInvocations(buildInvocations(registeredHandler, bundle.getId()));
+                                            changed = true;
+                                        }
+                                        if (existing.getLine() == null && registeredHandler.getHandlerLine() > 0) {
+                                            existing.setLine(registeredHandler.getHandlerLine());
+                                            changed = true;
+                                        }
+                                        if (changed) handlerService.save(existing);
+                                        // Backfill component path/line if missing
+                                        var comp = existing.getComponent();
+                                        boolean compChanged = false;
+                                        if ((comp.getPath() == null || comp.getPath().isEmpty())
+                                                && !registeredHandler.getComponentPath().isEmpty()) {
+                                            comp.setPath(registeredHandler.getComponentPath());
+                                            compChanged = true;
+                                        }
+                                        if (comp.getLine() == null && registeredHandler.getComponentLine() > 0) {
+                                            comp.setLine(registeredHandler.getComponentLine());
+                                            compChanged = true;
+                                        }
+                                        if (compChanged) componentRepository.save(comp);
+                                    });
                         }
                     }
                     handlerService.deleteAll(handlers);
                 }
                 if (registration.payloadInfo() != null)
                     registration.payloadInfo().forEach((k, v) -> payloadRepository.findById(k).ifPresent(p -> {
-                        p.setJsonSchema(v[0]);
-                        p.setDomain(v[1]);
+                        if (v.schema() != null) p.setJsonSchema(v.schema());
+                        if (v.domain() != null) p.setDomain(v.domain());
+                        if (v.description() != null && !v.description().isEmpty()) p.setDescription(v.description());
+                        if (v.detail() != null && !v.detail().isEmpty()) p.setDetail(v.detail());
+                        if (v.path() != null && !v.path().isEmpty()) p.setPath(v.path());
+                        if (v.line() > 0) p.setLine(v.line());
                         p.setValidJsonSchema(true);
                         p.setUpdatedAt(Instant.now());
                         payloadRepository.save(p);
@@ -197,6 +247,28 @@ public class AutoDiscoveryService {
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         }
+    }
+
+    private Map<Integer, Payload> buildInvocations(RegisteredHandler rh, String bundleId) {
+        var invocations = new HashMap<Integer, Payload>();
+        rh.getInvokedCommands().forEach((line, name) ->
+                invocations.put(line, resolveOrCreatePayload(name, PayloadType.Command, bundleId)));
+        rh.getInvokedQueries().forEach((line, name) ->
+                invocations.put(line, resolveOrCreatePayload(name, PayloadType.Query, bundleId)));
+        return invocations;
+    }
+
+    private Payload resolveOrCreatePayload(String name, PayloadType type, String bundleId) {
+        return payloadRepository.findById(name).orElseGet(() -> {
+            var payload = new Payload();
+            payload.setName(name);
+            payload.setJsonSchema("null");
+            payload.setType(type);
+            payload.setUpdatedAt(Instant.now());
+            payload.setRegisteredIn(bundleId);
+            payload.setValidJsonSchema(false);
+            return payloadRepository.save(payload);
+        });
     }
 
     /**
