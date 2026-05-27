@@ -5,220 +5,164 @@ import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.modeling.bundle.types.PayloadType;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
- * The RegisteredHandler class represents a handler that is registered in the system.
- * It contains information about the component type, component name, handler type, payload type, return type, and association property of the handler.
+ * Wire-protocol DTO describing one handler registered by a bundle.
+ *
+ * <p>Carries both routing data (component/handler/payload types) and rich
+ * discovery metadata (source path, line numbers, description) so the server
+ * can build the full application graph and dashboard view without the
+ * {@code evento-cli} static-analysis step.
  *
  * @see <a href="https://docs.eventoframework.com/recq-patterns/recq-component-pattern">RECQ Component Pattern</a>
  */
 public class RegisteredHandler implements Serializable {
 
-	private ComponentType componentType;
-	private String componentName;
+    // ── routing fields ─────────────────────────────────────────────────────────
 
-	private HandlerType handlerType;
+    private ComponentType componentType;
+    private String componentName;
 
-	private PayloadType handledPayloadType;
-	private String handledPayload;
+    private HandlerType handlerType;
 
-	private String returnType;
-	private boolean returnIsMultiple;
-	private String associationProperty;
+    private PayloadType handledPayloadType;
+    private String handledPayload;
 
-	/**
-	 *
-	 * Creates a new instance of the RegisteredHandler class.
-	 *
-	 * @param componentType The type of the component.
-	 * @param componentName The name of the component.
-	 * @param handlerType The type of the handler.
-	 * @param handledPayloadType The type of the payload that the handler can handle.
-	 * @param handledPayload The payload that the handler can handle.
-	 * @param returnType The return type of the handler.
-	 * @param returnIsMultiple Indicates if the handler can return multiple results.
-	 * @param associationProperty The association property of the handler.
-	 */
-	public RegisteredHandler(ComponentType componentType, String componentName, HandlerType handlerType, PayloadType handledPayloadType, String handledPayload, String returnType, boolean returnIsMultiple, String associationProperty) {
-		this.componentType = componentType;
-		this.componentName = componentName;
-		this.handlerType = handlerType;
-		this.handledPayload = handledPayload;
-		this.returnType = returnType;
-		this.returnIsMultiple = returnIsMultiple;
-		this.associationProperty = associationProperty;
-		this.handledPayloadType = handledPayloadType;
-	}
+    private String returnType;
+    private boolean returnIsMultiple;
+    private String associationProperty;
 
-	/**
-	 * The RegisteredHandler class represents a handler that is registered in the system.
-	 * It encapsulates the information related to the handler, such as the component type, handler type, payload type, and other properties.
-	 *
-	 * @see ComponentType
-	 * @see HandlerType
-	 */
-	public RegisteredHandler() {
-	}
+    // ── component source metadata ───────────────────────────────────────────────
 
+    /** Short description from {@code @EventoDescription.value()}, or class simple name. */
+    private String componentDescription = "";
+    /** Markdown long-form from {@code @EventoDescription.detail()}, or "". */
+    private String componentDetail = "";
+    /**
+     * Relative source path of the component class file,
+     * e.g. {@code com/example/order/OrderAggregate.java}.
+     */
+    private String componentPath = "";
+    /** Approximate line of the class declaration (from {@code <init>} LineNumberTable). */
+    private int componentLine = 0;
 
-	/**
-	 * Returns the {@link ComponentType} of the component.
-	 *
-	 * @return the {@link ComponentType} of the component.
-	 */
-	public ComponentType getComponentType() {
-		return componentType;
-	}
+    // ── handler source metadata ─────────────────────────────────────────────────
 
-	/**
-	 * Sets the component type of the RegisteredHandler.
-	 *
-	 * @param componentType The {@link ComponentType} to set for the RegisteredHandler.
-	 */
-	public void setComponentType(ComponentType componentType) {
-		this.componentType = componentType;
-	}
+    /** Line of the handler method declaration inside its source file. */
+    private int handlerLine = 0;
 
-	/**
-	 * Returns the name of the component.
-	 *
-	 * @return the name of the component
-	 */
-	public String getComponentName() {
-		return componentName;
-	}
+    // ── invocation edges ────────────────────────────────────────────────────────
 
-	/**
-	 * Sets the name of the component.
-	 *
-	 * @param componentName The name of the component to set.
-	 */
-	public void setComponentName(String componentName) {
-		this.componentName = componentName;
-	}
+    /**
+     * Gateway invocations detected by ASM analysis: source line → Command simple name.
+     * Keys are the source line at the call site; values are payload simple class names.
+     */
+    private Map<Integer, String> invokedCommands = Map.of();
 
-	/**
-	 * Returns the type of the handler.
-	 *
-	 * @return the type of the handler.
-	 */
-	public HandlerType getHandlerType() {
-		return handlerType;
-	}
+    /**
+     * Gateway invocations detected by ASM analysis: source line → Query simple name.
+     * Keys are the source line at the call site; values are payload simple class names.
+     */
+    private Map<Integer, String> invokedQueries = Map.of();
 
-	/**
-	 * Sets the handler type for the RegisteredHandler.
-	 *
-	 * @param handlerType The handler type to set for the RegisteredHandler.
-	 * @see HandlerType
-	 */
-	public void setHandlerType(HandlerType handlerType) {
-		this.handlerType = handlerType;
-	}
+    // ── constructors ────────────────────────────────────────────────────────────
 
-	/**
-	 * Returns the {@link PayloadType} of the payload that the handler can handle.
-	 *
-	 * @return the {@link PayloadType} of the payload that the handler can handle.
-	 */
-	public PayloadType getHandledPayloadType() {
-		return handledPayloadType;
-	}
+    public RegisteredHandler(ComponentType componentType, String componentName,
+                             HandlerType handlerType, PayloadType handledPayloadType,
+                             String handledPayload, String returnType,
+                             boolean returnIsMultiple, String associationProperty) {
+        this.componentType      = componentType;
+        this.componentName      = componentName;
+        this.handlerType        = handlerType;
+        this.handledPayload     = handledPayload;
+        this.returnType         = returnType;
+        this.returnIsMultiple   = returnIsMultiple;
+        this.associationProperty = associationProperty;
+        this.handledPayloadType = handledPayloadType;
+    }
 
-	/**
-	 * Sets the {@link PayloadType} of the payload that the handler can handle.
-	 *
-	 * @param handledPayloadType The {@link PayloadType} to set for the handler.
-	 */
-	public void setHandledPayloadType(PayloadType handledPayloadType) {
-		this.handledPayloadType = handledPayloadType;
-	}
+    public RegisteredHandler() {}
 
-	/**
-	 * Retrieves the payload that the handler can handle.
-	 *
-	 * @return The handled payload.
-	 */
-	public String getHandledPayload() {
-		return handledPayload;
-	}
+    // ── routing getters/setters ─────────────────────────────────────────────────
 
-	/**
-	 * Sets the handled payload for the RegisteredHandler.
-	 *
-	 * @param handledPayload The payload that the handler can handle.
-	 *                       This is the payload type that the handler is capable of processing.
-	 *                       It should be a string representation of the payload.
-	 */
-	public void setHandledPayload(String handledPayload) {
-		this.handledPayload = handledPayload;
-	}
+    public ComponentType getComponentType() { return componentType; }
+    public void setComponentType(ComponentType componentType) { this.componentType = componentType; }
 
-	/**
-	 * Retrieves the return type of the handler.
-	 *
-	 * @return the return type of the handler.
-	 */
-	public String getReturnType() {
-		return returnType;
-	}
+    public String getComponentName() { return componentName; }
+    public void setComponentName(String componentName) { this.componentName = componentName; }
 
-	/**
-	 * Sets the return type of the handler.
-	 *
-	 * @param returnType The return type to set for the handler.
-	 */
-	public void setReturnType(String returnType) {
-		this.returnType = returnType;
-	}
+    public HandlerType getHandlerType() { return handlerType; }
+    public void setHandlerType(HandlerType handlerType) { this.handlerType = handlerType; }
 
-	/**
-	 * Returns the value of the returnIsMultiple field.
-	 *
-	 * @return the value of the returnIsMultiple field
-	 */
-	public boolean isReturnIsMultiple() {
-		return returnIsMultiple;
-	}
+    public PayloadType getHandledPayloadType() { return handledPayloadType; }
+    public void setHandledPayloadType(PayloadType handledPayloadType) { this.handledPayloadType = handledPayloadType; }
 
-	/**
-	 * Sets the value of the returnIsMultiple field.
-	 *
-	 * @param returnIsMultiple Indicates if the handler can return multiple results.
-	 */
-	public void setReturnIsMultiple(boolean returnIsMultiple) {
-		this.returnIsMultiple = returnIsMultiple;
-	}
+    public String getHandledPayload() { return handledPayload; }
+    public void setHandledPayload(String handledPayload) { this.handledPayload = handledPayload; }
 
-	/**
-	 * Retrieves the association property of the RegisteredHandler.
-	 *
-	 * @return The association property of the RegisteredHandler.
-	 */
-	public String getAssociationProperty() {
-		return associationProperty;
-	}
+    public String getReturnType() { return returnType; }
+    public void setReturnType(String returnType) { this.returnType = returnType; }
 
-	/**
-	 * Sets the association property of the .
-	 *
-	 * @param associationProperty The association property to set for the .
-	 */
-	public void setAssociationProperty(String associationProperty) {
-		this.associationProperty = associationProperty;
-	}
+    public boolean isReturnIsMultiple() { return returnIsMultiple; }
+    public void setReturnIsMultiple(boolean returnIsMultiple) { this.returnIsMultiple = returnIsMultiple; }
 
-	@Override
-	public String toString() {
-		return "RegisteredHandler{" +
-				"componentType=" + componentType +
-				", componentName='" + componentName + '\'' +
-				", handlerType=" + handlerType +
-				", handledPayloadType=" + handledPayloadType +
-				", handledPayload='" + handledPayload + '\'' +
-				", returnType='" + returnType + '\'' +
-				", returnIsMultiple=" + returnIsMultiple +
-				", associationProperty='" + associationProperty + '\'' +
-				'}';
-	}
+    public String getAssociationProperty() { return associationProperty; }
+    public void setAssociationProperty(String associationProperty) { this.associationProperty = associationProperty; }
+
+    // ── component metadata getters/setters ──────────────────────────────────────
+
+    public String getComponentDescription() { return componentDescription; }
+    public void setComponentDescription(String componentDescription) {
+        this.componentDescription = componentDescription == null ? "" : componentDescription;
+    }
+
+    public String getComponentDetail() { return componentDetail; }
+    public void setComponentDetail(String componentDetail) {
+        this.componentDetail = componentDetail == null ? "" : componentDetail;
+    }
+
+    public String getComponentPath() { return componentPath; }
+    public void setComponentPath(String componentPath) {
+        this.componentPath = componentPath == null ? "" : componentPath;
+    }
+
+    public int getComponentLine() { return componentLine; }
+    public void setComponentLine(int componentLine) { this.componentLine = componentLine; }
+
+    // ── handler metadata getters/setters ────────────────────────────────────────
+
+    public int getHandlerLine() { return handlerLine; }
+    public void setHandlerLine(int handlerLine) { this.handlerLine = handlerLine; }
+
+    // ── invocation getters/setters ──────────────────────────────────────────────
+
+    public Map<Integer, String> getInvokedCommands() { return invokedCommands; }
+    public void setInvokedCommands(Map<Integer, String> invokedCommands) {
+        this.invokedCommands = invokedCommands == null ? Map.of() : invokedCommands;
+    }
+
+    public Map<Integer, String> getInvokedQueries() { return invokedQueries; }
+    public void setInvokedQueries(Map<Integer, String> invokedQueries) {
+        this.invokedQueries = invokedQueries == null ? Map.of() : invokedQueries;
+    }
+
+    @Override
+    public String toString() {
+        return "RegisteredHandler{" +
+                "componentType=" + componentType +
+                ", componentName='" + componentName + '\'' +
+                ", handlerType=" + handlerType +
+                ", handledPayloadType=" + handledPayloadType +
+                ", handledPayload='" + handledPayload + '\'' +
+                ", returnType='" + returnType + '\'' +
+                ", returnIsMultiple=" + returnIsMultiple +
+                ", associationProperty='" + associationProperty + '\'' +
+                ", componentPath='" + componentPath + '\'' +
+                ", componentLine=" + componentLine +
+                ", handlerLine=" + handlerLine +
+                ", invokedCommands=" + invokedCommands +
+                ", invokedQueries=" + invokedQueries +
+                '}';
+    }
 }

@@ -317,6 +317,18 @@ public class EventoBundle {
         private int sssFetchSize = 1000;
         private int sssFetchDelay = 1000;
 
+        /** Repository browser base URL for source links, e.g. {@code https://github.com/org/repo/blob/main/my-bundle}. */
+        private String repositoryUrl = "";
+        /**
+         * Line anchor prefix for the repository browser.
+         * Use {@code "L"} for GitHub/GitLab, {@code "lines-"} for Bitbucket.
+         */
+        private String linePrefix = "L";
+        /** Bundle short description (shown in dashboards). Falls back to bundleId if empty. */
+        private String description = "";
+        /** Bundle long-form markdown description. */
+        private String detail = "";
+
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
@@ -483,6 +495,10 @@ public class EventoBundle {
                     .host(clusterAddress.serverAddress())
                     .port(clusterAddress.serverPort())
                     .bundleVersion(String.valueOf(bundleVersion))
+                    .description(description.isEmpty() ? bundleId : description)
+                    .detail(detail)
+                    .repositoryUrl(repositoryUrl)
+                    .linePrefix(linePrefix)
                     .handlerPayloadTypes(handlerPayloadTypes)
                     .registeredHandlers(handlers)
                     .payloadInfo(payloadInfo)

@@ -179,7 +179,7 @@ class BusLifecycleFacadeNettyIT {
             return f;
         }
 
-        void registerRich(List<RegisteredHandler> handlers, Map<String, String[]> payloadInfo) {
+        void registerRich(List<RegisteredHandler> handlers, Map<String, com.evento.transport.protocol.PayloadDiscoveryInfo> payloadInfo) {
             var payloadTypes = handlers.stream().map(RegisteredHandler::getHandledPayload).toList();
             // Step 1: lean registration
             var info = new BundleRegistrationInfo(100L, payloadTypes);
@@ -190,7 +190,7 @@ class BusLifecycleFacadeNettyIT {
             client.send(new Notification(UUID.randomUUID(),
                     BusLifecycle.NOTIFY_ENABLE, new byte[0], System.currentTimeMillis())).join();
             // Step 3: rich discovery
-            var discovery = new BundleDiscoveryInfo(100L, handlers, payloadInfo);
+            var discovery = new BundleDiscoveryInfo(100L, "", "", "", "L", handlers, payloadInfo);
             client.send(new Notification(UUID.randomUUID(),
                     BundleDiscoveryInfo.PAYLOAD_TYPE,
                     payloadCodec.encode(discovery), System.currentTimeMillis())).join();
@@ -224,7 +224,8 @@ class BusLifecycleFacadeNettyIT {
                     PayloadType.Command, "com.DemoCommand",
                     "com.DemoEvent", false, "demoId");
             bundle.registerRich(List.of(handler),
-                    Map.of("com.DemoCommand", new String[]{"{\"type\":\"object\"}", "demo-domain"}));
+                    Map.of("com.DemoCommand", new com.evento.transport.protocol.PayloadDiscoveryInfo(
+                            "{\"type\":\"object\"}", "demo-domain", "", "", "", 0)));
 
             await().atMost(3, TimeUnit.SECONDS).until(() ->
                     seen.stream().anyMatch(e -> e instanceof BusEvent.BundleDiscovered));
