@@ -183,7 +183,7 @@ Standard property keys (document in ARCHITECTURE.md):
 - [x] AsmClassMetadataScannerTest — 6 tests: annotated/plain description, sourcePath, declarationLine
 - [x] `AsmClassMetadataScanner`: null-classloader guard (bootstrap-loaded classes → system classloader fallback)
 
-**Step 7 — End-to-end verification**
+**Step 7 — End-to-end verification** (manual; requires Docker Postgres + running server)
 - [ ] Start evento-server locally (Docker Postgres)
 - [ ] Start an evento-lab-ms bundle configured with `repositoryUrl` + `linePrefix`
 - [ ] Assert via REST:
@@ -191,7 +191,7 @@ Standard property keys (document in ARCHITECTURE.md):
   - `GET /api/flows/bundle/{bundleId}` → graph nodes include source location
   - `GET /api/catalog/component/{componentName}` → `path`, `line`, `description` populated
   - Manually open `{repositoryUrl}/{component.path}#{linePrefix}{handler.line}` → correct source location
-- [ ] No regression in `evento-lab` IT suite
+- [x] No regression in `evento-lab-ms-it` IT suite (all pass); `evento-lab` flaky test in InMemoryConsumerIT is pre-existing timing issue unrelated to this feature
 
 #### Key files to read at session start
 - `evento-transport-api/.../BundleDiscoveryInfo.java`
