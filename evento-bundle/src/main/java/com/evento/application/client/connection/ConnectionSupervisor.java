@@ -293,6 +293,10 @@ public final class ConnectionSupervisor implements AutoCloseable {
         // Step 3: rich discovery — may be large; sent after routing is live
         var discovery = new BundleDiscoveryInfo(
                 parseVersion(config.bundleVersion()),
+                config.description(),
+                config.detail(),
+                config.repositoryUrl(),
+                config.linePrefix(),
                 config.registeredHandlers(),
                 config.payloadInfo());
         transport.send(new Notification(UUID.randomUUID(),

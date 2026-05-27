@@ -21,11 +21,15 @@ public class EventoConfiguration {
             @Value("${evento.server.port}") int port,
             @Value("${evento.bundle.id}") String bundleId,
             @Value("${evento.bundle.version}") long version,
+            @Value("${evento.bundle.repository-url:}") String repositoryUrl,
+            @Value("${evento.bundle.line-prefix:L}") String linePrefix,
             BeanFactory factory) throws Exception {
         return EventoBundle.Builder.builder()
                 .setBasePackage(LabMsCommandApplication.class.getPackage())
                 .setBundleId(bundleId)
                 .setBundleVersion(version)
+                .setRepositoryUrl(repositoryUrl)
+                .setLinePrefix(linePrefix)
                 .setEventoServerMessageBusConfiguration(new EventoServerMessageBusConfiguration(
                         new ClusterNodeAddress(host, port)))
                 .setInjector(factory::getBean)

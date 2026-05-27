@@ -2,6 +2,7 @@ package com.evento.application.client;
 
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.transport.netty.NettyTransportConfig;
+import com.evento.transport.protocol.PayloadDiscoveryInfo;
 
 import java.time.Duration;
 import java.util.List;
@@ -33,9 +34,13 @@ public record BundleClientConfig(
         String instanceId,
         String bundleVersion,
         String authToken,
+        String description,
+        String detail,
+        String repositoryUrl,
+        String linePrefix,
         List<String> handlerPayloadTypes,
         List<RegisteredHandler> registeredHandlers,
-        Map<String, String[]> payloadInfo,
+        Map<String, PayloadDiscoveryInfo> payloadInfo,
         Set<String> capabilities,
         Duration handshakeTimeout,
         Duration registrationTimeout,
@@ -51,14 +56,18 @@ public record BundleClientConfig(
         Objects.requireNonNull(instanceId, "instanceId");
         Objects.requireNonNull(bundleVersion, "bundleVersion");
         Objects.requireNonNull(transportConfig, "transportConfig");
+        description         = description    == null ? "" : description;
+        detail              = detail         == null ? "" : detail;
+        repositoryUrl       = repositoryUrl  == null ? "" : repositoryUrl;
+        linePrefix          = linePrefix     == null ? "L" : linePrefix;
         handlerPayloadTypes = handlerPayloadTypes == null ? List.of() : List.copyOf(handlerPayloadTypes);
-        registeredHandlers = registeredHandlers == null ? List.of() : List.copyOf(registeredHandlers);
-        payloadInfo = payloadInfo == null ? Map.of() : Map.copyOf(payloadInfo);
-        capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);
-        handshakeTimeout = handshakeTimeout == null ? Duration.ofSeconds(5) : handshakeTimeout;
-        registrationTimeout = registrationTimeout == null ? Duration.ofSeconds(5) : registrationTimeout;
+        registeredHandlers  = registeredHandlers  == null ? List.of() : List.copyOf(registeredHandlers);
+        payloadInfo         = payloadInfo         == null ? Map.of() : Map.copyOf(payloadInfo);
+        capabilities        = capabilities        == null ? Set.of() : Set.copyOf(capabilities);
+        handshakeTimeout    = handshakeTimeout    == null ? Duration.ofSeconds(5)  : handshakeTimeout;
+        registrationTimeout = registrationTimeout == null ? Duration.ofSeconds(5)  : registrationTimeout;
         defaultRequestTimeout = defaultRequestTimeout == null ? Duration.ofSeconds(30) : defaultRequestTimeout;
-        shutdownDeadline = shutdownDeadline == null ? Duration.ofSeconds(10) : shutdownDeadline;
+        shutdownDeadline    = shutdownDeadline    == null ? Duration.ofSeconds(10) : shutdownDeadline;
     }
 
     public static Builder builder() {
@@ -72,9 +81,13 @@ public record BundleClientConfig(
         private String instanceId;
         private String bundleVersion = "1";
         private String authToken;
+        private String description = "";
+        private String detail = "";
+        private String repositoryUrl = "";
+        private String linePrefix = "L";
         private List<String> handlerPayloadTypes = List.of();
         private List<RegisteredHandler> registeredHandlers = List.of();
-        private Map<String, String[]> payloadInfo = Map.of();
+        private Map<String, PayloadDiscoveryInfo> payloadInfo = Map.of();
         private Set<String> capabilities = Set.of();
         private Duration handshakeTimeout = Duration.ofSeconds(5);
         private Duration registrationTimeout = Duration.ofSeconds(5);
@@ -89,9 +102,13 @@ public record BundleClientConfig(
         public Builder instanceId(String id) { this.instanceId = id; return this; }
         public Builder bundleVersion(String v) { this.bundleVersion = v; return this; }
         public Builder authToken(String token) { this.authToken = token; return this; }
+        public Builder description(String d) { this.description = d; return this; }
+        public Builder detail(String d) { this.detail = d; return this; }
+        public Builder repositoryUrl(String url) { this.repositoryUrl = url; return this; }
+        public Builder linePrefix(String p) { this.linePrefix = p; return this; }
         public Builder handlerPayloadTypes(List<String> types) { this.handlerPayloadTypes = types; return this; }
         public Builder registeredHandlers(List<RegisteredHandler> handlers) { this.registeredHandlers = handlers; return this; }
-        public Builder payloadInfo(Map<String, String[]> info) { this.payloadInfo = info; return this; }
+        public Builder payloadInfo(Map<String, PayloadDiscoveryInfo> info) { this.payloadInfo = info; return this; }
         public Builder capabilities(Set<String> caps) { this.capabilities = caps; return this; }
         public Builder handshakeTimeout(Duration d) { this.handshakeTimeout = d; return this; }
         public Builder registrationTimeout(Duration d) { this.registrationTimeout = d; return this; }
@@ -102,7 +119,8 @@ public record BundleClientConfig(
 
         public BundleClientConfig build() {
             return new BundleClientConfig(host, port, bundleId, instanceId, bundleVersion,
-                    authToken, handlerPayloadTypes, registeredHandlers, payloadInfo, capabilities,
+                    authToken, description, detail, repositoryUrl, linePrefix,
+                    handlerPayloadTypes, registeredHandlers, payloadInfo, capabilities,
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
                     transportConfig, autoEnable);
         }

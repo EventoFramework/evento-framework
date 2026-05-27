@@ -118,6 +118,7 @@ public class BundleService {
                         bundleDescription.getDescription(),
                         bundleDescription.getDetail(),
                         bundleDescription.getLinePrefix(),
+                        null,   // repositoryUrl — not provided via CLI upload
                         bundleDeploymentBucketType,
                         bundleDeploymentArtifactCoordinates,
                         jarOriginalName,
