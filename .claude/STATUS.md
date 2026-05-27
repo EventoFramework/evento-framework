@@ -183,15 +183,17 @@ Standard property keys (document in ARCHITECTURE.md):
 - [x] AsmClassMetadataScannerTest — 6 tests: annotated/plain description, sourcePath, declarationLine
 - [x] `AsmClassMetadataScanner`: null-classloader guard (bootstrap-loaded classes → system classloader fallback)
 
-**Step 7 — End-to-end verification** (manual; requires Docker Postgres + running server)
-- [ ] Start evento-server locally (Docker Postgres)
-- [ ] Start an evento-lab-ms bundle configured with `repositoryUrl` + `linePrefix`
-- [ ] Assert via REST:
-  - `GET /api/bundle/{bundleId}` → `repositoryUrl`, `linePrefix`, `description`, handler `line`, component `path`/`line` non-null
-  - `GET /api/flows/bundle/{bundleId}` → graph nodes include source location
-  - `GET /api/catalog/component/{componentName}` → `path`, `line`, `description` populated
-  - Manually open `{repositoryUrl}/{component.path}#{linePrefix}{handler.line}` → correct source location
-- [x] No regression in `evento-lab-ms-it` IT suite (all pass); `evento-lab` flaky test in InMemoryConsumerIT is pre-existing timing issue unrelated to this feature
+**Step 7 — End-to-end verification** ✅
+- [x] Started evento-server locally (Docker Postgres 16 ephemeral)
+- [x] Started lab-ms-command with `repositoryUrl=https://github.com/...` + `linePrefix=L`
+- [x] `GET /api/bundle/lab-ms-command` → repositoryUrl ✅ linePrefix ✅ handler path/line ✅
+- [x] `GET /api/catalog/component/OrderAggregate` → path=`com/evento/lab/ms/command/aggregate/OrderAggregate.java`, line=14, repositoryUrl correct
+- [x] Source link generated: `{repositoryUrl}/{path}#L{line}` resolves to correct GitHub URL
+- [x] `GET /api/catalog/payload/CreateOrderCommand` → path=`com/evento/lab/ms/api/command/CreateOrderCommand.java`, line=12
+- [x] `GET /api/flows/bundle/lab-ms-command` → graph nodes include source location
+- [x] `schema.sql` fix: added `repository_url text null` column + `ALTER TABLE … ADD COLUMN IF NOT EXISTS` for live upgrades
+- [x] `BundleDto` and `ComponentDTO` updated to expose `repositoryUrl` in REST responses
+- [x] No regression in `evento-lab-ms-it` IT suite; `evento-lab` InMemoryConsumerIT flaky test is pre-existing
 
 #### Key files to read at session start
 - `evento-transport-api/.../BundleDiscoveryInfo.java`
