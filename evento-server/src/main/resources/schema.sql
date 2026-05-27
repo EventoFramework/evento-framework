@@ -11,6 +11,7 @@ create table if not exists core__bundle
     description            text         null,
     detail                 text         null,
     line_prefix            varchar(255)         null,
+    repository_url         text         null,
     updated_at             timestamp    null,
     version                bigint       not null
 );
@@ -196,6 +197,9 @@ create index if not exists  performance__agg_handler_invocation_count_ts_timesta
     on performance__aggregate_handler_invocation_count_ts (id asc, timestamp desc);
 
 
+
+-- Add repository_url if upgrading from a schema created before this column existed
+ALTER TABLE core__bundle ADD COLUMN IF NOT EXISTS repository_url text null;
 
 create index if not exists es__events_aggregate_id_event_sequence_number_index
     on es__events (aggregate_id, event_sequence_number);

@@ -40,6 +40,7 @@ public class BundleDto implements Serializable {
 	private Set<String> domains;
 
     private String linePrefix;
+    private String repositoryUrl;
 
 	/**
 	 * Creates a BundleDto object based on a Bundle and a list of Handlers.
@@ -66,5 +67,6 @@ public class BundleDto implements Serializable {
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
         this.linePrefix = bundle.getLinePrefix();
+        this.repositoryUrl = bundle.getRepositoryUrl();
 	}
 }
