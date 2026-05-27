@@ -62,6 +62,11 @@ public class ComponentDTO {
 	private String linePrefix;
 
     /**
+     * Repository browser base URL for building source links.
+     */
+    private String repositoryUrl;
+
+    /**
      * Line number in code where component starts
      */
 	private Integer line;
@@ -82,6 +87,7 @@ public class ComponentDTO {
 		this.handlers = handlers.stream().map(HandlerDto::new).toList();
 		this.path = c.getPath();
 		this.linePrefix = c.getBundle().getLinePrefix();
+		this.repositoryUrl = c.getBundle().getRepositoryUrl();
 		this.line = c.getLine();
 	}
 }
