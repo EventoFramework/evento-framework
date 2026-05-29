@@ -78,7 +78,6 @@ The documentation of Evento Framework includes:
 - [Evento Framework](https://docs.eventoframework.com/evento-framework/evento-framework-introcution)
 - [Evento Server](https://docs.eventoframework.com/evento-server/evento-server-introduction)
 - [Evento GUI](https://docs.eventoframework.com/evento-gui/explore-recq-systems-visually)
-- [Evento CLI](https://docs.eventoframework.com/evento-cli/evento-cli-introduction)
 
 ## Enterprise Repository Resources
 

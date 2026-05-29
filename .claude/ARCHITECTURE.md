@@ -35,8 +35,7 @@ evento-framework/
 ├── evento-server/                Server runtime: bus lifecycle, event store, REST API, Spring Boot app
 ├── evento-consumer-state-store/
 │   └── evento-consumer-state-store-jdbc/  JDBC impls (Postgres + MySQL) for consumer SPIs
-├── evento-parser/                Static analysis / codegen of handler metadata
-├── evento-cli/                   CLI tooling
+├── evento-parser/                Static analysis / codegen of handler metadata (server-side BundleDescription model)
 ├── evento-gui/                   Web GUI (React, static assets)
 ├── evento-lab/                   In-process integration tests (single-bundle RTT, failure matrix, etc.)
 └── evento-lab-microservices/     Multi-bundle integration tests (RECQ microservices scenario)

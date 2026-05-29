@@ -58,8 +58,8 @@ public final class HandshakeHandler {
         }
         var info = new BundleVersionInfo(hello.bundleId(), hello.instanceId(), hello.bundleVersion());
         var verdict = validator.apply(hello, info);
-        if (verdict instanceof HandshakeOutcome.Rejected r) {
-            return sendReject(hello, transport, r.code(), r.reason());
+        if (verdict instanceof HandshakeOutcome.Rejected(String code, String reason)) {
+            return sendReject(hello, transport, code, reason);
         }
         var accepted = (HandshakeOutcome.Accepted) verdict;
         var acceptedCaps = intersection(hello.capabilities(), serverCapabilities);
