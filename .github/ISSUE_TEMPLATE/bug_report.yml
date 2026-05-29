@@ -26,7 +26,6 @@ body:
         - evento-bundle
         - evento-common
         - evento-consumer-state-store
-        - evento-cli
         - evento-gui
         - evento-lab
         - documentation

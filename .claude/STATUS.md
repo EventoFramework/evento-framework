@@ -1,6 +1,7 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-05-26. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-05-29. Branch `next` merged to `main`; v2.0 rewrite complete.
+`evento-cli` module deleted (see "evento-cli removal" below).
 
 Companion docs:
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — authoritative reference for architecture, design, classes, tests
@@ -207,6 +208,20 @@ Standard property keys (document in ARCHITECTURE.md):
 - `evento-server/domain/model/core/Bundle.java` — add `repositoryUrl` field
 
 ---
+
+### evento-cli removal (2026-05-29) ✅
+
+With ASM self-discovery + full self-description parity shipped (above), the `evento-cli`
+static-analysis + publish step is fully redundant. Module deleted.
+
+- Deleted `evento-cli/` (`PublishBundle`, `UpdateVersion`, `Test`) + `settings.gradle` include
+- Deleted `.github/workflows/cli-release.yaml`; removed CLI from README, `ARCHITECTURE.md`, `bug_report.yml`
+- **Kept** `evento-parser` — still used server-side by `BundleController` + `BundleService`
+  (the `POST /api/bundle/` upload endpoint and the `BundleDescription` model remain live)
+- **Dropped, not migrated:** deploy-by-upload *client* (server endpoint stays) and the
+  `UpdateVersion` version-bump helper (now a manual edit of `evento.bundle.version`); both were
+  intentionally out of scope for auto-discovery parity
+- `./gradlew projects` configures cleanly without the module
 
 ## How to run locally
 
