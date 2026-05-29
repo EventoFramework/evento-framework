@@ -13,8 +13,6 @@ export class BundleInfoPage implements OnInit {
   bundle;
   componentHandlers: any;
   components = [];
-  environmentKeys: string[] = [];
-  vmOptionsKeys: string[] = [];
 
   constructor(private route: ActivatedRoute, private bundleService: BundleService, private navController: NavController) { }
 
@@ -34,29 +32,6 @@ export class BundleInfoPage implements OnInit {
       map[h.componentName] = {name: h.componentName, type: h.componentType};
     }
     this.components = Object.values(map);
-    this.environmentKeys = Object.keys(this.bundle.environment);
-    this.vmOptionsKeys = Object.keys(this.bundle.vmOptions);
-  }
-
-  putEnv(key, value) {
-    this.bundleService.putEnv(this.bundleId, key, value).finally();
-    this.bundle.environment[key] = value;
-    this.environmentKeys = Object.keys(this.bundle.environment);
-  }
-  removeEnv(key) {
-    this.bundleService.removeEnv(this.bundleId, key).finally();
-    delete this.bundle.environment[key];
-    this.environmentKeys = Object.keys(this.bundle.environment);
-  }
-  putVmOption(key, value) {
-    this.bundleService.putVmOption(this.bundleId, key, value).finally();
-    this.bundle.vmOptions[key] = value;
-    this.vmOptionsKeys = Object.keys(this.bundle.vmOptionsKeys);
-  }
-  removeVmOption(key) {
-    this.bundleService.removeVmOption(this.bundleId, key).finally();
-    delete this.bundle.vmOptions[key];
-    this.vmOptionsKeys = Object.keys(this.bundle.vmOptionsKeys);
   }
 
   async unregister() {

@@ -16,7 +16,7 @@ public class DashboardDTO {
 	private List<ComponentTypeCount> componentCountByType;
 
 	private Long bundleCount;
-	private Long deployableBundleCount;
+	private Long bundleWithHandlersCount;
 
 	private Long bundleInViewCount;
 	private Integer nodeInViewCount;

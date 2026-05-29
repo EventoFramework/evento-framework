@@ -41,16 +41,4 @@ export class ClusterStatusService {
   getAttendedView() {
     return fetch(environment.eventoServerUrl + '/api/cluster-status/attended-view').then(r => r.json());
   }
-
-  async spawn(bundleId: any) {
-    return fetch(environment.eventoServerUrl + '/api/cluster-status/spawn/' + bundleId, {
-      method: 'POST'
-    });
-  }
-
-  async kill(bundleId, instanceId) {
-    return fetch(environment.eventoServerUrl + '/api/cluster-status/kill/' + bundleId + '/' + instanceId, {
-      method: 'DELETE'
-    });
-  }
 }

@@ -2,11 +2,7 @@ create table if not exists core__bundle
 (
     id                     varchar(255) not null
         primary key,
-    artifact_coordinates   varchar(255) null,
-    artifact_original_name varchar(255) null,
-    autorun                boolean      not null,
-    deployable             boolean      not null,
-    bucket_type            varchar(255) null,
+    instance_id            varchar(255) null,
     contains_handlers      boolean      not null,
     description            text         null,
     detail                 text         null,
@@ -14,24 +10,6 @@ create table if not exists core__bundle
     repository_url         text         null,
     updated_at             timestamp    null,
     version                bigint       not null
-);
-
-create table if not exists core__bundle__environment
-(
-    bundle_id       varchar(255) not null,
-    environment     varchar(255) null,
-    environment_key varchar(255) not null,
-    primary key (bundle_id, environment_key),
-    foreign key (bundle_id) references core__bundle (id)
-);
-
-create table if not exists core__bundle__vm_option
-(
-    bundle_id      varchar(255) not null,
-    vm_options     varchar(255) null,
-    vm_options_key varchar(255) not null,
-    primary key (bundle_id, vm_options_key),
-    foreign key (bundle_id) references core__bundle (id)
 );
 
 create table if not exists core__component
@@ -200,6 +178,16 @@ create index if not exists  performance__agg_handler_invocation_count_ts_timesta
 
 -- Add repository_url if upgrading from a schema created before this column existed
 ALTER TABLE core__bundle ADD COLUMN IF NOT EXISTS repository_url text null;
+
+-- Drop deployment/autoscaling columns and tables if upgrading from a schema that still had them
+ALTER TABLE core__bundle ADD COLUMN IF NOT EXISTS instance_id varchar(255) null;
+ALTER TABLE core__bundle DROP COLUMN IF EXISTS artifact_coordinates;
+ALTER TABLE core__bundle DROP COLUMN IF EXISTS artifact_original_name;
+ALTER TABLE core__bundle DROP COLUMN IF EXISTS bucket_type;
+ALTER TABLE core__bundle DROP COLUMN IF EXISTS autorun;
+ALTER TABLE core__bundle DROP COLUMN IF EXISTS deployable;
+DROP TABLE IF EXISTS core__bundle__environment;
+DROP TABLE IF EXISTS core__bundle__vm_option;
 
 create index if not exists es__events_aggregate_id_event_sequence_number_index
     on es__events (aggregate_id, event_sequence_number);

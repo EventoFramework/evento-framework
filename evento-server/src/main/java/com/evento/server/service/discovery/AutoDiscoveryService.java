@@ -62,7 +62,7 @@ public class AutoDiscoveryService {
                 logger.info("Discovering bundle: %s".formatted(node.bundleId()));
                 if (!registration.handlers().isEmpty()) {
                     var bundle = bundleRepository.findById(node.bundleId()).orElseGet(() -> {
-                                logger.info("Bundle %s not found, creating an ephemeral one".formatted(node.bundleId()));
+                                logger.info("Bundle %s not found, creating one from discovery".formatted(node.bundleId()));
                                 return bundleRepository.save(new Bundle(
                                         node.bundleId(),
                                         registration.bundleVersion(),
@@ -70,14 +70,8 @@ public class AutoDiscoveryService {
                                         null,
                                         "L",
                                         null,
-                                        BucketType.Ephemeral,
                                         node.instanceId(),
-                                        null,
                                         true,
-                                        new HashMap<>(),
-                                        new HashMap<>(),
-                                        false,
-                                        false,
                                         Instant.now()));
                             }
                     );
@@ -281,7 +275,7 @@ public class AutoDiscoveryService {
             var key = "DISCOVERY:" + node.instanceId();
             pgDistributedLock.lockedArea(key, () -> {
                 bundleRepository.findById(node.bundleId()).ifPresent(b -> {
-                    if (b.getBucketType().equals(BucketType.Ephemeral) && b.getArtifactCoordinates().equals(node.instanceId())) {
+                    if (node.instanceId().equals(b.getInstanceId())) {
                         bundleService.unregister(node.bundleId());
                     }
                 });

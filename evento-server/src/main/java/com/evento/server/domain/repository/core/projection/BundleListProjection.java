@@ -1,7 +1,5 @@
 package com.evento.server.domain.repository.core.projection;
 
-import com.evento.server.domain.model.core.BucketType;
-
 /**
  * The BundleListProjection interface represents a projected view of Bundle objects.
  * It provides methods to retrieve various properties of a bundle.
@@ -20,37 +18,6 @@ public interface BundleListProjection {
 	 * @return The version of the BundleListProjection as an Integer.
 	 */
 	Integer getVersion();
-
-	/**
-	 * Retrieves the value of the autorun property for the Bundle.
-	 *
-	 * @return The value of the autorun property as a Boolean. Returns true if the bundle should be automatically run, false otherwise.
-	 */
-	Boolean getAutorun();
-
-	/**
-	 * Retrieves the deployable status of the bundle.
-	 *
-	 * @return The deployable status as a Boolean. Returns true if the bundle is deployable, false otherwise.
-	 */
-	Boolean getDeployable();
-
-	/**
-	 * Retrieves the BucketType associated with the BundleListProjection.
-	 * <p>
-	 * The BucketType enum represents the different types of buckets that can be used in the Bundle class.
-	 * The available bucket types are:
-	 * - LocalFilesystem: Represents a bucket stored in the local filesystem.
-	 * - LiveServer: Represents a bucket stored in a live server.
-	 * - Ephemeral: Represents an ephemeral bucket that is created and destroyed on demand.
-	 * - LibraryOnly: Represents a bucket that contains only library files.
-	 * <p>
-	 * The bucketType property of the BundleListProjection class can be used to determine the type of bucket associated with the bundle.
-	 *
-	 * @return The BucketType associated with the BundleListProjection.
-	 * @see BucketType
-	 */
-	BucketType getBucketType();
 
 	/**
 	 * Retrieves the description of the bundle.

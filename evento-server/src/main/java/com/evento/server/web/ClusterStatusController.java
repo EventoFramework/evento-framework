@@ -2,7 +2,6 @@ package com.evento.server.web;
 
 import com.evento.server.bus.BusFacade;
 import com.evento.server.bus.event.BusEvent;
-import com.evento.server.domain.model.core.BucketType;
 import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.service.BundleService;
 import org.slf4j.Logger;
@@ -39,7 +38,7 @@ public class ClusterStatusController {
 	@Secured("ROLE_WEB")
 	public ResponseEntity<List<String>> findAllNodes() {
 		var nodes = bundleService.findAllBundles().stream().filter(Bundle::isContainsHandlers)
-				.filter(b -> b.getBucketType() != BucketType.Ephemeral).map(Bundle::getId).collect(Collectors.toList());
+				.map(Bundle::getId).collect(Collectors.toList());
 		return ResponseEntity.ok(nodes);
 	}
 

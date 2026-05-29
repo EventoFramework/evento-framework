@@ -53,11 +53,6 @@ public class JavaBundleParser implements BundleParser {
      * String bundleName = System.getProperty(EVENTO_BUNDLE_NAME_PROPERTY);
      */
     public static final String EVENTO_BUNDLE_NAME_PROPERTY = "evento.bundle.id";
-    /**
-     * The EVENTO_BUNDLE_AUTORUN_PROPERTY variable represents the key used to retrieve the autorun status of a bundle from a configuration.
-     * It is a constant string value.
-     */
-    public static final String EVENTO_BUNDLE_AUTORUN_PROPERTY = "evento.bundle.autorun";
 
     public BundleDescription parseDirectory(File directory, String repositoryRoot, String repositoryLinePrefix,
                                             String javaVersion) throws Exception {
@@ -154,18 +149,6 @@ public class JavaBundleParser implements BundleParser {
                     }
                 }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
 
-        var autorun = FileUtils.autoCloseWalk(directory.toPath(), s -> s
-                .filter(p -> p.toString().endsWith(".properties"))
-                .map(p -> {
-                    try {
-                        var prop = new Properties();
-                        prop.load(new FileReader(p.toFile()));
-                        return Boolean.parseBoolean(prop.getProperty(EVENTO_BUNDLE_AUTORUN_PROPERTY, "false"));
-                    } catch (Exception e) {
-                        return null;
-                    }
-                }).filter(Objects::nonNull).findFirst().orElseThrow(() -> new Exception("Cannot find %s in a .property file".formatted(EVENTO_BUNDLE_NAME_PROPERTY))));
-
         var bundleDetail = new AtomicReference<String>();
         var bundleDescription = new AtomicReference<String>();
         try (var s = Files.walk(directory.toPath())) {
@@ -214,13 +197,11 @@ public class JavaBundleParser implements BundleParser {
         return new BundleDescription(
                 bundleId,
                 bundleVersion,
-                autorun,
                 new ArrayList<>(components),
                 payloads,
                 bundleDescription.get(),
                 bundleDetail.get(),
-                repositoryLinePrefix,
-                false);
+                repositoryLinePrefix);
     }
 
     private Component toComponent(Node node) throws Exception {

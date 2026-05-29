@@ -10,7 +10,7 @@ import java.util.ArrayList;
  * A class representing a bundle description.
  * <p>
  * A bundle description contains information about a software bundle, including its components, payload descriptions,
- * bundle ID, bundle version, autorun status, description, and detail.
+ * bundle ID, bundle version, description, and detail.
  * <p>
  * The bundle description can be serialized and deserialized.
  */
@@ -22,42 +22,34 @@ public class BundleDescription implements Serializable {
 	private String bundleId;
 	private long bundleVersion;
 
-	private boolean autorun;
-
 	private String description;
 	private String detail;
 	private String linePrefix;
-
-	private boolean deployable;
 
 	/**
 	 * Constructs a new BundleDescription with the specified parameters.
 	 *
 	 * @param bundleId the unique identifier of the bundle
 	 * @param bundleVersion the version number of the bundle
-	 * @param autorun indicates whether the bundle should automatically run
 	 * @param components the list of components included in the bundle
 	 * @param payloadDescriptions the list of payload descriptions included in the bundle
 	 * @param description a brief description of the bundle
 	 * @param detail detailed information about the bundle
 	 * @param linePrefix a prefix for each line in the bundle
 	 */
-	public BundleDescription(String bundleId, long bundleVersion, boolean autorun,
+	public BundleDescription(String bundleId, long bundleVersion,
 							 ArrayList<Component> components,
 							 ArrayList<PayloadDescription> payloadDescriptions,
 							 String description,
 							 String detail,
-							 String linePrefix,
-							 boolean deployable) {
+							 String linePrefix) {
 		this.components = components;
 		this.payloadDescriptions = payloadDescriptions;
 		this.bundleId = bundleId;
 		this.bundleVersion = bundleVersion;
-		this.autorun = autorun;
 		this.description = description;
 		this.detail = detail;
 		this.linePrefix = linePrefix;
-		this.deployable = deployable;
 	}
 
 	/**
@@ -139,24 +131,6 @@ public class BundleDescription implements Serializable {
 	}
 
 	/**
-	 * Retrieves the value of the autorun attribute.
-	 *
-	 * @return true if the bundle should autorun, false otherwise
-	 */
-	public boolean getAutorun() {
-		return autorun;
-	}
-
-	/**
-	 * Sets the autorun attribute for the BundleDescription object.
-	 *
-	 * @param autorun whether the bundle should autorun
-	 */
-	public void setAutorun(boolean autorun) {
-		this.autorun = autorun;
-	}
-
-	/**
 	 * Retrieves the description of the bundle.
 	 *
 	 * @return the description of the bundle
@@ -206,24 +180,5 @@ public class BundleDescription implements Serializable {
 	public void setLinePrefix(String linePrefix) {
 		this.linePrefix = linePrefix;
 	}
-
-	/**
-	 * Retrieves the deployable status of the bundle.
-	 *
-	 * @return true if the bundle is deployable, false otherwise
-	 */
-	public boolean getDeployable() {
-		return deployable;
-	}
-
-	/**
-	 * Sets the deployable status of the bundle.
-	 *
-	 * @param deployable whether the bundle is deployable
-	 */
-	public void setDeployable(boolean deployable) {
-		this.deployable = deployable;
-    }
-
 
 }
