@@ -51,15 +51,7 @@
                       </ng-container>
                       <ng-container *ngIf="view[bundle].replicas[replica].isAvailable">
                         <b class="node-status-available" translate="node.status.available"></b>
-                        <ion-text class="ion-margin-start" style="text-decoration: underline; cursor:pointer;" color="danger" (click)="kill(view[bundle].replicas[replica])">(<span translate="cluster.node.kill"></span>)</ion-text>
                       </ng-container>
-                    </ion-col>
-                  </ion-row>
-                  <ion-row class="ion-margin-top ion-padding-top" *ngIf="deployableBundles[bundle]">
-                    <ion-col></ion-col>
-                    <ion-col size="3">
-                      <ion-button class="ion-no-margin" fill="outline" size="small" color="primary" (click)="spawnBundle(bundle)"
-                                  translate="cluster.node.spawn"></ion-button>
                     </ion-col>
                   </ion-row>
                 </ion-grid>
@@ -109,7 +101,6 @@
                       </ng-container>
                       <ng-container *ngIf="view[component].replicas[replica].isAvailable">
                         <b class="node-status-available" translate="node.status.available"></b>
-                        <ion-text class="ion-margin-start" style="text-decoration: underline; cursor:pointer;" color="danger" (click)="kill(view[component].replicas[replica])">(<span translate="cluster.node.kill"></span>)</ion-text>
                       </ng-container>
                     </ion-col>
                   </ion-row>

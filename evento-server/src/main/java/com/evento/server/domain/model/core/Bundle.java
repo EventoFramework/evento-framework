@@ -5,25 +5,20 @@ import org.hibernate.Hibernate;
 
 import jakarta.persistence.*;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Objects;
 
 /**
  * The Bundle class represents a bundle in the system.
- * A bundle is a collection of related components and resources that can be deployed and executed together.
+ * A bundle is a collection of related components and resources known to the server.
  * <p>
  * Bundles have the following properties:
  * - id: The unique identifier of the bundle.
  * - version: The version number of the bundle.
  * - description: The description of the bundle.
  * - detail: Additional detail about the bundle.
- * - bucketType: The type of bucket associated with the bundle.
- * - artifactCoordinates: The coordinates of the artifact associated with the bundle.
- * - artifactOriginalName: The original name of the artifact associated with the bundle.
+ * - instanceId: The id of the node instance that registered this catalog entry, used to
+ *   reclaim the entry when that instance leaves the cluster.
  * - containsHandlers: Indicates whether the bundle contains handlers.
- * - environment: A map of environment variables for the bundle.
- * - vmOptions: A map of VM options for the bundle.
- * - autorun: Indicates whether the bundle should be automatically run.
  * - updatedAt: The timestamp when the bundle was last updated.
  * <p>
  * The Bundle class can be used in conjunction with other classes such as Component to represent a bundle and its components.
@@ -53,19 +48,9 @@ public class Bundle {
 	@Column(columnDefinition = "TEXT")
 	private String repositoryUrl;
 
-	@Enumerated(EnumType.STRING)
-	private BucketType bucketType;
-	private String artifactCoordinates;
-	private String artifactOriginalName;
+	/** Id of the node instance that registered this catalog entry; used to reclaim it on node leave. */
+	private String instanceId;
 	private boolean containsHandlers;
-	@ElementCollection
-	@JoinTable(name = "core__bundle__environment")
-	private Map<String, String> environment;
-	@ElementCollection
-	@JoinTable(name = "core__bundle__vm_option")
-	private Map<String, String> vmOptions;
-	private boolean autorun;
-	private boolean deployable;
 
 	private Instant updatedAt;
 
