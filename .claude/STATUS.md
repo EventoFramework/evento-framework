@@ -2,6 +2,28 @@
 
 Last updated: 2026-05-29. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` module deleted (see "evento-cli removal" below).
+Bundle deployment / autoscaling surface removed (see "Deployment rip-out" below).
+
+## Deployment rip-out (2026-05-29)
+
+The server no longer accepts bundle uploads, stores JARs, or carries any
+deploy/scale config. Bundles are known to the server **only** via runtime
+self-registration (`AutoDiscoveryService` over the wire). Removed:
+
+- **Upload path:** `BundleController` POST `/` (`registerBundle`),
+  `BundleService.register(...)` + `checkIsDAG()`, `ArtifactController` (deleted),
+  `evento.file.upload-dir` (properties + docker-compose), `docker-spawn.py`,
+  `evento_deploy_spawn_script`, `privileged: true`.
+- **Per-bundle config:** env + VM options endpoints/service methods, `Bundle`
+  fields `bucketType`/`artifactCoordinates`/`artifactOriginalName`/`environment`/
+  `vmOptions`/`autorun`/`deployable`, `BucketType` enum (deleted), the two
+  `core__bundle__{environment,vm_option}` tables, schema columns (with upgrade
+  `ALTER`s). `Bundle` now tracks a single `instanceId` for leave-cleanup.
+- **Parser:** `BundleDescription.autorun`/`deployable` + `EVENTO_BUNDLE_AUTORUN_PROPERTY`.
+- **Auth:** `TokenRole.ROLE_DEPLOY` / `ROLE_PUBLISH` removed.
+- **GUI:** spawn/kill buttons + service methods, env/VM-options editor, deployable
+  settings rows, bundle-upload UI; dashboard metric `deployableBundleCount` →
+  `bundleWithHandlersCount` (`countWithHandlers`).
 
 Companion docs:
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — authoritative reference for architecture, design, classes, tests

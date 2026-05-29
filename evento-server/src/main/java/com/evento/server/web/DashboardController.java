@@ -50,7 +50,7 @@ public class DashboardController {
 		db.setComponentCountByType(componentRepository.countByType());
 
 		db.setBundleCount(bundleRepository.count());
-		db.setDeployableBundleCount(bundleRepository.countDeployable());
+		db.setBundleWithHandlersCount(bundleRepository.countWithHandlers());
 		var view = busFacade.currentAvailableView();
 		db.setBundleInViewCount(view.stream()
 				.map(NodeAddress::bundleId).distinct().count());
