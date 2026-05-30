@@ -30,19 +30,56 @@ public class WebConfig implements WebMvcConfigurer {
 
 	private final AuthService authService;
 
+	/**
+	 * Allowed CORS origins, from {@code evento.server.web.cors.allowed-origins} (comma-separated).
+	 * Defaults to {@code *} to preserve existing behaviour; set explicit origins to lock the API down.
+	 */
+	@org.springframework.beans.factory.annotation.Value("${evento.server.web.cors.allowed-origins:*}")
+	private List<String> allowedOrigins;
+
 	public WebConfig(AuthService authService) {
 		this.authService = authService;
 	}
 
 
+	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebConfig.class);
+
+	/**
+	 * Web security posture, from {@code evento.server.web.security.mode}:
+	 * <ul>
+	 *   <li>{@code open} (default) — every request is permitted at the HTTP layer; controller
+	 *       {@code @Secured} method annotations still apply where present. Preserves prior behaviour.</li>
+	 *   <li>{@code token} — {@code /api/**} and sensitive actuator endpoints require a valid JWT
+	 *       (via {@link AuthFilter}); static GUI assets and {@code /actuator/health|info} stay public
+	 *       so the dashboard loads and orchestrator probes work. (The GUI still needs a token-injection
+	 *       flow before it can call the API in this mode.)</li>
+	 * </ul>
+	 */
+	@org.springframework.beans.factory.annotation.Value("${evento.server.web.security.mode:open}")
+	private String securityMode;
+
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-		return http
+		http
 				.cors(Customizer.withDefaults())
 				.csrf(AbstractHttpConfigurer::disable)
-				.authorizeHttpRequests(r -> r.anyRequest().permitAll())
-				.addFilterBefore(new AuthFilter(authService), UsernamePasswordAuthenticationFilter.class)
-				.build();
+				.addFilterBefore(new AuthFilter(authService), UsernamePasswordAuthenticationFilter.class);
+
+		if ("token".equalsIgnoreCase(securityMode)) {
+			http.authorizeHttpRequests(r -> r
+					.requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+					.requestMatchers("/api/**", "/actuator/**").authenticated()
+					.anyRequest().permitAll()); // static GUI assets + SPA fallback
+			log.info("event=web_security mode=token detail=\"/api/** and sensitive actuator endpoints require a valid token\"");
+		} else {
+			if (!"open".equalsIgnoreCase(securityMode)) {
+				log.warn("event=web_security_unknown_mode mode={} detail=\"defaulting to open\"", securityMode);
+			}
+			http.authorizeHttpRequests(r -> r.anyRequest().permitAll());
+			log.warn("event=web_security mode=open detail=\"REST API is unauthenticated at the HTTP layer; "
+					+ "set evento.server.web.security.mode=token to require JWTs\"");
+		}
+		return http.build();
 	}
 
 
@@ -64,7 +101,7 @@ public class WebConfig implements WebMvcConfigurer {
 	@Bean
 	CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
-		configuration.setAllowedOrigins(List.of("*"));
+		configuration.setAllowedOrigins(allowedOrigins);
 		configuration.setAllowedMethods(List.of("*"));
 		configuration.setAllowedHeaders(List.of("*"));
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
