@@ -4,6 +4,7 @@ import {componentColor, graphCenterFit, payloadColor, stringToColour} from '../.
 import {FlowsService} from '../../services/flows.service';
 import {CatalogService} from '../../services/catalog.service';
 import {BundleService} from '../../services/bundle.service';
+import {RepositoryService} from '../../services/repository.service';
 import {AlertController, LoadingController} from "@ionic/angular";
 import {setZoom} from "../../components/common";
 
@@ -49,6 +50,7 @@ export class ApplicationFlowsPage implements OnInit {
   constructor(private flowService: FlowsService,
               private catalogService: CatalogService,
               private bundleService: BundleService,
+              private repository: RepositoryService,
               private route: ActivatedRoute,
               private alertController: AlertController,
               private loadingController: LoadingController) {
@@ -57,6 +59,7 @@ export class ApplicationFlowsPage implements OnInit {
 
   async ngOnInit() {
 
+    await this.repository.whenReady();
     this.allPayloads = await this.catalogService.findAllPayload();
     this.allPayloads = this.allPayloads.filter(p => p.type !== 'View');
     this.allComponents = await this.catalogService.findAllComponent();
@@ -408,12 +411,15 @@ export class ApplicationFlowsPage implements OnInit {
             } else {
               const t = this.model.nodes.find(n => n.id === cell.nodeId);
               if (t) {
-                if (t.path) {
+                if (t.path && t.lines) {
                   for (const line of t.lines) {
-                    menu.addItem('Open Repository (' + line + ')', '',
-                      () => {
-                        window.open(t.path + '#' + t.linePrefix + line, '_blank');
-                      });
+                    const link = this.repository.link(t.bundle, t.path, line);
+                    if (link) {
+                      menu.addItem('Open Repository (' + line + ')', '',
+                        () => {
+                          window.open(link, '_blank');
+                        });
+                    }
                   }
                 }
               }

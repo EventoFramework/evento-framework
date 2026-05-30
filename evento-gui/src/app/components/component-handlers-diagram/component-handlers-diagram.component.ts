@@ -2,6 +2,7 @@ import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
 import {componentColor, graphCenterFit, payloadColor} from '../../services/utils';
 import {NavController} from '@ionic/angular';
 import {setZoom} from "../common";
+import {RepositoryService} from '../../services/repository.service';
 
 declare const mxGraph: any;
 declare const mxEvent: any;
@@ -21,7 +22,8 @@ export class ComponentHandlersDiagramComponent implements OnInit {
 
   @ViewChild('container', {static: true}) container: ElementRef;
 
-  constructor(private navController: NavController) {
+  constructor(private navController: NavController,
+              private repository: RepositoryService) {
   }
 
   ngOnInit() {
@@ -112,10 +114,11 @@ export class ComponentHandlersDiagramComponent implements OnInit {
         if(cell?.vertex){
           const t = cell.handler;
           if (t) {
-            if (t.path) {
+            const link = this.repository.link(t.bundleId, t.path, t.line);
+            if (link) {
               menu.addItem('Open Repository (' + t.line + ')', '',
                 () => {
-                  window.open(t.path + '#' + this.component.linePrefix + t.line, '_blank');
+                  window.open(link, '_blank');
                 });
             }
           }
