@@ -149,7 +149,7 @@ Phases 2–3 can land during the planned staging soak.
 | 9 Reapers (ForwardingTable + reconnectBuffer) | 2 | P2 | ✅ done — `BusLifecycle` runs a daemon maintenance scheduler (30s) pruning forwarding-table relays >5min and expired reconnect-buffer entries; scheduler shut down in `stop()`. `ForwardingTableTest` added (3 tests, closed a coverage gap) |
 | 10 Shutdown-deadline through transport close | 2 | P2 | 🟡 partial — maintenance scheduler now shut down in `stop()`; deadlining `transportServer.stop()`/`closeAll()` needs a `TransportServer` SPI change (deferred) |
 | 10b Event-store Flyway | 2 | P2 | open |
-| 11 Hikari/lock lifecycle docs | 2 | P2 | open |
+| 11 Hikari/lock lifecycle docs | 2 | P2 | ✅ done — ARCHITECTURE §12 documents pool sizing (≥1 conn per concurrent consumer) + `LockHandle` try-with-resources contract |
 | 12 CI coverage | 3 | P1 | 🟡 partial — CI now runs the full `:evento-server:test` (dropped the `bus.*` filter) + a new `jdbc-integration-tests` job runs the Testcontainers ITs (`EVENTO_RUN_JDBC_IT=true`). **Remaining:** actually-written web/REST + auth tests (none exist yet) |
 | 13 Dep scanning / catalog | 3 | P2 | 🟡 mostly a non-finding — Dependabot (gradle/npm/actions), CodeQL, and Scorecard already configured. Reconciled `nettyVersion` 4.1.118→4.1.124. **Remaining (low):** version catalog (`libs.versions.toml`); optional OWASP dependency-check build-time CVE gate |
 | 14 Doc-drift pass | 3 | low | partial |
