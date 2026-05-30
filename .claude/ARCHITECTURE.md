@@ -414,6 +414,15 @@ JDBC locks:
 - **Postgres:** `pg_try_advisory_lock(hashtext(consumerId))` — session-scoped, pins one `Connection` per `LockHandle`
 - **MySQL:** `GET_LOCK(consumerId, 0)` — same pattern
 
+**Operational sizing (important).** Because each held `LockHandle` pins a dedicated pooled
+`Connection` for its whole lifetime, the HikariCP pool must be sized for **at least one connection
+per concurrently-running consumer** (projector/saga/observer engine), plus headroom for the normal
+query/checkpoint traffic. Under-sizing manifests as connection-acquisition timeouts, not lock
+errors. `LockHandle` is `AutoCloseable` and idempotent on `close()`; always release it in a
+try-with-resources / `finally` so a failed consumer cycle doesn't leak its pinned connection. The
+SQL-injection-hardened `PgDistributedLock` (server-side command lock) is a separate JVM-or-Postgres
+lock and does not consume a pool connection per held lock.
+
 ---
 
 ## 13. Server REST API Surface
