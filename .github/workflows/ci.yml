@@ -36,7 +36,7 @@ jobs:
           ./gradlew --no-daemon \
             :evento-transport-api:test \
             :evento-transport-netty:test \
-            :evento-server:test --tests 'com.evento.server.bus.*' \
+            :evento-server:test \
             :evento-common:test \
             :evento-bundle:test \
             :evento-lab:test \
@@ -47,6 +47,43 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
+
+  jdbc-integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+          cache: gradle
+
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+
+      # GitHub-hosted ubuntu runners ship Docker, so the Testcontainers-gated JDBC
+      # ITs (Postgres + MySQL, incl. PgDistributedLockIT) run here — unlike a local
+      # Docker Desktop, which can hit a Testcontainers/Docker API mismatch.
+      - name: Run JDBC integration tests (Testcontainers)
+        env:
+          EVENTO_RUN_JDBC_IT: "true"
+        run: |
+          ./gradlew --no-daemon \
+            :evento-consumer-state-store:evento-consumer-state-store-jdbc:test
+
+      - name: Upload JDBC IT reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdbc-it-reports
           path: |
             **/build/reports/tests/
             **/build/test-results/
