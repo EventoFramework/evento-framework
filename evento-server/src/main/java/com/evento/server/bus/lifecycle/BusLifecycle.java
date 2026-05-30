@@ -112,6 +112,13 @@ public final class BusLifecycle {
             = new ConcurrentHashMap<>();
     private static final long RECONNECT_BUFFER_TTL_MS = 120_000L;
 
+    // Background maintenance: prunes the forwarding table (relays whose originator died mid-call)
+    // and expired reconnect-buffer entries (responses for originators that never came back).
+    // Without this both grow unbounded under churn. Started in start(), stopped in stop().
+    private static final long FORWARDING_TABLE_TTL_MS = 5 * 60_000L;
+    private static final long MAINTENANCE_INTERVAL_MS = 30_000L;
+    private volatile java.util.concurrent.ScheduledExecutorService maintenanceScheduler;
+
     public BusLifecycle(TransportServer transportServer,
                         ConnectionRegistry connectionRegistry,
                         ClusterRegistry clusterRegistry,
@@ -189,16 +196,66 @@ public final class BusLifecycle {
 
     public int start(int port) {
         int bound = transportServer.start(port);
+        var scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            var t = new Thread(r, "evento-bus-maintenance");
+            t.setDaemon(true);
+            return t;
+        });
+        scheduler.scheduleWithFixedDelay(this::runMaintenance,
+                MAINTENANCE_INTERVAL_MS, MAINTENANCE_INTERVAL_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+        this.maintenanceScheduler = scheduler;
         log.info("event=lifecycle_started port={}", bound);
         return bound;
     }
 
     public void stop(Duration deadline) {
         log.info("event=lifecycle_stopping deadline_ms={}", deadline.toMillis());
+        var scheduler = this.maintenanceScheduler;
+        if (scheduler != null) {
+            scheduler.shutdownNow();
+            this.maintenanceScheduler = null;
+        }
         transportServer.stop();
         correlationStore.shutdown(deadline);
         connectionRegistry.closeAll("lifecycle_stop");
         log.info("event=lifecycle_stopped");
+    }
+
+    /**
+     * Periodic, best-effort memory bound: drop forwarding-table relays older than
+     * {@link #FORWARDING_TABLE_TTL_MS} (originator died mid-call / handler never replied) and
+     * reconnect-buffer entries past their TTL (originator never reconnected). Swallows its own
+     * exceptions so a transient failure never kills the scheduler.
+     */
+    private void runMaintenance() {
+        try {
+            long now = System.currentTimeMillis();
+            forwardingTable.removeOlderThan(now - FORWARDING_TABLE_TTL_MS);
+            pruneReconnectBuffer(now);
+        } catch (Throwable t) {
+            log.warn("event=bus_maintenance_failed", t);
+        }
+    }
+
+    /**
+     * Removes expired buffered responses. Empty queue shells are intentionally left in place:
+     * the add path is {@code computeIfAbsent(id).add(entry)}, so removing an empty queue here
+     * could race with a concurrent add and drop a just-buffered response. The shells are tiny
+     * and bounded by the number of distinct originator instanceIds.
+     */
+    private void pruneReconnectBuffer(long now) {
+        int removed = 0;
+        for (var queue : reconnectBuffer.values()) {
+            for (var it = queue.iterator(); it.hasNext(); ) {
+                if (now > it.next().expiresAtMs()) {
+                    it.remove();
+                    removed++;
+                }
+            }
+        }
+        if (removed > 0) {
+            log.info("event=reconnect_buffer_pruned removed={}", removed);
+        }
     }
 
     public Set<NodeAddress> view() { return connectionRegistry.view(); }
