@@ -60,7 +60,7 @@ Companion docs:
 | Item | State |
 |---|---|
 | Branch | **`main`** (active development). `next` merged. |
-| Version | `2.0.0-rc1` (git tag `v2.0.0-rc1`) |
+| Version | **`2.0.0`** released (git tag `v2.0.0`, pushed 2026-05-30 → Maven Central + Docker Hub release workflows). Soak step was skipped by maintainer decision. |
 | v2 rewrite | **Complete** — all 3 PRs (transport / server / bundle) shipped |
 | Test count | ~245 on JDK 25 (transport, server, common, bundle, lab, lab-ms); 50+ JDBC ITs gated on Docker |
 | Known issues | None open post Fix A–D |
@@ -82,12 +82,14 @@ Companion docs:
 - **Post-RC1 fixes:** Fix A (superseded-session race), Fix B (FK violation), Fix C (DEGRADED
   drops), Fix D (QoS reconnect delivery for in-flight responses)
 
-## Remaining before `v2.0.0` GA
+## v2.0.0 GA — shipped (2026-05-30)
 
-1. Deploy `main` to staging with real traffic generator
-2. Soak 1–2 weeks with early adopters
-3. Address any staging findings
-4. Bump version → `2.0.0`, tag, publish to Maven Central
+`2.0.0` was tagged and pushed, triggering the **Publish to Maven Central** and
+**Docker Build & Push — Server** workflows. The pre-GA staging soak (deploy to
+staging, soak 1–2 weeks with early adopters) was **skipped by maintainer decision**.
+Post-release: confirm both workflows succeeded (Actions tab), verify artifacts on
+Maven Central (`com.eventoframework:evento-bundle:2.0.0`) and the
+`eventoframework/evento-server:2.0.0` Docker image, then watch for adopter findings.
 
 ## Next feature planning
 
