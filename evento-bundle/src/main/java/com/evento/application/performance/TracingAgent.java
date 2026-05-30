@@ -5,8 +5,18 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 
 /**
- * The TracingAgent class provides functionality for correlating and tracking messages
- * within the application for performance monitoring and tracing purposes.
+ * Extension hook for correlating and tracking messages for performance monitoring and tracing.
+ *
+ * <p><b>The base implementation is a deliberate no-op:</b> {@link #doTrack} simply runs the
+ * transaction and {@link #correlate(Metadata, Message)} returns the metadata unchanged. There is
+ * no distributed-tracing wiring here — no trace-id generation, no W3C {@code traceparent}
+ * propagation across the wire, no OpenTelemetry. Cross-bundle call chains are therefore <em>not</em>
+ * reconstructable from this class alone today.
+ *
+ * <p>It is shaped as an extension point: {@code doTrack}/{@code correlate} are overridable, so a
+ * real tracing implementation can be supplied by subclassing. Wiring genuine W3C trace-context
+ * propagation + an OpenTelemetry/Micrometer-Tracing bridge is tracked as Phase 0/2 item 3 in
+ * {@code .claude/ENTERPRISE-PLAN.md}. Until then, treat this as a placeholder, not a feature.
  */
 @Getter
 public class TracingAgent {
