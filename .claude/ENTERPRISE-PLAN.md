@@ -64,6 +64,9 @@ in "Corrected non-findings" so they are not re-investigated.
 ### Corrected non-findings (do not re-investigate)
 - ❌ "Maven/signing credentials committed." **False** — `gradle.properties` and `signing-key.gpg` are gitignored; only `gradle.properties.template` is tracked.
 - ❌ "Advisory locks are parameterized everywhere." Partly false — the *consumer* `JdbcConsumerLock` is parameterized, but `PgDistributedLock` (P0 #1) is not. Both classes exist; do not conflate them.
+- ❌ "No dependency scanning / Dependabot" (part of #13). **False** — `.github/dependabot.yml`
+  covers gradle + npm + github-actions weekly, and `codeql.yml` + `scorecard.yml` workflows exist.
+  Only a version catalog (and an optional build-time CVE gate) is genuinely absent.
 - ❌ "Auth tokens logged in cleartext" (was P2 #12). **False on verification** — every flagged log (`session_accepted token=`, `old_token=`/`new_token=`) prints `session.connectionToken()`, an internal per-connection supersede-guard UUID, *not* the bundle `authToken` secret. The real `authToken` is validated at `BusLifecycle.java:572` and never logged; `HandshakeHandler` logs only bundle/instance/version/caps. No redaction needed.
 
 ## Phased plan
@@ -147,6 +150,6 @@ Phases 2–3 can land during the planned staging soak.
 | 10 Shutdown-deadline through transport close | 2 | P2 | 🟡 partial — maintenance scheduler now shut down in `stop()`; deadlining `transportServer.stop()`/`closeAll()` needs a `TransportServer` SPI change (deferred) |
 | 10b Event-store Flyway | 2 | P2 | open |
 | 11 Hikari/lock lifecycle docs | 2 | P2 | open |
-| 12 CI coverage | 3 | P1 | open |
-| 13 Dep scanning / catalog | 3 | P2 | 🟡 partial — reconciled `nettyVersion` 4.1.118→4.1.124 (server BOM already ran 4.1.124; published transport artifact now matches); transport tests green. **Remaining:** version catalog + OWASP dependency-check/Dependabot |
+| 12 CI coverage | 3 | P1 | 🟡 partial — CI now runs the full `:evento-server:test` (dropped the `bus.*` filter) + a new `jdbc-integration-tests` job runs the Testcontainers ITs (`EVENTO_RUN_JDBC_IT=true`). **Remaining:** actually-written web/REST + auth tests (none exist yet) |
+| 13 Dep scanning / catalog | 3 | P2 | 🟡 mostly a non-finding — Dependabot (gradle/npm/actions), CodeQL, and Scorecard already configured. Reconciled `nettyVersion` 4.1.118→4.1.124. **Remaining (low):** version catalog (`libs.versions.toml`); optional OWASP dependency-check build-time CVE gate |
 | 14 Doc-drift pass | 3 | low | partial |
