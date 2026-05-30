@@ -57,7 +57,7 @@
     "@angular-eslint/schematics": "^18.0.0",
     "@angular-eslint/template-parser": "^18.0.0",
     "@angular/cli": "^18.0.0",
-    "@angular/compiler-cli": "^18.0.0",
+    "@angular/compiler-cli": "^21.2.15",
     "@angular/language-service": "^18.0.0",
     "@capacitor/cli": "6.1.0",
     "@ionic/angular-toolkit": "^11.0.1",
