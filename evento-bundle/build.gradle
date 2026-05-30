@@ -36,7 +36,7 @@ dependencies {
     api project(':evento-common')
     api project(':evento-transport-api')
     api project(':evento-transport-netty')
-    api 'org.hibernate.validator:hibernate-validator:8.0.0.Final'
+    api 'org.hibernate.validator:hibernate-validator:9.1.0.Final'
 
     implementation 'org.apache.logging.log4j:log4j-core:2.22.1'
     implementation 'org.apache.logging.log4j:log4j-api:2.22.1'
