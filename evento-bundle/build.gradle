@@ -30,7 +30,7 @@ dependencies {
     testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3'
 
     implementation 'org.reflections:reflections:0.10.2'
-    implementation 'io.github.classgraph:classgraph:4.8.149'
+    implementation 'io.github.classgraph:classgraph:4.8.184'
     implementation 'org.ow2.asm:asm:9.10.1'
 
     api project(':evento-common')
