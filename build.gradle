@@ -12,7 +12,7 @@ allprojects {
         junitVersion = '5.11.4'
         assertjVersion = '3.26.3'
         lombokVersion = '1.18.46'
-        flywayVersion = '12.6.1'
+        flywayVersion = '12.7.0'
         testcontainersVersion = '1.21.3'
         postgresJdbcVersion = '42.7.11'
         mysqlJdbcVersion = '9.7.0'
