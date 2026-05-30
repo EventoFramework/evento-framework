@@ -58,9 +58,11 @@ public class PgDistributedLock {
         // Skip distributed lock when no DataSource is configured (embedded/test mode)
         if (lockDatasource == null) return;
 
-        // Acquire advisory lock in PostgreSQL
+        // Acquire advisory lock in PostgreSQL. The key is bound as a parameter (never
+        // concatenated) so a caller-controlled lockId/aggregateId cannot inject SQL.
         try (var stmt = this.getLockConnection().prepareStatement(
-                "SELECT pg_advisory_lock(hashtext('"+key+"'))")) {
+                "SELECT pg_advisory_lock(hashtext(?))")) {
+            stmt.setString(1, key);
             try (var resultSet = stmt.executeQuery()) {
                 if (!resultSet.next()) {
                     throw new IllegalMonitorStateException("Failed to acquire advisory lock for key: " + key);
@@ -88,7 +90,8 @@ public class PgDistributedLock {
         if (lockDatasource == null) return true;
 
         try (var stmt = this.getLockConnection().prepareStatement(
-                "SELECT pg_try_advisory_lock(hashtext('"+key+"'))")) {
+                "SELECT pg_try_advisory_lock(hashtext(?))")) {
+            stmt.setString(1, key);
             var resultSet = stmt.executeQuery();
             resultSet.next();
             boolean success = resultSet.getBoolean(1);
@@ -132,9 +135,10 @@ public class PgDistributedLock {
         // Skip distributed unlock when no DataSource is configured (embedded/test mode)
         if (lockDatasource == null) return;
 
-        // Release advisory lock from PostgreSQL
+        // Release advisory lock from PostgreSQL (key bound as a parameter, never concatenated)
         try (var stmt = getLockConnection().prepareStatement(
-                "SELECT pg_advisory_unlock(hashtext('"+key+"'))")) {
+                "SELECT pg_advisory_unlock(hashtext(?))")) {
+            stmt.setString(1, key);
             try (var resultSet = stmt.executeQuery()) {
                 if (!resultSet.next()) {
                     throw new IllegalMonitorStateException("Failed to release advisory lock for key: " + key + " — no result returned.");
