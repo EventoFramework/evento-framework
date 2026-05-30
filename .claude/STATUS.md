@@ -1,8 +1,21 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-05-29. Branch `next` merged to `main`; v2.0 rewrite complete.
-`evento-cli` module deleted (see "evento-cli removal" below).
-Bundle deployment / autoscaling surface removed (see "Deployment rip-out" below).
+Last updated: 2026-05-30. Branch `next` merged to `main`; v2.0 rewrite complete.
+`evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## Enterprise-readiness assessment (2026-05-30)
+
+`evento-parser` removed (`21d8cd78`) — the last consumer of the parser-based
+`BundleDescription` model is gone now that ASM self-discovery + self-description parity
+shipped. Module map in `ARCHITECTURE.md` §2 updated; §14 metrics claim corrected (not wired).
+
+Ran a full enterprise-readiness assessment of the 6 production modules. Findings +
+phased plan in [`ENTERPRISE-PLAN.md`](ENTERPRISE-PLAN.md). Headlines:
+- **P0:** SQLi in `PgDistributedLock` (string-concatenated `key`); unbounded `ChunkReassembler`
+  (remote OOM/DoS); `TracingAgent` is a no-op stub.
+- **P1:** Micrometer declared but unwired; no health/readiness; insecure-by-default with no
+  wired hardening path; polymorphic-typing gadget risk; server web/es layers untested in CI.
+- Corrected over-claim: Maven/signing creds are **not** committed (gitignored).
 
 ## Deployment rip-out (2026-05-29)
 
@@ -238,8 +251,8 @@ static-analysis + publish step is fully redundant. Module deleted.
 
 - Deleted `evento-cli/` (`PublishBundle`, `UpdateVersion`, `Test`) + `settings.gradle` include
 - Deleted `.github/workflows/cli-release.yaml`; removed CLI from README, `ARCHITECTURE.md`, `bug_report.yml`
-- **Kept** `evento-parser` — still used server-side by `BundleController` + `BundleService`
-  (the `POST /api/bundle/` upload endpoint and the `BundleDescription` model remain live)
+- ~~**Kept** `evento-parser`~~ — **superseded:** `evento-parser` was removed on 2026-05-30
+  (`21d8cd78`). See the 2026-05-30 entry below.
 - **Dropped, not migrated:** deploy-by-upload *client* (server endpoint stays) and the
   `UpdateVersion` version-bump helper (now a manual edit of `evento.bundle.version`); both were
   intentionally out of scope for auto-discovery parity

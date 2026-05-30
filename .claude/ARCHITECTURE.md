@@ -35,7 +35,6 @@ evento-framework/
 ├── evento-server/                Server runtime: bus lifecycle, event store, REST API, Spring Boot app
 ├── evento-consumer-state-store/
 │   └── evento-consumer-state-store-jdbc/  JDBC impls (Postgres + MySQL) for consumer SPIs
-├── evento-parser/                Static analysis / codegen of handler metadata (server-side BundleDescription model)
 ├── evento-gui/                   Web GUI (React, static assets)
 ├── evento-lab/                   In-process integration tests (single-bundle RTT, failure matrix, etc.)
 └── evento-lab-microservices/     Multi-bundle integration tests (RECQ microservices scenario)
@@ -48,7 +47,7 @@ evento-framework/
 ```
 
 **Gradle**: version `2.0.0-rc1`, Java toolchain `25`, Spring Boot `3.5.5`, Jackson CBOR `2.18.2`,
-Netty `4.1.118.Final`. Root `build.gradle` centralises all versions in `allprojects { ext { … } }`.
+Netty `4.1.124.Final`. Root `build.gradle` centralises all versions in `allprojects { ext { … } }`.
 
 ---
 
@@ -440,11 +439,17 @@ Auth is handled by `AuthFilter` + `AuthService` + `TokenRole` (per-request JWT/t
 
 ## 14. Observability
 
-- **Micrometer metrics** (planned/partial):
-  - `evento.server.connections{state}`
-  - `evento.server.heartbeat.lag{node}`
-  - `evento.server.correlations.pending`
-  - `evento.server.message.processing.duration{type}`
+- **Micrometer metrics** — wired via `BusMetricsBinder` (`com.evento.server.bus.spring`),
+  exposed on `/actuator/prometheus` + `/actuator/metrics` (`micrometer-registry-prometheus`):
+  - `evento.server.connections` — connected bundle nodes
+  - `evento.server.connections.available` — nodes able to receive
+  - `evento.server.correlations.pending` — outstanding server-initiated correlations
+  - `evento.server.forwarding.table.size` — in-flight relayed requests
+  - `evento.server.forwarded{path=raw|reencoded}` — zero-copy vs re-encoded forward counts
+  - *Not yet covered:* heartbeat lag, per-type processing-duration timers, consumer lag (future work).
+- **Health** — `BusHealthIndicator` reports the bus bound-port + node counts on
+  `/actuator/health`; liveness/readiness probes enabled. DataSource health via Actuator's
+  built-in indicator.
 - **Performance store**: `HandlerInvocationCountPerformance` + `HandlerServiceTimePerformance`
   persisted by `PerformanceStoreService`, consumed via `PerformanceController`.
 - **Structured logging:** SLF4J. Key=value on every bus lifecycle transition. `event=disconnect_superseded_skip` etc.
