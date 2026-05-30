@@ -8,6 +8,6 @@ services:
       - POSTGRES_PASSWORD=secret
       - POSTGRES_DB=evento
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data/
+      - ./data/postgres:/var/lib/postgresql
 
 
