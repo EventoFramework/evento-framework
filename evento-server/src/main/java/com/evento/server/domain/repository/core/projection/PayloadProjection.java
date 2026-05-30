@@ -33,4 +33,7 @@ public interface PayloadProjection {
 	String getLinePrefix();
 	Integer getLine();
 
+	/** Id of the bundle the payload is registered in; used by the GUI to resolve the repository URL. */
+	String getBundleId();
+
 }

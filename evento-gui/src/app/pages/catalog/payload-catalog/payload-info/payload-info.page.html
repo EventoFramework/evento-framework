@@ -14,10 +14,10 @@
               <ion-text>{{payload.description}}</ion-text>
             </ion-col>
             <ion-col class="ion-text-end" size="2">
-              <ng-container *ngIf="payload.path">
+              <ng-container *ngIf="payload.repoLink">
                 <ion-buttons class="ion-float-end">
-                  <ion-button href="{{payload.path}}#{{payload.linePrefix}}{{payload.line}}" target="_blank">
-                    <ion-icon slot="icon-only" [name]="payload.path | repositoryLogo"></ion-icon>
+                  <ion-button [href]="payload.repoLink" target="_blank">
+                    <ion-icon slot="icon-only" [name]="payload.repoLink | repositoryLogo"></ion-icon>
                   </ion-button>
                 </ion-buttons>
               </ng-container>
@@ -74,11 +74,11 @@
                 <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
                   <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
                 </ion-chip>
-                <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
+                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
+                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>
                   </ng-template>
                 </ion-popover>
@@ -97,11 +97,11 @@
                 <ion-chip [id]="r.name" outline="true" routerLink="/component-info/{{r.name}}">
                   <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
                 </ion-chip>
-                <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
+                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
+                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>
                   </ng-template>
                 </ion-popover>
@@ -120,11 +120,11 @@
                 <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
                   <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
                 </ion-chip>
-                <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
+                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
+                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>
                   </ng-template>
                 </ion-popover>
@@ -143,11 +143,11 @@
                 <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
                   <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
                 </ion-chip>
-                <ion-popover *ngIf="r.path" [trigger]="r.name" triggerAction="context-menu">
+                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
                   <ng-template>
-                    <ion-item  href="{{r.path}}#{{r.linePrefix}}{{r.line}}" target="_blank" tappable="true">
+                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
                       <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.path | repositoryLogo" slot="end"></ion-icon>
+                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                     </ion-item>
                   </ng-template>
                 </ion-popover>

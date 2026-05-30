@@ -71,6 +71,7 @@ public class NodeDTO implements Serializable {
 			this.handlerId = s.getHandlerId();
 		} else if (node instanceof Source s)
 		{
+			this.bundle = s.getBundleId();
 			this.target = new HashMap<>();
 			s.getTarget().forEach((k, v) -> this.target.put(k.getId(), v));
 			this.name = s.getName();

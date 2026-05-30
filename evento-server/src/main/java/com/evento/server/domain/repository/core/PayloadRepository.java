@@ -32,12 +32,13 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"       p.domain, " +
 			"       p.path, " +
 			"       p.line, " +
+			"       p.registered_in as bundleId, " +
 			"       max(b.line_prefix) as linePrefix, " +
 			"       p.is_valid_json_schema as validJsonSchema, " +
-			"       string_agg(distinct case when hc.component_name is null then null else concat(hc.component_name, '$$$', hc.component_type, '$$$', hc.path, '$$$', h.line) end, ',')   as subscribers, " +
-			"       string_agg(distinct case when hic.component_name is null then null else concat(hic.component_name, '$$$', hic.component_type, '$$$', hic.path, '$$$', hi.line) end, ',') as invokers, " +
-			"       string_agg(distinct case when h2c.component_name is null then null else concat(h2c.component_name, '$$$', h2c.component_type, '$$$', h2c.path, '$$$', h2.line) end, ',') as returnedBy, " +
-			"       string_agg(distinct case when h3c.component_name is null then null else  concat(h3c.component_name, '$$$', h3c.component_type, '$$$', h3c.path, '$$$', h3.line) end, ',') as usedBy " +
+			"       string_agg(distinct case when hc.component_name is null then null else concat(hc.component_name, '$$$', hc.component_type, '$$$', hc.path, '$$$', h.line, '$$$', hc.bundle_id) end, ',')   as subscribers, " +
+			"       string_agg(distinct case when hic.component_name is null then null else concat(hic.component_name, '$$$', hic.component_type, '$$$', hic.path, '$$$', hi.line, '$$$', hic.bundle_id) end, ',') as invokers, " +
+			"       string_agg(distinct case when h2c.component_name is null then null else concat(h2c.component_name, '$$$', h2c.component_type, '$$$', h2c.path, '$$$', h2.line, '$$$', h2c.bundle_id) end, ',') as returnedBy, " +
+			"       string_agg(distinct case when h3c.component_name is null then null else  concat(h3c.component_name, '$$$', h3c.component_type, '$$$', h3c.path, '$$$', h3.line, '$$$', h3c.bundle_id) end, ',') as usedBy " +
 			" " +
 			"from core__payload p " +
 			"         left join core__handler h on p.name = h.handled_payload_name and " +

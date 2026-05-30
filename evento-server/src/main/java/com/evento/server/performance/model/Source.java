@@ -10,6 +10,7 @@ import java.util.Map;
 public class Source extends Node implements HasTarget {
 
 
+	@Getter
 	private String bundleId;
 	private String componentName;
 	@Setter
