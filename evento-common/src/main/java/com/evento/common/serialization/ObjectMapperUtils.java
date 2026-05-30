@@ -4,10 +4,8 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import java.io.Serializable;
 
 /**
  * The ObjectMapperUtils class provides utility methods for obtaining a shared instance of ObjectMapper for serializing and deserializing objects.
@@ -25,10 +23,7 @@ public class ObjectMapperUtils {
 	public synchronized static ObjectMapper getPayloadObjectMapper() {
 		if (instance == null)
 		{
-			PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-					.allowIfSubType(Serializable.class)
-					.allowIfSubType("com.evento.")
-					.build();
+			PolymorphicTypeValidator ptv = PayloadTypeAllowlist.build();
 
 			var om = new ObjectMapper();
 			om.registerModule(new JavaTimeModule());

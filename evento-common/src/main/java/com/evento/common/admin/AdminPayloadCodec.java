@@ -8,13 +8,12 @@ import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.evento.common.serialization.PayloadTypeAllowlist;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.io.UncheckedIOException;
 
 /**
@@ -26,12 +25,12 @@ import java.io.UncheckedIOException;
  * encodes an outgoing admin request; bundle side, when its admin handler
  * decodes and replies) must use the same Jackson polymorphic configuration:
  * the {@code body: Serializable} field carries arbitrary subtypes
- * ({@code ConsumerFetchStatusRequestMessage}, {@code ExceptionWrapper}, …) and
- * we need type discriminators on the wire so the receiver can reconstruct the
- * concrete type. The whitelist mirrors the v1 wire's
- * {@code ObjectMapperUtils.getPayloadObjectMapper} (subtypes of
- * {@code Serializable} or anything under {@code com.evento.*}) so existing
- * payload classes keep flowing without per-class registration.
+ * ({@code ConsumerFetchStatusRequestMessage}, {@code ExceptionWrapper}, decorated
+ * command/event messages wrapping user payloads, …) and we need type discriminators
+ * on the wire so the receiver can reconstruct the concrete type. The polymorphic
+ * type validator comes from {@link PayloadTypeAllowlist}, shared with the v1 payload
+ * mapper: open (any {@code Serializable}) by default, or a hardened package allowlist
+ * when {@code evento.serialization.allowed-packages} is configured.
  */
 public final class AdminPayloadCodec {
 
@@ -46,10 +45,7 @@ public final class AdminPayloadCodec {
     }
 
     public static ObjectMapper defaultMapper() {
-        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType(Serializable.class)
-                .allowIfSubType("com.evento.")
-                .build();
+        PolymorphicTypeValidator ptv = PayloadTypeAllowlist.build();
         var factory = CBORFactory.builder()
                 .streamReadConstraints(StreamReadConstraints.builder()
                         .maxStringLength(Integer.MAX_VALUE)
