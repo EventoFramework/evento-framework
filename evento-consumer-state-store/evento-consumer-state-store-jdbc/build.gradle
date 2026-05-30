@@ -51,9 +51,13 @@ test {
     def dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
     environment "DOCKER_HOST", dockerHost
     environment "TESTCONTAINERS_RYUK_DISABLED", "true"
-    // Docker Desktop 29.x returns empty fields for older API versions; force a
-    // recent one so docker-java's `/info` probe gets a populated ServerVersion.
-    environment "DOCKER_API_VERSION", "1.45"
+    // Pin the Docker Engine API version docker-java targets. Its built-in default
+    // (1.32) is below the minimum API version of recent Docker Engine / Docker
+    // Desktop daemons (29.x requires >= 1.40), so the /info probe returns HTTP 400
+    // with an empty body. docker-java reads this ONLY from the `api.version` system
+    // property — it does NOT recognise a DOCKER_API_VERSION env var. 1.51 is within
+    // [min=1.40, max=1.54] of those daemons and accepted by older engines too.
+    systemProperty "api.version", System.getProperty("api.version") ?: "1.51"
 }
 
 javadoc {

@@ -16,6 +16,14 @@ dependencyManagement {
     imports {
         mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.5'
     }
+    // Flyway 12.x ships Jackson 3 (tools.jackson.*), whose annotation introspector
+    // references com.fasterxml.jackson.annotation.JsonSerializeAs (jackson-annotations
+    // 2.20+). The Spring Boot BOM would otherwise pin jackson-annotations to 2.19.2,
+    // which lacks that class, and the Flyway migration fails with NoClassDefFoundError.
+    // Override the managed version with the one Flyway needs (and ships with).
+    dependencies {
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+    }
 }
 
 repositories {
@@ -68,5 +76,9 @@ test {
     def dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
     environment "DOCKER_HOST", dockerHost
     environment "TESTCONTAINERS_RYUK_DISABLED", "true"
-    environment "DOCKER_API_VERSION", "1.45"
+    // docker-java only honours the API version via the `api.version` system
+    // property (NOT a DOCKER_API_VERSION env var). Its default (1.32) is below
+    // the minimum of recent Docker daemons (29.x needs >= 1.40), which makes the
+    // /info probe fail with HTTP 400. Pin a version in [1.40, 1.54].
+    systemProperty "api.version", System.getProperty("api.version") ?: "1.51"
 }

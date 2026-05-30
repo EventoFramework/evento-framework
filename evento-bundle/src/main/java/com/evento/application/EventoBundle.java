@@ -571,9 +571,21 @@ public class EventoBundle {
                     sendConsumerRegistrationV2(eventoServer, supervisor);
                     logger.info("Application Started!");
                     Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
+                } catch (InterruptedException e) {
+                    // The startup thread was interrupted before it finished — almost
+                    // always because the bundle is being stopped during startup.
+                    Thread.currentThread().interrupt();
+                    logger.info("Bundle startup interrupted before completion (likely shutdown)");
                 } catch (Exception e) {
-                    logger.error("Error during startup", e);
-                    System.exit(1);
+                    // A stop() that races startup tears the engine executor down, so
+                    // submitting the saga/observer engines throws RejectedExecution.
+                    // That is benign — never kill the host JVM for it (design rule:
+                    // no System.exit anywhere; failures surface through callbacks).
+                    if (supervisor.isShuttingDown()) {
+                        logger.info("Bundle startup aborted because the bundle is shutting down");
+                    } else {
+                        logger.error("Error during startup", e);
+                    }
                 }
             });
             startThread.setName("Start Bundle Thread (v2)");
