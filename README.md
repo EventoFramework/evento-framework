@@ -61,7 +61,7 @@ Evento Framework v2.0 is a ground-up rewrite of the transport and server bus:
 - **Sealed `Message` records** — exhaustive dispatch enforced by the compiler; adding a new wire type is a one-liner.
 - **Exactly-once QoS** — dedup cache on both broker and bundle sides; callers can retry with the same `correlationId`.
 - **v2 consumer engines** — `ProjectorEngine`, `SagaEngine`, `ObserverEngine` composed on focused SPIs (`ConsumerLock`, `ConsumerStateStore`, `SagaStateStore`, `DeadEventQueue`, `DedupeStore`). JDBC impls for Postgres and MySQL included.
-- **Autoscale rip-out** — the framework emits performance metrics only; cluster orchestration (k8s / Nomad) owns spawn and kill.
+- **Metrics-only, no built-in scaling** — the framework emits performance metrics only; cluster orchestration and instance lifecycle are external concerns (k8s / Nomad).
 - **Zero-copy forwarding** — broker relays `Request`/`Response` as raw bytes without re-encoding.
 
 ## Getting Started
