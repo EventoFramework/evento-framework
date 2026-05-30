@@ -8,7 +8,6 @@ pluginManagement {
 }
 
 rootProject.name = 'evento'
-include 'evento-parser'
 include 'evento-server'
 include 'evento-common'
 include 'evento-bundle'
