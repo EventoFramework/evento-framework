@@ -282,8 +282,9 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
    executor + deadlined shutdown. Short-lived batch fan-out within an engine's `run()` can still
    open a `StructuredTaskScope` locally.
 
-9. **Autoscale rip-out.** The framework emits performance metrics only (`PerformanceInvocationsMessage`,
-   `PerformanceServiceTimeMessage`). The external orchestrator (k8s / Nomad) owns spawn and kill.
+9. **Framework does not manage instance lifecycle.** The framework emits performance metrics only
+   (`PerformanceInvocationsMessage`, `PerformanceServiceTimeMessage`); instance lifecycle and scaling
+   are owned entirely by the external orchestrator (k8s / Nomad).
 
 10. **`MessageHandlerInterceptor` default methods.** All 24 interceptor methods are `default` (ISP
     fix). Implementors override only the hooks they need. Void methods get empty bodies; return-type

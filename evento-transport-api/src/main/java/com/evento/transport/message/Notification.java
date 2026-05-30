@@ -6,8 +6,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.UUID;
 
 /**
- * One-way notification (no response expected). Used for kill signals, broadcast
- * events, enable/disable signals, etc. Payload is opaque bytes (typically CBOR).
+ * One-way notification (no response expected). Used for broadcast events,
+ * enable/disable signals, etc. Payload is opaque bytes (typically CBOR).
  */
 public record Notification(
         UUID correlationId,

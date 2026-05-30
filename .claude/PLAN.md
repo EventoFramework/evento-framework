@@ -261,7 +261,7 @@ Tutti i file in `evento-server/src/main/java/com/evento/server/bus/v2/`:
 | `CorrelationStore` | `ConcurrentHashMap<UUID, PendingCorrelation>`. `track`, `complete`, `expire`. Scheduler cleanup. | – |
 | `HeartbeatService` | Invia `Ping` periodici a ogni connection. Traccia `lastPongMs[node]`. Failure detection → `ConnectionRegistry.unregister`. | `ConnectionRegistry` |
 | `LifecycleManager` | Orchestrator. `@PostConstruct start()`, `@PreDestroy stop()` con bounded deadline. | tutte sopra |
-| `MessageBusFacade` | API pubblica (façade Spring `@Component`). Espone `getCurrentView`, `getCurrentAvailableView`, `isBundleAvailable`, `forward`, `sendKill`, `waitUntilAvailable`, `subscribe(Consumer<BusEvent>)`. | `LifecycleManager` |
+| `MessageBusFacade` | API pubblica (façade Spring `@Component`). Espone `getCurrentView`, `getCurrentAvailableView`, `isBundleAvailable`, `forward`, `waitUntilAvailable`, `subscribe(Consumer<BusEvent>)`. | `LifecycleManager` |
 
 Listener: **un solo entry point** `subscribe(Consumer<BusEvent>)` dove `BusEvent` è sealed `JoinEvent | LeaveEvent | EnableEvent | DisableEvent | ViewChangedEvent | HeartbeatTimeoutEvent`. I 4 listener type vecchi vengono cancellati. I consumer (Dashboard, AutoDiscovery, BundleDeploy) vengono aggiornati a usare `subscribe` + pattern matching.
 

@@ -55,7 +55,7 @@ import static org.awaitility.Awaitility.await;
 /**
  * End-to-end exercise of the {@link BusLifecycleFacade} over real Netty TCP.
  * Proves the v2 facade satisfies the surface the dashboard / discovery /
- * consumer services rely on: view snapshots, kill notifications, the
+ * consumer services rely on: view snapshots, enable/disable notifications, the
  * {@code BusEvent} stream, and especially the CBOR-encoded
  * {@link EventoRequest} round-trip via {@code SERVER_ADMIN_REQUEST}.
  *
