@@ -10,8 +10,8 @@ import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import com.evento.common.modeling.state.SagaState;
+import com.evento.common.serialization.ObjectMapperUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.AfterAll;
@@ -72,10 +72,11 @@ abstract class AbstractJdbcConsumerStateStoreIT {
 
         FlywayMigrator.migrate(dataSource, dialect());
 
-        objectMapper = new ObjectMapper();
-        objectMapper.activateDefaultTyping(
-                BasicPolymorphicTypeValidator.builder().allowIfBaseType(Object.class).build(),
-                ObjectMapper.DefaultTyping.NON_FINAL);
+        // Use the framework's real payload mapper — the one the consumer engines
+        // hand to these stores in production. A hand-rolled mapper that merely
+        // enables default typing does not reproduce the field-only visibility and
+        // FAIL_ON_UNKNOWN_PROPERTIES=false config the message/state types rely on.
+        objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
 
         store = new JdbcConsumerStateStore(dataSource, dialect());
         dedupe = new JdbcDedupeStore(dataSource, dialect());
@@ -353,7 +354,10 @@ abstract class AbstractJdbcConsumerStateStoreIT {
 
     // --- helpers ------------------------------------------------------------
 
-    static final class TestSaga extends SagaState {}
+    // Non-final on purpose: NON_FINAL default typing only writes the type wrapper
+    // for non-final types, and these saga states are read back via the SagaState
+    // base type. Real saga states are likewise non-final.
+    static class TestSaga extends SagaState {}
 
     static PublishedEvent makeEvent(long seq, String name) {
         var msg = new DomainEventMessage();

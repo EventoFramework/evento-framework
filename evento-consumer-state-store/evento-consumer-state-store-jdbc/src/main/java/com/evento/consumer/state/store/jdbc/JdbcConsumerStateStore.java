@@ -143,6 +143,18 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
             stmt.setLong(3, seq);
             if (stmt.executeUpdate() == 1) return 1L;
         }
+        // A row may already exist with no checkpoint committed yet — e.g. one
+        // created by setEnabled/setLastError before the first commit. Such a row
+        // sits at version 0, so expectedVersion=0 must still succeed: promote it
+        // to version 1, guarded by version=0 to keep optimistic-lock semantics.
+        try (PreparedStatement stmt = c.prepareStatement(
+                "UPDATE evento_v2_consumer_state SET kind = ?, last_sequence = ?, version = 1 "
+                        + "WHERE consumer_id = ? AND version = 0")) {
+            stmt.setString(1, kind);
+            stmt.setLong(2, seq);
+            stmt.setString(3, consumerId);
+            if (stmt.executeUpdate() == 1) return 1L;
+        }
         long actual = readVersionOrZero(c, consumerId);
         throw new OptimisticLockException(consumerId, 0L, actual);
     }
