@@ -11,6 +11,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.0.0] — 2026-05-30
+
+First general-availability release of the v2.0 ground-up rewrite, promoting `2.0.0-rc1` to GA.
+Wire-format compatibility with v1 remains **intentionally broken**.
+
+### Added
+
+- **Self-description parity with the (removed) CLI**: bundles publish full discovery metadata at
+  startup — component/handler/payload source paths and line numbers, `repositoryUrl` + `linePrefix`
+  for clickable source links, and the `@EventoDescription` annotation for human-readable
+  descriptions — so the static-analysis publish step is no longer needed.
+
+### Removed
+
+- **`evento-cli`** module deleted — bundle discovery is fully automatic via ASM self-discovery at
+  startup; the static-analysis publish / version-bump step is gone.
+- **`evento-parser`** module deleted — last consumer of the parser-based `BundleDescription` removed.
+- **Deploy-by-upload / autoscaling** surface removed: server no longer accepts JAR uploads, the
+  `/spawn` + `/kill` endpoints, `docker-spawn.py`, per-bundle env/VM-options, `autorun`/`deployable`
+  flags, and the autoscaling protocol are all gone. Deployment and scaling are owned by the external
+  orchestrator (k8s / Nomad); the framework emits performance metrics only.
+
+### Changed
+
+- `TracingAgent` default is now an honest no-op (telemetry/metrics only); wire a custom agent or
+  `SentryTracingAgent` for real distributed tracing.
+- Public documentation (docs.eventoframework.com) realigned to v2: CLI / deploy-script / autoscaling
+  pages removed, consumer-state-store pages rewritten to the five-SPI + JDBC-module model.
+
+### Fixed
+
+- `JdbcConsumerStateStore`: framework-provided `ObjectMapper`; improved optimistic locking on version
+  promotion. Docker API-version handling refined.
+
+---
+
 ## [2.0.0-rc1] — 2026-05-21
 
 First release candidate of the v2.0 ground-up rewrite. Wire-format compatibility with v1 is
@@ -128,6 +164,7 @@ Last stable v1.x release. The v1 source history is preserved in the git log.
 
 ---
 
-[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.0.0-rc1...HEAD
+[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/EventoFramework/evento-framework/compare/v2.0.0-rc1...v2.0.0
 [2.0.0-rc1]: https://github.com/EventoFramework/evento-framework/compare/v1.15.5...v2.0.0-rc1
 [1.15.5]: https://github.com/EventoFramework/evento-framework/releases/tag/v1.15.5
