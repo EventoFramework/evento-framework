@@ -24,8 +24,7 @@ import org.springframework.stereotype.Component;
  * inner v1 {@link EventoMessage} and dispatches its body to the existing
  * services — same shape v1 {@code MessageBus.handleMessage} used.
  *
- * <p>Three body types matter on this channel (the rest are silently ignored —
- * autoscale signals were removed):
+ * <p>Three body types matter on this channel (the rest are silently ignored):
  *
  * <ul>
  *   <li>{@link PerformanceInvocationsMessage} → {@link PerformanceStoreService#saveInvocationsPerformance}</li>

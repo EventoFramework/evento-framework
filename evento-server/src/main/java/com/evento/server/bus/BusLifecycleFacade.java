@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 /**
  * v2 implementation of {@link BusFacade}: thin adapter over {@link BusLifecycle}.
  *
- * <p>The view / availability / kill / subscribe surface delegates directly. The
+ * <p>The view / availability / subscribe surface delegates directly. The
  * {@link #forward} method bridges between v1's rich {@link EventoRequest} (what
  * dashboard controllers manipulate) and v2's opaque {@code byte[]} wire by
  * CBOR-encoding the request under
