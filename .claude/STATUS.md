@@ -9,13 +9,23 @@ Last updated: 2026-05-30. Branch `next` merged to `main`; v2.0 rewrite complete.
 `BundleDescription` model is gone now that ASM self-discovery + self-description parity
 shipped. Module map in `ARCHITECTURE.md` §2 updated; §14 metrics claim corrected (not wired).
 
-Ran a full enterprise-readiness assessment of the 6 production modules. Findings +
-phased plan in [`ENTERPRISE-PLAN.md`](ENTERPRISE-PLAN.md). Headlines:
-- **P0:** SQLi in `PgDistributedLock` (string-concatenated `key`); unbounded `ChunkReassembler`
-  (remote OOM/DoS); `TracingAgent` is a no-op stub.
-- **P1:** Micrometer declared but unwired; no health/readiness; insecure-by-default with no
-  wired hardening path; polymorphic-typing gadget risk; server web/es layers untested in CI.
-- Corrected over-claim: Maven/signing creds are **not** committed (gitignored).
+Ran a full enterprise-readiness assessment of the 6 production modules, then implemented
+and **merged to `main`** the safe high-value tranche. Findings + phased plan + live tracker
+in [`ENTERPRISE-PLAN.md`](ENTERPRISE-PLAN.md). Shipped (10 commits, `7c9ddf83`..`e91cd0dd`):
+- **P0:** `PgDistributedLock` SQLi parameterized; `ChunkReassembler` bounded (byte/stream/TTL caps);
+  `TracingAgent` marked honest no-op.
+- **P1:** Micrometer wired (`BusMetricsBinder` + Prometheus); `BusHealthIndicator` + probes;
+  secure-by-default (externalized JWT key, opt-in wire `TokenValidator`, REST `security.mode=open|token`,
+  configurable CORS); opt-in polymorphic-deserialization allowlist (`PayloadTypeAllowlist`).
+- **P2:** bus maintenance reaper (`ForwardingTable` + `reconnectBuffer`); Hikari/lock-lifecycle docs.
+- **CI/build:** full server suite + JDBC IT job in CI; Netty reconciled to 4.1.124.
+- Corrected over-claims: Maven/signing creds **not** committed (gitignored); logged `token=` is the
+  internal connection UUID (not the secret); Dependabot/CodeQL/Scorecard already present.
+
+**Not done (need a decision or a focused effort, see plan):** GUI token flow (separate plan);
+event-store Flyway migration (10b — risky schema-bootstrap rework, needs a real Postgres to verify);
+web/REST auth tests (12); `TransportServer.stop()` deadline (10 — SPI change); version catalog (13).
+Item 7 hardening is opt-in only (default unchanged); enabling it per-deployment is an ops step.
 
 ## Deployment rip-out (2026-05-29)
 
