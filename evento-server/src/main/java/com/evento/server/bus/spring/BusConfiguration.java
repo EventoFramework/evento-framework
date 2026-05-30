@@ -6,6 +6,7 @@ import com.evento.server.bus.lifecycle.BusLifecycle;
 import com.evento.server.bus.registry.ClusterRegistry;
 import com.evento.server.bus.registry.ConnectionRegistry;
 import com.evento.server.bus.router.ForwardingTable;
+import com.evento.server.bus.security.TokenValidator;
 import com.evento.transport.HandshakeProtocol;
 import com.evento.transport.TransportServer;
 import com.evento.transport.codec.JacksonCborPayloadCodec;
@@ -17,6 +18,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -87,6 +89,23 @@ public class BusConfiguration {
         return new NettyServerTransport(config);
     }
 
+    /**
+     * Wire-level bundle authentication. When {@code evento.server.bus.auth-token} is set, bundles
+     * must present exactly that token in their {@code Hello} (constant-time compared); otherwise
+     * authentication is disabled ({@code acceptAll}). The default is {@code acceptAll} to preserve
+     * the development/trusted-network experience — set the token to harden a deployment.
+     */
+    @Bean
+    public TokenValidator busTokenValidator(@Value("${evento.server.bus.auth-token:}") String authToken) {
+        if (authToken == null || authToken.isBlank()) {
+            log.warn("event=bus_auth_disabled detail=\"evento.server.bus.auth-token not set; "
+                    + "any bundle may register. Set a token to require authentication.\"");
+            return TokenValidator.acceptAll();
+        }
+        log.info("event=bus_auth_enabled mode=shared-secret");
+        return TokenValidator.sharedSecret(authToken);
+    }
+
     @Bean(destroyMethod = "")
     public BusLifecycle busLifecycle(TransportServer transportServer,
                                      ConnectionRegistry connections,
@@ -95,10 +114,22 @@ public class BusConfiguration {
                                      ForwardingTable forwarding,
                                      BusEventBus eventBus,
                                      PayloadCodec payloadCodec,
+                                     TokenValidator tokenValidator,
                                      BusProperties props) {
         return new BusLifecycle(transportServer, connections, cluster, correlations,
                 forwarding, eventBus, props.serverInstanceId(),
-                Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec);
+                Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec, tokenValidator);
+    }
+
+    @Bean
+    public BusMetricsBinder busMetricsBinder(BusLifecycle bus, CorrelationStore correlations,
+                                             ForwardingTable forwarding) {
+        return new BusMetricsBinder(bus, correlations, forwarding);
+    }
+
+    @Bean
+    public BusHealthIndicator busHealthIndicator(BusLifecycle bus) {
+        return new BusHealthIndicator(bus);
     }
 
     @Bean
