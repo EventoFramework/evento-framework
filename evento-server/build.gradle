@@ -46,7 +46,6 @@ dependencies {
 
 
 	implementation project(':evento-common')
-	implementation project(':evento-parser')
 	implementation project(':evento-transport-api')
 	implementation project(':evento-transport-netty')
 
