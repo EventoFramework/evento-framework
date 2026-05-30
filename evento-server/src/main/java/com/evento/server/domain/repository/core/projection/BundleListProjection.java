@@ -44,4 +44,20 @@ public interface BundleListProjection {
 	 * @return The domains associated with the BundleListProjection as a string.
 	 */
 	String getDomains();
+
+	/**
+	 * Retrieves the base URL of the repository browser configured for the bundle, used by the GUI
+	 * to build source links in the form {@code {repositoryUrl}/{path}#{linePrefix}{line}}.
+	 *
+	 * @return The repository browser base URL, or {@code null} if none is configured.
+	 */
+	String getRepositoryUrl();
+
+	/**
+	 * Retrieves the line-anchor prefix configured for the bundle's repository browser (e.g. {@code L}
+	 * for GitHub), used together with {@link #getRepositoryUrl()} to build source links.
+	 *
+	 * @return The line-anchor prefix, or {@code null} if none is configured.
+	 */
+	String getLinePrefix();
 }
