@@ -66,35 +66,37 @@ public class AutoDiscoveryService {
                                 return bundleRepository.save(new Bundle(
                                         node.bundleId(),
                                         registration.bundleVersion(),
-                                        null,
-                                        null,
-                                        "L",
-                                        null,
+                                        registration.description(),
+                                        registration.detail(),
+                                        registration.linePrefix(),
+                                        registration.repositoryUrl(),
                                         node.instanceId(),
                                         true,
                                         Instant.now()));
                             }
                     );
 
-                    // Apply bundle-level metadata from discovery
+                    // Apply bundle-level metadata from discovery. The bundle is the source of truth
+                    // for its own metadata, so a non-empty reported value that differs from what is
+                    // stored overwrites it (empty values never clobber an existing value).
                     boolean bundleChanged = false;
                     if (!registration.description().isEmpty() &&
-                            (bundle.getDescription() == null || bundle.getDescription().isEmpty())) {
+                            !registration.description().equals(bundle.getDescription())) {
                         bundle.setDescription(registration.description());
                         bundleChanged = true;
                     }
                     if (!registration.detail().isEmpty() &&
-                            (bundle.getDetail() == null || bundle.getDetail().isEmpty())) {
+                            !registration.detail().equals(bundle.getDetail())) {
                         bundle.setDetail(registration.detail());
                         bundleChanged = true;
                     }
                     if (!registration.repositoryUrl().isEmpty() &&
-                            (bundle.getRepositoryUrl() == null || bundle.getRepositoryUrl().isEmpty())) {
+                            !registration.repositoryUrl().equals(bundle.getRepositoryUrl())) {
                         bundle.setRepositoryUrl(registration.repositoryUrl());
                         bundleChanged = true;
                     }
                     if (!registration.linePrefix().isEmpty() &&
-                            (bundle.getLinePrefix() == null || bundle.getLinePrefix().isEmpty())) {
+                            !registration.linePrefix().equals(bundle.getLinePrefix())) {
                         bundle.setLinePrefix(registration.linePrefix());
                         bundleChanged = true;
                     }
