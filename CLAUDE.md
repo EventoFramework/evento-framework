@@ -13,7 +13,7 @@ load-bearing docs live in [`.claude/`](.claude/):
 
 ## Quick orientation
 
-- Active branch: **`main`** (`next` merged; `v2.0.0-rc1` tagged).
+- Active branch: **`main`** (`next` merged; `v2.0.0` released / tagged).
 - Toolchain: **JDK 25**, Gradle 9.3, Spring Boot 3.5.5. Use
   `/usr/libexec/java_home -v 25` on macOS.
 - Full test command:
