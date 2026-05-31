@@ -25,6 +25,10 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
+          # PAT (repo + read:org) so Scorecard can read branch-protection
+          # settings — the default GITHUB_TOKEN cannot, which left
+          # Branch-Protection at -1 (internal error). See SCORECARD-PLAN.md P0.
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
           publish_results: true
 
       - name: Upload SARIF
