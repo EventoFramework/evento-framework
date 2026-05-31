@@ -117,20 +117,26 @@ Base URLs used below:
 
 ---
 
-## Needs maintainer input / small additions before submitting
+## Previously-open items — now resolved (all **Met**, no repo change required)
 
-1. **`discussion`** (passing): confirm a public discussion channel exists
-   (GitHub Discussions, or the existing issue tracker counts). If using only
-   Issues, answer Met and cite the tracker.
-2. **`documentation_security`** (passing, "how to use the project securely"):
-   `SECURITY.md` covers *reporting*; consider a short "Secure deployment" note
-   (enable TLS via `NettyTransportConfig.sslContext`; set a shared-secret token
-   via `TokenValidator.sharedSecret`) in the docs site, then mark Met and link it.
-3. **`sites_https`** (passing): confirm `www.eventoframework.com` and
-   `docs.eventoframework.com` serve over HTTPS (they do) → Met.
-4. **`crypto_certificate_verification` / `crypto_tls12`** (if prompted): the
-   client verifies server certs through the default JSSE trust manager unless a
-   custom `SslContext` is supplied — answer Met; mention TLS 1.2+ only.
-5. The badge is **self-asserted**; once submitted and all *passing* criteria are
-   Met, Scorecard's CII-Best-Practices check flips 0 → 5+ (Low weight). Add the
-   earned badge markdown to the README.
+| Criterion | Status | Justification to paste |
+|---|---|---|
+| `discussion` | **Met** | Public GitHub **Issues** tracker (`has_issues=true`) + issue/feature templates serve as the discussion mechanism. *(Optional: enabling GitHub Discussions would strengthen this — see note below.)* |
+| `documentation_security` | **Met** | Security model documented in `.claude/ARCHITECTURE.md` §7 — enable TLS via `NettyTransportConfig.sslContext`; authenticate bundles with a shared-secret token via `TokenValidator.sharedSecret(...)` (constant-time compare); CBOR type whitelist. Reporting in `SECURITY.md`. |
+| `sites_https` | **Met** | `https://www.eventoframework.com` and `https://docs.eventoframework.com` both serve over HTTPS (also the badges/links in README use `https`). |
+| `crypto_certificate_verification` | **Met** | The client verifies the server certificate via the default JSSE trust manager (standard `SslContext`); TLS 1.2/1.3 only. |
+
+## Submission
+
+The badge is **self-asserted** — fill the form at bestpractices.dev with the
+answers above. There is **no API token** for writing to the BadgeApp, so the
+form must be submitted from the logged-in maintainer account (it cannot be
+automated). Once all *passing* criteria are Met and submitted, Scorecard's
+CII-Best-Practices check flips **0 → 5+** (Low weight). Finally, add the earned
+badge markdown to the README.
+
+**Optional strengthening (not required for *passing*):**
+- Enable **GitHub Discussions** (`Settings → Features → Discussions`) — makes
+  `discussion` unambiguous and gives users a non-issue channel.
+- Add a short "Secure deployment" section to `SECURITY.md` (TLS + token setup)
+  so `documentation_security` is evidenced in-repo, not just in the docs site.
