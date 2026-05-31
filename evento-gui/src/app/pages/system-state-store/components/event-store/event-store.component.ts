@@ -4,15 +4,14 @@ import {ActivatedRoute, RouterLink} from "@angular/router";
 import {IonicModule} from "@ionic/angular";
 import {FormsModule} from "@angular/forms";
 import {TranslateModule} from "@ngx-translate/core";
-import {DatePipe, JsonPipe, KeyValuePipe, NgForOf, NgIf} from "@angular/common";
+import { DatePipe, JsonPipe, KeyValuePipe } from "@angular/common";
 import {ComponentsModule} from "../../../../components/components.module";
 
 @Component({
-  standalone: true,
-  selector: 'app-event-store',
-  templateUrl: './event-store.component.html',
-  styleUrls: ['./event-store.component.scss'],
-  imports: [
+    selector: 'app-event-store',
+    templateUrl: './event-store.component.html',
+    styleUrls: ['./event-store.component.scss'],
+    imports: [
     IonicModule,
     FormsModule,
     TranslateModule,
@@ -20,10 +19,8 @@ import {ComponentsModule} from "../../../../components/components.module";
     RouterLink,
     JsonPipe,
     KeyValuePipe,
-    NgForOf,
-    NgIf,
     ComponentsModule
-  ]
+]
 })
 export class EventStoreComponent  implements OnInit {
 

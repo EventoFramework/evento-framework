@@ -6,15 +6,12 @@ import {IonicModule, IonicRouteStrategy} from '@ionic/angular';
 
 import {AppComponent} from './app.component';
 import {AppRoutingModule} from './app-routing.module';
-import {TranslateLoader, TranslateModule} from '@ngx-translate/core';
-import {HttpClient, HttpClientModule} from '@angular/common/http';
-import {TranslateHttpLoader} from '@ngx-translate/http-loader';
+import {TranslateModule} from '@ngx-translate/core';
+import {HttpClientModule} from '@angular/common/http';
+import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {MarkdownModule} from 'ngx-markdown';
 import {PayloadCatalogPageModule} from './pages/catalog/payload-catalog/payload-catalog.module';
 import {ComponentsModule} from './components/components.module';
-
-export const createTranslateLoader = (http: HttpClient) =>
-  new TranslateHttpLoader(http, './assets/i18n/', '.json');
 
 @NgModule({
   declarations: [AppComponent],
@@ -23,11 +20,7 @@ export const createTranslateLoader = (http: HttpClient) =>
     MarkdownModule.forRoot(),
     TranslateModule.forRoot({
       defaultLanguage: 'en',
-      loader: {
-        provide: TranslateLoader,
-        useFactory: (createTranslateLoader),
-        deps: [HttpClient],
-      }
+      loader: provideTranslateHttpLoader({prefix: './assets/i18n/', suffix: '.json'}),
     }),
     AppRoutingModule, PayloadCatalogPageModule, ComponentsModule],
   providers: [{provide: RouteReuseStrategy, useClass: IonicRouteStrategy}

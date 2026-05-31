@@ -3,9 +3,10 @@ import {PerformanceService} from "../../services/performance.service";
 import {retry} from "rxjs";
 
 @Component({
-  selector: 'app-aggregate-telemetry',
-  templateUrl: './aggregate-telemetry.component.html',
-  styleUrls: ['./aggregate-telemetry.component.scss'],
+    selector: 'app-aggregate-telemetry',
+    templateUrl: './aggregate-telemetry.component.html',
+    styleUrls: ['./aggregate-telemetry.component.scss'],
+    standalone: false
 })
 export class AggregateTelemetryComponent implements OnInit {
   @Input() component!: any;

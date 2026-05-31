@@ -4,9 +4,10 @@ import {BundleService} from '../../../services/bundle.service';
 import {NavController} from '@ionic/angular';
 
 @Component({
-  selector: 'app-bundle-info',
-  templateUrl: './bundle-info.page.html',
-  styleUrls: ['./bundle-info.page.scss'],
+    selector: 'app-bundle-info',
+    templateUrl: './bundle-info.page.html',
+    styleUrls: ['./bundle-info.page.scss'],
+    standalone: false
 })
 export class BundleInfoPage implements OnInit {
   bundleId: string;

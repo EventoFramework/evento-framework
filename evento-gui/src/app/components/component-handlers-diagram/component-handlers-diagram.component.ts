@@ -10,9 +10,10 @@ declare const mxUtils: any;
 declare const mxHierarchicalLayout: any;
 
 @Component({
-  selector: 'app-component-handlers-diagram',
-  templateUrl: './component-handlers-diagram.component.html',
-  styleUrls: ['./component-handlers-diagram.component.scss'],
+    selector: 'app-component-handlers-diagram',
+    templateUrl: './component-handlers-diagram.component.html',
+    styleUrls: ['./component-handlers-diagram.component.scss'],
+    standalone: false
 })
 export class ComponentHandlersDiagramComponent implements OnInit {
 

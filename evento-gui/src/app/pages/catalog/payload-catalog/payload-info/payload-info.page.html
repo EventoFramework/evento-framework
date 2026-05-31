@@ -1,177 +1,206 @@
 <ion-content>
   <app-wrapped-content>
-    <ion-grid *ngIf="payload">
-      <ion-row>
-        <ion-col size="9" class="line-right">
-          <ion-row class="ion-margin-top line-under">
-            <ion-col size="10">
-              <ion-title>
-                <h1  style="white-space: normal">{{payload.name}}
-                  <ion-chip [class]="'payload-type-' + payload.type">{{payload.type}}</ion-chip>
-                </h1>
-              </ion-title>
-              <div class="ion-margin-top"></div>
-              <ion-text>{{payload.description}}</ion-text>
-            </ion-col>
-            <ion-col class="ion-text-end" size="2">
-              <ng-container *ngIf="payload.repoLink">
-                <ion-buttons class="ion-float-end">
-                  <ion-button [href]="payload.repoLink" target="_blank">
-                    <ion-icon slot="icon-only" [name]="payload.repoLink | repositoryLogo"></ion-icon>
-                  </ion-button>
-                </ion-buttons>
-              </ng-container>
+    @if (payload) {
+      <ion-grid>
+        <ion-row>
+          <ion-col size="9" class="line-right">
+            <ion-row class="ion-margin-top line-under">
+              <ion-col size="10">
+                <ion-title>
+                  <h1  style="white-space: normal">{{payload.name}}
+                    <ion-chip [class]="'payload-type-' + payload.type">{{payload.type}}</ion-chip>
+                  </h1>
+                </ion-title>
+                <div class="ion-margin-top"></div>
+                <ion-text>{{payload.description}}</ion-text>
+              </ion-col>
+              <ion-col class="ion-text-end" size="2">
+                @if (payload.repoLink) {
+                  <ion-buttons class="ion-float-end">
+                    <ion-button [href]="payload.repoLink" target="_blank">
+                      <ion-icon slot="icon-only" [name]="payload.repoLink | repositoryLogo"></ion-icon>
+                    </ion-button>
+                  </ion-buttons>
+                }
+              </ion-col>
+            </ion-row>
+            <ion-row>
+              <ion-col>
+                <markdown [data]="payload.detail"></markdown>
+              </ion-col>
+            </ion-row>
+            <ion-row>
+              <ion-col>
+                <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                translate="payload.invokers.handlers.diagram"></ion-title>
+                <app-invokers-handlers-diagram [payload]="payload"></app-invokers-handlers-diagram>
+              </ion-col>
+            </ion-row>
+            @if (fields.length) {
+              <ion-row>
+                <ion-col>
+                  <ion-title class="ion-padding-bottom" style="font-weight: bold"
+                  translate="payload.structure"></ion-title>
+                  <div >
+                    <ion-grid>
+                      @for (f of fields; track f) {
+                        <ion-row>
+                          <ion-col>
+                            {{f}}
+                          </ion-col>
+                          <ion-col>
+                            {{schema[f]}}
+                          </ion-col>
+                        </ion-row>
+                      }
+                    </ion-grid>
+                  </div>
+                </ion-col>
+              </ion-row>
+            }
+            <ion-row>
+              <ion-col class="ion-text-end">
+                <ion-note><span translate="common.last.update"></span>: {{payload.updatedAt * 1000 | date}}</ion-note>
+              </ion-col>
+            </ion-row>
+          </ion-col>
+          <ion-col size="3" class=" ion-padding-start">
+            <ion-row class="line-under"></ion-row>
+            @if (payload.subscribers?.length) {
+              <ion-row class="line-under">
+                <ion-col>
+                  <div style="margin: 16px 0 5px 5px">
+                    <ion-text>
+                      <ion-icon color="tertiary" name="cube"></ion-icon>
+                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.subscribers"></ion-note>
+                    </ion-text>
+                  </div>
+                  @for (r of payload.subscribers; track r) {
+                    <div>
+                      <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
+                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                      </ion-chip>
+                      @if (r.repoLink) {
+                        <ion-popover [trigger]="r.name" triggerAction="context-menu">
+                          <ng-template>
+                            <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
+                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
+                            </ion-item>
+                          </ng-template>
+                        </ion-popover>
+                      }
+                    </div>
+                  }
+                </ion-col>
+              </ion-row>
+            }
+            @if (payload.invokers?.length) {
+              <ion-row class="line-under">
+                <ion-col>
+                  <div style="margin: 16px 0 5px 5px">
+                    <ion-text>
+                      <ion-icon color="success" name="cube"></ion-icon>
+                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.invocations"></ion-note>
+                    </ion-text>
+                  </div>
+                  @for (r of payload.invokers; track r) {
+                    <div>
+                      <ion-chip [id]="r.name" outline="true" routerLink="/component-info/{{r.name}}">
+                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                      </ion-chip>
+                      @if (r.repoLink) {
+                        <ion-popover [trigger]="r.name" triggerAction="context-menu">
+                          <ng-template>
+                            <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
+                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
+                            </ion-item>
+                          </ng-template>
+                        </ion-popover>
+                      }
+                    </div>
+                  }
+                </ion-col>
+              </ion-row>
+            }
+            @if (payload.returnedBy?.length) {
+              <ion-row class="line-under">
+                <ion-col>
+                  <div style="margin: 16px 0 5px 5px">
+                    <ion-text>
+                      <ion-icon color="secondary" name="cube"></ion-icon>
+                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.returnedBy"></ion-note>
+                    </ion-text>
+                  </div>
+                  @for (r of payload.returnedBy; track r) {
+                    <div>
+                      <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
+                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                      </ion-chip>
+                      @if (r.repoLink) {
+                        <ion-popover [trigger]="r.name" triggerAction="context-menu">
+                          <ng-template>
+                            <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
+                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
+                            </ion-item>
+                          </ng-template>
+                        </ion-popover>
+                      }
+                    </div>
+                  }
+                </ion-col>
+              </ion-row>
+            }
+            @if (payload.usedBy?.length) {
+              <ion-row class="line-under">
+                <ion-col>
+                  <div style="margin: 16px 0 5px 5px">
+                    <ion-text>
+                      <ion-icon color="medium" name="cube"></ion-icon>
+                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.usedBy"></ion-note>
+                    </ion-text>
+                  </div>
+                  @for (r of payload.usedBy; track r) {
+                    <div>
+                      <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
+                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                      </ion-chip>
+                      @if (r.repoLink) {
+                        <ion-popover [trigger]="r.name" triggerAction="context-menu">
+                          <ng-template>
+                            <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
+                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
+                            </ion-item>
+                          </ng-template>
+                        </ion-popover>
+                      }
+                    </div>
+                  }
+                </ion-col>
+              </ion-row>
+            }
+            @if (payload.domain) {
+              <ion-row class="line-under">
+                <ion-col>
+                  <div style="margin: 16px 0 5px 5px">
+                    <ion-text>
+                      <ion-icon color="warning" name="folder-open"></ion-icon>
+                      <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
+                    </ion-text>
+                  </div>
+                  <div>
+                    <ion-chip outline="true">
+                      <ion-text color="warning" style="font-size: 25px">•</ion-text>&nbsp;{{payload.domain}}</ion-chip>
+                    </div>
+                  </ion-col>
+                </ion-row>
+              }
             </ion-col>
           </ion-row>
-          <ion-row>
-            <ion-col>
-              <markdown [data]="payload.detail"></markdown>
-            </ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col>
-              <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                         translate="payload.invokers.handlers.diagram"></ion-title>
-              <app-invokers-handlers-diagram [payload]="payload"></app-invokers-handlers-diagram>
-            </ion-col>
-          </ion-row>
-          <ion-row *ngIf="fields.length">
-            <ion-col>
-              <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                         translate="payload.structure"></ion-title>
-              <div >
-                <ion-grid>
-                  <ion-row *ngFor="let f of fields">
-                    <ion-col>
-                      {{f}}
-                    </ion-col>
-                    <ion-col>
-                      {{schema[f]}}
-                    </ion-col>
-                  </ion-row>
-                </ion-grid>
-
-              </div>
-            </ion-col>
-          </ion-row>
-          <ion-row>
-            <ion-col class="ion-text-end">
-             <ion-note><span translate="common.last.update"></span>: {{payload.updatedAt * 1000 | date}}</ion-note>
-            </ion-col>
-          </ion-row>
-        </ion-col>
-        <ion-col size="3" class=" ion-padding-start">
-          <ion-row class="line-under"></ion-row>
-          <ion-row *ngIf="payload.subscribers?.length" class="line-under">
-            <ion-col>
-              <div style="margin: 16px 0 5px 5px">
-                <ion-text>
-                  <ion-icon color="tertiary" name="cube"></ion-icon>
-                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.subscribers"></ion-note>
-                </ion-text>
-              </div>
-              <div *ngFor="let r of payload.subscribers">
-                <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
-                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
-                </ion-chip>
-                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
-                  <ng-template>
-                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                      <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
-                    </ion-item>
-                  </ng-template>
-                </ion-popover>
-              </div>
-            </ion-col>
-          </ion-row>
-          <ion-row *ngIf="payload.invokers?.length" class="line-under">
-            <ion-col>
-              <div style="margin: 16px 0 5px 5px">
-                <ion-text>
-                  <ion-icon color="success" name="cube"></ion-icon>
-                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.invocations"></ion-note>
-                </ion-text>
-              </div>
-              <div *ngFor="let r of payload.invokers">
-                <ion-chip [id]="r.name" outline="true" routerLink="/component-info/{{r.name}}">
-                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
-                </ion-chip>
-                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
-                  <ng-template>
-                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                      <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
-                    </ion-item>
-                  </ng-template>
-                </ion-popover>
-              </div>
-            </ion-col>
-          </ion-row>
-          <ion-row *ngIf="payload.returnedBy?.length" class="line-under">
-            <ion-col>
-              <div style="margin: 16px 0 5px 5px">
-                <ion-text>
-                  <ion-icon color="secondary" name="cube"></ion-icon>
-                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.returnedBy"></ion-note>
-                </ion-text>
-              </div>
-              <div *ngFor="let r of payload.returnedBy">
-                <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
-                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
-                </ion-chip>
-                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
-                  <ng-template>
-                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                      <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
-                    </ion-item>
-                  </ng-template>
-                </ion-popover>
-              </div>
-            </ion-col>
-          </ion-row>
-          <ion-row *ngIf="payload.usedBy?.length" class="line-under">
-            <ion-col>
-              <div style="margin: 16px 0 5px 5px">
-                <ion-text>
-                  <ion-icon color="medium" name="cube"></ion-icon>
-                  <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.usedBy"></ion-note>
-                </ion-text>
-              </div>
-              <div *ngFor="let r of payload.usedBy">
-                <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
-                  <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
-                </ion-chip>
-                <ion-popover *ngIf="r.repoLink" [trigger]="r.name" triggerAction="context-menu">
-                  <ng-template>
-                    <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                      <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
-                      <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
-                    </ion-item>
-                  </ng-template>
-                </ion-popover>
-              </div>
-            </ion-col>
-          </ion-row>
-          <ion-row *ngIf="payload.domain" class="line-under">
-            <ion-col>
-              <div style="margin: 16px 0 5px 5px">
-                <ion-text>
-                  <ion-icon color="warning" name="folder-open"></ion-icon>
-                  <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
-                </ion-text>
-              </div>
-              <div>
-                <ion-chip outline="true">
-                  <ion-text color="warning" style="font-size: 25px">•</ion-text>&nbsp;{{payload.domain}}</ion-chip>
-              </div>
-            </ion-col>
-          </ion-row>
-        </ion-col>
-      </ion-row>
-
-
-    </ion-grid>
-  </app-wrapped-content>
-</ion-content>
+        </ion-grid>
+      }
+    </app-wrapped-content>
+  </ion-content>

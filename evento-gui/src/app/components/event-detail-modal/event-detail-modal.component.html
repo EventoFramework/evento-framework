@@ -42,10 +42,12 @@
       <div class="line-under ion-margin-bottom"></div>
       <ion-title translate="sss.events.metadata"></ion-title>
       <ion-grid class="ion-no-padding">
-        <ion-row *ngFor="let k of event.metadata | keyvalue" class="line-under ion-margin-top">
-          <ion-col size="4">{{ k.key }}</ion-col>
-          <ion-col size="8">{{ k.value }}</ion-col>
-        </ion-row>
+        @for (k of event.metadata | keyvalue; track k) {
+          <ion-row class="line-under ion-margin-top">
+            <ion-col size="4">{{ k.key }}</ion-col>
+            <ion-col size="8">{{ k.value }}</ion-col>
+          </ion-row>
+        }
       </ion-grid>
 
     </ion-content>

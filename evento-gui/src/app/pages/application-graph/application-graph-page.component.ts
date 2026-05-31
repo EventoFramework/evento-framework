@@ -2,9 +2,10 @@ import {Component, OnInit} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 
 @Component({
-  selector: 'app-application-graph',
-  templateUrl: './application-graph-page.component.html',
-  styleUrls: ['./application-graph-page.component.scss'],
+    selector: 'app-application-graph',
+    templateUrl: './application-graph-page.component.html',
+    styleUrls: ['./application-graph-page.component.scss'],
+    standalone: false
 })
 export class ApplicationGraphPage implements OnInit {
   svg: string;
