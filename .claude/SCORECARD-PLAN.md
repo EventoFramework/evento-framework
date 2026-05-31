@@ -17,8 +17,8 @@ API: https://api.securityscorecards.dev/projects/github.com/EventoFramework/even
 | License | 9 | Low | ⏸️ maintainer chose to leave (custom dual-license) |
 | Signed-Releases | 8 | High | ◑ improves to ~10 once a real `v*` tag runs `release.yml` (provenance) |
 | Binary-Artifacts | 8 | High | ⏸️ `gradle-wrapper.jar` unavoidable; `graphvizlib.wasm` optional |
-| Pinned-Dependencies | 8 | Medium | ▶ **P1** — one unpinned `pip install` left |
-| Branch-Protection | -1 | High | ▶ **P0** — enabled, but Scorecard needs a PAT to read it |
+| Pinned-Dependencies | 8 | Medium | ✅ **P1 done** — `pip install requests` removed (`publish.py` → stdlib `urllib`); expected → 10 next scan |
+| Branch-Protection | -1 | High | ◑ **P0 wired** — `scorecard.yml` now passes `repo_token: SCORECARD_TOKEN`; effective once the maintainer sets that secret |
 | CI-Tests | -1 | Low | ▶ **P2** — resolves once changes merge via PR |
 | Code-Review | 0 | High | ▶ **P2** — needs approved+merged PRs |
 | CII-Best-Practices | 0 | Low | ▶ **P3** — register the badge (manual) |
@@ -37,30 +37,29 @@ because it re-adds a **High**-weight check to the aggregate.
 but `scorecard.yml` runs with the default `GITHUB_TOKEN`, which cannot read
 branch-protection settings → `-1 internal error`. Documented fix: a PAT.
 
-**Steps (maintainer creates the token; I wire the workflow):**
+**Workflow wired (2026-05-31):** `scorecard.yml` now passes
+`repo_token: ${{ secrets.SCORECARD_TOKEN }}` to the action. **Maintainer TODO
+before the next scan:**
 1. Create a **classic PAT** with scopes `repo` + `read:org` (or a fine-grained
    token with **Administration: read** + **Contents: read** on this repo).
 2. `gh secret set SCORECARD_TOKEN --repo EventoFramework/evento-framework < token.txt`
-3. In `scorecard.yml`, pass it to the action:
-   ```yaml
-   - uses: ossf/scorecard-action@<pinned-sha>
-     with:
-       results_file: results.sarif
-       results_format: sarif
-       repo_token: ${{ secrets.SCORECARD_TOKEN }}
-       publish_results: true
-   ```
+
+⚠️ Set the secret **before merge / before the next Tuesday scan** — an empty
+`SCORECARD_TOKEN` would make the action run with a blank token and fail.
+
 **Expected:** Branch-Protection ~7–9 (our config: required PR+approval, required
 status checks, no force-push/delete; admins-bypass and no required signatures
 cap it below 10). Overall → low-to-mid 7s.
 
-## P1 — Pinned-Dependencies 8 → 10 (I can do now, zero risk)
-**Why:** Only remaining unpinned dependency is `pip install requests` in
+## P1 — Pinned-Dependencies 8 → 10 ✅ DONE (2026-05-31)
+**Why:** Only remaining unpinned dependency was `pip install requests` in
 `maven-build-and-push-repository.yaml`.
-**Fix:** Rewrite `publish.py` to use the stdlib (`urllib.request`) instead of
-`requests`, and delete the `Set up Python deps` / `pip install` step. Removes the
-dependency entirely — nothing left to pin.
-**Expected:** Pinned-Dependencies → 10.
+**Fix shipped:** Rewrote `publish.py` to use the stdlib (`urllib.request` +
+`base64` Basic auth) instead of `requests`; removed the `Set up Python` and
+`Install Python dependencies` (`pip install requests`) steps from the workflow;
+promote step now invokes `python3 publish.py` (no `setup-python`, runner's
+pre-installed interpreter). Nothing left to pin in that workflow.
+**Expected:** Pinned-Dependencies → 10 on the next scan.
 
 ## P2 — Code-Review + CI-Tests (behavioral)
 **Why:** 0 approved changesets / no PR found — everything lands via direct push
