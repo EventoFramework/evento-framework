@@ -119,3 +119,8 @@ __pycache__/
 
 # Node (root-level safety net; module-level node_modules are covered per-directory)
 node_modules/
+
+# Secret material — never commit (e.g. PATs staged for `gh secret set`)
+token.txt
+*.pat
+*.token
