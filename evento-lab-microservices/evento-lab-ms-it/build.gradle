@@ -42,5 +42,9 @@ test {
     def dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
     environment "DOCKER_HOST", dockerHost
     environment "TESTCONTAINERS_RYUK_DISABLED", "true"
-    environment "DOCKER_API_VERSION", "1.45"
+    // docker-java reads the target API version ONLY from the `api.version` system
+    // property — a DOCKER_API_VERSION env var is ignored, leaving the broken 1.32
+    // default. 1.40 is Docker Desktop 29.x's minimum and within range of the older
+    // engine on GitHub-hosted runners, so it works in both. Override with -Dapi.version.
+    systemProperty "api.version", System.getProperty("api.version") ?: "1.40"
 }
