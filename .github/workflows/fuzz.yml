@@ -1,0 +1,56 @@
+name: Fuzz
+
+# Coverage-guided fuzzing of the CBOR wire codec (Jazzer). The per-PR `CI`
+# workflow runs the same @FuzzTest methods in fast regression mode (replaying
+# the seed corpus); this job sets JAZZER_FUZZ=1 to actually mutate inputs and
+# chase new coverage. Kept on a weekly cron + manual dispatch so it never gates
+# a PR — a real finding surfaces as a failed run with the reproducer attached.
+
+on:
+  schedule:
+    # Weekly, Sunday 03:00 UTC (offset from the Tuesday Scorecard scan).
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up Java
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: corretto
+          java-version: '25'
+          cache: gradle
+
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+
+      # --rerun-tasks so a cached regression-mode result never short-circuits the
+      # fuzzing run (the JAZZER_FUZZ env var is not a Gradle task input).
+      - name: Fuzz the CBOR codec
+        env:
+          JAZZER_FUZZ: "1"
+        run: |
+          ./gradlew --no-daemon --rerun-tasks \
+            :evento-transport-api:test \
+            --tests 'com.evento.transport.codec.CborCodecFuzzTest'
+
+      - name: Upload crash reproducers and reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: fuzz-artifacts
+          path: |
+            **/crash-*
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
