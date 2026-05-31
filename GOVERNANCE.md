@@ -32,6 +32,9 @@ Evento Framework is maintained as a maintainer-led open source project.
 Maintainers are responsible for:
 
 - Updating `CHANGELOG.md`
+- Bumping `evento-server/version.json` before tagging — it is the single
+  source of truth for the release: the `Release` workflow derives artifact
+  names from it, and the README `release`/`image` badges read it directly
 - Verifying CI and release artifacts
 - Tagging releases using Semantic Versioning
 - Publishing Maven/Docker artifacts when applicable

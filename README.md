@@ -6,9 +6,9 @@
 [![CI](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/EventoFramework/evento-framework/badge)](https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework)
-[![](https://img.shields.io/github/v/release/EventoFramework/evento-framework)](https://github.com/EventoFramework/evento-framework/releases)
+[![release](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FEventoFramework%2Fevento-framework%2Fmain%2Fevento-server%2Fversion.json&query=%24.version&prefix=v&label=release&color=blue)](https://github.com/EventoFramework/evento-framework/releases)
 [![](https://img.shields.io/maven-central/v/com.eventoframework/evento-bundle?logo=gradle)](https://central.sonatype.com/artifact/com.eventoframework/evento-bundle)
-[![](https://img.shields.io/docker/v/eventoframework/evento-server?logo=docker&label=image)](https://hub.docker.com/r/eventoframework/evento-server)
+[![image](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FEventoFramework%2Fevento-framework%2Fmain%2Fevento-server%2Fversion.json&query=%24.version&label=image&logo=docker&color=blue)](https://hub.docker.com/r/eventoframework/evento-server)
 
 
 ## What is Evento Framework?
