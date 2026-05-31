@@ -49,9 +49,18 @@ info "Syncing with origin/$RELEASE_BRANCH"
 git fetch --quiet origin "$RELEASE_BRANCH"
 local_sha="$(git rev-parse @)"
 remote_sha="$(git rev-parse "origin/$RELEASE_BRANCH")"
-[[ "$local_sha" == "$remote_sha" ]] \
-  || die "local '$RELEASE_BRANCH' is not in sync with origin (pull/push first)"
-ok "branch '$RELEASE_BRANCH' is clean and up to date"
+# We allow local to be AHEAD of origin: any unpushed commits ride along with the
+# version-bump commit in the single push below, so the test CI fires once on
+# 'main' instead of twice (once for a manual pre-push, once for the bump).
+# Being BEHIND/diverged is still fatal — that needs a real pull/rebase.
+if [[ "$local_sha" == "$remote_sha" ]]; then
+  ok "branch '$RELEASE_BRANCH' is in sync with origin"
+elif git merge-base --is-ancestor "origin/$RELEASE_BRANCH" HEAD; then
+  ahead="$(git rev-list --count "origin/$RELEASE_BRANCH"..HEAD)"
+  ok "branch '$RELEASE_BRANCH' is $ahead commit(s) ahead of origin — they will be pushed with the release"
+else
+  die "local '$RELEASE_BRANCH' has diverged from origin (it is behind) — pull/rebase first"
+fi
 
 # --- read the current version (build.gradle is the source of truth) ---------
 current="$(sed -n "s/^version '\([0-9][^']*\)'.*/\1/p" "$GRADLE_FILE" | head -n1)"
@@ -84,8 +93,13 @@ git rev-parse -q --verify "refs/tags/$tag" >/dev/null \
 
 # --- confirm ----------------------------------------------------------------
 info "About to release: $current -> $new   (tag $tag)"
-echo  "    This will commit the version bump, push '$RELEASE_BRANCH', push tag $tag,"
-echo  "    and trigger the GitHub Releases, Docker Hub/GHCR, and Maven Central workflows."
+pending="$(git rev-list --count "origin/$RELEASE_BRANCH"..HEAD)"
+if (( pending > 0 )); then
+  echo "    $pending unpushed commit(s) will be pushed together with the version bump:"
+  git --no-pager log --oneline "origin/$RELEASE_BRANCH"..HEAD | sed 's/^/      /'
+fi
+echo  "    This will commit the version bump, push '$RELEASE_BRANCH' (single push -> one test CI run),"
+echo  "    push tag $tag, and trigger the GitHub Releases, Docker Hub/GHCR, and Maven Central workflows."
 read -rp "Proceed? [y/N]: " confirm
 [[ "$confirm" =~ ^[Yy]$ ]] || die "aborted by user"
 
