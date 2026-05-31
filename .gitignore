@@ -1,6 +1,11 @@
 # Created by https://www.toptal.com/developers/gitignore/api/intellij+iml,gradle
 # Edit at https://www.toptal.com/developers/gitignore?templates=intellij+iml,gradle
 
+# Jazzer fuzzing: machine-generated corpus + crash reproducers (not committed)
+.cifuzz-corpus/
+crash-*
+
+
 ### Intellij+iml ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839

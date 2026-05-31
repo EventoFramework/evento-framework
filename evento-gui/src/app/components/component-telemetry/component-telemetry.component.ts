@@ -3,9 +3,10 @@ import {PerformanceService} from "../../services/performance.service";
 import {retry} from "rxjs";
 
 @Component({
-  selector: 'app-component-telemetry',
-  templateUrl: './component-telemetry.component.html',
-  styleUrls: ['./component-telemetry.component.scss'],
+    selector: 'app-component-telemetry',
+    templateUrl: './component-telemetry.component.html',
+    styleUrls: ['./component-telemetry.component.scss'],
+    standalone: false
 })
 export class ComponentTelemetryComponent implements OnInit {
   @Input() component!: any;

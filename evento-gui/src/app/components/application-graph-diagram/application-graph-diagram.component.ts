@@ -11,10 +11,11 @@ declare const mxEvent: any;
 declare const mxConstants: any;
 
 @Component({
-  // eslint-disable-next-line @angular-eslint/component-selector
-  selector: 'evento-application-graph',
-  templateUrl: './application-graph-diagram.component.html',
-  styleUrls: ['./application-graph-diagram.component.scss'],
+    // eslint-disable-next-line @angular-eslint/component-selector
+    selector: 'evento-application-graph',
+    templateUrl: './application-graph-diagram.component.html',
+    styleUrls: ['./application-graph-diagram.component.scss'],
+    standalone: false
 })
 export class ApplicationGraphDiagramComponent implements OnInit {
 

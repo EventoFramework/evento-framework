@@ -2,9 +2,10 @@ import {Component, OnInit} from '@angular/core';
 import {CatalogService} from '../../../services/catalog.service';
 
 @Component({
-  selector: 'app-component-catalog',
-  templateUrl: './component-catalog.page.html',
-  styleUrls: ['./component-catalog.page.scss'],
+    selector: 'app-component-catalog',
+    templateUrl: './component-catalog.page.html',
+    styleUrls: ['./component-catalog.page.scss'],
+    standalone: false
 })
 export class ComponentCatalogPage implements OnInit {
 

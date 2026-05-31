@@ -11,12 +11,12 @@
           <ion-grid>
             <ion-row>
               <ion-col>
-              <ion-input [(ngModel)]="parameters.aggregateIdentifier" (ionInput)="refresh()" [debounce]="500"
-                         [clearInput]="true" name="aggregateIdentifier" fill="outline" color="light"
-                         labelPlacement="floating"
-                         label="{{'sss.events.aggregate.id' | translate}}"
-                         type="text"></ion-input>
-            </ion-col>
+                <ion-input [(ngModel)]="parameters.aggregateIdentifier" (ionInput)="refresh()" [debounce]="500"
+                  [clearInput]="true" name="aggregateIdentifier" fill="outline" color="light"
+                  labelPlacement="floating"
+                  label="{{'sss.events.aggregate.id' | translate}}"
+                type="text"></ion-input>
+              </ion-col>
               <ion-col class="ion-padding">
                 <ion-label class="ion-margin-top">
                   {{'sss.events.event.sequence.number' | translate}}
@@ -24,18 +24,20 @@
 
               </ion-col>
 
-                <ion-col class="ion-padding ion-text-end">
-                  <ion-label>
-                    {{'common.updated.at' | translate}}
-                  </ion-label>
+              <ion-col class="ion-padding ion-text-end">
+                <ion-label>
+                  {{'common.updated.at' | translate}}
+                </ion-label>
 
-                </ion-col>
+              </ion-col>
             </ion-row>
           </ion-grid>
         </ion-card-title>
       </ion-card-header>
 
-      <ion-progress-bar *ngIf="loading" color="light" type="indeterminate"></ion-progress-bar>
+      @if (loading) {
+        <ion-progress-bar color="light" type="indeterminate"></ion-progress-bar>
+      }
     </ion-card>
 
   </ion-col>
