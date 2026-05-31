@@ -1,7 +1,36 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-05-30. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-05-31. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## OpenSSF Scorecard hardening (2026-05-31)
+
+Worked the Scorecard report (was **5.4/10**). Shipped to `main` (admin-bypass pushes,
+`0e73b72a` + `1468ddfa`):
+- **Branch-Protection:** enabled on `main` (PR + 1 approval, dismiss-stale, required checks
+  `build-and-test`/`jdbc-integration-tests`/`Analyze Java`, no force-push/delete, admins bypass).
+- **Signed-Releases:** new consolidated `release.yml` (tag-triggered) — signed boot jar on a
+  GitHub Release (cosign keyless sign-blob + SLSA provenance + checksums), multi-arch
+  `linux/amd64,arm64` image to GHCR + Docker Hub (cosign-signed by digest, provenance, SBOM),
+  and libraries to GitHub Packages. No new signing secrets (keyless).
+- **Maven Central kept + made CI-capable:** the 5 publishable modules now declare both the
+  ossrh (Central) and GitHubPackages repos; each workflow targets only its own repo. Creds +
+  in-memory GPG key resolve from env (CI) or `gradle.properties` (local). `publish.py` is now
+  env-aware and run by `maven-build-and-push-repository.yaml` to promote the `com.eventoframework`
+  namespace after staging upload. Uploaded `MAVEN_CENTRAL_USERNAME/PASSWORD` + `SIGNING_KEY`
+  (armored)/`SIGNING_PASSWORD` repo secrets via `gh`. jdbc (no Central target before) now included.
+- **Pinned-Dependencies:** all 18 Action refs pinned to commit SHAs (`# vX` comments for
+  Dependabot); Temurin bases pinned by digest; EOL/unpublished `openjdk:19` migrated to
+  digest-pinned Temurin 25 JRE (+curl); `@ionic/cli@7.2.1` pinned.
+- **Token-Permissions:** `codeql.yml` `security-events:write` scoped to the analyze job.
+- Removed `docker-build-and-push-server.yml` (superseded by `release.yml`).
+
+**Decisions deferred by maintainer:** License left at 9/10 (custom dual-license, classifier
+won't match); **Vulnerabilities (~109)** deferred — `npm audit fix` (non-breaking) resolves 0;
+all require breaking GUI majors (Angular 18→21, mermaid, Capacitor) = a separate project.
+**Manual/TODO:** CII-Best-Practices badge (register at bestpractices.dev); Contributors check is
+structural (solo project). Release workflows fire only on a `v*` tag — caveat: arm64 image builds
+the jar under QEMU emulation (slow); optional future opt to build the arch-independent jar once.
 
 ## Enterprise-readiness assessment (2026-05-30)
 
