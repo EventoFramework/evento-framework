@@ -4,9 +4,10 @@ import {CatalogService} from '../../../../services/catalog.service';
 import {RepositoryService} from '../../../../services/repository.service';
 
 @Component({
-  selector: 'app-payload-info',
-  templateUrl: './payload-info.page.html',
-  styleUrls: ['./payload-info.page.scss'],
+    selector: 'app-payload-info',
+    templateUrl: './payload-info.page.html',
+    styleUrls: ['./payload-info.page.scss'],
+    standalone: false
 })
 export class PayloadInfoPage implements OnInit {
   payload;

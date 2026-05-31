@@ -1,27 +1,24 @@
 import {Component, OnInit} from '@angular/core';
 import {ClusterStatusService} from "../../../../services/cluster-status.service";
 import {ConsumerService} from "../../../../services/consumer.service";
-import {DatePipe, JsonPipe, NgForOf, NgIf} from "@angular/common";
+import { DatePipe, JsonPipe } from "@angular/common";
 import {IonicModule, IonModal, LoadingController} from "@ionic/angular";
 import {RouterLink} from "@angular/router";
 import {TranslateModule} from "@ngx-translate/core";
 import {ComponentsModule} from "../../../../components/components.module";
 
 @Component({
-  selector: 'app-consumers',
-  templateUrl: './consumers.component.html',
-  styleUrls: ['./consumers.component.scss'],
-  standalone: true,
-  imports: [
+    selector: 'app-consumers',
+    templateUrl: './consumers.component.html',
+    styleUrls: ['./consumers.component.scss'],
+    imports: [
     JsonPipe,
     IonicModule,
-    NgForOf,
-    NgIf,
     RouterLink,
     TranslateModule,
     DatePipe,
     ComponentsModule
-  ]
+]
 })
 export class ConsumersComponent implements OnInit {
 

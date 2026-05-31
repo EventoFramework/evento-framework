@@ -15,109 +15,117 @@
       </ion-row>
       @if (segment.value === 'bundles'){
         <ion-row class="line-under">
-          <ion-col size="6" *ngFor="let bundle of attendedView">
-            <ion-card class="bundle"  [style.background]="bundleColor[bundle]">
-              <ion-card-content>
-                <ion-text class="title">{{bundle}}
-                  <a routerLink="/bundle-info/{{bundle}}"><ion-icon name="open-outline"></ion-icon></a></ion-text>
-                <ion-grid class="ion-no-padding table">
-                  <ion-row>
-                    <ion-col><span translate="common.status"></span>:</ion-col>
-                    <ion-col size="3">
-                      <ng-container *ngIf="!view[bundle].isOnline">
-                        <b class="node-status-offline" translate="node.status.offline"></b>
-                      </ng-container>
-                      <ng-container *ngIf="view[bundle].isOnline && !view[bundle].isAvailable">
-                        <b class="node-status-not-available" translate="node.status.not.available"></b>
-                      </ng-container>
-                      <ng-container *ngIf="view[bundle].isOnline && view[bundle].isAvailable">
-                        <b class="node-status-available" translate="node.status.available"></b>
-                      </ng-container>
-                    </ion-col>
-                  </ion-row>
-                  <ion-row *ngIf="view[bundle].isOnline">
-                    <ion-col>
-                      <span translate="node.replica.count"></span>:
-                    </ion-col>
-                    <ion-col size="3">
-                      {{view[bundle].replicaCount}}
-                    </ion-col>
-                  </ion-row>
-                  <ion-row *ngFor="let replica of view[bundle].replicasKeys">
-                    <ion-col>{{view[bundle].replicas[replica].instanceId}} (v{{view[bundle].replicas[replica].bundleVersion}})</ion-col>
-                    <ion-col size="3">
-                      <ng-container *ngIf="!view[bundle].replicas[replica].isAvailable">
-                        <b class="node-status-not-available" translate="node.status.not.available"></b>
-                      </ng-container>
-                      <ng-container *ngIf="view[bundle].replicas[replica].isAvailable">
-                        <b class="node-status-available" translate="node.status.available"></b>
-                      </ng-container>
-                    </ion-col>
-                  </ion-row>
-                </ion-grid>
+          @for (bundle of attendedView; track bundle) {
+            <ion-col size="6">
+              <ion-card class="bundle"  [style.background]="bundleColor[bundle]">
+                <ion-card-content>
+                  <ion-text class="title">{{bundle}}
+                    <a routerLink="/bundle-info/{{bundle}}"><ion-icon name="open-outline"></ion-icon></a></ion-text>
+                    <ion-grid class="ion-no-padding table">
+                      <ion-row>
+                        <ion-col><span translate="common.status"></span>:</ion-col>
+                        <ion-col size="3">
+                          @if (!view[bundle].isOnline) {
+                            <b class="node-status-offline" translate="node.status.offline"></b>
+                          }
+                          @if (view[bundle].isOnline && !view[bundle].isAvailable) {
+                            <b class="node-status-not-available" translate="node.status.not.available"></b>
+                          }
+                          @if (view[bundle].isOnline && view[bundle].isAvailable) {
+                            <b class="node-status-available" translate="node.status.available"></b>
+                          }
+                        </ion-col>
+                      </ion-row>
+                      @if (view[bundle].isOnline) {
+                        <ion-row>
+                          <ion-col>
+                            <span translate="node.replica.count"></span>:
+                          </ion-col>
+                          <ion-col size="3">
+                            {{view[bundle].replicaCount}}
+                          </ion-col>
+                        </ion-row>
+                      }
+                      @for (replica of view[bundle].replicasKeys; track replica) {
+                        <ion-row>
+                          <ion-col>{{view[bundle].replicas[replica].instanceId}} (v{{view[bundle].replicas[replica].bundleVersion}})</ion-col>
+                          <ion-col size="3">
+                            @if (!view[bundle].replicas[replica].isAvailable) {
+                              <b class="node-status-not-available" translate="node.status.not.available"></b>
+                            }
+                            @if (view[bundle].replicas[replica].isAvailable) {
+                              <b class="node-status-available" translate="node.status.available"></b>
+                            }
+                          </ion-col>
+                        </ion-row>
+                      }
+                    </ion-grid>
+                  </ion-card-content>
+                </ion-card>
+              </ion-col>
+            }
+          </ion-row>
+          <ion-row>
+            <ion-title class="ion-margin" style="font-weight: bold"
+            translate="cluster.external"></ion-title>
+          </ion-row>
+          <ion-row>
+            @for (component of externalView; track component) {
+              <ion-col size="6">
+                <ion-card class="bundle"  [style.background]="bundleColor[component]">
+                  <ion-card-content>
+                    <ion-text class="title">{{component}}</ion-text>
+                    <ion-grid class="ion-no-padding table">
+                      <ion-row>
+                        <ion-col><span translate="common.status"></span>:</ion-col>
+                        <ion-col size="3">
+                          @if (!view[component].isOnline) {
+                            <b class="node-status-offline" translate="node.status.offline"></b>
+                          }
+                          @if (view[component].isOnline && !view[component].isAvailable) {
+                            <b class="node-status-not-available" translate="node.status.not.available"></b>
+                          }
+                          @if (view[component].isOnline && view[component].isAvailable) {
+                            <b class="node-status-available" translate="node.status.available"></b>
+                          }
+                        </ion-col>
+                      </ion-row>
+                      @if (view[component].isOnline) {
+                        <ion-row>
+                          <ion-col>
+                            <span translate="node.replica.count"></span>:
+                          </ion-col>
+                          <ion-col size="3">
+                            {{view[component].replicaCount}}
+                          </ion-col>
+                        </ion-row>
+                      }
+                      @for (replica of view[component].replicasKeys; track replica) {
+                        <ion-row>
+                          <ion-col>{{view[component].replicas[replica].instanceId}} (v{{view[component].replicas[replica].bundleVersion}})</ion-col>
+                          <ion-col size="3">
+                            @if (!view[component].replicas[replica].isAvailable) {
+                              <b class="node-status-not-available" translate="node.status.not.available"></b>
+                            }
+                            @if (view[component].replicas[replica].isAvailable) {
+                              <b class="node-status-available" translate="node.status.available"></b>
+                            }
+                          </ion-col>
+                        </ion-row>
+                      }
+                    </ion-grid>
+                  </ion-card-content>
+                </ion-card>
+              </ion-col>
+            }
+          </ion-row>
+          }@else{
+          <div class="line-under" style="width: 100%"></div>
+          <app-consumers></app-consumers>
+        }
+      </ion-grid>
 
-              </ion-card-content>
 
-            </ion-card>
-          </ion-col>
-        </ion-row>
-        <ion-row>
-          <ion-title class="ion-margin" style="font-weight: bold"
-                     translate="cluster.external"></ion-title>
-        </ion-row>
-        <ion-row>
-          <ion-col size="6" *ngFor="let component of externalView">
-            <ion-card class="bundle"  [style.background]="bundleColor[component]">
-              <ion-card-content>
-                <ion-text class="title">{{component}}</ion-text>
-                <ion-grid class="ion-no-padding table">
-                  <ion-row>
-                    <ion-col><span translate="common.status"></span>:</ion-col>
-                    <ion-col size="3">
-                      <ng-container *ngIf="!view[component].isOnline">
-                        <b class="node-status-offline" translate="node.status.offline"></b>
-                      </ng-container>
-                      <ng-container *ngIf="view[component].isOnline && !view[component].isAvailable">
-                        <b class="node-status-not-available" translate="node.status.not.available"></b>
-                      </ng-container>
-                      <ng-container *ngIf="view[component].isOnline && view[component].isAvailable">
-                        <b class="node-status-available" translate="node.status.available"></b>
-                      </ng-container>
-                    </ion-col>
-                  </ion-row>
-                  <ion-row *ngIf="view[component].isOnline">
-                    <ion-col>
-                      <span translate="node.replica.count"></span>:
-                    </ion-col>
-                    <ion-col size="3">
-                      {{view[component].replicaCount}}
-                    </ion-col>
-                  </ion-row>
-                  <ion-row *ngFor="let replica of view[component].replicasKeys">
-                    <ion-col>{{view[component].replicas[replica].instanceId}} (v{{view[component].replicas[replica].bundleVersion}})</ion-col>
-                    <ion-col size="3">
-                      <ng-container *ngIf="!view[component].replicas[replica].isAvailable">
-                        <b class="node-status-not-available" translate="node.status.not.available"></b>
-                      </ng-container>
-                      <ng-container *ngIf="view[component].replicas[replica].isAvailable">
-                        <b class="node-status-available" translate="node.status.available"></b>
-                      </ng-container>
-                    </ion-col>
-                  </ion-row>
-                </ion-grid>
+    </app-wrapped-content>
 
-              </ion-card-content>
-
-            </ion-card>
-          </ion-col>
-        </ion-row>
-        }@else{
-        <div class="line-under" style="width: 100%"></div>
-        <app-consumers></app-consumers>
-      }
-    </ion-grid>
-
-
-  </app-wrapped-content>
-
-</ion-content>
+  </ion-content>

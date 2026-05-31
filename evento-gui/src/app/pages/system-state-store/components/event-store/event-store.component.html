@@ -12,34 +12,34 @@
             <ion-row>
               <ion-col>
                 <ion-input [(ngModel)]="parameters.eventSequenceNumber" (ionInput)="refresh()" [debounce]="500"
-                           name="eventSequenceNumber" [clearInput]="true" fill="outline" color="light"
-                           labelPlacement="floating"
-                           label="{{'sss.events.event.sequence.number' | translate}}"
-                           type="number">
+                  name="eventSequenceNumber" [clearInput]="true" fill="outline" color="light"
+                  labelPlacement="floating"
+                  label="{{'sss.events.event.sequence.number' | translate}}"
+                  type="number">
 
                 </ion-input>
               </ion-col>
               <ion-col>
                 <ion-input [(ngModel)]="parameters.eventName" (ionInput)="refresh()" [debounce]="500"
-                           [clearInput]="true" name="eventName" fill="outline" color="light"
-                           labelPlacement="floating"
-                           label="{{'sss.events.event.name' | translate}}">
+                  [clearInput]="true" name="eventName" fill="outline" color="light"
+                  labelPlacement="floating"
+                  label="{{'sss.events.event.name' | translate}}">
 
                 </ion-input>
               </ion-col>
               <ion-col>
                 <ion-input [(ngModel)]="parameters.aggregateIdentifier" (ionInput)="refresh()" [debounce]="500"
-                           [clearInput]="true" name="aggregateIdentifier" fill="outline" color="light"
-                           labelPlacement="floating"
-                           label="{{'sss.events.aggregate.id' | translate}}"
-                           type="text"></ion-input>
+                  [clearInput]="true" name="aggregateIdentifier" fill="outline" color="light"
+                  labelPlacement="floating"
+                  label="{{'sss.events.aggregate.id' | translate}}"
+                type="text"></ion-input>
               </ion-col>
               <ion-col>
                 <ion-input [(ngModel)]="parameters.context" (ionInput)="refresh()" [debounce]="500"
-                           [clearInput]="true" name="context" fill="outline" color="light"
-                           labelPlacement="floating"
-                           label="{{'sss.events.context' | translate}}"
-                           type="text"></ion-input>
+                  [clearInput]="true" name="context" fill="outline" color="light"
+                  labelPlacement="floating"
+                  label="{{'sss.events.context' | translate}}"
+                type="text"></ion-input>
               </ion-col>
               <ion-col class="ion-padding ion-text-end">
                 <ion-label>
@@ -52,7 +52,9 @@
         </ion-card-title>
       </ion-card-header>
 
-      <ion-progress-bar *ngIf="loading" color="light" type="indeterminate"></ion-progress-bar>
+      @if (loading) {
+        <ion-progress-bar color="light" type="indeterminate"></ion-progress-bar>
+      }
     </ion-card>
 
   </ion-col>
