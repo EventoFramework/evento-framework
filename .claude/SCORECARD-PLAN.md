@@ -3,32 +3,44 @@
 Live report: https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework
 API: https://api.securityscorecards.dev/projects/github.com/EventoFramework/evento-framework
 
-## Current state (scan 2026-05-31): **6.9 / 10** (was 5.4 before this work)
+## Current state (scan 2026-05-31 10:20 UTC): **6.9 / 10** (was 5.4 before this work)
+
+P0+P1 merged (PR #99) and re-scanned. Overall stayed 6.9 because Branch-Protection
+flipped from an *excluded* `-1` to a **counted** High-weight `5`, which offsets the
+CI-Tests gain — the aggregate is now honest, measuring checks it couldn't before.
 
 | Check | Score | Weight | Status / next action |
 |---|---|---|---|
 | Dangerous-Workflow | 10 | Critical | ✅ hold |
-| Token-Permissions | 10 | High | ✅ fixed this round |
+| Token-Permissions | 10 | High | ✅ hold |
 | Dependency-Update-Tool | 10 | High | ✅ hold |
 | Maintained | 10 | High | ✅ hold |
 | SAST | 10 | Medium | ✅ hold |
 | Security-Policy | 10 | Medium | ✅ hold |
 | Packaging | 10 | Medium | ✅ hold |
+| CI-Tests | 10 | Low | ✅ **P2 done** — "1/1 merged PRs checked by CI" (was -1) |
 | License | 9 | Low | ⏸️ maintainer chose to leave (custom dual-license) |
-| Signed-Releases | 8 | High | ◑ improves to ~10 once a real `v*` tag runs `release.yml` (provenance) |
+| Pinned-Dependencies | 9 | Medium | ◑ **P1 partial** — pip dep gone (8→9); 2 unpinned npm left: `npm install -g @ionic/cli@7.2.1` in `release.yml:61,141`. → 10 needs ionic CLI as a lockfile devDep (see P1b) |
+| Signed-Releases | 8 | High | ◑ improves once a real `v*` tag runs `release.yml` (provenance) |
 | Binary-Artifacts | 8 | High | ⏸️ `gradle-wrapper.jar` unavoidable; `graphvizlib.wasm` optional |
-| Pinned-Dependencies | 8 | Medium | ✅ **P1 done** — `pip install requests` removed (`publish.py` → stdlib `urllib`); expected → 10 next scan |
-| Branch-Protection | -1 | High | ◑ **P0 wired** — `scorecard.yml` now passes `repo_token: SCORECARD_TOKEN`; effective once the maintainer sets that secret |
-| CI-Tests | -1 | Low | ▶ **P2** — resolves once changes merge via PR |
-| Code-Review | 0 | High | ▶ **P2** — needs approved+merged PRs |
+| Branch-Protection | 5 | High | ◑ **P0 done (now counted)** — "not maximal"; →higher needs enforce-admins / signed-commits, which conflicts with solo admin-bypass |
+| Code-Review | 0 | High | ⏸️ **P2 capped** — "0/28 approved changesets"; admin-bypass merges have no approval. Needs a 2nd reviewer/account |
 | CII-Best-Practices | 0 | Low | ▶ **P3** — register the badge (manual) |
 | Vulnerabilities | 0 | High | ⏸️ deferred — GUI major upgrades (separate project) |
 | Fuzzing | 0 | Medium | ⏸️ deferred — would need a CBOR/framing harness |
 | Contributors | 0 | Low | ❌ structural (solo project) — ignore |
 
-`-1` = check errored/inconclusive and is excluded from the average. Turning
-Branch-Protection from `-1` into a real score is the single biggest lever left,
-because it re-adds a **High**-weight check to the aggregate.
+`-1` = check errored/inconclusive and is excluded from the average. Both former
+`-1`s (Branch-Protection, CI-Tests) are now real scores.
+
+## P1b — Pinned-Dependencies 9 → 10 (optional, moderate)
+The 2 remaining unpinned deps are `npm install -g @ionic/cli@7.2.1` (global, not
+lockfile-backed) at `release.yml:61` and `:141`. To eliminate: add `@ionic/cli`
+to `evento-gui` devDependencies, regenerate `package-lock.json`, drop both global
+install steps, and invoke the build via `npx ionic build --prod`. Requires a local
+npm lockfile regen + a GUI build verification. Reward: +1 on a Medium check
+(≈ +0.07 overall). **Skipped by maintainer (2026-05-31)** — marginal reward for the
+lockfile + build-verification cost.
 
 ---
 
@@ -71,6 +83,13 @@ pre-installed interpreter). Nothing left to pin in that workflow.
   maintainer, either add a second reviewer/account, or accept this stays low.
 **Expected:** CI-Tests → ~10 with merged PRs; Code-Review only rises with
 approvals. Net: depends on review capacity.
+
+**Progress (2026-05-31):** PR #99 (P0+P1) merged to `main` with green CI
+(`build-and-test`, `jdbc-integration-tests`, `Analyze Java`, CodeQL). The merge
+was an **admin bypass** (no approval — solo maintainer), so it should credit
+**CI-Tests** (merged PR + passing checks) but **not Code-Review** (needs an
+*approved* changeset). Code-Review stays low until a second reviewer/account
+approves PRs.
 
 ## P3 — CII-Best-Practices badge (manual, low weight)
 Register at https://www.bestpractices.dev and complete the questionnaire. Most
