@@ -18,9 +18,10 @@ declare let mxXmlRequest: any;
 
 
 @Component({
-  selector: 'app-application-petri-net',
-  templateUrl: './application-flows-page.component.html',
-  styleUrls: ['./application-flows-page.component.scss'],
+    selector: 'app-application-petri-net',
+    templateUrl: './application-flows-page.component.html',
+    styleUrls: ['./application-flows-page.component.scss'],
+    standalone: false
 })
 export class ApplicationFlowsPage implements OnInit {
 

@@ -1,7 +1,7 @@
 <ion-content>
 
   <app-wrapped-content>
-    <ng-container *ngIf="dashboard">
+    @if (dashboard) {
       <ion-grid>
         <ion-row class="ion-margin-top line-under">
           <ion-col>
@@ -10,37 +10,41 @@
         </ion-row>
         <ion-row>
           <ion-col>
-             <ion-card class="dashboard-card "routerLink="/payload-catalog">
+            <ion-card class="dashboard-card "routerLink="/payload-catalog">
               <ion-card-header>
                 <ion-card-title style="font-weight: 700">
                   <span translate="catalog.payload.title"></span>&nbsp;({{dashboard.payloadCount}})
                 </ion-card-title>
               </ion-card-header>
               <ion-card-content>
-                <ion-chip class="payload-type-{{p.type}}" *ngFor="let p of dashboard.payloadCountByType">
-                  {{p.type}}&nbsp;({{p.count}})
-                </ion-chip>
+                @for (p of dashboard.payloadCountByType; track p) {
+                  <ion-chip class="payload-type-{{p.type}}">
+                    {{p.type}}&nbsp;({{p.count}})
+                  </ion-chip>
+                }
               </ion-card-content>
             </ion-card>
           </ion-col>
           <ion-col>
-             <ion-card class="dashboard-card" routerLink="/component-catalog">
+            <ion-card class="dashboard-card" routerLink="/component-catalog">
               <ion-card-header>
                 <ion-card-title style="font-weight: 700">
                   <span translate="catalog.component.title"></span>&nbsp;({{dashboard.componentCount}})
                 </ion-card-title>
               </ion-card-header>
               <ion-card-content>
-                <ion-chip class="component-type-{{p.type}}" *ngFor="let p of dashboard.componentCountByType">
-                  {{p.type}}&nbsp;({{p.count}})
-                </ion-chip>
+                @for (p of dashboard.componentCountByType; track p) {
+                  <ion-chip class="component-type-{{p.type}}">
+                    {{p.type}}&nbsp;({{p.count}})
+                  </ion-chip>
+                }
               </ion-card-content>
             </ion-card>
           </ion-col>
         </ion-row>
         <ion-row>
           <ion-col>
-             <ion-card class="dashboard-card" routerLink="/bundle-list">
+            <ion-card class="dashboard-card" routerLink="/bundle-list">
               <ion-card-header>
                 <ion-card-title style="font-weight: 700">
                   <span translate="bundle.title"></span>&nbsp;({{dashboard.bundleCount}})
@@ -48,26 +52,26 @@
               </ion-card-header>
               <ion-card-content>
                 <h1>
-                <ion-grid class="ion-no-padding">
-                  <ion-row>
-                    <ion-col size="8"><span translate="dashboard.bundle.count"></span>:</ion-col>
-                    <ion-col>{{dashboard.bundleWithHandlersCount}}</ion-col>
-                  </ion-row>
-                  <ion-row>
-                    <ion-col size="8"><span translate="dashboard.bundle.view.count"></span>:</ion-col>
-                    <ion-col>{{dashboard.bundleInViewCount}}</ion-col>
-                  </ion-row>
-                  <ion-row>
-                    <ion-col size="8"><span translate="dashboard.node.view.count"></span>:</ion-col>
-                    <ion-col>{{dashboard.nodeInViewCount}}</ion-col>
-                  </ion-row>
-                </ion-grid>
+                  <ion-grid class="ion-no-padding">
+                    <ion-row>
+                      <ion-col size="8"><span translate="dashboard.bundle.count"></span>:</ion-col>
+                      <ion-col>{{dashboard.bundleWithHandlersCount}}</ion-col>
+                    </ion-row>
+                    <ion-row>
+                      <ion-col size="8"><span translate="dashboard.bundle.view.count"></span>:</ion-col>
+                      <ion-col>{{dashboard.bundleInViewCount}}</ion-col>
+                    </ion-row>
+                    <ion-row>
+                      <ion-col size="8"><span translate="dashboard.node.view.count"></span>:</ion-col>
+                      <ion-col>{{dashboard.nodeInViewCount}}</ion-col>
+                    </ion-row>
+                  </ion-grid>
                 </h1>
               </ion-card-content>
             </ion-card>
           </ion-col>
           <ion-col>
-             <ion-card class="dashboard-card">
+            <ion-card class="dashboard-card">
               <ion-card-header>
                 <ion-card-title style="font-weight: 700">
                   <span translate="event.store.title"></span>&nbsp;({{dashboard.eventCount}})
@@ -82,9 +86,9 @@
                     </ion-row>
                     <ion-row class="ion-margin-top">
                       <ion-col size="8"><span translate="dashboard.event.publication.frequency"></span>:
-                        <br/><ion-note>Last 10000 events</ion-note></ion-col>
+                      <br/><ion-note>Last 10000 events</ion-note></ion-col>
                       <ion-col>{{dashboard.eventPublicationFrequency | number:'.4'}} [e/s]
-                    </ion-col>
+                      </ion-col>
                     </ion-row>
                   </ion-grid>
                 </h1>
@@ -93,7 +97,6 @@
           </ion-col>
         </ion-row>
       </ion-grid>
-
-    </ng-container>
+    }
   </app-wrapped-content>
 </ion-content>

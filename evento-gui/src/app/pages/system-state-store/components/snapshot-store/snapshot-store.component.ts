@@ -1,27 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import {SystemStateStoreService} from "../../../../services/system-state-store.service";
 import {ActivatedRoute, RouterLink} from "@angular/router";
-import {DatePipe, JsonPipe, KeyValuePipe, NgForOf, NgIf} from "@angular/common";
+import { DatePipe, JsonPipe, KeyValuePipe } from "@angular/common";
 import {IonicModule} from "@ionic/angular";
 import {TranslateModule} from "@ngx-translate/core";
 import {FormsModule} from "@angular/forms";
 
 @Component({
-  selector: 'app-snapshot-store',
-  templateUrl: './snapshot-store.component.html',
-  styleUrls: ['./snapshot-store.component.scss'],
-  standalone: true,
-  imports: [
+    selector: 'app-snapshot-store',
+    templateUrl: './snapshot-store.component.html',
+    styleUrls: ['./snapshot-store.component.scss'],
+    imports: [
     DatePipe,
     IonicModule,
     JsonPipe,
     KeyValuePipe,
-    NgForOf,
     RouterLink,
     TranslateModule,
-    NgIf,
     FormsModule
-  ]
+]
 })
 export class SnapshotStoreComponent  implements OnInit {
 

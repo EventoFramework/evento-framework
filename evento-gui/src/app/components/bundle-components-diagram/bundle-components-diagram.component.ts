@@ -9,9 +9,10 @@ declare const mxEvent: any;
 declare const mxHierarchicalLayout: any;
 
 @Component({
-  selector: 'app-bundle-components-diagram',
-  templateUrl: './bundle-components-diagram.component.html',
-  styleUrls: ['./bundle-components-diagram.component.scss'],
+    selector: 'app-bundle-components-diagram',
+    templateUrl: './bundle-components-diagram.component.html',
+    styleUrls: ['./bundle-components-diagram.component.scss'],
+    standalone: false
 })
 export class BundleComponentsDiagramComponent implements OnInit {
 

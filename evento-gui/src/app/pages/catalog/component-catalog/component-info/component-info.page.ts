@@ -5,9 +5,10 @@ import {RepositoryService} from '../../../../services/repository.service';
 import {stringToColour} from '../../../../services/utils';
 
 @Component({
-  selector: 'app-component-info',
-  templateUrl: './component-info.page.html',
-  styleUrls: ['./component-info.page.scss'],
+    selector: 'app-component-info',
+    templateUrl: './component-info.page.html',
+    styleUrls: ['./component-info.page.scss'],
+    standalone: false
 })
 export class ComponentInfoPage implements OnInit {
 
