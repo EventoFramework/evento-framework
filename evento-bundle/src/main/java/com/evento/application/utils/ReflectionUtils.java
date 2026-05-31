@@ -60,14 +60,16 @@ public class ReflectionUtils {
      * @throws IllegalAccessException If the method cannot be accessed.
      */
     public static Object invoke(Object object, Method method, Object... params) throws Throwable {
-        var old = method.canAccess(object);
+        // Handler Methods are cached and shared across threads (see *Reference registries).
+        // setAccessible(true) is idempotent and safe to call concurrently, but toggling the
+        // flag back afterwards is not: one thread's reset races with another thread's in-flight
+        // invoke() of the same Method, yielding spurious IllegalAccessException on package-private
+        // handlers. Make it accessible once and leave it — never revert the shared flag.
+        method.setAccessible(true);
         try {
-            method.setAccessible(true);
             return method.invoke(object, buildParameters(method, params));
         } catch (InvocationTargetException e) {
             throw e.getTargetException();
-        } finally {
-            method.setAccessible(old);
         }
     }
 }
