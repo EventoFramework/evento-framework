@@ -1,39 +1,68 @@
-import requests
 import os
+import sys
+
+import requests
+
+NAMESPACE = "com.eventoframework"
+BASE = "https://ossrh-staging-api.central.sonatype.com"
+
 
 def get_gradle_properties():
-    properties = {}
-    gradle_properties_path = os.path.expanduser("~/.gradle/gradle.properties")
+    """Best-effort read of Sonatype creds from a gradle.properties file.
 
-    if not os.path.exists(gradle_properties_path):
-        print("No gradle.properties file found in ~/.gradle/")
-        return properties
-
-    with open(gradle_properties_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' in line:
-                key, value = line.split('=', 1)
+    Looks in ~/.gradle/gradle.properties first, then ./gradle.properties.
+    Returns an empty dict if neither exists (e.g. on CI, where the
+    credentials come from the environment instead).
+    """
+    for path in (
+        os.path.expanduser("~/.gradle/gradle.properties"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "gradle.properties"),
+    ):
+        if not os.path.exists(path):
+            continue
+        properties = {}
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
                 properties[key.strip()] = value.strip()
-    return properties
+        return properties
+    return {}
 
-# Example usage
-if __name__ == "__main__":
+
+def resolve_credentials():
+    """Environment wins (CI); gradle.properties is the local fallback."""
     props = get_gradle_properties()
+    username = os.environ.get("MAVEN_CENTRAL_USERNAME") or props.get("mavenCentralUsername")
+    password = os.environ.get("MAVEN_CENTRAL_PASSWORD") or props.get("mavenCentralPassword")
+    if not username or not password:
+        sys.exit(
+            "Missing Sonatype credentials: set MAVEN_CENTRAL_USERNAME/"
+            "MAVEN_CENTRAL_PASSWORD or mavenCentralUsername/mavenCentralPassword "
+            "in ~/.gradle/gradle.properties."
+        )
+    return username, password
 
-    resp = requests.get("https://ossrh-staging-api.central.sonatype.com/manual/search/repositories",
-                 auth=(props['mavenCentralUsername'], props['mavenCentralPassword']))
 
+if __name__ == "__main__":
+    auth = resolve_credentials()
+
+    print("Staging repositories before promotion:")
+    resp = requests.get(f"{BASE}/manual/search/repositories", auth=auth)
+    resp.raise_for_status()
     print(resp.text)
 
-    resp = requests.post("https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/com.eventoframework?publishing_type=automatic",
-                        auth=(props['mavenCentralUsername'], props['mavenCentralPassword']))
-
+    print(f"\nPromoting namespace {NAMESPACE} (publishing_type=automatic)...")
+    resp = requests.post(
+        f"{BASE}/manual/upload/defaultRepository/{NAMESPACE}?publishing_type=automatic",
+        auth=auth,
+    )
+    resp.raise_for_status()
     print(resp.text)
 
-    resp = requests.get("https://ossrh-staging-api.central.sonatype.com/manual/search/repositories",
-                        auth=(props['mavenCentralUsername'], props['mavenCentralPassword']))
-
+    print("\nStaging repositories after promotion:")
+    resp = requests.get(f"{BASE}/manual/search/repositories", auth=auth)
+    resp.raise_for_status()
     print(resp.text)
