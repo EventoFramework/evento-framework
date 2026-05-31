@@ -4,11 +4,13 @@
 Live report: https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework
 API: https://api.securityscorecards.dev/projects/github.com/EventoFramework/evento-framework
 
-## Current state (scan 2026-05-31 10:20 UTC): **6.9 / 10** (was 5.4 before this work)
+## Current state (scan 2026-05-31 14:41 UTC): **7.5 / 10** (was 6.9, was 5.4 at start)
 
-P0+P1 merged (PR #99) and re-scanned. Overall stayed 6.9 because Branch-Protection
-flipped from an *excluded* `-1` to a **counted** High-weight `5`, which offsets the
-CI-Tests gain — the aggregate is now honest, measuring checks it couldn't before.
+Round 3 (PR #100) merged + re-scanned: **6.9 → 7.5**. Drivers: Vulnerabilities
+**0 → 7** (High weight — the big mover) and Binary-Artifacts **8 → 9**. Fuzzing
+landed but the first scan still read **0** — Scorecard skips every `/src/test/`
+path before grepping for the Jazzer import, so the harness was invisible there;
+PR #101 moves it to `src/fuzz/java` (expect 0 → 10 next scan).
 
 | Check | Score | Weight | Status / next action |
 |---|---|---|---|
@@ -23,12 +25,12 @@ CI-Tests gain — the aggregate is now honest, measuring checks it couldn't befo
 | License | 9 | Low | ⏸️ maintainer chose to leave (custom dual-license) |
 | Pinned-Dependencies | 9 | Medium | ◑ **P1 partial** — pip dep gone (8→9); 2 unpinned npm left: `npm install -g @ionic/cli@7.2.1` in `release.yml:61,141`. → 10 needs ionic CLI as a lockfile devDep (see P1b) |
 | Signed-Releases | 8 | High | ◑ improves once a real `v*` tag runs `release.yml` (provenance) |
-| Binary-Artifacts | 8 | High | ◑ **improved (2026-05-31)** — deleted the unused `graphvizlib.wasm` (1 MB) + its 3 dead deps; only `gradle-wrapper.jar` remains (unavoidable, validated in CI) |
+| Binary-Artifacts | 9 | High | ✅ **8 → 9 (2026-05-31)** — deleted the unused `graphvizlib.wasm` (1 MB) + its 3 dead deps; only `gradle-wrapper.jar` remains (unavoidable, validated in CI) — at its practical ceiling |
 | Branch-Protection | 5 | High | ◑ **P0 done (now counted)** — "not maximal"; →higher needs enforce-admins / signed-commits, which conflicts with solo admin-bypass |
 | Code-Review | 0 | High | ⏸️ **P2 capped** — "0/28 approved changesets"; admin-bypass merges have no approval. Needs a 2nd reviewer/account |
 | CII-Best-Practices | 0 | Low | ▶ **P3** — register the badge (manual) |
-| Vulnerabilities | 0 | High | ◑ **in progress** — GUI majors done (2026-05-31): `npm audit` 97 → 5, all 5 unfixable (4 build-only dev-server transitives of latest Angular toolchain + abandoned `mxgraph`). See "GUI dependency upgrade" below |
-| Fuzzing | 0 | Medium | ◑ **done (2026-05-31)** — Jazzer `@FuzzTest` on the CBOR codec + weekly `fuzz.yml`. Scorecard detects the `com.code_intelligence.jazzer` import → expect 10. See "Fuzzing harness" below |
+| Vulnerabilities | 7 | High | ✅ **0 → 7 (2026-05-31)** — GUI majors done: `npm audit` 97 → 5, all 5 unfixable. The residual 7 (not 10) is mxgraph (GHSA-j4rv-pr9g-q8jv) + 2 more transitive advisories with no upstream fix. See "GUI dependency upgrade" below |
+| Fuzzing | 0 | Medium | ◑ **harness landed; relocating (PR #101)** — Jazzer `@FuzzTest` on the CBOR codec + weekly `fuzz.yml`. First scan read 0 because Scorecard ignores `/src/test/` paths; moved to `src/fuzz/java` → expect 10. See "Fuzzing harness" below |
 | Contributors | 0 | Low | ❌ structural (solo project) — ignore |
 
 `-1` = check errored/inconclusive and is excluded from the average. Both former
@@ -152,9 +154,13 @@ contract — "for any input, return an allow-listed `Message` or throw
 - **Validated on JDK 25:** Jazzer 0.24.0 instruments and fuzzes fine — a local
   run did **2.77 M execs in 16 s (~160 k/s), zero findings**, i.e. the codec
   is robust against arbitrary input. Regression run is green in the full suite.
-- **Scorecard:** the Fuzzing check's Jazzer detector greps `.java` for the
-  `com.code_intelligence.jazzer` import — present now → expect the check to
-  flip 0 → 10 on the next scan (Medium weight, ≈ +0.5 overall).
+- **Scorecard gotcha (learned the hard way):** the Jazzer detector greps `.java`
+  for `com.code_intelligence.jazzer.api.FuzzedDataProvider;`, **but** its file
+  walk (`fileparser.isTestdataFile`) first drops every path containing
+  `/src/test/`. A `@FuzzTest` under `src/test/java` is therefore invisible — the
+  check stayed 0 on the first post-merge scan. Fix (PR #101): the harness lives
+  in `evento-transport-api/src/fuzz/java`, added to the test source set, so it is
+  both Scorecard-visible and still run by `:test`. Expect 0 → 10 next scan.
 - **Future:** extend with a target on the chunk-frame parser
   (`ChunkReassembler`, the `0x00 FULL` / `0x01 + UUID + isLast` header) in
   `evento-transport-netty`, and/or apply for OSS-Fuzz for continuous runs.
