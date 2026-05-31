@@ -3,79 +3,86 @@
     <ion-row style="height: 100%; width: 100%">
       <ion-col style="overflow-y: scroll; max-height: calc(100vh - 64px); max-width: 324px">
         <ion-searchbar [(ngModel)]="search" (ionChange)="checkFilter()" mode="ios"
-                       [placeholder]="'flows.search' | translate"></ion-searchbar>
+        [placeholder]="'flows.search' | translate"></ion-searchbar>
         <ion-card class="bundle" style="background: #3b82f6" routerLink="/application-flows">
           <ion-card-content>
             <ion-text class="title" translate="flows.all"></ion-text>
             <p translate="flows.all.desc"></p>
           </ion-card-content>
         </ion-card>
-        <ng-container *ngIf="components && components.length">
+        @if (components && components.length) {
           <ion-title class="title ion-margin"><span translate="catalog.component.title"></span> ({{components.length}})
-          </ion-title>
-          <ion-card *ngFor="let component of components"
-                    [class]="'component-type component-type-' + component.componentType" routerLink="/application-flows"
-                    [queryParams]="{'component' : component.componentName}">
+        </ion-title>
+        @for (component of components; track component) {
+          <ion-card
+            [class]="'component-type component-type-' + component.componentType" routerLink="/application-flows"
+            [queryParams]="{'component' : component.componentName}">
             <ion-card-content>
               <ion-text class="title">{{component.componentName}}</ion-text>
               <ion-text color="dark"><p>{{component.description}}</p></ion-text>
             </ion-card-content>
           </ion-card>
-        </ng-container>
-        <ng-container *ngIf="payloads && payloads.length">
-          <ion-title class="title ion-margin"><span translate="catalog.payload.title"></span> ({{payloads.length}})
-          </ion-title>
-          <ion-card *ngFor="let payload of payloads" [class]="'payload-type payload-type-' + payload.type"
-                    routerLink="/application-flows" [queryParams]="{'payload' : payload.name}">
-            <ion-card-content>
-              <ion-text class="title">{{payload.name}}</ion-text>
-              <ion-text color="dark"><p>{{payload.description}}</p></ion-text>
-            </ion-card-content>
-          </ion-card>
-        </ng-container>
-        <ng-container *ngIf="bundleFilter && bundleFilter.length">
-          <ion-title class="title ion-margin"><span translate="bundle.title"></span> ({{bundleFilter.length}})
-          </ion-title>
-          <ion-card *ngFor="let bundle of bundleFilter" class="bundle" [style.background-color]="bundle.color"
-                    routerLink="/application-flows" [queryParams]="{'bundle' : bundle.id}">
-            <ion-card-content>
-              <ion-text class="title">{{bundle.id}}</ion-text>
-              <ion-text color="dark"><p>{{bundle.description}}</p></ion-text>
-            </ion-card-content>
-          </ion-card>
-        </ng-container>
-      </ion-col>
-      <ion-col style="height: 100%">
-        <ion-card style="position: absolute;    z-index: 99999;    right: 0;">
+        }
+      }
+      @if (payloads && payloads.length) {
+        <ion-title class="title ion-margin"><span translate="catalog.payload.title"></span> ({{payloads.length}})
+      </ion-title>
+      @for (payload of payloads; track payload) {
+        <ion-card [class]="'payload-type payload-type-' + payload.type"
+          routerLink="/application-flows" [queryParams]="{'payload' : payload.name}">
           <ion-card-content>
-            <ion-item lines="none">
-              <ion-label class="ion-margin-end" translate="application.flows.performance.analysis"></ion-label>
-              <ion-toggle (ionChange)="togglePerformanceAnalysis($event)" [value]="performanceAnalysis"></ion-toggle>
-            </ion-item>
+            <ion-text class="title">{{payload.name}}</ion-text>
+            <ion-text color="dark"><p>{{payload.description}}</p></ion-text>
           </ion-card-content>
         </ion-card>
-        <div class="grid-bg" style="height: 100%; width: 100%; overflow: hidden" #container id="container"></div>
-      </ion-col>
-    </ion-row>
-  </ion-grid>
+      }
+    }
+    @if (bundleFilter && bundleFilter.length) {
+      <ion-title class="title ion-margin"><span translate="bundle.title"></span> ({{bundleFilter.length}})
+    </ion-title>
+    @for (bundle of bundleFilter; track bundle) {
+      <ion-card class="bundle" [style.background-color]="bundle.color"
+        routerLink="/application-flows" [queryParams]="{'bundle' : bundle.id}">
+        <ion-card-content>
+          <ion-text class="title">{{bundle.id}}</ion-text>
+          <ion-text color="dark"><p>{{bundle.description}}</p></ion-text>
+        </ion-card-content>
+      </ion-card>
+    }
+  }
+</ion-col>
+<ion-col style="height: 100%">
+  <ion-card style="position: absolute;    z-index: 99999;    right: 0;">
+    <ion-card-content>
+      <ion-item lines="none">
+        <ion-label class="ion-margin-end" translate="application.flows.performance.analysis"></ion-label>
+        <ion-toggle (ionChange)="togglePerformanceAnalysis($event)" [value]="performanceAnalysis"></ion-toggle>
+      </ion-item>
+    </ion-card-content>
+  </ion-card>
+  <div class="grid-bg" style="height: 100%; width: 100%; overflow: hidden" #container id="container"></div>
+</ion-col>
+</ion-row>
+</ion-grid>
 
-  <ion-card *ngIf="performanceAnalysis" style="position: absolute; top: 0; bottom: 0; width: 20vw">
+@if (performanceAnalysis) {
+  <ion-card style="position: absolute; top: 0; bottom: 0; width: 20vw">
     <ion-card-header>
       <ion-card-title translate="performance.analysis.source.service.time">
       </ion-card-title>
     </ion-card-header>
     <ion-card-content>
       <ion-list>
-        <ion-item *ngFor="let source of sources">
-          <ion-label position="stacked">{{source.name}} [ms]</ion-label>
-          <ion-input [value]="1/source.throughtput" (ionChange)="setTp(source, $event)"
-                     name="serviceTime" type="number">
-          </ion-input>
-          <ion-note slot="helper">{{source.throughtput}} [r/ms]</ion-note>
-
-        </ion-item>
+        @for (source of sources; track source) {
+          <ion-item>
+            <ion-label position="stacked">{{source.name}} [ms]</ion-label>
+            <ion-input [value]="1/source.throughtput" (ionChange)="setTp(source, $event)"
+              name="serviceTime" type="number">
+            </ion-input>
+            <ion-note slot="helper">{{source.throughtput}} [r/ms]</ion-note>
+          </ion-item>
+        }
       </ion-list>
-
     </ion-card-content>
     <div style="position: absolute; bottom: 0; left: 0; right: 0;">
       <ion-button class="ion-margin" expand="block" (click)="runAnalysis()">
@@ -83,10 +90,10 @@
         <ion-icon name="play-outline"></ion-icon>
       </ion-button>
     </div>
-
-
   </ion-card>
-  <ion-card *ngIf="performanceAnalysis" style="position: absolute; right: 0; bottom: 0; left: 21vw; height: 30vh">
+}
+@if (performanceAnalysis) {
+  <ion-card style="position: absolute; right: 0; bottom: 0; left: 21vw; height: 30vh">
     <ion-card-header>
       <ion-card-title translate="performance.analysis.results">
       </ion-card-title>
@@ -100,52 +107,56 @@
           <ion-label translate="performance.analysis.max.throughput"></ion-label>
         </ion-segment-button>
       </ion-segment>
-      <ion-list *ngIf="segment.value === 'concurrent.requests'">
-        <ion-list-header>
-          <ion-grid class="ion-no-padding">
-            <ion-row>
-              <ion-col translate="common.bundle"></ion-col>
-              <ion-col class="ion-text-end" translate="performance.analysis.concurrent.requests"></ion-col>
-            </ion-row>
-          </ion-grid>
-
-        </ion-list-header>
-        <ion-item *ngFor="let bundle of bundles">
-          <ion-label>{{bundle}}</ion-label>
-          <ion-label slot="end">{{bundleActiveThreads[bundle] | number:'.4'}}</ion-label>
-        </ion-item>
-      </ion-list>
-      <ion-list *ngIf="segment.value === 'max.throughput'">
-        <ion-list-header>
-          <ion-grid class="ion-no-padding">
-            <ion-row>
-              <ion-col translate="common.flow"></ion-col>
-              <ion-col class="ion-text-end" translate="performance.analysis.max.throughput"></ion-col>
-            </ion-row>
-          </ion-grid>
-
-        </ion-list-header>
-        <ion-item *ngFor="let source of sources">
-          <ion-label>{{source.name}}</ion-label>
-          <ion-label class="ion-text-end"
-                     [color]="maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload < 0.99 ? (maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload < 0.80 ? 'danger' : 'warning') : 'success'"
-                     slot="end">
-            {{maxFlowThroughput[source.id].throughtput | number:'.4'}} / {{maxFlowThroughput[source.id].workload | number:'.4'}} [r/ms]
-            ({{1 / (maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload) | number:'.4'}} ms)<br/>
-            <ion-note slot="end">{{maxFlowThroughput[source.id].component}}
-              - {{maxFlowThroughput[source.id].action}}</ion-note>
-          </ion-label>
-
-        </ion-item>
-
-      </ion-list>
+      @if (segment.value === 'concurrent.requests') {
+        <ion-list>
+          <ion-list-header>
+            <ion-grid class="ion-no-padding">
+              <ion-row>
+                <ion-col translate="common.bundle"></ion-col>
+                <ion-col class="ion-text-end" translate="performance.analysis.concurrent.requests"></ion-col>
+              </ion-row>
+            </ion-grid>
+          </ion-list-header>
+          @for (bundle of bundles; track bundle) {
+            <ion-item>
+              <ion-label>{{bundle}}</ion-label>
+              <ion-label slot="end">{{bundleActiveThreads[bundle] | number:'.4'}}</ion-label>
+            </ion-item>
+          }
+        </ion-list>
+      }
+      @if (segment.value === 'max.throughput') {
+        <ion-list>
+          <ion-list-header>
+            <ion-grid class="ion-no-padding">
+              <ion-row>
+                <ion-col translate="common.flow"></ion-col>
+                <ion-col class="ion-text-end" translate="performance.analysis.max.throughput"></ion-col>
+              </ion-row>
+            </ion-grid>
+          </ion-list-header>
+          @for (source of sources; track source) {
+            <ion-item>
+              <ion-label>{{source.name}}</ion-label>
+              <ion-label class="ion-text-end"
+                [color]="maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload < 0.99 ? (maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload < 0.80 ? 'danger' : 'warning') : 'success'"
+                slot="end">
+                {{maxFlowThroughput[source.id].throughtput | number:'.4'}} / {{maxFlowThroughput[source.id].workload | number:'.4'}} [r/ms]
+                ({{1 / (maxFlowThroughput[source.id].throughtput / maxFlowThroughput[source.id].workload) | number:'.4'}} ms)<br/>
+                <ion-note slot="end">{{maxFlowThroughput[source.id].component}}
+                - {{maxFlowThroughput[source.id].action}}</ion-note>
+              </ion-label>
+            </ion-item>
+          }
+        </ion-list>
+      }
       <div style="height: 150px"></div>
-
     </ion-card-content>
   </ion-card>
-  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-    <ion-fab-button size="small" color="light" (click)="orientation = !orientation; redrawGraph()">
-      <ion-icon name="sync-circle-outline"></ion-icon>
-    </ion-fab-button>
-  </ion-fab>
+}
+<ion-fab slot="fixed" vertical="bottom" horizontal="end">
+  <ion-fab-button size="small" color="light" (click)="orientation = !orientation; redrawGraph()">
+    <ion-icon name="sync-circle-outline"></ion-icon>
+  </ion-fab-button>
+</ion-fab>
 </ion-content>

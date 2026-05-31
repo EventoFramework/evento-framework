@@ -4,9 +4,10 @@ import {Subscription} from 'rxjs';
 import {stringToColour} from '../../services/utils';
 
 @Component({
-  selector: 'app-cluster-status',
-  templateUrl: './cluster-status.page.html',
-  styleUrls: ['./cluster-status.page.scss'],
+    selector: 'app-cluster-status',
+    templateUrl: './cluster-status.page.html',
+    styleUrls: ['./cluster-status.page.scss'],
+    standalone: false
 })
 export class ClusterStatusPage implements OnInit, OnDestroy {
 

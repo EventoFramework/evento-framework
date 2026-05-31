@@ -1,109 +1,121 @@
 <ion-row>
-  <ion-col size="6" *ngFor="let c of consumers">
-    <ion-card [class]="'component-type component-type-' + c.componentType" (click)="fetchConsumerState(c, modal)">
-      <ion-card-content>
-        <ion-text class="title">{{c.componentName}} - {{c.componentVersion}} ({{c.context}})</ion-text>
-        <ion-text color="dark"><p>{{c.bundleId}} (v{{c.bundleVersion}})</p></ion-text>
-        <ion-text color="medium">
-          <ul >
-            <li *ngFor="let i of c.instances">{{i}}</li>
-          </ul>
-        </ion-text>
-
-      </ion-card-content>
-    </ion-card>
-  </ion-col>
+  @for (c of consumers; track c) {
+    <ion-col size="6">
+      <ion-card [class]="'component-type component-type-' + c.componentType" (click)="fetchConsumerState(c, modal)">
+        <ion-card-content>
+          <ion-text class="title">{{c.componentName}} - {{c.componentVersion}} ({{c.context}})</ion-text>
+          <ion-text color="dark"><p>{{c.bundleId}} (v{{c.bundleVersion}})</p></ion-text>
+          <ion-text color="medium">
+            <ul >
+              @for (i of c.instances; track i) {
+                <li>{{i}}</li>
+              }
+            </ul>
+          </ion-text>
+        </ion-card-content>
+      </ion-card>
+    </ion-col>
+  }
 </ion-row>
 <ion-modal #modal class="modal-large">
   <ng-template>
     <ion-header>
-    <ion-toolbar color="secondary">
-      <ion-title class="ion-padding-start">{{consumer.componentName}} - {{consumer.componentVersion}} ({{consumer.context}})
+      <ion-toolbar color="secondary">
+        <ion-title class="ion-padding-start">{{consumer.componentName}} - {{consumer.componentVersion}} ({{consumer.context}})
         </ion-title>
-      <ion-buttons slot="end">
-        <ion-button (click)="modal.dismiss()">
-          <ion-icon slot="icon-only" name="close"></ion-icon>
-        </ion-button>
-      </ion-buttons>
-    </ion-toolbar>
+        <ion-buttons slot="end">
+          <ion-button (click)="modal.dismiss()">
+            <ion-icon slot="icon-only" name="close"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
       <ion-grid>
         <ion-row>
           <ion-col><h2 ><span translate="consumer.last.event"></span>: {{consumerState.lastEventSequenceNumber}}</h2></ion-col>
         </ion-row>
-        <ion-row *ngIf="consumerState">
-          <ion-col>
-            <ion-card color="light">
-              <ion-card-content>
-                <ion-grid>
-                  <ion-row class="ion-align-items-center">
-                    <ion-col size="12" sizeMd="6">
-                      <ion-chip [color]="consumerState.inError ? 'danger' : 'success'">
-                        <ion-label>
-                          {{ consumerState.inError ? 'In Error' : 'Healthy' }}
-                        </ion-label>
-                      </ion-chip>
-                      <ion-chip color="medium">
-                        <ion-label>Errors: {{consumerState.errorCount || 0}}</ion-label>
-                      </ion-chip>
-                    </ion-col>
-                    <ion-col size="12" sizeMd="6" class="ion-text-right">
-                      <div *ngIf="consumerState.errorStartAt">Start: {{consumerState.errorStartAt * 1000 | date:'short'}}</div>
-                      <div *ngIf="consumerState.lastErrorAt">Last: {{consumerState.lastErrorAt * 1000 | date:'short'}}</div>
-                    </ion-col>
-                  </ion-row>
-                  <!-- Last error accordion: visible if an error exists; auto-open only when currently in error -->
-                  <ion-row *ngIf="consumerState.error">
-                    <ion-col>
-                      <ion-card [color]="consumerState.inError ? 'danger' : 'light'">
-                        <ion-card-content>
-                          <ion-accordion-group [value]="consumerState.inError ? 'last-error' : undefined">
-                            <ion-accordion value="last-error">
-                              <ion-item slot="header" [color]="consumerState.inError ? 'danger' : 'light'">
-                                <ion-label>Last Error</ion-label>
-                                <ion-chip slot="end" color="medium" *ngIf="consumerState.lastErrorAt">
-                                  <ion-label>{{consumerState.lastErrorAt * 1000 | date:'short'}}</ion-label>
-                                </ion-chip>
-                              </ion-item>
-                              <div class="ion-padding" slot="content">
-                                <ion-text color="danger">
-                                                                  <pre style="white-space: pre-wrap; font-family: monospace;">
-{{consumerState.error}}
-                                </pre>
-                                </ion-text>
-
-
-                              </div>
-                            </ion-accordion>
-                          </ion-accordion-group>
-                        </ion-card-content>
-                      </ion-card>
-                    </ion-col>
-                  </ion-row>
-                </ion-grid>
-              </ion-card-content>
-            </ion-card>
-          </ion-col>
-        </ion-row>
-        <ion-row>
+        @if (consumerState) {
+          <ion-row>
             <ion-col>
-              <ion-card color="primary">
+              <ion-card color="light">
                 <ion-card-content>
                   <ion-grid>
-                    <ion-row>
-                      <ion-col size="2" translate="sss.events.event.sequence.number"></ion-col>
-                      <ion-col size="2" translate="sss.events.event.name"></ion-col>
-                      <ion-col size="2" translate="sss.events.aggregate.id"></ion-col>
-                      <ion-col size="1" translate="consumer.dead.event.retry"></ion-col>
-                      <ion-col size="2" translate="consumer.dead.event.at"></ion-col>
-                      <ion-col size="3" class="ion-text-end" translate="common.actions"></ion-col>
-                       </ion-row>
-
+                    <ion-row class="ion-align-items-center">
+                      <ion-col size="12" sizeMd="6">
+                        <ion-chip [color]="consumerState.inError ? 'danger' : 'success'">
+                          <ion-label>
+                            {{ consumerState.inError ? 'In Error' : 'Healthy' }}
+                          </ion-label>
+                        </ion-chip>
+                        <ion-chip color="medium">
+                          <ion-label>Errors: {{consumerState.errorCount || 0}}</ion-label>
+                        </ion-chip>
+                      </ion-col>
+                      <ion-col size="12" sizeMd="6" class="ion-text-right">
+                        @if (consumerState.errorStartAt) {
+                          <div>Start: {{consumerState.errorStartAt * 1000 | date:'short'}}</div>
+                        }
+                        @if (consumerState.lastErrorAt) {
+                          <div>Last: {{consumerState.lastErrorAt * 1000 | date:'short'}}</div>
+                        }
+                      </ion-col>
+                    </ion-row>
+                    <!-- Last error accordion: visible if an error exists; auto-open only when currently in error -->
+                    @if (consumerState.error) {
+                      <ion-row>
+                        <ion-col>
+                          <ion-card [color]="consumerState.inError ? 'danger' : 'light'">
+                            <ion-card-content>
+                              <ion-accordion-group [value]="consumerState.inError ? 'last-error' : undefined">
+                                <ion-accordion value="last-error">
+                                  <ion-item slot="header" [color]="consumerState.inError ? 'danger' : 'light'">
+                                    <ion-label>Last Error</ion-label>
+                                    @if (consumerState.lastErrorAt) {
+                                      <ion-chip slot="end" color="medium">
+                                        <ion-label>{{consumerState.lastErrorAt * 1000 | date:'short'}}</ion-label>
+                                      </ion-chip>
+                                    }
+                                  </ion-item>
+                                  <div class="ion-padding" slot="content">
+                                    <ion-text color="danger">
+                                      <pre style="white-space: pre-wrap; font-family: monospace;">
+                                        {{consumerState.error}}
+                                      </pre>
+                                    </ion-text>
+                                  </div>
+                                </ion-accordion>
+                              </ion-accordion-group>
+                            </ion-card-content>
+                          </ion-card>
+                        </ion-col>
+                      </ion-row>
+                    }
                   </ion-grid>
                 </ion-card-content>
               </ion-card>
-              <ion-card *ngFor="let de of consumerState.deadEvents">
+            </ion-col>
+          </ion-row>
+        }
+        <ion-row>
+          <ion-col>
+            <ion-card color="primary">
+              <ion-card-content>
+                <ion-grid>
+                  <ion-row>
+                    <ion-col size="2" translate="sss.events.event.sequence.number"></ion-col>
+                    <ion-col size="2" translate="sss.events.event.name"></ion-col>
+                    <ion-col size="2" translate="sss.events.aggregate.id"></ion-col>
+                    <ion-col size="1" translate="consumer.dead.event.retry"></ion-col>
+                    <ion-col size="2" translate="consumer.dead.event.at"></ion-col>
+                    <ion-col size="3" class="ion-text-end" translate="common.actions"></ion-col>
+                  </ion-row>
+
+                </ion-grid>
+              </ion-card-content>
+            </ion-card>
+            @for (de of consumerState.deadEvents; track de) {
+              <ion-card>
                 <ion-card-content>
                   <ion-grid>
                     <ion-row>
@@ -136,19 +148,20 @@
                           <ion-text color="danger">
                             <h2>{{de.exception.throwable}} - {{de.exception.message}}</h2>
                             <p>{{de.exception.detailMessage}}</p>
-                            <p *ngFor="let t of de.exception.stackTrace">
-                              {{t.className}}.{{t.methodName}}({{t.fileName}}:{{t.lineNumber}})
-                            </p>
+                            @for (t of de.exception.stackTrace; track t) {
+                              <p>
+                                {{t.className}}.{{t.methodName}}({{t.fileName}}:{{t.lineNumber}})
+                              </p>
+                            }
                           </ion-text>
                         </ion-content>
-
                       </ng-template>
                     </ion-modal>
-
                   </ion-grid>
                 </ion-card-content>
               </ion-card>
-            </ion-col>
+            }
+          </ion-col>
         </ion-row>
       </ion-grid>
     </ion-content>
