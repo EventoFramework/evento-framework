@@ -1,0 +1,240 @@
+name: Release
+
+# Single source of truth for a release. Triggered by pushing a semver tag
+# (e.g. v2.0.0). Produces, for that tag:
+#   1. A GitHub Release with the evento-server Spring Boot jar, a cosign
+#      keyless signature, a SLSA build-provenance attestation, and checksums.
+#   2. A multi-arch (amd64/arm64) container image pushed to GHCR and mirrored
+#      to Docker Hub, cosign-signed with provenance + SBOM.
+#   3. The publishable libraries pushed to GitHub Packages (Maven).
+#
+# Signing is keyless (Sigstore/Fulcio via the workflow OIDC token) — no GPG
+# secrets to manage. This satisfies the OpenSSF Scorecard Signed-Releases check.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Boot jar -> signed GitHub Release
+  # ---------------------------------------------------------------------------
+  boot-jar:
+    name: Build & publish signed boot jar
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write      # create the GitHub Release and upload assets
+      id-token: write      # cosign keyless signing + provenance attestation
+      attestations: write  # actions/attest-build-provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: version
+        run: echo "version=$(jq -r .version evento-server/version.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: '25'
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: evento-gui/package-lock.json
+
+      # The GUI compiles into evento-server/src/main/resources/public/ and is
+      # then embedded in the boot jar, so it must be built first.
+      - name: Install Ionic CLI
+        run: npm install -g @ionic/cli
+
+      - name: Install GUI dependencies
+        run: npm ci
+        working-directory: ./evento-gui
+
+      - name: Build Ionic app
+        run: ionic build --prod
+        working-directory: ./evento-gui
+
+      - name: Build boot jar
+        run: ./gradlew --no-daemon :evento-server:bootJar
+
+      - name: Stage release artifact
+        id: artifact
+        run: |
+          mkdir -p release
+          jar="$(find evento-server/build/libs -name '*.jar' ! -name '*-plain.jar' | head -n1)"
+          name="evento-server-${{ steps.version.outputs.version }}.jar"
+          cp "$jar" "release/$name"
+          ( cd release && sha256sum "$name" > "$name.sha256" )
+          echo "path=release/$name" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign jar (keyless)
+        run: |
+          cosign sign-blob --yes \
+            --output-signature "${{ steps.artifact.outputs.path }}.sig" \
+            --output-certificate "${{ steps.artifact.outputs.path }}.pem" \
+            "${{ steps.artifact.outputs.path }}"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: ${{ steps.artifact.outputs.path }}
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release/${{ steps.artifact.outputs.name }}
+            release/${{ steps.artifact.outputs.name }}.sig
+            release/${{ steps.artifact.outputs.name }}.pem
+            release/${{ steps.artifact.outputs.name }}.sha256
+
+  # ---------------------------------------------------------------------------
+  # Multi-arch container image -> GHCR (primary) + Docker Hub (mirror)
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Build, push & sign container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write      # push to GHCR
+      id-token: write      # cosign keyless signing + provenance
+      attestations: write
+    env:
+      GHCR_IMAGE: ghcr.io/eventoframework/evento-server
+      DOCKERHUB_IMAGE: docker.io/eventoframework/evento-server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: evento-gui/package-lock.json
+
+      # Same GUI prebuild as the jar job — the Dockerfile copies the build
+      # context and the embedded public/ assets must already be present.
+      - name: Install Ionic CLI
+        run: npm install -g @ionic/cli
+
+      - name: Install GUI dependencies
+        run: npm ci
+        working-directory: ./evento-gui
+
+      - name: Build Ionic app
+        run: ionic build --prod
+        working-directory: ./evento-gui
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.GHCR_IMAGE }}
+            ${{ env.DOCKERHUB_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/images/evento-server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Sign the immutable digest in both registries (keyless).
+      - name: Sign images
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign sign --yes "${GHCR_IMAGE}@${DIGEST}"
+          cosign sign --yes "${DOCKERHUB_IMAGE}@${DIGEST}"
+
+      - name: Attest GHCR image provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.GHCR_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  # ---------------------------------------------------------------------------
+  # Publishable libraries -> GitHub Packages (Maven)
+  # ---------------------------------------------------------------------------
+  maven-packages:
+    name: Publish libraries to GitHub Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: '25'
+          cache: gradle
+
+      # GitHub Packages only — Maven Central is handled by
+      # maven-build-and-push-repository.yaml.
+      - name: Publish
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew --no-daemon publishAllPublicationsToGitHubPackagesRepository

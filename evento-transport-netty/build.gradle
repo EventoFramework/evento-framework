@@ -77,8 +77,16 @@ publishing {
                     name = 'ossrh-staging-api'
                     url = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
                     credentials {
-                        username = project.properties["mavenCentralUsername"]
-                        password = project.properties["mavenCentralPassword"]
+                        username = project.findProperty("mavenCentralUsername") ?: System.getenv("MAVEN_CENTRAL_USERNAME")
+                        password = project.findProperty("mavenCentralPassword") ?: System.getenv("MAVEN_CENTRAL_PASSWORD")
+                    }
+                }
+                maven {
+                    name = 'GitHubPackages'
+                    url = "https://maven.pkg.github.com/EventoFramework/evento-framework"
+                    credentials {
+                        username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+                        password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
                     }
                 }
             }
@@ -87,7 +95,11 @@ publishing {
 }
 
 signing {
-    required { gradle.taskGraph.hasTask("publish") }
+    required = false
+    def signingKey = System.getenv("SIGNING_KEY")
+    if (signingKey) {
+        useInMemoryPgpKeys(signingKey, System.getenv("SIGNING_PASSWORD"))
+    }
     sign publishing.publications.mavenJava
 }
 

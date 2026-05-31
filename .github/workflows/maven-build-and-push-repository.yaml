@@ -12,6 +12,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -23,13 +24,30 @@ jobs:
           java-version: '25'
           cache: gradle
 
-      - name: Make Gradle executable
-        run: chmod +x gradlew
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
-      - name: Publish to Maven Central
-        run: ./gradlew --no-daemon publish
+      - name: Install Python dependencies
+        run: pip install requests
+
+      # Uploads signed artifacts to the Sonatype ossrh-staging-api staging
+      # repository. Credentials and the in-memory GPG key are read from the
+      # environment (see evento-*/build.gradle). Scoped to the Central
+      # repository only — GitHub Packages is handled by release.yml.
+      - name: Publish to staging
+        run: ./gradlew --no-daemon publishAllPublicationsToOssrh-staging-apiRepository
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+      # Promotes the staged com.eventoframework namespace for release
+      # (publishing_type=automatic), the same finalization done locally.
+      - name: Promote staging to Central
+        run: python publish.py
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
