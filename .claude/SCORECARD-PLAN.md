@@ -95,7 +95,13 @@ approves PRs.
 ## P3 — CII-Best-Practices badge (manual, low weight)
 Register at https://www.bestpractices.dev and complete the questionnaire. Most
 answers are already true (SECURITY.md, CI, SAST/CodeQL, signed releases,
-dependency updates). Earns the "passing" badge → check 0 → ~5+.
+dependency updates, **now also Jazzer fuzzing → `dynamic_analysis`**). Earns the
+"passing" badge → check 0 → ~5+.
+
+**Answer sheet drafted (2026-05-31):** [`CII-BEST-PRACTICES.md`](CII-BEST-PRACTICES.md)
+maps every *passing* criterion to the repo's evidence + paste-ready justification.
+Only the final submit (maintainer's GitHub login) + 4 small confirmations remain
+(see its "Needs maintainer input" list).
 
 ## GUI dependency upgrade (2026-05-31) — `npm audit` 97 → 5
 Branch `chore/dependency-upgrades`. Upgraded `evento-gui` across the breaking
