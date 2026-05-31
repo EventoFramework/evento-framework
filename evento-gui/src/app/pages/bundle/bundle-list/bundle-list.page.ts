@@ -3,9 +3,10 @@ import {BundleService} from '../../../services/bundle.service';
 import {stringToColour} from '../../../services/utils';
 
 @Component({
-  selector: 'app-bundle-list',
-  templateUrl: './bundle-list.page.html',
-  styleUrls: ['./bundle-list.page.scss'],
+    selector: 'app-bundle-list',
+    templateUrl: './bundle-list.page.html',
+    styleUrls: ['./bundle-list.page.scss'],
+    standalone: false
 })
 export class BundleListPage implements OnInit {
   domains = new Set<any>();

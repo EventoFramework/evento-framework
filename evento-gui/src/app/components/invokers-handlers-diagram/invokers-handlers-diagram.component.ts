@@ -13,9 +13,10 @@ declare const mxOrthogonalLayout: any;
 
 
 @Component({
-  selector: 'app-invokers-handlers-diagram',
-  templateUrl: './invokers-handlers-diagram.component.html',
-  styleUrls: ['./invokers-handlers-diagram.component.scss'],
+    selector: 'app-invokers-handlers-diagram',
+    templateUrl: './invokers-handlers-diagram.component.html',
+    styleUrls: ['./invokers-handlers-diagram.component.scss'],
+    standalone: false
 })
 export class InvokersHandlersDiagramComponent implements OnInit {
 
