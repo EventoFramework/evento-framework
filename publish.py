@@ -1,7 +1,8 @@
+import base64
 import os
 import sys
-
-import requests
+import urllib.error
+import urllib.request
 
 NAMESPACE = "com.eventoframework"
 BASE = "https://ossrh-staging-api.central.sonatype.com"
@@ -46,23 +47,35 @@ def resolve_credentials():
     return username, password
 
 
+def request(method, url, auth):
+    """Issue an HTTP request with Basic auth, returning the response body text.
+
+    Raises on a non-2xx status (mirrors requests' raise_for_status()).
+    """
+    username, password = auth
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    req = urllib.request.Request(url, method=method)
+    req.add_header("Authorization", f"Basic {token}")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        sys.exit(f"HTTP {e.code} for {method} {url}:\n{body}")
+
+
 if __name__ == "__main__":
     auth = resolve_credentials()
 
     print("Staging repositories before promotion:")
-    resp = requests.get(f"{BASE}/manual/search/repositories", auth=auth)
-    resp.raise_for_status()
-    print(resp.text)
+    print(request("GET", f"{BASE}/manual/search/repositories", auth))
 
     print(f"\nPromoting namespace {NAMESPACE} (publishing_type=automatic)...")
-    resp = requests.post(
+    print(request(
+        "POST",
         f"{BASE}/manual/upload/defaultRepository/{NAMESPACE}?publishing_type=automatic",
-        auth=auth,
-    )
-    resp.raise_for_status()
-    print(resp.text)
+        auth,
+    ))
 
     print("\nStaging repositories after promotion:")
-    resp = requests.get(f"{BASE}/manual/search/repositories", auth=auth)
-    resp.raise_for_status()
-    print(resp.text)
+    print(request("GET", f"{BASE}/manual/search/repositories", auth))
