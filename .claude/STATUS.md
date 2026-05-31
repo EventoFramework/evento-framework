@@ -3,6 +3,32 @@
 Last updated: 2026-05-31. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
+## OpenSSF Scorecard — round 3: Vulnerabilities + Binary-Artifacts + Fuzzing (2026-05-31, later still)
+
+Branch `chore/dependency-upgrades` (not yet committed/pushed — changes in the working tree).
+Tackled the three remaining *non-structural* Scorecard checks. Full detail in
+[`SCORECARD-PLAN.md`](SCORECARD-PLAN.md).
+
+- **Vulnerabilities (0 → expected high):** upgraded `evento-gui` across every breaking major —
+  **Angular 18 → 21** (three `ng update` hops), ngx-markdown 18→21 + marked 12→16, ng-apexcharts
+  1→2 + apexcharts 3→5, @ionic/angular 8.3→8.8.8 (+`skipLibCheck`), @ngx-translate 15→17 (loader
+  API migration), Capacitor 6→8, mermaid 9→11, jsdom 20→29, jwt-decode 3→4, ESLint 8→9 (flat
+  config). **`npm audit` 97 → 5**; the 5 left are unfixable (4 build-only dev-server transitives of
+  the latest Angular toolchain + abandoned `mxgraph`). Production build green after every step.
+  TypeScript held at `~5.9` and zone.js at `~0.15` (Angular 21 peers).
+- **Binary-Artifacts (8 → expected higher):** deleted the unused `graphvizlib.wasm` (1 MB) + its 3
+  dead deps (`graphviz-wasm`/`graphviz-builder`/`vizjs`, imported nowhere). Only `gradle-wrapper.jar`
+  remains (required, validated in CI).
+- **Fuzzing (0 → expected 10):** Jazzer `@FuzzTest` (`CborCodecFuzzTest` in `evento-transport-api`)
+  on the CBOR `Codec.decode` — the most exposed parser (every wire byte hits it pre-auth). Per-PR CI
+  runs it in fast regression mode; new weekly `fuzz.yml` runs `JAZZER_FUZZ=1` (libFuzzer mutation,
+  120 s/target). Validated on JDK 25: 2.77 M execs/16 s, zero findings. Scorecard detects the
+  `com.code_intelligence.jazzer` import.
+
+**Not done (structural / manual):** Code-Review (needs a 2nd approver), Branch-Protection → higher
+(enforce-admins/signed-commits conflicts with solo bypass), CII-Best-Practices badge (manual
+registration). Backend Gradle deps untouched (Dependabot-managed).
+
 ## OpenSSF Scorecard — P0/P1/P2 round 2 (2026-05-31, later)
 
 Second Scorecard pass off [`SCORECARD-PLAN.md`](SCORECARD-PLAN.md), landed via **PR #99**
