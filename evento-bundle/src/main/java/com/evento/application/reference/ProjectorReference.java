@@ -140,6 +140,15 @@ public class ProjectorReference extends Reference {
                     }
                 }
                 Sleep.apply(a.retryDelay());
+                // Honor shutdown: EngineSupervisor.stop() interrupts the engine thread via
+                // shutdownNow(). Sleep.apply() only re-sets the interrupt flag (it swallows
+                // InterruptedException), so without this check a retry<0 (retry-forever)
+                // handler stuck on a poison event would spin this loop forever and leak the
+                // engine thread past stop(). Re-throw to unwind into run()'s loop, which
+                // observes isShuttingDown() and exits cleanly.
+                if (Thread.currentThread().isInterrupted()) {
+                    throw throwable;
+                }
             }
         }
     }
