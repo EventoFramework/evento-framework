@@ -34,6 +34,19 @@ dependencies {
     testImplementation "com.code-intelligence:jazzer-junit:${jazzerVersion}"
 }
 
+// The Jazzer fuzz harness lives in src/fuzz/java (not src/test/java) so OpenSSF
+// Scorecard's fuzzing check can see it — Scorecard skips every /src/test/ path
+// as test data, which would otherwise hide the com.code_intelligence.jazzer
+// import. It is still part of the test source set, so `:test` compiles and runs
+// it (regression mode) and JAZZER_FUZZ=1 fuzzes it.
+sourceSets {
+    test {
+        java {
+            srcDir 'src/fuzz/java'
+        }
+    }
+}
+
 test {
     useJUnitPlatform()
 }
