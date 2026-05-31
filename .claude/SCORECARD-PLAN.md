@@ -1,3 +1,4 @@
+
 # OpenSSF Scorecard — improvement plan
 
 Live report: https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework
@@ -22,12 +23,12 @@ CI-Tests gain — the aggregate is now honest, measuring checks it couldn't befo
 | License | 9 | Low | ⏸️ maintainer chose to leave (custom dual-license) |
 | Pinned-Dependencies | 9 | Medium | ◑ **P1 partial** — pip dep gone (8→9); 2 unpinned npm left: `npm install -g @ionic/cli@7.2.1` in `release.yml:61,141`. → 10 needs ionic CLI as a lockfile devDep (see P1b) |
 | Signed-Releases | 8 | High | ◑ improves once a real `v*` tag runs `release.yml` (provenance) |
-| Binary-Artifacts | 8 | High | ⏸️ `gradle-wrapper.jar` unavoidable; `graphvizlib.wasm` optional |
+| Binary-Artifacts | 8 | High | ◑ **improved (2026-05-31)** — deleted the unused `graphvizlib.wasm` (1 MB) + its 3 dead deps; only `gradle-wrapper.jar` remains (unavoidable, validated in CI) |
 | Branch-Protection | 5 | High | ◑ **P0 done (now counted)** — "not maximal"; →higher needs enforce-admins / signed-commits, which conflicts with solo admin-bypass |
 | Code-Review | 0 | High | ⏸️ **P2 capped** — "0/28 approved changesets"; admin-bypass merges have no approval. Needs a 2nd reviewer/account |
 | CII-Best-Practices | 0 | Low | ▶ **P3** — register the badge (manual) |
-| Vulnerabilities | 0 | High | ⏸️ deferred — GUI major upgrades (separate project) |
-| Fuzzing | 0 | Medium | ⏸️ deferred — would need a CBOR/framing harness |
+| Vulnerabilities | 0 | High | ◑ **in progress** — GUI majors done (2026-05-31): `npm audit` 97 → 5, all 5 unfixable (4 build-only dev-server transitives of latest Angular toolchain + abandoned `mxgraph`). See "GUI dependency upgrade" below |
+| Fuzzing | 0 | Medium | ◑ **done (2026-05-31)** — Jazzer `@FuzzTest` on the CBOR codec + weekly `fuzz.yml`. Scorecard detects the `com.code_intelligence.jazzer` import → expect 10. See "Fuzzing harness" below |
 | Contributors | 0 | Low | ❌ structural (solo project) — ignore |
 
 `-1` = check errored/inconclusive and is excluded from the average. Both former
@@ -96,15 +97,74 @@ Register at https://www.bestpractices.dev and complete the questionnaire. Most
 answers are already true (SECURITY.md, CI, SAST/CodeQL, signed releases,
 dependency updates). Earns the "passing" badge → check 0 → ~5+.
 
+## GUI dependency upgrade (2026-05-31) — `npm audit` 97 → 5
+Branch `chore/dependency-upgrades`. Upgraded `evento-gui` across the breaking
+majors that the Vulnerabilities check flagged. Production build
+(`ng build --configuration production`) is green after every step.
+
+- **Angular 18 → 21** via three sequential `ng update` runs (18→19→20→21). Ran
+  the standalone + control-flow + bootstrap migrations the schematics offered.
+- **ngx-markdown 18 → 21** + **marked 12 → 16/18** (marked 16 made
+  `MarkedOptions`/`MarkedExtension` generic, which ngx-markdown 20+ requires).
+- **ng-apexcharts 1.11 → 2.4** + **apexcharts 3 → 5** (peer needs Angular ≥20).
+- **@ionic/angular 8.3 → 8.8.8** (older Stencil-generated `.d.ts` clashed with
+  TS 5.9). Added `"skipLibCheck": true` to `tsconfig.json` (Angular CLI default
+  for new projects) to skip type-checking third-party declaration files.
+- **@ngx-translate/core + http-loader 15/8 → 17** — migrated `app.module.ts` to
+  the v17 loader API (`provideTranslateHttpLoader({prefix, suffix})`).
+- **Capacitor 6 → 8**, **ionicons 7 → 8**, **jwt-decode 3 → 4**, **mermaid 9 →
+  11**, **jsdom 20 → 29** (jwt-decode/Capacitor are not imported in `src/`).
+- **ESLint 8 → 9** + **typescript-eslint 6 → 8** + **angular-eslint 21** +
+  **eslint-plugin-jsdoc 48 → 63**. Migrated `.eslintrc.json` → flat
+  `eslint.config.js`. (`ng lint` still reports the same pre-existing rule
+  violations — `prefer-inject`/`prefer-standalone` — those are code-quality
+  findings, not part of this dependency work.)
+- Held back intentionally: **typescript** at `~5.9` (Angular 21 peer ceiling,
+  not 6.x) and **zone.js** at `~0.15` (Angular 21 peer).
+- `npm audit fix` (non-force) cleared the rest of the transitive dev-chain.
+
+**5 remaining (all `fixAvailable: false`):** `mxgraph` (abandoned runtime lib,
+XSS, no patched version in any release — heavily used by the diagram components,
+replacing it is a separate project) and `@angular-devkit/build-angular` →
+`webpack-dev-server` → `sockjs` → `uuid` (dev-server-only, not shipped; already
+on the latest Angular toolchain).
+
+## Fuzzing harness (2026-05-31) — Jazzer on the CBOR codec
+The CBOR `Codec.decode(byte[])` is the most exposed parser in the framework:
+every byte off the TCP socket hits it *before* auth or any type check. Its
+contract — "for any input, return an allow-listed `Message` or throw
+`CodecException`, never an undeclared throwable" — is an ideal fuzzing property.
+
+- **`evento-transport-api`** test `CborCodecFuzzTest` — two Jazzer `@FuzzTest`
+  targets (`decode(byte[])` and the offset/length window variant). Dep:
+  `com.code-intelligence:jazzer-junit` (`jazzerVersion` in root `build.gradle`).
+- **Dual mode:** the per-PR `CI` job runs `:evento-transport-api:test` with no
+  env var → Jazzer **regression mode** (replays the seed corpus as ordinary
+  JUnit, ~instant, deterministic). `fuzz.yml` (weekly cron + manual dispatch)
+  sets `JAZZER_FUZZ=1` → real libFuzzer mutation, `maxDuration=120s`/target,
+  uploads any `crash-*` reproducer.
+- **Validated on JDK 25:** Jazzer 0.24.0 instruments and fuzzes fine — a local
+  run did **2.77 M execs in 16 s (~160 k/s), zero findings**, i.e. the codec
+  is robust against arbitrary input. Regression run is green in the full suite.
+- **Scorecard:** the Fuzzing check's Jazzer detector greps `.java` for the
+  `com.code_intelligence.jazzer` import — present now → expect the check to
+  flip 0 → 10 on the next scan (Medium weight, ≈ +0.5 overall).
+- **Future:** extend with a target on the chunk-frame parser
+  (`ChunkReassembler`, the `0x00 FULL` / `0x01 + UUID + isLast` header) in
+  `evento-transport-netty`, and/or apply for OSS-Fuzz for continuous runs.
+
 ## Deferred / accepted (explicit decisions)
-- **Vulnerabilities (0, ~109):** all GUI transitive; `npm audit fix` fixes 0,
-  all require breaking majors (Angular 18→21, mermaid, Capacitor). Separate
-  project. Dependabot keeps surfacing them.
+- **Vulnerabilities (0):** GUI npm majors upgraded — see above. Down to 5
+  unfixable moderates (4 build-only + abandoned `mxgraph`). Dependabot will keep
+  surfacing `mxgraph` until it's replaced.
 - **License (9):** custom dual-license kept by choice. To reach 10: add canonical
   AGPL-3.0 text as `COPYING` alongside the existing files.
-- **Binary-Artifacts (8):** `gradle-wrapper.jar` required (validated in CI);
-  could reach 10 by fetching `graphvizlib.wasm` at build time instead of
-  committing it.
+- **Binary-Artifacts (8 → improving):** `src/assets/wasm/graphvizlib.wasm` was
+  dead weight — nothing in the GUI imported `graphviz-wasm` / `graphviz-builder`
+  / `vizjs`, and the wasm was only copied by the `src/assets` glob, never loaded.
+  Deleted the binary and the 3 dead deps (2026-05-31). Only `gradle-wrapper.jar`
+  remains, which is required and validated in CI — so this check is now at its
+  practical ceiling.
 - **Fuzzing (0):** a Jazzer harness on `Message` deserialization/framing would
   both harden and score, but is real work.
 - **Contributors (0):** needs ≥2 orgs — not achievable for a solo project.
