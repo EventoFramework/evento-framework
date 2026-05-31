@@ -3,6 +3,30 @@
 Last updated: 2026-05-31. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
+## OpenSSF Scorecard — P0/P1/P2 round 2 (2026-05-31, later)
+
+Second Scorecard pass off [`SCORECARD-PLAN.md`](SCORECARD-PLAN.md), landed via **PR #99**
+(`chore/scorecard-p0-p1`, merged to `main` by admin-bypass) and re-scanned:
+- **P0 Branch-Protection (-1 → 5):** `scorecard.yml` now passes `repo_token: ${{ secrets.SCORECARD_TOKEN }}`
+  (classic PAT, maintainer-created) so Scorecard can read the live rules. Was `-1 internal error`
+  (excluded); now a counted **High**-weight check.
+- **P1 Pinned-Dependencies (8 → 9):** removed the last `pip install requests` — `publish.py`
+  rewritten against stdlib (`urllib.request` + `base64` Basic auth); dropped `setup-python` +
+  `pip install` from `maven-build-and-push-repository.yaml`; promote step runs `python3 publish.py`.
+- **P2 CI-Tests (-1 → 10):** "1/1 merged PRs checked by CI" — credited by landing via a real PR.
+- **Security:** `token.txt` (live PAT, was untracked + unignored) removed; `.gitignore` now blocks
+  `token.txt`/`*.pat`/`*.token`.
+- **Overall holds at 6.9** — now honest (includes Branch-Protection, previously excluded). The new
+  counted High-weight 5 offsets the CI-Tests gain.
+
+**Still capped by solo-maintainer structure:** Code-Review 0 ("0/28 approved changesets" — admin-bypass
+merges have no approval); Vulnerabilities 0 (GUI majors, separate project); CII-Best-Practices 0 (manual
+badge registration). **Skipped (marginal):** P1b Pinned-Deps 9→10 — the 2 leftover unpinned npm globals
+are `npm install -g @ionic/cli@7.2.1` at `release.yml:61,141`; →10 needs ionic CLI as a lockfile devDep.
+
+**Scheduled:** weekly remote routine `trig_01HZW2pKixvnjfSRDTT6mopp` (Tuesdays 12:00 UTC) re-checks the
+Scorecard API and reports deltas vs the 6.9 baseline.
+
 ## OpenSSF Scorecard hardening (2026-05-31)
 
 Worked the Scorecard report (was **5.4/10**). Shipped to `main` (admin-bypass pushes,
