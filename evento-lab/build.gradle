@@ -77,8 +77,10 @@ test {
     environment "DOCKER_HOST", dockerHost
     environment "TESTCONTAINERS_RYUK_DISABLED", "true"
     // docker-java only honours the API version via the `api.version` system
-    // property (NOT a DOCKER_API_VERSION env var). Its default (1.32) is below
-    // the minimum of recent Docker daemons (29.x needs >= 1.40), which makes the
-    // /info probe fail with HTTP 400. Pin a version in [1.40, 1.54].
-    systemProperty "api.version", System.getProperty("api.version") ?: "1.51"
+    // property (NOT a DOCKER_API_VERSION env var). Its default (1.32) is below the
+    // minimum of recent Docker Desktop daemons (29.x needs >= 1.40) -> /info 400;
+    // pinning too high (1.51) is rejected as "client too new" by the older engine
+    // on GitHub-hosted runners. 1.40 is Desktop's minimum and within range of every
+    // engine >= 19.03, so it works in both. Override with -Dapi.version if needed.
+    systemProperty "api.version", System.getProperty("api.version") ?: "1.40"
 }
