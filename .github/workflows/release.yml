@@ -5,7 +5,10 @@ name: Release
 #   1. A GitHub Release with the evento-server Spring Boot jar, a cosign
 #      keyless signature, a SLSA build-provenance attestation, and checksums.
 #   2. A multi-arch (amd64/arm64) container image pushed to GHCR and mirrored
-#      to Docker Hub, cosign-signed with provenance + SBOM.
+#      to Docker Hub, cosign-signed with provenance + SBOM. Plus a parallel
+#      `-cf` single-arch (linux/amd64) variant without OCI provenance/SBOM
+#      attestations, for Cloud Foundry foundations whose Diego fetcher can't
+#      dereference OCI manifest lists.
 #   3. The publishable libraries pushed to GitHub Packages (Maven).
 #
 # Signing is keyless (Sigstore/Fulcio via the workflow OIDC token) — no GPG
@@ -177,6 +180,22 @@ jobs:
             type=semver,pattern={{version}}
             type=raw,value=latest
 
+      # CF-compatible variant: same content, single-arch, no OCI provenance/SBOM
+      # attestations. Tag suffix `-cf` so the canonical tags stay unmodified.
+      - name: Docker metadata (CF variant)
+        id: meta-cf
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: |
+            ${{ env.GHCR_IMAGE }}
+            ${{ env.DOCKERHUB_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+          flavor: |
+            latest=false
+            suffix=-cf,onlatest=true
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -192,16 +211,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push (CF variant)
+        id: build-cf
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: docker/images/evento-server/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta-cf.outputs.tags }}
+          labels: ${{ steps.meta-cf.outputs.labels }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+
       - name: Install cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
-      # Sign the immutable digest in both registries (keyless).
+      # Sign the immutable digest in both registries (keyless), for both variants.
       - name: Sign images
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+          DIGEST_CF: ${{ steps.build-cf.outputs.digest }}
         run: |
           cosign sign --yes "${GHCR_IMAGE}@${DIGEST}"
           cosign sign --yes "${DOCKERHUB_IMAGE}@${DIGEST}"
+          cosign sign --yes "${GHCR_IMAGE}@${DIGEST_CF}"
+          cosign sign --yes "${DOCKERHUB_IMAGE}@${DIGEST_CF}"
 
       - name: Attest GHCR image provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
