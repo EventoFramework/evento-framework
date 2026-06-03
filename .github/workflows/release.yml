@@ -62,8 +62,13 @@ jobs:
       - name: Install Ionic CLI
         run: npm install -g @ionic/cli@7.2.1
 
+      # Resolve from package.json (no `npm ci`): the committed
+      # package-lock.json was authored on macOS/arm64 + npm 11 and omits
+      # Linux-x64 optional peer deps (@emnapi/core, @emnapi/runtime), so
+      # `npm ci` refuses to install on the Linux runner. `npm install` lets
+      # each platform resolve its own optional tree.
       - name: Install GUI dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
         working-directory: ./evento-gui
 
       - name: Build Ionic app
@@ -142,8 +147,13 @@ jobs:
       - name: Install Ionic CLI
         run: npm install -g @ionic/cli@7.2.1
 
+      # Resolve from package.json (no `npm ci`): the committed
+      # package-lock.json was authored on macOS/arm64 + npm 11 and omits
+      # Linux-x64 optional peer deps (@emnapi/core, @emnapi/runtime), so
+      # `npm ci` refuses to install on the Linux runner. `npm install` lets
+      # each platform resolve its own optional tree.
       - name: Install GUI dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
         working-directory: ./evento-gui
 
       - name: Build Ionic app
