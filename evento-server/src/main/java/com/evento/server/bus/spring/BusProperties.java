@@ -42,8 +42,17 @@ public record BusProperties(
         if (heartbeatReadIdle == null) heartbeatReadIdle = Duration.ofSeconds(45);
         if (connectTimeout == null) connectTimeout = Duration.ofSeconds(5);
         if (maxFrameLength <= 0) maxFrameLength = 16 * 1024 * 1024;
-        if (writeBufferHighWaterMark <= 0) writeBufferHighWaterMark = 64 * 1024;
-        if (writeBufferLowWaterMark <= 0) writeBufferLowWaterMark = 32 * 1024;
+        // Defaults sized for a data bus shipping multiple consumers with frames up to
+        // {@code maxFrameLength}. The previous 64KB/32KB values were tuned for a control
+        // channel and caused the TCP write buffer to constantly bounce across the high/low
+        // marks during normal bursts, producing a storm of CONNECTED <-> DEGRADED flaps.
+        if (writeBufferHighWaterMark <= 0) writeBufferHighWaterMark = 1024 * 1024;   // 1 MB
+        if (writeBufferLowWaterMark <= 0) writeBufferLowWaterMark = 256 * 1024;      // 256 KB
+        if (writeBufferLowWaterMark >= writeBufferHighWaterMark) {
+            throw new IllegalArgumentException(
+                    "writeBufferLowWaterMark (" + writeBufferLowWaterMark
+                            + ") must be < writeBufferHighWaterMark (" + writeBufferHighWaterMark + ")");
+        }
         if (businessExecutorCoreSize <= 0) {
             businessExecutorCoreSize = Math.max(8, Runtime.getRuntime().availableProcessors() * 2);
         }
