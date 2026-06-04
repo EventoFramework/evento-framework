@@ -24,7 +24,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.Set;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Spring wiring for the v2 server bus. Exposes the seven collaborator beans
@@ -69,8 +73,48 @@ public class BusConfiguration {
         return new JacksonCborPayloadCodec();
     }
 
+    /**
+     * Bounded platform-thread pool used as the bus business executor. Replaces the
+     * previous unbounded virtual-thread-per-task executor, which under high inbound
+     * pressure could spawn an unbounded number of tasks and exhaust the Java heap
+     * (see OOM seen with many concurrent {@code EventFetchRequest} handlers).
+     *
+     * <p>Backpressure: when the queue is full, {@code CallerRunsPolicy} forces the
+     * Netty event-loop thread to execute the task itself, naturally throttling
+     * inbound reads and propagating pressure upstream via TCP.
+     */
+    @Bean(destroyMethod = "shutdown")
+    public ThreadPoolExecutor busBusinessExecutor(BusProperties props) {
+        ThreadFactory factory = new ThreadFactory() {
+            private final AtomicLong counter = new AtomicLong();
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "bus-business-" + counter.incrementAndGet());
+                t.setDaemon(true);
+                return t;
+            }
+        };
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                props.businessExecutorCoreSize(),
+                props.businessExecutorMaxSize(),
+                props.businessExecutorKeepAlive().toMillis(),
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(props.businessExecutorQueueCapacity()),
+                factory,
+                new ThreadPoolExecutor.CallerRunsPolicy());
+        pool.allowCoreThreadTimeOut(true);
+        log.info("event=bus_business_executor_configured core={} max={} queue={} keepAliveMs={}",
+                props.businessExecutorCoreSize(),
+                props.businessExecutorMaxSize(),
+                props.businessExecutorQueueCapacity(),
+                props.businessExecutorKeepAlive().toMillis());
+        return pool;
+    }
+
     @Bean
-    public NettyTransportConfig nettyTransportConfig(BusProperties props) {
+    public NettyTransportConfig nettyTransportConfig(BusProperties props,
+                                                     ThreadPoolExecutor busBusinessExecutor) {
         return new NettyTransportConfig(
                 props.heartbeatWriteIdle(),
                 props.heartbeatReadIdle(),
@@ -80,7 +124,7 @@ public class BusConfiguration {
                 props.writeBufferLowWaterMark(),
                 new ExponentialBackoffWithJitter(),
                 new com.evento.transport.codec.JacksonCborCodec(),
-                Executors.newVirtualThreadPerTaskExecutor()
+                busBusinessExecutor
         );
     }
 

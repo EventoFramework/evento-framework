@@ -25,7 +25,11 @@ public record BusProperties(
         Duration connectTimeout,
         int maxFrameLength,
         int writeBufferHighWaterMark,
-        int writeBufferLowWaterMark
+        int writeBufferLowWaterMark,
+        int businessExecutorCoreSize,
+        int businessExecutorMaxSize,
+        int businessExecutorQueueCapacity,
+        Duration businessExecutorKeepAlive
 ) {
 
     public BusProperties {
@@ -40,5 +44,17 @@ public record BusProperties(
         if (maxFrameLength <= 0) maxFrameLength = 16 * 1024 * 1024;
         if (writeBufferHighWaterMark <= 0) writeBufferHighWaterMark = 64 * 1024;
         if (writeBufferLowWaterMark <= 0) writeBufferLowWaterMark = 32 * 1024;
+        if (businessExecutorCoreSize <= 0) {
+            businessExecutorCoreSize = Math.max(8, Runtime.getRuntime().availableProcessors() * 2);
+        }
+        if (businessExecutorMaxSize <= 0) {
+            businessExecutorMaxSize = Math.max(businessExecutorCoreSize,
+                    Runtime.getRuntime().availableProcessors() * 8);
+        }
+        if (businessExecutorMaxSize < businessExecutorCoreSize) {
+            businessExecutorMaxSize = businessExecutorCoreSize;
+        }
+        if (businessExecutorQueueCapacity <= 0) businessExecutorQueueCapacity = 1024;
+        if (businessExecutorKeepAlive == null) businessExecutorKeepAlive = Duration.ofSeconds(90);
     }
 }
