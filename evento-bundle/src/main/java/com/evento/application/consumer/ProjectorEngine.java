@@ -8,12 +8,15 @@ import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.messaging.consumer.DeadEventQueue;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
+import com.evento.common.utils.ChannelErrors;
 import com.evento.common.utils.ProjectorStatus;
 import com.evento.common.utils.Sleep;
+import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
@@ -99,8 +102,13 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
     public void run() {
         var ps = new ProjectorStatus();
         ps.setHeadReached(false);
+        var backoff = new ExponentialBackoffWithJitter(
+                Duration.ofMillis(sssFetchDelay), Duration.ofSeconds(30), 0.2,
+                ExponentialBackoffWithJitter.UNBOUNDED);
+        int channelErrorAttempts = 0;
         while (!isShuttingDown.get()) {
             var hasError = false;
+            var isChannelError = false;
             var consumedEventCount = 0;
 
             try {
@@ -115,12 +123,25 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             sssFetchSize);
                 }
             } catch (Throwable e) {
-                logger.error("Error on projector consumer: " + consumerId, e);
+                isChannelError = ChannelErrors.isChannelError(e);
+                if (isChannelError) {
+                    logger.warn("Channel error on projector consumer {} (attempt {}): {}",
+                            consumerId, channelErrorAttempts + 1, e.getMessage());
+                } else {
+                    logger.error("Error on projector consumer: " + consumerId, e);
+                }
                 hasError = true;
             }
 
-            if (sssFetchSize - consumedEventCount > 10) {
-                Sleep.apply(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
+            if (hasError && isChannelError) {
+                Sleep.apply(backoff.nextDelay(++channelErrorAttempts).toMillis());
+            } else if (hasError) {
+                Sleep.apply(sssFetchDelay);
+            } else {
+                channelErrorAttempts = 0;
+                if (sssFetchSize - consumedEventCount > 10) {
+                    Sleep.apply(sssFetchSize - consumedEventCount);
+                }
             }
 
             if (!hasError && !ps.isHeadReached() && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
