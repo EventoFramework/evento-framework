@@ -9,11 +9,14 @@ import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.messaging.consumer.DeadEventQueue;
 import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
+import com.evento.common.utils.ChannelErrors;
 import com.evento.common.utils.Sleep;
+import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.function.Supplier;
@@ -87,8 +90,13 @@ public final class SagaEngine implements Runnable, ConsumerHandle {
     @Override
     public void run() {
         SagaEventConsumer perEvent = this::dispatch;
+        var backoff = new ExponentialBackoffWithJitter(
+                Duration.ofMillis(sssFetchDelay), Duration.ofSeconds(30), 0.2,
+                ExponentialBackoffWithJitter.UNBOUNDED);
+        int channelErrorAttempts = 0;
         while (!isShuttingDown.get()) {
             var hasError = false;
+            var isChannelError = false;
             var consumedEventCount = 0;
 
             try {
@@ -101,12 +109,25 @@ public final class SagaEngine implements Runnable, ConsumerHandle {
                             sssFetchSize);
                 }
             } catch (Throwable e) {
-                logger.error("Error on saga consumer: " + consumerId, e);
+                isChannelError = ChannelErrors.isChannelError(e);
+                if (isChannelError) {
+                    logger.warn("Channel error on saga consumer {} (attempt {}): {}",
+                            consumerId, channelErrorAttempts + 1, e.getMessage());
+                } else {
+                    logger.error("Error on saga consumer: " + consumerId, e);
+                }
                 hasError = true;
             }
 
-            if (sssFetchSize - consumedEventCount > 10) {
-                Sleep.apply(hasError ? sssFetchDelay : sssFetchSize - consumedEventCount);
+            if (hasError && isChannelError) {
+                Sleep.apply(backoff.nextDelay(++channelErrorAttempts).toMillis());
+            } else if (hasError) {
+                Sleep.apply(sssFetchDelay);
+            } else {
+                channelErrorAttempts = 0;
+                if (sssFetchSize - consumedEventCount > 10) {
+                    Sleep.apply(sssFetchSize - consumedEventCount);
+                }
             }
         }
     }
