@@ -40,6 +40,7 @@ import com.evento.common.performance.PerformanceService;
 import com.evento.common.performance.RemotePerformanceService;
 import com.evento.common.serialization.ObjectMapperUtils;
 import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
 
 import java.lang.reflect.InvocationTargetException;
@@ -338,6 +339,16 @@ public class EventoBundle {
         private Map<String, Set<String>> contexts = new HashMap<>();
         private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
 
+        /**
+         * When {@code true}, start-up fails if the confinement check finds a
+         * Command/Query gateway invocation outside a component class, or a
+         * handler whose gateway payload type cannot be resolved statically.
+         * Such call sites are invisible to the static extraction of the
+         * interaction graph (the emit set under-approximates). When
+         * {@code false} (the default), each finding is logged as a warning.
+         */
+        private boolean strictConfinement = false;
+
         public Builder setComponentContexts(Class<?> componentClass, String... contexts) {
             this.contexts.put(componentClass.getSimpleName(), new HashSet<>(Arrays.asList(contexts)));
             return this;
@@ -453,7 +464,13 @@ public class EventoBundle {
             var invokerManager = new InvokerManager();
 
             logger.info("Discovery handlers in %s".formatted(basePackage));
-            Reflections reflections = new Reflections((new ConfigurationBuilder().forPackages(basePackage.getName())));
+            // SubTypes is configured to keep every scanned type (not only types
+            // with a scanned supertype) so the confinement check below can sweep
+            // the whole package, component or not.
+            Reflections reflections = new Reflections(new ConfigurationBuilder()
+                    .forPackages(basePackage.getName())
+                    .setScanners(Scanners.TypesAnnotated,
+                            Scanners.SubTypes.filterResultsBy(c -> true)));
 
             aggregateManager.parse(reflections, injector);
             serviceManager.parse(reflections, injector);
@@ -465,8 +482,40 @@ public class EventoBundle {
 
             logger.info("Discovery Complete");
 
+            // Confinement check: a gateway call outside a component class is
+            // invisible to static extraction — the derived interaction graph
+            // would silently under-approximate. Warn by default; reject when
+            // strictConfinement is set.
+            var componentClasses = new HashSet<Class<?>>();
+            for (var annotation : List.of(
+                    com.evento.common.modeling.annotations.component.Aggregate.class,
+                    com.evento.common.modeling.annotations.component.Service.class,
+                    com.evento.common.modeling.annotations.component.Projection.class,
+                    com.evento.common.modeling.annotations.component.Projector.class,
+                    com.evento.common.modeling.annotations.component.Saga.class,
+                    com.evento.common.modeling.annotations.component.Observer.class,
+                    com.evento.common.modeling.annotations.component.Invoker.class)) {
+                componentClasses.addAll(reflections.getTypesAnnotatedWith(annotation));
+            }
+            var confinementViolations = ConfinementScanner.check(
+                    reflections.getSubTypesOf(Object.class), componentClasses);
+            for (var v : confinementViolations) {
+                logger.warn("Confinement check: {}.{} (line {}) invokes the {} gateway "
+                                + "outside any component class - this call site is invisible to "
+                                + "static extraction and the interaction graph will under-approximate. "
+                                + "Move the call into the component class that owns the decision.",
+                        v.className(), v.methodName(), v.line(), v.kind());
+            }
+            if (strictConfinement && !confinementViolations.isEmpty()) {
+                throw new IllegalStateException(("Confinement check failed: %d gateway "
+                        + "invocation(s) outside component classes (see warnings above). "
+                        + "Move the gateway calls into their components or unset "
+                        + "strictConfinement.").formatted(confinementViolations.size()));
+            }
+
             var meta = HandlerMetadataBuilder.build(aggregateManager, serviceManager,
-                    projectionManager, projectorManager, observerManager, sagaManager, invokerManager);
+                    projectionManager, projectorManager, observerManager, sagaManager,
+                    invokerManager, strictConfinement);
             var handlers = meta.handlers();
             var payloadInfo = meta.payloadInfo();
 
