@@ -13,7 +13,7 @@ allprojects {
         assertjVersion = '3.26.3'
         lombokVersion = '1.18.46'
         flywayVersion = '12.6.1'
-        testcontainersVersion = '1.21.3'
+        testcontainersVersion = '1.21.4'
         postgresJdbcVersion = '42.7.11'
         mysqlJdbcVersion = '9.7.0'
         hikariVersion = '6.2.1'
