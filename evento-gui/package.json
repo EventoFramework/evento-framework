@@ -58,7 +58,7 @@
     "@typed-mxgraph/typed-mxgraph": "^1.0.7",
     "@types/jasmine": "^6.0.0",
     "@types/jasminewd2": "~2.0.3",
-    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/eslint-plugin": "^8.60.1",
     "@typescript-eslint/parser": "^8.60.0",
     "angular-eslint": "^21.4.0",
     "eslint": "^9.39.4",
