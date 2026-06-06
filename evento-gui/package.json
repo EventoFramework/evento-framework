@@ -33,7 +33,7 @@
     "ionicons": "^8.0.13",
     "jsdom": "^29.1.1",
     "jwt-decode": "^4.0.0",
-    "marked": "^18.0.4",
+    "marked": "^18.0.5",
     "mermaid": "^11.15.0",
     "mxgraph": "^4.2.2",
     "ng-apexcharts": "^2.4.0",
