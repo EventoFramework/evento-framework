@@ -43,7 +43,7 @@ dependencies {
 
 	testImplementation 'org.flywaydb:flyway-core'
 	implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-	implementation 'com.auth0:java-jwt:4.4.0'
+	implementation 'com.auth0:java-jwt:4.5.2'
 
 
 	implementation project(':evento-common')
