@@ -1,7 +1,31 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-05-31. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-06-06. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## Confinement check (2026-06-06) — released as v2.1.0
+
+Branch `feat/confinement-check`, merged to `main` and released as **v2.1.0** (tag push triggers
+release.yml + Maven Central publish). Motivated by peer review of the
+RECQ paper (Prop. 2's confinement assumption was a *silent* failure mode): registration-time
+detection of gateway calls invisible to static extraction.
+
+- **`ConfinementScanner` (new, evento-bundle):** ASM sweep over every class in the scanned
+  packages that is *not* a registered component; flags each `CommandGateway.send/sendAndWait` /
+  `QueryGateway.query` call site there (class, method, line, kind). Reuses the gateway-call
+  predicates now exposed package-private on `AsmInvocationScanner`.
+- **`AsmInvocationScanner`:** `Result` gains `unresolved` (line → kind) — gateway calls whose
+  payload is typed as the abstract `Command`/`Query` base (concrete type unresolvable) are now
+  reported instead of silently dropped from the emit set.
+- **Wiring (`EventoBundle.start`):** Reflections now configured with
+  `SubTypes.filterResultsBy(c -> true)` so the whole package can be swept; component classes =
+  union of the 7 component annotations. Violations → `logger.warn`; new builder flag
+  **`strictConfinement`** (default `false`) → `IllegalStateException` at start-up (covers both
+  gateway-leaks and unresolved sends; the latter via `HandlerMetadataBuilder.build(..., strict)`).
+- **Tests:** `ConfinementScannerTest` (+ fixtures `confinement/LeakyHelperFixture`,
+  `CleanHelperFixture`, `ComponentServiceFixture`, and `AbstractSendFixture`). Full
+  `:evento-bundle:test`, `:evento-common:test`, `:evento-lab:test`, `:evento-lab-ms-it:test` green
+  on JDK 25.
 
 ## OpenSSF Scorecard — round 3: Vulnerabilities + Binary-Artifacts + Fuzzing (2026-05-31, later still)
 

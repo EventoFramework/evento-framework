@@ -31,14 +31,27 @@ final class HandlerMetadataBuilder {
 
     // ── invocation + handler-line scanner ──────────────────────────────────────
 
-    private static void applyInvocations(RegisteredHandler h, Method m) {
+    /**
+     * Applies the static invocation scan to a handler and returns the number of
+     * gateway calls whose payload type could not be resolved (confinement check:
+     * each one means the handler's emit set under-approximates).
+     */
+    private static int applyInvocations(RegisteredHandler h, Method m) {
         try {
             var result = AsmInvocationScanner.scan(m);
             if (!result.commands().isEmpty()) h.setInvokedCommands(new HashMap<>(result.commands()));
             if (!result.queries().isEmpty())  h.setInvokedQueries(new HashMap<>(result.queries()));
             h.setHandlerLine(result.handlerLine());
+            result.unresolved().forEach((line, kind) ->
+                    logger.warn("Confinement check: handler {}.{} (line {}) sends a {} whose "
+                                    + "concrete payload type cannot be resolved statically - the "
+                                    + "extracted emit set will under-approximate. Pass a concrete "
+                                    + "Command/Query subtype at the gateway call site.",
+                            m.getDeclaringClass().getSimpleName(), m.getName(), line, kind));
+            return result.unresolved().size();
         } catch (Exception e) {
             logger.warn("ASM invocation scan failed for {}: {}", m, e.getMessage());
+            return 0;
         }
     }
 
@@ -71,10 +84,12 @@ final class HandlerMetadataBuilder {
             ProjectorManager projectorManager,
             ObserverManager observerManager,
             SagaManager sagaManager,
-            InvokerManager invokerManager
+            InvokerManager invokerManager,
+            boolean strictConfinement
     ) throws Exception {
         var handlers = new ArrayList<RegisteredHandler>();
         var payloads = new HashSet<Class<?>>();
+        var unresolvedSends = new java.util.concurrent.atomic.AtomicInteger();
 
         aggregateManager.getHandlers().forEach((k, v) -> {
             var m = v.getAggregateCommandHandler(k);
@@ -87,7 +102,7 @@ final class HandlerMetadataBuilder {
                     k, r, false, null
             );
             applyComponentMetadata(h, v.getRef().getClass());
-            applyInvocations(h, m);
+            unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             var esh = v.getEventSourcingHandler(r);
             if (esh != null) {
@@ -99,7 +114,7 @@ final class HandlerMetadataBuilder {
                         r, null, false, null
                 );
                 applyComponentMetadata(esHandler, v.getRef().getClass());
-                applyInvocations(esHandler, esh);
+                unresolvedSends.addAndGet(applyInvocations(esHandler, esh));
                 handlers.add(esHandler);
             }
             payloads.add(m.getParameterTypes()[0]);
@@ -117,7 +132,7 @@ final class HandlerMetadataBuilder {
                     k, r.equals("void") ? null : r, false, null
             );
             applyComponentMetadata(h, v.getRef().getClass());
-            applyInvocations(h, m);
+            unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             payloads.add(m.getParameterTypes()[0]);
             payloads.add(m.getReturnType());
@@ -135,7 +150,7 @@ final class HandlerMetadataBuilder {
                     k, null, false, null
             );
             applyComponentMetadata(h, v1.getRef().getClass());
-            applyInvocations(h, m);
+            unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             payloads.add(m.getParameterTypes()[0]);
         }));
@@ -152,7 +167,7 @@ final class HandlerMetadataBuilder {
                     k, null, false, null
             );
             applyComponentMetadata(h, v1.getRef().getClass());
-            applyInvocations(h, m);
+            unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             payloads.add(m.getParameterTypes()[0]);
         }));
@@ -170,7 +185,7 @@ final class HandlerMetadataBuilder {
                     m.getAnnotation(SagaEventHandler.class).associationProperty()
             );
             applyComponentMetadata(h, v1.getRef().getClass());
-            applyInvocations(h, m);
+            unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             payloads.add(m.getParameterTypes()[0]);
         }));
@@ -190,7 +205,7 @@ final class HandlerMetadataBuilder {
                     null
             );
             applyComponentMetadata(h, v.getRef().getClass());
-            applyInvocations(h, m);
+            unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             payloads.add(m.getParameterTypes()[0]);
             payloads.add((Class<?>) ((ParameterizedType) m.getGenericReturnType())
@@ -199,7 +214,7 @@ final class HandlerMetadataBuilder {
 
         invokerManager.getHandlerMethods().forEach((h, m) -> {
             applyComponentMetadata(h, m.getDeclaringClass());
-            applyInvocations(h, m);
+            unresolvedSends.addAndGet(applyInvocations(h, m));
         });
         handlers.addAll(invokerManager.getHandlers());
 
@@ -223,6 +238,14 @@ final class HandlerMetadataBuilder {
             payloadInfo.put(p.getSimpleName(),
                     new PayloadDiscoveryInfo(schema, domain, pDesc, pDetail,
                             pMeta.sourcePath(), pMeta.declarationLine()));
+        }
+
+        if (strictConfinement && unresolvedSends.get() > 0) {
+            throw new IllegalStateException(("Confinement check failed: %d gateway "
+                    + "invocation(s) with statically unresolvable payload types "
+                    + "(see warnings above). Pass concrete Command/Query subtypes "
+                    + "at the gateway call sites or unset strictConfinement.")
+                    .formatted(unresolvedSends.get()));
         }
 
         return new Result(handlers, payloadInfo);

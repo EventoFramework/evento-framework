@@ -49,9 +49,13 @@ import java.util.*;
  * <h3>What this does NOT capture</h3>
  * <ul>
  *   <li>Commands/queries passed as {@code Command} (abstract base) rather than a
- *       concrete subtype — the concrete type is unresolvable.</li>
+ *       concrete subtype — the concrete type is unresolvable. These are reported
+ *       as {@link Result#unresolved()} so the confinement check can surface them
+ *       instead of failing silently.</li>
  *   <li>Commands constructed but <em>never</em> sent — correctly excluded.</li>
- *   <li>Cross-class helpers (injected collaborators) — only intra-class calls.</li>
+ *   <li>Cross-class helpers (injected collaborators) — only intra-class calls.
+ *       {@link ConfinementScanner} flags gateway calls living outside component
+ *       classes at registration time.</li>
  * </ul>
  */
 final class AsmInvocationScanner {
@@ -59,10 +63,14 @@ final class AsmInvocationScanner {
     /**
      * @param commands source-line → Command simple name for each gateway invocation
      * @param queries  source-line → Query simple name for each gateway invocation
+     * @param unresolved source-line → gateway kind ({@code "command"}/{@code "query"})
+     *                   for invocations whose concrete payload type could not be
+     *                   resolved statically (e.g. sends typed as the abstract base)
      * @param handlerLine first source line of the handler method body (0 if unknown)
      */
-    record Result(Map<Integer, String> commands, Map<Integer, String> queries, int handlerLine) {
-        static final Result EMPTY = new Result(Map.of(), Map.of(), 0);
+    record Result(Map<Integer, String> commands, Map<Integer, String> queries,
+                  Map<Integer, String> unresolved, int handlerLine) {
+        static final Result EMPTY = new Result(Map.of(), Map.of(), Map.of(), 0);
     }
 
     /** Sentinel pushed for primitive / non-reference stack slots. */
@@ -75,6 +83,20 @@ final class AsmInvocationScanner {
 
     private AsmInvocationScanner() {}
 
+    // ── gateway-call predicates (shared with ConfinementScanner) ──────────────
+
+    static boolean isCommandGatewayCall(String name, String desc) {
+        if (!name.equals("send") && !name.equals("sendAndWait")) return false;
+        Type[] args = Type.getArgumentTypes(desc);
+        return args.length > 0 && COMMAND_INTERNAL.equals(args[0].getInternalName());
+    }
+
+    static boolean isQueryGatewayCall(String name, String desc) {
+        if (!name.equals("query")) return false;
+        Type[] args = Type.getArgumentTypes(desc);
+        return args.length > 0 && QUERY_INTERNAL.equals(args[0].getInternalName());
+    }
+
     static Result scan(Method handlerMethod) throws IOException {
         Class<?> owner = handlerMethod.getDeclaringClass();
         String internalName = owner.getName().replace('.', '/');
@@ -84,9 +106,10 @@ final class AsmInvocationScanner {
                 .getResourceAsStream(internalName + ".class");
         if (in == null) return Result.EMPTY;
 
-        Map<String, Map<Integer, String>> directCommands = new HashMap<>();
-        Map<String, Map<Integer, String>> directQueries  = new HashMap<>();
-        Map<String, Set<String>>          callGraph      = new HashMap<>();
+        Map<String, Map<Integer, String>> directCommands   = new HashMap<>();
+        Map<String, Map<Integer, String>> directQueries    = new HashMap<>();
+        Map<String, Map<Integer, String>> directUnresolved = new HashMap<>();
+        Map<String, Set<String>>          callGraph        = new HashMap<>();
         int[] handlerLineRef = {0};
 
         ClassReader reader = new ClassReader(in);
@@ -100,7 +123,7 @@ final class AsmInvocationScanner {
                 return new MethodScanner(
                         methodKey, access, descriptor,
                         internalName, owner,
-                        directCommands, directQueries, callGraph,
+                        directCommands, directQueries, directUnresolved, callGraph,
                         isHandler ? handlerLineRef : null);
             }
         }, 0);
@@ -110,14 +133,16 @@ final class AsmInvocationScanner {
         Deque<String> worklist = new ArrayDeque<>();
         worklist.add(startKey);
 
-        Map<Integer, String> allCmds = new LinkedHashMap<>();
-        Map<Integer, String> allQrys = new LinkedHashMap<>();
+        Map<Integer, String> allCmds   = new LinkedHashMap<>();
+        Map<Integer, String> allQrys   = new LinkedHashMap<>();
+        Map<Integer, String> allUnres  = new LinkedHashMap<>();
 
         while (!worklist.isEmpty()) {
             String current = worklist.poll();
             if (!visited.add(current)) continue;
-            if (directCommands.containsKey(current)) allCmds.putAll(directCommands.get(current));
-            if (directQueries.containsKey(current))  allQrys.putAll(directQueries.get(current));
+            if (directCommands.containsKey(current))   allCmds.putAll(directCommands.get(current));
+            if (directQueries.containsKey(current))    allQrys.putAll(directQueries.get(current));
+            if (directUnresolved.containsKey(current)) allUnres.putAll(directUnresolved.get(current));
             callGraph.getOrDefault(current, Set.of()).stream()
                     .filter(c -> !visited.contains(c))
                     .forEach(worklist::add);
@@ -125,6 +150,7 @@ final class AsmInvocationScanner {
 
         return new Result(Collections.unmodifiableMap(allCmds),
                           Collections.unmodifiableMap(allQrys),
+                          Collections.unmodifiableMap(allUnres),
                           handlerLineRef[0]);
     }
 
@@ -139,6 +165,7 @@ final class AsmInvocationScanner {
         private final Class<?> ownerClass;
         private final Map<String, Map<Integer, String>> directCommands;
         private final Map<String, Map<Integer, String>> directQueries;
+        private final Map<String, Map<Integer, String>> directUnresolved;
         private final Map<String, Set<String>> callGraph;
         /** Non-null only for the root handler method — stores its first line. */
         private final int[] handlerLineRef;
@@ -148,8 +175,9 @@ final class AsmInvocationScanner {
         /** Local variable type map: slot → internal type name / PRIM / null. */
         private final HashMap<Integer, String> locals = new HashMap<>();
 
-        private final Map<Integer, String> cmds = new LinkedHashMap<>();
-        private final Map<Integer, String> qrys = new LinkedHashMap<>();
+        private final Map<Integer, String> cmds  = new LinkedHashMap<>();
+        private final Map<Integer, String> qrys  = new LinkedHashMap<>();
+        private final Map<Integer, String> unres = new LinkedHashMap<>();
 
         /** Source line of the current instruction (updated by visitLineNumber). */
         private int currentLine = 0;
@@ -158,16 +186,18 @@ final class AsmInvocationScanner {
                       String ownerInternal, Class<?> ownerClass,
                       Map<String, Map<Integer, String>> directCommands,
                       Map<String, Map<Integer, String>> directQueries,
+                      Map<String, Map<Integer, String>> directUnresolved,
                       Map<String, Set<String>> callGraph,
                       int[] handlerLineRef) {
             super(Opcodes.ASM9);
-            this.key            = key;
-            this.ownerInternal  = ownerInternal;
-            this.ownerClass     = ownerClass;
-            this.directCommands = directCommands;
-            this.directQueries  = directQueries;
-            this.callGraph      = callGraph;
-            this.handlerLineRef = handlerLineRef;
+            this.key              = key;
+            this.ownerInternal    = ownerInternal;
+            this.ownerClass       = ownerClass;
+            this.directCommands   = directCommands;
+            this.directQueries    = directQueries;
+            this.directUnresolved = directUnresolved;
+            this.callGraph        = callGraph;
+            this.handlerLineRef   = handlerLineRef;
             initLocals(access, descriptor);
         }
 
@@ -371,6 +401,7 @@ final class AsmInvocationScanner {
         public void visitEnd() {
             directCommands.put(key, Map.copyOf(cmds));
             directQueries.put(key, Map.copyOf(qrys));
+            directUnresolved.put(key, Map.copyOf(unres));
         }
 
         // ── gateway detection ──────────────────────────────────────────────
@@ -379,6 +410,9 @@ final class AsmInvocationScanner {
          * Scan the abstract stack top-down for the first entry assignable to
          * {@link Command} (isCommand=true) or {@link Query} (isCommand=false),
          * then record (currentLine → simpleClassName) in the appropriate map.
+         * A gateway call whose payload cannot be resolved to a concrete subtype
+         * (e.g. a value typed as the abstract base) is recorded in {@code unres}
+         * so callers can warn instead of under-approximating silently.
          */
         private void captureGatewayArg(boolean isCommand) {
             for (String type : stack) {
@@ -396,18 +430,7 @@ final class AsmInvocationScanner {
                     }
                 } catch (ClassNotFoundException ignored) {}
             }
-        }
-
-        private static boolean isCommandGatewayCall(String name, String desc) {
-            if (!name.equals("send") && !name.equals("sendAndWait")) return false;
-            Type[] args = Type.getArgumentTypes(desc);
-            return args.length > 0 && COMMAND_INTERNAL.equals(args[0].getInternalName());
-        }
-
-        private static boolean isQueryGatewayCall(String name, String desc) {
-            if (!name.equals("query")) return false;
-            Type[] args = Type.getArgumentTypes(desc);
-            return args.length > 0 && QUERY_INTERNAL.equals(args[0].getInternalName());
+            unres.put(currentLine, isCommand ? "command" : "query");
         }
 
         private static String descRef(String desc) {

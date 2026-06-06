@@ -11,6 +11,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.1.0] — 2026-06-06
+
+### Added
+- **Confinement check** (`evento-bundle`): registration-time detection of gateway
+  call sites that are invisible to static interaction-graph extraction.
+  - New `ConfinementScanner`: ASM sweep over every class in the scanned packages
+    that is not a registered component; each `CommandGateway.send/sendAndWait` /
+    `QueryGateway.query` call site found there is reported (class, method, line,
+    kind). Such "gateway leaks" (e.g. an injected helper class issuing commands on
+    a handler's behalf) previously under-approximated the extracted emit set
+    silently.
+  - `AsmInvocationScanner` now also reports gateway calls whose payload is typed
+    as the abstract `Command`/`Query` base — the concrete payload type is
+    statically unresolvable, so the call is surfaced instead of silently dropped.
+  - New `EventoBundle.Builder` flag **`strictConfinement`** (default `false`):
+    findings are logged as warnings by default; when set, registration fails with
+    `IllegalStateException` on either kind of finding.
+
+### Changed
+- `EventoBundle` configures Reflections with an unfiltered `SubTypes` scanner so
+  the confinement sweep can enumerate every class in the base package (component
+  discovery behavior is unchanged).
+
+---
+
 ## [2.0.0] — 2026-05-30
 
 First general-availability release of the v2.0 ground-up rewrite, promoting `2.0.0-rc1` to GA.
