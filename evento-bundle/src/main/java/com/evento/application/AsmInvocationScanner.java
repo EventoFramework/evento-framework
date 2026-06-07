@@ -11,7 +11,7 @@ import java.util.*;
 
 /**
  * Statically analyses a handler method's bytecode to discover which Command and Query
- * subtypes are actually passed to {@code CommandGateway.send/sendAndWait} or
+ * subtypes are actually passed to {@code CommandGateway.send} or
  * {@code QueryGateway.query} within its transitive intra-class call closure.
  *
  * <h3>Detection strategy</h3>
@@ -31,7 +31,7 @@ import java.util.*;
  *   </li>
  *   <li>A gateway call is identified by:
  *       <ul>
- *         <li>method name {@code send} / {@code sendAndWait}, first descriptor arg is
+ *         <li>method name {@code send}, first descriptor arg is
  *             {@code Command} → CommandGateway call</li>
  *         <li>method name {@code query}, first descriptor arg is {@code Query} →
  *             QueryGateway call</li>
@@ -86,7 +86,7 @@ final class AsmInvocationScanner {
     // ── gateway-call predicates (shared with ConfinementScanner) ──────────────
 
     static boolean isCommandGatewayCall(String name, String desc) {
-        if (!name.equals("send") && !name.equals("sendAndWait")) return false;
+        if (!name.equals("send")) return false;
         Type[] args = Type.getArgumentTypes(desc);
         return args.length > 0 && COMMAND_INTERNAL.equals(args[0].getInternalName());
     }

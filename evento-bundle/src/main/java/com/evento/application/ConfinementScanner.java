@@ -22,7 +22,7 @@ import java.util.*;
  *
  * <p>Detection reuses {@link AsmInvocationScanner#isCommandGatewayCall} /
  * {@link AsmInvocationScanner#isQueryGatewayCall}: a call named
- * {@code send}/{@code sendAndWait} (resp. {@code query}) whose descriptor takes
+ * {@code send} (resp. {@code query}) whose descriptor takes
  * the abstract {@code Command} (resp. {@code Query}) base as first argument is
  * a gateway invocation regardless of which interface or wrapper declares it.
  *
