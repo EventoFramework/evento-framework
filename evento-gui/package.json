@@ -29,7 +29,7 @@
     "@ionic/angular": "^8.8.8",
     "@ngx-translate/core": "^17.0.0",
     "@ngx-translate/http-loader": "^17.0.0",
-    "apexcharts": "^5.13.0",
+    "apexcharts": "^5.14.0",
     "ionicons": "^8.0.13",
     "jsdom": "^29.1.1",
     "jwt-decode": "^4.0.0",
