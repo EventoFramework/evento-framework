@@ -57,13 +57,33 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     private final DataSource dataSource;
     private final SqlDialect dialect;
+    private final boolean autoMigrate;
 
     private volatile Connection sharedConn;
+    private boolean migrated;          // guarded by connLock
     private final Object connLock = new Object();
 
+    /**
+     * Creates the store with the v2 schema auto-created on first connection.
+     * Equivalent to {@code JdbcConsumerStateStore(dataSource, dialect, true)}.
+     */
     public JdbcConsumerStateStore(DataSource dataSource, SqlDialect dialect) {
+        this(dataSource, dialect, true);
+    }
+
+    /**
+     * @param autoMigrate when {@code true} (the default), the {@code evento_v2_*}
+     *                    tables are created on the first connection via
+     *                    {@link FlywayMigrator#migrate} (idempotent — tracked in a
+     *                    dedicated {@code evento_v2_schema_history} table). Set to
+     *                    {@code false} if the schema is applied out-of-band (e.g.
+     *                    the app's own Flyway run includes
+     *                    {@link SqlDialect#migrationLocation()}).
+     */
+    public JdbcConsumerStateStore(DataSource dataSource, SqlDialect dialect, boolean autoMigrate) {
         this.dataSource = dataSource;
         this.dialect = dialect;
+        this.autoMigrate = autoMigrate;
     }
 
     public DataSource dataSource() { return dataSource; }
@@ -74,6 +94,14 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
     /** Synchronized only for the validity check and reconnect; returns immediately once a live connection exists. */
     private Connection getConn() throws SQLException {
         synchronized (connLock) {
+            if (autoMigrate && !migrated) {
+                // Create the evento_v2_* schema before the first query. Idempotent
+                // and guarded so it runs exactly once per store; on a transient
+                // failure here we leave `migrated` false so the next call retries.
+                FlywayMigrator.migrate(dataSource, dialect);
+                migrated = true;
+                logger.info("JdbcConsumerStateStore: ensured v2 consumer-state schema");
+            }
             if (sharedConn == null || sharedConn.isClosed() || !sharedConn.isValid(2)) {
                 closeQuietly(sharedConn);
                 sharedConn = dataSource.getConnection();
