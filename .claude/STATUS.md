@@ -1,7 +1,34 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-06-06. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-03. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## Consumer resilience + JDBC schema fixes (2026-07-03) — committed as 2.1.3
+
+Five commits on `main` (`884ddac5`..`0222db14`), version bumped to **2.1.3** (not yet tagged/pushed):
+
+- **`feat(consumer)` — transient failures redeliver instead of dead-lettering:** new
+  `TransientConsumerException` (evento-common); `ConsumerProcessor.isTransient(...)` walks the
+  cause chain (class names + high-signal messages, no transport/JDBC imports) and, for a downed
+  collaborator / timeout / refused-reset connection, leaves the checkpoint in place and throws the
+  typed signal instead of DLQ-ing. `SagaEngine`/`ProjectorEngine` treat it like a channel error →
+  exponential backoff. Permanent failures still dead-letter (poison-pill protection).
+  `SagaUnderDownedDependencyTest` covers liveness, checkpoint preservation, DLQ for permanent
+  failures, exactly-once after recovery, and documents the idempotency hazard for side effects
+  placed before the failing step.
+- **`fix(jdbc)` — Flyway baseline bug:** on a non-empty schema, default baseline 1 silently skipped
+  `V1__init_v2_consumer_state` ("no migration necessary", tables never created). Now
+  `baselineVersion("0")`. Regression IT `FlywayMigratorNonEmptySchemaIT` (Testcontainers, gated on
+  `EVENTO_RUN_JDBC_IT=true`).
+- **`feat(jdbc)` — auto-migrate:** `JdbcConsumerStateStore` runs `FlywayMigrator.migrate` lazily on
+  first connection (once per store, retryable on failure); new `autoMigrate` constructor flag
+  (default `true`) to opt out when the schema is managed externally.
+- **`feat(bundle)` — fail fast on field injection:** `ComponentManager` rejects
+  `@Autowired`/`@Inject` fields at instantiation (detected by annotation name, no new deps) with an
+  actionable error pointing to constructor wiring, instead of a late NPE.
+
+Verified: full suite green on JDK 25 + JDBC ITs green under Docker (new Flyway IT ran, 1/1 passed).
+**Next:** push + tag `v2.1.3` when ready (tag triggers release.yml + Maven Central publish).
 
 ## Confinement check (2026-06-06) — released as v2.1.0
 
@@ -163,7 +190,7 @@ Companion docs:
 | Item | State |
 |---|---|
 | Branch | **`main`** (active development). `next` merged. |
-| Version | **`2.0.0`** released (git tag `v2.0.0`, pushed 2026-05-30 → Maven Central + Docker Hub release workflows). Soak step was skipped by maintainer decision. |
+| Version | **`2.1.3`** committed on `main`, not yet tagged/pushed. Last released: `v2.1.0`. |
 | v2 rewrite | **Complete** — all 3 PRs (transport / server / bundle) shipped |
 | Test count | ~245 on JDK 25 (transport, server, common, bundle, lab, lab-ms); 50+ JDBC ITs gated on Docker |
 | Known issues | None open post Fix A–D |
