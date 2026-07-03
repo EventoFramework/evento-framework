@@ -3,9 +3,9 @@
 Last updated: 2026-07-03. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## Consumer resilience + JDBC schema fixes (2026-07-03) — committed as 2.1.3
+## Consumer resilience + JDBC schema fixes (2026-07-03) — released as 2.1.1
 
-Five commits on `main` (`884ddac5`..`0222db14`), version bumped to **2.1.3** (not yet tagged/pushed):
+Five commits on `main` (`884ddac5`..`0222db14`), version **2.1.1** (renumbered from 2.1.3 — patch +1 over last published 2.1.0; 2.1.1/2.1.2/2.1.3 local builds were never published):
 
 - **`feat(consumer)` — transient failures redeliver instead of dead-lettering:** new
   `TransientConsumerException` (evento-common); `ConsumerProcessor.isTransient(...)` walks the
@@ -35,13 +35,13 @@ Five commits on `main` (`884ddac5`..`0222db14`), version bumped to **2.1.3** (no
   regression fixture `UnknownRefStackFixture` packs ACONST_NULL + ANEWARRAY + AALOAD.
 
 Verified: full suite green on JDK 25 + JDBC ITs green under Docker (new Flyway IT ran, 1/1 passed).
-**Next:** push + tag `v2.1.3` when ready (tag triggers release.yml + Maven Central publish).
+**Released:** tag `v2.1.1` pushed 2026-07-03 (triggers release.yml + Maven Central publish).
 
 **Field note (Iris, 2026-07-03):** an IrisUtilsBundle dev deploy hung before the start hook — its
 dedicated consumer DB had been baselined at 1 by the old FlywayMigrator (non-empty schema), so
 `evento_v2_*` tables were never created and no projector could reach head. Remedy for
 already-poisoned DBs: run `V1__init_v2_consumer_state.sql` manually (or drop
-`evento_v2_schema_history` and restart on ≥2.1.3). The 2.1.3 baseline fix only protects fresh DBs.
+`evento_v2_schema_history` and restart on ≥2.1.1). The 2.1.1 baseline fix only protects fresh DBs.
 
 ## Confinement check (2026-06-06) — released as v2.1.0
 
@@ -203,7 +203,7 @@ Companion docs:
 | Item | State |
 |---|---|
 | Branch | **`main`** (active development). `next` merged. |
-| Version | **`2.1.3`** committed on `main`, not yet tagged/pushed. Last released: `v2.1.0`. |
+| Version | **`2.1.1`** released 2026-07-03 (tag `v2.1.1` → Maven Central + GHCR/Docker Hub). |
 | v2 rewrite | **Complete** — all 3 PRs (transport / server / bundle) shipped |
 | Test count | ~245 on JDK 25 (transport, server, common, bundle, lab, lab-ms); 50+ JDBC ITs gated on Docker |
 | Known issues | None open post Fix A–D |
