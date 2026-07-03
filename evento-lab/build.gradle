@@ -22,7 +22,7 @@ dependencyManagement {
     // which lacks that class, and the Flyway migration fails with NoClassDefFoundError.
     // Override the managed version with the one Flyway needs (and ships with).
     dependencies {
-        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.22'
     }
 }
 
