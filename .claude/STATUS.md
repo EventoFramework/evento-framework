@@ -27,8 +27,21 @@ Five commits on `main` (`884ddac5`..`0222db14`), version bumped to **2.1.3** (no
   `@Autowired`/`@Inject` fields at instantiation (detected by annotation name, no new deps) with an
   actionable error pointing to constructor wiring, instead of a late NPE.
 
+- **`fix(bundle)` — ASM scan crashed on null literals (`51fc2cc1`):** `AsmInvocationScanner`'s
+  abstract stack is an `ArrayDeque`, which rejects the raw-`null` "unknown ref" marker with a
+  message-less NPE — every real-world handler containing a null literal / array op logged
+  "ASM invocation scan failed … : null" and silently lost its invocation edges (diagnosed live
+  from IrisUtilsBundle logs). Unknown refs are now a non-null `UNKNOWN` (`"?"`) sentinel;
+  regression fixture `UnknownRefStackFixture` packs ACONST_NULL + ANEWARRAY + AALOAD.
+
 Verified: full suite green on JDK 25 + JDBC ITs green under Docker (new Flyway IT ran, 1/1 passed).
 **Next:** push + tag `v2.1.3` when ready (tag triggers release.yml + Maven Central publish).
+
+**Field note (Iris, 2026-07-03):** an IrisUtilsBundle dev deploy hung before the start hook — its
+dedicated consumer DB had been baselined at 1 by the old FlywayMigrator (non-empty schema), so
+`evento_v2_*` tables were never created and no projector could reach head. Remedy for
+already-poisoned DBs: run `V1__init_v2_consumer_state.sql` manually (or drop
+`evento_v2_schema_history` and restart on ≥2.1.3). The 2.1.3 baseline fix only protects fresh DBs.
 
 ## Confinement check (2026-06-06) — released as v2.1.0
 
