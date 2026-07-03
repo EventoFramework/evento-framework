@@ -27,7 +27,7 @@ dependencies {
     api "io.netty:netty-transport:${nettyVersion}"
     api "io.netty:netty-buffer:${nettyVersion}"
     implementation "org.lz4:lz4-java:${lz4Version}"
-    api 'org.slf4j:slf4j-api:2.0.16'
+    api 'org.slf4j:slf4j-api:2.0.18'
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
