@@ -13,6 +13,7 @@ import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.modeling.state.SagaState;
 import com.evento.common.performance.PerformanceService;
+import com.evento.common.utils.ChannelErrors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -110,6 +111,18 @@ public final class ConsumerProcessor {
                             projectorName, event.getEventName());
                     return consumed;
                 } catch (Throwable e) {
+                    if (isTransient(e)) {
+                        // Connectivity/timeout failure (e.g. a downed dependency or
+                        // a mid-burst crash): do NOT advance the checkpoint — leave
+                        // the event for redelivery once the dependency recovers.
+                        // Propagate as a typed transient signal so the engine loop
+                        // backs off exponentially and retries from the same
+                        // checkpoint instead of losing the event to the DLQ.
+                        logger.warn("Transient failure for projector {} on event {} (seq {}) — "
+                                        + "not advancing checkpoint, will redeliver: {}",
+                                projectorName, event.getEventName(), event.getEventSequenceNumber(), rootMessage(e));
+                        throw new TransientConsumerException(rootMessage(e), e);
+                    }
                     deadEventQueue.add(consumerId, event, e);
                     logger.error("Event consumption error for projector {} event {} — moved to DLQ",
                             projectorName, event.getEventName(), e);
@@ -252,6 +265,17 @@ public final class ConsumerProcessor {
                             sagaName, event.getEventName());
                     return consumed;
                 } catch (Exception e) {
+                    if (isTransient(e)) {
+                        // Downed dependency / mid-burst crash: keep the checkpoint
+                        // where it is so this event is redelivered when the saga's
+                        // collaborator comes back, instead of stranding the saga in
+                        // the DLQ (which would leave the business process undecided).
+                        // Typed transient signal → engine backs off exponentially.
+                        logger.warn("Transient failure for saga {} on event {} (seq {}) — "
+                                        + "not advancing checkpoint, will redeliver: {}",
+                                sagaName, event.getEventName(), event.getEventSequenceNumber(), rootMessage(e));
+                        throw new TransientConsumerException(rootMessage(e), e);
+                    }
                     deadEventQueue.add(consumerId, event, e);
                     logger.error("Event consumption error for saga {} event {} — moved to DLQ",
                             sagaName, event.getEventName(), e);
@@ -354,6 +378,53 @@ public final class ConsumerProcessor {
     }
 
     // --- Internals ----------------------------------------------------------
+
+    /**
+     * Transient = the failure reflects a temporarily-unreachable collaborator
+     * (broker/transport down, request timeout, DB or downstream connection
+     * refused/reset), not a defect in the event or handler. Such failures must
+     * NOT advance the checkpoint or dead-letter the event — they redeliver until
+     * the dependency recovers (at-least-once). Permanent failures (NPE, mapping,
+     * validation, …) still go to the DLQ so one poison event can't block the
+     * stream forever. Detection walks the whole cause chain and matches by class
+     * name + a few high-signal messages so no transport/JDBC types are imported.
+     */
+    private static boolean isTransient(Throwable t) {
+        if (ChannelErrors.isChannelError(t)) return true;
+        for (Throwable cur = t; cur != null; cur = cur.getCause()) {
+            var name = cur.getClass().getName();
+            switch (name) {
+                case "java.util.concurrent.TimeoutException",
+                     "java.net.ConnectException",
+                     "java.net.SocketTimeoutException",
+                     "java.net.NoRouteToHostException",
+                     "java.net.UnknownHostException",
+                     "java.sql.SQLTransientException",
+                     "java.sql.SQLRecoverableException",
+                     "java.sql.SQLTransientConnectionException",
+                     "java.sql.SQLNonTransientConnectionException" -> { return true; }
+                default -> { /* fall through to message inspection */ }
+            }
+            var msg = cur.getMessage();
+            if (msg != null) {
+                var m = msg.toLowerCase();
+                if (m.contains("connection refused") || m.contains("connection reset")
+                        || m.contains("connection is closed") || m.contains("connection closed")
+                        || m.contains("broken pipe") || m.contains("timed out")
+                        || m.contains("temporarily unavailable") || m.contains("no available connection")) {
+                    return true;
+                }
+            }
+            if (cur.getCause() == cur) break;
+        }
+        return false;
+    }
+
+    private static String rootMessage(Throwable t) {
+        Throwable cur = t;
+        while (cur.getCause() != null && cur.getCause() != cur) cur = cur.getCause();
+        return cur.getClass().getSimpleName() + ": " + cur.getMessage();
+    }
 
     private record Cursor(ConsumerCheckpoint checkpoint, long version) {}
 

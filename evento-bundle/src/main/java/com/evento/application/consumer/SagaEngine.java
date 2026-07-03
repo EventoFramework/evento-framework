@@ -7,6 +7,7 @@ import com.evento.common.messaging.consumer.SagaEventConsumer;
 import com.evento.common.messaging.consumer.ConsumerProcessor;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.messaging.consumer.DeadEventQueue;
+import com.evento.common.messaging.consumer.TransientConsumerException;
 import com.evento.common.modeling.annotations.handler.SagaEventHandler;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.utils.ChannelErrors;
@@ -109,9 +110,13 @@ public final class SagaEngine implements Runnable, ConsumerHandle {
                             sssFetchSize);
                 }
             } catch (Throwable e) {
-                isChannelError = ChannelErrors.isChannelError(e);
+                // Back off exponentially for any transient failure — a channel
+                // error OR a downed/timing-out downstream dependency surfaced by
+                // the processor as a TransientConsumerException — so a prolonged
+                // outage doesn't become a tight retry storm.
+                isChannelError = ChannelErrors.isChannelError(e) || e instanceof TransientConsumerException;
                 if (isChannelError) {
-                    logger.warn("Channel error on saga consumer {} (attempt {}): {}",
+                    logger.warn("Transient error on saga consumer {} (attempt {}): {}",
                             consumerId, channelErrorAttempts + 1, e.getMessage());
                 } else {
                     logger.error("Error on saga consumer: " + consumerId, e);

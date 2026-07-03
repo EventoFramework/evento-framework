@@ -6,6 +6,7 @@ import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.messaging.consumer.ConsumerProcessor;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.messaging.consumer.DeadEventQueue;
+import com.evento.common.messaging.consumer.TransientConsumerException;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
 import com.evento.common.utils.ChannelErrors;
@@ -123,9 +124,12 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             sssFetchSize);
                 }
             } catch (Throwable e) {
-                isChannelError = ChannelErrors.isChannelError(e);
+                // Exponential backoff for any transient failure (channel error OR
+                // a downed/timing-out dependency surfaced as TransientConsumerException),
+                // so a prolonged outage doesn't become a tight retry storm.
+                isChannelError = ChannelErrors.isChannelError(e) || e instanceof TransientConsumerException;
                 if (isChannelError) {
-                    logger.warn("Channel error on projector consumer {} (attempt {}): {}",
+                    logger.warn("Transient error on projector consumer {} (attempt {}): {}",
                             consumerId, channelErrorAttempts + 1, e.getMessage());
                 } else {
                     logger.error("Error on projector consumer: " + consumerId, e);
