@@ -76,6 +76,15 @@ final class AsmInvocationScanner {
     /** Sentinel pushed for primitive / non-reference stack slots. */
     private static final String PRIM = "#";
 
+    /**
+     * Sentinel for reference slots whose type is unknown (null literals, array
+     * loads, lost locals). Must be a non-null marker: the abstract stack is an
+     * {@link ArrayDeque}, which rejects null elements with a message-less NPE —
+     * pushing raw {@code null} killed the scan for any handler containing e.g.
+     * a {@code null} literal ("ASM invocation scan failed ... : null").
+     */
+    private static final String UNKNOWN = "?";
+
     private static final String COMMAND_INTERNAL =
             "com/evento/common/modeling/messaging/payload/Command";
     private static final String QUERY_INTERNAL =
@@ -170,9 +179,9 @@ final class AsmInvocationScanner {
         /** Non-null only for the root handler method — stores its first line. */
         private final int[] handlerLineRef;
 
-        /** Abstract operand stack: internal type name, PRIM, or null (unknown ref). */
+        /** Abstract operand stack: internal type name, PRIM, or UNKNOWN. */
         private final ArrayDeque<String> stack = new ArrayDeque<>();
-        /** Local variable type map: slot → internal type name / PRIM / null. */
+        /** Local variable type map: slot → internal type name / PRIM / UNKNOWN. */
         private final HashMap<Integer, String> locals = new HashMap<>();
 
         private final Map<Integer, String> cmds  = new LinkedHashMap<>();
@@ -226,10 +235,10 @@ final class AsmInvocationScanner {
 
         // ── stack helpers ──────────────────────────────────────────────────
 
-        private void push(String t)  { stack.push(t); }
+        private void push(String t)  { stack.push(t == null ? UNKNOWN : t); }
         private void pushPrim()       { stack.push(PRIM); }
-        private String pop()          { return stack.isEmpty() ? null : stack.pop(); }
-        private String peek()         { return stack.isEmpty() ? null : stack.peek(); }
+        private String pop()          { return stack.isEmpty() ? UNKNOWN : stack.pop(); }
+        private String peek()         { return stack.isEmpty() ? UNKNOWN : stack.peek(); }
 
         // ── visitor overrides ──────────────────────────────────────────────
 
@@ -416,7 +425,7 @@ final class AsmInvocationScanner {
          */
         private void captureGatewayArg(boolean isCommand) {
             for (String type : stack) {
-                if (type == null || type.equals(PRIM)) continue;
+                if (PRIM.equals(type) || UNKNOWN.equals(type)) continue;
                 String className = type.replace('/', '.');
                 try {
                     Class<?> cls = Class.forName(className, false, ownerClass.getClassLoader());

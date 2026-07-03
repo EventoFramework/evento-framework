@@ -155,4 +155,17 @@ class AsmInvocationScannerTest {
         // The map key must be a positive source line, not a dummy index
         result.commands().forEach((line, name) -> assertThat(line).isGreaterThan(0));
     }
+
+    // ── unknown-ref stack slots (null literal, array ops) ──────────────────────
+
+    @Test
+    void scansHandlerContainingNullLiteralAndArrayOps() throws Exception {
+        // Regression: these opcodes used to push raw null onto the ArrayDeque
+        // stack, aborting the scan with a message-less NPE.
+        var result = AsmInvocationScanner.scan(method(UnknownRefStackFixture.class, "onEvent"));
+
+        assertThat(result.commands().values()).containsExactly("SentDomainCmd");
+        assertThat(result.queries()).isEmpty();
+        assertThat(result.handlerLine()).isGreaterThan(0);
+    }
 }
