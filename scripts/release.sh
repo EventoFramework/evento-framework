@@ -131,8 +131,8 @@ git tag -a "$tag" -m "Evento Framework $new"
 ok "committed and tagged $tag"
 
 info "Pushing to origin"
-git push --quiet origin "$RELEASE_BRANCH"
-git push --quiet origin "$tag"
+git push --quiet origin "refs/heads/$RELEASE_BRANCH"
+git push --quiet origin "refs/tags/$tag"
 ok "pushed '$RELEASE_BRANCH' and tag $tag"
 
 echo
