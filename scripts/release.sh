@@ -38,7 +38,7 @@ command -v git >/dev/null   || die "git is not installed"
 [[ -f "$GRADLE_FILE"   ]]   || die "$GRADLE_FILE not found — run from the repo or its scripts/ dir"
 [[ -f "$VERSION_JSON"  ]]   || die "$VERSION_JSON not found"
 
-branch="$(git rev-parse --abbrev-ref HEAD)"
+branch="$(git branch --show-current)"
 [[ "$branch" == "$RELEASE_BRANCH" ]] \
   || die "releases must be cut from '$RELEASE_BRANCH' (you are on '$branch')"
 
