@@ -44,17 +44,35 @@ public final class InboundDispatcher {
     private final HandlerRegistry handlerRegistry;
     private final Executor businessExecutor;
     private final Function<Message, java.util.concurrent.CompletableFuture<Void>> sender;
+    private final java.util.Set<String> dedupExemptPayloadTypes;
 
     public InboundDispatcher(BundleCorrelationTracker correlationTracker,
                               ProcessedRequestCache dedupCache,
                               HandlerRegistry handlerRegistry,
                               Executor businessExecutor,
                               Function<Message, java.util.concurrent.CompletableFuture<Void>> sender) {
+        this(correlationTracker, dedupCache, handlerRegistry, businessExecutor, sender, java.util.Set.of());
+    }
+
+    /**
+     * @param dedupExemptPayloadTypes payload types that bypass the exactly-once
+     *        {@link ProcessedRequestCache}. Read-only requests (queries) belong
+     *        here: they are idempotent, so replay/dedup buys nothing, and keeping
+     *        their (potentially large) responses in the cache is pure memory waste.
+     */
+    public InboundDispatcher(BundleCorrelationTracker correlationTracker,
+                              ProcessedRequestCache dedupCache,
+                              HandlerRegistry handlerRegistry,
+                              Executor businessExecutor,
+                              Function<Message, java.util.concurrent.CompletableFuture<Void>> sender,
+                              java.util.Set<String> dedupExemptPayloadTypes) {
         this.correlationTracker = correlationTracker;
         this.dedupCache = dedupCache;
         this.handlerRegistry = handlerRegistry;
         this.businessExecutor = businessExecutor;
         this.sender = sender;
+        this.dedupExemptPayloadTypes = dedupExemptPayloadTypes == null
+                ? java.util.Set.of() : java.util.Set.copyOf(dedupExemptPayloadTypes);
     }
 
     public Consumer<Message> asMessageSink() {
@@ -76,6 +94,12 @@ public final class InboundDispatcher {
     }
 
     private void dispatchRequest(Request req) {
+        if (dedupExemptPayloadTypes.contains(req.payloadType())) {
+            // Idempotent request (query): run it directly, never touch the dedup
+            // cache — so its response is not retained in memory after sending.
+            businessExecutor.execute(() -> trySend(computeResponse(req)));
+            return;
+        }
         var outcome = dedupCache.resolveOrClaim(req.correlationId());
         switch (outcome) {
             case ProcessedRequestCache.Outcome.Replay replay -> {
@@ -86,33 +110,33 @@ public final class InboundDispatcher {
             case ProcessedRequestCache.Outcome.InFlight ignored ->
                     log.info("event=request_inflight_duplicate_dropped correlationId={}",
                             req.correlationId());
-            case ProcessedRequestCache.Outcome.Claimed ignored -> businessExecutor.execute(() -> invokeAndReply(req));
+            case ProcessedRequestCache.Outcome.Claimed ignored -> businessExecutor.execute(() -> {
+                var response = computeResponse(req);
+                dedupCache.recordResponse(req.correlationId(), response);
+                trySend(response);
+            });
         }
     }
 
-    private void invokeAndReply(Request req) {
+    private Response computeResponse(Request req) {
         var handler = handlerRegistry.requestHandlerFor(req.payloadType());
-        Response response;
         if (handler == null) {
-            response = Response.failure(req.correlationId(),
+            return Response.failure(req.correlationId(),
                     ResponseError.of(new IllegalStateException(
                             "no handler registered for " + req.payloadType())));
-        } else {
-            try {
-                byte[] body = handler.handle(req.payload(),
-                        new HandlerRegistry.RequestContext(
-                                req.correlationId(), req.payloadType(),
-                                req.sourceBundleId(), req.sourceInstanceId(),
-                                req.sourceBundleVersion(), req.timestampMs()));
-                response = Response.success(req.correlationId(), req.payloadType(), body);
-            } catch (Throwable t) {
-                log.warn("event=handler_threw correlationId={} payloadType={}",
-                        req.correlationId(), req.payloadType(), t);
-                response = Response.failure(req.correlationId(), ResponseError.of(t));
-            }
         }
-        dedupCache.recordResponse(req.correlationId(), response);
-        trySend(response);
+        try {
+            byte[] body = handler.handle(req.payload(),
+                    new HandlerRegistry.RequestContext(
+                            req.correlationId(), req.payloadType(),
+                            req.sourceBundleId(), req.sourceInstanceId(),
+                            req.sourceBundleVersion(), req.timestampMs()));
+            return Response.success(req.correlationId(), req.payloadType(), body);
+        } catch (Throwable t) {
+            log.warn("event=handler_threw correlationId={} payloadType={}",
+                    req.correlationId(), req.payloadType(), t);
+            return Response.failure(req.correlationId(), ResponseError.of(t));
+        }
     }
 
     private void dispatchNotification(Notification n) {

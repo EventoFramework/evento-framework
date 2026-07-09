@@ -68,7 +68,8 @@ public final class BundleClient implements AutoCloseable {
                 processedRequestCache,
                 handlerRegistry,
                 config.transportConfig().businessExecutor(),
-                this::sendInternal
+                this::sendInternal,
+                queryPayloadTypes(config)
         );
         this.supervisor.setInboundSink(inboundDispatcher.asMessageSink());
     }
@@ -188,6 +189,21 @@ public final class BundleClient implements AutoCloseable {
 
     private CompletableFuture<Void> sendInternal(com.evento.transport.message.Message m) {
         return supervisor.send(m);
+    }
+
+    /**
+     * The payload types handled by {@code @QueryHandler}s. Queries are read-only
+     * and idempotent, so they bypass the exactly-once {@link ProcessedRequestCache}:
+     * deduplicating them buys nothing and would pin their (potentially large)
+     * responses in memory.
+     */
+    private static java.util.Set<String> queryPayloadTypes(BundleClientConfig config) {
+        return config.registeredHandlers().stream()
+                .filter(h -> h.getHandlerType()
+                        == com.evento.common.modeling.bundle.types.HandlerType.QueryHandler)
+                .map(com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler::getHandledPayload)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     public PayloadCodec payloadCodec() { return payloadCodec; }
