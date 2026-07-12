@@ -1,7 +1,36 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-03. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-12. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## Dependabot upgrade sweep (2026-07-12)
+
+Triaged and landed the open Dependabot backlog on `main`. Two findings shaped the work:
+CI (`ci.yml`) only runs the Gradle/Java suites — **the `evento-gui` frontend is never built
+in PR CI** (only in `release.yml` via `ionic build --prod`), so green checks on frontend PRs
+meant nothing; and `main` requires 1 approval + strict up-to-date checks, so bot PRs were
+merged with `gh pr merge --squash --admin`.
+
+- **Merged directly** (patch/minor + CI-validated majors): flyway, setup-java, codeql-action,
+  log4j-api, assertj, awaitility, capacitor cli/core, ionic/angular, HikariCP 7, okhttp 5,
+  hibernate-validator 9, junit-platform-launcher 6, action-gh-release 3.
+- **`chore/frontend-upgrades` → #154**: coordinated **Angular 21 → 22 + TypeScript 5.9 → 6**
+  via `ng update` (Angular can't move one package at a time), plus zone.js 0.16, ngx-markdown 22
+  (+ `marked-katex-extension`, a lazy dynamic import esbuild must resolve). TS 6 / Angular 22
+  turn strict checks on by default — the app has always been non-strict, so that posture is
+  pinned in `tsconfig.json` rather than retyping ~350 sites; angular-eslint 22's new opinionated
+  rules opted out. Superseded piecemeal PRs #142/#145/#146/#151/#152/#153. **eslint 10 (#148)
+  deferred** — `eslint-plugin-import@2.32` has no eslint-10 peer support (needs `eslint-import-x`).
+  Validated with `ionic build --prod` + `ng lint` on Node 24 (nvm).
+- **`chore/spring-boot-4` → #155**: **Spring Boot 3.5.5 → 4.1.0** (consolidates plugin bump #137
+  + BOM bump #134). Actuator health types moved to `org.springframework.boot.health.contributor.*`.
+  **BREAKING (TLS):** SB4's BOM pulls **Netty 4.1 → 4.2**, which enables hostname verification by
+  default; the client `SslHandler` was built with no peer identity, so all TLS handshakes failed.
+  `NettyClientTransport` now threads remote host/port into `EventoPipelineFactory` →
+  `newHandler(alloc, host, port)` (SNI + verification against the broker host). Operators using TLS
+  must now present a cert whose CN/SAN matches the connect host.
+- **Still open — #135/#136** (actions/checkout 7, attest-build-provenance 4): edit `release.yml`,
+  blocked on the `gh` token lacking the `workflow` OAuth scope.
 
 ## Consumer resilience + JDBC schema fixes (2026-07-03) — released as 2.1.1
 
