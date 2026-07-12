@@ -1,4 +1,4 @@
-import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, Input, OnInit, ViewChild, ChangeDetectionStrategy} from '@angular/core';
 import {NavController} from '@ionic/angular';
 import {componentColor, graphCenterFit, payloadColor} from '../../services/utils';
 import {setZoom} from "../common";
@@ -12,6 +12,7 @@ declare const mxHierarchicalLayout: any;
     selector: 'app-bundle-components-diagram',
     templateUrl: './bundle-components-diagram.component.html',
     styleUrls: ['./bundle-components-diagram.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class BundleComponentsDiagramComponent implements OnInit {

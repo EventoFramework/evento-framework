@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ClusterStatusService} from "../../../../services/cluster-status.service";
 import {ConsumerService} from "../../../../services/consumer.service";
 import { DatePipe, JsonPipe } from "@angular/common";
@@ -11,6 +11,7 @@ import {ComponentsModule} from "../../../../components/components.module";
     selector: 'app-consumers',
     templateUrl: './consumers.component.html',
     styleUrls: ['./consumers.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     imports: [
     JsonPipe,
     IonicModule,

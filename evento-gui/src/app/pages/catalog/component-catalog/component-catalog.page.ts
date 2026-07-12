@@ -1,10 +1,11 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {CatalogService} from '../../../services/catalog.service';
 
 @Component({
     selector: 'app-component-catalog',
     templateUrl: './component-catalog.page.html',
     styleUrls: ['./component-catalog.page.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ComponentCatalogPage implements OnInit {
