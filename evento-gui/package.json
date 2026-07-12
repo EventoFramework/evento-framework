@@ -26,7 +26,7 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/keyboard": "^8.0.3",
     "@capacitor/status-bar": "^8.0.2",
-    "@ionic/angular": "^8.8.8",
+    "@ionic/angular": "^8.8.13",
     "@ngx-translate/core": "^17.0.0",
     "@ngx-translate/http-loader": "^17.0.0",
     "apexcharts": "^5.13.0",
