@@ -61,7 +61,7 @@ public final class NettyClientTransport implements Transport {
         this.port = port;
         this.config = Objects.requireNonNull(config);
         this.state = new ConnectionStateMachine("client:" + remoteId);
-        this.pipelineFactory = new EventoPipelineFactory(config);
+        this.pipelineFactory = new EventoPipelineFactory(config, host, port);
         if (sharedWorkerGroup != null) {
             this.workerGroup = sharedWorkerGroup;
             this.ownsWorkerGroup = false;
