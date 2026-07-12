@@ -1,10 +1,11 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 
 @Component({
     selector: 'app-application-graph',
     templateUrl: './application-graph-page.component.html',
     styleUrls: ['./application-graph-page.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ApplicationGraphPage implements OnInit {
@@ -64,20 +65,20 @@ export class ApplicationGraphPage implements OnInit {
       name: 'root',
       children: []
     };
-    // eslint-disable-next-line guard-for-in
+     
     for (const bundle in bundles) {
       const bundleNode = {
         name: bundle,
         children: [],
       };
-      // eslint-disable-next-line guard-for-in
+       
       for (const component in bundles[bundle].components) {
         const componentNode = {
           name: component,
           componentType: bundles[bundle].components[component].componentType,
           children: []
         };
-        // eslint-disable-next-line guard-for-in
+         
         for (const handler in bundles[bundle].components[component].handlers) {
           const h = bundles[bundle].components[component].handlers[handler];
           if (h.handlerType === 'EventSourcingHandler') {

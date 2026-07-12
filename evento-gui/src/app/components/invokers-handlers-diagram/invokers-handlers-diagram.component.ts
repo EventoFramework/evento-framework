@@ -1,4 +1,4 @@
-import {Component, ElementRef, Input, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, Input, OnInit, ViewChild, ChangeDetectionStrategy} from '@angular/core';
 import {componentColor, graphCenterFit, payloadColor} from '../../services/utils';
 import {NavController} from '@ionic/angular';
 import {setZoom} from "../common";
@@ -16,6 +16,7 @@ declare const mxOrthogonalLayout: any;
     selector: 'app-invokers-handlers-diagram',
     templateUrl: './invokers-handlers-diagram.component.html',
     styleUrls: ['./invokers-handlers-diagram.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class InvokersHandlersDiagramComponent implements OnInit {

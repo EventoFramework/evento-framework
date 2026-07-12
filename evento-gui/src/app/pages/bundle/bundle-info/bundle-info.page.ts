@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {BundleService} from '../../../services/bundle.service';
 import {NavController} from '@ionic/angular';
@@ -7,6 +7,7 @@ import {NavController} from '@ionic/angular';
     selector: 'app-bundle-info',
     templateUrl: './bundle-info.page.html',
     styleUrls: ['./bundle-info.page.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class BundleInfoPage implements OnInit {
