@@ -10,11 +10,11 @@ java {
     toolchain { languageVersion = javaLanguageVersion }
 }
 
-// Pull in the Spring Boot 3.5.5 BOM so that transitive Spring deps from
+// Pull in the Spring Boot 4.1.0 BOM so that transitive Spring deps from
 // evento-server resolve to concrete versions without specifying each one.
 dependencyManagement {
     imports {
-        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.5'
+        mavenBom 'org.springframework.boot:spring-boot-dependencies:4.1.0'
     }
     // Flyway 12.x ships Jackson 3 (tools.jackson.*), whose annotation introspector
     // references com.fasterxml.jackson.annotation.JsonSerializeAs (jackson-annotations

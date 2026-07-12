@@ -7,7 +7,7 @@ group 'com.evento'
 version "${eventoVersion}"
 java { toolchain { languageVersion = javaLanguageVersion } }
 dependencyManagement {
-    imports { mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.5' }
+    imports { mavenBom 'org.springframework.boot:spring-boot-dependencies:4.1.0' }
 }
 repositories { mavenCentral(); mavenLocal() }
 dependencies {
