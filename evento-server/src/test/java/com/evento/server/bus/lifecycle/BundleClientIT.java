@@ -291,7 +291,12 @@ class BundleClientIT {
     void encryptedRoundTripWithSelfSignedTls() throws Exception {
         SelfSignedCertificate ssc;
         try {
-            ssc = new SelfSignedCertificate();
+            // Issue the cert for the DNS name "localhost" (not the 127.0.0.1 IP literal):
+            // Netty 4.2 enables TLS hostname verification by default, and IP-literal
+            // verification requires an iPAddress SAN that SelfSignedCertificate does not
+            // mint. A DNS name verifies against the certificate CN, so client and server
+            // below connect via "localhost" to match.
+            ssc = new SelfSignedCertificate("localhost");
         } catch (Throwable t) {
             // Netty 4.1's SelfSignedCertificate falls back through sun.security helpers
             // that have been progressively restricted in newer JDKs. Skip the test on
@@ -329,12 +334,12 @@ class BundleClientIT {
         port = lifecycle.start(0);
 
         try (var handler = BundleClient.builder("h", "h1")
-                .host("127.0.0.1").port(port).bundleVersion("100")
+                .host("localhost").port(port).bundleVersion("100")
                 .authToken(GOOD_TOKEN)
                 .handlerPayloadTypes(List.of("com.tls"))
                 .transportConfig(tlsClientConfig).build();
              var caller = BundleClient.builder("c", "c1")
-                     .host("127.0.0.1").port(port).bundleVersion("100")
+                     .host("localhost").port(port).bundleVersion("100")
                      .authToken(GOOD_TOKEN)
                      .transportConfig(tlsClientConfig).build()) {
 
