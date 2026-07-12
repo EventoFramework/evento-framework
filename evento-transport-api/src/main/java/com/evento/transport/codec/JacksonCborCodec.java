@@ -62,6 +62,12 @@ public final class JacksonCborCodec implements Codec {
             return (Message) obj;
         } catch (IOException e) {
             throw new CodecException("decode failed (length=" + length + ")", e);
+        } catch (RuntimeException e) {
+            // Jackson's CBOR parser can leak unchecked exceptions (NPE, index/argument
+            // errors, ClassCastException from the polymorphic cast) on malformed input.
+            // Every byte here arrives unauthenticated off the socket, so normalize any
+            // parser failure to the single sanctioned failure mode.
+            throw new CodecException("decode failed (length=" + length + ")", e);
         }
     }
 }
