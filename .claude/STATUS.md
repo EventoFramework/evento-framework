@@ -29,8 +29,21 @@ merged with `gh pr merge --squash --admin`.
   `NettyClientTransport` now threads remote host/port into `EventoPipelineFactory` →
   `newHandler(alloc, host, port)` (SNI + verification against the broker host). Operators using TLS
   must now present a cert whose CN/SAN matches the connect host.
-- **Still open — #135/#136** (actions/checkout 7, attest-build-provenance 4): edit `release.yml`,
-  blocked on the `gh` token lacking the `workflow` OAuth scope.
+- **#135/#136** (actions/checkout 7, attest-build-provenance 4): merged after granting the `gh`
+  token the `workflow` scope. **All 25 Dependabot PRs resolved; queue empty.**
+
+### Pipeline hardening follow-up (#156)
+
+- **Frontend now built in PR CI** — new `gui-build` job in `ci.yml` mirrors `release.yml`
+  (`npm install` + `ionic build --prod`) plus `ng lint`. Previously the GUI was only built at
+  release time, so frontend dep bumps merged green without validation. **Not yet a required
+  check** — add `gui-build` to branch protection to make frontend regressions block PRs.
+- **Weekly Fuzz job fixed** (failed every run since June): `CborCodecFuzzTest` found malformed
+  CBOR that made `JacksonCborCodec.decode` leak a raw `NullPointerException` from Jackson. `decode`
+  only caught `IOException`; broadened to normalize any `RuntimeException` from the parse into
+  `CodecException`. Reproducer committed as a Jazzer regression seed under
+  `src/test/resources/.../CborCodecFuzzTestInputs/<method>/` (per-PR `:test` replays it). Verified:
+  regression fails without the fix, passes with it; 40.8M-exec `JAZZER_FUZZ=1` run clean.
 
 ## Consumer resilience + JDBC schema fixes (2026-07-03) — released as 2.1.1
 
