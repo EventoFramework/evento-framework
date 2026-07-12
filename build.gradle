@@ -10,7 +10,7 @@ allprojects {
         lz4Version = '1.8.0'
         micrometerVersion = '1.13.6'
         junitVersion = '5.11.4'
-        assertjVersion = '3.26.3'
+        assertjVersion = '3.27.7'
         lombokVersion = '1.18.46'
         flywayVersion = '12.11.0'
         testcontainersVersion = '1.21.3'
