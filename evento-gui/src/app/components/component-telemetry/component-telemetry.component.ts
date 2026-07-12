@@ -1,4 +1,4 @@
-import {Component, Input, OnInit} from '@angular/core';
+import {Component, Input, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {PerformanceService} from "../../services/performance.service";
 import {retry} from "rxjs";
 
@@ -6,6 +6,7 @@ import {retry} from "rxjs";
     selector: 'app-component-telemetry',
     templateUrl: './component-telemetry.component.html',
     styleUrls: ['./component-telemetry.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ComponentTelemetryComponent implements OnInit {
