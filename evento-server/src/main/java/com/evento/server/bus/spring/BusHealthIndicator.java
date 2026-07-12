@@ -1,8 +1,8 @@
 package com.evento.server.bus.spring;
 
 import com.evento.server.bus.lifecycle.BusLifecycle;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.health.contributor.Health;
+import org.springframework.boot.health.contributor.HealthIndicator;
 
 /**
  * Actuator health contribution for the v2 bus. Reports {@code UP} once the Netty transport is
