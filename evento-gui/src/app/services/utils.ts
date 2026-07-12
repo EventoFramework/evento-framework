@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention,no-bitwise */
 export const stringToColour = (str) => {
   let i;
   let hash = 0;

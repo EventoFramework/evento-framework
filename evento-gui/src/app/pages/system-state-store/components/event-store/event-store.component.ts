@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import {SystemStateStoreService} from "../../../../services/system-state-store.service";
 import {ActivatedRoute, RouterLink} from "@angular/router";
 import {IonicModule} from "@ionic/angular";
@@ -11,6 +11,7 @@ import {ComponentsModule} from "../../../../components/components.module";
     selector: 'app-event-store',
     templateUrl: './event-store.component.html',
     styleUrls: ['./event-store.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     imports: [
     IonicModule,
     FormsModule,

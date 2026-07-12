@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {CatalogService} from '../../../../services/catalog.service';
 import {RepositoryService} from '../../../../services/repository.service';
@@ -8,6 +8,7 @@ import {stringToColour} from '../../../../services/utils';
     selector: 'app-component-info',
     templateUrl: './component-info.page.html',
     styleUrls: ['./component-info.page.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ComponentInfoPage implements OnInit {

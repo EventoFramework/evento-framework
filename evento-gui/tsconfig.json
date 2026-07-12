@@ -17,7 +17,17 @@
       "node_modules/@types",
       "node_modules/@typed-mxgraph"
     ],
-    "useDefineForClassFields": false
+    "useDefineForClassFields": false,
+    // The project has always compiled in non-strict mode. Angular 22 / TypeScript 6
+    // turn several strictness checks on by default, so pin the prior posture
+    // explicitly rather than rewrite ~350 loosely-typed sites across the app.
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictPropertyInitialization": false,
+    // baseUrl / downlevelIteration are deprecated in TS 6 (removed in TS 7); keep
+    // current behavior until a dedicated cleanup.
+    "ignoreDeprecations": "6.0"
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

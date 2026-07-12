@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import {SystemStateStoreService} from "../../../../services/system-state-store.service";
 import {ActivatedRoute, RouterLink} from "@angular/router";
 import { DatePipe, JsonPipe, KeyValuePipe } from "@angular/common";
@@ -10,6 +10,7 @@ import {FormsModule} from "@angular/forms";
     selector: 'app-snapshot-store',
     templateUrl: './snapshot-store.component.html',
     styleUrls: ['./snapshot-store.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     imports: [
     DatePipe,
     IonicModule,

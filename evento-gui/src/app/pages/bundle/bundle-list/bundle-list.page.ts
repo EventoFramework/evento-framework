@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {BundleService} from '../../../services/bundle.service';
 import {stringToColour} from '../../../services/utils';
 
@@ -6,6 +6,7 @@ import {stringToColour} from '../../../services/utils';
     selector: 'app-bundle-list',
     templateUrl: './bundle-list.page.html',
     styleUrls: ['./bundle-list.page.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class BundleListPage implements OnInit {

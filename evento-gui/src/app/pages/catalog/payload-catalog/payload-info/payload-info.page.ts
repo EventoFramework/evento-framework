@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {CatalogService} from '../../../../services/catalog.service';
 import {RepositoryService} from '../../../../services/repository.service';
@@ -7,6 +7,7 @@ import {RepositoryService} from '../../../../services/repository.service';
     selector: 'app-payload-info',
     templateUrl: './payload-info.page.html',
     styleUrls: ['./payload-info.page.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class PayloadInfoPage implements OnInit {

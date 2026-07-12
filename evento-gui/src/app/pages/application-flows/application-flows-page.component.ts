@@ -1,4 +1,4 @@
-import {Component, ElementRef, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, OnInit, ViewChild, ChangeDetectionStrategy} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {componentColor, graphCenterFit, payloadColor, stringToColour} from '../../services/utils';
 import {FlowsService} from '../../services/flows.service';
@@ -21,6 +21,7 @@ declare let mxXmlRequest: any;
     selector: 'app-application-petri-net',
     templateUrl: './application-flows-page.component.html',
     styleUrls: ['./application-flows-page.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ApplicationFlowsPage implements OnInit {
@@ -133,7 +134,7 @@ export class ApplicationFlowsPage implements OnInit {
       }
     }
 
-    // eslint-disable-next-line guard-for-in
+     
     for (const block in tMap) {
       for (const node of tMap[block]) {
         //node.numServers = node.numServers / tMap[block].length;
@@ -392,7 +393,7 @@ export class ApplicationFlowsPage implements OnInit {
                           role: 'confirm',
                           handler: (e) => {
                             for (const tt of copies) {
-                              // eslint-disable-next-line guard-for-in
+                               
                               for (const k in tt.target) {
                                 if (this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(k, 10)).action === i.action) {
                                   tt.target[k] = parseFloat(e.inf);

@@ -1,5 +1,4 @@
-/* eslint-disable guard-for-in,no-underscore-dangle,@typescript-eslint/naming-convention */
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 import {LoadingController, NavController} from '@ionic/angular';
 import {componentColor, getColorForBundle, graphCenterFit, payloadColor} from '../../services/utils';
@@ -15,6 +14,7 @@ declare const mxConstants: any;
     selector: 'evento-application-graph',
     templateUrl: './application-graph-diagram.component.html',
     styleUrls: ['./application-graph-diagram.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ApplicationGraphDiagramComponent implements OnInit {

@@ -1,4 +1,4 @@
-import {Component, OnDestroy, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ClusterStatusService} from '../../services/cluster-status.service';
 import {Subscription} from 'rxjs';
 import {stringToColour} from '../../services/utils';
@@ -7,6 +7,7 @@ import {stringToColour} from '../../services/utils';
     selector: 'app-cluster-status',
     templateUrl: './cluster-status.page.html',
     styleUrls: ['./cluster-status.page.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ClusterStatusPage implements OnInit, OnDestroy {
