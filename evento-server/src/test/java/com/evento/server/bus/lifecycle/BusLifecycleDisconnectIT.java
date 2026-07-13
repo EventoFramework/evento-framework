@@ -56,8 +56,17 @@ import static org.awaitility.Awaitility.await;
  * leaves a stale registry entry, hangs an originator future, or surfaces an
  * exception on the server is a test failure here.
  */
-@Timeout(value = 30, unit = TimeUnit.SECONDS)
+@Timeout(value = 60, unit = TimeUnit.SECONDS)
 class BusLifecycleDisconnectIT {
+
+    /**
+     * Ceiling for a single async step (registry convergence, a request round-trip,
+     * a handshake). Cold CI runners schedule these Netty/virtual-thread hops far
+     * slower than a dev box, so a tight 3s budget flaked intermittently. This is a
+     * generous ceiling, not an expected latency — steps normally complete in
+     * milliseconds, and a genuine hang still trips the class-level {@link Timeout}.
+     */
+    private static final long STEP_TIMEOUT_SECONDS = 10;
 
     private NettyTransportConfig serverConfig;
     private NettyTransportConfig clientConfig;
@@ -144,7 +153,7 @@ class BusLifecycleDisconnectIT {
             hellos.put(corr, f);
             client.send(new Hello(corr, HandshakeProtocol.PROTOCOL_VERSION,
                     bundleId, instanceId, "100", Set.of(), null, System.currentTimeMillis()));
-            return f.get(3, TimeUnit.SECONDS);
+            return f.get(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         }
 
         void registerAndEnable(List<String> payloadTypes) {
@@ -185,14 +194,14 @@ class BusLifecycleDisconnectIT {
         handler.registerAndEnable(List.of("com.NeverReplies"));
         caller.registerAndEnable(List.of());
 
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
 
         // Handler accepts the request but never replies.
         var handlerSawRequest = new CountDownLatch(1);
         handler.requestHandler = req -> handlerSawRequest.countDown();
 
         var future = caller.request("com.NeverReplies", new byte[]{1, 2, 3});
-        assertThat(handlerSawRequest.await(3, TimeUnit.SECONDS)).isTrue();
+        assertThat(handlerSawRequest.await(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
         // Kill the handler — server must surface a failure to the caller.
         handler.close();
@@ -217,7 +226,7 @@ class BusLifecycleDisconnectIT {
         handler.sayHello();
         handler.registerAndEnable(List.of("com.Slow"));
         caller.registerAndEnable(List.of());
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
 
         var handlerSawRequest = new CountDownLatch(1);
         var handlerCanReply = new CountDownLatch(1);
@@ -233,11 +242,11 @@ class BusLifecycleDisconnectIT {
         };
 
         caller.request("com.Slow", new byte[0]);
-        assertThat(handlerSawRequest.await(3, TimeUnit.SECONDS)).isTrue();
+        assertThat(handlerSawRequest.await(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
         // Caller dies first.
         caller.close();
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.view().size() == 1);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.view().size() == 1);
 
         // Now release the handler — its late response should land on a clean server.
         handlerCanReply.countDown();
@@ -285,13 +294,13 @@ class BusLifecycleDisconnectIT {
         handler.sayHello();
         handler.registerAndEnable(List.of("com.HandledByB"));
         caller.registerAndEnable(List.of());
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
 
         handler.close();
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 1);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 1);
 
         // A new request for com.HandledByB must now fail with "no handler".
-        Response response = caller.request("com.HandledByB", new byte[0]).get(3, TimeUnit.SECONDS);
+        Response response = caller.request("com.HandledByB", new byte[0]).get(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         assertThat(response.isError()).isTrue();
         assertThat(response.error().message()).contains("no handler for com.HandledByB");
 
@@ -311,10 +320,10 @@ class BusLifecycleDisconnectIT {
             b.registerAndEnable(List.of());
             bundles.add(b);
         }
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 5);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 5);
 
         bundles.get(2).close();
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 4);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 4);
 
         var remainingInstanceIds = lifecycle.availableView().stream()
                 .map(NodeAddress::instanceId).toList();
@@ -324,7 +333,7 @@ class BusLifecycleDisconnectIT {
         for (int i = 0; i < 5; i++) {
             if (i != 2) bundles.get(i).close();
         }
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.view().isEmpty());
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.view().isEmpty());
     }
 
     // ---------------------------------------------------------------------
@@ -336,7 +345,7 @@ class BusLifecycleDisconnectIT {
         var first = new MockBundle("bundle-Z", "inst-Z");
         first.sayHello();
         first.registerAndEnable(List.of());
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.isBundleAvailable("bundle-Z"));
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.isBundleAvailable("bundle-Z"));
 
         events.clear();
         // Reconnect with the same instance id — supersede semantics expected.
@@ -344,7 +353,7 @@ class BusLifecycleDisconnectIT {
         second.sayHello();
         second.registerAndEnable(List.of());
 
-        await().atMost(3, TimeUnit.SECONDS).until(() ->
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() ->
                 lifecycle.view().size() == 1 &&
                 events.stream().anyMatch(e ->
                         e instanceof BusEvent.NodeLeft l && "superseded".equals(l.reason())));
@@ -370,19 +379,19 @@ class BusLifecycleDisconnectIT {
         handler.sayHello();
         handler.registerAndEnable(List.of("com.X"));
         caller.registerAndEnable(List.of());
-        await().atMost(3, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2);
 
         // Handler never replies → request stays in forwarding table.
         var handlerSawRequest = new CountDownLatch(1);
         handler.requestHandler = req -> handlerSawRequest.countDown();
         var pending = caller.request("com.X", new byte[0]);
-        assertThat(handlerSawRequest.await(3, TimeUnit.SECONDS)).isTrue();
+        assertThat(handlerSawRequest.await(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
         // Initiate server shutdown.
         lifecycle.stop(Duration.ofMillis(500));
 
         // Server is now stopped; the registries should be empty and both bundles' channels closed.
-        await().atMost(3, TimeUnit.SECONDS).until(() ->
+        await().atMost(STEP_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() ->
                 caller.client.state() == com.evento.transport.state.ConnectionState.DISCONNECTED
                         || caller.client.state() == com.evento.transport.state.ConnectionState.CLOSED);
         assertThat(lifecycle.view()).isEmpty();
