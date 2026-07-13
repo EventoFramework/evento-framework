@@ -93,7 +93,7 @@ jobs:
     # The evento-gui frontend is embedded in the boot jar by release.yml but was
     # never exercised in PR CI, so frontend dependency bumps (e.g. Angular majors)
     # could merge green while breaking the production build. Run the same steps
-    # release.yml does — resolve deps and `ionic build --prod` — plus lint.
+    # release.yml does — resolve deps and run the production build — plus lint.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -107,20 +107,20 @@ jobs:
           cache: npm
           cache-dependency-path: evento-gui/package-lock.json
 
-      - name: Install Ionic CLI
-        run: npm install -g @ionic/cli@7.2.1
-
-      # Mirror release.yml: `npm install` (not `npm ci`) because the committed
-      # package-lock.json was authored on macOS/arm64 + npm 11 and omits
-      # Linux-x64 optional peer deps, so `npm ci` refuses on the Linux runner.
+      # `npm ci` installs exactly the hash-pinned tree from package-lock.json
+      # (Scorecard Pinned-Dependencies). The lockfile is regenerated with npm 11
+      # and records every platform's optional native deps, so it resolves on the
+      # Linux runner without the old `npm install` fallback.
       - name: Install GUI dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
         working-directory: ./evento-gui
 
       - name: Lint
         run: npx ng lint
         working-directory: ./evento-gui
 
+      # Build via the npm script (`ng build`) rather than a globally-installed,
+      # unpinned Ionic CLI — same production output, embedded into the boot jar.
       - name: Build (production)
-        run: ionic build --prod
+        run: npm run build -- --configuration production
         working-directory: ./evento-gui

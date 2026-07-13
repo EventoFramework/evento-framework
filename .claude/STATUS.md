@@ -1,6 +1,6 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-12. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-13. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
 ## Dependabot upgrade sweep (2026-07-12)
@@ -44,6 +44,44 @@ merged with `gh pr merge --squash --admin`.
   `CodecException`. Reproducer committed as a Jazzer regression seed under
   `src/test/resources/.../CborCodecFuzzTestInputs/<method>/` (per-PR `:test` replays it). Verified:
   regression fails without the fix, passes with it; 40.8M-exec `JAZZER_FUZZ=1` run clean.
+
+### Supply-chain / Scorecard remediation (2026-07-12) — PR #157
+
+Attacked the two OpenSSF Scorecard checks holding the aggregate at **7.4/10**, both
+rooted in `evento-gui`.
+
+- **Vulnerabilities (0/10):** OSV flagged **21** advisories, all transitive npm deps of the
+  Angular/Ionic toolchain. Root cause is shared with Pinned-Dependencies: CI resolved with
+  `npm install` (ignores the lockfile), so the tree drifted into vulnerable versions. Fixed via
+  `npm audit fix` + an `overrides{}` block pinning the stubborn leaves (`@babel/core ^7.29.7`,
+  `esbuild ^0.28.1`, `http-proxy-middleware ^3.0.7`, `webpack-dev-server ^6.0.0`). `npm audit`
+  drops **16 (21 per OSV) → 1**: only `mxgraph` setTooltips XSS (GHSA-j4rv-pr9g-q8jv) remains —
+  unmaintained, **no patched version in any release**, tracked as accepted risk (future migration
+  to `@maxgraph/core` would clear it).
+- **Pinned-Dependencies (7/10) + 63 code-scanning alerts:** regenerated `package-lock.json` with
+  npm 11 so it records **every** platform's optional native deps (`@esbuild/linux-x64`,
+  `@rollup/rollup-linux-x64`, `@lmdb/*`) — this is what the old macOS/arm64 lockfile omitted and
+  why `npm ci` failed on Linux. With that fixed, `ci.yml`/`release.yml` switch `npm install` →
+  **`npm ci`**, drop the unpinned global `npm install -g @ionic/cli`, and build via `npm run build`
+  (`ng build`). Verified on Node 24: `npm ci` + `ng lint` + prod build all green.
+- **CSRF code-scanning alert (#1, High) dismissed** as "won't fix": the server is a stateless
+  REST API authenticated by a JWT **bearer token in the Authorization header** (`AuthFilter`) — no
+  session cookies / form login — so `csrf(disable)` in `WebConfig` is correct; CSRF defends
+  cookie/session auth only.
+- **Still capping the score (out of repo-code control):** Code-Review (0) and Contributors (0) are
+  structural for a solo maintainer — Scorecard only counts approvals from *other* people.
+  Branch-Protection (5) wants `enforce_admins` on + 2 reviewers + CODEOWNERS; CII-Best-Practices (2)
+  needs the bestpractices.dev questionnaire completed. Vulnerabilities + Pinned wins alone should
+  push the aggregate over 8.
+- **Deflaked `BusLifecycleDisconnectIT` (2026-07-13):** PR CI intermittently red on this real-TCP
+  server IT — two of its tests timed out at the initial request round-trip (handler hadn't seen the
+  routed `Request` within a 3s `CountDownLatch` budget). Failure was pure CI-load timing (the PR is
+  npm/workflow-only, no server code; passes deterministically on a dev box). Every per-step timeout
+  now uses a shared `STEP_TIMEOUT_SECONDS = 10` constant and the class `@Timeout` went 30s → 60s —
+  a ceiling, not an expected latency; genuine hangs still trip the class timeout.
+- **PR #157 merged to `main` via `--admin`** (2026-07-13): all 5 checks green; branch protection's
+  1-review requirement is structural for a solo maintainer (see Code-Review/Contributors above), so
+  squash-merged with admin override, consistent with the Dependabot sweep.
 
 ## Consumer resilience + JDBC schema fixes (2026-07-03) — released as 2.1.1
 

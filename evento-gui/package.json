@@ -79,5 +79,11 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.60.0"
   },
-  "description": "An Ionic project"
+  "description": "An Ionic project",
+  "overrides": {
+    "@babel/core": "^7.29.7",
+    "esbuild": "^0.28.1",
+    "http-proxy-middleware": "^3.0.7",
+    "webpack-dev-server": "^6.0.0"
+  }
 }
