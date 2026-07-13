@@ -1,6 +1,6 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-12. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-13. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
 ## Dependabot upgrade sweep (2026-07-12)
@@ -73,6 +73,15 @@ rooted in `evento-gui`.
   Branch-Protection (5) wants `enforce_admins` on + 2 reviewers + CODEOWNERS; CII-Best-Practices (2)
   needs the bestpractices.dev questionnaire completed. Vulnerabilities + Pinned wins alone should
   push the aggregate over 8.
+- **Deflaked `BusLifecycleDisconnectIT` (2026-07-13):** PR CI intermittently red on this real-TCP
+  server IT — two of its tests timed out at the initial request round-trip (handler hadn't seen the
+  routed `Request` within a 3s `CountDownLatch` budget). Failure was pure CI-load timing (the PR is
+  npm/workflow-only, no server code; passes deterministically on a dev box). Every per-step timeout
+  now uses a shared `STEP_TIMEOUT_SECONDS = 10` constant and the class `@Timeout` went 30s → 60s —
+  a ceiling, not an expected latency; genuine hangs still trip the class timeout.
+- **PR #157 merged to `main` via `--admin`** (2026-07-13): all 5 checks green; branch protection's
+  1-review requirement is structural for a solo maintainer (see Code-Review/Contributors above), so
+  squash-merged with admin override, consistent with the Dependabot sweep.
 
 ## Consumer resilience + JDBC schema fixes (2026-07-03) — released as 2.1.1
 
