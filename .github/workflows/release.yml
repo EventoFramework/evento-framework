@@ -59,20 +59,19 @@ jobs:
 
       # The GUI compiles into evento-server/src/main/resources/public/ and is
       # then embedded in the boot jar, so it must be built first.
-      - name: Install Ionic CLI
-        run: npm install -g @ionic/cli@7.2.1
-
-      # Resolve from package.json (no `npm ci`): the committed
-      # package-lock.json was authored on macOS/arm64 + npm 11 and omits
-      # Linux-x64 optional peer deps (@emnapi/core, @emnapi/runtime), so
-      # `npm ci` refuses to install on the Linux runner. `npm install` lets
-      # each platform resolve its own optional tree.
+      #
+      # `npm ci` installs the hash-pinned lockfile tree (Scorecard
+      # Pinned-Dependencies). The lockfile is regenerated with npm 11 and
+      # records every platform's optional native deps, so it resolves on the
+      # Linux runner without the old `npm install` fallback.
       - name: Install GUI dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
         working-directory: ./evento-gui
 
+      # Build via the npm script (`ng build`) rather than a globally-installed,
+      # unpinned Ionic CLI — same production output.
       - name: Build Ionic app
-        run: ionic build --prod
+        run: npm run build -- --configuration production
         working-directory: ./evento-gui
 
       - name: Build boot jar
@@ -144,20 +143,17 @@ jobs:
 
       # Same GUI prebuild as the jar job — the Dockerfile copies the build
       # context and the embedded public/ assets must already be present.
-      - name: Install Ionic CLI
-        run: npm install -g @ionic/cli@7.2.1
-
-      # Resolve from package.json (no `npm ci`): the committed
-      # package-lock.json was authored on macOS/arm64 + npm 11 and omits
-      # Linux-x64 optional peer deps (@emnapi/core, @emnapi/runtime), so
-      # `npm ci` refuses to install on the Linux runner. `npm install` lets
-      # each platform resolve its own optional tree.
+      # `npm ci` installs the hash-pinned lockfile tree; the regenerated
+      # lockfile carries every platform's optional native deps so it resolves
+      # on the Linux runner.
       - name: Install GUI dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
         working-directory: ./evento-gui
 
+      # Build via the npm script (`ng build`) rather than a globally-installed,
+      # unpinned Ionic CLI — same production output.
       - name: Build Ionic app
-        run: ionic build --prod
+        run: npm run build -- --configuration production
         working-directory: ./evento-gui
 
       - name: Set up QEMU
