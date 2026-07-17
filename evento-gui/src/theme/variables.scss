@@ -1,6 +1,17 @@
 // Ionic Variables and Theming. For more info, please see:
 // http://ionicframework.com/docs/theming/
+//
+// This file is the single source of truth for the Evento design system:
+//   1. Brand colors (Ionic --ion-color-* palette)  — preserved, do not restyle
+//   2. Design tokens (spacing / radius / elevation / type / motion / z-index)
+//   3. Light + dark theming (dark via the `ion-palette-dark` class on <html>)
+//
+// Brand palette is intentionally unchanged: primary #002121, secondary #2D4D4D,
+// tertiary/accent #DE7340, success #00C597, medium #95B1B0, light #F1F1E6.
 
+// ---------------------------------------------------------------------------
+// 1. Brand colors (light) — Ionic palette
+// ---------------------------------------------------------------------------
 :root {
   --ion-color-primary: #002121;
   --ion-color-primary-rgb: 0,33,33;
@@ -57,6 +68,207 @@
   --ion-color-light-contrast-rgb: 0,0,0;
   --ion-color-light-shade: #d4d4ca;
   --ion-color-light-tint: #f2f2e9;
-
 }
 
+// ---------------------------------------------------------------------------
+// 2. Design tokens (theme-agnostic)
+// ---------------------------------------------------------------------------
+:root {
+  // Typography — Inter for UI text, Roboto reserved for brand/nav (matches logo)
+  --evento-font-ui: 'Inter Variable', 'Inter', system-ui, -apple-system,
+    'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --evento-font-brand: 'Roboto', var(--evento-font-ui);
+  --evento-font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace,
+    'Menlo', 'Consolas', monospace;
+  --ion-font-family: var(--evento-font-ui);
+
+  // Type scale (font-size / line-height)
+  --evento-text-2xs: 0.6875rem;   // 11px
+  --evento-text-xs:  0.75rem;     // 12px
+  --evento-text-sm:  0.8125rem;   // 13px
+  --evento-text-base: 0.875rem;   // 14px  (app default is dense)
+  --evento-text-md:  1rem;        // 16px
+  --evento-text-lg:  1.125rem;    // 18px
+  --evento-text-xl:  1.375rem;    // 22px
+  --evento-text-2xl: 1.75rem;     // 28px
+  --evento-text-3xl: 2.25rem;     // 36px
+  --evento-leading-tight: 1.25;
+  --evento-leading-normal: 1.5;
+
+  // Font weights
+  --evento-weight-regular: 400;
+  --evento-weight-medium: 500;
+  --evento-weight-semibold: 600;
+  --evento-weight-bold: 700;
+  --evento-weight-black: 800;
+
+  // Spacing scale (4px base)
+  --evento-space-1: 0.25rem;   // 4
+  --evento-space-2: 0.5rem;    // 8
+  --evento-space-3: 0.75rem;   // 12
+  --evento-space-4: 1rem;      // 16
+  --evento-space-5: 1.5rem;    // 24
+  --evento-space-6: 2rem;      // 32
+  --evento-space-7: 3rem;      // 48
+  --evento-space-8: 4rem;      // 64
+
+  // Radius scale
+  --evento-radius-xs: 4px;
+  --evento-radius-sm: 6px;
+  --evento-radius-md: 10px;
+  --evento-radius-lg: 14px;
+  --evento-radius-xl: 20px;
+  --evento-radius-pill: 999px;
+
+  // Motion
+  --evento-duration-fast: 120ms;
+  --evento-duration-base: 200ms;
+  --evento-duration-slow: 320ms;
+  --evento-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --evento-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  // Z-index scale
+  --evento-z-sticky: 100;
+  --evento-z-header: 200;
+  --evento-z-overlay: 900;
+  --evento-z-modal: 1000;
+  --evento-z-toast: 1100;
+
+  // ---- Surfaces & elevation (LIGHT) ----
+  --evento-bg: #f5f6f3;              // app background (warm off-white)
+  --evento-surface: #ffffff;         // cards / raised
+  --evento-surface-2: #eef0ea;       // inset / subtle fill
+  --evento-surface-3: #e4e7df;       // deeper inset
+  --evento-border: rgba(0, 33, 33, 0.10);        // hairline (teal-tinted)
+  --evento-border-strong: rgba(0, 33, 33, 0.18);
+  --evento-text: #14201f;            // primary text
+  --evento-text-muted: #5c6b6a;      // secondary text
+  --evento-text-faint: #8a9997;      // tertiary / placeholder
+  --evento-accent: var(--ion-color-tertiary);   // warm orange focus/active
+
+  --evento-shadow-sm: 0 1px 2px rgba(0, 33, 33, 0.06),
+                      0 1px 3px rgba(0, 33, 33, 0.08);
+  --evento-shadow-md: 0 2px 6px rgba(0, 33, 33, 0.08),
+                      0 6px 16px rgba(0, 33, 33, 0.08);
+  --evento-shadow-lg: 0 10px 30px rgba(0, 33, 33, 0.12),
+                      0 4px 10px rgba(0, 33, 33, 0.08);
+  --evento-focus-ring: 0 0 0 3px rgba(222, 115, 64, 0.35);  // accent
+
+  // Header bar background — decoupled from --ion-color-primary so the header can
+  // stay dark teal while `primary` is free to act as an accent (esp. in dark).
+  --evento-header-bg: #002121;
+  --evento-header-fg: #ffffff;
+
+  // ---- Map surfaces onto Ionic (LIGHT) ----
+  --ion-background-color: var(--evento-bg);
+  --ion-background-color-rgb: 245, 246, 243;
+  --ion-text-color: var(--evento-text);
+  --ion-text-color-rgb: 20, 32, 31;
+  --ion-card-background: var(--evento-surface);
+  --ion-item-background: var(--evento-surface);
+  --ion-toolbar-background: var(--ion-color-primary);
+  --ion-border-color: var(--evento-border);
+}
+
+// ---------------------------------------------------------------------------
+// 3. Dark theme
+//    Neutrals/steps come from Ionic's dark.class.css (imported in angular.json
+//    before this file). Here we (a) restore the BRAND palette that Ionic's
+//    dark palette overrides, and (b) tint the surfaces toward the teal brand.
+//    App runs in md mode, so surface overrides target `.ion-palette-dark.md`
+//    to match Ionic's specificity; source order (this file is later) wins.
+// ---------------------------------------------------------------------------
+
+// (a) Restore brand accent palette in dark (Ionic set these to its blue).
+.ion-palette-dark {
+  // In dark, primary/secondary are used as FOREGROUND accents (chip text, links,
+  // subtitles), so they must be light enough to read on dark surfaces. The dark
+  // header no longer depends on primary — it uses --evento-header-bg.
+  --ion-color-primary: #4dab9d;      // legible brand teal on dark
+  --ion-color-primary-rgb: 77,171,157;
+  --ion-color-primary-contrast: #04201d;
+  --ion-color-primary-contrast-rgb: 4,32,29;
+  --ion-color-primary-shade: #449689;
+  --ion-color-primary-tint: #5fb3a7;
+
+  --ion-color-secondary: #7fb3b2;
+  --ion-color-secondary-rgb: 127,179,178;
+  --ion-color-secondary-contrast: #04201d;
+  --ion-color-secondary-contrast-rgb: 4,32,29;
+  --ion-color-secondary-shade: #709e9d;
+  --ion-color-secondary-tint: #8cbbba;
+
+  --ion-color-tertiary: #DE7340;     // accent orange unchanged (pops on dark)
+  --ion-color-tertiary-rgb: 222,115,64;
+  --ion-color-tertiary-contrast: #000000;
+  --ion-color-tertiary-contrast-rgb: 0,0,0;
+  --ion-color-tertiary-shade: #c36538;
+  --ion-color-tertiary-tint: #e18153;
+
+  --ion-color-success: #00C597;
+  --ion-color-success-rgb: 0,197,151;
+  --ion-color-success-contrast: #000000;
+  --ion-color-success-contrast-rgb: 0,0,0;
+  --ion-color-success-shade: #00ad85;
+  --ion-color-success-tint: #1acba1;
+
+  --ion-color-warning: #ffc409;
+  --ion-color-warning-rgb: 255,196,9;
+  --ion-color-warning-contrast: #000000;
+  --ion-color-warning-contrast-rgb: 0,0,0;
+  --ion-color-warning-shade: #e0ac08;
+  --ion-color-warning-tint: #ffca22;
+
+  --ion-color-danger: #eb445a;
+  --ion-color-danger-rgb: 235,68,90;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255,255,255;
+  --ion-color-danger-shade: #cf3c4f;
+  --ion-color-danger-tint: #ed576b;
+
+  --ion-color-medium: #95B1B0;
+  --ion-color-medium-rgb: 149,177,176;
+  --ion-color-medium-contrast: #000000;
+  --ion-color-medium-contrast-rgb: 0,0,0;
+  --ion-color-medium-shade: #839c9b;
+  --ion-color-medium-tint: #a0b9b8;
+
+  // In dark, "light" must not be a near-white fill (it is used as a surface
+  // color in a few places) — remap to a dark teal-tinted surface.
+  --ion-color-light: #16211f;
+  --ion-color-light-rgb: 22,33,31;
+  --ion-color-light-contrast: #ffffff;
+  --ion-color-light-contrast-rgb: 255,255,255;
+  --ion-color-light-shade: #131d1b;
+  --ion-color-light-tint: #2a3634;
+}
+
+// (b) Teal-tinted surfaces + design tokens for dark (md-mode specificity).
+.ion-palette-dark.md,
+.ion-palette-dark.ios {
+  --evento-bg: #0c1413;
+  --evento-surface: #12201e;
+  --evento-surface-2: #182826;
+  --evento-surface-3: #20302e;
+  --evento-border: rgba(149, 177, 176, 0.16);
+  --evento-border-strong: rgba(149, 177, 176, 0.28);
+  --evento-text: #e6edec;
+  --evento-text-muted: #9fb2b1;
+  --evento-text-faint: #6f8483;
+
+  --evento-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --evento-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --evento-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --evento-focus-ring: 0 0 0 3px rgba(222, 115, 64, 0.45);
+  --evento-header-bg: #08110f;
+
+  --ion-background-color: var(--evento-bg);
+  --ion-background-color-rgb: 12, 20, 19;
+  --ion-text-color: var(--evento-text);
+  --ion-text-color-rgb: 230, 237, 236;
+  --ion-card-background: var(--evento-surface);
+  --ion-item-background: var(--evento-surface);
+  --ion-toolbar-background: #08110f;
+  --ion-tab-bar-background: #08110f;
+  --ion-border-color: var(--evento-border);
+}
