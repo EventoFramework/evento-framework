@@ -29,8 +29,8 @@
 
 @import "theme/variables";
 
-@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
+// Fonts (Inter + Roboto) are self-hosted via @fontsource and loaded in
+// angular.json's `styles` array — no external Google Fonts request.
 
 .payload-type-DomainCommand {
   --background: #3399fe;
@@ -110,7 +110,7 @@
 
 .component-type-Projection {
   --background: lightgreen;
-  --color: white;
+  --color: #0a2a12; // dark text — white was unreadable on lightgreen
 }
 
 .component-type-Projector {
@@ -161,14 +161,14 @@
 
 ion-card.component-type {
   ion-card-content {
-    background: white;
+    background: var(--ion-card-background);
     margin-left: 16px;
   }
 }
 
 ion-card.payload-type {
   ion-card-content {
-    background: white;
+    background: var(--ion-card-background);
     margin-left: 16px;
   }
 }
@@ -176,14 +176,28 @@ ion-card.payload-type {
 
 ion-card.bundle {
   ion-card-content {
-    background: white;
+    background: var(--ion-card-background);
     margin-left: 16px;
   }
 }
 
 
+// Delineate the semantic type/payload chips from the surface — in dark mode the
+// black (Observer) and gray (Invoker) chips would otherwise blend into the page.
+.ion-palette-dark ion-chip[class*="component-type-"],
+.ion-palette-dark ion-chip[class*="payload-type-"] {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
 ion-item {
   --padding-start: 0;
+}
+
+// Filter lists (catalog + bundle-list left rail): give the checkboxes breathing
+// room from the item's edge instead of gluing them to it.
+.filters ion-item {
+  --padding-start: var(--evento-space-3);
+  --inner-padding-end: var(--evento-space-2);
 }
 
 ion-list-header {
@@ -191,7 +205,7 @@ ion-list-header {
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--evento-font-ui);
 }
 
 ion-title {
@@ -205,8 +219,7 @@ ion-title {
 
 
 .line-under {
-  --tw-border-opacity: 1;
-  border: 0 solid rgba(229, 231, 235, var(--tw-border-opacity));
+  border: 0 solid var(--evento-border);
   box-sizing: border-box;
 
   padding-bottom: 26px;
@@ -214,8 +227,6 @@ ion-title {
 }
 
 .line-right {
-  --tw-border-opacity: 1;
-
   padding-right: 26px;
 }
 
@@ -226,19 +237,19 @@ ion-title {
   bottom: 0;
   height: 80%;
   width: 1px; /* or 100px */
-  border-right: 1px solid rgba(229, 231, 235, var(--tw-border-opacity));
+  border-right: 1px solid var(--evento-border);
 }
 
 * {
 
-  font-family: 'Inter', sans-serif;
+  font-family: var(--evento-font-ui);
 }
 
 .title {
-  font-weight: 700;
-  font-size: .875rem;
+  font-weight: var(--evento-weight-bold);
+  font-size: var(--evento-text-base);
   line-height: 1.25rem;
-  color: black;
+  color: var(--evento-text);
 
 }
 
@@ -258,7 +269,7 @@ ion-title {
 .editor{
   width: 100%;
   min-height: 100px;
-  background: white;
+  background: var(--evento-surface);
 }
 
 .pipe{
@@ -316,13 +327,15 @@ table.mxPopupMenu tr {
   background-position: -9px -9px;
 }
 
-::-webkit-calendar-picker-indicator {
+// Only invert the native date-picker glyph in dark mode (in light it would
+// turn white-on-white and vanish).
+.ion-palette-dark ::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
 
 ion-modal {
-  --border-radius: 6px;
-  --box-shadow: 0 28px 48px rgba(0, 0, 0, 0.4)!important;
+  --border-radius: var(--evento-radius-md);
+  --box-shadow: var(--evento-shadow-lg)!important;
 }
 @media only screen and (min-width: 768px) and (min-height: 600px){
   .modal-large {

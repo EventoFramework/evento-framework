@@ -9,6 +9,19 @@
 
   <meta name="color-scheme" content="light dark" />
   <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+  <!-- No-flash theme: apply the persisted light/dark choice before first paint.
+       Kept in sync with ThemeService (localStorage key `evento-theme`). -->
+  <script>
+    (function () {
+      try {
+        var m = localStorage.getItem('evento-theme');
+        var dark = m === 'dark' || ((m === 'system' || !m) &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('ion-palette-dark');
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
   <meta name="format-detection" content="telephone=no" />
   <meta name="msapplication-tap-highlight" content="no" />
 

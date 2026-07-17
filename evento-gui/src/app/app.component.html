@@ -1,31 +1,43 @@
 <ion-app>
   <ion-tabs #tabs (ionTabsWillChange)="selectedTab = $event.tab">
 
-    <ion-tab-bar id="main-header" color="primary" slot="top">
+    <ion-tab-bar id="main-header" slot="top">
       <app-wrapped-content>
-        <ion-col size="3" class="ion-text-start">
-          <img id="main-logo" src="assets/img/logo.png" routerLink="/">
-        </ion-col>
-        <ion-col size="9" class="ion-text-end">
+       <div class="app-header">
+        <img id="main-logo" src="assets/img/logo.png" routerLink="/" alt="Evento">
 
-          <div class="tab-button" [class.selected]="selectedTab === 'system-state-store'"
-               (click)="tabs.select('system-state-store')" translate="system.state.store"></div>
+        <nav class="app-nav" aria-label="Primary">
+          <button class="tab-button" type="button"
+                  [class.selected]="selectedTab === 'payload-catalog'"
+                  (click)="tabs.select('payload-catalog')" translate="catalog.payload.title"></button>
+          <button class="tab-button" type="button"
+                  [class.selected]="selectedTab === 'component-catalog'"
+                  (click)="tabs.select('component-catalog')" translate="catalog.component.title"></button>
+          <button class="tab-button" type="button"
+                  [class.selected]="selectedTab === 'bundle-list'"
+                  (click)="tabs.select('bundle-list')" translate="bundle.title"></button>
+          <button class="tab-button" type="button"
+                  [class.selected]="selectedTab === 'cluster-status'"
+                  (click)="tabs.select('cluster-status')" translate="cluster.title"></button>
+          <button class="tab-button" type="button"
+                  [class.selected]="selectedTab === 'application-flows'"
+                  (click)="tabs.select('application-flows')" translate="application.flows.title"></button>
+          <button class="tab-button" type="button"
+                  [class.selected]="selectedTab === 'application-graph'"
+                  (click)="tabs.select('application-graph')" translate="application.graph.title"></button>
+          <button class="tab-button" type="button"
+                  [class.selected]="selectedTab === 'system-state-store'"
+                  (click)="tabs.select('system-state-store')" translate="system.state.store"></button>
+        </nav>
 
-          <div class="tab-button" [class.selected]="selectedTab === 'application-graph'"
-                (click)="tabs.select('application-graph')" translate="application.graph.title"></div>
-          <div class="tab-button" [class.selected]="selectedTab === 'application-flows'"
-               (click)="tabs.select('application-flows')" translate="application.flows.title"></div>
-          <div class="tab-button" [class.selected]="selectedTab === 'cluster-status'"
-               (click)="tabs.select('cluster-status')" translate="cluster.title"></div>
-          <div class="tab-button" [class.selected]="selectedTab === 'bundle-list'"
-               (click)="tabs.select('bundle-list')" translate="bundle.title"></div>
-          <div class="tab-button" [class.selected]="selectedTab === 'component-catalog'"
-               (click)="tabs.select('component-catalog')" translate="catalog.component.title"></div>
-          <div class="tab-button" [class.selected]="selectedTab === 'payload-catalog'"
-               (click)="tabs.select('payload-catalog')" translate="catalog.payload.title"></div>
-        </ion-col>
+        <button class="theme-toggle" type="button" (click)="theme.toggle()"
+                [attr.aria-label]="(theme.isDark() ? 'theme.switch.light' : 'theme.switch.dark') | translate"
+                [attr.aria-pressed]="theme.isDark()"
+                [title]="(theme.isDark() ? 'theme.switch.light' : 'theme.switch.dark') | translate">
+          <ion-icon aria-hidden="true" [name]="theme.isDark() ? 'sunny-outline' : 'moon-outline'"></ion-icon>
+        </button>
+       </div>
       </app-wrapped-content>
-
     </ion-tab-bar>
 
   </ion-tabs>
