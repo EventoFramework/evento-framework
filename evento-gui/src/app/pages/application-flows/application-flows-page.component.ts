@@ -199,7 +199,7 @@ export class ApplicationFlowsPage implements OnInit, OnDestroy {
             id,
             label: node.action + this.perfSuffix(node),
             color: textColor,
-            shape: 'barrel',
+            shape: 'cylinder',
           };
         } else if (node.type === 'Sink') {
           n = {id, label: 'Sink', color: 'grey', shape: 'ellipse'};
