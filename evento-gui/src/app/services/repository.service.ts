@@ -13,7 +13,7 @@ interface RepositoryInfo {
  * exposed on the bundle list endpoint. This service caches a {@code bundleId -> {repositoryUrl, linePrefix}}
  * map once and builds absolute links in the form {@code {repositoryUrl}/{path}#{linePrefix}{line}}.
  *
- * Link building is synchronous so it can be used from mxGraph context-menu / window.open callbacks;
+ * Link building is synchronous so it can be used from graph context-menu / window.open callbacks;
  * callers that render such links should await {@link whenReady} before showing them.
  */
 @Injectable({

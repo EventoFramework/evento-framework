@@ -39,11 +39,7 @@
               "src/theme/variables.scss",
               "src/global.scss"
             ],
-            "scripts": [
-
-              "src/assets/js/mxgraph.conf.js",
-              "node_modules/mxgraph/javascript/mxClient.js"
-            ],
+            "scripts": [],
             "aot": false,
             "vendorChunk": true,
             "extractLicenses": false,
@@ -120,11 +116,6 @@
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "/assets"
-              },
-              {
-                "glob": "**/*",
-                "input": "./node_modules/mxgraph/javascript/src",
-                "output": "/assets/mxgraph"
               }
             ]
           },
