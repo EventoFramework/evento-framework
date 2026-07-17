@@ -46,8 +46,23 @@ export interface EventoNode {
   route?: string;
   /** Source location for the "Open Repository" context menu. */
   repo?: {bundleId: string; path: string; line: number};
-  /** Cytoscape shape override (default round-rectangle). */
+  /**
+   * Shape override (default round-rectangle). The special value `cylinder`
+   * renders the classic database symbol (event-store) via an inline SVG —
+   * Cytoscape's built-in `barrel` bulges sideways and reads wrong.
+   */
   shape?: string;
+}
+
+/** Inline-SVG database cylinder used for event-store nodes. The explicit
+ *  width/height set the raster resolution: without them the browser rasterizes
+ *  at the tiny viewBox size and the cylinder blurs when zoomed in. */
+function cylinderSvg(stroke: string, fill: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 130" width="600" height="780">` +
+    `<path d="M4 18 a46 14 0 0 1 92 0 v94 a46 14 0 0 1 -92 0 z" fill="${fill}" stroke="${stroke}" stroke-width="3"/>` +
+    `<ellipse cx="50" cy="18" rx="46" ry="14" fill="${fill}" stroke="${stroke}" stroke-width="3"/>` +
+    `</svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 
 export interface EventoEdge {
@@ -113,7 +128,9 @@ export function createEventoGraph(
       // Multi-line labels get taller boxes sized by their longest line.
       const lines = (n.label || '').split('\n');
       const longest = lines.reduce((m, l) => Math.max(m, l.length), 3);
+      const isCylinder = n.shape === 'cylinder';
       return {
+        classes: isCylinder ? 'cylinder' : '',
         data: {
           id: n.id,
           label: n.label,
@@ -124,9 +141,10 @@ export function createEventoGraph(
           fg: n.primary ? n.color : p.text,
           bw: n.primary ? 4 : 2,
           fw: n.primary ? 700 : 500,
-          shape: n.shape || 'round-rectangle',
+          shape: isCylinder ? 'rectangle' : (n.shape || 'round-rectangle'),
+          bgImg: isCylinder ? cylinderSvg(n.color, p.surface) : '',
           w: Math.max(80, longest * 8 + 20),
-          h: 30 + lines.length * 16,
+          h: 30 + lines.length * 16 + (isCylinder ? 26 : 0),
         },
       };
     }),
@@ -182,6 +200,19 @@ export function createEventoGraph(
           'text-max-width': 'data(w)',
           width: 'data(w)',
           height: 'data(h)',
+        },
+      },
+      {
+        // Database-cylinder nodes: the SVG *is* the visual; hide the box.
+        selector: 'node.cylinder',
+        style: {
+          'background-opacity': 0,
+          'border-width': 0,
+          'background-image': 'data(bgImg)' as any,
+          'background-width': '100%' as any,
+          'background-height': '100%' as any,
+          // Nudge the label below the cylinder lid.
+          'text-margin-y': 8 as any,
         },
       },
       {
@@ -417,6 +448,9 @@ export function createEventoGraph(
     cy.batch(() => {
       cy.nodes().forEach((n) => {
         n.data('bg', p.surface);
+        if (n.hasClass('cylinder')) {
+          n.data('bgImg', cylinderSvg(n.data('color'), p.surface));
+        }
         if (!n.data('route') || n.data('fw') !== 700) {
           n.data('fg', n.data('fw') === 700 ? n.data('color') : p.text);
         }
