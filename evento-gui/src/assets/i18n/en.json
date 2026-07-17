@@ -1,6 +1,8 @@
 {
 	"evento.name":"Evento",
 	"evento.description":"Reactive Event Framework",
+	"theme.switch.light":"Switch to light mode",
+	"theme.switch.dark":"Switch to dark mode",
 	"application.flows.title":"Flows",
 	"application.graph.title":"Application Graph",
 	"bundle":"Bundles",

@@ -1,4 +1,5 @@
-import {Component, ChangeDetectionStrategy} from '@angular/core';
+import {Component, ChangeDetectionStrategy, inject} from '@angular/core';
+import {ThemeService} from './services/theme.service';
 
 @Component({
     selector: 'app-root',
@@ -8,7 +9,11 @@ import {Component, ChangeDetectionStrategy} from '@angular/core';
     standalone: false
 })
 export class AppComponent {
+  // Public so the header template can bind the light/dark toggle. Injecting it
+  // here also initializes the service at app start (applies the persisted
+  // choice and follows the OS preference).
+  readonly theme = inject(ThemeService);
 
-  selectedTab = 'payload-catalog';
+  selectedTab = '';
   constructor() {}
 }
