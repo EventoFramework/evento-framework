@@ -68,6 +68,14 @@
             <span>{{components.length}}/</span>
             }{{allComponents.length}})
           </ion-card-subtitle>
+          @if (!loaded) {
+            <app-card-skeleton [count]="6" size="6"></app-card-skeleton>
+          } @else if (components.length === 0) {
+            <div class="empty-state">
+              <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+              <p translate="common.no.results"></p>
+            </div>
+          } @else {
           <ion-row>
             @for (component of components; track component) {
               <ion-col size="6">
@@ -102,6 +110,7 @@
               </ion-col>
             }
           </ion-row>
+          }
         </ion-col>
       </ion-row>
     </ion-grid>

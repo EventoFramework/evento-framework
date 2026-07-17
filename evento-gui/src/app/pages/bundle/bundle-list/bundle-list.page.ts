@@ -16,6 +16,7 @@ export class BundleListPage implements OnInit {
 
   bundles = [];
   allBundles = [];
+  loaded = false;
 
   constructor(private bundleService: BundleService) {
   }
@@ -33,6 +34,7 @@ export class BundleListPage implements OnInit {
     this.domains = domains;
 
     this.checkFilters();
+    this.loaded = true;
   }
   async ngOnInit() {
 

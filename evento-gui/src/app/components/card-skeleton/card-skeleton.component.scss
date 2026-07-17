@@ -1,0 +1,36 @@
+.skeleton-card {
+  background: var(--evento-surface);
+  border: 1px solid var(--evento-border);
+  border-radius: var(--evento-radius-md);
+  box-shadow: var(--evento-shadow-sm);
+  padding: var(--evento-space-4);
+  margin: var(--evento-space-2) 0;
+}
+
+ion-skeleton-text {
+  --border-radius: var(--evento-radius-xs);
+  margin: 0;
+}
+
+.sk-title {
+  width: 55%;
+  height: 18px;
+  margin-bottom: var(--evento-space-3);
+}
+
+.sk-line {
+  width: 85%;
+  height: 12px;
+  margin-bottom: var(--evento-space-4);
+}
+
+.sk-chips {
+  display: flex;
+  gap: var(--evento-space-2);
+}
+
+.sk-chip {
+  width: 84px;
+  height: 26px;
+  --border-radius: var(--evento-radius-pill);
+}
