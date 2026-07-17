@@ -1,150 +1,96 @@
-import {Component, ElementRef, Input, OnInit, ViewChild, ChangeDetectionStrategy} from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Input,
+  OnDestroy,
+  ViewChild,
+} from '@angular/core';
 import {NavController} from '@ionic/angular';
-import {componentColor, graphCenterFit, payloadColor} from '../../services/utils';
-import {setZoom} from "../common";
+import {componentColor, payloadColor} from '../../services/utils';
 import {RepositoryService} from '../../services/repository.service';
-
-declare const mxGraph: any;
-declare const mxEvent: any;
-declare const mxHierarchicalLayout: any;
+import {createEventoGraph, EventoEdge, EventoGraphHandle, EventoNode} from '../graph/evento-graph';
 
 @Component({
-    selector: 'app-bundle-components-diagram',
-    templateUrl: './bundle-components-diagram.component.html',
-    styleUrls: ['./bundle-components-diagram.component.scss'],
-    changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+  selector: 'app-bundle-components-diagram',
+  templateUrl: './bundle-components-diagram.component.html',
+  styleUrls: ['./bundle-components-diagram.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  standalone: false,
 })
-export class BundleComponentsDiagramComponent implements OnInit {
+export class BundleComponentsDiagramComponent implements AfterViewInit, OnDestroy {
 
-  @Input()
-  bundle;
+  @Input() bundle;
   @ViewChild('container', {static: true}) container: ElementRef;
 
-  constructor(private navController: NavController,
-              private repository: RepositoryService) {
+  private graph: EventoGraphHandle;
+
+  constructor(private navController: NavController, private repository: RepositoryService) {
   }
 
-  ngOnInit() {
-    setTimeout(() => {
+  ngAfterViewInit() {
+    const nodes: EventoNode[] = [];
+    const edges: EventoEdge[] = [];
+    const seenComponents = new Set<string>();
 
-      const container = this.container.nativeElement;
-
-      const graph = new mxGraph(container);
-      const parent = graph.getDefaultParent();
-      graph.centerZoom = false;
-      graph.setTooltips(false);
-      graph.setEnabled(false);
-
-      // Enables panning with left mouse button
-      graph.panningHandler.useLeftButtonForPanning = true;
-      graph.panningHandler.ignoreCell = true;
-      graph.container.style.cursor = 'move';
-      graph.setPanning(true);
-      graph.resizeContainer = false;
-
-
-      mxEvent.disableContextMenu(container);
-      setZoom(container, graph)
-
-      const edges = [];
-      const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;' +
-        'endArrow=block;endFill=1;orthogonal=1;strokeColor=#999999;strokeWidth=1;';
-
-      graph.view.addListener(mxEvent.AFTER_RENDER, () => {
-        for (const e of edges) {
-          const state = graph.view.getState(e);
-          state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
-        }
-      });
-
-      const components = {};
-      graph.getModel().beginUpdate();
-      try {
-
-        for (const h of this.bundle.handlers) {
-          if (h.handlerType === 'EventSourcingHandler') {
-            continue;
-          }
-          if (!components[h.componentName]) {
-            components[h.componentName] = graph.insertVertex(parent, '/component-info/' + h.componentName,
-              h.componentName, 0, 0, h.componentName.length*7, 50,
-              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + componentColor[h.componentType] +
-              ';fontColor=#333333;strokeWidth=3;');
-
-          }
-          const p = components[h.componentName];
-          const t = graph.insertVertex(parent, '/payload-info/' + h.handledPayload.name, h.handledPayload.name,
-            0, 0, h.handledPayload.name.length*7, 50,
-            'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.handledPayload.type] +
-            ';fontColor=#333333;strokeWidth=3;');
-          t.handler = h;
-          edges.push(graph.insertEdge(parent, null, null, t, p, edgeStyle));
-
-          if (h.returnType) {
-            const r = graph.insertVertex(parent, '/payload-info/' + h.returnType.name, h.returnType.name  +
-              (h.returnIsMultiple ? '[]' : ''), 0, 0, h.returnType.name.length*7, 50,
-              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[h.returnType.type] +
-              ';fontColor=#333333;strokeWidth=3;');
-            edges.push(graph.insertEdge(parent, null, null, p, r, edgeStyle));
-          }
-
-
-          for (const i of Object.values(h.invocations) as any[]) {
-            const ii = graph.insertVertex(parent, '/payload-info/' + i.name, i.name, 0, 0, i.name.length*7, 50,
-              'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + payloadColor[i.type] +
-              ';fontColor=#333333;strokeWidth=3;');
-            edges.push(graph.insertEdge(parent, null, null, p, ii, edgeStyle));
-          }
-        }
-
-        graph.addListener(mxEvent.DOUBLE_CLICK, (sender, evt) => {
-          const cell = evt.getProperty('cell'); // Get the cell that was clicked
-          if (cell?.id) {
-            return this.navController.navigateForward(cell.id);
-          }
+    this.bundle.handlers.forEach((h, idx) => {
+      if (h.handlerType === 'EventSourcingHandler') {
+        return;
+      }
+      const comp = `comp-${h.componentName}`;
+      if (!seenComponents.has(comp)) {
+        seenComponents.add(comp);
+        nodes.push({
+          id: comp,
+          label: h.componentName,
+          color: componentColor[h.componentType],
+          route: '/component-info/' + h.componentName,
         });
-
-
-      } finally {
-        graph.getModel().endUpdate();
       }
 
+      const pay = `pay-${idx}`;
+      nodes.push({
+        id: pay,
+        label: h.handledPayload.name,
+        color: payloadColor[h.handledPayload.type],
+        route: '/payload-info/' + h.handledPayload.name,
+        repo: {bundleId: h.bundleId, path: h.path, line: h.line},
+      });
+      edges.push({source: pay, target: comp});
 
-      // Configures automatic expand on mouseover
-      graph.popupMenuHandler.autoExpand = true;
-      // Installs a popupmenu handler using local function (see below).
-      graph.popupMenuHandler.factoryMethod = (menu, cell, evt) => {
-        if(cell?.vertex){
-          const t = cell.handler;
-          if (t) {
-            const link = this.repository.link(t.bundleId, t.path, t.line);
-            if (link) {
-              menu.addItem('Open Repository (' + t.line + ')', '',
-                () => {
-                  window.open(link, '_blank');
-                });
-            }
-          }
-        }
+      if (h.returnType) {
+        const ret = `ret-${idx}`;
+        nodes.push({
+          id: ret,
+          label: h.returnType.name + (h.returnIsMultiple ? '[]' : ''),
+          color: payloadColor[h.returnType.type],
+          route: '/payload-info/' + h.returnType.name,
+        });
+        edges.push({source: comp, target: ret});
       }
 
+      (Object.values(h.invocations) as any[]).forEach((i, j) => {
+        const inv = `inv-${idx}-${j}`;
+        nodes.push({
+          id: inv,
+          label: i.name,
+          color: payloadColor[i.type],
+          route: '/payload-info/' + i.name,
+        });
+        edges.push({source: comp, target: inv});
+      });
+    });
 
-      const layout = new mxHierarchicalLayout(graph, 'west');
-      layout.traverseAncestors = false;
-      layout.execute(parent);
-
-      for (const e of edges) {
-        const state = graph.view.getState(e);
-        state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
-      }
-
-
-
-      graphCenterFit(graph, container);
-
-    }, 500);
-
-
+    this.graph = createEventoGraph(this.container.nativeElement, nodes, edges, {
+      direction: 'RIGHT',
+      onNavigate: (route) => this.navController.navigateForward(route),
+      repoLink: (repo) => this.repository.link(repo.bundleId, repo.path, repo.line),
+    });
   }
+
+  ngOnDestroy() {
+    this.graph?.destroy();
+  }
+
 }
