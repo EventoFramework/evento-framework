@@ -339,44 +339,6 @@ ion-title {
 }
 
 
-body div.mxPopupMenu {
-  -webkit-box-shadow: 3px 3px 6px #C0C0C0;
-  -moz-box-shadow: 3px 3px 6px #C0C0C0;
-  box-shadow: 3px 3px 6px #C0C0C0;
-  background: white;
-  position: absolute;
-  border: 3px solid #e7e7e7;
-  padding: 3px;
-}
-body table.mxPopupMenu {
-  border-collapse: collapse;
-  margin: 0px;
-}
-body tr.mxPopupMenuItem {
-  color: black;
-  cursor: default;
-}
-body td.mxPopupMenuItem {
-  padding: 6px 60px 6px 30px;
-  font-family: Arial;
-  font-size: 10pt;
-}
-body td.mxPopupMenuIcon {
-  background-color: white;
-  padding: 0px;
-}
-body tr.mxPopupMenuItemHover {
-  background-color: #eeeeee;
-  color: black;
-}
-table.mxPopupMenu hr {
-  border-top: solid 1px #cccccc;
-}
-table.mxPopupMenu tr {
-  font-size: 4pt;
-}
-
-
 .grid-bg{
   background-color: var(--evento-surface);
   background-image: radial-gradient(var(--evento-border-strong) 1px, transparent 0);
@@ -386,7 +348,7 @@ table.mxPopupMenu tr {
   border-radius: var(--evento-radius-md);
 }
 
-// Floating context menu for graph nodes ("Open Repository").
+// Floating context menu for graph nodes ("Open Repository", perf editors).
 .evento-graph-menu {
   position: fixed;
   z-index: var(--evento-z-overlay);
@@ -395,13 +357,19 @@ table.mxPopupMenu tr {
   border: 1px solid var(--evento-border-strong);
   border-radius: var(--evento-radius-sm);
   box-shadow: var(--evento-shadow-md);
-  padding: var(--evento-space-2) var(--evento-space-3);
+  padding: var(--evento-space-1);
   font-size: var(--evento-text-sm);
-  cursor: pointer;
   user-select: none;
 
-  &:hover {
-    background: var(--evento-surface-2);
+  .evento-graph-menu-item {
+    padding: var(--evento-space-2) var(--evento-space-3);
+    border-radius: var(--evento-radius-xs);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: var(--evento-surface-2);
+    }
   }
 }
 
