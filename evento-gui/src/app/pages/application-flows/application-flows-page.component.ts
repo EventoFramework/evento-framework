@@ -1,30 +1,27 @@
-import {Component, ElementRef, OnInit, ViewChild, ChangeDetectionStrategy} from '@angular/core';
+import {ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
-import {componentColor, graphCenterFit, payloadColor, stringToColour} from '../../services/utils';
+import {payloadColor, stringToColour} from '../../services/utils';
 import {FlowsService} from '../../services/flows.service';
 import {CatalogService} from '../../services/catalog.service';
 import {BundleService} from '../../services/bundle.service';
 import {RepositoryService} from '../../services/repository.service';
-import {AlertController, LoadingController} from "@ionic/angular";
-import {setZoom} from "../../components/common";
-
-declare let mxGraph: any;
-declare let mxHierarchicalLayout: any;
-declare let mxEvent: any;
-declare let mxXmlCanvas2D: any;
-declare let mxUtils: any;
-declare let mxImageExport: any;
-declare let mxXmlRequest: any;
-
+import {AlertController, LoadingController} from '@ionic/angular';
+import {
+  createEventoGraph,
+  cssToken,
+  EventoEdge,
+  EventoGraphHandle,
+  EventoNode,
+} from '../../components/graph/evento-graph';
 
 @Component({
-    selector: 'app-application-petri-net',
-    templateUrl: './application-flows-page.component.html',
-    styleUrls: ['./application-flows-page.component.scss'],
-    changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+  selector: 'app-application-petri-net',
+  templateUrl: './application-flows-page.component.html',
+  styleUrls: ['./application-flows-page.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  standalone: false,
 })
-export class ApplicationFlowsPage implements OnInit {
+export class ApplicationFlowsPage implements OnInit, OnDestroy {
 
 
   @ViewChild('container', {static: true}) container: ElementRef;
@@ -48,6 +45,7 @@ export class ApplicationFlowsPage implements OnInit {
 
 
   private model: any;
+  private graph: EventoGraphHandle | null = null;
 
   constructor(private flowService: FlowsService,
               private catalogService: CatalogService,
@@ -72,6 +70,11 @@ export class ApplicationFlowsPage implements OnInit {
     this.checkFilter();
 
     this.route.queryParamMap.subscribe(async q => this.setModel(await this.loadModelFromQuery(q)));
+  }
+
+  ngOnDestroy() {
+    this.graph?.destroy();
+    this.graph = null;
   }
 
   async loadModelFromQuery(queryParamMap) {
@@ -107,13 +110,6 @@ export class ApplicationFlowsPage implements OnInit {
   }
 
   setModel(model) {
-
-
-    const container = this.container.nativeElement;
-
-    // Disables built-in context menu
-    mxEvent.disableContextMenu(container);
-
     this.model = model;
     this.sources = [];
     const tMap = {};
@@ -134,21 +130,18 @@ export class ApplicationFlowsPage implements OnInit {
       }
     }
 
-     
     for (const block in tMap) {
       for (const node of tMap[block]) {
-        //node.numServers = node.numServers / tMap[block].length;
         node.fcr = true;
       }
     }
 
 
-    return this.drawGraph(container);
+    return this.drawGraph(this.container.nativeElement);
   }
 
   redrawGraph() {
-    const container = this.container.nativeElement;
-    this.drawGraph(container);
+    return this.drawGraph(this.container.nativeElement);
   }
 
   togglePerformanceAnalysis(event: any) {
@@ -172,283 +165,202 @@ export class ApplicationFlowsPage implements OnInit {
   private async drawGraph(container) {
     const loading = await this.loadingController.create({
       message: 'Rendering flow...',
-    })
+    });
     await loading.present();
-    setTimeout(() => {
-      try {
-        container.innerHTML = '';
-        const graph = new mxGraph(container);
-        const parent = graph.getDefaultParent();
-        graph.setTooltips(true);
-
-        // Enables panning with left mouse button
-        graph.panningHandler.useLeftButtonForPanning = true;
-        graph.panningHandler.ignoreCell = true;
-        graph.container.style.cursor = 'move';
-        graph.setPanning(true);
-        graph.resizeContainer = false;
-        graph.htmlLabels = true;
-        graph.setCellsEditable(false);
-        graph.setCellsResizable(false);
-        graph.setCellsSelectable(false);
-
-        setZoom(container, graph)
-
-
-        const edges = [];
-        const layout = new mxHierarchicalLayout(graph, this.orientation ? 'west' : 'north');
-        layout.traverseAncestors = false;
-        graph.getModel().beginUpdate();
-        try {
-
-          const nodesRef = {};
-
-          for (const node of this.model.nodes) {
-            nodesRef[node.id] = node;
-            if (node.type !== 'Source') {
-              node.throughtput = 0;
-            }
-            node.workload = node.throughtput;
-          }
-
-
-          if (this.performanceAnalysis) {
-            this.doPerformanceAnalysis(nodesRef);
-
-          }
-
-
-          const vertexRef = {};
-
-          const sinkStyle = 'shape=ellipse;whiteSpace=wrap;perimeter=ellipsePerimeter;strokeColor=grey;' +
-            'fontColor=black;fillColor=transparent';
-          const edgeStyle = 'edgeStyle=elbowEdgeStyle;rounded=1;jumpStyle=arc;orthogonalLoop=1;jettySize=auto;html=1;' +
-            'endArrow=block;endFill=1;orthogonal=1;strokeWidth=1;';
-          for (const node of this.model.nodes) {
-
-            let height = 60;
-            if (node.component === 'Gateway') {
-              vertexRef[node.id] = graph.insertVertex(parent, node.id,
-                `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`,
-                null, null, node.action.length * 10 + 25,
-                height,
-                'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' +
-                (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
-            } else if (node.type === 'Source') {
-              const text = node.name;
-              vertexRef[node.id] = graph.insertVertex(parent, node.id,
-                `<span class="title" style="color: ${payloadColor[node.actionType]} !important;">${node.action}</span>`,
-                null, null, text.length * 10,
-                height,
-                'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' +
-                (node.actionType ? payloadColor[node.actionType] : 'black') + ';fontColor=#333333;strokeWidth=3;');
-            } else if (node.bundle === 'event-store') {
-              height = 80;
-              vertexRef[node.id] = graph.insertVertex(parent, node.id, '\n<span class="title">' + node.action + '</span>',
-                null, null, node.action.length * 10 + 30,
-                height,
-                'shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;rounded=1;whiteSpace=wrap;' +
-                'html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#333333;strokeWidth=3;');
-            } else if (node.type === 'Sink') {
-              node.name = node.type;
-              height = 50;
-              vertexRef[node.id] = graph.insertVertex(parent, node.id, 'Sink', null, null, 50,
-                height,
-                sinkStyle);
-            } else {
-              height = 80;
-              vertexRef[node.id] = graph.insertVertex(parent, node.id,
-                `<b style="color: ${stringToColour(node.bundle)}">${node.bundle}</b>
-                <span class="title" style="color: ${componentColor[node.componentType]} !important">${node.component}</span>`
-                , null, null, Math.max(node.component.length, node.bundle.length) * 10 + 25,
-                height,
-                'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=' + stringToColour(node.bundle) +
-                ';fontColor=#333333;strokeWidth=3;');
-            }
-
-            vertexRef[node.id].nodeId = node.id;
-            vertexRef[node.id].handlerId = node.handlerId;
-
-            if (this.performanceAnalysis && node.isBottleneck && node.type !== 'Source') {
-              vertexRef[node.id].style += 'strokeColor=#ff0000;strokeWidth=3;';
-            }
-
-            if (this.performanceAnalysis && node.meanServiceTime) {
-              vertexRef[node.id].value +=
-                `<br/><br/>Service time: ${node.meanServiceTime.toFixed(4)}  [ms]` +
-                `<br/>Customers: ${node.customers.toFixed(4) + (node.fcr ? ('/' + 1) : '')} [r]`;
-              vertexRef[node.id].geometry.height += 30;
-              if (node.bundle === 'event-store') {
-                vertexRef[node.id].geometry.height += 30;
-                vertexRef[node.id].value = '<br/><br/>' + vertexRef[node.id].value;
-              }
-              //vertexRef[node.id].value += "<br/>" +
-
-
-            }
-            if (this.performanceAnalysis) {
-              // vertexRef[node.id].value += "<br/>" +  JSON.stringify(nodesRef[node.flow].throughtput) + "-" + node.throughtput
-            }
-          }
-
-
-          for (const node of this.model.nodes) {
-            const targets = [];
-            for (const t of Object.keys(node.target)) {
-              targets.push(nodesRef[t]);
-            }
-            for (const target of targets.sort((a, b) => a?.async - b?.async)) {
-              if (this.performanceAnalysis) {
-                const source = nodesRef[node.id];
-                const ql = (source.throughtput - target.throughtput);
-                const ratio = source.throughtput === 0 ? 0 : (source.throughtput * 1.00) / (source.workload * 1.00);
-                const c = this.perc2color(ratio * 100.0);
-                let txt = (node.throughtput * node.target[target.id]).toFixed(4) + '  [r/ms]';
-                if (target.fcr) {
-                  txt += '\n' + ql.toFixed(4) + ' [ql/ms]';
-                }
-                txt += '\n' + (node.target[target.id] * 100)?.toFixed(1) + ' %';
-                const zz = ';strokeWidth=' + String((Math.max(1, Math.min(ratio * 5, 10)))) + ';';
-                const sty = edgeStyle + zz + ';strokeColor=' + c + ';' + (target.async ? 'dashed=1' : 'dashed=0');
-                const defS = (!!ratio && !!node.target[target.id]) ? sty :
-                  (edgeStyle + ';strokeWidth=1;strokeColor=grey' + ';' + (target.async ? 'dashed=1' : 'dashed=0'));
-                graph.insertEdge(parent, null, txt, vertexRef[node.id],
-                  vertexRef[target.id], defS);
-              } else {
-                edges.push(graph.insertEdge(parent, null, '', vertexRef[node.id],
-                  vertexRef[target.id], edgeStyle + ';' + (target.async ? 'dashed=1' : 'dashed=0') + ';' +
-                  (target.async ? 'strokeColor=#999999' : 'strokeColor=#000')));
-              }
-            }
-          }
-
-
-          // Executes the layout
-          layout.execute(parent);
-        } finally {
-          graph.getModel().endUpdate();
+    try {
+      const nodesRef = {};
+      for (const node of this.model.nodes) {
+        nodesRef[node.id] = node;
+        if (node.type !== 'Source') {
+          node.throughtput = 0;
         }
-
-        // Configures automatic expand on mouseover
-        graph.popupMenuHandler.autoExpand = true;
-        // Installs a popupmenu handler using local function (see below).
-        graph.popupMenuHandler.factoryMethod = (menu, cell, evt) => {
-          if (cell?.vertex) {
-            if (this.performanceAnalysis) {
-              const node = this.model.nodes.find(n => (n.id === cell.nodeId));
-              if (node) {
-                const copies = this.model.nodes.filter(n => n.handlerId === node.handlerId);
-                menu.addItem('Edit Mean Service Time (' + (node.meanServiceTime || 1).toFixed(4) + ' [ms])', '', async () => {
-                  const alert = await this.alertController.create({
-                    header: 'Edit Mean Service Time',
-                    subHeader: node.component + ' - ' + node.action,
-                    inputs: [
-                      {
-                        id: 'mst',
-                        name: 'mst',
-                        value: node.meanServiceTime
-                      }
-                    ],
-                    buttons: [
-                      {
-                        text: 'Cancel',
-                        role: 'cancel',
-                      },
-                      {
-                        text: 'OK',
-                        role: 'confirm',
-                        handler: (e) => {
-                          for (const t of copies) {
-                            t.meanServiceTime = parseFloat(e.mst);
-                          }
-                          this.redrawGraph();
-                        },
-                      },
-                    ]
-                  });
-                  await alert.present();
-                });
-                menu.addSeparator();
-
-                for (const t of Object.keys(node.target)) {
-                  const i = this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(t, 10));
-                  menu.addItem(i.action + ' (' + node.target[t] + ')', '', async () => {
-                    const alert = await this.alertController.create({
-                      header: 'Edit Invocation Frequency',
-                      subHeader: node.component + ' - ' + i.action,
-                      inputs: [
-                        {
-                          id: 'inf',
-                          name: 'inf',
-                          value: node.target[t]
-                        }
-                      ],
-                      buttons: [
-                        {
-                          text: 'Cancel',
-                          role: 'cancel',
-                        },
-                        {
-                          text: 'OK',
-                          role: 'confirm',
-                          handler: (e) => {
-                            for (const tt of copies) {
-                               
-                              for (const k in tt.target) {
-                                if (this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(k, 10)).action === i.action) {
-                                  tt.target[k] = parseFloat(e.inf);
-                                }
-                              }
-                            }
-                            this.redrawGraph();
-                            //this.redrawGraph();
-                          },
-                        },
-                      ]
-                    });
-                    await alert.present();
-                  });
-                }
-              }
-            } else {
-              const t = this.model.nodes.find(n => n.id === cell.nodeId);
-              if (t) {
-                if (t.path && t.lines) {
-                  for (const line of t.lines) {
-                    const link = this.repository.link(t.bundle, t.path, line);
-                    if (link) {
-                      menu.addItem('Open Repository (' + line + ')', '',
-                        () => {
-                          window.open(link, '_blank');
-                        });
-                    }
-                  }
-                }
-              }
-            }
-          }
-        };
-
-
-        graphCenterFit(graph, container);
-
-        for (const e of edges) {
-          const state = graph.view.getState(e);
-          state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
-        }
-
-        graph.view.addListener(mxEvent.AFTER_RENDER, () => {
-          for (const e of edges) {
-            const state = graph.view.getState(e);
-            state.shape.node.getElementsByTagName('path')[1].setAttribute('class', 'flow');
-          }
-        });
-      } finally {
-        loading.dismiss();
+        node.workload = node.throughtput;
       }
-    }, 500);
+      if (this.performanceAnalysis) {
+        this.doPerformanceAnalysis(nodesRef);
+      }
 
+      const textColor = cssToken('--evento-text', '#14201f');
+      const gNodes: EventoNode[] = [];
+      const gEdges: EventoEdge[] = [];
 
+      for (const node of this.model.nodes) {
+        const id = String(node.id);
+        let n: EventoNode;
+        if (node.component === 'Gateway' || node.type === 'Source') {
+          n = {
+            id,
+            label: node.action,
+            color: node.actionType ? payloadColor[node.actionType] : textColor,
+            primary: true,
+          };
+        } else if (node.bundle === 'event-store') {
+          n = {
+            id,
+            label: node.action + this.perfSuffix(node),
+            color: textColor,
+            shape: 'barrel',
+          };
+        } else if (node.type === 'Sink') {
+          n = {id, label: 'Sink', color: 'grey', shape: 'ellipse'};
+        } else {
+          n = {
+            id,
+            label: `${node.bundle}\n${node.component}` + this.perfSuffix(node),
+            color: stringToColour(node.bundle),
+          };
+        }
+        if (this.performanceAnalysis && node.isBottleneck && node.type !== 'Source') {
+          n.color = '#ff0000';
+          n.primary = true;
+        }
+        gNodes.push(n);
+      }
+
+      for (const node of this.model.nodes) {
+        const targets = Object.keys(node.target).map(t => nodesRef[t]).filter(Boolean);
+        for (const target of targets.sort((a, b) => (a?.async ? 1 : 0) - (b?.async ? 1 : 0))) {
+          if (this.performanceAnalysis) {
+            const source = nodesRef[node.id];
+            const ql = source.throughtput - target.throughtput;
+            const ratio = source.throughtput === 0 ? 0 : source.throughtput / source.workload;
+            const active = !!ratio && !!node.target[target.id];
+            let txt = (node.throughtput * node.target[target.id]).toFixed(4) + ' [r/ms]';
+            if (target.fcr) {
+              txt += '\n' + ql.toFixed(4) + ' [ql/ms]';
+            }
+            txt += '\n' + (node.target[target.id] * 100)?.toFixed(1) + ' %';
+            gEdges.push({
+              source: String(node.id),
+              target: String(target.id),
+              flow: false,
+              dashed: !!target.async,
+              label: txt,
+              width: active ? Math.max(1, Math.min(ratio * 5, 10)) : 1,
+              color: active ? this.perc2color(ratio * 100.0) : 'grey',
+            });
+          } else {
+            gEdges.push({
+              source: String(node.id),
+              target: String(target.id),
+              flow: true,
+              color: target.async ? undefined : textColor,
+            });
+          }
+        }
+      }
+
+      this.graph?.destroy();
+      container.innerHTML = '';
+      this.graph = createEventoGraph(container, gNodes, gEdges, {
+        direction: this.orientation ? 'RIGHT' : 'DOWN',
+        contextMenu: (nodeId) => this.buildMenuItems(nodeId),
+      });
+    } finally {
+      await loading.dismiss();
+    }
+  }
+
+  private perfSuffix(node): string {
+    if (this.performanceAnalysis && node.meanServiceTime) {
+      return `\nService time: ${node.meanServiceTime.toFixed(4)} [ms]` +
+        `\nCustomers: ${node.customers.toFixed(4)}${node.fcr ? '/1' : ''} [r]`;
+    }
+    return '';
+  }
+
+  private buildMenuItems(nodeId: string): Array<{label: string; action: () => void}> {
+    const node = this.model.nodes.find(n => String(n.id) === nodeId);
+    if (!node) {
+      return [];
+    }
+    if (this.performanceAnalysis) {
+      const copies = this.model.nodes.filter(n => n.handlerId === node.handlerId);
+      const items: Array<{label: string; action: () => void}> = [{
+        label: 'Edit Mean Service Time (' + (node.meanServiceTime || 1).toFixed(4) + ' [ms])',
+        action: async () => {
+          const alert = await this.alertController.create({
+            header: 'Edit Mean Service Time',
+            subHeader: node.component + ' - ' + node.action,
+            inputs: [
+              {
+                id: 'mst',
+                name: 'mst',
+                value: node.meanServiceTime,
+              },
+            ],
+            buttons: [
+              {
+                text: 'Cancel',
+                role: 'cancel',
+              },
+              {
+                text: 'OK',
+                role: 'confirm',
+                handler: (e) => {
+                  for (const t of copies) {
+                    t.meanServiceTime = parseFloat(e.mst);
+                  }
+                  this.redrawGraph();
+                },
+              },
+            ],
+          });
+          await alert.present();
+        },
+      }];
+      for (const t of Object.keys(node.target)) {
+        const i = this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(t, 10));
+        items.push({
+          label: i.action + ' (' + node.target[t] + ')',
+          action: async () => {
+            const alert = await this.alertController.create({
+              header: 'Edit Invocation Frequency',
+              subHeader: node.component + ' - ' + i.action,
+              inputs: [
+                {
+                  id: 'inf',
+                  name: 'inf',
+                  value: node.target[t],
+                },
+              ],
+              buttons: [
+                {
+                  text: 'Cancel',
+                  role: 'cancel',
+                },
+                {
+                  text: 'OK',
+                  role: 'confirm',
+                  handler: (e) => {
+                    for (const tt of copies) {
+                      for (const k in tt.target) {
+                        if (this.model.nodes.find(n => parseInt(n.id, 10) === parseInt(k, 10)).action === i.action) {
+                          tt.target[k] = parseFloat(e.inf);
+                        }
+                      }
+                    }
+                    this.redrawGraph();
+                  },
+                },
+              ],
+            });
+            await alert.present();
+          },
+        });
+      }
+      return items;
+    }
+    const items: Array<{label: string; action: () => void}> = [];
+    if (node.path && node.lines) {
+      for (const line of node.lines) {
+        const link = this.repository.link(node.bundle, node.path, line);
+        if (link) {
+          items.push({label: 'Open Repository (' + line + ')', action: () => window.open(link, '_blank')});
+        }
+      }
+    }
+    return items;
   }
 
 
@@ -560,26 +472,6 @@ export class ApplicationFlowsPage implements OnInit {
               this.maxFlowThroughput[node.flow] = node;
             }
           }
-          /*
-          node.isBottleneck = false;
-          if (nodesRef[node.flow].throughtput > node.throughtput && node.type !== 'Sink') {
-            console.log(node);
-            let c = node.flow;
-            while (c){
-              console.log(c);
-              console.log(nodesRef[c])
-              if(nodesRef[c]?.flow == c){
-                break;
-              }
-              c = nodesRef[c]?.flow
-            }
-            /*
-            if (this.maxFlowThroughput[node.flow].throughtput > node.throughtput) {
-              this.maxFlowThroughput[node.flow] = node;
-            }
-            node.isBottleneck = true;
-          }
-        */
         }
         return;
       }
@@ -587,6 +479,6 @@ export class ApplicationFlowsPage implements OnInit {
   }
 
   setTp(source: any, $event: any) {
-    source.throughtput = 1 / $event.target.value
+    source.throughtput = 1 / $event.target.value;
   }
 }

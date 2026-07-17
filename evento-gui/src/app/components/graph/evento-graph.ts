@@ -29,7 +29,7 @@ function ensureDagre(): void {
 
 /** Read a CSS custom property off :root (canvas can't resolve var(), so we
  *  snapshot the token values at render time and re-read them on theme change). */
-function cssToken(name: string, fallback: string): string {
+export function cssToken(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
 }
@@ -55,6 +55,15 @@ export interface EventoEdge {
   target: string;
   /** Dashed + animated "flow" edge (default true). */
   flow?: boolean;
+  /** Static dashed line (async links) without the marching-ants animation. */
+  dashed?: boolean;
+  /** Edge label (supports \n for multi-line, e.g. throughput read-outs). */
+  label?: string;
+  /** Stroke width override (perf overlay encodes utilization). */
+  width?: number;
+  /** Stroke color override (perf overlay heat color); defaults to theme. */
+  color?: string;
+  opacity?: number;
 }
 
 export interface EventoGraphOptions {
@@ -62,6 +71,11 @@ export interface EventoGraphOptions {
   onNavigate?: (route: string) => void;
   /** Build a repository URL from a node's `repo`, or null if unavailable. */
   repoLink?: (repo: EventoNode['repo']) => string | null;
+  /**
+   * Full control over the right-click menu: return the items for a node (or
+   * empty/none to show nothing). Takes precedence over `repoLink`.
+   */
+  contextMenu?: (nodeId: string, node: EventoNode) => Array<{label: string; action: () => void}>;
 }
 
 export interface EventoGraphHandle {
@@ -90,30 +104,43 @@ export function createEventoGraph(
   });
   let p = palette();
 
+  const nodeById: Record<string, EventoNode> = {};
   const elements: cytoscape.ElementDefinition[] = [
-    ...nodes.map((n) => ({
-      data: {
-        id: n.id,
-        label: n.label,
-        color: n.color,
-        route: n.route,
-        repo: n.repo,
-        bg: p.surface,
-        fg: n.primary ? n.color : p.text,
-        bw: n.primary ? 4 : 2,
-        fw: n.primary ? 700 : 500,
-        shape: n.shape || 'round-rectangle',
-        // Explicit dimensions so ELK has real sizes at layout time (label-based
-        // sizing isn't measured yet when the layout runs synchronously).
-        w: Math.max(80, (n.label?.length || 3) * 8 + 20),
-        h: 46,
-      },
-    })),
+    ...nodes.map((n) => {
+      nodeById[n.id] = n;
+      // Explicit dimensions so the layout has real sizes at layout time
+      // (label-based sizing isn't measured yet when it runs synchronously).
+      // Multi-line labels get taller boxes sized by their longest line.
+      const lines = (n.label || '').split('\n');
+      const longest = lines.reduce((m, l) => Math.max(m, l.length), 3);
+      return {
+        data: {
+          id: n.id,
+          label: n.label,
+          color: n.color,
+          route: n.route,
+          repo: n.repo,
+          bg: p.surface,
+          fg: n.primary ? n.color : p.text,
+          bw: n.primary ? 4 : 2,
+          fw: n.primary ? 700 : 500,
+          shape: n.shape || 'round-rectangle',
+          w: Math.max(80, longest * 8 + 20),
+          h: 30 + lines.length * 16,
+        },
+      };
+    }),
     ...edges.map((e, i) => ({
       data: {
         id: `e${i}`,
         source: e.source,
         target: e.target,
+        lbl: e.label || '',
+        ew: e.width ?? 1.5,
+        lc: e.color || p.edge,
+        // Custom-colored edges keep their color on theme flips.
+        cc: e.color ? 1 : 0,
+        eo: e.opacity ?? 1,
         // Placeholders until computeElbows() derives the real geometry from
         // the laid-out node positions.
         sw: '0.5 0.5',
@@ -121,7 +148,7 @@ export function createEventoGraph(
         sep: opts.direction === 'DOWN' ? '180deg' : '90deg',
         tep: opts.direction === 'DOWN' ? '0deg' : '270deg',
       },
-      classes: e.flow === false ? '' : 'flow',
+      classes: [e.flow === false ? '' : 'flow', e.dashed ? 'dashed' : ''].join(' ').trim(),
     })),
   ];
 
@@ -160,11 +187,19 @@ export function createEventoGraph(
       {
         selector: 'edge',
         style: {
-          width: 1.5,
-          'line-color': p.edge,
-          'target-arrow-color': p.edge,
+          width: 'data(ew)' as any,
+          'line-color': 'data(lc)' as any,
+          'target-arrow-color': 'data(lc)' as any,
+          opacity: 'data(eo)' as any,
           'target-arrow-shape': 'triangle',
           'arrow-scale': 0.9,
+          label: 'data(lbl)' as any,
+          'font-size': 9,
+          color: p.text,
+          'text-wrap': 'wrap',
+          'text-background-color': p.surface,
+          'text-background-opacity': 0.85,
+          'text-background-padding': '2px',
           // Legacy mxGraph-style routing: a short fixed jetty leaves the
           // source's flow side, a straight diagonal crosses to the target,
           // and a jetty enters the target's opposite side (two joints).
@@ -185,6 +220,14 @@ export function createEventoGraph(
       },
       {
         selector: 'edge.flow',
+        style: {
+          'line-style': 'dashed',
+          'line-dash-pattern': [6, 4],
+        },
+      },
+      {
+        // Static dashed (async) — no marching-ants animation.
+        selector: 'edge.dashed',
         style: {
           'line-style': 'dashed',
           'line-dash-pattern': [6, 4],
@@ -335,16 +378,24 @@ export function createEventoGraph(
     if (route) opts.onNavigate?.(route);
   });
 
-  // Right-click → "Open Repository" menu when the node has a resolvable link.
+  // Right-click menu: caller-provided items (perf editors, …) or the default
+  // "Open Repository" link when the node has a resolvable source location.
   const menu = buildContextMenu();
   cy.on('cxttap', 'node', (evt) => {
     menu.hide();
-    const repo = evt.target.data('repo');
-    const url = repo && opts.repoLink ? opts.repoLink(repo) : null;
-    if (url) {
-      menu.show(evt.originalEvent as MouseEvent, `Open Repository (${repo.line})`, () =>
-        window.open(url, '_blank'),
-      );
+    const id = evt.target.id();
+    let items: Array<{label: string; action: () => void}> = [];
+    if (opts.contextMenu) {
+      items = opts.contextMenu(id, nodeById[id]) || [];
+    } else {
+      const repo = evt.target.data('repo');
+      const url = repo && opts.repoLink ? opts.repoLink(repo) : null;
+      if (url) {
+        items = [{label: `Open Repository (${repo.line})`, action: () => window.open(url, '_blank')}];
+      }
+    }
+    if (items.length) {
+      menu.show(evt.originalEvent as MouseEvent, items);
     }
   });
   cy.on('tap pan zoom', () => menu.hide());
@@ -370,9 +421,16 @@ export function createEventoGraph(
           n.data('fg', n.data('fw') === 700 ? n.data('color') : p.text);
         }
       });
+      // Edge colors are data-driven; only re-theme edges without a custom
+      // (perf-overlay) color.
+      cy.edges().forEach((e) => {
+        if (!e.data('cc')) {
+          e.data('lc', p.edge);
+        }
+      });
       cy.style()
         .selector('edge')
-        .style({'line-color': p.edge, 'target-arrow-color': p.edge})
+        .style({color: p.text, 'text-background-color': p.surface} as any)
         .update();
     });
   });
@@ -390,21 +448,25 @@ export function createEventoGraph(
   };
 }
 
-/** Minimal floating context menu (single action). */
+/** Minimal floating context menu (one or more actions). */
 function buildContextMenu() {
   const el = document.createElement('div');
   el.className = 'evento-graph-menu';
   el.style.display = 'none';
-  let onPick: (() => void) | null = null;
-  el.addEventListener('click', () => {
-    onPick?.();
-    hide();
-  });
   document.body.appendChild(el);
 
-  function show(evt: MouseEvent, label: string, pick: () => void) {
-    onPick = pick;
-    el.textContent = label;
+  function show(evt: MouseEvent, items: Array<{label: string; action: () => void}>) {
+    el.innerHTML = '';
+    for (const item of items) {
+      const row = document.createElement('div');
+      row.className = 'evento-graph-menu-item';
+      row.textContent = item.label;
+      row.addEventListener('click', () => {
+        item.action();
+        hide();
+      });
+      el.appendChild(row);
+    }
     el.style.left = `${evt.clientX}px`;
     el.style.top = `${evt.clientY}px`;
     el.style.display = 'block';
@@ -412,7 +474,6 @@ function buildContextMenu() {
   }
   function hide() {
     el.style.display = 'none';
-    onPick = null;
   }
   function destroy() {
     el.remove();
