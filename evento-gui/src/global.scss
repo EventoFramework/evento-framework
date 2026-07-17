@@ -181,6 +181,63 @@ ion-card.bundle {
   }
 }
 
+// ---- Premium card treatment (catalog + bundle + dashboard cards) ----
+ion-card.component-type,
+ion-card.payload-type,
+ion-card.bundle,
+ion-card.dashboard-card {
+  border-radius: var(--evento-radius-md);
+  border: 1px solid var(--evento-border);
+  box-shadow: var(--evento-shadow-sm);
+  overflow: hidden;
+  transition: transform var(--evento-duration-base) var(--evento-ease-out),
+              box-shadow var(--evento-duration-base) var(--evento-ease-out);
+}
+
+// Clickable cards lift on hover.
+ion-card.component-type,
+ion-card.payload-type,
+ion-card.bundle,
+ion-card.dashboard-card[ng-reflect-router-link],
+ion-card.dashboard-card[routerLink] {
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--evento-shadow-md);
+  }
+
+  &:active {
+    transform: translateY(-1px);
+  }
+}
+
+ion-card-title {
+  font-weight: var(--evento-weight-bold);
+}
+
+// Shared empty-state (no results / nothing to show).
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--evento-space-3);
+  padding: var(--evento-space-7) var(--evento-space-4);
+  color: var(--evento-text-muted);
+  text-align: center;
+
+  ion-icon {
+    font-size: 48px;
+    opacity: 0.5;
+  }
+
+  p {
+    margin: 0;
+    font-size: var(--evento-text-md);
+  }
+}
+
 
 // Delineate the semantic type/payload chips from the surface — in dark mode the
 // black (Observer) and gray (Invoker) chips would otherwise blend into the page.

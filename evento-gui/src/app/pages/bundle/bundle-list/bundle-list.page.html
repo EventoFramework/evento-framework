@@ -36,6 +36,14 @@
             <span>{{bundles.length}}/</span>
             }{{allBundles.length}})
           </ion-card-subtitle>
+          @if (!loaded) {
+            <app-card-skeleton [count]="6" size="6"></app-card-skeleton>
+          } @else if (bundles.length === 0) {
+            <div class="empty-state">
+              <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+              <p translate="common.no.results"></p>
+            </div>
+          } @else {
           <ion-row>
             @for (bundle of bundles; track bundle) {
               <ion-col size="6">
@@ -55,25 +63,12 @@
                         <ion-label>{{domain}}</ion-label>
                       </ion-chip>
                     }
-                    <!--
-                    <ion-chip color="primary">
-                      <ion-icon name="at"></ion-icon>
-                      <ion-label><span translate="component.handlers"></span> ({{component.handledMessages}})</ion-label>
-                    </ion-chip>
-                    <ion-chip color="success" *ngIf="['Aggregate','Service'].includes(component.componentType)">
-                      <ion-icon name="mail"></ion-icon>
-                      <ion-label><span translate="component.publications"></span> ({{component.producedMessages}})</ion-label>
-                    </ion-chip>
-                    <ion-chip color="secondary" *ngIf="component.invocations">
-                      <ion-icon name="cube"></ion-icon>
-                      <ion-label><span translate="component.invocations"></span> ({{component.invocations}})</ion-label>
-                    </ion-chip>
-                    -->
                   </ion-card-content>
                 </ion-card>
               </ion-col>
             }
           </ion-row>
+          }
         </ion-col>
       </ion-row>
     </ion-grid>

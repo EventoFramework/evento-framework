@@ -9,24 +9,31 @@
         <nav class="app-nav" aria-label="Primary">
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'payload-catalog'"
+                  [attr.aria-current]="selectedTab === 'payload-catalog' ? 'page' : null"
                   (click)="tabs.select('payload-catalog')" translate="catalog.payload.title"></button>
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'component-catalog'"
+                  [attr.aria-current]="selectedTab === 'component-catalog' ? 'page' : null"
                   (click)="tabs.select('component-catalog')" translate="catalog.component.title"></button>
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'bundle-list'"
+                  [attr.aria-current]="selectedTab === 'bundle-list' ? 'page' : null"
                   (click)="tabs.select('bundle-list')" translate="bundle.title"></button>
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'cluster-status'"
+                  [attr.aria-current]="selectedTab === 'cluster-status' ? 'page' : null"
                   (click)="tabs.select('cluster-status')" translate="cluster.title"></button>
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'application-flows'"
+                  [attr.aria-current]="selectedTab === 'application-flows' ? 'page' : null"
                   (click)="tabs.select('application-flows')" translate="application.flows.title"></button>
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'application-graph'"
+                  [attr.aria-current]="selectedTab === 'application-graph' ? 'page' : null"
                   (click)="tabs.select('application-graph')" translate="application.graph.title"></button>
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'system-state-store'"
+                  [attr.aria-current]="selectedTab === 'system-state-store' ? 'page' : null"
                   (click)="tabs.select('system-state-store')" translate="system.state.store"></button>
         </nav>
 

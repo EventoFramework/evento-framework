@@ -12,6 +12,7 @@ import {NgApexchartsModule} from "ng-apexcharts";
 import {FormsModule} from "@angular/forms";
 import {AggregateTelemetryComponent} from "./aggregate-telemetry/aggregate-telemetry.component";
 import {EventDetailModalComponent} from "./event-detail-modal/event-detail-modal.component";
+import {CardSkeletonComponent} from "./card-skeleton/card-skeleton.component";
 import {TranslateModule} from "@ngx-translate/core";
 
 
@@ -34,6 +35,7 @@ import {TranslateModule} from "@ngx-translate/core";
     ComponentTelemetryComponent,
     AggregateTelemetryComponent,
     EventDetailModalComponent,
+    CardSkeletonComponent,
   ],
   imports: [
     IonicModule,
@@ -54,7 +56,8 @@ import {TranslateModule} from "@ngx-translate/core";
     ApplicationGraphDiagramComponent,
     ComponentTelemetryComponent,
   AggregateTelemetryComponent,
-    EventDetailModalComponent]
+    EventDetailModalComponent,
+    CardSkeletonComponent]
 })
 export class ComponentsModule {
 }
