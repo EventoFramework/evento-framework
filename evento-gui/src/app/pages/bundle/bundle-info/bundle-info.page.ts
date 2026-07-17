@@ -1,7 +1,6 @@
 import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {BundleService} from '../../../services/bundle.service';
-import {NavController} from '@ionic/angular';
 
 @Component({
     selector: 'app-bundle-info',
@@ -16,7 +15,7 @@ export class BundleInfoPage implements OnInit {
   componentHandlers: any;
   components = [];
 
-  constructor(private route: ActivatedRoute, private bundleService: BundleService, private navController: NavController) { }
+  constructor(private route: ActivatedRoute, private bundleService: BundleService) { }
 
   async ngOnInit() {
     this.bundleId = this.route.snapshot.params.identifier;
@@ -34,12 +33,6 @@ export class BundleInfoPage implements OnInit {
       map[h.componentName] = {name: h.componentName, type: h.componentType};
     }
     this.components = Object.values(map);
-  }
-
-  async unregister() {
-    await this.bundleService.unregister(this.bundleId);
-    await this.navController.navigateBack('/bundle-list');
-
   }
 
 }

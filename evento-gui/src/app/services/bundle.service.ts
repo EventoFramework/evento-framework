@@ -13,12 +13,6 @@ export class BundleService {
     return fetch(environment.eventoServerUrl + '/api/bundle/').then(r => r.json());
   }
 
-  async unregister(bundleId) {
-    return fetch(environment.eventoServerUrl + '/api/bundle/' + bundleId, {
-      method: 'DELETE'
-    });
-  }
-
   find(bundleId: string) {
     return fetch(environment.eventoServerUrl + '/api/bundle/' + bundleId).then(r => r.json());
   }
