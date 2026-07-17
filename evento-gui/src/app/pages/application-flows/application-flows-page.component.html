@@ -6,8 +6,8 @@
         [placeholder]="'flows.search' | translate"></ion-searchbar>
         <ion-card class="bundle" style="background: #3b82f6" routerLink="/application-flows">
           <ion-card-content>
-            <ion-text class="title" translate="flows.all"></ion-text>
-            <p translate="flows.all.desc"></p>
+            <ion-text class="title">{{ 'flows.all' | translate }}</ion-text>
+            <p>{{ 'flows.all.desc' | translate }}</p>
           </ion-card-content>
         </ion-card>
         @if (components && components.length) {
@@ -55,7 +55,7 @@
   <ion-card style="position: absolute;    z-index: 99999;    right: 0;">
     <ion-card-content>
       <ion-item lines="none">
-        <ion-label class="ion-margin-end" translate="application.flows.performance.analysis"></ion-label>
+        <ion-label class="ion-margin-end">{{ 'application.flows.performance.analysis' | translate }}</ion-label>
         <ion-toggle (ionChange)="togglePerformanceAnalysis($event)" [value]="performanceAnalysis"></ion-toggle>
       </ion-item>
     </ion-card-content>
@@ -68,8 +68,7 @@
 @if (performanceAnalysis) {
   <ion-card style="position: absolute; top: 0; bottom: 0; width: 20vw">
     <ion-card-header>
-      <ion-card-title translate="performance.analysis.source.service.time">
-      </ion-card-title>
+      <ion-card-title>{{ 'performance.analysis.source.service.time' | translate }}</ion-card-title>
     </ion-card-header>
     <ion-card-content>
       <ion-list>
@@ -95,16 +94,15 @@
 @if (performanceAnalysis) {
   <ion-card style="position: absolute; right: 0; bottom: 0; left: 21vw; height: 30vh">
     <ion-card-header>
-      <ion-card-title translate="performance.analysis.results">
-      </ion-card-title>
+      <ion-card-title>{{ 'performance.analysis.results' | translate }}</ion-card-title>
     </ion-card-header>
     <ion-card-content style="overflow: scroll; height: 100%">
       <ion-segment #segment value="concurrent.requests">
         <ion-segment-button value="concurrent.requests">
-          <ion-label translate="performance.analysis.concurrent.requests"></ion-label>
+          <ion-label>{{ 'performance.analysis.concurrent.requests' | translate }}</ion-label>
         </ion-segment-button>
         <ion-segment-button value="max.throughput">
-          <ion-label translate="performance.analysis.max.throughput"></ion-label>
+          <ion-label>{{ 'performance.analysis.max.throughput' | translate }}</ion-label>
         </ion-segment-button>
       </ion-segment>
       @if (segment.value === 'concurrent.requests') {
@@ -112,8 +110,8 @@
           <ion-list-header>
             <ion-grid class="ion-no-padding">
               <ion-row>
-                <ion-col translate="common.bundle"></ion-col>
-                <ion-col class="ion-text-end" translate="performance.analysis.concurrent.requests"></ion-col>
+                <ion-col>{{ 'common.bundle' | translate }}</ion-col>
+                <ion-col class="ion-text-end">{{ 'performance.analysis.concurrent.requests' | translate }}</ion-col>
               </ion-row>
             </ion-grid>
           </ion-list-header>
@@ -130,8 +128,8 @@
           <ion-list-header>
             <ion-grid class="ion-no-padding">
               <ion-row>
-                <ion-col translate="common.flow"></ion-col>
-                <ion-col class="ion-text-end" translate="performance.analysis.max.throughput"></ion-col>
+                <ion-col>{{ 'common.flow' | translate }}</ion-col>
+                <ion-col class="ion-text-end">{{ 'performance.analysis.max.throughput' | translate }}</ion-col>
               </ion-row>
             </ion-grid>
           </ion-list-header>
