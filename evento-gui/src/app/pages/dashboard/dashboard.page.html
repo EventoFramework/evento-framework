@@ -12,7 +12,7 @@
           <ion-col>
             <ion-card class="dashboard-card "routerLink="/payload-catalog">
               <ion-card-header>
-                <ion-card-title style="font-weight: 700">
+                <ion-card-title>
                   <span translate="catalog.payload.title"></span>&nbsp;({{dashboard.payloadCount}})
                 </ion-card-title>
               </ion-card-header>
@@ -28,7 +28,7 @@
           <ion-col>
             <ion-card class="dashboard-card" routerLink="/component-catalog">
               <ion-card-header>
-                <ion-card-title style="font-weight: 700">
+                <ion-card-title>
                   <span translate="catalog.component.title"></span>&nbsp;({{dashboard.componentCount}})
                 </ion-card-title>
               </ion-card-header>
@@ -46,7 +46,7 @@
           <ion-col>
             <ion-card class="dashboard-card" routerLink="/bundle-list">
               <ion-card-header>
-                <ion-card-title style="font-weight: 700">
+                <ion-card-title>
                   <span translate="bundle.title"></span>&nbsp;({{dashboard.bundleCount}})
                 </ion-card-title>
               </ion-card-header>
@@ -73,7 +73,7 @@
           <ion-col>
             <ion-card class="dashboard-card">
               <ion-card-header>
-                <ion-card-title style="font-weight: 700">
+                <ion-card-title>
                   <span translate="event.store.title"></span>&nbsp;({{dashboard.eventCount}})
                 </ion-card-title>
               </ion-card-header>
@@ -94,6 +94,14 @@
                 </h1>
               </ion-card-content>
             </ion-card>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
+    } @else {
+      <ion-grid>
+        <ion-row class="ion-margin-top">
+          <ion-col>
+            <app-card-skeleton [count]="4" size="6"></app-card-skeleton>
           </ion-col>
         </ion-row>
       </ion-grid>

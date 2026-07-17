@@ -20,6 +20,7 @@ export class ComponentCatalogPage implements OnInit {
 
   components = [];
   allComponents = [];
+  loaded = false;
 
   constructor(private catalogService: CatalogService) {
   }
@@ -44,6 +45,7 @@ export class ComponentCatalogPage implements OnInit {
 
 
     this.checkFilters();
+    this.loaded = true;
   }
 
   async ngOnInit() {

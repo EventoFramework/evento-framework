@@ -16,6 +16,7 @@ export class PayloadCatalogPage implements OnInit {
 
   payloads = [];
   allPayloads = [];
+  loaded = false;
   selectedTypes = {};
   selectedComponents = {};
   selectedDomains = {};
@@ -48,6 +49,7 @@ export class PayloadCatalogPage implements OnInit {
 
 
     this.checkFilters();
+    this.loaded = true;
   }
 
   async ngOnInit() {
