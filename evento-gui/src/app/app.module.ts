@@ -19,7 +19,8 @@ import {ComponentsModule} from './components/components.module';
     HttpClientModule,
     MarkdownModule.forRoot(),
     TranslateModule.forRoot({
-      defaultLanguage: 'en',
+      lang: 'en',
+      fallbackLang: 'en',
       loader: provideTranslateHttpLoader({prefix: './assets/i18n/', suffix: '.json'}),
     }),
     AppRoutingModule, PayloadCatalogPageModule, ComponentsModule],
