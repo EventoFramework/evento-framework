@@ -70,7 +70,7 @@
     "angular-eslint": "^22.1.0",
     "eslint": "^9.39.4",
     "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-jsdoc": "^63.0.0",
+    "eslint-plugin-jsdoc": "^63.1.0",
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "istanbul-lib-instrument": "^6.0.3",
     "jasmine-core": "^6.2.0",
