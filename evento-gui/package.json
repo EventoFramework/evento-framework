@@ -31,7 +31,7 @@
     "@ionic/angular": "^8.8.13",
     "@ngx-translate/core": "^17.0.0",
     "@ngx-translate/http-loader": "^17.0.0",
-    "apexcharts": "^5.13.0",
+    "apexcharts": "^6.1.0",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
     "d3-hierarchy": "^3.1.2",
