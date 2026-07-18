@@ -30,7 +30,7 @@
     "@fontsource/roboto": "^5.2.10",
     "@ionic/angular": "^8.8.13",
     "@ngx-translate/core": "^17.0.0",
-    "@ngx-translate/http-loader": "^17.0.0",
+    "@ngx-translate/http-loader": "^18.0.0",
     "apexcharts": "^5.13.0",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
