@@ -1,0 +1,32 @@
+<ion-content>
+  <div class="login-bg">
+    <div class="login-card">
+      <div class="login-brand">
+        <img src="assets/img/logo.png" alt="Evento"/>
+        <p>{{ 'evento.description' | translate }}</p>
+      </div>
+      <form (ngSubmit)="submit()" class="login-form">
+        <ion-input [(ngModel)]="username" name="username" fill="outline"
+          labelPlacement="floating" [label]="'login.username' | translate"
+          autocomplete="username" required></ion-input>
+        <ion-input [(ngModel)]="password" name="password" type="password" fill="outline"
+          labelPlacement="floating" [label]="'login.password' | translate"
+          autocomplete="current-password" required>
+          <ion-input-password-toggle slot="end"></ion-input-password-toggle>
+        </ion-input>
+        @if (error) {
+          <ion-text color="danger" role="alert" class="login-error">
+            {{ 'login.error' | translate }}
+          </ion-text>
+        }
+        <ion-button expand="block" type="submit" [disabled]="loading || !username || !password">
+          @if (loading) {
+            <ion-spinner name="crescent"></ion-spinner>
+          } @else {
+            {{ 'login.submit' | translate }}
+          }
+        </ion-button>
+      </form>
+    </div>
+  </div>
+</ion-content>

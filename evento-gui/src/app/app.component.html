@@ -6,6 +6,7 @@
        <div class="app-header">
         <img id="main-logo" src="assets/img/logo.png" routerLink="/" alt="Evento">
 
+        @if (auth.authenticated()) {
         <nav class="app-nav" aria-label="Primary">
           <button class="tab-button" type="button"
                   [class.selected]="selectedTab === 'payload-catalog'"
@@ -36,6 +37,7 @@
                   [attr.aria-current]="selectedTab === 'system-state-store' ? 'page' : null"
                   (click)="tabs.select('system-state-store')" translate="system.state.store"></button>
         </nav>
+        }
 
         <button class="theme-toggle" type="button" (click)="theme.toggle()"
                 [attr.aria-label]="(theme.isDark() ? 'theme.switch.light' : 'theme.switch.dark') | translate"
@@ -43,6 +45,13 @@
                 [title]="(theme.isDark() ? 'theme.switch.light' : 'theme.switch.dark') | translate">
           <ion-icon aria-hidden="true" [name]="theme.isDark() ? 'sunny-outline' : 'moon-outline'"></ion-icon>
         </button>
+        @if (auth.authenticated()) {
+          <button class="theme-toggle" type="button" (click)="auth.logout()"
+                  [attr.aria-label]="'login.logout' | translate"
+                  [title]="'login.logout' | translate">
+            <ion-icon aria-hidden="true" name="log-out-outline"></ion-icon>
+          </button>
+        }
        </div>
       </app-wrapped-content>
     </ion-tab-bar>

@@ -276,16 +276,21 @@ Effort (rough, relative): P1 M · P2 M · P3 M (+backend S) · P4 S · P5 L · P
 
 ---
 
-## Open items to confirm before build
+## Open items — all resolved at build time (Phase 3 shipped)
 
-1. **Basic Auth credentials**: where do the static username/password live in
-   `evento-server` (application config / env vars)? And should I implement the
-   Spring Security Basic-auth swap in the server, or will you?
-2. **SSE + Basic auth**: `EventSource` can’t send an `Authorization` header —
-   pick the scheme for the cluster-status SSE endpoint (short-lived query-param
-   credential vs. leaving that one endpoint open). 
-3. **Verify endpoint**: use an existing GET (e.g. `/api/dashboard`) to validate
-   creds at login, or add a tiny `/api/auth/whoami`?
+1. **Basic Auth credentials**: Spring Boot's standard in-memory user —
+   `spring.security.user.name` (default `evento`) / `.password` (default
+   `secret`) / `.roles=WEB,ADMIN` in `application.properties`, overridable via
+   `SPRING_SECURITY_USER_NAME` / `SPRING_SECURITY_USER_PASSWORD`. Server swap
+   implemented here (JWT stack deleted; controllers' `@Secured` kept as the
+   per-endpoint enforcement).
+2. **SSE + Basic auth**: neither query param nor open endpoint — the GUI now
+   consumes the cluster-status SSE stream via **fetch + ReadableStream**, which
+   can send the `Authorization` header. No server special-casing; credentials
+   never appear in URLs.
+3. **Verify endpoint**: existing `GET /api/dashboard` probed at login; no new
+   endpoint.
 
-Resolved: **Basic Auth** (not JWT) · **keep Roboto** (used in logo) · **keep logo
-PNG** · **elk** layout.
+Also resolved earlier: **Basic Auth** (not JWT) · **keep Roboto** (used in logo)
+· **keep logo PNG** · ~~elk~~ → **dagre** (elkjs Web Worker broken under
+webpack; see Phase 5 commits).

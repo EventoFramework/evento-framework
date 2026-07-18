@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import {environment} from "../../environments/environment";
+import {apiFetch} from './api';
 
 @Injectable({
   providedIn: 'root'
@@ -17,7 +17,7 @@ export class PerformanceService {
     interval: number,
     serviceTimeAggregationFunction: string
   ) {
-    return fetch(environment.eventoServerUrl + '/api/performance/component?' + new URLSearchParams({
+    return apiFetch('/api/performance/component?' + new URLSearchParams({
       bundleId,
       componentId,
       from,
@@ -35,7 +35,7 @@ export class PerformanceService {
     interval: number,
     serviceTimeAggregationFunction: string
   ) {
-    return fetch(environment.eventoServerUrl + '/api/performance/aggregate?' + new URLSearchParams({
+    return apiFetch('/api/performance/aggregate?' + new URLSearchParams({
       bundleId,
       componentId,
       from,
