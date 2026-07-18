@@ -19,6 +19,8 @@
 # If the release type is omitted it is asked interactively. Nothing is pushed
 # until you confirm the computed version.
 #
+# Windows: scripts/release.ps1 is the PowerShell twin — keep both in lockstep.
+#
 set -euo pipefail
 
 # --- locate repo root so the script works from any CWD ----------------------
