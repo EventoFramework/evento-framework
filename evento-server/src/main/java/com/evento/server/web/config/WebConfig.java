@@ -1,5 +1,6 @@
 package com.evento.server.web.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,8 +10,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -22,13 +23,21 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Web layer configuration for the explorative (read-only) server.
+ *
+ * <p>The REST API is protected by <b>HTTP Basic auth</b> against the static in-memory user
+ * configured via the standard Spring Boot properties {@code spring.security.user.name} /
+ * {@code spring.security.user.password} (see {@code application.properties}; the user carries the
+ * {@code WEB} and {@code ADMIN} roles the controllers' {@code @Secured} annotations require).
+ * This replaces the previous JWT/Bearer scheme entirely: no token minting, no {@code /auth}
+ * endpoint — credentials are validated on every request.
+ */
 @Configuration
 @EnableWebMvc
 @EnableMethodSecurity(
 		securedEnabled = true)
 public class WebConfig implements WebMvcConfigurer {
-
-	private final AuthService authService;
 
 	/**
 	 * Allowed CORS origins, from {@code evento.server.web.cors.allowed-origins} (comma-separated).
@@ -37,48 +46,22 @@ public class WebConfig implements WebMvcConfigurer {
 	@org.springframework.beans.factory.annotation.Value("${evento.server.web.cors.allowed-origins:*}")
 	private List<String> allowedOrigins;
 
-	public WebConfig(AuthService authService) {
-		this.authService = authService;
-	}
-
-
-	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebConfig.class);
-
-	/**
-	 * Web security posture, from {@code evento.server.web.security.mode}:
-	 * <ul>
-	 *   <li>{@code open} (default) — every request is permitted at the HTTP layer; controller
-	 *       {@code @Secured} method annotations still apply where present. Preserves prior behaviour.</li>
-	 *   <li>{@code token} — {@code /api/**} and sensitive actuator endpoints require a valid JWT
-	 *       (via {@link AuthFilter}); static GUI assets and {@code /actuator/health|info} stay public
-	 *       so the dashboard loads and orchestrator probes work. (The GUI still needs a token-injection
-	 *       flow before it can call the API in this mode.)</li>
-	 * </ul>
-	 */
-	@org.springframework.beans.factory.annotation.Value("${evento.server.web.security.mode:open}")
-	private String securityMode;
-
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		http
 				.cors(Customizer.withDefaults())
 				.csrf(AbstractHttpConfigurer::disable)
-				.addFilterBefore(new AuthFilter(authService), UsernamePasswordAuthenticationFilter.class);
-
-		if ("token".equalsIgnoreCase(securityMode)) {
-			http.authorizeHttpRequests(r -> r
-					.requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-					.requestMatchers("/api/**", "/actuator/**").authenticated()
-					.anyRequest().permitAll()); // static GUI assets + SPA fallback
-			log.info("event=web_security mode=token detail=\"/api/** and sensitive actuator endpoints require a valid token\"");
-		} else {
-			if (!"open".equalsIgnoreCase(securityMode)) {
-				log.warn("event=web_security_unknown_mode mode={} detail=\"defaulting to open\"", securityMode);
-			}
-			http.authorizeHttpRequests(r -> r.anyRequest().permitAll());
-			log.warn("event=web_security mode=open detail=\"REST API is unauthenticated at the HTTP layer; "
-					+ "set evento.server.web.security.mode=token to require JWTs\"");
-		}
+				// Basic auth carries the credential on every request; no server session needed
+				// (and no JSESSIONID cookie to leak).
+				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				// Plain 401 without a WWW-Authenticate header: the GUI has its own login page,
+				// and the header would trigger the browser's native credentials popup on top of it.
+				.httpBasic(b -> b.authenticationEntryPoint(
+						(request, response, ex) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
+				.authorizeHttpRequests(r -> r
+						.requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+						.requestMatchers("/api/**", "/actuator/**").authenticated()
+						.anyRequest().permitAll()); // static GUI assets + SPA fallback
 		return http.build();
 	}
 

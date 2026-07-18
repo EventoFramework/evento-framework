@@ -443,7 +443,14 @@ All controllers are under `com.evento.server.web.*` and depend on `BusFacade`.
 | `FlowsController` | `/api/flows` | Handler flow visualization |
 | `SystemStateStoreController` | `/api/system-state-store` | Aggregate snapshots |
 
-Auth is handled by `AuthFilter` + `AuthService` + `TokenRole` (per-request JWT/token check).
+Auth is **HTTP Basic** against the static Spring Boot in-memory user
+(`spring.security.user.name/password/roles=WEB,ADMIN` in `application.properties`,
+env-overridable); `WebConfig` requires auth on `/api/**` + actuator (except
+health/info) and answers plain `401` without `WWW-Authenticate` so the GUI's own
+login page handles failures. Controller `@Secured("ROLE_WEB"/"ROLE_ADMIN")`
+annotations are the per-endpoint enforcement. (The former JWT stack —
+`AuthFilter`/`AuthService`/`TokenRole`/`AuthController` — was removed with the
+explorative read-only pivot.)
 
 ---
 
