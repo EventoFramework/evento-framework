@@ -1,0 +1,51 @@
+.login-bg {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--evento-space-5);
+  background-color: var(--evento-surface);
+  background-image: radial-gradient(var(--evento-border-strong) 1px, transparent 0);
+  background-size: 20px 20px;
+  background-position: -9px -9px;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  background: var(--evento-surface);
+  border: 1px solid var(--evento-border);
+  border-radius: var(--evento-radius-md);
+  box-shadow: var(--evento-shadow-lg);
+  overflow: hidden;
+}
+
+// Brand banner reuses the header surface so the logo sits on the background it
+// was designed for.
+.login-brand {
+  background: var(--evento-header-bg);
+  padding: var(--evento-space-6) var(--evento-space-5);
+  text-align: center;
+
+  img {
+    height: 48px;
+    max-width: 100%;
+  }
+
+  p {
+    margin: var(--evento-space-3) 0 0;
+    color: var(--ion-color-primary-contrast, #fff);
+    opacity: 0.75;
+    font-size: var(--evento-text-sm);
+  }
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--evento-space-4);
+  padding: var(--evento-space-6) var(--evento-space-5);
+}
+
+.login-error {
+  font-size: var(--evento-text-sm);
+}

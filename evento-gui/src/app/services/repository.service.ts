@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import {environment} from '../../environments/environment';
+import {apiFetch} from './api';
 
 interface RepositoryInfo {
   repositoryUrl: string;
@@ -30,7 +30,7 @@ export class RepositoryService {
 
   private async load(): Promise<void> {
     try {
-      const bundles = await fetch(environment.eventoServerUrl + '/api/bundle/').then(r => r.json());
+      const bundles = await apiFetch('/api/bundle/').then(r => r.json());
       for (const b of bundles) {
         this.map.set(b.id, {repositoryUrl: b.repositoryUrl, linePrefix: b.linePrefix});
       }

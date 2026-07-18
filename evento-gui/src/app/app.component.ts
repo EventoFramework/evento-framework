@@ -1,5 +1,6 @@
 import {Component, ChangeDetectionStrategy, inject} from '@angular/core';
 import {ThemeService} from './services/theme.service';
+import {AuthService} from './services/auth.service';
 
 @Component({
     selector: 'app-root',
@@ -13,6 +14,8 @@ export class AppComponent {
   // here also initializes the service at app start (applies the persisted
   // choice and follows the OS preference).
   readonly theme = inject(ThemeService);
+  // Drives header nav/logout visibility (no nav while on /login).
+  readonly auth = inject(AuthService);
 
   selectedTab = '';
   constructor() {}

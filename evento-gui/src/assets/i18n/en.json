@@ -120,5 +120,10 @@
   "consumer.error.last": "Last",
   "consumer.last.error": "Last Error",
   "consumer.error": "Error",
-  "common.copy": "Copy"
+  "common.copy": "Copy",
+  "login.username": "Username",
+  "login.password": "Password",
+  "login.submit": "Sign in",
+  "login.error": "Invalid username or password",
+  "login.logout": "Sign out"
 }

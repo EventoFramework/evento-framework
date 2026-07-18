@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import {environment} from '../../environments/environment';
+import {apiFetch} from './api';
 
 @Injectable({
   providedIn: 'root'
@@ -9,6 +9,6 @@ export class DashboardService {
   constructor() { }
 
   getDashboard() {
-    return fetch(environment.eventoServerUrl + '/api/dashboard').then(r => r.json());
+    return apiFetch('/api/dashboard').then(r => r.json());
   }
 }

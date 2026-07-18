@@ -6,7 +6,7 @@ Last updated: 2026-07-18. Branch `next` merged to `main`; v2.0 rewrite complete.
 ## GUI redesign (2026-07-15 → 18) — plan in `.claude/GUI-REDESIGN-PLAN.md`
 
 Premium UX/UI pass on `evento-gui` preserving the brand (colors/logo/fonts).
-**Phases 1, 2, 4, 5, 6 done and on `main`; Phase 3 (login) not started.**
+**All phases (1–6) done and on `main`.**
 
 - **P1 foundation**: `--evento-*` design tokens (spacing/radius/shadow/type/motion),
   self-hosted Inter + Roboto (@fontsource), full light/dark theming
@@ -32,9 +32,24 @@ Premium UX/UI pass on `evento-gui` preserving the brand (colors/logo/fonts).
   components duplicates text on re-slot** → converted to translate pipe
   everywhere (directive is safe only on native elements).
 
-**Next**: Phase 3 — HTTP Basic auth (Spring Security static creds server-side,
-GUI login page + guard; SSE credential scheme still to decide since
-`EventSource` can't send an Authorization header).
+- **P3 login (both repos)**: server's JWT web stack
+  (`AuthFilter`/`AuthService`/`TokenRole`/`AuthController`, `security.mode`,
+  auth0 java-jwt dep) **deleted**; `WebConfig` now does always-on **HTTP Basic**
+  over `/api/**` + actuator (health/info public) against Spring Boot's in-memory
+  user (`spring.security.user.name/password/roles=WEB,ADMIN`, env-overridable;
+  defaults evento/secret). Plain 401 without `WWW-Authenticate` so the browser's
+  native popup never fights the GUI login page; stateless sessions. Controllers'
+  `@Secured` annotations unchanged (static user carries both roles). GUI: the
+  `window.fetch` monkey-patch + `prompt()` token flow is gone — `services/api.ts`
+  `apiFetch()` injects `Authorization: Basic` from localStorage and hard-redirects
+  to `/login` on 401/403; `AuthService.login()` verifies creds by probing
+  `GET /api/dashboard`; functional `authGuard` on all routes; branded `/login`
+  page; logout button in header; nav hidden while unauthenticated. Cluster-status
+  SSE now consumed via **fetch + ReadableStream** (EventSource can't send an
+  Authorization header; the old `?token=` query param leaked into access logs).
+
+The repo remote moved: `origin` now points at
+`git@github.com:EventoFramework/evento-framework.git`.
 
 ## Dependabot upgrade sweep (2026-07-12)
 

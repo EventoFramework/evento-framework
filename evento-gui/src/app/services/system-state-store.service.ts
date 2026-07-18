@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import {environment} from "../../environments/environment";
+import {apiFetch} from './api';
 
 @Injectable({
   providedIn: 'root'
@@ -10,11 +10,11 @@ export class SystemStateStoreService {
 
   async searchEvents(parameters = {}
   ) {
-    return fetch(environment.eventoServerUrl + '/api/system-state-store/event?' + new URLSearchParams(parameters as any).toString()).then(r => r.json());
+    return apiFetch('/api/system-state-store/event?' + new URLSearchParams(parameters as any).toString()).then(r => r.json());
   }
 
   async searchSnapshots(parameters = {}
   ) {
-    return fetch(environment.eventoServerUrl + '/api/system-state-store/snapshot?' + new URLSearchParams(parameters as any).toString()).then(r => r.json());
+    return apiFetch('/api/system-state-store/snapshot?' + new URLSearchParams(parameters as any).toString()).then(r => r.json());
   }
 }
