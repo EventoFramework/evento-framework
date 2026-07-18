@@ -373,6 +373,137 @@ ion-title {
   }
 }
 
+// ---- Data tables (event store, snapshot store, dead-queue, cluster status) ----
+// Semantic <table> styling; the wrapper owns scroll so `position: sticky` on the
+// thead cells works (sticky is relative to the nearest scroll container).
+.evento-table-wrap {
+  background: var(--evento-surface);
+  border: 1px solid var(--evento-border);
+  border-radius: var(--evento-radius-md);
+  box-shadow: var(--evento-shadow-sm);
+  overflow: auto;
+}
+
+.evento-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--evento-text-sm);
+  color: var(--evento-text);
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--evento-surface-2);
+    text-align: left;
+    font-size: var(--evento-text-xs);
+    font-weight: var(--evento-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--evento-text-muted);
+    padding: var(--evento-space-3) var(--evento-space-4);
+    border-bottom: 1px solid var(--evento-border-strong);
+    white-space: nowrap;
+  }
+
+  tbody td,
+  tbody th {
+    padding: var(--evento-space-3) var(--evento-space-4);
+    border-bottom: 1px solid var(--evento-border);
+    vertical-align: middle;
+  }
+
+  // Row headers (key/value tables): plain weight, left aligned.
+  tbody th {
+    text-align: left;
+    font-weight: 400;
+  }
+
+  tbody tr:last-child td,
+  tbody tr:last-child th {
+    border-bottom: 0;
+  }
+
+  tbody tr:hover {
+    background: var(--evento-surface-2);
+  }
+
+  th.cell-end,
+  td.cell-end {
+    text-align: right;
+  }
+
+  td.cell-num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  td.cell-mono {
+    font-family: var(--evento-font-mono);
+    font-size: var(--evento-text-xs);
+  }
+
+  td .cell-sub {
+    display: block;
+    font-size: var(--evento-text-xs);
+    color: var(--evento-text-muted);
+  }
+
+  &.evento-table--clickable tbody tr {
+    cursor: pointer;
+  }
+
+  // Plain variant for tables nested inside colored cards (cluster status):
+  // transparent, separators only, no chrome of its own.
+  &.evento-table--plain {
+    thead th {
+      position: static;
+      background: transparent;
+      color: inherit;
+      opacity: 0.75;
+      padding-inline: 0;
+    }
+
+    tbody td,
+    tbody th {
+      padding-inline: 0;
+      border-bottom-color: var(--evento-border);
+    }
+
+    tbody tr:hover {
+      background: transparent;
+    }
+  }
+}
+
+// ---- Code / JSON blocks (event + snapshot detail modals) ----
+.code-block {
+  position: relative;
+  background: var(--evento-surface-2);
+  border: 1px solid var(--evento-border);
+  border-radius: var(--evento-radius-sm);
+  margin: var(--evento-space-3) 0;
+
+  pre {
+    margin: 0;
+    padding: var(--evento-space-4);
+    overflow: auto;
+    max-height: 40vh;
+    font-family: var(--evento-font-mono);
+    font-size: var(--evento-text-xs);
+    line-height: 1.6;
+    color: var(--evento-text);
+  }
+
+  .code-block-copy {
+    position: absolute;
+    top: var(--evento-space-2);
+    right: var(--evento-space-2);
+    z-index: 1;
+    margin: 0;
+  }
+}
+
 // Only invert the native date-picker glyph in dark mode (in light it would
 // turn white-on-white and vanish).
 .ion-palette-dark ::-webkit-calendar-picker-indicator {

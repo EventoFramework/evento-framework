@@ -21,15 +21,13 @@
             </ion-row>
             <ion-row>
               <ion-col>
-                <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                translate="bundle.services.diagram"></ion-title>
+                <ion-title class="ion-padding-bottom" style="font-weight: bold">{{ 'bundle.services.diagram' | translate }}</ion-title>
                 <app-bundle-components-diagram [bundle]="bundle"></app-bundle-components-diagram>
               </ion-col>
             </ion-row>
             <ion-row>
               <ion-col>
-                <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                translate="bundle.settings"></ion-title>
+                <ion-title class="ion-padding-bottom" style="font-weight: bold">{{ 'bundle.settings' | translate }}</ion-title>
                 <ion-grid class="ion-no-padding">
                   <ion-row class="ion-margin-bottom">
                     <ion-col size="3"><span translate="bundle.version"></span>:</ion-col>
@@ -51,7 +49,7 @@
                 <div style="margin: 16px 0 5px 5px">
                   <ion-text>
                     <ion-icon color="primary" name="cube"></ion-icon>
-                    <ion-note style="margin-left: 5px; font-weight: 500" translate="common.components"></ion-note>
+                    <ion-note style="margin-left: 5px; font-weight: 500">{{ 'common.components' | translate }}</ion-note>
                   </ion-text>
                 </div>
                 @for (r of components; track r) {
@@ -69,7 +67,7 @@
                   <div style="margin: 16px 0 5px 5px">
                     <ion-text>
                       <ion-icon color="warning" name="folder-open"></ion-icon>
-                      <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
+                      <ion-note style="margin-left: 5px; font-weight: 500">{{ 'common.domain' | translate }}</ion-note>
                     </ion-text>
                   </div>
                   @for (domain of bundle.domains; track domain) {
