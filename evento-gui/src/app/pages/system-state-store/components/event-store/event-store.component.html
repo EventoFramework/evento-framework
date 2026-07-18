@@ -2,100 +2,91 @@
   <ion-refresher-content></ion-refresher-content>
 </ion-refresher>
 
-<ion-row>
-  <ion-col>
+<ion-card class="ion-no-margin" color="primary">
+  <ion-card-content>
+    <ion-grid class="ion-no-padding">
+      <ion-row>
+        <ion-col>
+          <ion-input [(ngModel)]="parameters.eventSequenceNumber" (ionInput)="refresh()" [debounce]="500"
+            name="eventSequenceNumber" [clearInput]="true" fill="outline" color="light"
+            labelPlacement="floating"
+            label="{{'sss.events.event.sequence.number' | translate}}"
+            type="number">
+          </ion-input>
+        </ion-col>
+        <ion-col>
+          <ion-input [(ngModel)]="parameters.eventName" (ionInput)="refresh()" [debounce]="500"
+            [clearInput]="true" name="eventName" fill="outline" color="light"
+            labelPlacement="floating"
+            label="{{'sss.events.event.name' | translate}}">
+          </ion-input>
+        </ion-col>
+        <ion-col>
+          <ion-input [(ngModel)]="parameters.aggregateIdentifier" (ionInput)="refresh()" [debounce]="500"
+            [clearInput]="true" name="aggregateIdentifier" fill="outline" color="light"
+            labelPlacement="floating"
+            label="{{'sss.events.aggregate.id' | translate}}"
+          type="text"></ion-input>
+        </ion-col>
+        <ion-col>
+          <ion-input [(ngModel)]="parameters.context" (ionInput)="refresh()" [debounce]="500"
+            [clearInput]="true" name="context" fill="outline" color="light"
+            labelPlacement="floating"
+            label="{{'sss.events.context' | translate}}"
+          type="text"></ion-input>
+        </ion-col>
+      </ion-row>
+    </ion-grid>
+  </ion-card-content>
 
-    <ion-card class="ion-no-margin" color="primary">
-      <ion-card-header>
-        <ion-card-title>
-          <ion-grid>
-            <ion-row>
-              <ion-col>
-                <ion-input [(ngModel)]="parameters.eventSequenceNumber" (ionInput)="refresh()" [debounce]="500"
-                  name="eventSequenceNumber" [clearInput]="true" fill="outline" color="light"
-                  labelPlacement="floating"
-                  label="{{'sss.events.event.sequence.number' | translate}}"
-                  type="number">
+  @if (loading) {
+    <ion-progress-bar color="light" type="indeterminate"></ion-progress-bar>
+  }
+</ion-card>
 
-                </ion-input>
-              </ion-col>
-              <ion-col>
-                <ion-input [(ngModel)]="parameters.eventName" (ionInput)="refresh()" [debounce]="500"
-                  [clearInput]="true" name="eventName" fill="outline" color="light"
-                  labelPlacement="floating"
-                  label="{{'sss.events.event.name' | translate}}">
-
-                </ion-input>
-              </ion-col>
-              <ion-col>
-                <ion-input [(ngModel)]="parameters.aggregateIdentifier" (ionInput)="refresh()" [debounce]="500"
-                  [clearInput]="true" name="aggregateIdentifier" fill="outline" color="light"
-                  labelPlacement="floating"
-                  label="{{'sss.events.aggregate.id' | translate}}"
-                type="text"></ion-input>
-              </ion-col>
-              <ion-col>
-                <ion-input [(ngModel)]="parameters.context" (ionInput)="refresh()" [debounce]="500"
-                  [clearInput]="true" name="context" fill="outline" color="light"
-                  labelPlacement="floating"
-                  label="{{'sss.events.context' | translate}}"
-                type="text"></ion-input>
-              </ion-col>
-              <ion-col class="ion-padding ion-text-end">
-                <ion-label>
-                  {{'sss.events.created.at' | translate}}
-                </ion-label>
-
-              </ion-col>
-            </ion-row>
-          </ion-grid>
-        </ion-card-title>
-      </ion-card-header>
-
-      @if (loading) {
-        <ion-progress-bar color="light" type="indeterminate"></ion-progress-bar>
+<div class="evento-table-wrap ion-margin-top">
+  <table class="evento-table evento-table--clickable">
+    <thead>
+      <tr>
+        <th scope="col">{{ 'sss.events.event.sequence.number' | translate }}</th>
+        <th scope="col">{{ 'sss.events.event.name' | translate }}</th>
+        <th scope="col">{{ 'sss.events.aggregate.id' | translate }}</th>
+        <th scope="col">{{ 'sss.events.context' | translate }}</th>
+        <th scope="col" class="cell-end">{{ 'sss.events.created.at' | translate }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (e of events; track e.eventSequenceNumber) {
+        <tr tabindex="0" (click)="openDetail(e, detailModal)" (keydown.enter)="openDetail(e, detailModal)">
+          <td class="cell-num">{{ e.eventSequenceNumber }}</td>
+          <td>{{ e.eventName }}</td>
+          <td class="cell-mono">{{ e.aggregateId }}</td>
+          <td>{{ e.context }}</td>
+          <td class="cell-end cell-num">
+            {{ e.createdAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+            @if (e.deletedAt) {
+              <span class="cell-sub">{{ e.deletedAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}</span>
+            }
+          </td>
+        </tr>
+      } @empty {
+        @if (!loading) {
+          <tr>
+            <td colspan="5">
+              <div class="empty-state">
+                <ion-icon name="search-outline"></ion-icon>
+                <p>{{ 'common.no.results' | translate }}</p>
+              </div>
+            </td>
+          </tr>
+        }
       }
-    </ion-card>
+    </tbody>
+  </table>
+</div>
 
-  </ion-col>
-</ion-row>
-@for (e of events; track e.eventSequenceNumber) {
-  <ion-row>
-    <ion-col>
+<app-event-detail-modal #detailModal [event]="selected"></app-event-detail-modal>
 
-      <ion-card class="ion-no-margin" (click)="detailModal.present()">
-        <ion-card-content>
-          <ion-grid>
-            <ion-row>
-              <ion-col>
-                {{ e.eventSequenceNumber }}
-              </ion-col>
-              <ion-col>
-                {{ e.eventName }}
-              </ion-col>
-              <ion-col>
-                {{ e.aggregateId }}
-              </ion-col>
-              <ion-col>
-                {{ e.context }}
-              </ion-col>
-              <ion-col class="ion-text-end">
-                {{ e.createdAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
-                @if (e.deletedAt) {
-                  <br/>
-                  <small>{{ e.deletedAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
-                  </small>
-                }
-              </ion-col>
-            </ion-row>
-          </ion-grid>
-          <app-event-detail-modal #detailModal [event]="e"></app-event-detail-modal>
-        </ion-card-content>
-      </ion-card>
-
-    </ion-col>
-  </ion-row>
-}
 <ion-infinite-scroll (ionInfinite)="onIonInfinite($event)">
   <ion-infinite-scroll-content></ion-infinite-scroll-content>
 </ion-infinite-scroll>

@@ -26,6 +26,8 @@ export class ConsumersComponent implements OnInit {
   protected consumers: any[];
   protected consumer: any;
   protected consumerState: any;
+  // Row currently shown in the shared detail / error modals (one modal per table, not per row).
+  protected selectedDead: any;
 
   constructor(private service: ConsumerService,
               private loadingCtrl: LoadingController) {

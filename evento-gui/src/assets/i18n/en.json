@@ -112,6 +112,13 @@
   "consumer.reprocess.event": "Reprocess Events",
   "consumer.dead.event.retry": "Retry",
   "consumer.dead.event.at": "Dead at",
-  "consumer.delete.event": "Delete"
-
+  "consumer.delete.event": "Delete",
+  "consumer.health.healthy": "Healthy",
+  "consumer.health.in.error": "In Error",
+  "consumer.errors": "Errors",
+  "consumer.error.start": "Start",
+  "consumer.error.last": "Last",
+  "consumer.last.error": "Last Error",
+  "consumer.error": "Error",
+  "common.copy": "Copy"
 }

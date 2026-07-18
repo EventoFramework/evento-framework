@@ -24,6 +24,7 @@ import {FormsModule} from "@angular/forms";
 export class SnapshotStoreComponent  implements OnInit {
 
   snapshots?: any[]
+  selected?: any;
   parameters: any = {
     page: 0
   }
@@ -51,6 +52,10 @@ export class SnapshotStoreComponent  implements OnInit {
 
   handleRefresh($event: any) {
     this.refresh().finally(() =>  $event.target.complete())
+  }
+
+  copyState(snapshot: any) {
+    navigator.clipboard?.writeText(JSON.stringify(snapshot.aggregateState, null, 2));
   }
 
   async onIonInfinite($event: any) {

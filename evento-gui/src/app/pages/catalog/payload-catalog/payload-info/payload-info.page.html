@@ -31,16 +31,14 @@
             </ion-row>
             <ion-row>
               <ion-col>
-                <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                translate="payload.invokers.handlers.diagram"></ion-title>
+                <ion-title class="ion-padding-bottom" style="font-weight: bold">{{ 'payload.invokers.handlers.diagram' | translate }}</ion-title>
                 <app-invokers-handlers-diagram [payload]="payload"></app-invokers-handlers-diagram>
               </ion-col>
             </ion-row>
             @if (fields.length) {
               <ion-row>
                 <ion-col>
-                  <ion-title class="ion-padding-bottom" style="font-weight: bold"
-                  translate="payload.structure"></ion-title>
+                  <ion-title class="ion-padding-bottom" style="font-weight: bold">{{ 'payload.structure' | translate }}</ion-title>
                   <div >
                     <ion-grid>
                       @for (f of fields; track f) {
@@ -72,7 +70,7 @@
                   <div style="margin: 16px 0 5px 5px">
                     <ion-text>
                       <ion-icon color="tertiary" name="cube"></ion-icon>
-                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.subscribers"></ion-note>
+                      <ion-note style="margin-left: 5px; font-weight: 500">{{ 'payload.subscribers' | translate }}</ion-note>
                     </ion-text>
                   </div>
                   @for (r of payload.subscribers; track r) {
@@ -84,7 +82,7 @@
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">
                           <ng-template>
                             <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-label style="padding-left: 16px">{{ 'common.open.repository' | translate }}</ion-label>
                               <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                             </ion-item>
                           </ng-template>
@@ -101,7 +99,7 @@
                   <div style="margin: 16px 0 5px 5px">
                     <ion-text>
                       <ion-icon color="success" name="cube"></ion-icon>
-                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.invocations"></ion-note>
+                      <ion-note style="margin-left: 5px; font-weight: 500">{{ 'payload.invocations' | translate }}</ion-note>
                     </ion-text>
                   </div>
                   @for (r of payload.invokers; track r) {
@@ -113,7 +111,7 @@
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">
                           <ng-template>
                             <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-label style="padding-left: 16px">{{ 'common.open.repository' | translate }}</ion-label>
                               <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                             </ion-item>
                           </ng-template>
@@ -130,7 +128,7 @@
                   <div style="margin: 16px 0 5px 5px">
                     <ion-text>
                       <ion-icon color="secondary" name="cube"></ion-icon>
-                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.returnedBy"></ion-note>
+                      <ion-note style="margin-left: 5px; font-weight: 500">{{ 'payload.returnedBy' | translate }}</ion-note>
                     </ion-text>
                   </div>
                   @for (r of payload.returnedBy; track r) {
@@ -142,7 +140,7 @@
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">
                           <ng-template>
                             <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-label style="padding-left: 16px">{{ 'common.open.repository' | translate }}</ion-label>
                               <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                             </ion-item>
                           </ng-template>
@@ -159,7 +157,7 @@
                   <div style="margin: 16px 0 5px 5px">
                     <ion-text>
                       <ion-icon color="medium" name="cube"></ion-icon>
-                      <ion-note style="margin-left: 5px; font-weight: 500" translate="payload.usedBy"></ion-note>
+                      <ion-note style="margin-left: 5px; font-weight: 500">{{ 'payload.usedBy' | translate }}</ion-note>
                     </ion-text>
                   </div>
                   @for (r of payload.usedBy; track r) {
@@ -171,7 +169,7 @@
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">
                           <ng-template>
                             <ion-item  [href]="r.repoLink" target="_blank" tappable="true">
-                              <ion-label style="padding-left: 16px" translate="common.open.repository"></ion-label>
+                              <ion-label style="padding-left: 16px">{{ 'common.open.repository' | translate }}</ion-label>
                               <ion-icon [name]="r.repoLink | repositoryLogo" slot="end"></ion-icon>
                             </ion-item>
                           </ng-template>
@@ -188,7 +186,7 @@
                   <div style="margin: 16px 0 5px 5px">
                     <ion-text>
                       <ion-icon color="warning" name="folder-open"></ion-icon>
-                      <ion-note style="margin-left: 5px; font-weight: 500" translate="common.domain"></ion-note>
+                      <ion-note style="margin-left: 5px; font-weight: 500">{{ 'common.domain' | translate }}</ion-note>
                     </ion-text>
                   </div>
                   <div>

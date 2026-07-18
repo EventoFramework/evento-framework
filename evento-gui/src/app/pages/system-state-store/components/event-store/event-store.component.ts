@@ -26,6 +26,7 @@ import {ComponentsModule} from "../../../../components/components.module";
 export class EventStoreComponent  implements OnInit {
 
   events?: any[]
+  selected?: any;
   parameters: any = {
     page: 0
   }
@@ -53,6 +54,12 @@ export class EventStoreComponent  implements OnInit {
 
   handleRefresh($event: any) {
     this.refresh().finally(() =>  $event.target.complete())
+  }
+
+  // Single shared detail modal for the whole table (instead of one per row).
+  openDetail(event: any, modal: { present: () => void }) {
+    this.selected = event;
+    modal.present();
   }
 
   async onIonInfinite($event: any) {
