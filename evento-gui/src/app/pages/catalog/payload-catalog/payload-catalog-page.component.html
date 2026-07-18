@@ -9,13 +9,13 @@
       <ion-row>
         <ion-col size="3" class="filters">
           <ion-row class="line-under ion-padding-vertical">
-            <ion-text class="title" translate="catalog.payload.search"></ion-text>
+            <ion-text class="title">{{ 'catalog.payload.search' | translate }}</ion-text>
             <ion-searchbar (ionChange)="checkFilters()" [(ngModel)]="search" mode="ios"
             class="ion-no-padding"></ion-searchbar>
           </ion-row>
           <ion-row class="line-under ion-padding-vertical">
             <ion-col>
-              <ion-text class="title" translate="catalog.payload.type.filter"></ion-text>
+              <ion-text class="title">{{ 'catalog.payload.type.filter' | translate }}</ion-text>
               <div class="ion-margin-top"></div>
               @for (type of types; track type) {
                 <ion-item lines="none">
@@ -32,7 +32,7 @@
           </ion-row>
           <ion-row class="line-under ion-padding-vertical">
             <ion-col>
-              <ion-text class="title" translate="catalog.payload.domain.filter"></ion-text>
+              <ion-text class="title">{{ 'catalog.payload.domain.filter' | translate }}</ion-text>
               <div class="ion-margin-top"></div>
               @for (domain of domains; track domain) {
                 <ion-item lines="none">
@@ -47,7 +47,7 @@
           </ion-row>
           <ion-row class="line-under ion-padding-vertical">
             <ion-col>
-              <ion-text class="title" translate="catalog.payload.component.filter"></ion-text>
+              <ion-text class="title">{{ 'catalog.payload.component.filter' | translate }}</ion-text>
               <div class="ion-margin-top"></div>
               @for (component of components; track component) {
                 <ion-item lines="none">

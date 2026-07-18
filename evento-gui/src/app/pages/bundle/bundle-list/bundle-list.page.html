@@ -9,13 +9,13 @@
       <ion-row>
         <ion-col size="3" class="filters">
           <ion-row class="line-under ion-padding-vertical">
-            <ion-text class="title" translate="bundle.search"></ion-text>
+            <ion-text class="title">{{ 'bundle.search' | translate }}</ion-text>
             <ion-searchbar (ionChange)="checkFilters()" [(ngModel)]="search" mode="ios"
             class="ion-no-padding"></ion-searchbar>
           </ion-row>
           <ion-row class="line-under ion-padding-vertical">
             <ion-col>
-              <ion-text class="title" translate="catalog.component.domain.filter"></ion-text>
+              <ion-text class="title">{{ 'catalog.component.domain.filter' | translate }}</ion-text>
               <div class="ion-margin-top"></div>
               @for (domain of domains; track domain) {
                 <ion-item lines="none">

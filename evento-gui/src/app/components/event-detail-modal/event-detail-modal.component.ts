@@ -21,4 +21,8 @@ export class EventDetailModalComponent  implements OnInit {
   present() {
     this.modal.present();
   }
+
+  copyPayload() {
+    navigator.clipboard?.writeText(JSON.stringify(this.event?.event, null, 2));
+  }
 }

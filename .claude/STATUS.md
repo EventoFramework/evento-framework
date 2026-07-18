@@ -1,7 +1,40 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-13. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-18. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## GUI redesign (2026-07-15 → 18) — plan in `.claude/GUI-REDESIGN-PLAN.md`
+
+Premium UX/UI pass on `evento-gui` preserving the brand (colors/logo/fonts).
+**Phases 1, 2, 4, 5, 6 done and on `main`; Phase 3 (login) not started.**
+
+- **P1 foundation**: `--evento-*` design tokens (spacing/radius/shadow/type/motion),
+  self-hosted Inter + Roboto (@fontsource), full light/dark theming
+  (`ThemeService` signals, `ion-palette-dark`, persisted toggle).
+- **P2 shell**: accessible router-driven header nav (aria-current, keyboard),
+  skeletons, empty states.
+- **P4 read-only pivot**: bundle Unregister removed; consumer dead-queue replay
+  is the only remaining server mutation.
+- **P5 graphs — mxGraph fully removed, replaced by Cytoscape.js + dagre**.
+  Shared engine `components/graph/evento-graph.ts` (per-connected-component
+  dagre layout + stacking, mx-style elbow edges with distributed ports and
+  24px jetties, marching-ants flow edges, context menus, theme-reactive).
+  Application graph rebuilt on d3 circle-packing (betweenness-centrality
+  sizing, hover grow + up/downstream color highlight). Event-store node keeps
+  the legacy database-cylinder shape (inline SVG). Hard-won gotchas (autolock
+  vs layouts, z-index-compare manual, elkjs-worker-under-webpack broken)
+  recorded in commit bodies.
+- **P6 tables/polish**: shared `.evento-table` styles (semantic `<table>`,
+  sticky headers, zebra hover, plain variant); adopted in event store,
+  snapshot store, consumer dead-queue, cluster-status replica grids. Shared
+  per-table detail modals replace per-row modal instances. JSON `.code-block`
+  with copy button. App-wide sweep: ngx-translate **directive on Ionic web
+  components duplicates text on re-slot** → converted to translate pipe
+  everywhere (directive is safe only on native elements).
+
+**Next**: Phase 3 — HTTP Basic auth (Spring Security static creds server-side,
+GUI login page + guard; SSE credential scheme still to decide since
+`EventSource` can't send an Authorization header).
 
 ## Dependabot upgrade sweep (2026-07-12)
 
