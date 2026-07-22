@@ -220,13 +220,13 @@ Five commits on `main` (`884ddac5`..`0222db14`), version **2.1.1** (renumbered f
   abstract stack is an `ArrayDeque`, which rejects the raw-`null` "unknown ref" marker with a
   message-less NPE — every real-world handler containing a null literal / array op logged
   "ASM invocation scan failed … : null" and silently lost its invocation edges (diagnosed live
-  from IrisUtilsBundle logs). Unknown refs are now a non-null `UNKNOWN` (`"?"`) sentinel;
+  from a field bundle's logs). Unknown refs are now a non-null `UNKNOWN` (`"?"`) sentinel;
   regression fixture `UnknownRefStackFixture` packs ACONST_NULL + ANEWARRAY + AALOAD.
 
 Verified: full suite green on JDK 25 + JDBC ITs green under Docker (new Flyway IT ran, 1/1 passed).
 **Released:** tag `v2.1.1` pushed 2026-07-03 (triggers release.yml + Maven Central publish).
 
-**Field note (Iris, 2026-07-03):** an IrisUtilsBundle dev deploy hung before the start hook — its
+**Field note (2026-07-03):** a field bundle's dev deploy hung before the start hook — its
 dedicated consumer DB had been baselined at 1 by the old FlywayMigrator (non-empty schema), so
 `evento_v2_*` tables were never created and no projector could reach head. Remedy for
 already-poisoned DBs: run `V1__init_v2_consumer_state.sql` manually (or drop
