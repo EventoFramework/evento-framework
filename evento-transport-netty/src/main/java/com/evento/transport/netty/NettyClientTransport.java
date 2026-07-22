@@ -199,7 +199,12 @@ public final class NettyClientTransport implements Transport {
         try {
             var ch = channel;
             if (ch != null) {
-                ch.close().syncUninterruptibly();
+                // Bounded wait — see ServerChildTransport.close(): an unbounded
+                // syncUninterruptibly() wedges the caller if the promise never completes.
+                var timeoutMs = config.connectTimeout().toMillis();
+                if (!ch.close().awaitUninterruptibly(timeoutMs)) {
+                    log.warn("event=client_close_timeout remote={} timeout_ms={}", remoteId, timeoutMs);
+                }
             }
         } finally {
             if (ownsWorkerGroup) {

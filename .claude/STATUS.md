@@ -3,6 +3,32 @@
 Last updated: 2026-07-22. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
+## Prod hang: unbounded channel-close wait wedged bus workers (2026-07-22, latest)
+
+A production evento-server 2.2.1 (market deployment) stopped serving event fetches for 3 days:
+`bus-business` workers were stuck forever in `DefaultPromise.awaitUninterruptibly` under
+`ServerChildTransport.close()` ← `ConnectionRegistry.register()` (the `hello_will_supersede`
+path). The close promise of the half-dead superseded channel was never completed, so the worker
+blocked indefinitely; leaked workers took open DB transactions (`idle in transaction` on
+`es__events`) and Hikari connections with them → pool (default 10) exhausted → every client
+`fetchEvents` failed remotely with `HikariPool-1 - Connection is not available`. Full thread dump
+from the incident: market prod server `/opt/market/backups/evento-server-threaddump-20260722.txt`.
+
+- **Fix (this session):** `Transport.close()` no longer waits unboundedly — both
+  `NettyServerTransport$ServerChildTransport.close()` and `NettyClientTransport.close()` use
+  `close().awaitUninterruptibly(connectTimeout)` and log `child_close_timeout` /
+  `client_close_timeout` on expiry (close op stays scheduled; we just stop waiting). Regression
+  IT `childCloseReturnsWhenEventLoopIsWedged` wedges the child's event loop with a latch and
+  asserts close returns bounded (old code hangs → caught by `@Timeout`).
+- `ConnectionRegistry.register` keeps its synchronous close (ConnectionRegistryTest asserts the
+  superseded transport is terminal on return); worst case is now a bounded `connectTimeout`
+  stall, not a permanent wedge.
+- **Open question:** WHY the close promise never completed is still not root-caused (dump shows
+  wedged workers, but the event-loop-side stack wasn't captured). If it recurs, dump BOTH
+  bus-business and `nioEventLoopGroup` threads.
+- **Ops mitigation applied on the market prod DBs** (not framework): postgres
+  `idle_in_transaction_session_timeout='5min'` on both the evento and market databases.
+
 ## Consumers tab dead since v2 — listener never wired (2026-07-22, later)
 
 "Cluster Status → Consumers is blank" turned out to be a framework bug, not a GUI one:

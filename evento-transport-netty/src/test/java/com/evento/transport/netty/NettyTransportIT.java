@@ -11,12 +11,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -252,6 +254,56 @@ class NettyTransportIT {
         await().atMost(2, TimeUnit.SECONDS).until(() ->
                 serverChild.state() == ConnectionState.DISCONNECTED ||
                 serverChild.state() == ConnectionState.CLOSED);
+    }
+
+    @Test
+    @Timeout(15)
+    void childCloseReturnsWhenEventLoopIsWedged() throws Exception {
+        // Regression for the prod hang: close() used to syncUninterruptibly() on the
+        // close promise; when the channel's event loop never serviced the close (a
+        // half-dead superseded connection), the calling thread — a server bus worker —
+        // blocked forever, leaking its DB transaction and pool connection. close() is
+        // now bounded by connectTimeout.
+        var quickConfig = new NettyTransportConfig(
+                Duration.ofMillis(500), Duration.ofMillis(2000), Duration.ofSeconds(1),
+                16 * 1024 * 1024, 64 * 1024, 32 * 1024,
+                new com.evento.transport.reconnect.ExponentialBackoffWithJitter(),
+                new com.evento.transport.codec.JacksonCborCodec(),
+                java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor());
+        var wedgeServer = new NettyServerTransport(quickConfig);
+        var children = new CopyOnWriteArrayList<com.evento.transport.Transport>();
+        wedgeServer.onConnection(children::add);
+        int port = wedgeServer.start(0);
+        var wedgeClient = new NettyClientTransport("wedge-client", "127.0.0.1", port, quickConfig);
+        var wedge = new CountDownLatch(1);
+        try {
+            wedgeClient.connect().join();
+            await().atMost(2, TimeUnit.SECONDS).until(() -> !children.isEmpty());
+            var child = children.getFirst();
+
+            // Wedge the child channel's event loop so the close op is never processed.
+            var channelField = child.getClass().getDeclaredField("channel");
+            channelField.setAccessible(true);
+            var channel = (io.netty.channel.Channel) channelField.get(child);
+            channel.eventLoop().execute(() -> {
+                try {
+                    wedge.await();
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+
+            long t0 = System.nanoTime();
+            child.close();
+            long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+
+            assertThat(child.state()).isEqualTo(ConnectionState.CLOSED);
+            assertThat(elapsedMs).isLessThan(5_000);
+        } finally {
+            wedge.countDown();
+            wedgeClient.close();
+            wedgeServer.stop();
+        }
     }
 
     @Test
