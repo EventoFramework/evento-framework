@@ -1,1 +1,23 @@
 <div class="grid-bg" style="height: 100%; width: 100%; overflow: hidden" #container></div>
+<div class="graph-search">
+  <ion-searchbar mode="ios" [(ngModel)]="searchTerm" (ionInput)="search()"
+                 (keydown.enter)="selectFirst()" (keydown.escape)="clearSearch()"
+                 (ionClear)="clearSearch()"
+                 [placeholder]="'application.graph.search' | translate"></ion-searchbar>
+  @if (searchTerm.trim()) {
+    <ion-list class="graph-search-results" lines="none">
+      @for (r of searchResults; track r.id) {
+        <ion-item button detail="false" (click)="select(r)">
+          <ion-label>
+            <h3>{{ r.label }}</h3>
+            <p>{{ r.component }} &middot; {{ r.bundle }}</p>
+          </ion-label>
+        </ion-item>
+      } @empty {
+        <ion-item>
+          <ion-label><p>{{ 'common.no.results' | translate }}</p></ion-label>
+        </ion-item>
+      }
+    </ion-list>
+  }
+</div>

@@ -31,6 +31,13 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
 
   @ViewChild('container', {static: true}) container: ElementRef;
 
+  // Handler search: type-ahead over payload/component names; selecting a
+  // result pans to the handler and pins the same highlight hover applies.
+  searchTerm = '';
+  searchResults: Array<{id: string; label: string; component: string; bundle: string}> = [];
+  private searchIndex: Array<{id: string; label: string; component: string; bundle: string; norm: string}> = [];
+  private pinnedId: string | null = null;
+
   private cy: cytoscape.Core | null = null;
   private themeObserver: MutationObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -157,13 +164,38 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
       })).filter((b: any) => b.children.length),
     };
 
+    // World size scales with content. pack() squeezes whatever it gets into
+    // the given canvas, so a fixed 1600px world crushed large apps' handler
+    // bubbles to a few px — their labels could never fit at any zoom. Derive
+    // the canvas side from the total leaf area (times a packing-waste factor)
+    // so bubbles keep their intended 45–120px radii regardless of app size.
+    let totalLeafValue = 0;
+    for (const b of rootData.children) {
+      for (const c of b.children) {
+        for (const h of c.children) {
+          totalLeafValue += h.value;
+        }
+      }
+    }
+    const side = Math.max(1600, Math.round(4 * Math.sqrt(totalLeafValue)));
+
     const root = pack<any>()
-      .size([1600, 1600])
-      .padding((d: any) => (d.depth === 0 ? 40 : d.depth === 1 ? 26 : 8))(
+      .size([side, side])
+      .padding((d: any) => (d.depth === 0 ? side * 0.025 : d.depth === 1 ? side * 0.016 : 8))(
         hierarchy(rootData)
           .sum((d: any) => d.value || 0)
           .sort((a, b) => (b.value || 0) - (a.value || 0)),
       );
+
+    this.searchIndex = root.leaves()
+      .filter((l: any) => l.data.kind === 'handler')
+      .map((l: any) => ({
+        id: l.data.id,
+        label: l.data.name,
+        component: l.parent.data.id,
+        bundle: l.parent.parent.data.id,
+        norm: `${l.data.name} ${l.parent.data.id}`.toLowerCase(),
+      }));
 
     // ---- Build Cytoscape elements at the packed positions.
     const p = this.palette();
@@ -177,9 +209,18 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
       // Fit the label inside the circle's inscribed square (side ≈ 1.41r):
       // font size scales with radius and shrinks with label length; handler
       // labels are pre-wrapped at camelCase boundaries so breaks land between
-      // words, not mid-word.
-      const fs = Math.max(6, Math.min(13, (1.3 * d.r) / Math.sqrt(Math.max(rawLabel.length, 1))));
+      // words, not mid-word. Bundle labels scale with the bundle's radius so
+      // the biggest containers stay readable at the overview zoom, where
+      // component/handler labels are culled by `min-zoomed-font-size`.
       const tmw = d.r * 1.3;
+      let fs: number;
+      if (data.kind === 'handler') {
+        fs = Math.max(6, Math.min(16, (1.3 * d.r) / Math.sqrt(Math.max(rawLabel.length, 1))));
+      } else if (data.kind === 'component') {
+        fs = Math.max(12, Math.min(28, d.r * 0.16));
+      } else {
+        fs = Math.max(14, Math.min(72, d.r * 0.15));
+      }
       const label = data.kind === 'handler' ? this.camelWrap(rawLabel, tmw, fs) : rawLabel;
       const common = {
         position: {x: d.x, y: d.y},
@@ -257,6 +298,11 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
             'text-max-width': 'data(tmw)',
             'text-valign': 'center',
             'text-halign': 'center',
+            // Level-of-detail: skip any label whose on-screen size would be
+            // below ~8px. On large applications this is what keeps the
+            // overview readable — labels fade in as you zoom into a region
+            // instead of all rendering at once as overlapping noise.
+            'min-zoomed-font-size': 8,
             events: 'yes',
           } as any,
         },
@@ -279,7 +325,6 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
           selector: '.bundle, .component',
           style: {
             'text-valign': 'top',
-            'font-size': 12,
             'text-wrap': 'none',
             'text-background-color': p.surface,
             'text-background-opacity': 1,
@@ -290,6 +335,12 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
             'text-border-opacity': 1,
           } as any,
         },
+        // Bundle names are the map's landmarks: keep them visible further out
+        // than everything else (their font already scales with bundle size).
+        {selector: '.bundle', style: {'min-zoomed-font-size': 5} as any},
+        // A hovered node always shows its label, even when zoomed out past
+        // the LOD cutoff — hover is the "what is this bubble?" gesture.
+        {selector: 'node.hl', style: {'min-zoomed-font-size': 0} as any},
         {
           selector: 'edge',
           style: {
@@ -321,24 +372,53 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
     this.cy = cy;
 
     // Bubble hover: enlarge the hovered handler and light up its downstream
-    // path (the old view's BFS-over-outgoing-edges highlight).
+    // path (the old view's BFS-over-outgoing-edges highlight). A search-pinned
+    // handler keeps its highlight: its own mouseout is ignored, and other
+    // bubbles' mouseouts re-apply the pinned paths they may have stripped.
     cy.on('mouseover', 'node', (evt) => {
       const n = evt.target;
       n.addClass('hl');
       if (n.hasClass('handler')) {
-        const dia = n.data('d');
-        n.style({width: dia * 1.18, height: dia * 1.18});
+        this.reveal(n);
         n.successors().addClass('hl-down');
         n.predecessors().addClass('hl-up');
       }
     });
     cy.on('mouseout', 'node', (evt) => {
       const n = evt.target;
+      if (n.id() === this.pinnedId) {
+        return;
+      }
       n.removeClass('hl');
       if (n.hasClass('handler')) {
-        n.removeStyle('width').removeStyle('height');
+        this.unreveal(n);
         n.successors().removeClass('hl-down');
         n.predecessors().removeClass('hl-up');
+      }
+      if (this.pinnedId) {
+        const p = cy.getElementById(this.pinnedId);
+        if (p.nonempty()) {
+          p.successors().addClass('hl-down');
+          p.predecessors().addClass('hl-up');
+        }
+      }
+    });
+
+    // Keep the pinned handler's revealed label at a readable on-screen size
+    // while the user zooms around it.
+    cy.on('zoom', () => {
+      if (this.pinnedId) {
+        const p = cy.getElementById(this.pinnedId);
+        if (p.nonempty()) {
+          this.reveal(p);
+        }
+      }
+    });
+
+    // Tapping empty background dismisses the search highlight.
+    cy.on('tap', (evt) => {
+      if (evt.target === cy) {
+        this.clearSearch();
       }
     });
 
@@ -375,6 +455,84 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
     this.themeObserver?.disconnect();
     this.resizeObserver?.disconnect();
     this.cy?.destroy();
+  }
+
+  search() {
+    const q = this.searchTerm.trim().toLowerCase();
+    this.searchResults = q
+      ? this.searchIndex.filter(e => e.norm.includes(q)).slice(0, 12)
+      : [];
+  }
+
+  selectFirst() {
+    if (this.searchResults.length) {
+      this.select(this.searchResults[0]);
+    }
+  }
+
+  select(r: {id: string; label: string}) {
+    this.searchResults = [];
+    this.searchTerm = r.label;
+    const cy = this.cy;
+    if (!cy) {
+      return;
+    }
+    this.clearPin();
+    const n = cy.getElementById(r.id);
+    if (n.empty()) {
+      return;
+    }
+    this.pinnedId = r.id;
+    n.addClass('hl');
+    n.successors().addClass('hl-down');
+    n.predecessors().addClass('hl-up');
+    // Fly to the handler: zoom in (never out) until its bubble takes up a
+    // decent chunk of the viewport, then scale its label up to readable.
+    const zoom = Math.max(cy.zoom(), Math.min(1.4, 260 / n.data('d')));
+    cy.animate(
+      {center: {eles: n}, zoom},
+      {duration: 500, easing: 'ease-in-out-cubic', complete: () => this.reveal(n)},
+    );
+  }
+
+  clearSearch() {
+    this.searchTerm = '';
+    this.searchResults = [];
+    this.clearPin();
+  }
+
+  private clearPin() {
+    if (!this.pinnedId || !this.cy) {
+      return;
+    }
+    const n = this.cy.getElementById(this.pinnedId);
+    this.pinnedId = null;
+    if (n.nonempty()) {
+      n.removeClass('hl');
+      this.unreveal(n);
+      n.successors().removeClass('hl-down');
+      n.predecessors().removeClass('hl-up');
+    }
+  }
+
+  /**
+   * Enlarge a handler bubble and, when zoomed out past the LOD cutoff, scale
+   * its label (font AND wrap width, so the pre-computed camelCase line breaks
+   * hold) up to a readable on-screen size.
+   */
+  private reveal(n: any) {
+    const dia = n.data('d');
+    n.style({width: dia * 1.18, height: dia * 1.18});
+    const k = 11 / (n.data('fs') * this.cy.zoom());
+    if (k > 1) {
+      n.style({'font-size': n.data('fs') * k, 'text-max-width': n.data('tmw') * k});
+    } else {
+      n.removeStyle('font-size').removeStyle('text-max-width');
+    }
+  }
+
+  private unreveal(n: any) {
+    n.removeStyle('width').removeStyle('height').removeStyle('font-size').removeStyle('text-max-width');
   }
 
   private palette() {
