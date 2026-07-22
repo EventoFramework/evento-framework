@@ -431,16 +431,37 @@ export function createEventoGraph(
   });
   cy.on('tap pan zoom', () => menu.hide());
 
-  // Marching-ants animation on flow edges.
+  // Marching-ants animation on flow edges. Every ants tick restyles the flow
+  // edges, and any element style change makes Cytoscape's renderer invalidate
+  // its texture caches — which starves the progressive re-rasterization that
+  // sharpens nodes/labels after a zoom, leaving big graphs permanently blurry.
+  // Two guards:
+  //  - pause the ants while the viewport is changing and for a beat after, so
+  //    the caches get idle frames to re-render at the new resolution;
+  //  - above ANTS_MAX_EDGES skip the animation entirely (static dashes): the
+  //    per-frame full redraw is too expensive there and the cache refinement
+  //    would never catch up.
+  const ANTS_MAX_EDGES = 500;
   let raf = 0;
   let offset = 0;
+  let antsPaused = false;
+  let antsResumeTimer: ReturnType<typeof setTimeout> | null = null;
   const flowEdges = cy.edges('.flow');
   const animate = () => {
-    offset = (offset - 0.6) % 10000;
-    flowEdges.style('line-dash-offset', offset);
+    if (!antsPaused) {
+      offset = (offset - 0.6) % 10000;
+      flowEdges.style('line-dash-offset', offset);
+    }
     raf = requestAnimationFrame(animate);
   };
-  if (flowEdges.nonempty()) raf = requestAnimationFrame(animate);
+  if (flowEdges.nonempty() && flowEdges.length <= ANTS_MAX_EDGES) {
+    raf = requestAnimationFrame(animate);
+    cy.on('viewport', () => {
+      antsPaused = true;
+      if (antsResumeTimer) clearTimeout(antsResumeTimer);
+      antsResumeTimer = setTimeout(() => (antsPaused = false), 800);
+    });
+  }
 
   // Re-color on theme (light/dark) toggle.
   const observer = new MutationObserver(() => {
@@ -474,6 +495,7 @@ export function createEventoGraph(
     cy,
     destroy: () => {
       if (raf) cancelAnimationFrame(raf);
+      if (antsResumeTimer) clearTimeout(antsResumeTimer);
       observer.disconnect();
       resizeObserver.disconnect();
       menu.destroy();
