@@ -1,7 +1,41 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-18. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-22. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## GUI graph readability at scale (2026-07-22)
+
+Field-tested the GUI against a big real application (~10 bundles, hundreds of
+handlers) and fixed the two graph views that fell apart at that size. Commits
+`127b571d` (feat) + `bf3bcd0d` (fix), both `evento-gui` only.
+
+- **Application Graph unreadable (text soup):** every label rendered at every zoom,
+  and d3-pack squeezed the world into a fixed 1600px canvas so handler bubbles
+  collapsed to a few px. Now: `min-zoomed-font-size` culls labels under ~8 on-screen
+  px (they fade in per region as you zoom — bundle names scale with radius and act as
+  overview landmarks); the pack canvas side derives from total leaf area
+  (`4·√Σr²`, floor 1600) so bubbles keep their intended 45–120px radii at any app
+  size; container fonts/padding scale along.
+- **Handler search in the Application Graph:** floating type-ahead (matches payload +
+  component name, shows `payload — component · bundle`), Enter/click flies to the
+  handler and **pins** the hover highlight (enlarged bubble, label forced readable at
+  any zoom via font+wrap-width scaling, downstream orange / upstream teal paths).
+  Dismiss: background tap, searchbar clear, or Escape. Hover logic refactored into
+  pin-aware `reveal`/`unreveal` helpers. New i18n key `application.graph.search`.
+- **Flows view blurry after zoom on big flows** (`evento-graph.ts`, so also bundle/
+  component diagrams): root cause was the marching-ants RAF loop — restyling all
+  `.flow` edges every frame makes Cytoscape invalidate its texture caches
+  (`onUpdateEleCalcs` → "any change invalidates the layers"), which permanently
+  starves the progressive re-rasterization that sharpens nodes/labels after a zoom.
+  Fix: ants pause during viewport changes + 800ms after (idle frames let caches
+  refine; resuming only touches edge caches), and flows with **>500** flow edges skip
+  the animation entirely (static dashes).
+- Gotcha worth remembering: any per-frame `eles.style(...)` tick on a Cytoscape graph
+  silently disables its texture-cache refinement — throttle/pause it or big graphs
+  stay low-res forever.
+- Verified via `ng build --configuration production` (output lands in
+  `evento-server/src/main/resources/public/`). Not yet visually re-verified on the
+  full-size app beyond the pre-fix screenshot — worth a quick look next session.
 
 ## GUI redesign (2026-07-15 → 18) — plan in `.claude/GUI-REDESIGN-PLAN.md`
 
@@ -331,7 +365,7 @@ Companion docs:
 | Item | State |
 |---|---|
 | Branch | **`main`** (active development). `next` merged. |
-| Version | **`2.1.1`** released 2026-07-03 (tag `v2.1.1` → Maven Central + GHCR/Docker Hub). |
+| Version | **`2.3.0`** (latest `chore(release)` on `main`; 2.1.1 was the last entry detailed here). |
 | v2 rewrite | **Complete** — all 3 PRs (transport / server / bundle) shipped |
 | Test count | ~245 on JDK 25 (transport, server, common, bundle, lab, lab-ms); 50+ JDBC ITs gated on Docker |
 | Known issues | None open post Fix A–D |
