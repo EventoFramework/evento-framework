@@ -3,6 +3,33 @@
 Last updated: 2026-07-22. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
+## Consumers tab dead since v2 — listener never wired (2026-07-22, later)
+
+"Cluster Status → Consumers is blank" turned out to be a framework bug, not a GUI one:
+**`BundleAdminNotificationListener` was never instantiated on any v2.x server**, so consumer
+registrations AND all bundle performance telemetry were silently dropped since the v2 rewrite.
+Commits `2e51daa5` (server) + `04cf632c` (bundle) + `e65e8844` (gui). Verified live against the
+full multi-bundle deployment (11 bundles, evento-bundle 2.2.1): consumers now appear.
+
+- **Two independent DI kill-switches** on the listener: (1) `@ConditionalOnProperty` still used
+  the pre-rename `evento.server.bus.v2.enabled` prefix nothing sets; (2)
+  `@ConditionalOnBean(BusLifecycle.class)` on a component-scanned class evaluates during the
+  scan, before `@Configuration` `@Bean` definitions register → deterministically false (Spring
+  restricts `@ConditionalOnBean` to auto-configs for this reason; it was redundant anyway).
+  Wire-level ITs stayed green because they subscribe to `BusEventBus` directly, "no Spring" by
+  design — new `BundleAdminNotificationListenerWiringTest` (ApplicationContextRunner + real
+  component scan) closes that blind spot.
+- **Destructive GET removed:** `ConsumerController.findAllConsumers` used to `clearInstance()`
+  rows whose instance wasn't currently available — listing consumers during a bundle reconnect
+  permanently wiped registrations. Now a pure read; cleanup lives in
+  `AutoDiscoveryService.onNodeLeave`.
+- **Bundle re-registers on reconnect:** consumer registration was one-shot at startup; now also
+  re-sent on every transition to READY (idempotent upsert server-side). Old 2.2.x bundles still
+  need a process restart after a server DB wipe.
+- **Debug techniques that cracked it:** `jcmd <pid> GC.class_histogram | grep <Bean>` proved the
+  bean absent in the live JVM; `git diff v2.2.1..HEAD -- <wire classes>` proved 2.2.1↔HEAD wire
+  compat; classpath + `build\classes` timestamps proved the running process had the "fixed" jar.
+
 ## GUI graph readability at scale (2026-07-22)
 
 Field-tested the GUI against a big real application (~10 bundles, hundreds of
