@@ -6,6 +6,7 @@
 	"common.no.results":"No results found",
 	"application.flows.title":"Flows",
 	"application.graph.title":"Application Graph",
+	"application.graph.search":"Search handler...",
 	"bundle":"Bundles",
 	"bundle.version":"Version",
 	"bundle.unregister":"Unregister",

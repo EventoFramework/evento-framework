@@ -1,4 +1,43 @@
-#graph{
-  width: 100%;
+:host {
+  display: block;
+  position: relative;
   height: 100%;
+}
+
+.graph-search {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  width: min(340px, calc(100% - 20px));
+
+  ion-searchbar {
+    padding: 0;
+    --box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  }
+
+  .graph-search-results {
+    margin-top: 6px;
+    padding: 0;
+    border-radius: 12px;
+    overflow-y: auto;
+    max-height: min(48vh, 420px);
+    background: var(--evento-surface, #fff);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+
+    ion-item {
+      --background: transparent;
+      font-size: 14px;
+
+      h3 {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      p {
+        font-size: 11px;
+        opacity: 0.7;
+      }
+    }
+  }
 }
