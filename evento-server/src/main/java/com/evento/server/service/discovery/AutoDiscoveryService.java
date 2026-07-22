@@ -32,6 +32,7 @@ public class AutoDiscoveryService {
     private final PayloadRepository payloadRepository;
     private final BundleService bundleService;
     private final ComponentRepository componentRepository;
+    private final ConsumerService consumerService;
 
     private final PgDistributedLock pgDistributedLock;
 
@@ -39,11 +40,13 @@ public class AutoDiscoveryService {
                                 BundleRepository bundleRepository,
                                 HandlerService handlerService,
                                 PayloadRepository payloadRepository, BundleService bundleService,
-                                ComponentRepository componentRepository, DataSource dataSource) {
+                                ComponentRepository componentRepository,
+                                ConsumerService consumerService, DataSource dataSource) {
         this.bundleRepository = bundleRepository;
         this.handlerService = handlerService;
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
+        this.consumerService = consumerService;
         busFacade.subscribe(event -> {
             switch (event) {
                 case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
@@ -276,6 +279,12 @@ public class AutoDiscoveryService {
         try {
             var key = "DISCOVERY:" + node.instanceId();
             pgDistributedLock.lockedArea(key, () -> {
+                // Consumer rows are per-instance; the instance is gone, so its
+                // rows go with it. Bundles (>= this version) re-send their
+                // consumer registration on every re-established session, so a
+                // reconnect repopulates them. This replaces the old cleanup
+                // that ConsumerController did destructively inside a GET.
+                consumerService.clearInstance(node.instanceId());
                 bundleRepository.findById(node.bundleId()).ifPresent(b -> {
                     if (node.instanceId().equals(b.getInstanceId())) {
                         bundleService.unregister(node.bundleId());

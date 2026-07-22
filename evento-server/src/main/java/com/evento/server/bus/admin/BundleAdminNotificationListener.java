@@ -13,7 +13,6 @@ import com.evento.transport.protocol.ProtocolPayloadTypes;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -35,8 +34,15 @@ import org.springframework.stereotype.Component;
  * <p>Active only when {@code evento.server.bus.enabled=true}.
  */
 @Component
-@ConditionalOnProperty(prefix = "evento.server.bus.v2", name = "enabled", havingValue = "true")
-@ConditionalOnBean(BusLifecycle.class)
+// NOTE: the flag is `evento.server.bus.enabled` — the pre-rename `bus.v2` prefix
+// here silently disabled this listener (consumer registrations and performance
+// telemetry were dropped) because no configuration ever set `bus.v2.enabled`.
+// Do NOT add @ConditionalOnBean(BusLifecycle.class): conditions on scanned
+// @Components run during the scan, before @Configuration @Bean definitions are
+// registered, so it is deterministically false here (Spring restricts
+// @ConditionalOnBean to auto-configurations for exactly this reason). And it
+// is redundant — BusConfiguration registers BusLifecycle unconditionally.
+@ConditionalOnProperty(prefix = "evento.server.bus", name = "enabled", havingValue = "true")
 public class BundleAdminNotificationListener {
 
     private static final Logger log = LoggerFactory.getLogger(BundleAdminNotificationListener.class);
