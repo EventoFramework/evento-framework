@@ -29,6 +29,13 @@ public class ConsumerController {
     @Secured("ROLE_WEB")
     public List<ConsumerDTO> findAllConsumers(){
         var consumers = consumerService.findAll();
+        // Pure read: rows for departed instances are cleaned up on NodeLeft
+        // (AutoDiscoveryService), NOT here — deleting from a GET meant that
+        // listing consumers while a bundle was reconnecting (e.g. right after
+        // a server restart) permanently wiped its registration.
+        var availableInstances = busFacade.currentAvailableView().stream()
+                .map(e -> e.instanceId())
+                .collect(java.util.stream.Collectors.toSet());
         var map = new HashMap<String, ConsumerDTO>();
         for(var c : consumers){
             if(!map.containsKey(c.getComponent().getComponentName())){
@@ -43,10 +50,8 @@ public class ConsumerController {
                 consumer.setComponentVersion((c.getConsumerId().split("_"))[2]);
                 map.put(c.getComponent().getComponentName(), consumer);
             }
-            if(busFacade.currentAvailableView().stream().anyMatch(e -> e.instanceId().equals(c.getInstanceId()))){
+            if(availableInstances.contains(c.getInstanceId())){
                 map.get(c.getComponent().getComponentName()).getInstances().add(c.getInstanceId());
-            }else{
-                consumerService.clearInstance(c.getInstanceId());
             }
         }
         return map.values().stream().toList();
