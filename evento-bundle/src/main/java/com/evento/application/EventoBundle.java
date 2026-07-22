@@ -1,6 +1,7 @@
 package com.evento.application;
 
 import com.evento.application.client.BundleClient;
+import com.evento.application.client.BundleClientState;
 import com.evento.application.client.BundleInboundDispatcher;
 import com.evento.application.client.EventoServerAdapter;
 import com.evento.application.client.admin.BundleAdminRequestHandler;
@@ -617,7 +618,7 @@ public class EventoBundle {
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
                     startSagaAndObserverEnginesV2(eventoBundle.get(), engineConfigForLater, contexts, supervisor, dispatchContext);
-                    sendConsumerRegistrationV2(eventoServer, supervisor);
+                    sendConsumerRegistrationV2(eventoServer, supervisor, bundleClient);
                     logger.info("Application Started!");
                     Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
                 } catch (InterruptedException e) {
@@ -646,7 +647,8 @@ public class EventoBundle {
 
         /** v2 consumer registration — reads consumer ids from {@link EngineSupervisor}. */
         private static void sendConsumerRegistrationV2(EventoServer eventoServer,
-                                                       EngineSupervisor supervisor) throws Exception {
+                                                       EngineSupervisor supervisor,
+                                                       BundleClient bundleClient) throws Exception {
             var cr = new BundleConsumerRegistrationMessage();
             cr.setProjectorConsumers(new HashMap<>());
             for (var c : supervisor.getProjectorEngines()) {
@@ -667,6 +669,22 @@ public class EventoBundle {
                         .add(c.getConsumerId());
             }
             eventoServer.send(cr);
+            // Consumer rows on the server exist only while this instance is known
+            // to the cluster (they are cleared when the instance leaves, and a
+            // fresh server database starts empty). A one-shot registration would
+            // therefore leave this bundle's consumers invisible after any server
+            // restart or connection blip until the bundle itself restarted —
+            // re-send on every re-established session instead. Registration is
+            // idempotent server-side (rows are keyed by instanceId + consumerId).
+            bundleClient.onStateChange((from, to) -> {
+                if (to == BundleClientState.READY) {
+                    try {
+                        eventoServer.send(cr);
+                    } catch (Exception e) {
+                        logger.warn("Consumer re-registration after reconnect failed", e);
+                    }
+                }
+            });
         }
 
         private static void startProjectorEnginesV2(
