@@ -1,20 +1,29 @@
 <ion-row>
-  @for (c of consumers; track c) {
-    <ion-col size="6">
-      <ion-card [class]="'component-type component-type-' + c.componentType" (click)="fetchConsumerState(c, modal)">
-        <ion-card-content>
-          <ion-text class="title">{{c.componentName}} - {{c.componentVersion}} ({{c.context}})</ion-text>
-          <ion-text color="dark"><p>{{c.bundleId}} (v{{c.bundleVersion}})</p></ion-text>
-          <ion-text color="medium">
-            <ul >
-              @for (i of c.instances; track i) {
-                <li>{{i}}</li>
-              }
-            </ul>
-          </ion-text>
-        </ion-card-content>
-      </ion-card>
-    </ion-col>
+  @if (consumers) {
+    @for (c of consumers; track c) {
+      <ion-col size="6">
+        <ion-card [class]="'component-type component-type-' + c.componentType" (click)="fetchConsumerState(c, modal)">
+          <ion-card-content>
+            <ion-text class="title">{{c.componentName}} - {{c.componentVersion}} ({{c.context}})</ion-text>
+            <ion-text color="dark"><p>{{c.bundleId}} (v{{c.bundleVersion}})</p></ion-text>
+            <ion-text color="medium">
+              <ul >
+                @for (i of c.instances; track i) {
+                  <li>{{i}}</li>
+                }
+              </ul>
+            </ion-text>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    } @empty {
+      <ion-col size="12">
+        <div class="empty-state">
+          <ion-icon name="people-circle-outline"></ion-icon>
+          <p>{{ 'common.no.results' | translate }}</p>
+        </div>
+      </ion-col>
+    }
   }
 </ion-row>
 <ion-modal #modal class="modal-large">
