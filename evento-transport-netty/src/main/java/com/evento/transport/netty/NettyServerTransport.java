@@ -251,7 +251,15 @@ public final class NettyServerTransport implements TransportServer {
             state.forceTransition(ConnectionState.CLOSING, "child_close");
             try {
                 if (channel.isActive()) {
-                    channel.close().syncUninterruptibly();
+                    // Bounded wait: an unbounded syncUninterruptibly() here can wedge the
+                    // calling thread forever when the close promise is never completed
+                    // (e.g. superseding a half-dead connection whose event loop no longer
+                    // services it). The close op itself stays scheduled; we just stop waiting.
+                    var timeoutMs = config.connectTimeout().toMillis();
+                    if (!channel.close().awaitUninterruptibly(timeoutMs)) {
+                        log.warn("event=child_close_timeout remote={} timeout_ms={}",
+                                channel.remoteAddress(), timeoutMs);
+                    }
                 }
             } finally {
                 state.forceTransition(ConnectionState.CLOSED, "child_closed");
