@@ -17,7 +17,9 @@ services:
       - evento_cluster_name=evento-server
       - evento_performance_capture_rate=0.1
       - evento_telemetry_ttl=365
-      - evento_security_signing_key=MY_JWT_SECRET_TOKEN_SEED
+      # GUI/API login (HTTP Basic) — override in real deployments
+      - spring_security_user_name=evento
+      - spring_security_user_password=secret
       - spring_datasource_url=jdbc:postgresql://database:5432/evento
       - spring_datasource_username=postgres
       - spring_datasource_password=secret
