@@ -1,7 +1,37 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-22. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-23. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## Two open bugs found during docs screenshot session (2026-07-23)
+
+Found while running the published `eventoframework/evento-server:latest` (2.3.1) image +
+the four evento-lab-microservices bundles for documentation screenshots. Not yet fixed.
+
+- **GUI: `/component-catalog` and `/bundle-list` render skeletons forever.** Both pages
+  DO fetch their data (`/api/catalog/component/` and `/api/bundle/` return 200 with
+  correct JSON — verified via network log), but `loaded` never flips and the count stays
+  "(0)"; no console errors, no unhandled rejections. `/payload-catalog` (structurally
+  identical code) and every detail page (`component-info`, `bundle-info`, `payload-info`)
+  work fine. Additionally, `ionViewWillEnter` appears not to fire at all on **in-app**
+  (SPA) navigation to these pages — only on a fresh boot at the URL. Suspect the
+  `ChangeDetectionStrategy.Eager` / zoneless posture: the await-continuation state
+  mutation never triggers a re-render on these two pages. Old screenshots for those two
+  list pages were left in evento-doc; refresh them after the fix.
+- **Server: consumer registration races component persistence and gets dropped.**
+  `BundleAdminNotificationListener.dispatch` → `ConsumerService` throws
+  `ObjectNotFoundException: Component with id 'OrderObserver'` when a bundle's consumer
+  registration arrives before AutoDiscovery has (re-)persisted its component rows.
+  Reproduces near-deterministically on the FIRST registration of a brand-new bundle and
+  on reconnect after a bundle restart (because `onNodeLeave` deletes the ephemeral
+  component rows, and the re-registration's consumer message beats the discovery
+  processing). Result: the consumer silently never appears in Cluster Status → Consumers
+  until a lucky retry or a **server restart** (component rows then pre-exist and all
+  bundles re-register cleanly — that was the workaround used). Also seen nearby:
+  `ObjectOptimisticLockingFailureException` deleting payload rows in
+  `AutoDiscoveryService` during concurrent leave/join. Fix direction: make consumer
+  registration resilient to a missing Component row (create-or-retry / upsert), or order
+  admin-notification processing after discovery for the same bundle instance.
 
 ## Prod hang: unbounded channel-close wait wedged bus workers (2026-07-22, latest)
 
