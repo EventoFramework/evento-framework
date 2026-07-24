@@ -82,7 +82,7 @@ class BundleAdminNotificationListenerWiringTest {
 
         @Bean
         ConsumerService consumerService() {
-            return new ConsumerService(null, null, "wiring-test-server", null);
+            return new ConsumerService(null, null, null, "wiring-test-server", null);
         }
     }
 
