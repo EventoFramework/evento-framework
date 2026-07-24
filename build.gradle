@@ -17,7 +17,7 @@ allprojects {
         postgresJdbcVersion = '42.7.11'
         mysqlJdbcVersion = '9.7.0'
         hikariVersion = '7.1.0'
-        jazzerVersion = '0.24.0'
+        jazzerVersion = '0.30.0'
     }
 }
 
