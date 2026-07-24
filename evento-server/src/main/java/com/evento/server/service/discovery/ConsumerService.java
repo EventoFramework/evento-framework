@@ -1,11 +1,14 @@
 package com.evento.server.service.discovery;
 
+import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.consumer.*;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.bus.BusFacade;
+import com.evento.server.domain.model.core.Bundle;
+import com.evento.server.domain.model.core.Component;
 import com.evento.server.domain.model.core.Consumer;
 import com.evento.server.domain.repository.core.*;
 import org.apache.logging.log4j.LogManager;
@@ -14,8 +17,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -40,16 +46,19 @@ public class ConsumerService {
     private static final Logger logger = LogManager.getLogger(ConsumerService.class);
     private final ComponentRepository componentRepository;
     private final ConsumerRepository consumerRepository;
+    private final BundleRepository bundleRepository;
     private final String eventoServerInstanceId;
 
     private final PgDistributedLock distributedLock;
 
     public ConsumerService(ComponentRepository componentRepository,
                            ConsumerRepository consumerRepository,
+                           BundleRepository bundleRepository,
                            @Value("${evento.server.instance.id}") String eventoServerInstanceId,
                            DataSource dataSource) {
         this.componentRepository = componentRepository;
         this.consumerRepository = consumerRepository;
+        this.bundleRepository = bundleRepository;
         this.eventoServerInstanceId = eventoServerInstanceId;
         this.distributedLock = new PgDistributedLock(dataSource);
     }
@@ -75,41 +84,64 @@ public class ConsumerService {
             this.distributedLock.lockedArea(key, () -> {
                 logger.info("Discovering consumers in bundle: %s and instance: %s".formatted(sourceBundleId, sourceInstanceId));
                 var consumers = new ArrayList<Consumer>();
-                cr.getProjectorConsumers().forEach((k,v) -> {
-                    for (String id : v) {
-                        var c = new Consumer();
-                        c.setInstanceId(sourceInstanceId);
-                        c.setConsumerId(id);
-                        c.setComponent(componentRepository.getReferenceById(k));
-                        c.setIdentifier(c.getInstanceId() + "_" + c.getConsumerId());
-                        consumers.add(c);
-                    }
-                });
-                cr.getSagaConsumers().forEach((k,v) -> {
-                    for (String id : v) {
-                        var c = new Consumer();
-                        c.setInstanceId(sourceInstanceId);
-                        c.setConsumerId(id);
-                        c.setComponent(componentRepository.getReferenceById(k));
-                        c.setIdentifier(c.getInstanceId() + "_" + c.getConsumerId());
-                        consumers.add(c);
-                    }
-                });
-                cr.getObserverConsumers().forEach((k,v) -> {
-                    for (String id : v) {
-                        var c = new Consumer();
-                        c.setInstanceId(sourceInstanceId);
-                        c.setConsumerId(id);
-                        c.setComponent(componentRepository.getReferenceById(k));
-                        c.setIdentifier(c.getInstanceId() + "_" + c.getConsumerId());
-                        consumers.add(c);
-                    }
-                });
+                collectConsumers(cr.getProjectorConsumers(), ComponentType.Projector,
+                        sourceBundleId, sourceInstanceId, sourceBundleVersion, consumers);
+                collectConsumers(cr.getSagaConsumers(), ComponentType.Saga,
+                        sourceBundleId, sourceInstanceId, sourceBundleVersion, consumers);
+                collectConsumers(cr.getObserverConsumers(), ComponentType.Observer,
+                        sourceBundleId, sourceInstanceId, sourceBundleVersion, consumers);
                 consumerRepository.saveAll(consumers);
             });
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            logger.error("Consumer registration failed for bundle: %s and instance: %s — its consumers stay unregistered until the next reconnect"
+                    .formatted(sourceBundleId, sourceInstanceId), e);
         }
+    }
+
+    private void collectConsumers(Map<String, ? extends Set<String>> consumersByComponent,
+                                  ComponentType componentType,
+                                  String sourceBundleId,
+                                  String sourceInstanceId,
+                                  long sourceBundleVersion,
+                                  List<Consumer> out) {
+        if (consumersByComponent == null) return;
+        consumersByComponent.forEach((componentName, consumerIds) -> {
+            var component = resolveComponent(componentName, componentType,
+                    sourceBundleId, sourceInstanceId, sourceBundleVersion);
+            for (String id : consumerIds) {
+                var c = new Consumer();
+                c.setInstanceId(sourceInstanceId);
+                c.setConsumerId(id);
+                c.setComponent(component);
+                c.setIdentifier(c.getInstanceId() + "_" + c.getConsumerId());
+                out.add(c);
+            }
+        });
+    }
+
+    private Component resolveComponent(String componentName,
+                                       ComponentType componentType,
+                                       String sourceBundleId,
+                                       String sourceInstanceId,
+                                       long sourceBundleVersion) {
+        return componentRepository.findById(componentName).orElseGet(() -> {
+            // Registration can race auto-discovery (the two run under different lock
+            // keys on different bus threads), and a stale NodeLeft can delete the
+            // component rows between the two. The old getReferenceById proxy blew up
+            // at flush time and the whole registration was silently dropped; recreate
+            // an ephemeral row instead — the next discovery pass backfills its metadata.
+            logger.warn("Component %s not found while registering consumers for bundle: %s — creating an ephemeral one"
+                    .formatted(componentName, sourceBundleId));
+            var bundle = bundleRepository.findById(sourceBundleId).orElseGet(() ->
+                    bundleRepository.save(new Bundle(sourceBundleId, sourceBundleVersion,
+                            "", "", "", "", sourceInstanceId, true, Instant.now())));
+            var component = new Component();
+            component.setComponentName(componentName);
+            component.setBundle(bundle);
+            component.setComponentType(componentType);
+            component.setUpdatedAt(Instant.now());
+            return componentRepository.save(component);
+        });
     }
 
     /**

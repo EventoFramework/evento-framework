@@ -33,6 +33,7 @@ public class AutoDiscoveryService {
     private final BundleService bundleService;
     private final ComponentRepository componentRepository;
     private final ConsumerService consumerService;
+    private final BusFacade busFacade;
 
     private final PgDistributedLock pgDistributedLock;
 
@@ -47,6 +48,7 @@ public class AutoDiscoveryService {
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
         this.consumerService = consumerService;
+        this.busFacade = busFacade;
         busFacade.subscribe(event -> {
             switch (event) {
                 case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
@@ -101,6 +103,18 @@ public class AutoDiscoveryService {
                     if (!registration.linePrefix().isEmpty() &&
                             !registration.linePrefix().equals(bundle.getLinePrefix())) {
                         bundle.setLinePrefix(registration.linePrefix());
+                        bundleChanged = true;
+                    }
+                    // An ephemeral bundle row records the instance that created it so
+                    // onNodeLeave can reclaim it. Transfer that ownership to every
+                    // joining instance: during a rolling restart the replacement joins
+                    // before the old socket dies, and without the transfer the old
+                    // instance's NodeLeft tore down the live instance's registration
+                    // (components deleted → consumer registration silently dropped).
+                    // A null instanceId marks a manually published bundle and is never
+                    // claimed, so those keep surviving node departures.
+                    if (bundle.getInstanceId() != null && !bundle.getInstanceId().equals(node.instanceId())) {
+                        bundle.setInstanceId(node.instanceId());
                         bundleChanged = true;
                     }
                     if (bundleChanged) bundleRepository.save(bundle);
@@ -277,7 +291,11 @@ public class AutoDiscoveryService {
      */
     public void onNodeLeave(NodeAddress node) {
         try {
-            var key = "DISCOVERY:" + node.instanceId();
+            // Same lock key family as onNodeJoin ("DISCOVERY:" + bundleId): join and
+            // leave both touch bundle-scoped rows (components, handlers, the bundle
+            // itself), so they must serialize per bundle. The old instance-scoped key
+            // let a leave interleave with a join for the same bundle.
+            var key = "DISCOVERY:" + node.bundleId();
             pgDistributedLock.lockedArea(key, () -> {
                 // Consumer rows are per-instance; the instance is gone, so its
                 // rows go with it. Bundles (>= this version) re-send their
@@ -286,9 +304,19 @@ public class AutoDiscoveryService {
                 // that ConsumerController did destructively inside a GET.
                 consumerService.clearInstance(node.instanceId());
                 bundleRepository.findById(node.bundleId()).ifPresent(b -> {
-                    if (node.instanceId().equals(b.getInstanceId())) {
-                        bundleService.unregister(node.bundleId());
+                    if (!node.instanceId().equals(b.getInstanceId())) return;
+                    // Reclaim the ephemeral registration only when no instance of the
+                    // bundle is connected anymore: a live instance still needs the
+                    // components and handlers, and wiping them here made its later
+                    // consumer registration fail on missing component rows.
+                    boolean bundleStillLive = busFacade.currentView().stream()
+                            .anyMatch(n -> node.bundleId().equals(n.bundleId()));
+                    if (bundleStillLive) {
+                        logger.info("Skipping unregister of bundle %s: another live instance is connected"
+                                .formatted(node.bundleId()));
+                        return;
                     }
+                    bundleService.unregister(node.bundleId());
                 });
             });
         }catch (Exception e){
