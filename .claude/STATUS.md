@@ -1,37 +1,47 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-23. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-24. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## Two open bugs found during docs screenshot session (2026-07-23)
+## Both screenshot-session bugs closed (2026-07-24)
 
-Found while running the published `eventoframework/evento-server:latest` (2.3.1) image +
-the four evento-lab-microservices bundles for documentation screenshots. Not yet fixed.
+The two bugs recorded on 2026-07-23 during the docs screenshot session are resolved:
 
-- **GUI: `/component-catalog` and `/bundle-list` render skeletons forever.** Both pages
-  DO fetch their data (`/api/catalog/component/` and `/api/bundle/` return 200 with
-  correct JSON — verified via network log), but `loaded` never flips and the count stays
-  "(0)"; no console errors, no unhandled rejections. `/payload-catalog` (structurally
-  identical code) and every detail page (`component-info`, `bundle-info`, `payload-info`)
-  work fine. Additionally, `ionViewWillEnter` appears not to fire at all on **in-app**
-  (SPA) navigation to these pages — only on a fresh boot at the URL. Suspect the
-  `ChangeDetectionStrategy.Eager` / zoneless posture: the await-continuation state
-  mutation never triggers a re-render on these two pages. Old screenshots for those two
-  list pages were left in evento-doc; refresh them after the fix.
-- **Server: consumer registration races component persistence and gets dropped.**
-  `BundleAdminNotificationListener.dispatch` → `ConsumerService` throws
-  `ObjectNotFoundException: Component with id 'OrderObserver'` when a bundle's consumer
-  registration arrives before AutoDiscovery has (re-)persisted its component rows.
-  Reproduces near-deterministically on the FIRST registration of a brand-new bundle and
-  on reconnect after a bundle restart (because `onNodeLeave` deletes the ephemeral
-  component rows, and the re-registration's consumer message beats the discovery
-  processing). Result: the consumer silently never appears in Cluster Status → Consumers
-  until a lucky retry or a **server restart** (component rows then pre-exist and all
-  bundles re-register cleanly — that was the workaround used). Also seen nearby:
-  `ObjectOptimisticLockingFailureException` deleting payload rows in
-  `AutoDiscoveryService` during concurrent leave/join. Fix direction: make consumer
-  registration resilient to a missing Component row (create-or-retry / upsert), or order
-  admin-notification processing after discovery for the same bundle instance.
+- **Server: rolling restarts wiped live bundle registrations — FIXED** (`fix(server)`
+  commit on main). Root cause was three cooperating defects, worse than the originally
+  suspected registration/discovery race: (1) the bundle row records the instance that
+  auto-registered it and `onNodeLeave` reclaims the whole registration (handlers,
+  components, consumers, bundle) when that instance departs, but `onNodeJoin` never
+  transferred that ownership — so during a rolling restart (replacement joins before the
+  old socket dies) the stale departure deleted the rows the live instance had just
+  registered; (2) `onNodeLeave` locked `DISCOVERY:<instanceId>` while `onNodeJoin` locks
+  `DISCOVERY:<bundleId>`, so leave could interleave with join for the same bundle; (3)
+  `ConsumerService.registerConsumers` built `Consumer` rows from `getReferenceById` lazy
+  proxies — a missing component row blew up the flush (`ObjectNotFoundException
+  'OrderObserver'`) and the outer catch silently dropped the whole registration. Fixes:
+  ownership transfer on join (null `instanceId` still marks manually published bundles,
+  never reclaimed), per-bundle lock + live-instance guard on leave, and up-front
+  component resolution with ephemeral recreation in `registerConsumers` (consumer maps
+  are keyed by component name, type implied by the map; discovery backfills metadata).
+  Regression tests: `AutoDiscoveryServiceLifecycleTest` (drives the service through the
+  captured bus subscriber), `ConsumerServiceRegistrationTest`. The
+  `ObjectOptimisticLockingFailureException` on payload deletes during concurrent
+  leave/join should also disappear now that leave/join serialize per bundle.
+- **GUI: `/component-catalog` and `/bundle-list` "render skeletons forever" — NOT A
+  BUG.** Reproduced, then root-caused as an automation-environment artifact: the
+  screenshot sessions ran in a Chrome window that Windows marked occluded (display
+  asleep), so `document.visibilityState === 'hidden'` and Chrome stops servicing
+  `requestAnimationFrame`. Ionic's tab transition is rAF-driven, so `ionViewWillEnter`
+  never fires while hidden and the page sits on "(0)" skeletons; `/payload-catalog` only
+  "worked" because its fetch had happened while the window was still visible. In a
+  visible browser (headless Chrome over CDP against the same production build) full
+  load, SPA nav to both pages, and revisits all populate correctly; no app change
+  needed. Real users are unaffected (a hidden tab resumes when it becomes visible).
+  The two remaining stale doc screenshots (`image (54).png`, `image (57).png`) were
+  re-captured headless from the real 2.3.1 stack and pushed to evento-doc. Lesson for
+  future browser automation on this box: the display sleeps while the user is away —
+  drive the GUI with headless Chrome (`--headless=new --remote-debugging-port`) instead
+  of the desktop Chrome extension, or the tab throttles.
 
 ## Prod hang: unbounded channel-close wait wedged bus workers (2026-07-22, latest)
 
