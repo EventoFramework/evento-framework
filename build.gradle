@@ -5,7 +5,7 @@ allprojects {
     ext {
         javaLanguageVersion = JavaLanguageVersion.of(25)
         eventoVersion = '2.3.2'
-        jacksonVersion = '2.18.2'
+        jacksonVersion = '2.22.1'
         nettyVersion = '4.1.124.Final'
         lz4Version = '1.8.0'
         micrometerVersion = '1.13.6'
