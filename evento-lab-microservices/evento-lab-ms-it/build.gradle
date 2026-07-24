@@ -28,7 +28,7 @@ dependencies {
     testImplementation "com.zaxxer:HikariCP:${hikariVersion}"
     testRuntimeOnly "org.flywaydb:flyway-core:${flywayVersion}"
     testRuntimeOnly "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
-    testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3'
+    testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
     testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
