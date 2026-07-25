@@ -1,5 +1,6 @@
 package com.evento.transport.codec;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
@@ -32,10 +33,31 @@ public final class JacksonCborPayloadCodec implements PayloadCodec {
         this.mapper = mapper;
     }
 
+    /**
+     * <h2>Why unknown properties are ignored</h2>
+     * <p>Protocol payloads evolve by addition — a new field on {@code BundleDiscoveryInfo},
+     * {@code RegisteredHandler}, and so on. With {@code FAIL_ON_UNKNOWN_PROPERTIES} enabled,
+     * a bundle one version ahead of its broker had its <em>entire</em> payload rejected, and
+     * the failure was near-silent: the bundle registered, enabled and consumed normally
+     * while its handler metadata simply never appeared in the dashboard. Mixed-version
+     * fleets are normal during a rolling upgrade, so that is the wrong default.
+     *
+     * <p>This is <b>not</b> a weakening of the deserialization hardening. The gadget-chain
+     * defence is the {@link PolymorphicTypeValidator} installed by
+     * {@link #withPolymorphism(Set)} (and {@code MessageTypeRegistry} on the message codec),
+     * which constrains <em>which types may be instantiated</em>. Skipping an unrecognised
+     * property on an already-whitelisted target type instantiates nothing — Jackson reads
+     * the value and discards it.
+     *
+     * <p>The complementary direction (an older peer omitting a field a newer one expects) is
+     * handled by the payload records themselves, whose {@code @JsonCreator} constructors
+     * normalise {@code null} to a default.
+     */
     public static ObjectMapper defaultMapper() {
         return new ObjectMapper(new CBORFactory())
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
     /**
