@@ -16,6 +16,18 @@ updates:
     labels:
       - dependencies
       - npm
+    # Majors held back by peer ranges we do not control. Each was raised, failed
+    # `npm ci` with ERESOLVE, and cannot be unblocked from this repo. Drop the
+    # entry once the blocking package ships support.
+    ignore:
+      # ng-apexcharts@2.4.0 (latest) peers apexcharts@^5.10.3.
+      - dependency-name: apexcharts
+        update-types:
+          - version-update:semver-major
+      # eslint-plugin-import@2.32.0 (latest) peers eslint@"...||^9".
+      - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
     schedule:

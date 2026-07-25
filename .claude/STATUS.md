@@ -1,7 +1,48 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-24. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-25. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## Dependabot backlog swept (2026-07-25)
+
+17 open Dependabot PRs triaged. The dominant finding was structural, not per-dependency:
+**11 of the 17 were based on orphaned history.** Their parent was `8b21c506
+chore(release): 2.3.0`, which is no longer an ancestor of `main` — `main`'s history was
+rewritten after 2026-07-18. Git therefore fell back to an ancient merge base
+(`dabdf736`) and GitHub computed their diffs as ~300 files *added*; merging any of them
+would have replayed deleted history over `main`. This is what `mergeable: UNKNOWN` on
+every npm/github-actions PR actually meant. They were fixed with `@dependabot recreate`,
+not merged. **If `main` is ever rewritten again, expect the same failure mode and
+recreate the open Dependabot PRs rather than trusting their diffs.**
+
+- **Merged** (all were correctly based on `59f249aa`, all five checks green): log4j-slf4j2-impl
+  2.24.3→2.26.1 (#158), jackson 2.18.2→2.22.1 (#160), postgresql 42.7.11→42.7.13 (#168),
+  jazzer-junit 0.24.0→0.30.0 (#169), gradle-wrapper 9.3.0→9.6.1 (#166). `CLAUDE.md`
+  toolchain line updated to Gradle 9.6.1 to match.
+- **netty 4.1.124→4.2.16 (#167)** conflicted after the above merges (its branch carried the
+  stale adjacent `jacksonVersion` line); rebased so 4.2 gets a clean CI run on top of the
+  other five. 4.2 is a minor in name only — new IoHandler/EventLoop architecture — so it
+  was deliberately merged last and left to full CI rather than admin-bypassed blind.
+- **Recreated** against current `main`: #174, #172, #164, #163, #162, #161, #159. Two of
+  their "failures" were misleading: #164 (setup-node 7) actually failed on the
+  known-intermittent `BusLifecycleDisconnectIT`, unrelated to the bump; #159 failed with
+  `Loaded a configuration file for version '4.37.1', but running version '4.36.0'` because
+  Dependabot bumped `codeql-action/init` without `analyze`. On current `main` both are
+  pinned to the same SHA, so the recreate should bump them together — **if #159 fails the
+  same way again, bump `init` and `analyze` in one commit.**
+- **Closed as upstream-blocked**, with `ignore` rules added to `.github/dependabot.yml` so
+  they stop reappearing: apexcharts 5→6 (#170, `ng-apexcharts@2.4.0` latest still peers
+  `apexcharts@^5.10.3`) and eslint 9→10 (#173, `eslint-plugin-import@2.32.0` latest still
+  peers `eslint@"…||^9"`). Neither is fixable from this repo. Remove the ignore entry when
+  the blocking package ships support.
+- **Deferred: ngx-translate 17→18 (#171 + #165), left open as the tracking pair.** They must
+  land as one commit — `http-loader@18` peers `core@">=18.0.0"`, so each alone fails
+  `npm ci`. More importantly v18 **removed `TranslateModule`** in favour of
+  `provideTranslateService` / `provideChildTranslateService`. The `gui-build` log looks far
+  worse than it is: the missing export cascades into `NG8004` (no `translate` pipe) and
+  `NG8001` on unrelated `ion-*`/`app-*` elements. One root cause, ~18 files —
+  `app.module.ts`, `components.module.ts`, the `pages/**` modules, and the standalone
+  `consumers` / `event-store` / `snapshot-store` components.
 
 ## Both screenshot-session bugs closed (2026-07-24)
 
