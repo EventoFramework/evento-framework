@@ -5,7 +5,38 @@ Last updated: 2026-07-25. Branch `next` merged to `main`; v2.0 rewrite complete.
 
 ## Dependabot backlog swept (2026-07-25)
 
-17 open Dependabot PRs triaged. The dominant finding was structural, not per-dependency:
+**Outcome: backlog empty.** 17 PRs triaged, then a further 14 raised mid-session by the
+weekly run. All resolved — nothing Dependabot-related is left open.
+
+### The recurring lesson: Dependabot splits units that must move together
+
+Three separate failures this session had one shape. Dependabot tracks each dependency (or
+each *action step path*) independently, but several of ours are one logical unit whose
+members pin each other. Every split PR is red on its own, and no combination of them
+resolves — the fix is always one commit covering the whole family:
+
+| Unit | Why it cannot split | Landed as |
+| --- | --- | --- |
+| `codeql-action/init` + `analyze` | share one run; init stamps a config file analyze reads back | #186 |
+| The Angular family | runtime packages peer each other on an *exact* version (`peer @angular/core@"22.0.8"`) | #193 |
+| `typescript-eslint` + `@typescript-eslint/{eslint-plugin,parser}` | meta-package and plugins pin each other | #193 |
+
+The Angular case is the nastiest: Dependabot raised `common`/`router`/`animations`/
+`platform-browser-dynamic`/`cli` but **never raised `core`, `compiler`, `forms`,
+`platform-browser`, `compiler-cli` or `@angular-devkit/build-angular` at all**, so merging
+every PR it offered still would not have produced a resolvable tree. When a bump fails with
+`ERESOLVE` naming a sibling package, bump the whole family in one commit and regenerate the
+lock.
+
+**Regenerating `evento-gui/package-lock.json` needs a cross-platform check.** `npm ci` runs
+on Linux in CI; regenerating on Windows can drop Linux optional binaries. Diff platform
+entries against the previous lock before committing — #193 kept all 32 (esbuild, rollup,
+parcel-watcher, glibc *and* musl) and lost only `@parcel/watcher-win32-ia32`, which nothing
+resolves. Also re-verify after any rebase: a textually merged lockfile can be incoherent.
+
+### The other structural finding
+
+The dominant finding on the original 17 was structural, not per-dependency:
 **11 of the 17 were based on orphaned history.** Their parent was `8b21c506
 chore(release): 2.3.0`, which is no longer an ancestor of `main` — `main`'s history was
 rewritten after 2026-07-18. Git therefore fell back to an ancient merge base
@@ -54,14 +85,28 @@ recreate the open Dependabot PRs rather than trusting their diffs.**
   `apexcharts@^5.10.3`) and eslint 9→10 (#173, `eslint-plugin-import@2.32.0` latest still
   peers `eslint@"…||^9"`). Neither is fixable from this repo. Remove the ignore entry when
   the blocking package ships support.
-- **Deferred: ngx-translate 17→18 (#171 + #165), left open as the tracking pair.** They must
-  land as one commit — `http-loader@18` peers `core@">=18.0.0"`, so each alone fails
-  `npm ci`. More importantly v18 **removed `TranslateModule`** in favour of
-  `provideTranslateService` / `provideChildTranslateService`. The `gui-build` log looks far
-  worse than it is: the missing export cascades into `NG8004` (no `translate` pipe) and
-  `NG8001` on unrelated `ion-*`/`app-*` elements. One root cause, ~18 files —
-  `app.module.ts`, `components.module.ts`, the `pages/**` modules, and the standalone
-  `consumers` / `event-store` / `snapshot-store` components.
+- **ngx-translate 17→18 migrated** (#171 + #165 → #194, merged). Both packages had to move
+  together (`http-loader@18` peers `core@">=18.0.0"`), and v18 **removed `TranslateModule`**.
+  The `gui-build` log looked far worse than the fix: the missing export cascaded into
+  `NG8004` (no `translate` pipe) and `NG8001` on unrelated `ion-*`/`app-*` elements — one
+  root cause across 19 files. `TranslateModule.forRoot({...})` in `AppModule.imports` became
+  `provideTranslateService({...})` in `AppModule.providers` (same config shape;
+  `provideTranslateHttpLoader` is unchanged in v18), and every other `TranslateModule` in an
+  `imports` array became the standalone `TranslatePipe` / `TranslateDirective`.
+
+  Two things to know if this is ever revisited:
+
+  - **`AppComponent` is the trap.** Its template uses both the pipe and the directive, and
+    under v17 it inherited them from the `forRoot()` call sitting in `imports`. Moving that
+    call to `providers` silently removes them, so `AppModule` must now import both
+    explicitly. Every *other* module is fixed by the mechanical substitution, so this is the
+    one that gets missed.
+  - **`src/assets/i18n/*.json` use flat dotted keys** (`"catalog.payload.title": "Payloads"`),
+    not nested objects. v18's `getValue` accumulates the compound key when a segment does not
+    resolve, so flat files still work — but a resolution change here would render every
+    string as a raw key *with a green build*. Compilation does not prove i18n works: verify
+    at runtime (a headless render of `ng serve` showing `login.submit` → "Sign in" covers
+    loader fetch, provider wiring, flat-key lookup and the pipe in a migrated NgModule).
 
 ## Both screenshot-session bugs closed (2026-07-24)
 
