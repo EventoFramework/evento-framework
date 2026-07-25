@@ -554,6 +554,22 @@ public final class ConsumerProcessor {
     }
 
     /**
+     * Cumulative count of cycles this consumer ended early because its executor had no
+     * capacity. In-memory and cheap — unlike {@link #toConsumerStatus}, which hits the state
+     * store — so it is safe to read on a metrics timer.
+     */
+    public long asyncSubmitTimeouts(String consumerId) {
+        var tracker = inFlight.get(consumerId);
+        return tracker == null ? 0L : tracker.submitTimeouts();
+    }
+
+    /** Cumulative transient failures observed in this consumer's async tasks. */
+    public long asyncTransientFailures(String consumerId) {
+        var tracker = inFlight.get(consumerId);
+        return tracker == null ? 0L : tracker.transientFailures();
+    }
+
+    /**
      * Dispatch {@code body} and return once it has <b>started</b>, which is the point at
      * which the caller may advance the checkpoint.
      *

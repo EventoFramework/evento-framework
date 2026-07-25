@@ -62,6 +62,11 @@ public final class EngineSupervisor {
         consumerExecutors.addAll(executors);
     }
 
+    /** The bundle's executors, for the metrics push. Empty when nothing runs in parallel. */
+    public Collection<ConsumerExecutor> getConsumerExecutors() {
+        return consumerExecutors;
+    }
+
     /** Caller-supplied shutdown flag — engines read this each loop iteration. */
     public boolean isShuttingDown() {
         return shuttingDown.get();
