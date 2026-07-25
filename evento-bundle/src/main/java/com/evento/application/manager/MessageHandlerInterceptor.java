@@ -12,6 +12,33 @@ import com.evento.common.modeling.state.AggregateState;
 import com.evento.common.modeling.state.SagaState;
 import com.evento.common.utils.ProjectorStatus;
 
+/**
+ * Hooks around every handler invocation. The common production use is transaction
+ * management: open a transaction in {@code before…}, commit in {@code after…}, roll back in
+ * {@code onException…}.
+ *
+ * <h2>Thread-affinity guarantee (what makes ThreadLocal-bound transactions work)</h2>
+ * <p>For a single event, {@code before… → handler → after…/onException…} always run on
+ * <b>one and the same thread</b>. This holds for parallel consumers too: when an
+ * {@code @EventHandler(executor = "...")} is dispatched to a
+ * {@link com.evento.common.messaging.consumer.ConsumerExecutor}, the <em>whole</em> chain
+ * runs on that executor's task thread — the consumer's fetch loop never runs any part of
+ * it. A transaction bound to a {@code ThreadLocal} (Spring's
+ * {@code TransactionSynchronizationManager}, for instance) therefore behaves identically
+ * inline and in parallel. Each retry attempt gets its own {@code before…}/{@code after…}
+ * pair, and so its own transaction.
+ *
+ * <h2>Implementations must be thread-safe</h2>
+ * <p>One instance is shared by every consumer in the bundle, and with parallel consumers it
+ * is entered concurrently by many threads. Keep per-invocation state in {@link ThreadLocal}s
+ * or method locals — never in instance fields.
+ *
+ * <p>Unbind whatever you bound in a {@code finally}. The framework writes a failed event to
+ * the dead-event queue immediately after {@code onException…} returns, on the same thread;
+ * if a rolled-back transaction were still bound, that write would join it.
+ *
+ * <p>All methods are {@code default} no-ops: implement only the hooks you need.
+ */
 public interface MessageHandlerInterceptor {
     default void beforeAggregateCommandHandling(
             Object aggregate,

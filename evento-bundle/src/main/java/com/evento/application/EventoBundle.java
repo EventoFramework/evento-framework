@@ -7,6 +7,8 @@ import com.evento.application.client.EventoServerAdapter;
 import com.evento.application.client.admin.BundleAdminRequestHandler;
 import com.evento.application.consumer.ConsumerHandle;
 import com.evento.application.consumer.ConsumerEngineConfig;
+import com.evento.application.consumer.ConsumerExecutorResolver;
+import com.evento.application.consumer.ConsumerExecutorValidator;
 import com.evento.application.consumer.DispatchContext;
 import com.evento.application.consumer.EngineSupervisor;
 import com.evento.application.consumer.ObserverEngine;
@@ -350,12 +352,43 @@ public class EventoBundle {
          */
         private boolean strictConfinement = false;
 
+        /**
+         * Executors available to {@code @EventHandler(executor = "...")}, by name.
+         * Declared here for the same reason contexts are: it is deployment configuration,
+         * not something the handler's bytecode can carry.
+         */
+        private Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors = new HashMap<>();
+
         public Builder setComponentContexts(Class<?> componentClass, String... contexts) {
             this.contexts.put(componentClass.getSimpleName(), new HashSet<>(Arrays.asList(contexts)));
             return this;
         }
         public Builder removeComponentContexts(Class<?> componentClass) {
             this.contexts.remove(componentClass.getSimpleName());
+            return this;
+        }
+
+        /**
+         * Register an executor that {@code @EventHandler(executor = "...")} can name to run
+         * in parallel instead of sequentially.
+         *
+         * <pre>{@code
+         * .addConsumerExecutor(ConsumerExecutors.virtual("read-model", 64))
+         * }</pre>
+         *
+         * <p>A name is a shared capacity budget across the whole bundle — every handler
+         * naming it competes for the same permits. Handlers referencing an unregistered
+         * name fail bundle start-up.
+         *
+         * @see com.evento.common.messaging.consumer.ConsumerExecutors
+         */
+        public Builder addConsumerExecutor(com.evento.common.messaging.consumer.ConsumerExecutor executor) {
+            this.consumerExecutors.put(executor.name(), executor);
+            return this;
+        }
+
+        public Builder removeConsumerExecutor(String name) {
+            this.consumerExecutors.remove(name);
             return this;
         }
 
@@ -608,8 +641,15 @@ public class EventoBundle {
             var start = Instant.now();
             var wait = new Semaphore(0);
             var engineConfig = consumerEngineConfigBuilder.apply(eventoServer, performanceService);
-            startProjectorEnginesV2(eventoBundle.get(), wait::release, engineConfig, contexts, supervisor, dispatchContext);
+            ConsumerExecutorValidator.validate(
+                    eventoBundle.get().getProjectorManager().getReferences(),
+                    eventoBundle.get().getObserverManager().getReferences(),
+                    consumerExecutors);
+            supervisor.registerConsumerExecutors(consumerExecutors.values());
+            startProjectorEnginesV2(eventoBundle.get(), wait::release, engineConfig, contexts, supervisor,
+                    dispatchContext, consumerExecutors);
             final ConsumerEngineConfig engineConfigForLater = engineConfig;
+            final var consumerExecutorsForLater = consumerExecutors;
             var startThread = new Thread(() -> {
                 try {
                     wait.acquire();
@@ -617,7 +657,8 @@ public class EventoBundle {
                             Instant.now().toEpochMilli() - start.toEpochMilli());
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
-                    startSagaAndObserverEnginesV2(eventoBundle.get(), engineConfigForLater, contexts, supervisor, dispatchContext);
+                    startSagaAndObserverEnginesV2(eventoBundle.get(), engineConfigForLater, contexts, supervisor,
+                            dispatchContext, consumerExecutorsForLater);
                     sendConsumerRegistrationV2(eventoServer, supervisor, bundleClient);
                     logger.info("Application Started!");
                     Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
@@ -693,7 +734,8 @@ public class EventoBundle {
                 ConsumerEngineConfig engineConfig,
                 Map<String, Set<String>> contexts,
                 EngineSupervisor supervisor,
-                DispatchContext dispatchContext) {
+                DispatchContext dispatchContext,
+                Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors) {
             var references = bundle.getProjectorManager().getReferences();
             if (references.isEmpty()) {
                 onAllHeadReached.run();
@@ -727,7 +769,11 @@ public class EventoBundle {
                             bundle.getProjectorManager().getSssFetchSize(),
                             bundle.getProjectorManager().getSssFetchDelay(),
                             counter,
-                            onAllHeadReached);
+                            onAllHeadReached,
+                            ConsumerExecutorResolver.forProjector(
+                                    bundle.getProjectorManager().getHandlers(),
+                                    projectorName,
+                                    consumerExecutors));
                     supervisor.addProjector(engine);
                 }
             }
@@ -739,7 +785,8 @@ public class EventoBundle {
                 ConsumerEngineConfig engineConfig,
                 Map<String, Set<String>> contexts,
                 EngineSupervisor supervisor,
-                DispatchContext dispatchContext) {
+                DispatchContext dispatchContext,
+                Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors) {
             for (var saga : bundle.getSagaManager().getReferences()) {
                 var annotation = saga.getRef().getClass()
                         .getAnnotation(com.evento.common.modeling.annotations.component.Saga.class);
@@ -784,7 +831,11 @@ public class EventoBundle {
                             bundle.getObserverManager().getHandlers(),
                             dispatchContext,
                             bundle.getObserverManager().getSssFetchSize(),
-                            bundle.getObserverManager().getSssFetchDelay());
+                            bundle.getObserverManager().getSssFetchDelay(),
+                            ConsumerExecutorResolver.forObserver(
+                                    bundle.getObserverManager().getHandlers(),
+                                    observerName,
+                                    consumerExecutors));
                     supervisor.addObserver(engine);
                 }
             }
