@@ -3,7 +3,7 @@
 Last updated: 2026-07-25. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## Async consumers — Phases 1 + 2 + 3 shipped (2026-07-25, latest)
+## Async consumers — complete, Phases 1–4 shipped (2026-07-25, latest)
 
 New feature: `@EventHandler(executor = "name")` dispatches an event to a named, bounded
 `ConsumerExecutor` registered on the bundle builder
@@ -144,11 +144,41 @@ unrecognised property on an already-whitelisted type instantiates nothing. Both 
 are untouched. `CodecVersionToleranceTest` (evento-transport-api) pins newer-peer,
 older-peer and round-trip.
 
-**Open / next:** Phase 4 — watermark checkpointing (`CheckpointMode.WATERMARK`) to restore
-at-least-once by committing the highest *contiguous completed* sequence, and key-partitioned
-lanes so same-aggregate events keep their order while different aggregates run in parallel.
-The latter would widen the feature well beyond strictly-idempotent handlers. Also unbound:
-the server could bind the `ConsumerExecutorStats` counters into Micrometer.
+### Phase 4 — the two guarantees given back
+
+Phases 1–3 traded ordering and at-least-once for parallelism. Phase 4 offers each back
+independently, so a consumer buys the guarantee it needs and keeps the throughput.
+
+**`CheckpointMode.WATERMARK`** (`setCheckpointMode`, or `setComponentCheckpointMode` per
+projector) persists the highest *contiguous completed* sequence instead of the dispatch
+frontier, so in-flight events are replayed after a crash rather than lost. The design turns
+on separating two cursors that `ON_START` conflates: the **fetch cursor stays on the
+in-memory dispatch frontier** while only the *persisted* checkpoint lags. Fetching from the
+lagging checkpoint — the obvious implementation — would reprocess the in-flight window on
+every single cycle. The commit runs on the consume-loop thread inside a `finally` so all
+four exits are covered (end of batch, saturated-executor return, consumer-disabled
+short-circuit, thrown `TransientConsumerException`); handler threads only record
+completions, which keeps the optimistic-version dance single-threaded. A dead-lettered event
+counts as completed — it is resolved, and treating it otherwise would let one poison event
+pin the watermark forever. A *stuck* handler does pin it, so the processor warns past
+`watermarkLagWarnThreshold` (10 000). Note the dashboard's "last event" now trails true
+progress by the in-flight window under this mode.
+
+**`ConsumerExecutors.partitioned(name, lanes)`** is the bigger practical win: same-aggregate
+events apply in sequence order while different aggregates run in parallel, which covers
+read-model projectors that are *not* idempotent but are per-aggregate sequential. Deliberately
+an **executor type rather than an annotation flag** — the consume loop always passes the
+aggregate id as ordering key, `submit(task, orderingKey, waitFor)` is a `default` that ignores
+it, and only the partitioned impl acts. Opting in is one config line, no handler change, and
+third-party `ConsumerExecutor` impls are unaffected. A busy lane **refuses admission rather
+than queueing**, preserving both invariants the design rests on (admission means "started";
+no unbounded internal queue) — so a burst on one hot aggregate serialises, which is the
+guarantee working, not a defect. Size lanes well above the expected count of
+concurrently-active aggregates; keyless events spread round-robin.
+
+**Open / next:** the server could bind the `ConsumerExecutorStats` counters into Micrometer
+(they currently reach the GUI only through the consumer-status message). Nothing else
+outstanding on this feature.
 
 ## Dependabot backlog swept (2026-07-25)
 

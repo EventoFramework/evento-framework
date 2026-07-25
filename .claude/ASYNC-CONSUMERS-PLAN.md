@@ -1,7 +1,7 @@
 # Async Consumers — parallel event handling with bounded executors
 
-**Status: Phases 1, 2 and 3 shipped** (see §12 / §13 / §14 for what landed and how it
-deviated from this plan). Phase 4 not started. **Module surface:** `evento-common`, `evento-bundle`
+**Status: complete — Phases 1–4 shipped** (see §12 / §13 / §14 / §15 for what landed and
+how it deviated from this plan). **Module surface:** `evento-common`, `evento-bundle`
 (+ `evento-server`/`evento-gui` in Phase 3). **Wire protocol:** unchanged in Phase 1.
 
 ---
@@ -433,7 +433,7 @@ consumer running async.
 parallel. The only piece that touches the transport wire — and, as §14 records, "additive
 field, no break" turned out to be only half true.
 
-**Phase 4 (optional, see §9).** `CheckpointMode.WATERMARK`; key-partitioned ordering.
+**Phase 4. ✅ shipped (§15).** `CheckpointMode.WATERMARK`; key-partitioned ordering.
 
 ---
 
@@ -727,3 +727,86 @@ asserts a *non-empty* discovery for the bundle actually reaches the broker.
 `AsyncConsumerIT` +2 (per-handler executor in the discovery payload; discovery decodes at
 all). `EmbeddedBroker` gained an `eventBus()` accessor so ITs can observe `BusEvent`s.
 GUI verified with `ng build --configuration production`.
+
+---
+
+## 15. Phase 4 — the two guarantees given back
+
+Phases 1–3 traded away ordering and at-least-once delivery to gain parallelism. Phase 4
+offers each back independently, so a consumer can buy the guarantee it needs and keep the
+throughput.
+
+### `CheckpointMode.WATERMARK` — at-least-once
+
+`setCheckpointMode(WATERMARK)` on the builder (or `setComponentCheckpointMode` per
+projector, mirroring how contexts are declared) switches the persisted checkpoint from the
+dispatch frontier to the **highest contiguous completed sequence**. Events still running sit
+above the watermark and are redelivered after a crash.
+
+The design turns on separating two cursors that `ON_START` conflates:
+
+| | `ON_START` | `WATERMARK` |
+|---|---|---|
+| Fetch cursor | the persisted checkpoint | in-memory dispatch frontier |
+| Persisted checkpoint | dispatch frontier | highest contiguous completion |
+| Crash outcome | in-flight events lost | in-flight events replayed |
+
+Keeping the fetch cursor on the in-memory frontier is what stops the lagging checkpoint from
+re-delivering events the current run has already dispatched — the obvious implementation
+(fetch from the checkpoint) would process everything twice, continuously. The frontier is
+seeded from the persisted value each cycle, which also covers takeover by another instance.
+
+Details worth keeping:
+
+- **The commit happens on the consume-loop thread, in a `finally`.** Handler threads only
+  record completions; the loop slides the watermark and performs the optimistic-version
+  commit. That keeps the version dance single-threaded, and the `finally` covers all four
+  exits — normal end of batch, saturated-executor early return, consumer-disabled
+  short-circuit, and a thrown `TransientConsumerException`. Missing any one would strand
+  finished work uncheckpointed.
+- **A dead-lettered event counts as completed.** It is resolved, not outstanding; treating
+  it otherwise would let one poison event pin the watermark forever.
+- **A stuck handler pins the watermark**, so the replay cost on restart grows. The processor
+  warns once per cycle past `watermarkLagWarnThreshold` (default 10 000).
+- **`flushWatermark` runs after a drain**, so a graceful stop persists what just finished
+  rather than replaying the final batch on restart.
+- The dashboard's "last event" now trails true progress by the in-flight window under this
+  mode — expected, and the price of the checkpoint meaning "completed" rather than "started".
+
+### `ConsumerExecutors.partitioned` — per-aggregate ordering
+
+The bigger win in practice. Unordered parallelism is only safe for idempotent or
+overwrite handlers; a partitioned executor pins events sharing an ordering key to one lane
+and runs one task per lane at a time, so **same-aggregate events apply in sequence order
+while different aggregates run in parallel**. That covers the large middle ground of
+read-model projectors that are not idempotent but are per-aggregate sequential —
+read-modify-write on a row.
+
+Chosen deliberately as an **executor type, not an annotation flag**: the consume loop always
+passes the event's aggregate id as the ordering key, `submit(task, orderingKey, waitFor)` is
+a `default` method that ignores it, and only the partitioned implementation acts on it. So
+opting in is one line of configuration, no handler changes, no new annotation attribute, and
+third-party `ConsumerExecutor` implementations are unaffected.
+
+A busy lane **refuses admission rather than queueing**, preserving both invariants the rest
+of the design rests on: admission still means "started", and no internal queue can grow
+unbounded. The consequence is that a burst on one hot aggregate serialises — which is the
+ordering guarantee doing its job, not a defect. Concurrency is bounded by the lane count and
+reduced further by key skew, so size lanes well above the expected number of
+concurrently-active aggregates. Keyless events (no aggregate) are spread round-robin rather
+than colliding on lane 0, since they have no ordering relationship to preserve.
+
+### Phase 4 tests
+
+`WatermarkCheckpointTest` (7): the gap at a running sequence pins the checkpoint while later
+completions wait; a crash replays only the in-flight window (asserted against a *fresh*
+processor, so only the persisted state survives); the fetch cursor follows the frontier so
+nothing is processed twice within a run; dead-lettered events do not pin the watermark;
+inline handlers advance it immediately; `flushWatermark` after a drain; and an `ON_START`
+contrast case that pins the difference.
+
+`PartitionedConsumerExecutorTest` (5), including an end-to-end consume-loop test with two
+interleaved aggregates and uneven handler latency. **Verified sensitive**: swapping
+`partitioned` for `virtual` makes it fail, so it is testing ordering rather than luck.
+
+`AsyncConsumerIT` +2 covering both features over a real broker.
