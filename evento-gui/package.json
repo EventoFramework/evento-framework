@@ -65,7 +65,7 @@
     "@types/dagre": "^0.7.54",
     "@types/jasmine": "^6.0.0",
     "@types/jasminewd2": "~2.0.3",
-    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.60.0",
     "angular-eslint": "^22.1.0",
     "eslint": "^9.39.4",
