@@ -22,14 +22,33 @@ recreate the open Dependabot PRs rather than trusting their diffs.**
 - **netty 4.1.124→4.2.16 (#167)** conflicted after the above merges (its branch carried the
   stale adjacent `jacksonVersion` line); rebased so 4.2 gets a clean CI run on top of the
   other five. 4.2 is a minor in name only — new IoHandler/EventLoop architecture — so it
-  was deliberately merged last and left to full CI rather than admin-bypassed blind.
-- **Recreated** against current `main`: #174, #172, #164, #163, #162, #161, #159. Two of
-  their "failures" were misleading: #164 (setup-node 7) actually failed on the
-  known-intermittent `BusLifecycleDisconnectIT`, unrelated to the bump; #159 failed with
-  `Loaded a configuration file for version '4.37.1', but running version '4.36.0'` because
-  Dependabot bumped `codeql-action/init` without `analyze`. On current `main` both are
-  pinned to the same SHA, so the recreate should bump them together — **if #159 fails the
-  same way again, bump `init` and `analyze` in one commit.**
+  was deliberately merged last and left to full CI rather than admin-bypassed blind. It
+  passed the full suite, including the real-TCP transport ITs, and is now on `main`.
+  **`evento-transport-netty` is the module to check first if anything transport-shaped
+  regresses.**
+- **Recreated** against current `main`, then merged once green: #174, #172, #164, #163,
+  #162, #161. #164's "failure" was misleading — setup-node 7 was fine, the red check was
+  the known-intermittent `BusLifecycleDisconnectIT`.
+- **`codeql-action` needs `init` and `analyze` bumped in one commit** (#159 → #186, merged).
+  This one is worth remembering because it recurs. The two steps share a single CodeQL run:
+  `init` writes a config file stamped with its own version and `analyze` reads it back, so
+  bumping either alone fails the job with
+
+  ```
+  Loaded a configuration file for version '4.37.3', but running version '4.36.0'
+  analyze post-action step failed
+  ```
+
+  Dependabot tracks the two step paths *independently* and will happily raise them as
+  separate PRs (it did exactly that again as #186 `init` / #180 `analyze`), so neither PR
+  can go green on its own. The fix is to put both SHAs in one commit. `scorecard.yml`'s
+  `upload-sarif` is pinned separately and is genuinely independent — it does not share a run
+  with the `codeql.yml` pair.
+
+  Process note: pushing that fix onto the Dependabot branch, combined with an
+  `@dependabot recreate`, made Dependabot close #159 and supersede it with #186 on the same
+  branch — the commit survived, but the PR number changed underneath. If a hand-fix on a
+  Dependabot branch is needed again, either push *or* recreate, not both.
 - **Closed as upstream-blocked**, with `ignore` rules added to `.github/dependabot.yml` so
   they stop reappearing: apexcharts 5→6 (#170, `ng-apexcharts@2.4.0` latest still peers
   `apexcharts@^5.10.3`) and eslint 9→10 (#173, `eslint-plugin-import@2.32.0` latest still
