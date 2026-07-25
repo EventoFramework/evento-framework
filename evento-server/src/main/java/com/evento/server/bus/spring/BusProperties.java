@@ -29,7 +29,8 @@ public record BusProperties(
         int businessExecutorCoreSize,
         int businessExecutorMaxSize,
         int businessExecutorQueueCapacity,
-        Duration businessExecutorKeepAlive
+        Duration businessExecutorKeepAlive,
+        Duration businessExecutorSaturationWarnInterval
 ) {
 
     public BusProperties {
@@ -63,7 +64,15 @@ public record BusProperties(
         if (businessExecutorMaxSize < businessExecutorCoreSize) {
             businessExecutorMaxSize = businessExecutorCoreSize;
         }
-        if (businessExecutorQueueCapacity <= 0) businessExecutorQueueCapacity = 1024;
+        // The queue is the buffer *behind* a fully-grown pool, not the thing that
+        // absorbs a spike — BusBusinessExecutor grows to max before queueing. Keep
+        // it shallow: a request that waits behind hundreds of others outlives its
+        // client deadline and is served for nobody. At the default 30s client
+        // timeout, a queue deeper than a few hundred is dead work by construction.
+        if (businessExecutorQueueCapacity <= 0) businessExecutorQueueCapacity = 256;
         if (businessExecutorKeepAlive == null) businessExecutorKeepAlive = Duration.ofSeconds(90);
+        if (businessExecutorSaturationWarnInterval == null) {
+            businessExecutorSaturationWarnInterval = Duration.ofSeconds(10);
+        }
     }
 }

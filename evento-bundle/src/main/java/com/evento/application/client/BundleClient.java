@@ -5,6 +5,7 @@ import com.evento.application.client.correlation.BundleCorrelationTracker;
 import com.evento.application.client.dedup.ProcessedRequestCache;
 import com.evento.application.client.handler.HandlerRegistry;
 import com.evento.transport.SendFailedException;
+import com.evento.transport.TooManyPendingRequestsException;
 import com.evento.transport.codec.JacksonCborPayloadCodec;
 import com.evento.transport.codec.PayloadCodec;
 import com.evento.transport.message.Notification;
@@ -132,8 +133,18 @@ public final class BundleClient implements AutoCloseable {
      * the supervisor cannot accept the send (e.g. not yet READY).
      */
     public CompletableFuture<Response> request(String payloadType, byte[] payload, Duration timeout) {
+        int limit = config.maxInFlightRequests();
+        if (limit > 0 && correlationTracker.pendingCount() >= limit) {
+            // Refuse now rather than add to a backlog nobody can serve in time.
+            // Waiting out the timeout costs the caller its whole deadline and
+            // still fails; failing in microseconds lets it slow down or shed load
+            // while the requests already in flight get a chance to finish.
+            return CompletableFuture.failedFuture(new TooManyPendingRequestsException(
+                    "refusing " + payloadType + ": " + correlationTracker.pendingCount()
+                            + " requests already in flight (max " + limit + ")"));
+        }
         var correlationId = UUID.randomUUID();
-        var future = correlationTracker.track(correlationId, timeout);
+        var future = correlationTracker.track(correlationId, payloadType, timeout);
         var request = new Request(
                 correlationId,
                 config.bundleId(), config.instanceId(), config.bundleVersion(),

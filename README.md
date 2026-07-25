@@ -79,6 +79,16 @@ The checkpoint advances when a task *starts*, so a consumer never runs more than
 
 See [Parallel Consumers](https://docs.eventoframework.com/evento-framework/eventobundle/parallel-consumers) for the guarantees, the `retry` caveat and the connection-pool sizing rule.
 
+## Throughput and Capacity (2.4.0)
+
+A server absorbs concurrent requests up to `evento.server.bus.business-executor-max-size` (default `cores × 8`); past that they queue, and past the queue they run on the calling event loop so pressure reaches the client over TCP.
+
+What makes exceeding capacity worse than merely slow is that every request carries a client deadline and **nothing cancels the work when it expires**. Beyond the limit the server keeps producing responses for callers that have already given up, so throughput collapses rather than degrading — CPU and databases look idle throughout, and client retries hold it there. Reducing *client* concurrency is what recovers it, and fewer concurrent clients often complete strictly more work.
+
+Alert on `evento.server.bus.executor.saturated`, watch `…queue.depth` as the earlier signal, and read `WARN` expiry lines as capacity exhaustion rather than unlucky individual requests. A bundle can bound itself with `BundleClientConfig.Builder.maxInFlightRequests(n)`, and an expiry now surfaces as `RequestTimeoutException` — meaning *indeterminate*, not failed, because the work may have been applied.
+
+See [Throughput and Capacity](https://docs.eventoframework.com/evento-server/setup-evento-server/throughput-and-capacity) for the sizing arithmetic and the detection playbook.
+
 ## Getting Started
 
 To start using Evento Framework, see the [Getting Started documentation](https://docs.eventoframework.com/getting-started/quick-start).

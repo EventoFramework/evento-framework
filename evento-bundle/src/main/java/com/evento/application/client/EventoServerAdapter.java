@@ -104,8 +104,7 @@ public final class EventoServerAdapter implements EventoServer {
             return client.request(payloadType, codec.encodeRequest(envelope), timeoutDuration)
                     .thenApply(response -> {
                         if (response.isError()) {
-                            throw new CompletionException(new IllegalStateException(
-                                    response.error() == null ? "request failed" : response.error().message()));
+                            throw new CompletionException(toException(response.error(), payloadType));
                         }
                         var decoded = codec.decodeResponse(response.payload());
                         var body = decoded.getBody();
@@ -117,6 +116,33 @@ public final class EventoServerAdapter implements EventoServer {
         } catch (Exception e) {
             throw new SendFailedException(e);
         }
+    }
+
+    /**
+     * Rebuild a typed exception from the wire error.
+     *
+     * <p>A transport failure carries an {@code exceptionClassName}, and for
+     * timeouts that distinction is the whole point: a timeout means the caller
+     * stopped waiting, not that the handler rejected anything, so the work may
+     * well have been applied. Flattening both into one generic exception forces
+     * every caller to report an indeterminate outcome as a definite failure —
+     * which is how a slow-but-successful command ends up surfaced to a user as
+     * an error, and how a blind retry applies it a second time.
+     */
+    private static RuntimeException toException(com.evento.transport.message.ResponseError error,
+                                                String payloadType) {
+        if (error == null) {
+            return new IllegalStateException("request failed: " + payloadType);
+        }
+        String message = error.message() == null ? "request failed" : error.message();
+        if (com.evento.transport.RequestTimeoutException.class.getName().equals(error.exceptionClassName())) {
+            return new com.evento.transport.RequestTimeoutException(payloadType + ": " + message);
+        }
+        if (com.evento.transport.TooManyPendingRequestsException.class.getName()
+                .equals(error.exceptionClassName())) {
+            return new com.evento.transport.TooManyPendingRequestsException(payloadType + ": " + message);
+        }
+        return new IllegalStateException(message);
     }
 
     @Override

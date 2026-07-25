@@ -24,10 +24,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -79,12 +77,18 @@ public class BusConfiguration {
      * pressure could spawn an unbounded number of tasks and exhaust the Java heap
      * (see OOM seen with many concurrent {@code EventFetchRequest} handlers).
      *
-     * <p>Backpressure: when the queue is full, {@code CallerRunsPolicy} forces the
-     * Netty event-loop thread to execute the task itself, naturally throttling
-     * inbound reads and propagating pressure upstream via TCP.
+     * <p>The pool grows to {@code max} before it queues — see
+     * {@link BusBusinessExecutor} for why the stock {@link ThreadPoolExecutor}
+     * ordering (queue first, grow only when the queue is full) turns a load spike
+     * into a collapse once requests carry client deadlines.
+     *
+     * <p>Backpressure: only when the pool is at {@code max} <em>and</em> the queue
+     * is full does the Netty event-loop thread execute the task itself, throttling
+     * inbound reads and propagating pressure upstream via TCP. That case is
+     * counted and logged as saturation.
      */
     @Bean(destroyMethod = "shutdown")
-    public ThreadPoolExecutor busBusinessExecutor(BusProperties props) {
+    public BusBusinessExecutor busBusinessExecutor(BusProperties props) {
         ThreadFactory factory = new ThreadFactory() {
             private final AtomicLong counter = new AtomicLong();
 
@@ -95,14 +99,13 @@ public class BusConfiguration {
                 return t;
             }
         };
-        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+        var pool = new BusBusinessExecutor(
                 props.businessExecutorCoreSize(),
                 props.businessExecutorMaxSize(),
                 props.businessExecutorKeepAlive().toMillis(),
-                TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(props.businessExecutorQueueCapacity()),
+                new BusBusinessExecutor.GrowthFirstQueue(props.businessExecutorQueueCapacity()),
                 factory,
-                new ThreadPoolExecutor.CallerRunsPolicy());
+                props.businessExecutorSaturationWarnInterval().toMillis());
         pool.allowCoreThreadTimeOut(true);
         log.info("event=bus_business_executor_configured core={} max={} queue={} keepAliveMs={}",
                 props.businessExecutorCoreSize(),
@@ -167,8 +170,8 @@ public class BusConfiguration {
 
     @Bean
     public BusMetricsBinder busMetricsBinder(BusLifecycle bus, CorrelationStore correlations,
-                                             ForwardingTable forwarding) {
-        return new BusMetricsBinder(bus, correlations, forwarding);
+                                             ForwardingTable forwarding, BusBusinessExecutor executor) {
+        return new BusMetricsBinder(bus, correlations, forwarding, executor);
     }
 
     @Bean

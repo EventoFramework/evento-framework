@@ -54,8 +54,38 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     the alerting signal** — the executor reporting it is the bottleneck. Meters are removed
     when a node leaves. Bundles with no executor push nothing.
 
+- **Request capacity is now observable and bounded on the request path**, matching what
+  parallel consumers already did for the consume path.
+  - `RequestTimeoutException` and `TooManyPendingRequestsException` (both
+    `com.evento.transport`) replace the generic `IllegalStateException` a bundle used to
+    receive for *any* failed request. The distinction is load-bearing: a timeout means the
+    caller stopped waiting, **not** that the handler rejected anything — the work may have
+    been applied in full. Applications can now report that as indeterminate (504) instead
+    of a definite failure (500), and retry only what is safe to retry.
+  - `BundleClientConfig.Builder.maxInFlightRequests(n)` (default 2048, `0` disables) refuses
+    a request outright once `n` are outstanding, instead of queueing work that will expire
+    unsent. The refusal is definite — nothing was transmitted — so it is always retryable.
+  - New meters `evento.server.bus.executor.{pool.size,max,active,queue.depth}` and the
+    counter `evento.server.bus.executor.saturated`. **`saturated` is the alerting signal**:
+    it only moves when the pool is at max *and* the queue is full.
+  - Expiries now log at `WARN` (they were `INFO`), and the bundle-side line carries a
+    per-payload-type breakdown — `byType={CatalogProductAddCommand=12}` — so the message
+    type that is drowning is named rather than merely counted.
+
 ### Changed
 
+- **The bus business executor grows before it queues.** A stock `ThreadPoolExecutor` only
+  starts a thread beyond `core` once its queue is *full*, so the shipped
+  `core=cores×2, max=cores×8, queue=1024` ran on the core size alone until 1024 requests
+  were backed up — the configured maximum was unreachable under exactly the load it existed
+  for. Because every request carries a client deadline, that backlog did not merely add
+  latency: requests expired in the queue and were then served for a caller that had gone,
+  so throughput collapsed rather than degrading. `BusBusinessExecutor` inverts the order
+  (grow to max, then queue, then `CallerRuns` back onto the event loop), and the queue
+  default drops `1024 → 256` because a queue deeper than `deadline ÷ service time` is dead
+  work by construction. Observed in production: 20 concurrent writers against an 8-core
+  server fell from 16 writes/s to 0.07 writes/s with ~250 timeouts/hour; the same load at 8
+  writers sustained 25 writes/s with none.
 - **Observers now fan out with a bound.** They always dispatched asynchronously and
   checkpointed on submit, but through an *unbounded* executor — an observer catching up
   from a cold checkpoint submitted its whole backlog as fast as it could fetch it. The

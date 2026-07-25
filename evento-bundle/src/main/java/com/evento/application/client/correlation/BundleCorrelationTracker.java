@@ -1,5 +1,6 @@
 package com.evento.application.client.correlation;
 
+import com.evento.transport.RequestTimeoutException;
 import com.evento.transport.ShutdownInProgressException;
 import com.evento.transport.message.Response;
 import com.evento.transport.message.ResponseError;
@@ -29,7 +30,8 @@ public final class BundleCorrelationTracker {
 
     private static final Logger log = LoggerFactory.getLogger(BundleCorrelationTracker.class);
 
-    private record Pending(long submittedAtMs, long timeoutMs, CompletableFuture<Response> future) {
+    private record Pending(String payloadType, long submittedAtMs, long timeoutMs,
+                           CompletableFuture<Response> future) {
         boolean isExpired(long nowMs) {
             return timeoutMs > 0 && (nowMs - submittedAtMs) > timeoutMs;
         }
@@ -53,13 +55,18 @@ public final class BundleCorrelationTracker {
         this(Duration.ofMillis(500));
     }
 
-    public CompletableFuture<Response> track(UUID correlationId, Duration timeout) {
+    /**
+     * @param payloadType what is being sent, carried purely so an expiry can say
+     *                    which message type ran out of time. Without it the
+     *                    expiry log reports a count and nothing actionable.
+     */
+    public CompletableFuture<Response> track(UUID correlationId, String payloadType, Duration timeout) {
         if (shutdownInitiated.get()) {
             return CompletableFuture.failedFuture(
                     new ShutdownInProgressException("bundle correlation tracker shutting down"));
         }
         var future = new CompletableFuture<Response>();
-        var entry = new Pending(System.currentTimeMillis(),
+        var entry = new Pending(payloadType == null ? "unknown" : payloadType, System.currentTimeMillis(),
                 timeout == null ? 0L : timeout.toMillis(), future);
         var existing = pending.putIfAbsent(correlationId, entry);
         if (existing != null) {
@@ -105,18 +112,25 @@ public final class BundleCorrelationTracker {
         if (pending.isEmpty()) return;
         long now = System.currentTimeMillis();
         int expired = 0;
+        var byType = new java.util.TreeMap<String, Integer>();
         for (var key : java.util.List.copyOf(pending.keySet())) {
             var entry = pending.get(key);
             if (entry == null || !entry.isExpired(now)) continue;
             if (!pending.remove(key, entry)) continue;
-            var err = new ResponseError("com.evento.transport.RequestTimeoutException",
+            var err = new ResponseError(RequestTimeoutException.class.getName(),
                     "request expired after " + (now - entry.submittedAtMs) + "ms (timeout="
                             + entry.timeoutMs + ")", null);
             entry.future.complete(Response.failure(key, err));
+            byType.merge(entry.payloadType(), 1, Integer::sum);
             expired++;
         }
         if (expired > 0) {
-            log.info("event=bundle_correlation_expired count={} pending={}", expired, pending.size());
+            // Warn with the breakdown: "which message type is timing out" is the
+            // first question asked when throughput drops, and a bare count cannot
+            // answer it. `pending` alongside it shows whether the backlog is
+            // draining or still growing.
+            log.warn("event=bundle_correlation_expired count={} pending={} byType={}",
+                    expired, pending.size(), byType);
         }
     }
 
