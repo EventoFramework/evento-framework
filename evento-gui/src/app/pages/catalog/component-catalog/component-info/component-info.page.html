@@ -78,6 +78,14 @@
                           routerLink="/payload-info/{{h.handledPayload.name}}">
                           <ion-text class="dot payload-type-{{h.handledPayload.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{h.handledPayload.name}}
                         </ion-chip>
+                        <!-- Parallel handlers have different ordering and delivery
+                             guarantees than inline ones; surface that on the handler. -->
+                        @if (h.executor) {
+                          <ion-chip color="tertiary" outline="true">
+                            <ion-icon name="flash-outline"></ion-icon>
+                            <ion-label>{{ 'handler.executor' | translate }}: {{h.executor}}</ion-label>
+                          </ion-chip>
+                        }
                       }
                       @if (h.repoLink) {
                         <ion-popover [trigger]="h.uuid" triggerAction="context-menu">

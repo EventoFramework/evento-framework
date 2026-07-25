@@ -59,6 +59,7 @@ create table if not exists core__handler
     association_property     varchar(255) null,
     handler_type             varchar(255) null,
     line                     int          null,
+    executor                 varchar(255) null,
     return_is_multiple       boolean      not null,
     component_component_name varchar(255) null,
     handled_payload_name     varchar(255) null,
@@ -178,6 +179,9 @@ create index if not exists  performance__agg_handler_invocation_count_ts_timesta
 
 -- Add repository_url if upgrading from a schema created before this column existed
 ALTER TABLE core__bundle ADD COLUMN IF NOT EXISTS repository_url text null;
+
+-- Async consumers: name of the ConsumerExecutor an @EventHandler dispatches to ("" = inline)
+ALTER TABLE core__handler ADD COLUMN IF NOT EXISTS executor varchar(255) null;
 
 -- Drop deployment/autoscaling columns and tables if upgrading from a schema that still had them
 ALTER TABLE core__bundle ADD COLUMN IF NOT EXISTS instance_id varchar(255) null;

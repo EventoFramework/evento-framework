@@ -48,6 +48,13 @@ public class Handler implements Serializable {
 
 	private Integer line;
 
+	/**
+	 * Name of the {@code ConsumerExecutor} this handler dispatches to, or {@code null}/empty
+	 * when it consumes inline. Non-empty means the handler runs in parallel, which changes
+	 * its ordering and delivery guarantees — worth surfacing in the dashboard.
+	 */
+	private String executor;
+
 	public static String generateId(String bundleId, String componentName, String handledPayloadName) throws RuntimeException {
 		var str = bundleId + componentName + handledPayloadName;
 		MessageDigest digest;
