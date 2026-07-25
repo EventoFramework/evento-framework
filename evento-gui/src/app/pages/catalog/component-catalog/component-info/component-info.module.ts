@@ -9,7 +9,7 @@ import {ComponentInfoPageRoutingModule} from './component-info-routing.module';
 import {ComponentInfoPage} from './component-info.page';
 import {ComponentsModule} from '../../../../components/components.module';
 import {MarkdownModule} from 'ngx-markdown';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslatePipe, TranslateDirective} from '@ngx-translate/core';
 import {RepositoryLogoPipe} from "../../../../pipes/repository-logo.pipe";
 
 @NgModule({
@@ -20,7 +20,7 @@ import {RepositoryLogoPipe} from "../../../../pipes/repository-logo.pipe";
         ComponentInfoPageRoutingModule,
         ComponentsModule,
         MarkdownModule,
-        TranslateModule,
+        TranslatePipe, TranslateDirective,
         RepositoryLogoPipe
     ],
   declarations: [ComponentInfoPage]

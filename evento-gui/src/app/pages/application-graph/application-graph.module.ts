@@ -7,7 +7,7 @@ import {IonicModule} from '@ionic/angular';
 import {ApplicationGraphPageRoutingModule} from './application-graph-routing.module';
 
 import {ApplicationGraphPage} from './application-graph-page.component';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslatePipe, TranslateDirective} from '@ngx-translate/core';
 import {ComponentsModule} from '../../components/components.module';
 
 @NgModule({
@@ -16,7 +16,7 @@ import {ComponentsModule} from '../../components/components.module';
         FormsModule,
         IonicModule,
         ApplicationGraphPageRoutingModule,
-        TranslateModule,
+        TranslatePipe, TranslateDirective,
         ComponentsModule
     ],
     declarations: [ApplicationGraphPage]

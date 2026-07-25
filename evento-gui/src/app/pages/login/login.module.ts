@@ -7,7 +7,7 @@ import {IonicModule} from '@ionic/angular';
 import {LoginPageRoutingModule} from './login-routing.module';
 
 import {LoginPage} from './login.page';
-import {TranslateModule} from "@ngx-translate/core";
+import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 
 @NgModule({
   imports: [
@@ -15,7 +15,7 @@ import {TranslateModule} from "@ngx-translate/core";
     FormsModule,
     IonicModule,
     LoginPageRoutingModule,
-    TranslateModule
+    TranslatePipe, TranslateDirective
   ],
   declarations: [LoginPage]
 })

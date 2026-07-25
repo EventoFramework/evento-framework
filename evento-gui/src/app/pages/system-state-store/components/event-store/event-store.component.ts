@@ -3,7 +3,7 @@ import {SystemStateStoreService} from "../../../../services/system-state-store.s
 import {ActivatedRoute, RouterLink} from "@angular/router";
 import {IonicModule} from "@ionic/angular";
 import {FormsModule} from "@angular/forms";
-import {TranslateModule} from "@ngx-translate/core";
+import {TranslatePipe} from "@ngx-translate/core";
 import { DatePipe, JsonPipe, KeyValuePipe } from "@angular/common";
 import {ComponentsModule} from "../../../../components/components.module";
 
@@ -15,7 +15,7 @@ import {ComponentsModule} from "../../../../components/components.module";
     imports: [
     IonicModule,
     FormsModule,
-    TranslateModule,
+    TranslatePipe,
     DatePipe,
     RouterLink,
     JsonPipe,
