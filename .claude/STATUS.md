@@ -3,7 +3,51 @@
 Last updated: 2026-07-25. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## Async consumers — complete, Phases 1–4 shipped (2026-07-25, latest)
+## Request-path capacity: growth-first pool, typed timeouts, saturation meters (2026-07-25, latest)
+
+Came out of a production incident on a bundle doing a bulk catalogue import: 20 concurrent
+writers against an 8-core server fell from 16 writes/s to **0.07 writes/s** with ~250
+`local_handler_threw … TimeoutException` per hour. CPU sat under 1%, both databases were
+idle, `int_lock` was empty, no query was blocked. Removing the load and sending a single
+command returned in 0.1s — nothing was wedged. Re-running the same job at **8** concurrent
+writers sustained 25 writes/s with zero timeouts. Less concurrency, more throughput.
+
+**Root cause.** `busBusinessExecutor` was `new ThreadPoolExecutor(core=cores×2,
+max=cores×8, new ArrayBlockingQueue<>(1024), CallerRunsPolicy)`. A `ThreadPoolExecutor`
+starts a thread beyond `core` only when the queue is **full**, so with a 1024-deep queue the
+pool never left 16 threads — `max=64` was unreachable under precisely the load it was
+configured for, and `CallerRunsPolicy` never engaged either. Because every request carries a
+30s client deadline and *nothing cancels work when it expires*, the queue filled with
+requests whose callers had gone: the server stayed fully busy producing responses nobody
+read. That is congestion collapse, and retries make it self-sustaining.
+
+**Changes.**
+- `BusBusinessExecutor` + its `GrowthFirstQueue` (Tomcat's approach): refuse the offer while
+  the pool can still grow, so it reaches `max` before queueing; `submittedCount` is tracked
+  in `execute`/`afterExecute` to avoid `getActiveCount()`'s pool lock on every submission.
+  Queue default `1024 → 256` — deeper than `deadline ÷ service time` is dead work.
+- `RequestTimeoutException` / `TooManyPendingRequestsException` in `com.evento.transport`.
+  `EventoServerAdapter.request` reconstructs them from `ResponseError.exceptionClassName()`
+  instead of flattening every failure to `IllegalStateException`. This mattered in the
+  incident: ~20 commands reported as failures had in fact been **fully applied** — the
+  timeout was the caller giving up, not the handler refusing. Callers can now report 504
+  rather than 500, and avoid double-applying on retry.
+- `BundleClient.request` enforces `BundleClientConfig.maxInFlightRequests` (default 2048),
+  failing fast rather than queueing work that will expire unsent.
+- Meters `evento.server.bus.executor.{pool.size,max,active,queue.depth,saturated}`;
+  `saturated` is the alerting signal. Expiries moved `INFO → WARN`, and the bundle-side line
+  gained `byType={...}` — the old line reported a count and nothing actionable.
+
+**Not changed, deliberately.** `evento.es.fetch.concurrency` stays at 4. It is very likely
+the binding constraint on a consumer-heavy cluster (a fair semaphore, so no number of bus
+threads raises it), but it guards heap against concurrent `EventFetchRequest` result sets
+and the OOM it was added for is real. Raise it against measured headroom, not on principle.
+Documented as a capacity knob instead.
+
+Docs: `CHANGELOG.md` (Unreleased), `README.md`, ARCHITECTURE §12, and a new public page
+*Evento Server → SetUp Evento Server → Throughput and Capacity* in `evento-doc`.
+
+## Async consumers — complete, Phases 1–4 shipped (2026-07-25)
 
 New feature: `@EventHandler(executor = "name")` dispatches an event to a named, bounded
 `ConsumerExecutor` registered on the bundle builder

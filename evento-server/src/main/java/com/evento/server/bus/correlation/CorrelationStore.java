@@ -126,14 +126,17 @@ public final class CorrelationStore {
             var p = entry.getValue();
             if (!p.isExpired(now)) continue;
             if (!correlations.remove(entry.getKey(), p)) continue;
-            var error = new ResponseError("com.evento.transport.RequestTimeoutException",
+            var error = new ResponseError(com.evento.transport.RequestTimeoutException.class.getName(),
                     "request expired after " + (now - p.createdAt()) + "ms (timeout=" + p.timeoutMs() + ")",
                     null);
             p.future().complete(Response.failure(p.correlationId(), error));
             expired++;
         }
         if (expired > 0) {
-            log.info("event=correlations_expired count={} pending={}", expired, correlations.size());
+            // Warn, not info: an expiry means a caller has already given up while
+            // the work may still be running. A steady stream of these is the
+            // signature of demand exceeding capacity, not of a one-off blip.
+            log.warn("event=correlations_expired count={} pending={}", expired, correlations.size());
         }
     }
 

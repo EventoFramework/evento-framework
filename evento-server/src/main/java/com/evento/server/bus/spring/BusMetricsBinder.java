@@ -20,18 +20,28 @@ import io.micrometer.core.instrument.binder.MeterBinder;
  *   <li>{@code evento.server.correlations.pending} — outstanding server-initiated requests</li>
  *   <li>{@code evento.server.forwarding.table.size} — in-flight relayed requests</li>
  *   <li>{@code evento.server.forwarded} (tag {@code path=raw|reencoded}) — zero-copy vs re-encoded forwards</li>
+ *   <li>{@code evento.server.bus.executor.{pool.size,active,queue.depth,max}} — request-handling capacity</li>
+ *   <li>{@code evento.server.bus.executor.saturated} — times demand exceeded pool + queue</li>
  * </ul>
+ *
+ * <p>{@code evento.server.bus.executor.saturated} is the one to alert on. It only
+ * moves when every thread is busy and the queue is full, which is the point at
+ * which clients begin waiting long enough to hit their own request timeouts.
+ * Watching {@code queue.depth} against {@code max} gives the earlier warning.
  */
 public class BusMetricsBinder implements MeterBinder {
 
     private final BusLifecycle bus;
     private final CorrelationStore correlations;
     private final ForwardingTable forwarding;
+    private final BusBusinessExecutor executor;
 
-    public BusMetricsBinder(BusLifecycle bus, CorrelationStore correlations, ForwardingTable forwarding) {
+    public BusMetricsBinder(BusLifecycle bus, CorrelationStore correlations, ForwardingTable forwarding,
+                            BusBusinessExecutor executor) {
         this.bus = bus;
         this.correlations = correlations;
         this.forwarding = forwarding;
+        this.executor = executor;
     }
 
     @Override
@@ -55,6 +65,22 @@ public class BusMetricsBinder implements MeterBinder {
         FunctionCounter.builder("evento.server.forwarded", bus, BusLifecycle::forwardedReencodedCount)
                 .description("Requests/responses relayed between bundles")
                 .tag("path", "reencoded")
+                .register(registry);
+        Gauge.builder("evento.server.bus.executor.pool.size", executor, BusBusinessExecutor::getPoolSize)
+                .description("Live threads handling bundle requests")
+                .register(registry);
+        Gauge.builder("evento.server.bus.executor.max", executor, BusBusinessExecutor::getMaximumPoolSize)
+                .description("Ceiling on request-handling threads")
+                .register(registry);
+        Gauge.builder("evento.server.bus.executor.active", executor, BusBusinessExecutor::submittedCount)
+                .description("Requests submitted and not yet completed (queued plus running)")
+                .register(registry);
+        Gauge.builder("evento.server.bus.executor.queue.depth", executor, BusBusinessExecutor::queueDepth)
+                .description("Requests waiting for a thread")
+                .register(registry);
+        FunctionCounter.builder("evento.server.bus.executor.saturated", executor,
+                        BusBusinessExecutor::saturatedCount)
+                .description("Times incoming demand exceeded pool and queue capacity")
                 .register(registry);
     }
 }

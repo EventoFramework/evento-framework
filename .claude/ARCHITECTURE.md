@@ -464,6 +464,35 @@ try-with-resources / `finally` so a failed consumer cycle doesn't leak its pinne
 SQL-injection-hardened `PgDistributedLock` (server-side command lock) is a separate JVM-or-Postgres
 lock and does not consume a pool connection per held lock.
 
+**Request capacity (the other sizing axis).** The consume path is bounded by consumer
+executors; the *request* path is bounded by the bus business executor. Three limits sit in
+series and a request is capped by the smallest: `evento.server.bus.business-executor-max-size`
+(default `cores × 8`), `…-queue-capacity` (default 256), and `evento.es.fetch.concurrency`
+(default **4**, a fair semaphore in `EventStoreRequestHandlerBridge` — usually the binding
+constraint on a consumer-heavy cluster, since no number of bus threads raises it).
+
+Two properties of this path drive its failure mode. First, `BusBusinessExecutor` grows to
+`max` **before** it queues — a stock `ThreadPoolExecutor` does the reverse and would run on
+`core` threads until the queue filled, making `max` unreachable under exactly the load it
+exists for. Second, every request carries a client deadline (30s by default) and **nothing
+cancels the work when it expires**. Past capacity the queue therefore fills with requests
+whose callers have already gone, and the server spends its threads producing responses
+nobody reads: throughput collapses rather than degrading, with idle-looking CPU and
+databases. Retries sustain it, so it does not self-heal when the triggering load stops —
+reducing *client* concurrency is what breaks it, and fewer concurrent clients can complete
+strictly more work.
+
+The queue is therefore the buffer behind a fully-grown pool, not a shock absorber: deeper
+than `deadline ÷ service time` is dead work by construction, which is why the default is
+small. Enlarging it to absorb load makes the collapse worse.
+
+Detect it with `evento.server.bus.executor.saturated` (alert on any sustained increase — it
+only moves when the pool is at max *and* the queue is full), `…queue.depth` as the earlier
+warning, and the `WARN` lines `event=bus_business_executor_saturated` and
+`event=bundle_correlation_expired … byType={...}`. Bundles can bound themselves with
+`BundleClientConfig.Builder.maxInFlightRequests(n)`. See §14 and the public docs page
+*Evento Server → SetUp Evento Server → Throughput and Capacity*.
+
 ---
 
 ## 13. Server REST API Surface

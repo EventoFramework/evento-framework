@@ -46,6 +46,7 @@ public record BundleClientConfig(
         Duration registrationTimeout,
         Duration defaultRequestTimeout,
         Duration shutdownDeadline,
+        int maxInFlightRequests,
         NettyTransportConfig transportConfig,
         boolean autoEnable
 ) {
@@ -68,6 +69,11 @@ public record BundleClientConfig(
         registrationTimeout = registrationTimeout == null ? Duration.ofSeconds(5)  : registrationTimeout;
         defaultRequestTimeout = defaultRequestTimeout == null ? Duration.ofSeconds(30) : defaultRequestTimeout;
         shutdownDeadline    = shutdownDeadline    == null ? Duration.ofSeconds(10) : shutdownDeadline;
+        // 0 or negative disables the bound. The default is deliberately generous:
+        // it is a runaway guard, not a tuning knob. Its job is to convert a client
+        // that floods the server into fast, explicit rejections instead of a wall
+        // of requests that all sit in a queue until their deadline passes.
+        if (maxInFlightRequests < 0) maxInFlightRequests = 0;
     }
 
     public static Builder builder() {
@@ -93,6 +99,7 @@ public record BundleClientConfig(
         private Duration registrationTimeout = Duration.ofSeconds(5);
         private Duration defaultRequestTimeout = Duration.ofSeconds(30);
         private Duration shutdownDeadline = Duration.ofSeconds(10);
+        private int maxInFlightRequests = 2048;
         private NettyTransportConfig transportConfig = NettyTransportConfig.defaults();
         private boolean autoEnable = true;
 
@@ -114,6 +121,8 @@ public record BundleClientConfig(
         public Builder registrationTimeout(Duration d) { this.registrationTimeout = d; return this; }
         public Builder defaultRequestTimeout(Duration d) { this.defaultRequestTimeout = d; return this; }
         public Builder shutdownDeadline(Duration d) { this.shutdownDeadline = d; return this; }
+        /** Cap on outstanding requests; 0 disables the bound. */
+        public Builder maxInFlightRequests(int n) { this.maxInFlightRequests = n; return this; }
         public Builder transportConfig(NettyTransportConfig c) { this.transportConfig = c; return this; }
         public Builder autoEnable(boolean v) { this.autoEnable = v; return this; }
 
@@ -122,7 +131,7 @@ public record BundleClientConfig(
                     authToken, description, detail, repositoryUrl, linePrefix,
                     handlerPayloadTypes, registeredHandlers, payloadInfo, capabilities,
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
-                    transportConfig, autoEnable);
+                    maxInFlightRequests, transportConfig, autoEnable);
         }
     }
 }
