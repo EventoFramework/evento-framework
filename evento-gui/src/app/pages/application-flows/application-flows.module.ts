@@ -7,7 +7,7 @@ import {IonicModule} from '@ionic/angular';
 import {ApplicationFlowsPageRoutingModule} from './application-flows-routing.module';
 
 import {ApplicationFlowsPage} from './application-flows-page.component';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslatePipe, TranslateDirective} from '@ngx-translate/core';
 
 @NgModule({
     imports: [
@@ -15,7 +15,7 @@ import {TranslateModule} from '@ngx-translate/core';
         FormsModule,
         IonicModule,
         ApplicationFlowsPageRoutingModule,
-        TranslateModule
+        TranslatePipe, TranslateDirective
     ],
   declarations: [ApplicationFlowsPage]
 })

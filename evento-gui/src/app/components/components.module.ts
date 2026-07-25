@@ -13,7 +13,7 @@ import {FormsModule} from "@angular/forms";
 import {AggregateTelemetryComponent} from "./aggregate-telemetry/aggregate-telemetry.component";
 import {EventDetailModalComponent} from "./event-detail-modal/event-detail-modal.component";
 import {CardSkeletonComponent} from "./card-skeleton/card-skeleton.component";
-import {TranslateModule} from "@ngx-translate/core";
+import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 
 
 @NgModule({
@@ -45,7 +45,7 @@ import {TranslateModule} from "@ngx-translate/core";
     FormsModule,
     KeyValuePipe,
     NgForOf,
-    TranslateModule,
+    TranslatePipe, TranslateDirective,
     DatePipe
   ],
   declarations: [

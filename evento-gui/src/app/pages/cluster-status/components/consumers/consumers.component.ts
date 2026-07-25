@@ -4,7 +4,7 @@ import {ConsumerService} from "../../../../services/consumer.service";
 import { DatePipe, JsonPipe } from "@angular/common";
 import {IonicModule, IonModal, LoadingController} from "@ionic/angular";
 import {RouterLink} from "@angular/router";
-import {TranslateModule} from "@ngx-translate/core";
+import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 import {ComponentsModule} from "../../../../components/components.module";
 
 @Component({
@@ -16,7 +16,7 @@ import {ComponentsModule} from "../../../../components/components.module";
     JsonPipe,
     IonicModule,
     RouterLink,
-    TranslateModule,
+    TranslatePipe, TranslateDirective,
     DatePipe,
     ComponentsModule
 ]
