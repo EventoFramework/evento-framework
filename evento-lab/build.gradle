@@ -61,7 +61,7 @@ dependencies {
     testRuntimeOnly "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
     testRuntimeOnly "org.flywaydb:flyway-mysql:${flywayVersion}"
 
-    testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3'
+    testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
 }
 
 // Spring Boot (via evento-server test dependency) ships log4j-to-slf4j which
