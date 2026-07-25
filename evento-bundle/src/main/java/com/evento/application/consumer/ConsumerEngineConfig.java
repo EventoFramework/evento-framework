@@ -1,6 +1,7 @@
 package com.evento.application.consumer;
 
 import com.evento.common.messaging.bus.EventoServer;
+import com.evento.common.messaging.consumer.ConsumerExecutors;
 import com.evento.common.messaging.consumer.ConsumerProcessor;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.messaging.consumer.DeadEventQueue;
@@ -10,8 +11,6 @@ import com.evento.common.messaging.consumer.impl.InMemoryDeadEventQueue;
 import com.evento.common.messaging.consumer.impl.InMemoryDedupeStore;
 import com.evento.common.messaging.consumer.impl.InMemorySagaStateStore;
 import com.evento.common.performance.PerformanceService;
-
-import java.util.concurrent.Executors;
 
 /**
  * Bundle of v2 SPIs the engines need, returned by the
@@ -36,6 +35,13 @@ public record ConsumerEngineConfig(
         ConsumerStateStore stateStore,
         DeadEventQueue deadEventQueue
 ) {
+    /**
+     * Default concurrency for the fallback observer executor. Observers are
+     * at-least-once by contract and have always run asynchronously, so a modest
+     * bound preserves their throughput while giving the consume loop backpressure.
+     */
+    public static final int DEFAULT_OBSERVER_CONCURRENCY = 32;
+
     public ConsumerEngineConfig {
         if (processor == null) throw new IllegalArgumentException("processor is required");
         if (stateStore == null) throw new IllegalArgumentException("stateStore is required");
@@ -57,7 +63,10 @@ public record ConsumerEngineConfig(
                 .deadEventQueue(deadEventQueue)
                 .dedupeStore(dedupeStore)
                 .performanceService(performanceService)
-                .observerExecutor(Executors.newVirtualThreadPerTaskExecutor())
+                // Bounded, unlike the historical unbounded virtual-thread executor: an
+                // observer catching up from a cold checkpoint would otherwise submit the
+                // whole backlog as fast as it could fetch it.
+                .observerExecutor(ConsumerExecutors.virtual("observer", DEFAULT_OBSERVER_CONCURRENCY))
                 .build();
         return new ConsumerEngineConfig(processor, stateStore, deadEventQueue);
     }

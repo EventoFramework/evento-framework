@@ -52,6 +52,17 @@ public class RegisteredHandler implements Serializable {
     /** Line of the handler method declaration inside its source file. */
     private int handlerLine = 0;
 
+    /**
+     * Name of the {@code ConsumerExecutor} this handler is dispatched to
+     * ({@code @EventHandler(executor = "...")}), or {@code ""} when it runs inline on the
+     * consumer's own thread.
+     *
+     * <p>Surfaced so the dashboard can show which handlers consume in parallel — that
+     * changes their delivery and ordering guarantees, and is otherwise invisible from
+     * outside the bundle.
+     */
+    private String executor = "";
+
     // ── invocation edges ────────────────────────────────────────────────────────
 
     /**
@@ -135,6 +146,18 @@ public class RegisteredHandler implements Serializable {
     public int getHandlerLine() { return handlerLine; }
     public void setHandlerLine(int handlerLine) { this.handlerLine = handlerLine; }
 
+    public String getExecutor() { return executor; }
+    public void setExecutor(String executor) {
+        this.executor = executor == null ? "" : executor;
+    }
+
+    // NOTE: do not add derived getters (e.g. an `isAsync()`) to this class. It is a wire
+    // DTO, and the transport codec deserializes it with FAIL_ON_UNKNOWN_PROPERTIES *enabled*
+    // (unlike AdminPayloadCodec). Jackson would serialize the derived property, the peer
+    // would reject the whole BundleDiscoveryInfo, and the failure is near-invisible: the
+    // bundle keeps running and only its handler metadata silently disappears from the
+    // dashboard. Compute such predicates at the call site instead.
+
     // ── invocation getters/setters ──────────────────────────────────────────────
 
     public Map<Integer, String> getInvokedCommands() { return invokedCommands; }
@@ -161,6 +184,7 @@ public class RegisteredHandler implements Serializable {
                 ", componentPath='" + componentPath + '\'' +
                 ", componentLine=" + componentLine +
                 ", handlerLine=" + handlerLine +
+                ", executor='" + executor + '\'' +
                 ", invokedCommands=" + invokedCommands +
                 ", invokedQueries=" + invokedQueries +
                 '}';

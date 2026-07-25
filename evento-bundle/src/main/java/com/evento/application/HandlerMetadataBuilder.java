@@ -60,6 +60,16 @@ final class HandlerMetadataBuilder {
     private static final Map<Class<?>, AsmClassMetadataScanner.ClassMetadata> metaCache
             = new IdentityHashMap<>();
 
+    /**
+     * Publish {@code @EventHandler(executor = "...")} so the dashboard can show which
+     * handlers consume in parallel. Only projector and observer event handlers can be
+     * async — saga handlers have no {@code executor} attribute.
+     */
+    private static void applyExecutor(RegisteredHandler h, Method m) {
+        var a = m.getAnnotation(com.evento.common.modeling.annotations.handler.EventHandler.class);
+        if (a != null) h.setExecutor(a.executor());
+    }
+
     private static void applyComponentMetadata(RegisteredHandler h, Class<?> componentClass) {
         var meta = metaCache.computeIfAbsent(componentClass, c -> {
             try {
@@ -150,6 +160,7 @@ final class HandlerMetadataBuilder {
                     k, null, false, null
             );
             applyComponentMetadata(h, v1.getRef().getClass());
+            applyExecutor(h, m);
             unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             payloads.add(m.getParameterTypes()[0]);
@@ -167,6 +178,7 @@ final class HandlerMetadataBuilder {
                     k, null, false, null
             );
             applyComponentMetadata(h, v1.getRef().getClass());
+            applyExecutor(h, m);
             unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
             payloads.add(m.getParameterTypes()[0]);

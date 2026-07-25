@@ -21,10 +21,12 @@ import java.util.Set;
 public final class EmbeddedBroker implements AutoCloseable {
 
     private final BusLifecycle lifecycle;
+    private final BusEventBus eventBus;
     private final int port;
 
     public EmbeddedBroker() {
         var eventBus = new BusEventBus();
+        this.eventBus = eventBus;
         var connections = new ConnectionRegistry(eventBus);
         var cluster = new ClusterRegistry(connections);
         var correlations = new CorrelationStore(Duration.ofSeconds(30));
@@ -44,6 +46,15 @@ public final class EmbeddedBroker implements AutoCloseable {
 
     public BusLifecycle lifecycle() {
         return lifecycle;
+    }
+
+    /**
+     * The broker's event stream. Subscribe before connecting a bundle to observe
+     * {@code BusEvent.BundleDiscovered} and assert on the rich discovery metadata as it
+     * actually arrived over the wire.
+     */
+    public BusEventBus eventBus() {
+        return eventBus;
     }
 
     @Override

@@ -23,6 +23,15 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
     private String error;
     private boolean enabled;
 
+    // --- Async consumers (@EventHandler(executor = "...")) -------------------
+    // Additive: AdminPayloadCodec disables FAIL_ON_UNKNOWN_PROPERTIES, so an older
+    // server decoding a newer bundle's response simply ignores these.
+
+    private int asyncInFlight;
+    private long asyncSubmitTimeouts;
+    private long asyncTransientFailures;
+    private Collection<String> asyncExecutors;
+
     /**
      * Retrieves the last event sequence number.
      * <p>
@@ -118,5 +127,47 @@ public class ConsumerFetchStatusResponseMessage implements Serializable {
     }
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    /** Async handler tasks dispatched by this consumer and not yet finished. */
+    public int getAsyncInFlight() {
+        return asyncInFlight;
+    }
+
+    public void setAsyncInFlight(int asyncInFlight) {
+        this.asyncInFlight = asyncInFlight;
+    }
+
+    /**
+     * How often this consumer had to end a cycle because its executor had no capacity.
+     * A climbing value means the executor is the bottleneck.
+     */
+    public long getAsyncSubmitTimeouts() {
+        return asyncSubmitTimeouts;
+    }
+
+    public void setAsyncSubmitTimeouts(long asyncSubmitTimeouts) {
+        this.asyncSubmitTimeouts = asyncSubmitTimeouts;
+    }
+
+    /**
+     * Transient failures in async handlers. These dead-letter rather than redeliver,
+     * because the checkpoint has already advanced past them.
+     */
+    public long getAsyncTransientFailures() {
+        return asyncTransientFailures;
+    }
+
+    public void setAsyncTransientFailures(long asyncTransientFailures) {
+        this.asyncTransientFailures = asyncTransientFailures;
+    }
+
+    /** Names of the executors this consumer's handlers dispatch to; empty if fully inline. */
+    public Collection<String> getAsyncExecutors() {
+        return asyncExecutors;
+    }
+
+    public void setAsyncExecutors(Collection<String> asyncExecutors) {
+        this.asyncExecutors = asyncExecutors;
     }
 }

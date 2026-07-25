@@ -86,6 +86,9 @@ public class ObserverReference extends Reference {
         }
 
         var a = handler.getAnnotation(EventHandler.class);
+        // See ProjectorReference: retry-forever under an executor would pin a concurrency
+        // permit indefinitely, so -1 is coerced to 0 for async handlers.
+        var maxRetry = a.executor().isBlank() ? a.retry() : Math.max(0, a.retry());
         var retry = 0;
         while (true) {
             try {
@@ -127,8 +130,8 @@ public class ObserverReference extends Reference {
                     throwable = ex;
                 }
                 setLastError.setError(throwable);
-                if (a.retry() >= 0) {
-                    if (retry > a.retry()) {
+                if (maxRetry >= 0) {
+                    if (retry > maxRetry) {
                         throw throwable;
                     }
                 }

@@ -55,6 +55,10 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
     @Getter
     private final int sssFetchDelay;
 
+    private final ConsumerExecutorResolver.Routing routing;
+
+    private static final Duration DRAIN_DEADLINE = Duration.ofMinutes(2);
+
     public ObserverEngine(String bundleId,
                           String observerName,
                           int observerVersion,
@@ -67,6 +71,25 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
                           DispatchContext dispatchContext,
                           int sssFetchSize,
                           int sssFetchDelay) {
+        this(bundleId, observerName, observerVersion, context, isShuttingDown, processor,
+                stateStore, deadEventQueue, observerMessageHandlers, dispatchContext,
+                sssFetchSize, sssFetchDelay, ConsumerExecutorResolver.Routing.INLINE);
+    }
+
+    public ObserverEngine(String bundleId,
+                          String observerName,
+                          int observerVersion,
+                          String context,
+                          Supplier<Boolean> isShuttingDown,
+                          ConsumerProcessor processor,
+                          ConsumerStateStore stateStore,
+                          DeadEventQueue deadEventQueue,
+                          HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers,
+                          DispatchContext dispatchContext,
+                          int sssFetchSize,
+                          int sssFetchDelay,
+                          ConsumerExecutorResolver.Routing routing) {
+        this.routing = routing == null ? ConsumerExecutorResolver.Routing.INLINE : routing;
         this.bundleId = bundleId;
         this.observerName = observerName;
         this.observerVersion = observerVersion;
@@ -100,7 +123,8 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
                             observerName,
                             context,
                             this::dispatch,
-                            sssFetchSize);
+                            sssFetchSize,
+                            routing.resolver());
                 }
             } catch (Throwable e) {
                 isChannelError = ChannelErrors.isChannelError(e);
@@ -113,16 +137,44 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
                 hasError = true;
             }
 
+            // See ProjectorEngine: async failures never surface as `hasError`, so without
+            // this a downed dependency would be fed the whole stream at full speed.
+            var asyncStreak = processor.asyncTransientFailureStreak(consumerId);
+
             if (hasError && isChannelError) {
                 Sleep.apply(backoff.nextDelay(++channelErrorAttempts).toMillis());
             } else if (hasError) {
                 Sleep.apply(sssFetchDelay);
+            } else if (asyncStreak > 0) {
+                var delay = backoff.nextDelay(asyncStreak).toMillis();
+                logger.warn("Observer {} degraded: {} consecutive transient async failure(s), "
+                                + "backing off {} ms", observerName, asyncStreak, delay);
+                Sleep.apply(delay);
             } else {
                 channelErrorAttempts = 0;
                 if (sssFetchSize - consumedEventCount > 10) {
                     Sleep.apply(sssFetchSize - consumedEventCount);
                 }
             }
+        }
+    }
+
+    /**
+     * Wait for every async handler this observer dispatched to finish. Called by
+     * {@code EngineSupervisor} before shutdown — in-flight events are already
+     * checkpointed, so discarding them would lose them silently.
+     */
+    public boolean drainAsyncHandlers() {
+        try {
+            var drained = processor.awaitConsumerQuiescence(consumerId, DRAIN_DEADLINE);
+            if (!drained) {
+                logger.warn("Observer {} still has {} async handler(s) in flight after {}",
+                        observerName, processor.inFlightCount(consumerId), DRAIN_DEADLINE);
+            }
+            return drained;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -151,7 +203,9 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
 
     @Override
     public ConsumerFetchStatusResponseMessage toConsumerStatus() {
-        return processor.toConsumerStatus(consumerId);
+        var status = processor.toConsumerStatus(consumerId);
+        status.setAsyncExecutors(routing.executorNames());
+        return status;
     }
 
     @Override

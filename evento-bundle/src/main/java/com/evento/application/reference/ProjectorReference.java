@@ -87,6 +87,11 @@ public class ProjectorReference extends Reference {
         }
 
         var a = handler.getAnnotation(EventHandler.class);
+        // retry = -1 means "retry forever" on the inline path. Inside a task dispatched to
+        // a ConsumerExecutor that would pin a concurrency permit indefinitely and starve
+        // every other handler sharing the executor, so it is coerced to 0: one attempt,
+        // then the dead-event queue.
+        var maxRetry = a.executor().isBlank() ? a.retry() : Math.max(0, a.retry());
         var retry = 0;
         while (true) {
             try {
@@ -134,8 +139,8 @@ public class ProjectorReference extends Reference {
                     throwable = t1;
                 }
                 setError.setError(throwable);
-                if(a.retry() >= 0){
-                    if (retry > a.retry()) {
+                if(maxRetry >= 0){
+                    if (retry > maxRetry) {
                         throw throwable;
                     }
                 }
