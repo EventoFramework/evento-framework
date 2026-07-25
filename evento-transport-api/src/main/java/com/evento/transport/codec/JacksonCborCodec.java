@@ -1,6 +1,7 @@
 package com.evento.transport.codec;
 
 import com.evento.transport.message.Message;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
@@ -28,10 +29,22 @@ public final class JacksonCborCodec implements Codec {
         this.mapper = mapper;
     }
 
+    /**
+     * Unknown properties are ignored so that a peer one version ahead — which may add a
+     * field to {@code Hello}, {@code Welcome} or any other {@link Message} — does not have
+     * its frame rejected outright. On this codec that would break the <em>handshake</em>,
+     * so mixed-version tolerance matters even more here than on the payload codec.
+     *
+     * <p>The type whitelist in {@link MessageTypeRegistry} is untouched and remains the
+     * actual deserialization defence: it bounds which classes may be instantiated, whereas
+     * this setting only decides whether a recognised class tolerates a field it does not
+     * know. See {@link JacksonCborPayloadCodec#defaultMapper()}.
+     */
     public static ObjectMapper defaultMapper() {
         return new ObjectMapper(new CBORFactory())
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
     @Override
