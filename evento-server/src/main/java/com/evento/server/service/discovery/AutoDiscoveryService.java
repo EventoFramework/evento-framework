@@ -198,6 +198,7 @@ public class AutoDiscoveryService {
                             handler.setAssociationProperty(registeredHandler.getAssociationProperty());
                             handler.setLine(registeredHandler.getHandlerLine() > 0
                                     ? registeredHandler.getHandlerLine() : null);
+                            handler.setExecutor(registeredHandler.getExecutor());
                             handler.setInvocations(buildInvocations(registeredHandler, bundle.getId()));
                             handler.generateId();
                             handlerService.save(handler);
@@ -220,6 +221,17 @@ public class AutoDiscoveryService {
                                         }
                                         if (existing.getLine() == null && registeredHandler.getHandlerLine() > 0) {
                                             existing.setLine(registeredHandler.getHandlerLine());
+                                            changed = true;
+                                        }
+                                        // Not a backfill: a redeploy can move a handler
+                                        // between inline and async, so the stored value must
+                                        // track the live one rather than stick at whatever
+                                        // was first seen.
+                                        var executor = registeredHandler.getExecutor();
+                                        if (!Objects.equals(
+                                                existing.getExecutor() == null ? "" : existing.getExecutor(),
+                                                executor)) {
+                                            existing.setExecutor(executor);
                                             changed = true;
                                         }
                                         if (changed) handlerService.save(existing);

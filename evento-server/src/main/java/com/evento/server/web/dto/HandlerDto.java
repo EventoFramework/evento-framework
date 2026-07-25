@@ -31,6 +31,8 @@ public class HandlerDto implements Serializable {
 	private Map<Integer, PayloadDto> invocations;
 	private String path;
 	private Integer line;
+	/** Consumer executor this handler dispatches to, or {@code ""} when it consumes inline. */
+	private String executor;
 
 
 	public HandlerDto(Handler handler) {
@@ -49,6 +51,7 @@ public class HandlerDto implements Serializable {
 		}
 		this.path = handler.getComponent().getPath();
 		this.line = handler.getLine();
+		this.executor = handler.getExecutor() == null ? "" : handler.getExecutor();
 	}
 
 	/**

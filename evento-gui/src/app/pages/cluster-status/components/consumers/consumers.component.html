@@ -70,6 +70,33 @@
                         }
                       </ion-col>
                     </ion-row>
+                    <!-- Async consumers: only shown when the consumer actually dispatches
+                         handlers to a ConsumerExecutor, so inline consumers stay unchanged. -->
+                    @if (consumerState.asyncExecutors?.length) {
+                      <ion-row class="ion-align-items-center">
+                        <ion-col size="12" sizeMd="6">
+                          <ion-chip color="tertiary">
+                            <ion-label>{{ 'consumer.async.parallel' | translate }}</ion-label>
+                          </ion-chip>
+                          @for (ex of consumerState.asyncExecutors; track ex) {
+                            <ion-chip color="medium">
+                              <ion-label class="cell-mono">{{ex}}</ion-label>
+                            </ion-chip>
+                          }
+                        </ion-col>
+                        <ion-col size="12" sizeMd="6" class="ion-text-right">
+                          <ion-chip color="medium">
+                            <ion-label>{{ 'consumer.async.in.flight' | translate }}: {{consumerState.asyncInFlight || 0}}</ion-label>
+                          </ion-chip>
+                          <ion-chip [color]="consumerState.asyncSubmitTimeouts ? 'warning' : 'medium'">
+                            <ion-label>{{ 'consumer.async.saturated' | translate }}: {{consumerState.asyncSubmitTimeouts || 0}}</ion-label>
+                          </ion-chip>
+                          <ion-chip [color]="consumerState.asyncTransientFailures ? 'warning' : 'medium'">
+                            <ion-label>{{ 'consumer.async.transient' | translate }}: {{consumerState.asyncTransientFailures || 0}}</ion-label>
+                          </ion-chip>
+                        </ion-col>
+                      </ion-row>
+                    }
                     <!-- Last error accordion: visible if an error exists; auto-open only when currently in error -->
                     @if (consumerState.error) {
                       <ion-row>
