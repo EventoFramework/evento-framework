@@ -9,6 +9,7 @@ import com.evento.application.consumer.ConsumerHandle;
 import com.evento.application.consumer.ConsumerEngineConfig;
 import com.evento.application.consumer.ConsumerExecutorResolver;
 import com.evento.application.consumer.ConsumerExecutorValidator;
+import com.evento.application.consumer.ConsumerStatsPublisher;
 import com.evento.application.consumer.DispatchContext;
 import com.evento.application.consumer.EngineSupervisor;
 import com.evento.application.consumer.ObserverEngine;
@@ -414,6 +415,17 @@ public class EventoBundle {
             return this;
         }
 
+        /**
+         * How often parallel-consumption counters are pushed to the server for Micrometer.
+         * Only applies when the bundle registers at least one consumer executor.
+         */
+        private Duration consumerStatsInterval = Duration.ofSeconds(30);
+
+        public Builder setConsumerStatsInterval(Duration interval) {
+            this.consumerStatsInterval = interval;
+            return this;
+        }
+
         /** Override the checkpoint mode for one projector. */
         public Builder setComponentCheckpointMode(Class<?> componentClass,
                                                   com.evento.common.messaging.consumer.CheckpointMode mode) {
@@ -690,6 +702,9 @@ public class EventoBundle {
                     startSagaAndObserverEnginesV2(eventoBundle.get(), engineConfigForLater, contexts, supervisor,
                             dispatchContext, consumerExecutorsForLater);
                     sendConsumerRegistrationV2(eventoServer, supervisor, bundleClient);
+                    eventoBundle.get().startConsumerStatsPublisher(
+                            new ConsumerStatsPublisher(eventoServer, supervisor,
+                                    engineConfigForLater.processor(), consumerStatsInterval));
                     logger.info("Application Started!");
                     Thread.ofPlatform().start(() -> onEventoStartedHook.accept(eventoBundle.get()));
                 } catch (InterruptedException e) {
@@ -887,7 +902,17 @@ public class EventoBundle {
      * Request all v2 engines to stop and block until they do or the deadline
      * elapses.
      */
+    private volatile ConsumerStatsPublisher consumerStatsPublisher;
+
+    void startConsumerStatsPublisher(ConsumerStatsPublisher publisher) {
+        this.consumerStatsPublisher = publisher;
+        publisher.start();
+    }
+
     public void stopV2Engines(Duration deadline) {
+        if (consumerStatsPublisher != null) {
+            consumerStatsPublisher.close();
+        }
         if (engineSupervisor != null) {
             engineSupervisor.stop(deadline);
         }

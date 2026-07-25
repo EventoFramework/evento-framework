@@ -504,6 +504,17 @@ explorative read-only pivot.)
   - `evento.server.forwarding.table.size` — in-flight relayed requests
   - `evento.server.forwarded{path=raw|reencoded}` — zero-copy vs re-encoded forward counts
   - *Not yet covered:* heartbeat lag, per-type processing-duration timers, consumer lag (future work).
+- **Parallel-consumption metrics** — wired via `ConsumerMetricsRegistry`
+  (`com.evento.server.bus.spring`), fed by a periodic `ConsumerStatsMessage` bundles push on
+  the admin notification channel. Push rather than poll: the counters live in bundle-side
+  objects, and polling per scrape would make one scrape a round-trip per consumer.
+  - `evento.consumer.executor.{capacity,in.flight,admitted,rejected,completed,failed}`
+    — tagged `bundle,instance,executor`. **`rejected` is the alerting signal**: the executor
+    reporting it is the bottleneck.
+  - `evento.consumer.async.{in.flight,submit.timeouts,transient.failures}`
+    — tagged `bundle,instance,consumer,component`.
+  - Meters are removed on `BusEvent.NodeLeft`, so rolling restarts do not leak a series per
+    dead instance. Bundles with no consumer executor push nothing at all.
 - **Health** — `BusHealthIndicator` reports the bus bound-port + node counts on
   `/actuator/health`; liveness/readiness probes enabled. DataSource health via Actuator's
   built-in indicator.

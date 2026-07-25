@@ -2,17 +2,20 @@ package com.evento.server.bus.admin;
 
 import com.evento.common.admin.AdminPayloadCodec;
 import com.evento.common.modeling.messaging.message.internal.EventoMessage;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerStatsMessage;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.performance.PerformanceInvocationsMessage;
 import com.evento.common.performance.PerformanceServiceTimeMessage;
 import com.evento.server.bus.event.BusEvent;
 import com.evento.server.bus.lifecycle.BusLifecycle;
+import com.evento.server.bus.spring.ConsumerMetricsRegistry;
 import com.evento.server.service.discovery.ConsumerService;
 import com.evento.server.service.performance.PerformanceStoreService;
 import com.evento.transport.protocol.ProtocolPayloadTypes;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -52,18 +55,34 @@ public class BundleAdminNotificationListener {
     private final ConsumerService consumerService;
     private final AdminPayloadCodec codec;
 
+    /**
+     * Optional: absent in slimmed-down contexts (the wiring test scans only this package,
+     * and the metrics registry needs a {@code MeterRegistry}). Telemetry must never be the
+     * reason the notification channel fails to wire.
+     */
+    private final ObjectProvider<ConsumerMetricsRegistry> consumerMetrics;
+
     public BundleAdminNotificationListener(BusLifecycle lifecycle,
                                            PerformanceStoreService performanceStoreService,
-                                           ConsumerService consumerService) {
+                                           ConsumerService consumerService,
+                                           ObjectProvider<ConsumerMetricsRegistry> consumerMetrics) {
         this.lifecycle = lifecycle;
         this.performanceStoreService = performanceStoreService;
         this.consumerService = consumerService;
+        this.consumerMetrics = consumerMetrics;
         this.codec = new AdminPayloadCodec();
     }
 
     @PostConstruct
     public void subscribe() {
         lifecycle.subscribe(event -> {
+            if (event instanceof BusEvent.NodeLeft left) {
+                // Drop the departed instance's meters, or a rolling restart accumulates a
+                // series per dead instance for ever.
+                var metrics = consumerMetrics.getIfAvailable();
+                if (metrics != null) metrics.onNodeLeft(left.node().instanceId());
+                return;
+            }
             if (!(event instanceof BusEvent.AdminNotification an)) return;
             if (!ProtocolPayloadTypes.BUNDLE_ADMIN_NOTIFICATION.equals(an.payloadType())) return;
             dispatch(an);
@@ -89,6 +108,12 @@ public class BundleAdminNotificationListener {
             case BundleConsumerRegistrationMessage cr -> consumerService.registerConsumers(
                     envelope.getSourceBundleId(), envelope.getSourceInstanceId(),
                     envelope.getSourceBundleVersion(), cr);
+            case ConsumerStatsMessage cs -> {
+                var metrics = consumerMetrics.getIfAvailable();
+                if (metrics != null) {
+                    metrics.update(envelope.getSourceBundleId(), envelope.getSourceInstanceId(), cs);
+                }
+            }
             case null -> log.debug("event=admin_notification_empty source={}", an.source().instanceId());
             default -> log.debug("event=admin_notification_unhandled source={} bodyType={}",
                     an.source().instanceId(), body.getClass().getName());

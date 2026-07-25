@@ -625,10 +625,11 @@ deliberately do **not** raise the streak — a poison event is no reason to slow
 - `ConsumerExecutorResolver` now returns a `Routing` record (resolver + `executorNames`)
   instead of a bare `Function`, so an engine can report which executors it depends on.
 
-**Deviation: no Micrometer.** The plan said "per-executor metrics via Micrometer", but
-Micrometer is an `evento-server` dependency only — wiring it into `evento-bundle` would push
-a new transitive dependency onto every user application. Counters are exposed through the
-SPI and the consumer-status wire instead, and the server can bind them in Phase 3.
+**Deviation: no Micrometer *in the bundle*.** The plan said "per-executor metrics via
+Micrometer", but Micrometer is an `evento-server` dependency only — wiring it into
+`evento-bundle` would push a new transitive dependency onto every user application. Counters
+are exposed through the SPI and the consumer-status wire instead, and the **server** binds
+them (§16).
 
 ### The JDBC / virtual-thread question — now measured, not assumed
 
@@ -810,3 +811,43 @@ interleaved aggregates and uneven handler latency. **Verified sensitive**: swapp
 `partitioned` for `virtual` makes it fail, so it is testing ordering rather than luck.
 
 `AsyncConsumerIT` +2 covering both features over a real broker.
+
+---
+
+## 16. Micrometer binding
+
+The counters reach `/actuator/prometheus` by the bundle **pushing** a `ConsumerStatsMessage`
+on the existing admin notification channel — the one already carrying performance metrics
+and consumer registration — with `ConsumerMetricsRegistry` binding the snapshot to meters
+server-side.
+
+Push rather than poll, because the numbers live in bundle-side objects the server has no
+view of: executor permits and per-consumer trackers. Having the server request them on each
+Prometheus scrape would make one scrape a round-trip per consumer across the whole cluster.
+The interval defaults to 30 s (`EventoBundle.Builder.setConsumerStatsInterval`), and a bundle
+with no executor registered **pushes nothing at all** — applications that never opted into
+parallel consumption pay nothing beyond an idle timer thread.
+
+| Meter | Tags |
+|---|---|
+| `evento.consumer.executor.{capacity,in.flight,admitted,rejected,completed,failed}` | `bundle,instance,executor` |
+| `evento.consumer.async.{in.flight,submit.timeouts,transient.failures}` | `bundle,instance,consumer,component` |
+
+`rejected` is the one to alert on — it is the executor reporting that it is the bottleneck.
+
+Two details that matter more than the meter list:
+
+- **Meters are removed on `BusEvent.NodeLeft`.** Gauges tagged by instance are the classic
+  cardinality leak: without removal, every rolling restart leaves a live series per dead
+  instance behind for ever. The registry tracks meter ids per instance and drops them on
+  departure; `ConsumerMetricsRegistryTest` pins it.
+- **The registry is injected as an `ObjectProvider`.** `BundleAdminNotificationListener`
+  lives in a package its own wiring test component-scans in isolation, where no
+  `MeterRegistry` exists. Making the dependency optional keeps that test honest and encodes
+  the rule that telemetry must never be the reason the notification channel fails to wire.
+
+Test split by what each can uniquely cover: `ConsumerMetricsRegistryTest` (7) does meter
+values, tagging, in-place update, per-instance isolation, removal on departure and malformed
+input; the lab IT asserts the message survives the admin codec and the socket with the right
+source identity — it does not re-test the binding, and `evento-lab` deliberately gained no
+Micrometer dependency.
