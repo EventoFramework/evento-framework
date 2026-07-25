@@ -1,6 +1,7 @@
 package com.evento.application.consumer;
 
 import com.evento.application.consumer.ConsumerHandle;
+import com.evento.common.messaging.consumer.ConsumerExecutor;
 import com.evento.common.modeling.bundle.types.ComponentType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,9 +48,19 @@ public final class EngineSupervisor {
     private final List<ObserverEngine> observerEngines = new ArrayList<>();
 
     private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
+    private final List<ConsumerExecutor> consumerExecutors = new ArrayList<>();
     private ExecutorService executor;
 
     public EngineSupervisor() {}
+
+    /**
+     * Register the bundle's {@link ConsumerExecutor}s so {@link #stop} can drain and close
+     * them. Without this, a graceful stop would discard tasks that are already checkpointed
+     * — silent event loss on every clean shutdown.
+     */
+    public void registerConsumerExecutors(Collection<ConsumerExecutor> executors) {
+        consumerExecutors.addAll(executors);
+    }
 
     /** Caller-supplied shutdown flag — engines read this each loop iteration. */
     public boolean isShuttingDown() {
@@ -126,7 +137,11 @@ public final class EngineSupervisor {
         if (!shuttingDown.compareAndSet(false, true)) {
             return; // already stopping
         }
-        if (executor == null) return;
+        if (executor == null) {
+            drainConsumerExecutors(deadline);
+            return;
+        }
+        var startedAt = System.nanoTime();
         executor.shutdown();
         try {
             if (!executor.awaitTermination(deadline.toMillis(), TimeUnit.MILLISECONDS)) {
@@ -140,6 +155,30 @@ public final class EngineSupervisor {
             executor.shutdownNow();
             Thread.currentThread().interrupt();
         }
+        // Fetch loops have stopped submitting; now let the work they already dispatched
+        // finish. Ordering matters: draining before the loops stop would race new
+        // submissions, and skipping it drops already-checkpointed events.
+        var elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
+        var remaining = deadline.minus(elapsed);
+        drainConsumerExecutors(remaining.isNegative() ? Duration.ZERO : remaining);
+    }
+
+    private void drainConsumerExecutors(Duration deadline) {
+        if (consumerExecutors.isEmpty()) return;
+        for (var e : engineDrainers()) {
+            e.run();
+        }
+        for (var ce : consumerExecutors) {
+            ce.shutdown(deadline);
+        }
+    }
+
+    /** Per-consumer drains, so a slow consumer cannot mask another's completion. */
+    private List<Runnable> engineDrainers() {
+        List<Runnable> drainers = new ArrayList<>();
+        for (var e : projectorEngines) drainers.add(e::drainAsyncHandlers);
+        for (var e : observerEngines) drainers.add(e::drainAsyncHandlers);
+        return drainers;
     }
 
     private void ensureExecutor() {

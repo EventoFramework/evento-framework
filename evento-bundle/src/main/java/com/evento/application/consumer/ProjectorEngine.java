@@ -65,6 +65,14 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
     private final int sssFetchDelay;
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
+    private final ConsumerExecutorResolver.Routing routing;
+
+    /**
+     * How long the head-reached gate waits for async handlers to finish. Generous: it is
+     * paid once per projector at start-up, and overrunning it means enabling the bundle
+     * with an unaligned read model.
+     */
+    private static final Duration DRAIN_DEADLINE = Duration.ofMinutes(2);
 
     private volatile PublishedEvent lastConsumedEvent = null;
 
@@ -82,6 +90,28 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                            int sssFetchDelay,
                            AtomicInteger alignmentCounter,
                            Runnable onAllHeadReached) {
+        this(bundleId, projectorName, projectorVersion, context, isShuttingDown, processor,
+                stateStore, deadEventQueue, projectorMessageHandlers, dispatchContext,
+                sssFetchSize, sssFetchDelay, alignmentCounter, onAllHeadReached,
+                ConsumerExecutorResolver.Routing.INLINE);
+    }
+
+    public ProjectorEngine(String bundleId,
+                           String projectorName,
+                           int projectorVersion,
+                           String context,
+                           Supplier<Boolean> isShuttingDown,
+                           ConsumerProcessor processor,
+                           ConsumerStateStore stateStore,
+                           DeadEventQueue deadEventQueue,
+                           HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers,
+                           DispatchContext dispatchContext,
+                           int sssFetchSize,
+                           int sssFetchDelay,
+                           AtomicInteger alignmentCounter,
+                           Runnable onAllHeadReached,
+                           ConsumerExecutorResolver.Routing routing) {
+        this.routing = routing == null ? ConsumerExecutorResolver.Routing.INLINE : routing;
         this.bundleId = bundleId;
         this.projectorName = projectorName;
         this.projectorVersion = projectorVersion;
@@ -121,7 +151,8 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             projectorName,
                             context,
                             publishedEvent -> dispatch(publishedEvent, ps),
-                            sssFetchSize);
+                            sssFetchSize,
+                            routing.resolver());
                 }
             } catch (Throwable e) {
                 // Exponential backoff for any transient failure (channel error OR
@@ -137,10 +168,22 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                 hasError = true;
             }
 
+            // Async handlers fail on their own threads, long after the fetch loop moved
+            // on, so their failures never surface as `hasError`. Left unchecked, a downed
+            // dependency would be met by the loop pulling at full speed and dead-lettering
+            // the entire stream — async events cannot be redelivered, their checkpoint has
+            // already advanced. Back off on the same curve as a channel error instead.
+            var asyncStreak = processor.asyncTransientFailureStreak(consumerId);
+
             if (hasError && isChannelError) {
                 Sleep.apply(backoff.nextDelay(++channelErrorAttempts).toMillis());
             } else if (hasError) {
                 Sleep.apply(sssFetchDelay);
+            } else if (asyncStreak > 0) {
+                var delay = backoff.nextDelay(asyncStreak).toMillis();
+                logger.warn("Projector {} degraded: {} consecutive transient async failure(s), "
+                                + "backing off {} ms", projectorName, asyncStreak, delay);
+                Sleep.apply(delay);
             } else {
                 channelErrorAttempts = 0;
                 if (sssFetchSize - consumedEventCount > 10) {
@@ -149,6 +192,11 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
             }
 
             if (!hasError && !ps.isHeadReached() && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
+                // For async handlers "consumed" means "started", so the read model is not
+                // yet aligned when the fetch loop reaches head. Draining here is what stops
+                // the bundle from being enabled — and serving queries — while writes are
+                // still in flight.
+                drainAsyncHandlers();
                 ps.setHeadReached(true);
                 logger.info("Projector head reached: {} - Version: {} - Context: {}",
                         projectorName, projectorVersion, context);
@@ -164,6 +212,28 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                         projectorName, projectorVersion, context, lastConsumedEvent, now,
                         now - lastConsumedEvent.getCreatedAt());
             }
+        }
+    }
+
+    /**
+     * Wait for every async handler this projector dispatched to finish.
+     *
+     * <p>Public so {@code EngineSupervisor} can drain before shutdown: in-flight events are
+     * already checkpointed, so discarding them would lose them silently.
+     *
+     * @return {@code true} if the projector went idle within the deadline.
+     */
+    public boolean drainAsyncHandlers() {
+        try {
+            var drained = processor.awaitConsumerQuiescence(consumerId, DRAIN_DEADLINE);
+            if (!drained) {
+                logger.warn("Projector {} still has {} async handler(s) in flight after {}",
+                        projectorName, processor.inFlightCount(consumerId), DRAIN_DEADLINE);
+            }
+            return drained;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -195,7 +265,9 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
 
     @Override
     public ConsumerFetchStatusResponseMessage toConsumerStatus() {
-        return processor.toConsumerStatus(consumerId);
+        var status = processor.toConsumerStatus(consumerId);
+        status.setAsyncExecutors(routing.executorNames());
+        return status;
     }
 
     @Override
