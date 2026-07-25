@@ -360,6 +360,57 @@ class AsyncConsumerIT {
                 .untilAsserted(() -> assertThat(discoveredBundles).contains(BUNDLE_ID));
     }
 
+    @Test
+    void executorStatsArePushedToTheServerForMetrics() throws Exception {
+        publishOrders(3, "metrics");
+
+        executor = ConsumerExecutors.virtual(AsyncLabProjector.EXECUTOR, CAPACITY);
+        bundle = EventoBundle.Builder.builder()
+                .setBasePackage(AsyncLabProjector.class.getPackage())
+                .setBundleId(BUNDLE_ID)
+                .setEventoServerMessageBusConfiguration(
+                        new EventoServerMessageBusConfiguration(
+                                new ClusterNodeAddress("127.0.0.1", broker.port())))
+                .setConsumerEngineConfigBuilder(ConsumerEngineConfig::inMemory)
+                .addConsumerExecutor(executor)
+                .setConsumerStatsInterval(Duration.ofMillis(300))
+                .start();
+        awaitBundleAvailable();
+
+        // This covers what only an IT can: that the new message type survives the admin
+        // codec and the socket, with the source identity the server needs to tag meters by.
+        // Binding those values to Micrometer is ConsumerMetricsRegistryTest's job.
+        var received = new java.util.concurrent.atomic.AtomicReference<
+                com.evento.common.modeling.messaging.message.internal.consumer.ConsumerStatsMessage>();
+        var source = new java.util.concurrent.atomic.AtomicReference<String>();
+        var codec = new com.evento.common.admin.AdminPayloadCodec();
+
+        broker.eventBus().subscribe(e -> {
+            if (e instanceof com.evento.server.bus.event.BusEvent.AdminNotification an
+                    && com.evento.transport.protocol.ProtocolPayloadTypes.BUNDLE_ADMIN_NOTIFICATION
+                    .equals(an.payloadType())) {
+                var envelope = codec.decodeMessage(an.payload());
+                if (envelope.getBody() instanceof com.evento.common.modeling.messaging.message
+                        .internal.consumer.ConsumerStatsMessage stats) {
+                    source.set(envelope.getSourceBundleId());
+                    received.set(stats);
+                }
+            }
+        });
+
+        await().atMost(30, TimeUnit.SECONDS).until(() -> received.get() != null);
+
+        var stats = received.get();
+        assertThat(source.get()).isEqualTo(BUNDLE_ID);
+        assertThat(stats.getExecutors()).singleElement().satisfies(ex -> {
+            assertThat(ex.getName()).isEqualTo(AsyncLabProjector.EXECUTOR);
+            assertThat(ex.getCapacity()).isEqualTo(CAPACITY);
+            assertThat(ex.getAdmitted()).isGreaterThanOrEqualTo(3);
+        });
+        assertThat(stats.getConsumers()).anySatisfy(c ->
+                assertThat(c.getComponentName()).isEqualTo("AsyncLabProjector"));
+    }
+
     // --- Start-up validation ------------------------------------------------
 
     @Test

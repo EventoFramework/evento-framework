@@ -176,9 +176,31 @@ no unbounded internal queue) — so a burst on one hot aggregate serialises, whi
 guarantee working, not a defect. Size lanes well above the expected count of
 concurrently-active aggregates; keyless events spread round-robin.
 
-**Open / next:** the server could bind the `ConsumerExecutorStats` counters into Micrometer
-(they currently reach the GUI only through the consumer-status message). Nothing else
-outstanding on this feature.
+### Micrometer binding (the last open item, now closed)
+
+Bundles push a `ConsumerStatsMessage` on the existing admin notification channel — the same
+one carrying performance metrics and consumer registration — and
+`ConsumerMetricsRegistry` (`com.evento.server.bus.spring`) binds it to Micrometer, so the
+counters land on `/actuator/prometheus`.
+
+**Push, not poll.** The counters live in bundle-side objects (executor permits, per-consumer
+trackers) the server cannot see; having it request them per scrape would turn one scrape
+into a round-trip per consumer across the cluster. Interval defaults to 30 s
+(`setConsumerStatsInterval`), and a bundle with **no** executor registered pushes nothing at
+all, so applications that never opted into parallel consumption pay nothing.
+
+- `evento.consumer.executor.{capacity,in.flight,admitted,rejected,completed,failed}`
+  tagged `bundle,instance,executor`; **`rejected` is the alerting signal.**
+- `evento.consumer.async.{in.flight,submit.timeouts,transient.failures}` tagged
+  `bundle,instance,consumer,component`.
+- **Meters are removed on `BusEvent.NodeLeft`.** Without that a rolling restart leaves a
+  live series per dead instance for ever — the usual way this kind of gauge becomes a
+  cardinality leak. `ConsumerMetricsRegistryTest` pins the removal.
+- The registry is injected into `BundleAdminNotificationListener` as an `ObjectProvider`, so
+  a context without a `MeterRegistry` (the listener's own wiring test scans only its
+  package) still wires. Telemetry must never be why the notification channel fails to start.
+
+**Nothing outstanding on this feature.**
 
 ## Dependabot backlog swept (2026-07-25)
 
