@@ -9,6 +9,79 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Parallel consumers** — an `@EventHandler` may name a bounded *consumer executor*
+  registered on `EventoBundle.Builder`, dispatching its events in parallel instead of one
+  at a time. `executor = ""` (the default) keeps the existing sequential path, so nothing
+  changes for a bundle that does not opt in.
+  - New SPI `ConsumerExecutor` + factories `ConsumerExecutors.virtual(name, n)` /
+    `pooled(name, n)` / `partitioned(name, lanes)`; register with
+    `Builder.addConsumerExecutor(...)`. A name is a capacity budget shared bundle-wide.
+  - **The checkpoint advances when a task starts, not when it completes.** That bounds how
+    far a consumer can run ahead of completion (never more than the executor's capacity),
+    so no unbounded prefix of the event store is ever enqueued, and it makes the crash-loss
+    window the set of *running* tasks rather than a queue depth. Admission is time-boxed:
+    a saturated executor ends the cycle and releases the consumer lock.
+  - **Guarantees relaxed** — no ordering between parallel events, and at-most-once for
+    events in flight when the process is killed abruptly (a graceful stop drains). Intended
+    for idempotent or overwrite handlers; both guarantees can be taken back, below.
+  - **`retry = -1` is coerced to `0` under an executor**, because retrying forever inside a
+    task pins a concurrency permit and starves the executor. Set an explicit `retry` for a
+    parallel handler that calls a remote dependency.
+  - Referencing an unregistered executor **fails bundle start-up** rather than silently
+    degrading to sequential execution. Not available on `@SagaEventHandler`.
+- **`ConsumerExecutors.partitioned(name, lanes)`** — per-aggregate ordering with cross-
+  aggregate parallelism: events sharing an aggregate id are pinned to one lane and applied
+  in sequence order. Makes parallel consumption usable by read-model projectors that are
+  per-aggregate sequential rather than idempotent. No handler change needed.
+- **`CheckpointMode.WATERMARK`** (`Builder.setCheckpointMode` /
+  `setComponentCheckpointMode`) — persists the highest *contiguous completed* sequence
+  instead of the dispatch frontier, restoring at-least-once delivery at the cost of
+  replaying the in-flight window after a crash. The fetch cursor still follows the dispatch
+  frontier, so nothing is reprocessed within a run.
+- **Transient-failure backoff for parallel consumers** — async handlers fail on their own
+  threads, so their failures never surfaced to the fetch loop; a downed dependency was met
+  by the loop pulling at full speed and dead-lettering the whole stream. Consumers now
+  track a transient-failure streak and back off on the same curve as a channel error.
+- **Observability**
+  - Discovery publishes each handler's `executor`, so the GUI's Component Catalog marks
+    parallel handlers and Cluster Status → Consumers shows a *Parallel* row (executor
+    names, in-flight, saturation, transient failures).
+  - Bundles push counters to the server, exposed on `/actuator/prometheus`:
+    `evento.consumer.executor.{capacity,in.flight,admitted,rejected,completed,failed}` and
+    `evento.consumer.async.{in.flight,submit.timeouts,transient.failures}`. **`rejected` is
+    the alerting signal** — the executor reporting it is the bottleneck. Meters are removed
+    when a node leaves. Bundles with no executor push nothing.
+
+### Changed
+
+- **Observers now fan out with a bound.** They always dispatched asynchronously and
+  checkpointed on submit, but through an *unbounded* executor — an observer catching up
+  from a cold checkpoint submitted its whole backlog as fast as it could fetch it. The
+  default is now a bounded executor (32). `ConsumerProcessor.Builder.observerExecutor(Executor)`
+  remains as a compatibility overload. **This is the only behaviour change for existing
+  bundles.**
+- Observer dead-event replay runs inline instead of on the observer executor; replay is
+  operator-driven and low-volume, and sharing the executor let a replay storm starve live
+  consumption.
+- `MessageHandlerInterceptor` documents the thread-affinity guarantee interceptor-managed
+  transactions rely on: for one event, `before → handler → after/onException` always run on
+  one thread (the executor's task thread under parallel dispatch), so `ThreadLocal`-bound
+  transaction managers are unaffected. Implementations must now be thread-safe.
+
+### Fixed
+
+- **Both CBOR codecs ignore unknown properties** (`JacksonCborCodec`,
+  `JacksonCborPayloadCodec`), matching `AdminPayloadCodec` and `ObjectMapperUtils`. A peer
+  one version ahead previously had its *entire* payload rejected, and the failure was
+  near-silent: a bundle would handshake, register, enable and consume normally while all of
+  its handler metadata vanished from the dashboard. On the message codec the same skew would
+  have broken the handshake itself. This is not a relaxation of the deserialization
+  hardening — the gadget-chain defence is `MessageTypeRegistry` / the
+  `PolymorphicTypeValidator`, which bound *which types* may be instantiated, and both are
+  untouched.
+
 ---
 
 ## [2.1.0] — 2026-06-06

@@ -64,6 +64,21 @@ Evento Framework v2.0 is a ground-up rewrite of the transport and server bus:
 - **Metrics-only, no built-in scaling** — the framework emits performance metrics only; cluster orchestration and instance lifecycle are external concerns (k8s / Nomad).
 - **Zero-copy forwarding** — broker relays `Request`/`Response` as raw bytes without re-encoding.
 
+## Parallel Consumers (2.4.0)
+
+Consumers are sequential by default. A handler can opt into parallel consumption by naming a bounded executor registered on the bundle:
+
+```java
+.addConsumerExecutor(ConsumerExecutors.virtual("read-model", 64))
+
+@EventHandler(executor = "read-model", retry = 3)
+void on(OrderTotalRecomputed event) { … }
+```
+
+The checkpoint advances when a task *starts*, so a consumer never runs more than the executor's capacity ahead of completion — that is the backpressure, and it bounds the crash-loss window to the running tasks. Parallel dispatch relaxes ordering and, for in-flight events on a hard kill, delivery; both can be taken back: `ConsumerExecutors.partitioned(...)` keeps same-aggregate events in order, and `CheckpointMode.WATERMARK` restores at-least-once. Counters land on `/actuator/prometheus`.
+
+See [Parallel Consumers](https://docs.eventoframework.com/evento-framework/eventobundle/parallel-consumers) for the guarantees, the `retry` caveat and the connection-pool sizing rule.
+
 ## Getting Started
 
 To start using Evento Framework, see the [Getting Started documentation](https://docs.eventoframework.com/getting-started/quick-start).
