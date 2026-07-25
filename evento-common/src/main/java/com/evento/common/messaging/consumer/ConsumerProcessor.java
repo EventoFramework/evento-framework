@@ -69,6 +69,7 @@ public final class ConsumerProcessor {
     private final long timeoutMillis;
     private final Duration submitTimeout;
     private final Duration inlineBarrierTimeout;
+    private final long watermarkLagWarnThreshold;
 
     /**
      * Per-consumer count of tasks dispatched to a {@link ConsumerExecutor} and not yet
@@ -91,6 +92,7 @@ public final class ConsumerProcessor {
         this.timeoutMillis = b.timeoutMillis;
         this.submitTimeout = b.submitTimeout;
         this.inlineBarrierTimeout = b.inlineBarrierTimeout;
+        this.watermarkLagWarnThreshold = b.watermarkLagWarnThreshold;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -133,19 +135,49 @@ public final class ConsumerProcessor {
                                          EventConsumer projectorEventConsumer,
                                          int fetchSize,
                                          Function<PublishedEvent, ConsumerExecutor> executorResolver) throws Throwable {
+        return consumeEventsForProjector(consumerId, projectorName, context,
+                projectorEventConsumer, fetchSize, executorResolver, CheckpointMode.ON_START);
+    }
+
+    /**
+     * @param mode see {@link CheckpointMode}. Under {@link CheckpointMode#WATERMARK} the
+     *             persisted checkpoint tracks the highest contiguous <em>completed</em>
+     *             sequence while the fetch cursor follows the in-memory dispatch frontier,
+     *             so a crash replays only the window between the two.
+     */
+    public int consumeEventsForProjector(String consumerId,
+                                         String projectorName,
+                                         String context,
+                                         EventConsumer projectorEventConsumer,
+                                         int fetchSize,
+                                         Function<PublishedEvent, ConsumerExecutor> executorResolver,
+                                         CheckpointMode mode) throws Throwable {
         Optional<ConsumerLock.LockHandle> held = lock.tryAcquire(consumerId);
         if (held.isEmpty()) return -1;
         try (var ignored = held.get()) {
             var cursor = readCursor(consumerId);
-            long lastSeq = cursor.checkpoint instanceof EventCheckpoint e ? e.lastSequenceNumber()
+            long persisted = cursor.checkpoint instanceof EventCheckpoint e ? e.lastSequenceNumber()
                     : cursor.checkpoint instanceof ProjectorCheckpoint p ? p.lastSequenceNumber()
                     : cursor.checkpoint instanceof SagaCheckpoint s ? s.lastSequenceNumber()
                     : 0L;
+
+            final boolean watermarking = mode == CheckpointMode.WATERMARK;
+            final InFlightTracker tracker = watermarking
+                    ? inFlight.computeIfAbsent(consumerId, k -> new InFlightTracker()) : null;
+            long lastSeq = persisted;
+            if (watermarking) {
+                // Seeding with the persisted value covers both a cold start and a takeover
+                // by another instance that advanced past us while we did not hold the lock.
+                tracker.seedWatermark(persisted);
+                lastSeq = tracker.dispatchedSeq();
+            }
+
             var resp = fetchEvents(context, lastSeq, fetchSize, projectorName);
 
             int consumed = 0;
             long currentVersion = cursor.version;
-            for (PublishedEvent event : resp.getEvents()) {
+            try {
+                for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 var executor = executorResolver == null ? null : executorResolver.apply(event);
 
@@ -158,8 +190,12 @@ public final class ConsumerProcessor {
                                 executor.name(), projectorName, event.getEventSequenceNumber());
                         return consumed;
                     }
-                    currentVersion = advanceCheckpoint(consumerId,
-                            new ProjectorCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                    if (watermarking) {
+                        tracker.recordDispatched(event.getEventSequenceNumber());
+                    } else {
+                        currentVersion = advanceCheckpoint(consumerId,
+                                new ProjectorCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                    }
                     consumed++;
                     recordMetric(projectorName, event, start);
                     continue;
@@ -194,11 +230,61 @@ public final class ConsumerProcessor {
                     logger.error("Event consumption error for projector {} event {} — moved to DLQ",
                             projectorName, event.getEventName(), e);
                 }
-                currentVersion = advanceCheckpoint(consumerId, new ProjectorCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                if (watermarking) {
+                    // Inline handlers are already finished here, so they both extend the
+                    // frontier and close their own gap in one step.
+                    tracker.recordDispatched(event.getEventSequenceNumber());
+                    tracker.recordCompleted(event.getEventSequenceNumber());
+                } else {
+                    currentVersion = advanceCheckpoint(consumerId,
+                            new ProjectorCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                }
                 consumed++;
                 recordMetric(projectorName, event, start);
+                }
+            } finally {
+                // Every exit path commits what has actually completed: the normal end of
+                // batch, the saturated-executor early return, the consumer-disabled
+                // short-circuit, and a thrown TransientConsumerException. Skipping any of
+                // them would leave finished work uncheckpointed and replay it on restart.
+                if (watermarking) {
+                    commitWatermark(consumerId, projectorName, tracker,
+                            ProjectorCheckpoint::new, currentVersion);
+                }
             }
             return consumed;
+        }
+    }
+
+    /**
+     * Slide the watermark over completed work and persist it if it moved.
+     *
+     * <p>Committing from the consume loop rather than from the task threads keeps the
+     * optimistic-version dance single-threaded: handler threads only record completions.
+     */
+    private void commitWatermark(String consumerId,
+                                 String consumerName,
+                                 InFlightTracker tracker,
+                                 java.util.function.LongFunction<ConsumerCheckpoint> ctor,
+                                 long currentVersion) {
+        long before = tracker.watermark();
+        long advanced = tracker.advanceWatermark();
+        if (advanced > before) {
+            try {
+                advanceCheckpoint(consumerId, ctor.apply(advanced), currentVersion);
+            } catch (RuntimeException e) {
+                // The watermark is in-memory and idempotent: a failed commit simply
+                // retries next cycle. Do not fail the whole consume cycle for it.
+                logger.warn("Watermark commit failed for {} at seq {} — retrying next cycle: {}",
+                        consumerName, advanced, e.toString());
+            }
+        }
+        long lag = tracker.watermarkLag();
+        if (lag >= watermarkLagWarnThreshold) {
+            logger.warn("Consumer {} watermark lags the dispatch frontier by {} events "
+                            + "(checkpoint {} vs dispatched {}) — a stuck handler will replay "
+                            + "all of them on restart",
+                    consumerName, lag, tracker.watermark(), tracker.dispatchedSeq());
         }
     }
 
@@ -287,7 +373,7 @@ public final class ConsumerProcessor {
                                         observerName, event.getEventName(), ignored2);
                             }
                         }
-                    });
+                    }, event.getAggregateId());
                     if (!started) {
                         // Saturated. Release the dedupe claim we just took, otherwise this
                         // event would be permanently skipped when the next cycle re-fetches
@@ -433,6 +519,34 @@ public final class ConsumerProcessor {
         return tracker == null || tracker.await(deadline);
     }
 
+    /**
+     * Persist the watermark for a drained consumer.
+     *
+     * <p>Called after a drain (head-reached gate, graceful shutdown) so that work which has
+     * just finished is checkpointed immediately instead of waiting for the next consume
+     * cycle. Without it a clean stop under {@link CheckpointMode#WATERMARK} would replay
+     * the last batch on restart — correct, but pointlessly.
+     *
+     * <p>No-op for a consumer that never dispatched asynchronously.
+     */
+    public void flushWatermark(String consumerId, String consumerName,
+                               java.util.function.LongFunction<ConsumerCheckpoint> checkpointFactory) {
+        var tracker = inFlight.get(consumerId);
+        if (tracker == null) return;
+        Optional<ConsumerLock.LockHandle> held;
+        try {
+            held = lock.tryAcquire(consumerId);
+        } catch (RuntimeException e) {
+            logger.warn("Watermark flush skipped for {} — lock unavailable: {}", consumerName, e.toString());
+            return;
+        }
+        if (held.isEmpty()) return;
+        try (var ignored = held.get()) {
+            var version = stateStore.read(consumerId).map(VersionedCheckpoint::version).orElse(0L);
+            commitWatermark(consumerId, consumerName, tracker, checkpointFactory, version);
+        }
+    }
+
     /** Tasks dispatched by this consumer that have not yet finished. */
     public int inFlightCount(String consumerId) {
         var tracker = inFlight.get(consumerId);
@@ -446,7 +560,8 @@ public final class ConsumerProcessor {
      * @return {@code false} if the executor had no capacity within the submit timeout, in
      *         which case the body is guaranteed never to run.
      */
-    private boolean submitAsync(String consumerId, ConsumerExecutor executor, Runnable body)
+    private boolean submitAsync(String consumerId, ConsumerExecutor executor, Runnable body,
+                                String orderingKey)
             throws InterruptedException {
         var tracker = inFlight.computeIfAbsent(consumerId, k -> new InFlightTracker());
         // Enter before submitting so a drain that starts between submit and first
@@ -460,7 +575,7 @@ public final class ConsumerProcessor {
                 } finally {
                     tracker.exit();
                 }
-            }, submitTimeout);
+            }, orderingKey, submitTimeout);
         } catch (RuntimeException | InterruptedException e) {
             tracker.exit();
             throw e;
@@ -487,10 +602,27 @@ public final class ConsumerProcessor {
         return tracker == null ? 0 : tracker.transientStreak();
     }
 
-    /** Task body for an async projector event: run the handler, dead-letter on failure. */
+    /**
+     * Task body for an async projector event: run the handler, dead-letter on failure.
+     *
+     * <p>Every exit records the sequence as completed. Under
+     * {@link CheckpointMode#WATERMARK} that is what lets the watermark slide — and a
+     * dead-lettered event counts as completed, because it is resolved: it has moved to the
+     * DLQ and must not be replayed by a restart.
+     */
     private void runGuarded(String consumerId, String consumerName,
                             PublishedEvent event, EventConsumer consumer) {
         var tracker = inFlight.get(consumerId);
+        try {
+            runGuardedBody(consumerId, consumerName, event, consumer, tracker);
+        } finally {
+            if (tracker != null) tracker.recordCompleted(event.getEventSequenceNumber());
+        }
+    }
+
+    private void runGuardedBody(String consumerId, String consumerName,
+                                PublishedEvent event, EventConsumer consumer,
+                                InFlightTracker tracker) {
         try {
             consumer.consume(event);
             if (tracker != null) tracker.recordSuccess();
@@ -526,7 +658,11 @@ public final class ConsumerProcessor {
     private boolean submitAsync(String consumerId, String consumerName, PublishedEvent event,
                                 EventConsumer consumer, ConsumerExecutor executor)
             throws InterruptedException {
-        return submitAsync(consumerId, executor, () -> runGuarded(consumerId, consumerName, event, consumer));
+        // The aggregate id is the ordering key: a partitioned executor uses it to keep
+        // same-aggregate events in sequence order, and every other executor ignores it.
+        return submitAsync(consumerId, executor,
+                () -> runGuarded(consumerId, consumerName, event, consumer),
+                event.getAggregateId());
     }
 
     private void awaitInlineBarrier(String consumerId, String consumerName) {
@@ -593,6 +729,61 @@ public final class ConsumerProcessor {
 
         synchronized int transientStreak() {
             return transientStreak;
+        }
+
+        // --- WATERMARK bookkeeping ------------------------------------------
+
+        /**
+         * Highest sequence handed to a handler. This, not the persisted checkpoint, is the
+         * fetch cursor in {@link CheckpointMode#WATERMARK}: the checkpoint deliberately
+         * lags behind running work, and fetching from it would re-deliver events this run
+         * has already dispatched.
+         */
+        private long dispatchedSeq;
+
+        /** Finished sequences sitting above the watermark, waiting for the gap to close. */
+        private final java.util.TreeSet<Long> completedAboveWatermark = new java.util.TreeSet<>();
+
+        /** Last sequence known to be persisted. */
+        private long watermark;
+
+        synchronized void seedWatermark(long persisted) {
+            if (persisted > watermark) watermark = persisted;
+            if (persisted > dispatchedSeq) dispatchedSeq = persisted;
+        }
+
+        synchronized long dispatchedSeq() {
+            return dispatchedSeq;
+        }
+
+        synchronized void recordDispatched(long seq) {
+            if (seq > dispatchedSeq) dispatchedSeq = seq;
+        }
+
+        /** A handler finished — successfully, or resolved by dead-lettering. */
+        synchronized void recordCompleted(long seq) {
+            if (seq > watermark) completedAboveWatermark.add(seq);
+        }
+
+        /**
+         * Slide the watermark over the completed prefix.
+         *
+         * @return the new watermark, unchanged if the next sequence is still running.
+         */
+        synchronized long advanceWatermark() {
+            while (completedAboveWatermark.remove(watermark + 1)) {
+                watermark++;
+            }
+            return watermark;
+        }
+
+        synchronized long watermark() {
+            return watermark;
+        }
+
+        /** How far the persisted checkpoint trails the dispatch frontier. */
+        synchronized long watermarkLag() {
+            return dispatchedSeq - watermark;
         }
 
         synchronized boolean await(Duration deadline) throws InterruptedException {
@@ -840,6 +1031,7 @@ public final class ConsumerProcessor {
         private long timeoutMillis = 30_000L;
         private Duration submitTimeout = Duration.ofSeconds(5);
         private Duration inlineBarrierTimeout = Duration.ofSeconds(30);
+        private long watermarkLagWarnThreshold = 10_000L;
 
         public Builder eventoServer(EventoServer eventoServer) { this.eventoServer = eventoServer; return this; }
         public Builder lock(ConsumerLock v) { this.lock = v; return this; }
@@ -878,6 +1070,14 @@ public final class ConsumerProcessor {
          * to finish before proceeding anyway (with a warning).
          */
         public Builder inlineBarrierTimeout(Duration v) { this.inlineBarrierTimeout = v; return this; }
+
+        /**
+         * Under {@link CheckpointMode#WATERMARK}, warn once per cycle when the persisted
+         * checkpoint trails the dispatch frontier by more than this many events — the
+         * signature of a handler that never returns, whose replay cost on restart grows
+         * without bound.
+         */
+        public Builder watermarkLagWarnThreshold(long v) { this.watermarkLagWarnThreshold = v; return this; }
 
         public ConsumerProcessor build() {
             if (eventoServer == null) throw new IllegalStateException("eventoServer required");

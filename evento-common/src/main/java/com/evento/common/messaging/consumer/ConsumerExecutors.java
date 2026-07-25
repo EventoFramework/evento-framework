@@ -1,6 +1,7 @@
 package com.evento.common.messaging.consumer;
 
 import com.evento.common.messaging.consumer.impl.BoundedConsumerExecutor;
+import com.evento.common.messaging.consumer.impl.PartitionedConsumerExecutor;
 import com.evento.common.messaging.consumer.impl.UnboundedConsumerExecutor;
 
 import java.util.concurrent.Executor;
@@ -67,6 +68,30 @@ public final class ConsumerExecutors {
                             t.setDaemon(true);
                             return t;
                         }));
+    }
+
+    /**
+     * Virtual-thread executor that keeps events on the <b>same aggregate</b> in sequence
+     * order while running different aggregates in parallel.
+     *
+     * <p>Plain {@link #virtual} parallelism is only safe when the handler is idempotent or a
+     * blind overwrite, because same-aggregate events can be reordered. This variant removes
+     * that constraint: the consume loop passes the aggregate id as the ordering key, equal
+     * keys are pinned to one lane, and each lane runs one task at a time. It is the right
+     * choice for a read-model projector that is per-aggregate sequential but not idempotent
+     * — read-modify-write on a row, say.
+     *
+     * <p>Concurrency is bounded by {@code lanes}, and skewed keys reduce it further: a burst
+     * on one hot aggregate serialises, which is the ordering guarantee doing its job. Pick
+     * {@code lanes} well above the expected number of concurrently-active aggregates.
+     *
+     * @param name  the name handlers reference
+     * @param lanes number of independent ordering lanes; must be >= 1
+     */
+    public static ConsumerExecutor partitioned(String name, int lanes) {
+        var factory = Thread.ofVirtual().name("evento-consumer-" + name + "-", 0).factory();
+        return new PartitionedConsumerExecutor(name, lanes,
+                Executors.newThreadPerTaskExecutor(factory));
     }
 
     /**
