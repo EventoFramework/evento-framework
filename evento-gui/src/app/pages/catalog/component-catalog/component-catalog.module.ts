@@ -7,7 +7,7 @@ import {IonicModule} from '@ionic/angular';
 import {ComponentCatalogPageRoutingModule} from './component-catalog-routing.module';
 
 import {ComponentCatalogPage} from './component-catalog.page';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslatePipe, TranslateDirective} from '@ngx-translate/core';
 import {ComponentsModule} from '../../../components/components.module';
 
 @NgModule({
@@ -16,7 +16,7 @@ import {ComponentsModule} from '../../../components/components.module';
     FormsModule,
     IonicModule,
     ComponentCatalogPageRoutingModule,
-    TranslateModule,
+    TranslatePipe, TranslateDirective,
     ComponentsModule
   ],
   declarations: [ComponentCatalogPage]

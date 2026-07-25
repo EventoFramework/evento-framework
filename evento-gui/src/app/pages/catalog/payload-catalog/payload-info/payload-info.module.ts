@@ -8,7 +8,7 @@ import {PayloadInfoPageRoutingModule} from './payload-info-routing.module';
 
 import {PayloadInfoPage} from './payload-info.page';
 import {PayloadCatalogPageModule} from '../payload-catalog.module';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslatePipe, TranslateDirective} from '@ngx-translate/core';
 import {MarkdownModule} from 'ngx-markdown';
 import {ComponentsModule} from '../../../../components/components.module';
 import {RepositoryLogoPipe} from "../../../../pipes/repository-logo.pipe";
@@ -20,7 +20,7 @@ import {RepositoryLogoPipe} from "../../../../pipes/repository-logo.pipe";
         IonicModule,
         PayloadInfoPageRoutingModule,
         PayloadCatalogPageModule,
-        TranslateModule,
+        TranslatePipe, TranslateDirective,
         MarkdownModule,
         ComponentsModule,
         RepositoryLogoPipe

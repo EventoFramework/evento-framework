@@ -3,7 +3,7 @@ import {SystemStateStoreService} from "../../../../services/system-state-store.s
 import {ActivatedRoute, RouterLink} from "@angular/router";
 import { DatePipe, JsonPipe, KeyValuePipe } from "@angular/common";
 import {IonicModule} from "@ionic/angular";
-import {TranslateModule} from "@ngx-translate/core";
+import {TranslatePipe} from "@ngx-translate/core";
 import {FormsModule} from "@angular/forms";
 
 @Component({
@@ -17,7 +17,7 @@ import {FormsModule} from "@angular/forms";
     JsonPipe,
     KeyValuePipe,
     RouterLink,
-    TranslateModule,
+    TranslatePipe,
     FormsModule
 ]
 })

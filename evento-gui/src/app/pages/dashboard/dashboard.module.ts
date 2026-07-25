@@ -8,7 +8,7 @@ import {DashboardPageRoutingModule} from './dashboard-routing.module';
 
 import {DashboardPage} from './dashboard.page';
 import {ComponentsModule} from "../../components/components.module";
-import {TranslateModule} from "@ngx-translate/core";
+import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 
 @NgModule({
     imports: [
@@ -17,7 +17,7 @@ import {TranslateModule} from "@ngx-translate/core";
         IonicModule,
         DashboardPageRoutingModule,
         ComponentsModule,
-        TranslateModule
+        TranslatePipe, TranslateDirective
     ],
   declarations: [DashboardPage]
 })

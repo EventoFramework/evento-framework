@@ -7,7 +7,7 @@ import {IonicModule} from '@ionic/angular';
 import {BundleListPageRoutingModule} from './bundle-list-routing.module';
 
 import {BundleListPage} from './bundle-list.page';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslatePipe, TranslateDirective} from '@ngx-translate/core';
 import {ComponentsModule} from '../../../components/components.module';
 
 @NgModule({
@@ -16,7 +16,7 @@ import {ComponentsModule} from '../../../components/components.module';
         FormsModule,
         IonicModule,
         BundleListPageRoutingModule,
-        TranslateModule,
+        TranslatePipe, TranslateDirective,
         ComponentsModule
     ],
   declarations: [BundleListPage]

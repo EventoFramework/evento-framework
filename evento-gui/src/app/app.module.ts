@@ -6,7 +6,7 @@ import {IonicModule, IonicRouteStrategy} from '@ionic/angular';
 
 import {AppComponent} from './app.component';
 import {AppRoutingModule} from './app-routing.module';
-import {TranslateModule} from '@ngx-translate/core';
+import {provideTranslateService, TranslateDirective, TranslatePipe} from '@ngx-translate/core';
 import {HttpClientModule} from '@angular/common/http';
 import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {MarkdownModule} from 'ngx-markdown';
@@ -18,14 +18,20 @@ import {ComponentsModule} from './components/components.module';
   imports: [BrowserModule, IonicModule.forRoot({mode: "md"}),
     HttpClientModule,
     MarkdownModule.forRoot(),
-    TranslateModule.forRoot({
+    // AppComponent's own template uses both the `| translate` pipe and the
+    // `translate="..."` directive; under v17 it inherited them from
+    // TranslateModule.forRoot() sitting in this array.
+    TranslatePipe, TranslateDirective,
+    AppRoutingModule, PayloadCatalogPageModule, ComponentsModule],
+  providers: [{provide: RouteReuseStrategy, useClass: IonicRouteStrategy},
+    // v18 removed TranslateModule: the root service is configured through a
+    // provider instead of an imported module. The pipe and directive are now
+    // standalone and imported per-module/component where the templates use them.
+    provideTranslateService({
       lang: 'en',
       fallbackLang: 'en',
       loader: provideTranslateHttpLoader({prefix: './assets/i18n/', suffix: '.json'}),
     }),
-    AppRoutingModule, PayloadCatalogPageModule, ComponentsModule],
-  providers: [{provide: RouteReuseStrategy, useClass: IonicRouteStrategy}
-
   ],
 
   bootstrap: [AppComponent],

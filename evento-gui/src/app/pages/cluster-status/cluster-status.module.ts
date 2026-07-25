@@ -7,7 +7,7 @@ import {IonicModule} from '@ionic/angular';
 import {ClusterStatusPageRoutingModule} from './cluster-status-routing.module';
 
 import {ClusterStatusPage} from './cluster-status.page';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslatePipe, TranslateDirective} from '@ngx-translate/core';
 import {ComponentsModule} from '../../components/components.module';
 import {ConsumersComponent} from "./components/consumers/consumers.component";
 
@@ -17,7 +17,7 @@ import {ConsumersComponent} from "./components/consumers/consumers.component";
         FormsModule,
         IonicModule,
         ClusterStatusPageRoutingModule,
-        TranslateModule,
+        TranslatePipe, TranslateDirective,
         ComponentsModule,
         ConsumersComponent
     ],

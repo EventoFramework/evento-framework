@@ -8,7 +8,7 @@ import { SystemStateStorePageRoutingModule } from './system-state-store-routing.
 
 import { SystemStateStorePage } from './system-state-store.page';
 import {ComponentsModule} from "../../components/components.module";
-import {TranslateModule} from "@ngx-translate/core";
+import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 import {EventStoreComponent} from "./components/event-store/event-store.component";
 import {SnapshotStoreComponent} from "./components/snapshot-store/snapshot-store.component";
 
@@ -19,7 +19,7 @@ import {SnapshotStoreComponent} from "./components/snapshot-store/snapshot-store
     IonicModule,
     SystemStateStorePageRoutingModule,
     ComponentsModule,
-    TranslateModule,
+    TranslatePipe, TranslateDirective,
     EventStoreComponent,
     SnapshotStoreComponent
   ],
