@@ -27,7 +27,7 @@
     "@capacitor/keyboard": "^8.0.3",
     "@capacitor/status-bar": "^8.0.2",
     "@fontsource-variable/inter": "^5.2.8",
-    "@fontsource/roboto": "^5.2.10",
+    "@fontsource/roboto": "^5.3.0",
     "@ionic/angular": "^8.8.13",
     "@ngx-translate/core": "^17.0.0",
     "@ngx-translate/http-loader": "^17.0.0",
