@@ -4,6 +4,7 @@ import com.evento.application.EventoBundle;
 import com.evento.application.bus.ClusterNodeAddress;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.application.consumer.ConsumerEngineConfig;
+import com.evento.common.messaging.consumer.CheckpointMode;
 import com.evento.common.messaging.consumer.ConsumerExecutor;
 import com.evento.common.messaging.consumer.ConsumerExecutors;
 import com.evento.lab.api.event.OrderCreatedEvent;
@@ -230,6 +231,61 @@ class AsyncConsumerIT {
                 .as("in-flight handlers must complete before stop() returns")
                 .hasSize(CAPACITY);
         bundle = null; // already stopped
+    }
+
+    // --- Ordering and checkpoint mode ---------------------------------------
+
+    @Test
+    void aPartitionedExecutorKeepsSameAggregateEventsInOrder() throws Exception {
+        // Three events per aggregate, two aggregates, interleaved in the stream. The
+        // handler sleeps unevenly so an unpartitioned executor would reorder them.
+        for (int i = 0; i < 3; i++) {
+            eventStore.publish(new OrderCreatedEvent("ord-a", "d", i), "ord-a");
+            eventStore.publish(new OrderCreatedEvent("ord-b", "d", i), "ord-b");
+        }
+        AsyncLabStore.handlerDelayMillis = 40;
+
+        executor = ConsumerExecutors.partitioned(AsyncLabProjector.EXECUTOR, 8);
+        bundle = EventoBundle.Builder.builder()
+                .setBasePackage(AsyncLabProjector.class.getPackage())
+                .setBundleId(BUNDLE_ID)
+                .setEventoServerMessageBusConfiguration(
+                        new EventoServerMessageBusConfiguration(
+                                new ClusterNodeAddress("127.0.0.1", broker.port())))
+                .setConsumerEngineConfigBuilder(ConsumerEngineConfig::inMemory)
+                .addConsumerExecutor(executor)
+                .start();
+        awaitBundleAvailable();
+
+        assertThat(AsyncLabStore.appliedPerAggregate.get("ord-a")).containsExactly(0L, 1L, 2L);
+        assertThat(AsyncLabStore.appliedPerAggregate.get("ord-b")).containsExactly(0L, 1L, 2L);
+    }
+
+    @Test
+    void watermarkModeCheckpointsOnlyCompletedWork() throws Exception {
+        publishOrders(4, "wm");
+
+        executor = ConsumerExecutors.virtual(AsyncLabProjector.EXECUTOR, CAPACITY);
+        bundle = EventoBundle.Builder.builder()
+                .setBasePackage(AsyncLabProjector.class.getPackage())
+                .setBundleId(BUNDLE_ID)
+                .setEventoServerMessageBusConfiguration(
+                        new EventoServerMessageBusConfiguration(
+                                new ClusterNodeAddress("127.0.0.1", broker.port())))
+                .setConsumerEngineConfigBuilder(ConsumerEngineConfig::inMemory)
+                .addConsumerExecutor(executor)
+                .setCheckpointMode(CheckpointMode.WATERMARK)
+                .start();
+        awaitBundleAvailable();
+
+        var consumer = bundle.getEngineSupervisor().getProjectorEngines().iterator().next();
+        assertThat(consumer.getCheckpointMode()).isEqualTo(CheckpointMode.WATERMARK);
+
+        // Everything finished, so the watermark caught up to the frontier: under WATERMARK
+        // the checkpoint is a statement about completion, not dispatch.
+        await().atMost(30, TimeUnit.SECONDS)
+                .untilAsserted(() -> assertThat(consumer.getLastConsumedEvent()).isEqualTo(4L));
+        assertThat(AsyncLabStore.applied).hasSize(4);
     }
 
     // --- Consumer status (Phase 2) ------------------------------------------

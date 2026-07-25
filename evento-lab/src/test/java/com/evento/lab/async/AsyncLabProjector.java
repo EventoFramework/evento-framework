@@ -31,6 +31,9 @@ public class AsyncLabProjector {
                 throw new IllegalStateException("deliberate failure for " + e.getOrderId());
             }
             AsyncLabStore.applied.add(e.getOrderId());
+            // quantity carries the event's position within its aggregate, so an ordering
+            // test can assert the per-aggregate sequence without needing the envelope.
+            AsyncLabStore.recordOrder(e.getOrderId(), e.getQuantity());
         } finally {
             AsyncLabStore.exit();
         }

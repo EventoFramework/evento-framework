@@ -61,6 +61,26 @@ public interface ConsumerExecutor extends AutoCloseable {
     Optional<CompletableFuture<Void>> submit(Runnable task, Duration waitFor) throws InterruptedException;
 
     /**
+     * Admit {@code task}, optionally respecting an ordering key.
+     *
+     * <p>The default ignores the key — unordered parallelism is the base contract.
+     * Implementations that partition (see
+     * {@link ConsumerExecutors#partitioned(String, int)}) route equal keys to the same lane
+     * and run one task per lane at a time, so events sharing a key are applied in sequence
+     * order while different keys still run in parallel.
+     *
+     * <p>The consume loop passes the event's aggregate id, so a partitioned executor gives
+     * per-aggregate ordering without any change to the handler.
+     *
+     * @param orderingKey may be {@code null} or blank when the event has no aggregate, in
+     *                    which case no ordering relationship is implied.
+     */
+    default Optional<CompletableFuture<Void>> submit(Runnable task, String orderingKey, Duration waitFor)
+            throws InterruptedException {
+        return submit(task, waitFor);
+    }
+
+    /**
      * Tasks admitted (permit granted) and not yet finished. Counted from admission rather
      * than from the first instruction of the task body so that a drain cannot slip between
      * the two and conclude the executor is idle.

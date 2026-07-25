@@ -38,6 +38,15 @@ public final class AsyncLabStore {
     /** Order ids whose handler should throw. */
     public static final List<String> failFor = new CopyOnWriteArrayList<>();
 
+    /** Applied sequence numbers per aggregate, for per-key ordering assertions. */
+    public static final Map<String, List<Long>> appliedPerAggregate = new ConcurrentHashMap<>();
+
+    public static void recordOrder(String aggregateId, long sequenceNumber) {
+        appliedPerAggregate
+                .computeIfAbsent(aggregateId, k -> new CopyOnWriteArrayList<>())
+                .add(sequenceNumber);
+    }
+
     public static void enter() {
         int now = concurrent.incrementAndGet();
         peakConcurrent.updateAndGet(p -> Math.max(p, now));
@@ -48,6 +57,7 @@ public final class AsyncLabStore {
     }
 
     public static void reset() {
+        appliedPerAggregate.clear();
         applied.clear();
         threadNames.clear();
         transactionSeenByHandler.clear();

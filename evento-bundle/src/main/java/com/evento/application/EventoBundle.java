@@ -392,6 +392,35 @@ public class EventoBundle {
             return this;
         }
 
+        /** Default checkpoint mode for every consumer that does not override it. */
+        private com.evento.common.messaging.consumer.CheckpointMode checkpointMode =
+                com.evento.common.messaging.consumer.CheckpointMode.ON_START;
+
+        /** Per-component overrides, keyed by simple class name like {@link #contexts}. */
+        private Map<String, com.evento.common.messaging.consumer.CheckpointMode> componentCheckpointModes =
+                new HashMap<>();
+
+        /**
+         * When a parallel consumer persists its checkpoint. Defaults to
+         * {@link com.evento.common.messaging.consumer.CheckpointMode#ON_START}.
+         *
+         * <p>{@code WATERMARK} restores at-least-once delivery by committing only the
+         * highest contiguous <em>completed</em> sequence, at the cost of replaying the
+         * in-flight window after a crash. It is a per-consumer property, not a per-handler
+         * one — a consumer has a single checkpoint.
+         */
+        public Builder setCheckpointMode(com.evento.common.messaging.consumer.CheckpointMode mode) {
+            this.checkpointMode = mode;
+            return this;
+        }
+
+        /** Override the checkpoint mode for one projector. */
+        public Builder setComponentCheckpointMode(Class<?> componentClass,
+                                                  com.evento.common.messaging.consumer.CheckpointMode mode) {
+            this.componentCheckpointModes.put(componentClass.getSimpleName(), mode);
+            return this;
+        }
+
         /**
          * The Builder class represents a builder for constructing objects.
          */
@@ -647,7 +676,8 @@ public class EventoBundle {
                     consumerExecutors);
             supervisor.registerConsumerExecutors(consumerExecutors.values());
             startProjectorEnginesV2(eventoBundle.get(), wait::release, engineConfig, contexts, supervisor,
-                    dispatchContext, consumerExecutors);
+                    dispatchContext, consumerExecutors,
+                    componentName -> componentCheckpointModes.getOrDefault(componentName, checkpointMode));
             final ConsumerEngineConfig engineConfigForLater = engineConfig;
             final var consumerExecutorsForLater = consumerExecutors;
             var startThread = new Thread(() -> {
@@ -735,7 +765,8 @@ public class EventoBundle {
                 Map<String, Set<String>> contexts,
                 EngineSupervisor supervisor,
                 DispatchContext dispatchContext,
-                Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors) {
+                Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors,
+                java.util.function.Function<String, com.evento.common.messaging.consumer.CheckpointMode> checkpointModes) {
             var references = bundle.getProjectorManager().getReferences();
             if (references.isEmpty()) {
                 onAllHeadReached.run();
@@ -773,7 +804,8 @@ public class EventoBundle {
                             ConsumerExecutorResolver.forProjector(
                                     bundle.getProjectorManager().getHandlers(),
                                     projectorName,
-                                    consumerExecutors));
+                                    consumerExecutors),
+                            checkpointModes.apply(projectorName));
                     supervisor.addProjector(engine);
                 }
             }

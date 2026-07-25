@@ -2,8 +2,10 @@ package com.evento.application.consumer;
 
 import com.evento.application.consumer.ConsumerHandle;
 import com.evento.application.reference.ProjectorReference;
+import com.evento.common.messaging.consumer.CheckpointMode;
 import com.evento.common.messaging.consumer.DeadPublishedEvent;
 import com.evento.common.messaging.consumer.ConsumerProcessor;
+import com.evento.common.messaging.consumer.ProjectorCheckpoint;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
 import com.evento.common.messaging.consumer.DeadEventQueue;
 import com.evento.common.messaging.consumer.TransientConsumerException;
@@ -66,6 +68,8 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
     private final AtomicInteger alignmentCounter;
     private final Runnable onAllHeadReached;
     private final ConsumerExecutorResolver.Routing routing;
+    @Getter
+    private final CheckpointMode checkpointMode;
 
     /**
      * How long the head-reached gate waits for async handlers to finish. Generous: it is
@@ -93,7 +97,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
         this(bundleId, projectorName, projectorVersion, context, isShuttingDown, processor,
                 stateStore, deadEventQueue, projectorMessageHandlers, dispatchContext,
                 sssFetchSize, sssFetchDelay, alignmentCounter, onAllHeadReached,
-                ConsumerExecutorResolver.Routing.INLINE);
+                ConsumerExecutorResolver.Routing.INLINE, CheckpointMode.ON_START);
     }
 
     public ProjectorEngine(String bundleId,
@@ -111,7 +115,30 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                            AtomicInteger alignmentCounter,
                            Runnable onAllHeadReached,
                            ConsumerExecutorResolver.Routing routing) {
+        this(bundleId, projectorName, projectorVersion, context, isShuttingDown, processor,
+                stateStore, deadEventQueue, projectorMessageHandlers, dispatchContext,
+                sssFetchSize, sssFetchDelay, alignmentCounter, onAllHeadReached,
+                routing, CheckpointMode.ON_START);
+    }
+
+    public ProjectorEngine(String bundleId,
+                           String projectorName,
+                           int projectorVersion,
+                           String context,
+                           Supplier<Boolean> isShuttingDown,
+                           ConsumerProcessor processor,
+                           ConsumerStateStore stateStore,
+                           DeadEventQueue deadEventQueue,
+                           HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers,
+                           DispatchContext dispatchContext,
+                           int sssFetchSize,
+                           int sssFetchDelay,
+                           AtomicInteger alignmentCounter,
+                           Runnable onAllHeadReached,
+                           ConsumerExecutorResolver.Routing routing,
+                           CheckpointMode checkpointMode) {
         this.routing = routing == null ? ConsumerExecutorResolver.Routing.INLINE : routing;
+        this.checkpointMode = checkpointMode == null ? CheckpointMode.ON_START : checkpointMode;
         this.bundleId = bundleId;
         this.projectorName = projectorName;
         this.projectorVersion = projectorVersion;
@@ -152,7 +179,8 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             context,
                             publishedEvent -> dispatch(publishedEvent, ps),
                             sssFetchSize,
-                            routing.resolver());
+                            routing.resolver(),
+                            checkpointMode);
                 }
             } catch (Throwable e) {
                 // Exponential backoff for any transient failure (channel error OR
@@ -229,6 +257,11 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
             if (!drained) {
                 logger.warn("Projector {} still has {} async handler(s) in flight after {}",
                         projectorName, processor.inFlightCount(consumerId), DRAIN_DEADLINE);
+            }
+            if (checkpointMode == CheckpointMode.WATERMARK) {
+                // Persist what just finished rather than leaving it for the next cycle:
+                // on a graceful stop there is no next cycle, and the batch would replay.
+                processor.flushWatermark(consumerId, projectorName, ProjectorCheckpoint::new);
             }
             return drained;
         } catch (InterruptedException e) {
