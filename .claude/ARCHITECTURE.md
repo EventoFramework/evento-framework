@@ -221,6 +221,13 @@ in-flight events on a hard kill, `retry = -1` coerced to `0`, no ordering guaran
 excluded, and the pool-sizing arithmetic in §12 — are detailed in
 [`ASYNC-CONSUMERS-PLAN.md`](ASYNC-CONSUMERS-PLAN.md).
 
+Both traded-away guarantees can be bought back independently:
+
+| Want | Use | Cost |
+|---|---|---|
+| At-least-once delivery | `CheckpointMode.WATERMARK` (`EventoBundle.Builder.setCheckpointMode`) — persists the highest *contiguous completed* sequence; the fetch cursor stays on the in-memory dispatch frontier so nothing is reprocessed within a run | A crash replays the in-flight window; the dashboard's "last event" trails by it |
+| Per-aggregate ordering | `ConsumerExecutors.partitioned(name, lanes)` — equal aggregate ids pin to one lane, one task per lane | A hot aggregate serialises; concurrency bounded by lanes and reduced by key skew |
+
 `MessageHandlerInterceptor` keeps working for transaction management because
 `before → handler → after/onException` always run on **one thread** — the executor's task
 thread under async dispatch. Implementations must be thread-safe and keep per-invocation
