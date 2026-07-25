@@ -196,14 +196,35 @@ reconnected bundle.
 | `SagaStateStore` | Saga instance lookup by association + insert/update/delete |
 | `DeadEventQueue` | Per-consumer DLQ with retry flag |
 | `DedupeStore` | Observer dedupe with sweep windows |
+| `ConsumerExecutor` | Named, bounded execution resource for parallel consumers (`ConsumerExecutors.virtual/pooled/unbounded`) |
 
 All five have in-memory impls under `.impl/` (for tests) and JDBC impls in
 `evento-consumer-state-store-jdbc` (Postgres + MySQL, Flyway migrations in
 `src/main/resources/db/migration/{postgres,mysql}/v2/V1__init_v2_consumer_state.sql`).
 
 **`ConsumerProcessor`** owns the v1-shape consume loop (fetch → process → checkpoint) and is
-composed by the engines. It holds no state; correctness comes from the lock + optimistic
-version on the checkpoint.
+composed by the engines. It holds no state beyond per-consumer in-flight counters;
+correctness comes from the lock + optimistic version on the checkpoint.
+
+**Async consumers.** A handler annotated `@EventHandler(executor = "name")` is dispatched to
+the named `ConsumerExecutor` instead of running inline, giving parallel consumption for
+idempotent / overwrite handlers. Executors are registered on the bundle builder
+(`.addConsumerExecutor(...)`), shared bundle-wide by name, and resolved per event by
+`ConsumerExecutorResolver`; unknown names fail start-up (`ConsumerExecutorValidator`).
+
+The defining rule: **the checkpoint advances when a task starts, not when it completes.**
+That bounds how far the loop may run ahead (never more than the executor's capacity) and
+makes the crash-loss window the set of running tasks rather than a queue depth. Submit is
+time-boxed, so a saturated executor ends the cycle and releases the consumer lock instead of
+parking on it with a pooled JDBC connection pinned. Consequences — at-most-once for
+in-flight events on a hard kill, `retry = -1` coerced to `0`, no ordering guarantee, sagas
+excluded, and the pool-sizing arithmetic in §12 — are detailed in
+[`ASYNC-CONSUMERS-PLAN.md`](ASYNC-CONSUMERS-PLAN.md).
+
+`MessageHandlerInterceptor` keeps working for transaction management because
+`before → handler → after/onException` always run on **one thread** — the executor's task
+thread under async dispatch. Implementations must be thread-safe and keep per-invocation
+state in `ThreadLocal`s.
 
 ### 4.6 Command Broker (`evento-server`, `com.evento.server.es.CommandBrokerHandler`)
 
@@ -333,7 +354,7 @@ These are the user-facing APIs — changing signatures requires a major version 
   `DomainEventMessage`, `ServiceCommandMessage`, `ServiceEventMessage`, `DecoratedDomainCommandMessage`
 - **Gateway API**: `CommandGateway`, `QueryGateway` (injected into components)
 - **Consumer SPIs**: `ConsumerStateStore`, `ConsumerLock`, `SagaStateStore`, `DeadEventQueue`,
-  `DedupeStore`, `ConsumerEngineConfig`
+  `DedupeStore`, `ConsumerEngineConfig`, `ConsumerExecutor` + `ConsumerExecutors`
 - **Server Spring starter**: `evento.server.bus.*` properties + `BusFacade` autowiring
 
 ---
@@ -418,7 +439,19 @@ JDBC locks:
 **Operational sizing (important).** Because each held `LockHandle` pins a dedicated pooled
 `Connection` for its whole lifetime, the HikariCP pool must be sized for **at least one connection
 per concurrently-running consumer** (projector/saga/observer engine), plus headroom for the normal
-query/checkpoint traffic. Under-sizing manifests as connection-acquisition timeouts, not lock
+query/checkpoint traffic. **Async consumers add a second term:** every concurrently-executing
+handler that opens a transaction (typically via a `MessageHandlerInterceptor`) holds a
+connection for its whole task, so the pool needs
+`concurrent consumers + Σ(capacity of each ConsumerExecutor used by transactional handlers) + headroom`.
+Cap a transactional handler's executor at its share of the pool — an executor of capacity 64
+against a 10-connection pool surfaces as acquisition timeouts, which the consumer classifies
+as transient and (with the default `retry`) dead-letters immediately.
+
+Virtual threads are fine for transactional handlers: `VirtualThreadJdbcConcurrencyIT`
+measures 32 concurrent `pg_sleep` transactions reaching full capacity on an 8-core box
+(303 ms vs 8 s serial), so no carrier pinning. Note instead that **a cold Hikari pool, not
+the executor, throttles a freshly started async consumer** — connections open lazily and
+cost more than a short handler, so raise `minimumIdle` if catch-up burst latency matters. Under-sizing manifests as connection-acquisition timeouts, not lock
 errors. `LockHandle` is `AutoCloseable` and idempotent on `close()`; always release it in a
 try-with-resources / `finally` so a failed consumer cycle doesn't leak its pinned connection. The
 SQL-injection-hardened `PgDistributedLock` (server-side command lock) is a separate JVM-or-Postgres
@@ -487,6 +520,22 @@ explorative read-only pivot.)
   Adding a handler type never touches existing dispatch code.
 - **Records for all value types** — `Message` subtypes, `BundleRegistrationInfo`, `ConsumerCheckpoint`
   subtypes, `ConsumerErrorState`, `VersionedCheckpoint`, etc.
+- **Wire DTOs evolve by addition, and every codec tolerates unknown properties.** All four
+  mappers (`JacksonCborCodec`, `JacksonCborPayloadCodec`, `AdminPayloadCodec`,
+  `ObjectMapperUtils`) disable `FAIL_ON_UNKNOWN_PROPERTIES`, so a peer one version ahead
+  does not have its payload rejected. Records normalise `null` to a default in their
+  `@JsonCreator`, covering the opposite skew. Keep both properties when adding a field:
+  a new record component needs a `null`-normalising creator.
+  *History:* the transport codecs used to be strict, and a derived `isAsync()` getter on
+  `RegisteredHandler` therefore made Jackson emit an `async` property that the broker
+  rejected — killing the **entire** `BundleDiscoveryInfo`. The failure was near-invisible:
+  the bundle registered, enabled and consumed normally while all its handler metadata
+  vanished from the dashboard (`event=listener_error … decode failed for
+  BundleDiscoveryInfo`). Strictness there was never a security control — the
+  deserialization defence is `MessageTypeRegistry` / the `PolymorphicTypeValidator`, which
+  bound *which types* may be instantiated; skipping an unrecognised property on an
+  already-whitelisted type instantiates nothing. `CodecVersionToleranceTest` pins both
+  skew directions.
 - **Virtual threads** for business executor (`Executors.newVirtualThreadPerTaskExecutor()`). Never
   block the Netty EventLoop (CBOR decode, handler dispatch all go to the business executor).
 

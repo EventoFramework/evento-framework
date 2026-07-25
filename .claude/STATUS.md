@@ -3,6 +3,153 @@
 Last updated: 2026-07-25. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
+## Async consumers — Phases 1 + 2 + 3 shipped (2026-07-25, latest)
+
+New feature: `@EventHandler(executor = "name")` dispatches an event to a named, bounded
+`ConsumerExecutor` registered on the bundle builder
+(`.addConsumerExecutor(ConsumerExecutors.virtual("read-model", 64))`), so idempotent /
+overwrite handlers consume **in parallel** instead of one event at a time. Default
+(`executor = ""`) is unchanged inline behaviour — no existing test needed modifying.
+Full plan, deviations and negative-control results in
+[`ASYNC-CONSUMERS-PLAN.md`](ASYNC-CONSUMERS-PLAN.md) §12.
+
+**The load-bearing idea: the checkpoint advances when a task *starts*, not when it
+finishes.** `ConsumerExecutor.submit` returns a future that completes at task start, and
+the consume loop awaits it before committing. That single choice supplies the backpressure
+(the loop can never run more than `capacity` events ahead of completion, so no unbounded
+prefix of the event store is ever enqueued) and bounds the crash-loss window to the set of
+*running* tasks rather than a queue depth. Submit is time-boxed (5 s default): on
+saturation the cycle ends at the last started event and releases the consumer lock —
+important because the JDBC `ConsumerLock` pins a pooled connection for the whole cycle.
+
+**Three consequences that will bite operators, all documented in the annotation javadoc:**
+
+- **At-most-once for the in-flight window.** Idempotency protects against duplicates, not
+  loss. A graceful stop drains (supervisor → engine drain → `BoundedConsumerExecutor.shutdown`
+  awaits quiescence); a `kill -9` loses whatever was running.
+- **Connection-pool sizing gains a second term.** On top of ARCHITECTURE §12's one
+  connection per active consumer (`LockHandle` pins it), every concurrently-running
+  transactional handler holds one too. Size for
+  `consumers + Σ(capacity of transactional executors) + headroom`. Under-sizing surfaces as
+  acquisition timeouts, which `isTransient` flags transient and — see next point — dead-letter
+  immediately.
+- **`retry = -1` (the annotation default) is coerced to `0` under an executor**, because
+  retry-forever inside a task pins a concurrency permit and starves the executor. So an
+  async handler with default settings dead-letters on first failure, transient ones
+  included. Set an explicit `retry` for anything touching a remote dependency. Phase 2's
+  degraded-flag backoff is what will stop an outage burning the stream into the DLQ.
+
+**Interceptor-managed transactions survive unchanged**, and the reason is now a documented
+invariant on `MessageHandlerInterceptor`: for one event, `before → handler → after/onException`
+always run on **one thread**, and under async that is the executor's task thread, never the
+fetch loop's. `ThreadLocal`-backed transaction managers therefore behave identically inline
+and in parallel; each retry attempt still gets its own before/after pair, so its own
+transaction. Two new obligations on implementors (also in the javadoc): the instance is now
+entered concurrently, so per-invocation state must be in `ThreadLocal`s not fields; and
+unbind in a `finally`, because the framework's DLQ write happens on the same thread right
+after `onException` returns. `AsyncConsumerIT.interceptorAndHandlerShareOneThreadSoThreadLocalTransactionsWork`
+pins all of it.
+
+**Two bugs this fixed/avoided along the way:**
+
+- **The bundle-enable race.** `ProjectorEngine` signals head-reached when
+  `consumedEventCount < fetchSize`, and that is what triggers `eventoServer.enable()`. Under
+  async, "consumed" means "started" — so without a drain the bundle would be enabled, and
+  start serving queries, against a read model still being written. `drainAsyncHandlers()`
+  now runs before the alignment counter is decremented. This is the highest-value
+  regression test in the set; note it only becomes sensitive with a handler delay well
+  above the enable round-trip (1.5 s in the IT — at 200 ms it passed even with the drain
+  removed).
+- **Observers were already doing this, badly.** They dispatched to an unbounded
+  `newVirtualThreadPerTaskExecutor` and already checkpointed on submit, so an observer
+  catching up from a cold checkpoint submitted its whole backlog as fast as it could fetch
+  it. `ConsumerEngineConfig.inMemory` now wires a bounded executor
+  (`DEFAULT_OBSERVER_CONCURRENCY = 32`). **This is the only behaviour change for existing
+  bundles.** `observerExecutor(Executor)` still exists as a compat overload wrapping
+  `UnboundedConsumerExecutor`. Observer dead-event replay also moved from async to inline
+  (operator-driven and low-volume; sharing the executor would let a replay storm starve
+  live consumption).
+
+**Sagas are excluded** — `@SagaEventHandler` has no `executor` attribute, so parallel saga
+dispatch is unrepresentable rather than rejected at runtime. Saga handlers are a
+read-modify-write on shared state.
+
+### Phase 2 — operability
+
+- **Degraded backoff.** Async handlers fail on their own threads, so their failures never
+  surfaced as the fetch loop's `hasError` — a downed dependency was met by the loop pulling
+  at full speed and dead-lettering the whole stream. `ConsumerProcessor` now keeps a
+  per-consumer **transient-failure streak** (raised by `isTransient` causes, cleared by the
+  first clean completion, deliberately *not* raised by permanent failures — a poison event
+  is no reason to slow the stream), and both engines back off on the channel-error curve
+  while it is non-zero.
+- **Counters.** `ConsumerExecutorStats` (`admitted`/`rejected`/`completed`/`failed`/
+  `inFlight`) behind a `default` `ConsumerExecutor.stats()`; **`rejected` is the one to
+  alert on** — it is the executor announcing it is the bottleneck. Consumer status gained
+  `asyncInFlight` / `asyncSubmitTimeouts` / `asyncTransientFailures` / `asyncExecutors`
+  (additive and wire-safe: `AdminPayloadCodec` sets `FAIL_ON_UNKNOWN_PROPERTIES=false`).
+- **No Micrometer in the bundle** — it is an `evento-server` dependency, and pulling it into
+  `evento-bundle` would push a transitive dep onto every user app. The server can bind the
+  SPI counters in Phase 3.
+
+### The JDBC / virtual-thread question is now measured, not assumed
+
+`VirtualThreadJdbcConcurrencyIT` (Testcontainers Postgres, `EVENTO_RUN_JDBC_IT=true`):
+**32 transactional handlers, `peak=32/32`, 303 ms vs 8000 ms serial, on an 8-core box** —
+full capacity at 4× the core count, so no carrier pinning (JDK 24's JEP 491 plus pgjdbc /
+HikariCP off `synchronized`). `ConsumerExecutors.pooled` is no longer the recommended
+default for transactional handlers.
+
+**Keep this one:** the first run failed at `peak=16` and it was *not* pinning — Hikari opens
+connections lazily, and establishing 32 costs far more than a 250 ms handler, so early
+handlers finished before late ones held a connection. Pre-warming gives 32/32. The
+operational read-across is real: **a freshly started async consumer is throttled by a cold
+pool, not by its executor capacity**, until the pool ramps. Tune `minimumIdle` if a
+consumer's catch-up burst matters.
+
+### Phase 3 — visibility, and the bug it nearly shipped
+
+`@EventHandler.executor` now travels `RegisteredHandler` → `BundleDiscoveryInfo` →
+`AutoDiscoveryService` → `Handler` entity (+ `schema.sql` column with an
+`ALTER TABLE … ADD COLUMN IF NOT EXISTS` for live upgrades) → `HandlerDto` → GUI. The
+component catalog shows an `Executor:` chip per handler; Cluster Status → Consumers gains a
+*Parallel* row (executor names, in-flight, saturation, transient failures) that renders only
+when the consumer actually has async handlers. The consumer-status counters needed no server
+work — `ConsumerController` returns the message directly. Note `executor` is **refreshed, not
+backfilled**, unlike `line`/`componentPath`: a redeploy can move a handler between inline and
+async, so backfill semantics would pin the first value seen and show stale data forever.
+
+**⚠️ The repo-wide lesson (now ARCHITECTURE §15): never add a derived getter to a wire DTO.**
+A convenience `isAsync()` on `RegisteredHandler` made Jackson emit an `async` property; the
+transport `payloadCodec` deserializes with `FAIL_ON_UNKNOWN_PROPERTIES` **enabled** (unlike
+`AdminPayloadCodec`/`ObjectMapperUtils`, which disable it), so the server rejected the whole
+`BundleDiscoveryInfo` with `decode failed for BundleDiscoveryInfo … Unrecognized field
+"async"`. The bundle still started, connected, enabled and consumed perfectly — **only its
+handler metadata silently vanished from the dashboard**, with nothing in the bundle logs.
+Every pre-existing test passed, because none asserted that discovery *arrived*.
+`AsyncConsumerIT.discoveryNotificationDecodesWithTheNewField` now guards it.
+
+**Follow-up: both transport codecs are now lenient** (`fix(transport)`). `JacksonCborCodec`
+and `JacksonCborPayloadCodec` disable `FAIL_ON_UNKNOWN_PROPERTIES`, matching what
+`AdminPayloadCodec` and `ObjectMapperUtils` already did — so all four agree. This makes
+mixed-version fleets work in both directions: a newer peer's extra fields are skipped, and
+an older peer's missing fields fall back to the defaults the records' `@JsonCreator`
+constructors already normalise. It matters most on the message codec, where a version skew
+would have broken the **handshake** itself.
+
+I had originally noted strictness as deliberate gadget-chain defence — that was wrong.
+`FAIL_ON_UNKNOWN_PROPERTIES` is not a security control: the defence is `MessageTypeRegistry`
+/ the `PolymorphicTypeValidator`, which bound *which types* may be instantiated. Skipping an
+unrecognised property on an already-whitelisted type instantiates nothing. Both whitelists
+are untouched. `CodecVersionToleranceTest` (evento-transport-api) pins newer-peer,
+older-peer and round-trip.
+
+**Open / next:** Phase 4 — watermark checkpointing (`CheckpointMode.WATERMARK`) to restore
+at-least-once by committing the highest *contiguous completed* sequence, and key-partitioned
+lanes so same-aggregate events keep their order while different aggregates run in parallel.
+The latter would widen the feature well beyond strictly-idempotent handlers. Also unbound:
+the server could bind the `ConsumerExecutorStats` counters into Micrometer.
+
 ## Dependabot backlog swept (2026-07-25)
 
 **Outcome: backlog empty.** 17 PRs triaged, then a further 14 raised mid-session by the
