@@ -6,4 +6,4 @@ RUN mkdir /app
 
 COPY evento-server/build/libs/*.jar /app/spring-boot-application.jar
 
-ENTRYPOINT ["java", "-jar", "/app/spring-boot-application.jar"]
+ENTRYPOINT ["java","-XX:+ExitOnOutOfMemoryError","-jar", "/app/spring-boot-application.jar"]

@@ -1,5 +1,6 @@
 package com.evento.server.bus.lifecycle;
 
+import com.evento.common.utils.FatalErrors;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.correlation.CorrelationStore;
 import com.evento.server.bus.correlation.ForwardingDedupCache;
@@ -233,6 +234,7 @@ public final class BusLifecycle {
             forwardingTable.removeOlderThan(now - FORWARDING_TABLE_TTL_MS);
             pruneReconnectBuffer(now);
         } catch (Throwable t) {
+            FatalErrors.escalateIfFatal(t);
             log.warn("event=bus_maintenance_failed", t);
         }
     }
@@ -463,6 +465,7 @@ public final class BusLifecycle {
                 dedupCache.recordResponse(request.correlationId(), response);
                 session.transport().send(response);
             } catch (Throwable t) {
+                FatalErrors.escalateIfFatal(t);
                 log.warn("event=local_handler_threw payloadType={} correlationId={}",
                         request.payloadType(), request.correlationId(), t);
                 dedupCache.invalidate(request.correlationId());
