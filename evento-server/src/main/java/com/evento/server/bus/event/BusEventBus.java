@@ -1,5 +1,6 @@
 package com.evento.server.bus.event;
 
+import com.evento.common.utils.FatalErrors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +40,7 @@ public final class BusEventBus {
             try {
                 subscriber.accept(event);
             } catch (Throwable t) {
+                FatalErrors.escalateIfFatal(t);
                 log.error("event=subscriber_error type={} subscriber={}",
                         event.getClass().getSimpleName(), subscriber, t);
             }

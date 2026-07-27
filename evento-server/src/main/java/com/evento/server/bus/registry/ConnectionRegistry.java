@@ -1,5 +1,6 @@
 package com.evento.server.bus.registry;
 
+import com.evento.common.utils.FatalErrors;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.event.BusEvent;
 import com.evento.server.bus.event.BusEventBus;
@@ -56,6 +57,7 @@ public final class ConnectionRegistry {
             try {
                 previous.transport().close();
             } catch (Throwable t) {
+                FatalErrors.escalateIfFatal(t);
                 log.warn("event=supersede_close_failed node={}", conn.address().instanceId(), t);
             }
             eventBus.publish(new BusEvent.NodeLeft(previous.address(), "superseded", Instant.now()));
@@ -158,6 +160,7 @@ public final class ConnectionRegistry {
             try {
                 entry.getValue().transport().close();
             } catch (Throwable t) {
+                FatalErrors.escalateIfFatal(t);
                 log.warn("event=close_failed node={}", entry.getKey().instanceId(), t);
             }
         }
