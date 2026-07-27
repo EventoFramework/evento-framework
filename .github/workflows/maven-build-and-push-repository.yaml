@@ -17,12 +17,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Uncached: this workflow only runs on a fresh `v*` tag, and Actions caches
+      # are scoped to the writing ref — a cache saved here is unreadable by the
+      # next release, so it would only burn repo cache quota. Same rationale as
+      # release.yml.
       - name: Set up Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: corretto
           java-version: '25'
-          cache: gradle
 
       # Uploads signed artifacts to the Sonatype ossrh-staging-api staging
       # repository. Credentials and the in-memory GPG key are read from the
