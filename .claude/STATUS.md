@@ -3,7 +3,36 @@
 Last updated: 2026-07-27. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## Actions cache quota exhausted — tag-scoped caches were write-only (2026-07-27, latest)
+## Dependabot: 5 Actions bumps landed, queue empty again (2026-07-27, latest)
+
+All five open PRs merged green (5/5 checks each), squash + `--admin`, branches deleted:
+`actions/upload-artifact` 6.0.0→7.0.1 (#199, `e7f9d0fa`), `gradle/actions/wrapper-validation`
+5.0.2→6.2.0 (#198, `01b7618f`), `docker/login-action` 4.2.0→4.5.1 (#197, `bad0f319`),
+`docker/build-push-action` 7.2.0→7.3.0 (#200, `9538fde4`), `softprops/action-gh-release`
+3.0.1→3.0.2 (#196, `fd819392`).
+
+**No repeat of the two failure modes from the last sweep.** Base commits were all `93d66c4b`,
+a real ancestor of `main` — not orphaned history. And each PR bumped *every* occurrence of its
+action (login-action ×2, build-push-action ×2, upload-artifact ×3 across `ci.yml` + `fuzz.yml`),
+so nothing was left half-bumped. Both are worth re-checking on every sweep; they are the two
+things that have gone wrong before.
+
+**The two majors were safe for our usage.** `upload-artifact` v7 breaks on an internal ESM port
+plus a new opt-in `archive` param whose default preserves v6 behaviour — we only pass
+`name`/`path`/`retention-days`. `wrapper-validation` v6's release notes are almost entirely
+about `setup-gradle` caching; we invoke it with no inputs at all.
+
+**⚠️ Three of these were not actually validated by PR CI.** #196, #197 and #200 touch only
+`release.yml`, which runs on tag push — PR CI never executes it, so green meant "nothing else
+broke", not "the bump works". Same shape as the older *frontend never built in PR CI* lesson.
+They get their first real exercise on the next `v*` tag; **`docker/login-action` and
+`docker/build-push-action` are the two to suspect if that release fails.**
+
+Merging these three also re-touched `release.yml` right beside the cache change below (#200
+lands adjacent to the removed `cache-to`). Verified on `main` afterwards: `cache-to` still
+absent, both `cache-from` lines intact, no `cache:` keys in either tag-triggered workflow.
+
+## Actions cache quota exhausted — tag-scoped caches were write-only (2026-07-27)
 
 GitHub reported the repo out of Actions cache space: **11.41 GB across 127 caches**, over the
 10 GB per-repo ceiling, at which point GitHub LRU-evicts — so `main`'s genuinely useful caches
