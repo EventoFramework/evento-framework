@@ -30,9 +30,15 @@ public class Consumer {
     private String identifier;
 
     /**
-     *
+     * The component this consumer belongs to. Deliberately NOT cascaded: a consumer
+     * row must never drive its component's lifecycle. With {@code CascadeType.ALL},
+     * deleting a consumer (e.g. {@code ConsumerService.clearInstance} on a superseded
+     * connection) cascaded a REMOVE to the shared {@code core__component} row, which
+     * other instances' consumer rows still reference — every reconnect then failed
+     * with an FK violation on {@code core__consumer_component_component_name_fkey}.
+     * Component rows are created and deleted explicitly by discovery/BundleService.
      */
-    @ManyToOne(cascade = CascadeType.ALL)
+    @ManyToOne
     private Component component;
     private String instanceId;
     private String consumerId;
