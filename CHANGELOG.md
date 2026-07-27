@@ -102,6 +102,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A broker OOM now kills the process instead of leaving a zombie** (production incident
+  2026-07-27: an `OutOfMemoryError` during event-fetch handling killed the Netty worker
+  event loops; every `catch (Throwable)` swallowed it, and the broker survived three hours
+  accepting TCP connections it could only force-close — the container restart policy never
+  fired because the JVM never exited). Three layers:
+  - `-XX:+ExitOnOutOfMemoryError` in the evento-server Docker entrypoints;
+  - a default uncaught-exception handler in `EventoServerApplication` that halts on
+    `VirtualMachineError` (covers threads whose infrastructure swallows errors internally);
+  - `FatalErrors.escalateIfFatal(t)` (new, `evento-common`) called first in the broker's
+    catch-all handlers (`BusLifecycle`, `BusEventBus`, `ConnectionRegistry`) — walks the
+    cause chain, halts with exit code 3 on a fatal error; disable with
+    `-Devento.fatal.halt=false` (tests).
+- **Stale `EventFetchRequest`s are dropped instead of served** — a consumer abandons a
+  fetch after its client-side timeout and immediately retries, so a request older than
+  `evento.es.fetch.max.age.ms` (default 30000; ≤0 disables) is rejected after the
+  concurrency permit is acquired rather than doing the full result-set + encode work for a
+  reply nobody reads. Under memory pressure that retry storm repeated the broker's heaviest
+  work exactly when it could least afford it. Unstamped requests (older clients) are never
+  dropped.
+- **Reconnecting no longer trips an FK violation in discovery** — `Consumer.component` was
+  mapped `@ManyToOne(cascade = ALL)`, so deleting an instance's consumer rows (e.g.
+  `ConsumerService.clearInstance` when a connection is superseded) cascaded a REMOVE to the
+  shared `core__component` row while other instances' consumer rows still referenced it:
+  every rejoin logged `violates foreign key constraint
+  "core__consumer_component_component_name_fkey"` and rolled back. The cascade is removed;
+  component lifecycle stays with discovery/`BundleService`, which already deletes consumers
+  before components.
 - **Both CBOR codecs ignore unknown properties** (`JacksonCborCodec`,
   `JacksonCborPayloadCodec`), matching `AdminPayloadCodec` and `ObjectMapperUtils`. A peer
   one version ahead previously had its *entire* payload rejected, and the failure was

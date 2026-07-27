@@ -1,9 +1,45 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-25. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-27. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## Request-path capacity: growth-first pool, typed timeouts, saturation meters (2026-07-25, latest)
+## OOM zombie-broker hardening + discovery FK fix (2026-07-27, latest)
+
+Production incident (market deployment, 2026-07-27 ~03:58–07:00 UTC): the broker OOMed
+while serving `EventFetchRequest`s, the error killed Netty **worker event-loop threads**,
+every `catch (Throwable)` swallowed it, and the process survived as a zombie — the boss
+loop kept accepting TCP and force-closing each channel ("registration task was not accepted
+by an event loop", 304 times at the client's ~30s retry cadence) for three hours. Because
+the JVM never exited, `restart: on-failure` never fired; recovery required a manual
+restart. This is the same failure family as the 2026-07-25 congestion-collapse entry below:
+work is never cancelled when its caller's deadline passes, and retries make the overload
+self-sustaining.
+
+**Changes (all in `main`, unreleased):**
+- `FatalErrors` (evento-common, `com.evento.common.utils`) — cause-chain walk for
+  `VirtualMachineError`; `escalateIfFatal` halts with exit code 3 (same as
+  `ExitOnOutOfMemoryError`), gated by `-Devento.fatal.halt` (default on). Called FIRST in
+  the catch-alls in `BusLifecycle` (maintenance + local-handler), `BusEventBus.publish`,
+  `ConnectionRegistry` (supersede-close + closeAll).
+- `EventoServerApplication.main` installs a default uncaught-exception handler delegating
+  to `FatalErrors` — this is the hook that would have fired for the event-loop deaths.
+- All three evento-server Dockerfiles: `ENTRYPOINT` now passes
+  `-XX:+ExitOnOutOfMemoryError`.
+- `EventStoreRequestHandlerBridge`: staleness gate `evento.es.fetch.max.age.ms` (default
+  30000, ≤0 disables, unstamped requests exempt) checked *after* permit acquisition —
+  requests that aged out in the semaphore queue are the ones whose callers already retried.
+  Logic pinned in `EventStoreRequestHandlerBridgeTest.isExpired` tests.
+- `Consumer.component`: dropped `cascade = ALL` (a consumer delete cascaded a REMOVE to the
+  shared `core__component` row → FK violation `core__consumer_component_component_name_fkey`
+  on every reconnect). Component lifecycle already belongs to discovery/`BundleService`.
+
+**Deliberately not done:** no cap/streaming of fetch-response size (the per-batch ~4-5×
+copy amplification stands, bounded only by the permit count); `DEGRADED.canSend()` still
+`true`, so writes to an unwritable channel still queue unbounded in Netty's outbound
+buffer (`BackpressureHandler` remains a state mirror). Both are candidates for the next
+capacity pass.
+
+## Request-path capacity: growth-first pool, typed timeouts, saturation meters (2026-07-25)
 
 Came out of a production incident on a bundle doing a bulk catalogue import: 20 concurrent
 writers against an 8-core server fell from 16 writes/s to **0.07 writes/s** with ~250
