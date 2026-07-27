@@ -3,7 +3,45 @@
 Last updated: 2026-07-27. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## OOM zombie-broker hardening + discovery FK fix (2026-07-27, latest)
+## Actions cache quota exhausted — tag-scoped caches were write-only (2026-07-27, latest)
+
+GitHub reported the repo out of Actions cache space: **11.41 GB across 127 caches**, over the
+10 GB per-repo ceiling, at which point GitHub LRU-evicts — so `main`'s genuinely useful caches
+were being thrown away to make room for garbage.
+
+**Root cause: an Actions cache is scoped to the ref that wrote it.** `release.yml` and
+`maven-build-and-push-repository.yaml` run only on a fresh `v*` tag, and a tag ref never
+recurs — so every cache those workflows saved was unreadable by the next release, for ever.
+The evidence was unambiguous: **100% of the 3.34 GB `buildkit-blob` cache sat on tag refs**
+(`refs/heads/refs/tags/v2.3.1|v2.3.2|v2.4.0`, ~1.1 GB each), **zero on `main` or any PR**.
+Total dead weight 3.95 GB over three releases, ~1.3 GB per release, growing monotonically.
+
+**Cleanup.** Deleted 109 caches (11.41 GB → **2.65 GB**, 127 → 18), all provably unreachable:
+82 on the three release tag refs, 27 on PR merge refs (verified all 17 PRs closed first). Kept
+all 18 `main` caches — those are the only ones CI reads back. Note the `cache/usage` endpoint
+is **eventually consistent**: right after the deletes it still reported 11.38 GB while a fresh
+`actions/caches` list showed 18. Verify with the list endpoint, not `usage`.
+
+**Fix (this session), in four jobs across two workflows:**
+- `release.yml` docker job: dropped `cache-to: type=gha,mode=max`. A `mode=max` export of the
+  two-platform (amd64+arm64) build is what produced the 1.1 GB/release. `cache-from` is kept —
+  it costs nothing and still lets the `-cf` variant reuse layers **within the same run**.
+- Dropped `cache: gradle` / `cache: npm` from the tag-triggered `boot-jar`, `docker` and
+  `maven-packages` setup steps, plus the fourth instance in
+  `maven-build-and-push-repository.yaml` (same defect, easy to miss — it is a separate file).
+
+**Zero build-time cost**, and that is the whole point: these caches were never being *read*,
+so removing the writes cannot cause a miss that was not already happening.
+
+**`ci.yml`, `codeql.yml` and `fuzz.yml` keep their caching, deliberately** — they run on
+branches and PRs, where the writing ref recurs and the cache is genuinely reused.
+
+**The rule worth remembering: never enable dependency caching in a tag-triggered workflow.**
+It is pure quota burn, it is invisible (no warning, no failed step), and it degrades the
+caches that *do* work by pushing the repo into LRU eviction. Artifacts were never the problem
+here — only 0.10 GB live across 206; the 455 expired ones (2.11 GB) are already uncounted.
+
+## OOM zombie-broker hardening + discovery FK fix (2026-07-27)
 
 Production incident (market deployment, 2026-07-27 ~03:58–07:00 UTC): the broker OOMed
 while serving `EventFetchRequest`s, the error killed Netty **worker event-loop threads**,
@@ -427,7 +465,7 @@ The two bugs recorded on 2026-07-23 during the docs screenshot session are resol
   drive the GUI with headless Chrome (`--headless=new --remote-debugging-port`) instead
   of the desktop Chrome extension, or the tab throttles.
 
-## Prod hang: unbounded channel-close wait wedged bus workers (2026-07-22, latest)
+## Prod hang: unbounded channel-close wait wedged bus workers (2026-07-22)
 
 A production evento-server 2.2.1 (market deployment) stopped serving event fetches for 3 days:
 `bus-business` workers were stuck forever in `DefaultPromise.awaitUninterruptibly` under
