@@ -8,8 +8,11 @@ import com.evento.lab.api.event.OrderUpdatedEvent;
 /**
  * Projector with one parallel handler and one sequential handler, so the ITs can exercise
  * both paths — and the barrier between them — in a single consumer.
+ *
+ * <p>Gates bundle-enable on head alignment: {@code bundleIsNotEnabledUntilAsyncHandlersHaveFinished}
+ * asserts that a gating projector drains its async handlers before the bundle becomes available.
  */
-@Projector(version = 1)
+@Projector(version = 1, waitForHeadReached = true)
 public class AsyncLabProjector {
 
     public static final String EXECUTOR = "lab-async";

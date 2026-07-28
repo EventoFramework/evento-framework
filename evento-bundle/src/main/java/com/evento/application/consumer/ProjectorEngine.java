@@ -70,6 +70,8 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
     private final ConsumerExecutorResolver.Routing routing;
     @Getter
     private final CheckpointMode checkpointMode;
+    @Getter
+    private final boolean waitForHeadReached;
 
     /**
      * How long the head-reached gate waits for async handlers to finish. Generous: it is
@@ -137,6 +139,29 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                            Runnable onAllHeadReached,
                            ConsumerExecutorResolver.Routing routing,
                            CheckpointMode checkpointMode) {
+        this(bundleId, projectorName, projectorVersion, context, isShuttingDown, processor,
+                stateStore, deadEventQueue, projectorMessageHandlers, dispatchContext,
+                sssFetchSize, sssFetchDelay, alignmentCounter, onAllHeadReached,
+                routing, checkpointMode, true);
+    }
+
+    public ProjectorEngine(String bundleId,
+                           String projectorName,
+                           int projectorVersion,
+                           String context,
+                           Supplier<Boolean> isShuttingDown,
+                           ConsumerProcessor processor,
+                           ConsumerStateStore stateStore,
+                           DeadEventQueue deadEventQueue,
+                           HashMap<String, HashMap<String, ProjectorReference>> projectorMessageHandlers,
+                           DispatchContext dispatchContext,
+                           int sssFetchSize,
+                           int sssFetchDelay,
+                           AtomicInteger alignmentCounter,
+                           Runnable onAllHeadReached,
+                           ConsumerExecutorResolver.Routing routing,
+                           CheckpointMode checkpointMode,
+                           boolean waitForHeadReached) {
         this.routing = routing == null ? ConsumerExecutorResolver.Routing.INLINE : routing;
         this.checkpointMode = checkpointMode == null ? CheckpointMode.ON_START : checkpointMode;
         this.bundleId = bundleId;
@@ -154,6 +179,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
         this.sssFetchDelay = sssFetchDelay;
         this.alignmentCounter = alignmentCounter;
         this.onAllHeadReached = onAllHeadReached;
+        this.waitForHeadReached = waitForHeadReached;
     }
 
     @Override
@@ -222,15 +248,17 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
             if (!hasError && !ps.isHeadReached() && consumedEventCount >= 0 && consumedEventCount < sssFetchSize) {
                 // For async handlers "consumed" means "started", so the read model is not
                 // yet aligned when the fetch loop reaches head. Draining here is what stops
-                // the bundle from being enabled — and serving queries — while writes are
-                // still in flight.
+                // a gating projector from releasing the bundle-enable gate — and serving
+                // queries — while writes are still in flight.
                 drainAsyncHandlers();
                 ps.setHeadReached(true);
                 logger.info("Projector head reached: {} - Version: {} - Context: {}",
                         projectorName, projectorVersion, context);
-                var aligned = alignmentCounter.decrementAndGet();
-                if (aligned == 0) {
-                    onAllHeadReached.run();
+                if (waitForHeadReached) {
+                    var aligned = alignmentCounter.decrementAndGet();
+                    if (aligned == 0) {
+                        onAllHeadReached.run();
+                    }
                 }
             }
 

@@ -46,6 +46,7 @@ import com.evento.common.serialization.ObjectMapperUtils;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.FilterBuilder;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -542,8 +543,12 @@ public class EventoBundle {
             // SubTypes is configured to keep every scanned type (not only types
             // with a scanned supertype) so the confinement check below can sweep
             // the whole package, component or not.
+            // forPackages only selects classpath roots that CONTAIN the package;
+            // without the input filter every class sharing those roots would be
+            // scanned too, so two bundles in one jar could never be isolated.
             Reflections reflections = new Reflections(new ConfigurationBuilder()
                     .forPackages(basePackage.getName())
+                    .filterInputsBy(new FilterBuilder().includePackage(basePackage.getName()))
                     .setScanners(Scanners.TypesAnnotated,
                             Scanners.SubTypes.filterResultsBy(c -> true)));
 
@@ -626,8 +631,9 @@ public class EventoBundle {
                     .handlerPayloadTypes(handlerPayloadTypes)
                     .registeredHandlers(handlers)
                     .payloadInfo(payloadInfo)
-                    // We send the enable notification manually after projector
-                    // consumers have caught up to the head — matches v1 timing.
+                    // We send the enable notification manually: immediately when no
+                    // projector gates startup, or once every projector annotated with
+                    // @Projector(waitForHeadReached = true) has caught up to the head.
                     .autoEnable(false)
                     .build();
 
@@ -687,7 +693,8 @@ public class EventoBundle {
                     eventoBundle.get().getObserverManager().getReferences(),
                     consumerExecutors);
             supervisor.registerConsumerExecutors(consumerExecutors.values());
-            startProjectorEnginesV2(eventoBundle.get(), wait::release, engineConfig, contexts, supervisor,
+            final int gatingConsumers = startProjectorEnginesV2(
+                    eventoBundle.get(), wait::release, engineConfig, contexts, supervisor,
                     dispatchContext, consumerExecutors,
                     componentName -> componentCheckpointModes.getOrDefault(componentName, checkpointMode));
             final ConsumerEngineConfig engineConfigForLater = engineConfig;
@@ -695,8 +702,11 @@ public class EventoBundle {
             var startThread = new Thread(() -> {
                 try {
                     wait.acquire();
-                    logger.info("All Projector (v2) Consumers head Reached! (in {} millis)",
-                            Instant.now().toEpochMilli() - start.toEpochMilli());
+                    if (gatingConsumers > 0) {
+                        logger.info("All {} head-gating Projector Consumer(s) head Reached! (in {} millis)",
+                                gatingConsumers,
+                                Instant.now().toEpochMilli() - start.toEpochMilli());
+                    }
                     logger.info("Sending registration to enable the Bundle");
                     eventoServer.enable();
                     startSagaAndObserverEnginesV2(eventoBundle.get(), engineConfigForLater, contexts, supervisor,
@@ -773,7 +783,12 @@ public class EventoBundle {
             });
         }
 
-        private static void startProjectorEnginesV2(
+        /**
+         * @return the number of consumer instances that gate the bundle-enable
+         *         ({@code @Projector(waitForHeadReached = true)}, one per context);
+         *         when zero, {@code onAllHeadReached} has already been invoked.
+         */
+        private static int startProjectorEnginesV2(
                 EventoBundle bundle,
                 Runnable onAllHeadReached,
                 ConsumerEngineConfig engineConfig,
@@ -785,9 +800,14 @@ public class EventoBundle {
             var references = bundle.getProjectorManager().getReferences();
             if (references.isEmpty()) {
                 onAllHeadReached.run();
-                return;
+                return 0;
             }
+            // Only projectors that opted in via @Projector(waitForHeadReached = true)
+            // gate the bundle-enable; the rest align in the background after start.
             int total = references.stream()
+                    .filter(p -> p.getRef().getClass()
+                            .getAnnotation(com.evento.common.modeling.annotations.component.Projector.class)
+                            .waitForHeadReached())
                     .mapToInt(p -> contexts.getOrDefault(p.getComponentName(),
                             Set.of(com.evento.common.utils.Context.ALL)).size())
                     .sum();
@@ -820,11 +840,18 @@ public class EventoBundle {
                                     bundle.getProjectorManager().getHandlers(),
                                     projectorName,
                                     consumerExecutors),
-                            checkpointModes.apply(projectorName));
+                            checkpointModes.apply(projectorName),
+                            annotation.waitForHeadReached());
                     supervisor.addProjector(engine);
                 }
             }
             supervisor.startProjectorEngines();
+            if (total == 0) {
+                logger.info("No projector requires head alignment (waitForHeadReached=false) "
+                        + "- enabling the bundle immediately; projectors keep aligning in background");
+                onAllHeadReached.run();
+            }
+            return total;
         }
 
         private static void startSagaAndObserverEnginesV2(

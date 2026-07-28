@@ -187,6 +187,14 @@ reconnected bundle.
 | `ConsumerEngineConfig` | Builder-side bundle of SPIs: `ConsumerStateStore`, `ConsumerLock`, `SagaStateStore`, `DeadEventQueue`, `DedupeStore` |
 | `DispatchContext` | Groups `TracingAgent`, `BiFunction<String,Message<?>,GatewayTelemetryProxy>`, `MessageHandlerInterceptor` — reduces constructor arity |
 
+**Startup gate (bundle-enable timing).** By default the bundle enables on the cluster
+immediately after registration; projectors align to the event-stream head in the
+background (each logs `Projector head reached: …` when it catches up), and saga/observer
+engines start right away. A projector annotated `@Projector(waitForHeadReached = true)`
+opts into gating: the bundle stays disabled — and sagas/observers deferred — until every
+gating projector (one gate per context) has reached head (v1's unconditional behaviour).
+Only gating engines participate in the alignment counter that releases the enable gate.
+
 ### 4.5 Consumer State SPI (`evento-common`, `com.evento.common.messaging.consumer.*`)
 
 | SPI | Responsibility |

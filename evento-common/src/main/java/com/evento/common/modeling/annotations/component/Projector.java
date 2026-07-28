@@ -53,4 +53,19 @@ public @interface Projector {
 	 * @return the version of the Projector
 	 */
 	int version();
+
+	/**
+	 * Whether the bundle must wait for this projector's consumer to reach the head
+	 * of the event stream before enabling itself on the cluster.
+	 *
+	 * <p>When {@code false} (the default) the bundle enables immediately after
+	 * registration: the application starts serving commands and queries while this
+	 * projector keeps aligning in the background (a {@code Projector head reached}
+	 * log line marks the moment it catches up). When {@code true} the bundle stays
+	 * disabled — and therefore invisible to the cluster — until this projector has
+	 * caught up, so queries never observe a read model known to be behind.
+	 *
+	 * @return true when bundle enablement must wait for this projector's alignment
+	 */
+	boolean waitForHeadReached() default false;
 }
