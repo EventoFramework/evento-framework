@@ -1,7 +1,36 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-27. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-07-28. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## Startup gate is now opt-in: `@Projector(waitForHeadReached)` (2026-07-28, latest)
+
+**Behaviour change:** the bundle no longer waits for projectors to reach the event-stream
+head before enabling. Default is `waitForHeadReached = false` on `@Projector` — the bundle
+enables immediately after registration, sagas/observers start right away, and projectors
+align in the background (the existing `Projector head reached: …` log marks catch-up).
+Annotating `@Projector(waitForHeadReached = true)` restores the old gate for that projector:
+the bundle stays disabled until every gating projector (per context) is aligned, including
+the async-handler drain before the gate releases.
+
+- `Projector` annotation: new `waitForHeadReached()` attribute (default `false`).
+- `ProjectorEngine`: new `waitForHeadReached` constructor arg; only gating engines touch the
+  alignment counter (older constructor overloads default to `true`, preserving their contract).
+- `EventoBundle.startProjectorEnginesV2` now returns the gating-consumer count and releases
+  the enable gate immediately when it is zero.
+- `AsyncLabProjector` opted in (`waitForHeadReached = true`) so
+  `bundleIsNotEnabledUntilAsyncHandlersHaveFinished` keeps asserting the drain-before-enable.
+- New `evento-lab` IT `StartupGateIT` (package `com.evento.lab.gate`): latch-blocked
+  projectors prove both timings (default enables while behind head; opted-in holds until aligned).
+
+**Discovery bug fixed en route:** `EventoBundle` scanned with `Reflections.forPackages(...)`
+only, which selects classpath *roots* containing the package — every class sharing those roots
+was scanned too, so two bundles in one jar/source-set could never be isolated (the new gate test
+bundles picked up `AsyncLabProjector` and failed executor validation; the async ITs symmetrically
+picked up the gate projectors). Added `filterInputsBy(FilterBuilder.includePackage(basePackage))`
+so `setBasePackage` means what it documents. Note the behaviour change: components in sibling
+packages outside the base package are no longer discovered (e.g. `ConnectivityIT`'s two-bundle
+scenario now registers genuinely distinct handler sets).
 
 ## Dependabot: 5 Actions bumps landed, queue empty again (2026-07-27, latest)
 
