@@ -37,7 +37,7 @@
     "d3-hierarchy": "^3.1.2",
     "dagre": "^0.8.5",
     "ionicons": "^8.0.13",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "jwt-decode": "^4.0.0",
     "marked": "^18.0.4",
     "marked-katex-extension": "^5.1.10",
