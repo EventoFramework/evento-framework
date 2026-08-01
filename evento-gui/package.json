@@ -36,7 +36,7 @@
     "cytoscape-dagre": "^4.0.0",
     "d3-hierarchy": "^3.1.2",
     "dagre": "^0.8.5",
-    "ionicons": "^8.0.13",
+    "ionicons": "^8.1.0",
     "jsdom": "^29.1.1",
     "jwt-decode": "^4.0.0",
     "marked": "^18.0.4",
