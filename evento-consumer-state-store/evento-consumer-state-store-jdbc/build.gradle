@@ -5,8 +5,8 @@ plugins {
     id 'signing'
 }
 
-group 'com.eventoframework.evento-consumer-state-store'
-version "${eventoVersion}"
+group = 'com.eventoframework.evento-consumer-state-store'
+version = "${eventoVersion}"
 
 java {
     toolchain {

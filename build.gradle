@@ -1,5 +1,5 @@
-group 'com.evento'
-version '2.4.3'
+group = 'com.evento'
+version = '2.4.3'
 
 allprojects {
     ext {
