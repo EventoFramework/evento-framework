@@ -12,9 +12,8 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.WriteBufferWaterMark;
-import io.netty.channel.nio.NioIoHandler;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.slf4j.Logger;
@@ -68,7 +67,8 @@ public final class NettyClientTransport implements Transport {
             this.workerGroup = sharedWorkerGroup;
             this.ownsWorkerGroup = false;
         } else {
-            this.workerGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
+            // Netty 4.1-compatible construction — see NettyEventLoops for why.
+            this.workerGroup = NettyEventLoops.newNioEventLoopGroup(0);
             this.ownsWorkerGroup = true;
         }
     }

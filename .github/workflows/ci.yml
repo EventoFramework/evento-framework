@@ -36,6 +36,7 @@ jobs:
           ./gradlew --no-daemon \
             :evento-transport-api:test \
             :evento-transport-netty:test \
+            :evento-transport-netty:netty41Test \
             :evento-server:test \
             :evento-common:test \
             :evento-bundle:test \
