@@ -3,7 +3,36 @@
 Last updated: 2026-08-05. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## v2.4.4 released; docs/site/demo aligned (2026-08-05, latest)
+## ⚠️ 2.4.4 breaks Boot apps (Netty 4.1 BOM) — fixed on main, needs 2.4.5 (2026-08-05, latest)
+
+**Found during the live redeploy: evento-bundle 2.4.4 cannot start inside a Spring Boot app
+that doesn't pin Netty.** Boot's BOM manages `io.netty:*` down to 4.1 regardless of what
+`evento-transport-netty` declares, and the 2.4.4 deprecation migration used the 4.2-only
+`MultiThreadIoEventLoopGroup` — the demo crash-looped with `NoClassDefFoundError` the moment
+its image was rebuilt against 2.4.4. **The framework's CI can never see this**: it resolves
+Netty 4.2 directly; the downgrade exists only in consumer apps.
+
+- **Live demo fixed first** (evento-todo `6cc252d`): `ext['netty.version'] = '4.2.16.Final'`
+  — the documented 2.4.4 workaround. Demo verified healthy (bundle READY, projector head
+  reached, https://demo.eventoframework.com 200).
+- **Framework fixed on main** (`0b835c38`, unreleased — **cut 2.4.5**): event-loop
+  construction back on 4.1-compatible `NioEventLoopGroup` via `NettyEventLoops` (deprecation
+  suppressed there with the rationale). `WRITE_BUFFER_WATER_MARK` stays — exists in 4.1.
+- **Permanent guard: `:evento-transport-netty:netty41Test`** — full transport suite with
+  `io.netty:*` forced to 4.1.124.Final, wired into `check` AND added explicitly to ci.yml
+  (its "Run core tests" step lists test tasks; `check` never runs). Verified both ways:
+  fails with the exact NoClassDefFoundError on the broken code, passes on the fix.
+- **The rule this pins: transport code must stay Netty 4.1-source/binary-compatible** until
+  the framework can demand a 4.2 baseline from user apps. Watch for it in future
+  "modernisation" passes — this was exactly one.
+- Redeploy itself (the original ask): `deploy/deploy.sh` rebuilt www + todo;
+  **evento-server needed an explicit `compose pull`** — neither deploy.sh nor
+  reset-demo.sh pulls `:latest`, so the server container had been running a stale image and
+  would have stayed stale forever. Worth adding a pull to deploy.sh someday. Site verified
+  serving the 2.4.4 snippets; server on the fresh image (`-XX:+ExitOnOutOfMemoryError`
+  entrypoint visible in `docker ps`).
+
+## v2.4.4 released; docs/site/demo aligned (2026-08-05, earlier)
 
 **v2.4.4 is out** (user-cut via the repaired release script; all release workflows green;
 artifacts confirmed live on Maven Central — the demo resolves them). Ships the
