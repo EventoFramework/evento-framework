@@ -9,25 +9,12 @@
  * https://ionicframework.com/docs/layout/global-stylesheets
  */
 
-/* Core CSS required for Ionic components to work properly */
-@import "@ionic/angular/css/core.css";
-
-/* Basic CSS for apps built with Ionic */
-@import "@ionic/angular/css/normalize.css";
-@import "@ionic/angular/css/structure.css";
-@import "@ionic/angular/css/typography.css";
-@import '@ionic/angular/css/display.css';
-
-/* Optional CSS utils that can be commented out */
-@import "@ionic/angular/css/padding.css";
-@import "@ionic/angular/css/float-elements.css";
-@import "@ionic/angular/css/text-alignment.css";
-@import "@ionic/angular/css/text-transformation.css";
-@import "@ionic/angular/css/flex-utils.css";
-
-
-
-@import "theme/variables";
+/* Ionic's CSS (core, normalize, utils) and the brand tokens (theme/variables.scss)
+ * are loaded via angular.json's `styles` array, in that order — Ionic's core.css
+ * defines the default --ion-color-* palette in :root, so the brand palette must
+ * come after it in the bundle to win the cascade. Do not re-import either here:
+ * a Sass @import of theme/variables was previously duplicating the tokens and is
+ * deprecated by Dart Sass 3. */
 
 // Fonts (Inter + Roboto) are self-hosted via @fontsource and loaded in
 // angular.json's `styles` array — no external Google Fonts request.
