@@ -9,6 +9,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## [2.4.5] — 2026-08-06
+
 ### Fixed
 
 - **2.4.4 broke bundle startup under Spring Boot's dependency management.** Boot's BOM pins
