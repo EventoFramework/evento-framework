@@ -1,5 +1,8 @@
 package com.evento.common.utils;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -8,6 +11,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PgDistributedLock {
+
+    private static final Logger logger = LogManager.getLogger(PgDistributedLock.class);
 
     private final DataSource lockDatasource;
     private Connection lockCon;
@@ -47,6 +52,17 @@ public class PgDistributedLock {
 
     }
 
+    /**
+     * Decrements the wrapper's queue count and unmaps it when it reaches zero, atomically
+     * under the same ConcurrentHashMap bin lock that {@code acquire}'s {@code compute} uses.
+     * Doing the decrement and the removal as two separate steps lets a concurrent
+     * {@code acquire} join a wrapper that is about to be unmapped; its later {@code release}
+     * then finds no mapping and throws despite legitimately holding the lock.
+     */
+    private static void exitQueue(String key) {
+        locks.compute(key, (k, w) -> (w == null || w.removeThreadFromQueue() == 0) ? null : w);
+    }
+
 
     public void acquire(String key) {
         if (key == null) return;
@@ -72,9 +88,7 @@ public class PgDistributedLock {
         } catch (Throwable e) {
             // Roll back local lock on failure
             lockWrapper.lock.release();
-            if (lockWrapper.removeThreadFromQueue() == 0) {
-                locks.remove(key, lockWrapper);
-            }
+            exitQueue(key);
             throw new RuntimeException("Failed to acquire advisory lock for key: " + key, e);
         }
     }
@@ -97,17 +111,13 @@ public class PgDistributedLock {
             boolean success = resultSet.getBoolean(1);
             if (!success) {
                 lockWrapper.lock.release();  // Roll back local lock
-                if (lockWrapper.removeThreadFromQueue() == 0) {
-                    locks.remove(key, lockWrapper);
-                }
+                exitQueue(key);
                 return false;
             }
             return true;
         } catch (Throwable e) {
             lockWrapper.lock.release();  // Roll back local lock
-            if (lockWrapper.removeThreadFromQueue() == 0) {
-                locks.remove(key, lockWrapper);
-            }
+            exitQueue(key);
             throw new RuntimeException("Failed to acquire advisory lock for key: " + key, e);
         }
     }
@@ -115,22 +125,19 @@ public class PgDistributedLock {
     public void release(String key) {
         if (key == null) return;
 
+        // A thread between acquire() and release() contributes 1 to the wrapper's queue
+        // count, so no concurrent exitQueue can drop the count to 0 and unmap it: a
+        // legitimate holder always finds its wrapper here. null therefore really means
+        // release-without-acquire, and skipping the advisory unlock below is then correct
+        // (this session's PG lock count was never incremented for this caller).
         LockWrapper lockWrapper = locks.get(key);
         if (lockWrapper == null) {
             throw new IllegalMonitorStateException("No lock held for key: " + key);
         }
 
-        try {
-            // Release the local (JVM) lock
-            lockWrapper.lock.release();
-        } catch (IllegalMonitorStateException e) {
-            throw new RuntimeException("Thread does not hold the local lock for key: " + key, e);
-        }
-
-        // Clean up if no threads are waiting
-        if (lockWrapper.removeThreadFromQueue() == 0) {
-            locks.remove(key, lockWrapper);
-        }
+        // Release the local (JVM) lock, then leave the queue atomically
+        lockWrapper.lock.release();
+        exitQueue(key);
 
         // Skip distributed unlock when no DataSource is configured (embedded/test mode)
         if (lockDatasource == null) return;
@@ -160,14 +167,17 @@ public class PgDistributedLock {
 
     public void lockedArea(String key, ThrowingRunnable runnable) {
         acquire(key);
+        Throwable primary = null;
         try{
             runnable.run();
         }catch (RuntimeException re){
+            primary = re;
             throw re;
         } catch (Throwable t) {
+            primary = t;
             throw new RuntimeException(t);
         }finally {
-            release(key);
+            releaseWithoutMasking(key, primary);
         }
     }
 
@@ -175,14 +185,38 @@ public class PgDistributedLock {
         if(!tryAcquire(key)){
             return;
         }
+        Throwable primary = null;
         try{
             runnable.run();
         }catch (RuntimeException re){
+            primary = re;
             throw re;
         } catch (Throwable t) {
+            primary = t;
             throw new RuntimeException(t);
         }finally {
+            releaseWithoutMasking(key, primary);
+        }
+    }
+
+    /**
+     * Releases the lock without letting a bookkeeping failure replace the critical
+     * section's outcome: a release failure is attached as suppressed to an in-flight
+     * exception, or logged when the critical section succeeded. The work inside the
+     * locked area (e.g. a published event) is already durable at this point, so
+     * surfacing a cleanup error to the caller would misreport a success as a failure
+     * and invite a retry of work that was applied.
+     */
+    private void releaseWithoutMasking(String key, Throwable primary) {
+        try {
             release(key);
+        } catch (RuntimeException releaseFailure) {
+            if (primary != null) {
+                primary.addSuppressed(releaseFailure);
+            } else {
+                logger.error("event=lock_release_failed key={} critical section succeeded; " +
+                        "its result is preserved and the advisory lock may be leaked", key, releaseFailure);
+            }
         }
     }
 }
