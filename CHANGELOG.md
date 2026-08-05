@@ -9,6 +9,101 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## [2.4.4] — 2026-08-05
+
+### Fixed
+
+- **`PgDistributedLock.release()` race** — under concurrent publishing through one lock key
+  (the event store funnels every service command through `"es-lock"`), a thread that
+  legitimately held the lock could get `IllegalMonitorStateException: No lock held for key`
+  on release: the decrement of the wrapper's queue count and its removal from the shared map
+  were two separate steps, so a concurrent `acquire` could join a wrapper about to be
+  unmapped. Thrown from `lockedArea`'s cleanup, the error also replaced the critical
+  section's real outcome (a successfully published event surfaced to the caller as a
+  failure) and leaked the PostgreSQL advisory lock. Decrement-and-unmap is now atomic, and
+  `lockedArea` no longer lets a cleanup failure mask the critical section's result — it is
+  attached as suppressed to an in-flight exception, or logged after a success.
+- The release scripts read the version with a pattern broken by the Gradle assignment-syntax
+  change below; both now tolerate either style.
+
+### Changed
+
+- **GUI build system** — `evento-gui` moved from the deprecated webpack `browser` builder to
+  Angular's esbuild `application` builder: production build 64s → 16s, initial bundle
+  ~2 MB → 265 kB raw (Ionic components now lazy-load as ~115 code-split chunks). No
+  behaviour change for the embedded GUI; output still lands in the server's `public/`.
+- Internal API modernisation, no user-facing change: Netty 4.2 non-deprecated APIs
+  (`MultiThreadIoEventLoopGroup`, `WRITE_BUFFER_WATER_MARK`), Spring `JdbcTemplate` varargs
+  query overloads, Gradle 10 assignment syntax across all build files, Angular 22.1 /
+  Ionic 8.8.17 / jsdom 30 dependency bumps.
+
+---
+
+## [2.4.3] — 2026-07-28
+
+### Changed
+
+- **The projector head-reached startup gate is now opt-in.** The bundle no longer waits for
+  projectors to align with the event-stream head before enabling: default is
+  `@Projector(waitForHeadReached = false)` — the bundle enables immediately after
+  registration and projectors catch up in the background. Annotate
+  `@Projector(waitForHeadReached = true)` to restore the old gate for projectors whose
+  queries must not be served from a behind-head read model.
+
+### Fixed
+
+- `EventoBundle` component scanning now respects `setBasePackage` exactly: previously every
+  class sharing the base package's classpath *roots* was scanned too, so two bundles in one
+  jar could never be isolated.
+
+---
+
+## [2.4.2] — 2026-07-27
+
+Re-cut of 2.4.1 after its release pipeline run failed; no code changes.
+
+---
+
+## [2.4.1] — 2026-07-27
+
+### Fixed
+
+- **A broker OOM now kills the process instead of leaving a zombie** (production incident
+  2026-07-27: an `OutOfMemoryError` during event-fetch handling killed the Netty worker
+  event loops; every `catch (Throwable)` swallowed it, and the broker survived three hours
+  accepting TCP connections it could only force-close — the container restart policy never
+  fired because the JVM never exited). Three layers:
+  - `-XX:+ExitOnOutOfMemoryError` in the evento-server Docker entrypoints;
+  - a default uncaught-exception handler in `EventoServerApplication` that halts on
+    `VirtualMachineError` (covers threads whose infrastructure swallows errors internally);
+  - `FatalErrors.escalateIfFatal(t)` (new, `evento-common`) called first in the broker's
+    catch-all handlers (`BusLifecycle`, `BusEventBus`, `ConnectionRegistry`) — walks the
+    cause chain, halts with exit code 3 on a fatal error; disable with
+    `-Devento.fatal.halt=false` (tests).
+- **Stale `EventFetchRequest`s are dropped instead of served** — a consumer abandons a
+  fetch after its client-side timeout and immediately retries, so a request older than
+  `evento.es.fetch.max.age.ms` (default 30000; ≤0 disables) is rejected after the
+  concurrency permit is acquired rather than doing the full result-set + encode work for a
+  reply nobody reads. Under memory pressure that retry storm repeated the broker's heaviest
+  work exactly when it could least afford it. Unstamped requests (older clients) are never
+  dropped.
+- **Reconnecting no longer trips an FK violation in discovery** — `Consumer.component` was
+  mapped `@ManyToOne(cascade = ALL)`, so deleting an instance's consumer rows (e.g.
+  `ConsumerService.clearInstance` when a connection is superseded) cascaded a REMOVE to the
+  shared `core__component` row while other instances' consumer rows still referenced it:
+  every rejoin logged `violates foreign key constraint
+  "core__consumer_component_component_name_fkey"` and rolled back. The cascade is removed;
+  component lifecycle stays with discovery/`BundleService`, which already deletes consumers
+  before components.
+
+---
+
+## [2.4.0] — 2026-07-26
+
 ### Added
 
 - **Parallel consumers** — an `@EventHandler` may name a bounded *consumer executor*
@@ -102,33 +197,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **A broker OOM now kills the process instead of leaving a zombie** (production incident
-  2026-07-27: an `OutOfMemoryError` during event-fetch handling killed the Netty worker
-  event loops; every `catch (Throwable)` swallowed it, and the broker survived three hours
-  accepting TCP connections it could only force-close — the container restart policy never
-  fired because the JVM never exited). Three layers:
-  - `-XX:+ExitOnOutOfMemoryError` in the evento-server Docker entrypoints;
-  - a default uncaught-exception handler in `EventoServerApplication` that halts on
-    `VirtualMachineError` (covers threads whose infrastructure swallows errors internally);
-  - `FatalErrors.escalateIfFatal(t)` (new, `evento-common`) called first in the broker's
-    catch-all handlers (`BusLifecycle`, `BusEventBus`, `ConnectionRegistry`) — walks the
-    cause chain, halts with exit code 3 on a fatal error; disable with
-    `-Devento.fatal.halt=false` (tests).
-- **Stale `EventFetchRequest`s are dropped instead of served** — a consumer abandons a
-  fetch after its client-side timeout and immediately retries, so a request older than
-  `evento.es.fetch.max.age.ms` (default 30000; ≤0 disables) is rejected after the
-  concurrency permit is acquired rather than doing the full result-set + encode work for a
-  reply nobody reads. Under memory pressure that retry storm repeated the broker's heaviest
-  work exactly when it could least afford it. Unstamped requests (older clients) are never
-  dropped.
-- **Reconnecting no longer trips an FK violation in discovery** — `Consumer.component` was
-  mapped `@ManyToOne(cascade = ALL)`, so deleting an instance's consumer rows (e.g.
-  `ConsumerService.clearInstance` when a connection is superseded) cascaded a REMOVE to the
-  shared `core__component` row while other instances' consumer rows still referenced it:
-  every rejoin logged `violates foreign key constraint
-  "core__consumer_component_component_name_fkey"` and rolled back. The cascade is removed;
-  component lifecycle stays with discovery/`BundleService`, which already deletes consumers
-  before components.
 - **Both CBOR codecs ignore unknown properties** (`JacksonCborCodec`,
   `JacksonCborPayloadCodec`), matching `AdminPayloadCodec` and `ObjectMapperUtils`. A peer
   one version ahead previously had its *entire* payload rejected, and the failure was
