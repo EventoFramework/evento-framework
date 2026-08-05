@@ -53,7 +53,14 @@ zero "Deprecated Gradle features", zero direct-dep npm deprecations.
   suspiciously fast.
 - `PerformanceStoreService`: deprecated `JdbcTemplate.query(sql, Object[], mapper)` → varargs.
 - **Gradle 10 prep**: all 27 Groovy space-assignments (`group 'x'` etc.) converted;
-  `--warning-mode all` clean.
+  `--warning-mode all` clean. **This broke both release scripts** (caught next session):
+  `scripts/release.sh` + `release.ps1` read/bump the root version with patterns anchored on
+  `^version 'x.y.z'`, which the sweep rewrote to `version = 'x.y.z'`. Fixed in `d3fb013c` —
+  patterns now tolerate either style so the pair can't be broken by this again; bump
+  normalises to the `=` form; validated end-to-end (dry run to the confirm prompt reads
+  2.4.3 → computes 2.4.4). Lesson: `build.gradle`'s version line is parsed by tooling
+  outside Gradle (release scripts; `dev-local.sh` survived only because awk splits on
+  quotes) — grep `scripts/` before touching its shape.
 
 **Known-unsolvable warnings left in CI logs (all upstream):** lombok + Jazzer `sun.misc.Unsafe`
 notes; npm transitive deprecations (rimraf/glob/inflight — they come with the webpack-based
