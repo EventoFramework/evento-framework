@@ -3,6 +3,39 @@
 Last updated: 2026-08-05. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
+## v2.4.4 released; docs/site/demo aligned (2026-08-05, latest)
+
+**v2.4.4 is out** (user-cut via the repaired release script; all release workflows green;
+artifacts confirmed live on Maven Central — the demo resolves them). Ships the
+PgDistributedLock race fix, the esbuild GUI build, and the deprecation/Gradle-10 work.
+
+**Version-reference sweep across the four repos** (the framework's own README badges are
+dynamic off `version.json`, nothing to do there):
+
+- **CHANGELOG.md had drifted badly**: `[Unreleased]` held everything since 2.4.0 — five
+  releases went out without rolling it. Now split by actual tag content (`git log` between
+  tags): parallel consumers/capacity/codec-leniency → 2.4.0; OOM-zombie + stale-fetch +
+  discovery-FK fixes → 2.4.1; **2.4.2 is a re-cut of 2.4.1 after its release pipeline run
+  failed** (no code delta — worth remembering when reading tag history); startup gate →
+  2.4.3; lock fix + toolchain → 2.4.4. SECURITY.md supported row → `2.x (current: 2.4.4)`.
+  **Roll the changelog as part of every release from now on.**
+- **evento-doc** (`f513b8f`): the 5 copy-paste dependency snippets (quick-start gradle+maven,
+  tutorial setup, both JDBC state-store pages) were pinned at 2.3.1 → 2.4.4. Historical
+  "since vX" notes deliberately untouched; compose examples track `:latest`. The 2.4.3
+  startup-gate feature was already documented (projector/README.md).
+- **evento-www** (`f6fce09`): `src/pages/get-started.astro` snippets 2.3.0 → 2.4.4 (the two
+  spots its CLAUDE.md lists under "facts to keep accurate"). dist/ is gitignored — stale
+  local builds there are noise. Astro build verified.
+- **evento-todo** (`929c782`): evento-bundle + consumer-state-store-jdbc 2.3.0 → 2.4.4 in
+  build.gradle, README 2.2.2 → 2.4.4. `gradlew build` + aggregate tests green against the
+  Central artifacts.
+- **⚠️ The live site/demo are NOT redeployed by these pushes.** thoth-3 (87.98.218.66,
+  `/opt/evento-www`) updates only when `deploy/deploy.sh` runs there (git pull + compose
+  up --build; the todo image builds from the public GitHub repo, evento-server pulls
+  `:latest`). No SSH from this session — the user must run the deploy.
+- Note: `../evento-todo-list` is a second clone of the same evento-todo remote (dirty, 2
+  files) — left untouched; work in `../evento-todo`.
+
 ## GUI on the esbuild application builder — webpack removed (2026-08-05, latest)
 
 `d632b7a5`: the deferred follow-up from the warning sweep, done. `ng update --name
