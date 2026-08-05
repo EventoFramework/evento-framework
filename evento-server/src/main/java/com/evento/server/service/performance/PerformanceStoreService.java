@@ -293,13 +293,13 @@ public class PerformanceStoreService extends PerformanceService {
         for (String handler : handlers) {
             var ts_id = bundleId + "_" + componentId + "_" + handler;
             var i = interval * 1000;
-            resp.put(handler, jdbcTemplate.query(sql, new Object[]{tsFrom, toTs, i, i, ts_id}, (rs, rowNum) -> {
+            resp.put(handler, jdbcTemplate.query(sql, (rs, rowNum) -> {
                 var pp = new PerformancePoint();
                 pp.setTimestamp(rs.getString("ts"));
                 pp.setCount(rs.getBigDecimal("count"));
                 pp.setServiceTime(rs.getBigDecimal("value"));
                 return pp;
-            }));
+            }, tsFrom, toTs, i, i, ts_id));
         }
         return resp;
     }
@@ -339,8 +339,7 @@ public class PerformanceStoreService extends PerformanceService {
             if (handler.getHandlerType() != HandlerType.AggregateCommandHandler) continue;
             var id = bundleId + "_" + componentId + "_" + handler.getHandledPayload().getName();
             var i = interval * 1000;
-            resp.put(handler.getHandledPayload().getName(), jdbcTemplate.query(sql, new Object[]{tsFrom, toTs, i, i, id
-            }, (rs, rowNum) -> {
+            resp.put(handler.getHandledPayload().getName(), jdbcTemplate.query(sql, (rs, rowNum) -> {
                 var pp = new AggregatePerformancePoint();
                 pp.setTimestamp(rs.getString("ts"));
                 pp.setCount(rs.getBigDecimal("count"));
@@ -349,7 +348,7 @@ public class PerformanceStoreService extends PerformanceService {
                 pp.setRetrieve(rs.getBigDecimal("retrieve"));
                 pp.setLock(rs.getBigDecimal("lock"));
                 return pp;
-            }));
+            }, tsFrom, toTs, i, i, id));
         }
         return resp;
     }
