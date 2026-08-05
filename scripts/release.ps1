@@ -79,8 +79,10 @@ if ($localSha -eq $remoteSha) {
 }
 
 # --- read the current version (build.gradle is the source of truth) ---------
+# Matches the Gradle 10 assignment form `version = 'x.y.z'` and tolerates the
+# legacy space-assignment `version 'x.y.z'` so the script survives either style.
 $gradleText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot $GradleFile))
-$m = [regex]::Match($gradleText, "(?m)^version '(\d+)\.(\d+)\.(\d+)'")
+$m = [regex]::Match($gradleText, "(?m)^version *=? *'(\d+)\.(\d+)\.(\d+)'")
 if (-not $m.Success) { Die "could not read a clean MAJOR.MINOR.PATCH version from $GradleFile" }
 $major = [int]$m.Groups[1].Value
 $minor = [int]$m.Groups[2].Value
@@ -122,8 +124,8 @@ if ($confirm -notmatch '^[Yy]$') { Die 'aborted by user' }
 Info "Updating version to $new"
 # ReadAllText/WriteAllText keep the files' existing line endings intact
 # (Get-Content/Set-Content would rewrite them).
-# 1) root project version
-$gradleText = $gradleText -replace "(?m)^version '$([regex]::Escape($current))'", "version '$new'"
+# 1) root project version (either assignment style, normalised to `=`)
+$gradleText = $gradleText -replace "(?m)^version *=? *'$([regex]::Escape($current))'", "version = '$new'"
 # 2) eventoVersion ext property used by all subprojects
 $gradleText = $gradleText -replace "eventoVersion = '$([regex]::Escape($current))'", "eventoVersion = '$new'"
 [System.IO.File]::WriteAllText((Join-Path $RepoRoot $GradleFile), $gradleText)
@@ -135,7 +137,7 @@ $jsonText = $jsonText -replace "`"version`": `"$([regex]::Escape($current))`"", 
 # sanity: every source of truth now agrees
 $gradleText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot $GradleFile))
 $jsonText   = [System.IO.File]::ReadAllText((Join-Path $RepoRoot $VersionJson))
-if ($gradleText -notmatch "(?m)^version '$([regex]::Escape($new))'")        { Die "failed to bump root version in $GradleFile" }
+if ($gradleText -notmatch "(?m)^version = '$([regex]::Escape($new))'")      { Die "failed to bump root version in $GradleFile" }
 if ($gradleText -notmatch "eventoVersion = '$([regex]::Escape($new))'")     { Die "failed to bump eventoVersion in $GradleFile" }
 if ($jsonText   -notmatch "`"version`": `"$([regex]::Escape($new))`"")      { Die "failed to bump $VersionJson" }
 Ok "build.gradle and version.json now at $new"
