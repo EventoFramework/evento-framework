@@ -65,7 +65,9 @@ else
 fi
 
 # --- read the current version (build.gradle is the source of truth) ---------
-current="$(sed -n "s/^version '\([0-9][^']*\)'.*/\1/p" "$GRADLE_FILE" | head -n1)"
+# Matches the Gradle 10 assignment form `version = 'x.y.z'` and tolerates the
+# legacy space-assignment `version 'x.y.z'` so the script survives either style.
+current="$(sed -n "s/^version *=* *'\([0-9][^']*\)'.*/\1/p" "$GRADLE_FILE" | head -n1)"
 [[ -n "$current" ]] || die "could not read current version from $GRADLE_FILE"
 [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] \
   || die "current version '$current' is not a clean MAJOR.MINOR.PATCH"
@@ -107,8 +109,8 @@ read -rp "Proceed? [y/N]: " confirm
 
 # --- apply the bump ---------------------------------------------------------
 info "Updating version to $new"
-# 1) root project version
-sed -i.bak "s/^version '$current'/version '$new'/" "$GRADLE_FILE"
+# 1) root project version (either assignment style, normalised to `=`)
+sed -i.bak "s/^version *=* *'$current'/version = '$new'/" "$GRADLE_FILE"
 # 2) eventoVersion ext property used by all subprojects
 sed -i.bak "s/eventoVersion = '$current'/eventoVersion = '$new'/" "$GRADLE_FILE"
 rm -f "$GRADLE_FILE.bak"
@@ -117,7 +119,7 @@ sed -i.bak "s/\"version\": \"$current\"/\"version\": \"$new\"/" "$VERSION_JSON"
 rm -f "$VERSION_JSON.bak"
 
 # sanity: every source of truth now agrees
-grep -q "^version '$new'"          "$GRADLE_FILE"  || die "failed to bump root version in $GRADLE_FILE"
+grep -q "^version = '$new'"        "$GRADLE_FILE"  || die "failed to bump root version in $GRADLE_FILE"
 grep -q "eventoVersion = '$new'"   "$GRADLE_FILE"  || die "failed to bump eventoVersion in $GRADLE_FILE"
 grep -q "\"version\": \"$new\""    "$VERSION_JSON" || die "failed to bump $VERSION_JSON"
 ok "build.gradle and version.json now at $new"
