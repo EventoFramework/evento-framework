@@ -1,7 +1,7 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import {SystemStateStoreService} from "../../../../services/system-state-store.service";
-import {ActivatedRoute, RouterLink} from "@angular/router";
-import { DatePipe, JsonPipe, KeyValuePipe } from "@angular/common";
+import {ActivatedRoute} from "@angular/router";
+import { DatePipe, JsonPipe } from "@angular/common";
 import {IonicModule} from "@ionic/angular";
 import {TranslatePipe} from "@ngx-translate/core";
 import {FormsModule} from "@angular/forms";
@@ -15,8 +15,6 @@ import {FormsModule} from "@angular/forms";
     DatePipe,
     IonicModule,
     JsonPipe,
-    KeyValuePipe,
-    RouterLink,
     TranslatePipe,
     FormsModule
 ]

@@ -1,9 +1,8 @@
 import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ClusterStatusService} from "../../../../services/cluster-status.service";
 import {ConsumerService} from "../../../../services/consumer.service";
-import { DatePipe, JsonPipe } from "@angular/common";
+import { DatePipe } from "@angular/common";
 import {IonicModule, IonModal, LoadingController} from "@ionic/angular";
-import {RouterLink} from "@angular/router";
 import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 import {ComponentsModule} from "../../../../components/components.module";
 
@@ -13,9 +12,7 @@ import {ComponentsModule} from "../../../../components/components.module";
     styleUrls: ['./consumers.component.scss'],
     changeDetection: ChangeDetectionStrategy.Eager,
     imports: [
-    JsonPipe,
     IonicModule,
-    RouterLink,
     TranslatePipe, TranslateDirective,
     DatePipe,
     ComponentsModule
