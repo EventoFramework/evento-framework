@@ -3,7 +3,32 @@
 Last updated: 2026-08-05. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## CI warning sweep — logs now clean (2026-08-05, later)
+## GUI on the esbuild application builder — webpack removed (2026-08-05, latest)
+
+`d632b7a5`: the deferred follow-up from the warning sweep, done. `ng update --name
+use-application-builder` + manual follow-through; all angular.json targets now on
+`@angular/build:*` and `@angular-devkit/build-angular` (webpack) is out of devDependencies.
+
+- **The one trap, exactly as predicted: output layout.** The application builder defaults to
+  a `browser/` subfolder under outputPath — with CI green — which would have broken the boot
+  jar's embedded GUI at runtime. `outputPath.browser = ""` pins files back at
+  `evento-server/src/main/resources/public/` root. If this migration is ever redone, that is
+  the line that matters.
+- karma stays as the test runner: builder → `@angular/build:karma` (its `polyfills` must be an
+  **array**), karma.conf.js drops the build-angular framework/plugin (builder injects its own).
+  Bootstrap verified headless (0 specs, same as before).
+- Dead protractor surface deleted (e2e target pointed at a nonexistent builder): e2e/ folder,
+  jasmine-spec-reporter, ts-node, @types/jasminewd2; also karma-coverage-istanbul-reporter
+  (never loaded by karma.conf.js).
+- **Numbers:** prod build 64s → 16s local / 8.7s in CI; initial bundle ~2 MB → 265 kB raw /
+  61 kB transfer (~115 lazy chunks — Ionic components now code-split). npm ci deprecation
+  warnings 10 → 3; survivors are karma 6.4's own glob@7/rimraf@3/inflight, frozen upstream.
+  When the app grows real specs, `@angular/build:unit-test` (vitest) clears those too.
+- Validated: zero build warnings, public/-root layout (index.html, assets/, svg/, i18n),
+  brand palette still wins the cascade in the built styles, headless render (login + i18n),
+  lint clean, fresh CI run green. ci.yml/release.yml unchanged (they call `npm run build`).
+
+## CI warning sweep — logs now clean (2026-08-05, earlier)
 
 Went through the latest green CI logs hunting warnings; three commits (`f91fea1d` gui,
 `bb8361a1` deprecations, `7d280bc8` gradle) cleared every solvable one. Verified against the
