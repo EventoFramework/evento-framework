@@ -3,7 +3,44 @@
 Last updated: 2026-08-05. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
-## PgDistributedLock release() race fixed + Dependabot queue emptied (2026-08-05, latest)
+## CI warning sweep — logs now clean (2026-08-05, later)
+
+Went through the latest green CI logs hunting warnings; three commits (`f91fea1d` gui,
+`bb8361a1` deprecations, `7d280bc8` gradle) cleared every solvable one. Verified against the
+fresh post-push CI run: zero NG8113, zero Sass deprecation, zero javac deprecated-API notes,
+zero "Deprecated Gradle features", zero direct-dep npm deprecations.
+
+- **gui**: NG8113 unused imports trimmed (3 components). **The Sass fix mattered more than it
+  looked**: `global.scss`'s deprecated `@import "theme/variables"` was a *double emission* of
+  the brand tokens, and its position was the only thing letting the brand beat Ionic core.css's
+  default `:root` palette (styles-array entry loads *before* ionic css, so it always lost).
+  Ionic css + tokens now load via angular.json's styles array in explicit cascade order;
+  verified in the built bundle (single `#002121` primary, after Ionic's `#0054e9`).
+  `platform-browser-dynamic` removed (main.ts → `platformBrowser`, dev `aot:true`, test.ts →
+  `platformBrowserTesting` + explicit `@angular/compiler`); `@angular/animations` (no imports)
+  and `@types/cytoscape` (stub) dropped. Runtime-validated headless (login renders, i18n ok).
+- **Netty 4.2 API**: `NioEventLoopGroup` → `MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())`,
+  watermark options → single `WRITE_BUFFER_WATER_MARK`, in both transports.
+  `BundleClientIT`'s TLS test → `netty-pkitesting` `CertificateBuilder`; needs
+  `setIsCertificateAuthority(true)` or the builder throws and **the test's no-provider
+  Assumption silently converts the failure into a skip** — it sat skipped=1 in the "green" run
+  until the result XML was read. 8/8 run now. Watch that Assumption if the test "passes"
+  suspiciously fast.
+- `PerformanceStoreService`: deprecated `JdbcTemplate.query(sql, Object[], mapper)` → varargs.
+- **Gradle 10 prep**: all 27 Groovy space-assignments (`group 'x'` etc.) converted;
+  `--warning-mode all` clean.
+
+**Known-unsolvable warnings left in CI logs (all upstream):** lombok + Jazzer `sun.misc.Unsafe`
+notes; npm transitive deprecations (rimraf/glob/inflight — they come with the webpack-based
+`build-angular:browser` builder); the 3 hono/MCP moderates inside `@angular/cli`; npm
+`allow-scripts` policy notes. **The one worthwhile follow-up: migrate `angular.json` from the
+deprecated `build-angular:browser` (webpack) to `@angular/build:application` (esbuild/vite)** —
+Angular 22.1 already ships the toolchain (rolldown/oxc/lightningcss landed in the lockfile);
+that migration clears the builder deprecation AND the transitive npm warnings, but it changes
+bundling behaviour (styles order, allowedCommonJsDependencies, output layout feeding
+`evento-server/src/main/resources/public/`) so it deserves its own session with runtime checks.
+
+## PgDistributedLock release() race fixed + Dependabot queue emptied (2026-08-05, earlier)
 
 **Issue #216 closed** (`d15325eb`, `fix(common)`, on `main` unreleased): under concurrent
 publishing through one key (`EventStore` funnels all service commands through `"es-lock"`),
