@@ -1,10 +1,10 @@
 group = 'com.evento'
-version = '2.4.3'
+version = '2.4.4'
 
 allprojects {
     ext {
         javaLanguageVersion = JavaLanguageVersion.of(25)
-        eventoVersion = '2.4.3'
+        eventoVersion = '2.4.4'
         jacksonVersion = '2.22.1'
         nettyVersion = '4.2.16.Final'
         lz4Version = '1.8.0'
