@@ -1,7 +1,29 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-08-05. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-08-06. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## v2.4.5 released — the Netty-4.1 fix is out; whole stack aligned (2026-08-06, latest)
+
+**v2.4.5 cut** via `echo y | scripts/release.sh patch` (release.ps1's confirm prompt can't be
+answered from a non-interactive harness; the bash twin is identical). Changelog rolled to
+[2.4.5] *before* tagging, per the new convention. All three tag workflows green (Release with
+signed jar assets, Maven Central, CI). **The release.yml Actions bumps flagged after the
+2026-08-01 sweep (login/build-push/metadata/gh-release) got their first real tag exercise and
+worked** — that watch-item is closed.
+
+- **Downstream aligned to 2.4.5**: evento-doc snippets (`6662aa3`), evento-www get-started
+  (`9aa86c5`), evento-todo (`8225f63`). Docs bumped urgently on purpose: they pointed at
+  2.4.4, which breaks unpinned Boot apps.
+- **The demo now runs 2.4.5 UNPINNED on Boot's managed Netty 4.1.135** — the netty.version
+  override was deliberately removed, so the live demo is the consumer-side regression proof
+  for the 4.1-compat fix (alongside the framework-side `netty41Test`). Verified: build
+  resolves 4.1.135, bundle READY and stable (0 reconnects/90s), demo 200.
+- Redeployed via deploy.sh + the (still-manual) `compose pull evento-server`; server image
+  now 2.4.5. During the server-container swap the bundle briefly cycled
+  READY→RECONNECTING(post_session) and the server logged one `duplicate key … core__bundle_pkey`
+  — **transient restart-window churn only**, self-healed, zero recurrence. If that error ever
+  shows *steady-state*, treat it as a real discovery-registration bug, not noise.
 
 ## ⚠️ 2.4.4 breaks Boot apps (Netty 4.1 BOM) — fixed on main, needs 2.4.5 (2026-08-05, latest)
 
