@@ -1,7 +1,59 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-07-28. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-08-05. Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
+
+## PgDistributedLock release() race fixed + Dependabot queue emptied (2026-08-05, latest)
+
+**Issue #216 closed** (`d15325eb`, `fix(common)`, on `main` unreleased): under concurrent
+publishing through one key (`EventStore` funnels all service commands through `"es-lock"`),
+`release()` intermittently threw `IllegalMonitorStateException: No lock held for key` from a
+thread that legitimately held the lock — thrown from `lockedArea`'s `finally`, it also replaced
+the critical section's real outcome (successful `publishEvent` reported as a 500) and skipped
+`pg_advisory_unlock`, leaking the session-level advisory lock. Root cause: `release()`
+decremented the wrapper's queue count and unmapped it in **two separate steps**, so a concurrent
+`acquire()`'s `compute` could join a wrapper about to be unmapped. As old as the class; 2.4.x's
+`BusBusinessExecutor` just pushes enough concurrency through it to hit the window in practice.
+
+- New `exitQueue(key)`: decrement + removal inside one `locks.compute` (same bin lock as
+  `acquire`'s `compute`). A holder's own +1 keeps the count above zero between acquire and
+  release, so its wrapper can never be unmapped underneath it. Also applied to the rollback
+  paths of `acquire()`/`tryAcquire()`, which had the same non-atomic pattern.
+- `lockedArea`/`tryLockedArea` release via `releaseWithoutMasking`: a release failure is
+  suppressed onto an in-flight exception or logged (`event=lock_release_failed`) after a
+  successful critical section — cleanup can no longer turn applied work into a reported
+  failure (which invites a retry of work that already happened).
+- With the race fixed, `release()`'s null-wrapper branch genuinely means
+  release-without-acquire, and skipping the PG unlock there is correct.
+- `PgDistributedLockTest` (evento-common, embedded mode — null DataSource, no PG): the
+  8-thread × 5000-iteration single-key hammer was **verified failing on the pre-fix code**,
+  and pins mutual exclusion via an unsynchronized counter. Distributed half stays covered by
+  `PgDistributedLockIT` (jdbc module). **Ships in the next release** — the reporter is on
+  2.4.3, which still has the race.
+
+**Dependabot sweep: 15 PRs + the issue → both queues empty.** Merged green directly
+(squash + `--admin`, branches deleted): docker/login-action 4.6.0 (#201), docker/metadata-action
+6.2.0 (#215), classgraph 4.8.186 (#202), mysql-connector-j 26.7.0 (#203 — Oracle moved the
+connector to server-aligned calendar versioning; 9.7.0 → 26.7.0 is one release, all bugfixes;
+`jdbc-integration-tests` green), hibernate-validator 9.1.3 (#204).
+
+**The Angular-family lesson recurred exactly as documented** (third time): #205/#207/#208/#210/
+#211/#212 each failed `gui-build` with ERESOLVE (`peer @angular/core@"22.1.0"` — exact-version
+peers). Landed as one commit via `ng update @angular/core@22.1.0 @angular/cli` on
+`chore/gui-deps-2026-08` → **#217** (merged, all 5 checks green), folding in the four green npm
+PRs too (#206 @ionic/angular → 8.8.17, #209 jsdom 30, #213 language-service, #214 ionicons 8.1.0)
+since each npm PR invalidates the others' lockfile. All 10 closed with pointers to #217.
+Note for next sweep: plain `npm install`/`npm update` could NOT untangle the exact-version peer
+web against the existing lock even with all package.json entries pre-bumped — go straight to
+`ng update`, it needs a clean tree and handles the family + lockfile coherently.
+
+- **Angular 22.1 swapped its build pipeline to rolldown/oxc-parser/lightningcss** (vite-based).
+  The lockfile's os-scoped optional-dep diff is large but additive with full platform matrices
+  (linux-x64 gnu+musl present — the Windows-regeneration check from the 2026-07-25 sweep passes).
+  `@angular/cli` now ships an MCP server: its `@modelcontextprotocol/sdk` → `hono` chain carries
+  **3 moderate audit findings, dev-time only, upstream-blocked** (the only "fix" npm offers is
+  downgrading the CLI). `npm audit fix` cleared brace-expansion + fast-uri (both high) en route.
+- Validated with prod `ng build` + `ng lint` locally (Node 24 / npm 11); `gui-build` green in CI.
 
 ## Startup gate is now opt-in: `@Projector(waitForHeadReached)` (2026-07-28, latest)
 
