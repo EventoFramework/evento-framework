@@ -42,6 +42,35 @@ test {
     useJUnitPlatform()
 }
 
+// Regression guard: this module must run on Netty 4.1. evento-bundle lives inside
+// user Spring Boot apps whose BOM manages io.netty:* down to the 4.1 line no matter
+// what we declare, so any 4.2-only API here breaks every unpinned Boot app at
+// startup (happened in 2.4.4: MultiThreadIoEventLoopGroup -> NoClassDefFoundError,
+// caught on the live demo). This task reruns the full transport test suite with
+// Netty forced to 4.1 and is wired into `check`, so CI fails before release does.
+def netty41Version = '4.1.124.Final'
+
+def netty41Classpath = configurations.testRuntimeClasspath.copyRecursive()
+netty41Classpath.resolutionStrategy.eachDependency { details ->
+    if (details.requested.group == 'io.netty') {
+        details.useVersion netty41Version
+        details.because 'Spring Boot BOMs pin Netty 4.1 in user apps'
+    }
+}
+
+tasks.register('netty41Test', Test) {
+    description = "Runs the transport tests with Netty forced to ${netty41Version} (Spring Boot BOM compatibility)."
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.output + sourceSets.main.output + netty41Classpath
+    shouldRunAfter tasks.named('test')
+}
+
+tasks.named('check') {
+    dependsOn 'netty41Test'
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {

@@ -9,7 +9,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **2.4.4 broke bundle startup under Spring Boot's dependency management.** Boot's BOM pins
+  `io.netty:*` to the 4.1 line inside user applications regardless of what
+  `evento-transport-netty` declares, and 2.4.4's internal migration to Netty 4.2 APIs used
+  `MultiThreadIoEventLoopGroup`, which does not exist in 4.1 — every unpinned Boot app died
+  at startup with `NoClassDefFoundError` while constructing the bundle. Event-loop
+  construction is back on the 4.1-compatible `NioEventLoopGroup` (deprecated in 4.2 but
+  present and functional in both lines), and the transport test suite now also runs with
+  Netty forced to 4.1 in CI (`netty41Test`) so a 4.2-only API can never ship again.
+  Workaround on 2.4.4: `ext['netty.version'] = '4.2.16.Final'` (Gradle) or the
+  `<netty.version>` property (Maven).
 
 ---
 
