@@ -12,7 +12,9 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.WriteBufferWaterMark;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.slf4j.Logger;
@@ -66,7 +68,7 @@ public final class NettyClientTransport implements Transport {
             this.workerGroup = sharedWorkerGroup;
             this.ownsWorkerGroup = false;
         } else {
-            this.workerGroup = new NioEventLoopGroup();
+            this.workerGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
             this.ownsWorkerGroup = true;
         }
     }
@@ -92,8 +94,8 @@ public final class NettyClientTransport implements Transport {
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) config.connectTimeout().toMillis())
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.TCP_NODELAY, true)
-                .option(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, config.writeBufferHighWaterMark())
-                .option(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, config.writeBufferLowWaterMark())
+                .option(ChannelOption.WRITE_BUFFER_WATER_MARK,
+                        new WriteBufferWaterMark(config.writeBufferLowWaterMark(), config.writeBufferHighWaterMark()))
                 .handler(new io.netty.channel.ChannelInitializer<SocketChannel>() {
                     @Override protected void initChannel(SocketChannel ch) {
                         pipelineFactory.configure(ch, state, lastInboundMs, f -> frameHandler.accept(f));

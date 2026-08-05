@@ -23,7 +23,8 @@ import com.evento.transport.protocol.BundleRegistrationInfo;
 import com.evento.transport.protocol.ProtocolNotifications;
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.SelfSignedCertificate;
+import io.netty.pkitesting.CertificateBuilder;
+import io.netty.pkitesting.X509Bundle;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -289,19 +290,21 @@ class BundleClientIT {
 
     @Test
     void encryptedRoundTripWithSelfSignedTls() throws Exception {
-        SelfSignedCertificate ssc;
+        X509Bundle ssc;
         try {
             // Issue the cert for the DNS name "localhost" (not the 127.0.0.1 IP literal):
-            // Netty 4.2 enables TLS hostname verification by default, and IP-literal
-            // verification requires an iPAddress SAN that SelfSignedCertificate does not
-            // mint. A DNS name verifies against the certificate CN, so client and server
-            // below connect via "localhost" to match.
-            ssc = new SelfSignedCertificate("localhost");
+            // Netty 4.2 enables TLS hostname verification by default, so client and
+            // server below connect via "localhost" to match the SAN.
+            ssc = new CertificateBuilder()
+                    .subject("CN=localhost")
+                    .addSanDnsName("localhost")
+                    // A self-signed leaf is its own trust anchor: X509Bundle requires the
+                    // root of the path to carry the CA basic-constraint.
+                    .setIsCertificateAuthority(true)
+                    .buildSelfSigned();
         } catch (Throwable t) {
-            // Netty 4.1's SelfSignedCertificate falls back through sun.security helpers
-            // that have been progressively restricted in newer JDKs. Skip the test on
-            // platforms where no provider can mint a cert — the TLS pipeline wiring is
-            // exercised in production via real certs anyway.
+            // Skip the test on platforms where no provider can mint a cert — the TLS
+            // pipeline wiring is exercised in production via real certs anyway.
             Assumptions.assumeTrue(false,
                     "no provider can mint a self-signed certificate on this JDK: " + t);
             return;
@@ -309,11 +312,11 @@ class BundleClientIT {
 
         // Tear down the unencrypted server set up by @BeforeEach and replace it with a TLS one.
         lifecycle.stop(Duration.ofMillis(200));
-        var serverSsl = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
+        var serverSsl = SslContextBuilder.forServer(ssc.getKeyPair().getPrivate(), ssc.getCertificatePath())
                 .clientAuth(ClientAuth.NONE)
                 .build();
         var clientSsl = SslContextBuilder.forClient()
-                .trustManager(ssc.certificate())
+                .trustManager(ssc.getCertificatePath())
                 .build();
 
         var tlsServerConfig = NettyTransportConfig.defaults().withSslContext(serverSsl);

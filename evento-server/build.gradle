@@ -51,6 +51,7 @@ dependencies {
 
 	testImplementation 'org.assertj:assertj-core:3.27.7'
 	testImplementation 'org.awaitility:awaitility:4.3.0'
+	testImplementation "io.netty:netty-pkitesting:${nettyVersion}"
 	testImplementation project(':evento-bundle')
 }
 
