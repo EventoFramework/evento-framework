@@ -37,7 +37,7 @@
     "ionicons": "^8.1.0",
     "jsdom": "^30.0.1",
     "jwt-decode": "^4.0.0",
-    "marked": "^18.0.4",
+    "marked": "^18.0.9",
     "marked-katex-extension": "^5.1.10",
     "mermaid": "^11.15.0",
     "ng-apexcharts": "^2.4.0",
