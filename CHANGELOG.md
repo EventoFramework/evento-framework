@@ -13,6 +13,44 @@ Nothing yet.
 
 ---
 
+## [2.4.6] — 2026-09-05
+
+### Fixed
+
+- **A burned sequence number pinned every `WATERMARK` projector for ever.** The event
+  store's sequence is non-transactional: an insert that rolls back keeps the number it
+  drew and the store never returns it. `InFlightTracker.advanceWatermark()` walked a
+  strictly contiguous prefix, so the first such hole stopped the persisted checkpoint at
+  the number before it — while the in-memory fetch cursor went on. Read models stayed
+  current, so nothing looked wrong; but every restart replayed the whole gap (124k events
+  x 12 projectors in the case that surfaced it), which was enough to OOM-kill a 2 GB
+  broker, and the checkpoint never recovered without a manual `UPDATE`. The processor now
+  closes, from each fetched batch, every number between the cursor and the batch's last
+  event that the store did not return — a hole is proven by the batch that skips it, and
+  nothing else will ever complete it. Numbers above a batch are not assumed.
+  `WatermarkCheckpointTest` pins the cold-start shape (checkpoint N, first existing row
+  N+2), holes mid-batch, holes revealed only by a later fetch, and that a hole never
+  releases an event that is still running. The `CheckpointMode` javadoc no longer claims
+  inline consumers behave identically in both modes — they do not, in exactly this case.
+
+### Added
+
+- **`expectedServerInstanceId` on `BundleClient` / `EventoServerMessageBusConfiguration`
+  (`withExpectedServerInstanceId`).** A bundle dials a host name; two brokers reachable
+  under the same name — two compose projects on one Docker network, each calling its
+  broker `evento-server` — are indistinguishable at the transport, and in production a
+  bundle registered with a demo's broker during a 22-second outage of its own and spent
+  an hour and forty minutes persisting a shop's events into the wrong event store while
+  looking perfectly healthy. The `Welcome` carries the broker's `serverInstanceId`; when an
+  expected id is configured and the announced one differs, the supervisor logs
+  `event=server_instance_mismatch`, refuses **before** registration, and keeps dialing
+  with the usual back-off — a wrong broker is treated like an unreachable one. Unset, the
+  behaviour is unchanged. Give each broker its own `evento.cluster.node.server.id` for this
+  to mean anything. `BundleClientIdentityIT` covers refusal, acceptance and the unset case
+  over real TCP.
+
+---
+
 ## [2.4.5] — 2026-08-06
 
 ### Fixed
