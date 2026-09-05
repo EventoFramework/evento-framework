@@ -233,7 +233,7 @@ Both traded-away guarantees can be bought back independently:
 
 | Want | Use | Cost |
 |---|---|---|
-| At-least-once delivery | `CheckpointMode.WATERMARK` (`EventoBundle.Builder.setCheckpointMode`) — persists the highest *contiguous completed* sequence; the fetch cursor stays on the in-memory dispatch frontier so nothing is reprocessed within a run | A crash replays the in-flight window; the dashboard's "last event" trails by it |
+| At-least-once delivery | `CheckpointMode.WATERMARK` (`EventoBundle.Builder.setCheckpointMode`) — persists the highest *contiguous completed* sequence; the fetch cursor stays on the in-memory dispatch frontier so nothing is reprocessed within a run. Sequence numbers the store never returns (burned by rolled-back inserts) are closed from the batch that skips them, or the first one would pin the watermark for ever (2.4.6) | A crash replays the in-flight window; the dashboard's "last event" trails by it |
 | Per-aggregate ordering | `ConsumerExecutors.partitioned(name, lanes)` — equal aggregate ids pin to one lane, one task per lane | A hot aggregate serialises; concurrency bounded by lanes and reduced by key skew |
 
 `MessageHandlerInterceptor` keeps working for transaction management because
@@ -271,7 +271,8 @@ single-JVM/embedded scenarios like integration tests).
 Bundle                          Server
   │── Hello(bundleId, instanceId, version, authToken) ──►│
   │                                              TokenValidator.validate()
-  │◄── Welcome(serverVersion) ─────────────────────────── │  (or Reject)
+  │◄── Welcome(serverVersion, serverInstanceId) ───────── │  (or Reject)
+  │   bundle checks serverInstanceId against its expected id, if set (2.4.6)
   │── Notification(evento:bundle-registration, lean) ────►│  BundleRegistered event
   │── Notification(evento:enable) ─────────────────────── │  BundleEnabled event
   │── Notification(evento:bundle-discovery, rich) ────────│  BundleDiscovered event

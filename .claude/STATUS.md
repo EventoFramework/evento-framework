@@ -1,6 +1,35 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-08-06. Branch `next` merged to `main`; v2.0 rewrite complete.
+Last updated: 2026-09-05.
+
+## 2.4.6 prepared — watermark holes + broker identity check (2026-09-05, latest)
+
+Both changes came out of one production incident on the Plaaza marketplace (12 projectors
+in WATERMARK mode, evento 2.4.5), diagnosed the same day:
+
+- **Burned sequence numbers pinned the watermark.** 7,582 numbers burned by rolled-back
+  inserts on 09-03 left the first hole at 2239510; all twelve projectors sat at 2239509
+  for two days with read models current and every restart replaying 124k events each —
+  which OOM-killed the 2 GB broker at the next deploy. The same pin had happened on 08-29
+  and been cleared by a manual seed. Fix: `InFlightTracker.recordAbsent(batch)` closes the
+  numbers a batch proves missing, called right after each fetch. Five new tests in
+  `WatermarkCheckpointTest`. Operationally the stuck checkpoints were moved with a guarded
+  `UPDATE evento_v2_consumer_state` (script kept in the market repo, `deploy/`).
+- **Split-brain onto another project's broker.** With the real broker dead for 22 s the
+  bundle's reconnect resolved `evento-server` (shared Docker network, same service name in
+  the demo stack) to the demo's broker and registered there: 1h40m of production events in
+  the demo store, projectors "head reached" against an empty store, counter sales failing
+  with AggregateNotInitialized. Fix: `expectedServerInstanceId` checked at handshake
+  (`ConnectionSupervisor.performHandshake`), refused before registration, run loop keeps
+  dialing. `BundleClientIdentityIT` over real TCP. The deployment fix was pinning the app
+  to the broker's container name; the framework fix makes the same mistake loud.
+- Follow-ups NOT done here: an interval structure for `completedAboveWatermark` if
+  burned ranges ever get large (today: a `TreeSet<Long>` per number); a bus auth token on
+  brokers that share a network; the broker's `-Xmx2g` and `evento_es_fetch_concurrency=8`
+  under a 12-projector replay.
+- Release: changelog rolled to [2.4.6] before tagging; cut with
+  `echo y | scripts/release.sh patch` once the full suite is green.
+ Branch `next` merged to `main`; v2.0 rewrite complete.
 `evento-cli` **and** `evento-parser` modules deleted; deployment/autoscaling surface removed.
 
 ## v2.4.5 released — the Netty-4.1 fix is out; whole stack aligned (2026-08-06, latest)
