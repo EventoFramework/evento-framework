@@ -264,6 +264,8 @@ public final class BundleClient implements AutoCloseable {
         public Builder transportConfig(com.evento.transport.netty.NettyTransportConfig c) { cfg.transportConfig(c); return this; }
         public Builder payloadCodec(PayloadCodec c) { this.payloadCodec = c; return this; }
         public Builder autoEnable(boolean v) { cfg.autoEnable(v); return this; }
+        /** Refuse any broker whose announced instance id is not this one; null accepts all. */
+        public Builder expectedServerInstanceId(String id) { cfg.expectedServerInstanceId(id); return this; }
 
         public BundleClient build() {
             return new BundleClient(cfg.build(), payloadCodec);

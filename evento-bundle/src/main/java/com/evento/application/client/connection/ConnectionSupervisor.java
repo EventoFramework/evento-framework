@@ -261,6 +261,20 @@ public final class ConnectionSupervisor implements AutoCloseable {
                 throw new IllegalStateException("server speaks protocol v" + welcome.protocolVersion()
                         + ", expected " + HandshakeProtocol.PROTOCOL_VERSION);
             }
+            // Thrown here, before registration, so the run loop treats a wrong broker
+            // exactly like an unreachable one: log, back off, dial again. A bundle
+            // that registered with the wrong broker would look perfectly healthy
+            // from its own logs while every command it handled was persisted
+            // somewhere else — the failure has to be loud and has to be here.
+            var expected = config.expectedServerInstanceId();
+            if (expected != null && !expected.equals(welcome.serverInstanceId())) {
+                log.error("event=server_instance_mismatch host={} port={} announced={} expected={} "
+                                + "- refusing to register with this broker",
+                        config.host(), config.port(), welcome.serverInstanceId(), expected);
+                throw new IllegalStateException("broker at " + config.host() + ":" + config.port()
+                        + " announced instance '" + welcome.serverInstanceId()
+                        + "', expected '" + expected + "'");
+            }
             log.info("event=handshake_complete server_instance={} accepted_caps={}",
                     welcome.serverInstanceId(), welcome.acceptedCapabilities());
         } finally {
