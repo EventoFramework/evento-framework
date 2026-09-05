@@ -174,6 +174,17 @@ public final class ConsumerProcessor {
 
             var resp = fetchEvents(context, lastSeq, fetchSize, projectorName);
 
+            if (watermarking) {
+                // A sequence number the store did not return between the cursor and an
+                // event it did return does not exist: a rolled-back insert burned it
+                // (the store's sequence is non-transactional). Nothing will ever
+                // complete it, so it must not be allowed to hold the watermark —
+                // which is exactly what one such number did, twice, in production:
+                // every projector pinned at the number before the hole while the
+                // frontier went on, and every restart replayed the whole gap.
+                tracker.recordAbsent(resp.getEvents());
+            }
+
             int consumed = 0;
             long currentVersion = cursor.version;
             try {
@@ -779,6 +790,35 @@ public final class ConsumerProcessor {
         /** A handler finished — successfully, or resolved by dead-lettering. */
         synchronized void recordCompleted(long seq) {
             if (seq > watermark) completedAboveWatermark.add(seq);
+        }
+
+        /**
+         * Closes the sequence numbers a fetched batch proves do not exist.
+         *
+         * <p>The store answers {@code event_sequence_number > cursor} in order, so every
+         * number between the cursor and the highest event in the batch that is not in
+         * the batch was burned by an insert that rolled back. Such a number has no
+         * handler to wait for; treating it as completed is the only reading under
+         * which {@link #advanceWatermark()} can ever cross it. Numbers above the batch
+         * are not touched: whether they exist is only known once a later fetch
+         * returns something beyond them, and they cannot matter before that — the
+         * watermark reaches them only after everything below is complete.</p>
+         *
+         * <p>Must run before this batch's {@link #recordDispatched(long)} calls: the
+         * cursor it measures from is the frontier as it stood when the fetch was made.</p>
+         */
+        synchronized void recordAbsent(java.util.Collection<PublishedEvent> batch) {
+            if (batch.isEmpty()) return;
+            var present = new java.util.HashSet<Long>(batch.size() * 2);
+            long top = dispatchedSeq;
+            for (var event : batch) {
+                long seq = event.getEventSequenceNumber();
+                present.add(seq);
+                if (seq > top) top = seq;
+            }
+            for (long seq = dispatchedSeq + 1; seq <= top; seq++) {
+                if (seq > watermark && !present.contains(seq)) completedAboveWatermark.add(seq);
+            }
         }
 
         /**

@@ -231,6 +231,112 @@ class WatermarkCheckpointTest {
         assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
     }
 
+    // ── burned sequence numbers ─────────────────────────────────────────────
+    //
+    // The store's sequence is non-transactional: an insert that rolls back keeps
+    // the number it drew, and the store never returns it. In production two days
+    // of such holes pinned every projector at the number before the first one,
+    // while the fetch cursor went on — so the read models stayed current and every
+    // restart replayed the whole gap. The watermark must treat a number the store
+    // skipped as done, because nothing else ever will.
+
+    @Test
+    void aSequenceNumberTheStoreNeverReturnsCannotPinTheWatermark() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 4);
+        // 11 was burned: no row, so the store answers 10, 12, 13 for "> 9"
+        server.nextFetch(TestEvents.event(10, "E10"), TestEvents.event(12, "E12"),
+                TestEvents.event(13, "E13"));
+
+        consume(processor, e -> { });
+        assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        consume(processor, e -> { });
+
+        assertThat(checkpoint())
+                .as("the hole at 11 is closed by the batch that proves it, not waited for")
+                .isEqualTo(13L);
+    }
+
+    @Test
+    void aHoleRightAfterThePersistedCheckpointIsClosedOnTheFirstFetchAfterARestart() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 4);
+        // a run that ends with the checkpoint at 5...
+        server.nextFetch(TestEvents.event(4, "E4"), TestEvents.event(5, "E5"));
+        consume(processor, e -> { });
+        assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        consume(processor, e -> { });
+        assertThat(checkpoint()).isEqualTo(5L);
+
+        // ...then a restart, and 6 and 7 were burned before 8 was written. This is
+        // the production shape: checkpoint 2239509, first existing row 2239511.
+        var afterRestart = newProcessor();
+        server.nextFetch(TestEvents.event(8, "E8"), TestEvents.event(9, "E9"));
+        afterRestart.consumeEventsForProjector("c1", "ProjA", "ctx", e -> { }, 10,
+                always(executor), CheckpointMode.WATERMARK);
+        assertThat(afterRestart.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        afterRestart.consumeEventsForProjector("c1", "ProjA", "ctx", e -> { }, 10,
+                always(executor), CheckpointMode.WATERMARK);
+
+        assertThat(checkpoint()).isEqualTo(9L);
+    }
+
+    @Test
+    void holesAboveTheEndOfABatchAreNotAssumedUntilALaterFetchProvesThem() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 4);
+        server.nextFetch(TestEvents.event(10, "E10"), TestEvents.event(11, "E11"));
+        consume(processor, e -> { });
+        assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        consume(processor, e -> { });
+        assertThat(checkpoint())
+                .as("nothing beyond the batch is known yet")
+                .isEqualTo(11L);
+
+        // 12..14 turn out to be burned: the batch that returns 15 proves it
+        server.nextFetch(TestEvents.event(15, "E15"));
+        consume(processor, e -> { });
+        assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        consume(processor, e -> { });
+        assertThat(checkpoint()).isEqualTo(15L);
+    }
+
+    @Test
+    void aHoleNeverReleasesAnEventThatIsStillRunning() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 4);
+        server.nextFetch(TestEvents.event(10, "E10"), TestEvents.event(12, "E12"));
+        var release = new CountDownLatch(1);
+        var reached = new CountDownLatch(1);
+
+        consume(processor, e -> {
+            if (e.getEventSequenceNumber() == 12L) {
+                reached.countDown();
+                release.await();
+            }
+        });
+        assertThat(reached.await(5, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(200);   // let 10 finish while 12 is held
+        consume(processor, e -> { });
+
+        // 11 does not exist, so the watermark may stand ON it — the next fetch asks
+        // for "> 11", which is exactly 12 again on a replay. It must not pass 12.
+        assertThat(checkpoint()).isEqualTo(11L);
+
+        release.countDown();
+        assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        consume(processor, e -> { });
+        assertThat(checkpoint()).isEqualTo(12L);
+    }
+
+    @Test
+    void inlineHandlersCrossAHoleToo() throws Throwable {
+        server.nextFetch(TestEvents.event(1, "E1"), TestEvents.event(3, "E3"));
+
+        processor.consumeEventsForProjector("c1", "ProjA", "ctx", e -> { }, 10,
+                null, CheckpointMode.WATERMARK);
+
+        assertThat(checkpoint())
+                .as("the inline path feeds the same tracker and is pinned by the same hole")
+                .isEqualTo(3L);
+    }
+
     private static void await(java.util.function.BooleanSupplier condition) throws InterruptedException {
         long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
         while (!condition.getAsBoolean()) {
