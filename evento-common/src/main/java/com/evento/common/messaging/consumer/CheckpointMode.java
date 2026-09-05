@@ -3,8 +3,12 @@ package com.evento.common.messaging.consumer;
 /**
  * When a consumer using parallel handlers persists its checkpoint.
  *
- * <p>Only meaningful for handlers dispatched to a {@link ConsumerExecutor}; a fully inline
- * consumer completes each event before moving on, so both modes behave identically.
+ * <p>Mostly meaningful for handlers dispatched to a {@link ConsumerExecutor}: a fully inline
+ * consumer completes each event before moving on, so the two modes commit the same numbers
+ * at the same moments. The one difference that survives is what a sequence number the
+ * store never returns does to each — {@link #ON_START} commits whatever it dispatched,
+ * while {@link #WATERMARK} walks a contiguous prefix and therefore has to be told which
+ * numbers do not exist (the processor closes them from the batch that proves it).
  */
 public enum CheckpointMode {
 
