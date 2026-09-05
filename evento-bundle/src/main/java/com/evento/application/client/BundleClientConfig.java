@@ -48,7 +48,19 @@ public record BundleClientConfig(
         Duration shutdownDeadline,
         int maxInFlightRequests,
         NettyTransportConfig transportConfig,
-        boolean autoEnable
+        boolean autoEnable,
+        /**
+         * The {@code serverInstanceId} the broker must announce in its {@code Welcome}
+         * for this bundle to register with it; null accepts any broker.
+         *
+         * <p>A bundle dials a host name. Two brokers reachable under the same name
+         * — a shared Docker network with two compose projects each calling their
+         * broker {@code evento-server} — are indistinguishable at the transport,
+         * and in production one bundle spent an hour and forty minutes writing a
+         * shop's events into a demo's event store that way. The name a broker
+         * calls itself is the one fact the transport does carry.</p>
+         */
+        String expectedServerInstanceId
 ) {
 
     public BundleClientConfig {
@@ -102,6 +114,7 @@ public record BundleClientConfig(
         private int maxInFlightRequests = 2048;
         private NettyTransportConfig transportConfig = NettyTransportConfig.defaults();
         private boolean autoEnable = true;
+        private String expectedServerInstanceId;
 
         public Builder host(String host) { this.host = host; return this; }
         public Builder port(int port) { this.port = port; return this; }
@@ -125,13 +138,15 @@ public record BundleClientConfig(
         public Builder maxInFlightRequests(int n) { this.maxInFlightRequests = n; return this; }
         public Builder transportConfig(NettyTransportConfig c) { this.transportConfig = c; return this; }
         public Builder autoEnable(boolean v) { this.autoEnable = v; return this; }
+        /** Refuse any broker whose announced instance id is not this one; null (default) accepts all. */
+        public Builder expectedServerInstanceId(String id) { this.expectedServerInstanceId = id; return this; }
 
         public BundleClientConfig build() {
             return new BundleClientConfig(host, port, bundleId, instanceId, bundleVersion,
                     authToken, description, detail, repositoryUrl, linePrefix,
                     handlerPayloadTypes, registeredHandlers, payloadInfo, capabilities,
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
-                    maxInFlightRequests, transportConfig, autoEnable);
+                    maxInFlightRequests, transportConfig, autoEnable, expectedServerInstanceId);
         }
     }
 }

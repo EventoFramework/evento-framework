@@ -623,6 +623,7 @@ public class EventoBundle {
             var bundleClient = BundleClient.builder(bundleId, instanceId)
                     .host(clusterAddress.serverAddress())
                     .port(clusterAddress.serverPort())
+                    .expectedServerInstanceId(eventoServerMessageBusConfiguration.getExpectedServerInstanceId())
                     .bundleVersion(String.valueOf(bundleVersion))
                     .description(description.isEmpty() ? bundleId : description)
                     .detail(detail)
