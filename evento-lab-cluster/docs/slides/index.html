@@ -1,0 +1,1637 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evento multi-regione</title>
+<meta name="description" content="Evento su più regioni: verdetto di readiness, laboratorio di chaos testing a 3 celle, risultati prima/dopo le correzioni.">
+<style>
+/* ---------- design tokens ---------- */
+:root {
+  color-scheme: light;
+  --bg: #e9e8e3; --paper: #fbfaf7; --surface: #ffffff; --sunk: #f2f1ec;
+  --ink: #1b1b19; --ink-2: #4f4e4a; --muted: #7d7c76;
+  --line: #dedcd4; --line-strong: #b4b2a9;
+  --acc: #2a78d6; --acc-bg: #e7f0fb;          /* :after, series 1 */
+  --before: #eb6834; --before-bg: #fdede5;    /* :before, series 2 */
+  --good: #1f7a3a; --good-bg: #e4f2e7;
+  --bad: #c73a39; --bad-bg: #fbe8e7;
+  --warn: #9a6200; --warn-bg: #fbf0da; --warn-mark: #eda100;
+  --eu: #4a3aa7; --eu-bg: #eeecf9;
+  --am: #12795a; --am-bg: #e2f3ec;
+  --apac: #b0407a; --apac-bg: #fae8f1;
+  --code-bg: #f1f0ea;
+  --grid: #e7e5de;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d0d0c; --paper: #1a1a19; --surface: #242422; --sunk: #20201e;
+    --sunk: #20201e;
+    --ink: #f3f2ee; --ink-2: #c3c2b7; --muted: #8f8e87;
+    --line: #353430; --line-strong: #5c5b54;
+    --acc: #3987e5; --acc-bg: #172739;
+    --before: #d95926; --before-bg: #3a2216;
+    --good: #52b56e; --good-bg: #173321;
+    --bad: #e66767; --bad-bg: #3b1d1d;
+    --warn: #e0ab35; --warn-bg: #392d12; --warn-mark: #c98500;
+    --eu: #9085e9; --eu-bg: #25213f;
+    --am: #3cc193; --am-bg: #14302a;
+    --apac: #e07aa8; --apac-bg: #3a1d2c;
+    --code-bg: #20201e;
+    --grid: #2e2d2a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0c; --paper: #1a1a19; --surface: #242422; --sunk: #20201e;
+  --ink: #f3f2ee; --ink-2: #c3c2b7; --muted: #8f8e87;
+  --line: #353430; --line-strong: #5c5b54;
+  --acc: #3987e5; --acc-bg: #172739;
+  --before: #d95926; --before-bg: #3a2216;
+  --good: #52b56e; --good-bg: #173321;
+  --bad: #e66767; --bad-bg: #3b1d1d;
+  --warn: #e0ab35; --warn-bg: #392d12; --warn-mark: #c98500;
+  --eu: #9085e9; --eu-bg: #25213f;
+  --am: #3cc193; --am-bg: #14302a;
+  --apac: #e07aa8; --apac-bg: #3a1d2c;
+  --code-bg: #20201e;
+  --grid: #2e2d2a;
+}
+
+/* ---------- base ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: 20px; line-height: 1.4; overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+code, pre, .mono { font-family: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, "SF Mono", Menlo, monospace; }
+code { font-size: .86em; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 .28em; }
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; font-size: 15px; line-height: 1.5; white-space: pre; overflow: hidden; }
+pre .c { color: var(--muted); }
+pre .k { color: var(--acc); }
+b, strong { font-weight: 650; }
+
+/* ---------- stage & slides (1280x720 canvas, scaled) ---------- */
+#stage { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: 50% 50%; }
+.slide {
+  position: absolute; inset: 0; width: 1280px; height: 720px; overflow: hidden;
+  background: var(--paper); border-radius: 6px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.18);
+  padding: 44px 60px 58px; display: none; flex-direction: column;
+}
+.slide.active { display: flex; }
+.kicker { font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--acc); font-weight: 650; margin: 0 0 6px; }
+h1 { font-size: 58px; line-height: 1.08; margin: 0 0 18px; letter-spacing: -.02em; font-weight: 700; }
+h2 { font-size: 34px; line-height: 1.15; margin: 0 0 20px; letter-spacing: -.01em; font-weight: 680; }
+h3 { font-size: 20px; margin: 0 0 8px; font-weight: 650; }
+p { margin: 0 0 12px; }
+.lead { font-size: 22px; color: var(--ink-2); max-width: 1000px; }
+.small { font-size: 16px; }
+.xs { font-size: 14px; }
+.muted { color: var(--muted); }
+.ink2 { color: var(--ink-2); }
+ul { margin: 0; padding-left: 1.1em; }
+li { margin: 0 0 8px; }
+li::marker { color: var(--muted); }
+.foot {
+  position: absolute; left: 60px; right: 60px; bottom: 18px; display: flex; justify-content: space-between;
+  font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px;
+}
+.body { flex: 1; min-height: 0; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+.cols-64 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 30px; }
+.cols-46 { display: grid; grid-template-columns: 1fr 1.45fr; gap: 30px; }
+.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.card h3 { font-size: 18px; }
+.card p, .card li { font-size: 16px; color: var(--ink-2); }
+.tag { display: inline-block; font-size: 12.5px; font-weight: 650; letter-spacing: .03em; padding: 2px 8px; border-radius: 999px; vertical-align: 2px; white-space: nowrap; }
+.t-fixed { background: var(--good-bg); color: var(--good); }
+.t-open { background: var(--bad-bg); color: var(--bad); }
+.t-part { background: var(--warn-bg); color: var(--warn); }
+.t-same { background: var(--sunk); color: var(--ink-2); border: 1px solid var(--line); }
+.t-worse { background: var(--bad-bg); color: var(--bad); }
+.before { color: var(--before); font-weight: 650; }
+.after { color: var(--acc); font-weight: 650; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.legend { display: flex; gap: 18px; font-size: 15px; color: var(--ink-2); align-items: center; }
+
+table.t { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+table.t th { text-align: left; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 650; border-bottom: 1.5px solid var(--line-strong); padding: 6px 10px 6px 0; }
+table.t td { border-bottom: 1px solid var(--line); padding: 6px 10px 6px 0; vertical-align: top; color: var(--ink-2); }
+table.t td:first-child { color: var(--ink); }
+table.t.tight td { padding-top: 4px; padding-bottom: 4px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.kpi .lbl { font-size: 14px; color: var(--muted); margin-bottom: 2px; }
+.kpi .val { font-size: 30px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.kpi .val .from { font-size: 20px; color: var(--before); font-weight: 650; }
+.kpi .val .arrow { font-size: 18px; color: var(--muted); margin: 0 6px; }
+.kpi .val .to { color: var(--acc); }
+.kpi .sub { font-size: 13px; color: var(--muted); }
+
+.callout { border-left: 4px solid var(--acc); background: var(--acc-bg); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 17px; }
+.callout.warn { border-color: var(--warn-mark); background: var(--warn-bg); }
+.callout.bad { border-color: var(--bad); background: var(--bad-bg); }
+.callout.good { border-color: var(--good); background: var(--good-bg); }
+
+/* ---------- title slide ---------- */
+.title-slide { justify-content: center; }
+.title-slide .facts { display: flex; gap: 34px; margin-top: 34px; }
+.title-slide .facts div { font-size: 16px; color: var(--muted); }
+.title-slide .facts b { display: block; font-size: 38px; color: var(--ink); font-weight: 700; line-height: 1.1; }
+
+/* ---------- svg diagram vocabulary ---------- */
+svg { display: block; overflow: visible; }
+svg text { fill: var(--ink); font-family: inherit; }
+svg .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, Menlo, monospace; }
+svg .s { fill: var(--ink-2); }
+svg .m { fill: var(--muted); }
+svg .b { font-weight: 650; }
+svg .node { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.3; }
+svg .node-sunk { fill: var(--sunk); stroke: var(--line); stroke-width: 1; }
+svg .node-acc { fill: var(--acc-bg); stroke: var(--acc); stroke-width: 1.4; }
+svg .node-good { fill: var(--good-bg); stroke: var(--good); stroke-width: 1.4; }
+svg .node-bad { fill: var(--bad-bg); stroke: var(--bad); stroke-width: 1.4; }
+svg .node-warn { fill: var(--warn-bg); stroke: var(--warn-mark); stroke-width: 1.4; }
+svg .cell-eu { fill: var(--eu-bg); stroke: var(--eu); stroke-width: 1.4; }
+svg .cell-am { fill: var(--am-bg); stroke: var(--am); stroke-width: 1.4; }
+svg .cell-apac { fill: var(--apac-bg); stroke: var(--apac); stroke-width: 1.4; }
+svg .t-eu { fill: var(--eu); } svg .t-am { fill: var(--am); } svg .t-apac { fill: var(--apac); }
+svg .t-acc { fill: var(--acc); } svg .t-bad { fill: var(--bad); } svg .t-good { fill: var(--good); } svg .t-warn { fill: var(--warn); } svg .t-before { fill: var(--before); }
+svg .edge { stroke: var(--ink-2); stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+svg .edge-acc { stroke: var(--acc); stroke-width: 1.8; fill: none; marker-end: url(#ah-acc); }
+svg .edge-bad { stroke: var(--bad); stroke-width: 1.8; fill: none; marker-end: url(#ah-bad); }
+svg .edge-good { stroke: var(--good); stroke-width: 1.8; fill: none; marker-end: url(#ah-good); }
+svg .edge-no { marker-end: none; }
+svg .dash { stroke-dasharray: 5 4; }
+svg .life { stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 3 4; }
+svg .xmark { stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
+svg .band { fill: var(--before-bg); opacity: .8; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .axis { stroke: var(--line-strong); stroke-width: 1; }
+svg .bar-before { fill: var(--before); }
+svg .bar-after { fill: var(--acc); }
+svg .st-good { fill: var(--good); } svg .st-warn { fill: var(--warn-mark); } svg .st-bad { fill: var(--bad); } svg .st-none { fill: var(--line-strong); }
+svg .hatch { fill: url(#hatch); }
+svg .chip { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; }
+svg .hit { fill: transparent; }
+svg g.t-bad > text { fill: var(--bad); } svg g.t-good > text { fill: var(--good); }
+svg .hit:hover + .bar-before, svg .hit:hover + .bar-after { opacity: .8; }
+
+/* ---------- controls ---------- */
+.controls {
+  position: fixed; right: 14px; bottom: 12px; display: flex; gap: 6px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.12); font-size: 14px; z-index: 10;
+}
+.controls { transition: opacity .3s; }
+.controls.idle { opacity: 0; pointer-events: none; }
+.controls button {
+  border: 0; background: transparent; color: var(--ink); font: inherit; cursor: pointer;
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+}
+.controls button:hover { background: var(--sunk); }
+.controls button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+.controls .count { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+#progress { position: fixed; left: 0; top: 0; height: 3px; background: var(--acc); width: 0; z-index: 10; transition: width .2s; }
+
+/* ---------- print: one slide per page ---------- */
+@page { size: 1280px 720px; margin: 0; }
+@media print {
+  :root, :root[data-theme="dark"] {
+    color-scheme: light;
+    --bg: #ffffff; --paper: #ffffff; --surface: #ffffff; --sunk: #f2f1ec;
+    --ink: #1b1b19; --ink-2: #4f4e4a; --muted: #7d7c76;
+    --line: #dedcd4; --line-strong: #b4b2a9;
+    --acc: #2a78d6; --acc-bg: #e7f0fb; --before: #eb6834; --before-bg: #fdede5;
+    --good: #1f7a3a; --good-bg: #e4f2e7; --bad: #c73a39; --bad-bg: #fbe8e7;
+    --warn: #9a6200; --warn-bg: #fbf0da; --warn-mark: #eda100;
+    --eu: #4a3aa7; --eu-bg: #eeecf9; --am: #12795a; --am-bg: #e2f3ec; --apac: #b0407a; --apac-bg: #fae8f1;
+    --code-bg: #f1f0ea; --grid: #e7e5de;
+  }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { height: auto; overflow: visible; background: #fff; }
+  .controls, #progress { display: none !important; }
+  #stage { position: static; transform: none !important; width: 1280px; height: auto; }
+  .slide { position: relative; display: flex !important; box-shadow: none; border-radius: 0; break-after: page; page-break-after: always; }
+  .slide:last-child { break-after: auto; page-break-after: auto; }
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<!-- shared SVG defs (markers, patterns): kept rendered at size 0 so every browser resolves them -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink-2)"/></marker>
+    <marker id="ah-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--acc)"/></marker>
+    <marker id="ah-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--bad)"/></marker>
+    <marker id="ah-good" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--good)"/></marker>
+    <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" style="fill:var(--before-bg)"/><line x1="0" y1="0" x2="0" y2="8" style="stroke:var(--before);stroke-width:3"/>
+    </pattern>
+  </defs>
+</svg>
+
+<main id="stage" aria-live="polite">
+
+<!-- ================= 1. TITLE ================= -->
+<section class="slide title-slide" data-title="Titolo">
+  <p class="kicker">Tesi magistrale · Evento Framework</p>
+  <h1>Evento su più regioni:<br>celle, non mesh</h1>
+  <p class="lead">Un laboratorio di chaos testing con 7 regioni, 3 celle e 3 evento-server attivi.
+    Gli stessi 18 scenari sono stati eseguiti su due immagini: <span class="before">prima</span> (evento 2.4.6) e
+    <span class="after">dopo</span> le correzioni per il cluster.</p>
+  <div class="facts">
+    <div><b>7 → 3</b>regioni → celle</div>
+    <div><b>36</b>container, 21 JVM bundle</div>
+    <div><b>18</b>scenari S00–S17</div>
+    <div><b>2</b>immagini: <span class="before">:before</span> / <span class="after">:after</span></div>
+  </div>
+  <p class="small muted" style="margin-top:40px">Ramo <code>feat/evento-lab-cluster</code> · immagine <code>:before</code> = <code>FRAMEWORK_REF=e7b823fe</code> · esecuzioni del 29/09/2026</p>
+</section>
+
+<!-- ================= 2. PROBLEM & GOAL ================= -->
+<section class="slide" data-title="Problema e obiettivo">
+  <p class="kicker">Contesto</p>
+  <h2>Il problema e l'obiettivo</h2>
+  <div class="body cols">
+    <div>
+      <h3>Il problema</h3>
+      <ul class="ink2">
+        <li>Un'azienda di e-commerce opera in <b>7 regioni</b> su 3 continenti. Ogni regione deve essere servita localmente, anche quando un'altra regione è guasta.</li>
+        <li>Evento nasce con <b>un solo broker</b>: il routing vive nella memoria del server e i bundle si connettono a un solo indirizzo.</li>
+        <li>Alcuni eventi valgono per tutte le regioni (listino prezzi, catalogo). Devono arrivare ovunque <b>una volta sola</b>.</li>
+        <li>La domanda è se tre server attivi, che condividono lo stesso event store Postgres, restano corretti con latenza WAN, guasti e partizioni.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>L'obiettivo</h3>
+      <ol class="ink2" style="padding-left:1.2em;margin:0">
+        <li style="margin-bottom:10px"><b>Valutare</b> la readiness leggendo il codice. Il risultato sono 25 gap (G1–G25), ciascuno con evidenza e gravità.</li>
+        <li style="margin-bottom:10px"><b>Costruire</b> un laboratorio realistico su Docker: celle, repliche, WAN simulata, load balancer geografico.</li>
+        <li style="margin-bottom:10px"><b>Correggere</b> i gap che si possono chiudere in modo sicuro, ognuno con test su TCP e Postgres reali.</li>
+        <li><b>Misurare</b> gli stessi 18 scenari prima e dopo le correzioni, con invarianti I1–I8 verificate automaticamente.</li>
+      </ol>
+      <div class="callout" style="margin-top:18px">Il risultato non è un "sì" o un "no". È una mappa di cosa regge, cosa è stato corretto e cosa resta aperto, con numeri misurati.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Evento · laboratorio multi-regione</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 3. EVENTO RECAP ================= -->
+<section class="slide" data-title="Evento in breve">
+  <p class="kicker">Richiamo</p>
+  <h2>Evento in breve: broker, bundle, event store, contesti</h2>
+  <div class="body cols-64">
+    <svg viewBox="0 0 700 470" width="700" height="470" role="img" aria-label="Architettura di Evento: bundle collegati al server, che scrive nell'event store Postgres">
+      <!-- bundles -->
+      <rect class="node" x="10" y="10" width="210" height="74" rx="10"/>
+      <text x="115" y="38" text-anchor="middle" class="b" font-size="16">bundle order-command</text>
+      <text x="115" y="60" text-anchor="middle" class="s" font-size="13">@Aggregate · @Service</text>
+      <rect class="node" x="245" y="10" width="210" height="74" rx="10"/>
+      <text x="350" y="38" text-anchor="middle" class="b" font-size="16">bundle order-query</text>
+      <text x="350" y="60" text-anchor="middle" class="s" font-size="13">@Projector · @Projection</text>
+      <rect class="node" x="480" y="10" width="210" height="74" rx="10"/>
+      <text x="585" y="38" text-anchor="middle" class="b" font-size="16">bundle order-saga</text>
+      <text x="585" y="60" text-anchor="middle" class="s" font-size="13">@Saga · @Observer</text>
+      <!-- links -->
+      <path class="edge" d="M115,84 L230,168"/>
+      <path class="edge" d="M350,84 L350,168"/>
+      <path class="edge" d="M585,84 L470,168"/>
+      <text x="152" y="138" class="s" font-size="12.5" text-anchor="end">comandi / eventi</text>
+      <text x="358" y="130" class="s" font-size="12.5">EventFetchRequest(context)</text>
+      <text x="548" y="138" class="s" font-size="12.5">eventi della saga</text>
+      <!-- server -->
+      <rect class="node-acc" x="150" y="170" width="400" height="92" rx="12"/>
+      <text x="350" y="200" text-anchor="middle" class="b" font-size="18">evento-server (broker)</text>
+      <text x="350" y="224" text-anchor="middle" class="s" font-size="13.5">instrada per payloadType · corpo opaco (byte[])</text>
+      <text x="350" y="245" text-anchor="middle" class="s" font-size="13.5">frame CBOR su TCP · registro dei bundle in memoria</text>
+      <path class="edge" d="M350,262 L350,318"/>
+      <text x="358" y="296" class="s" font-size="12.5">append · fetch per contesto · catalogo</text>
+      <!-- postgres -->
+      <rect class="node" x="80" y="320" width="540" height="140" rx="12"/>
+      <text x="350" y="346" text-anchor="middle" class="b" font-size="17">Postgres</text>
+      <rect class="node-sunk" x="100" y="360" width="250" height="84" rx="8"/>
+      <text x="225" y="385" text-anchor="middle" class="b mono" font-size="14">es__events</text>
+      <text x="225" y="406" text-anchor="middle" class="s" font-size="12.5">ogni evento ha un contesto</text>
+      <text x="225" y="425" text-anchor="middle" class="s" font-size="12.5">CPES: ordine globale (es-lock)</text>
+      <rect class="node-sunk" x="360" y="360" width="240" height="84" rx="8"/>
+      <text x="480" y="385" text-anchor="middle" class="b mono" font-size="14">core__*</text>
+      <text x="480" y="406" text-anchor="middle" class="s" font-size="12.5">catalogo: bundle, handler,</text>
+      <text x="480" y="425" text-anchor="middle" class="s" font-size="12.5">consumer, presenza</text>
+    </svg>
+    <div class="small">
+      <p><b>Bundle.</b> Una JVM con componenti RECQ (aggregate, service, projector, saga, observer). Si registra al server via TCP e dichiara i propri handler.</p>
+      <p><b>Server.</b> Instrada ogni richiesta verso un handler connesso. Non interpreta il payload: guarda solo il tipo.</p>
+      <p><b>Event store.</b> In modalità CPES l'append prende un lock advisory globale (<code>es-lock</code>), quindi la sequenza coincide con l'ordine di commit.</p>
+      <p><b>Contesto.</b> Un'etichetta su ogni evento. Un consumer (projector, saga, observer) legge solo i contesti che gli sono assegnati: è lo strumento con cui qui si separano le regioni.</p>
+      <p class="muted xs">Il protocollo usa record <code>Message</code> sealed, frame con prefisso di lunghezza da 4 byte e chunking trasparente.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Evento · laboratorio multi-regione</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 4. WHY HARD ================= -->
+<section class="slide" data-title="Perché è difficile">
+  <p class="kicker">Il problema tecnico</p>
+  <h2>Perché il multi-regione è difficile</h2>
+  <div class="body" style="display:grid;grid-template-columns:330px 1fr;gap:28px">
+    <div>
+      <svg viewBox="0 0 330 300" width="330" height="300" role="img" aria-label="Triangolo dei round trip WAN tra le celle">
+        <line x1="70" y1="70" x2="260" y2="70" class="axis" style="stroke-width:2"/>
+        <line x1="70" y1="70" x2="165" y2="235" class="axis" style="stroke-width:2"/>
+        <line x1="260" y1="70" x2="165" y2="235" class="axis" style="stroke-width:2"/>
+        <circle cx="70" cy="70" r="34" class="cell-eu"/><text x="70" y="76" text-anchor="middle" class="b t-eu" font-size="17">EU</text>
+        <circle cx="260" cy="70" r="34" class="cell-am"/><text x="260" y="76" text-anchor="middle" class="b t-am" font-size="17">AM</text>
+        <circle cx="165" cy="235" r="34" class="cell-apac"/><text x="165" y="241" text-anchor="middle" class="b t-apac" font-size="16">APAC</text>
+        <text x="165" y="60" text-anchor="middle" font-size="15" class="b">80 ms</text>
+        <text x="98" y="165" text-anchor="end" font-size="15" class="b">150 ms</text>
+        <text x="232" y="165" font-size="15" class="b">170 ms</text>
+        <text x="165" y="292" text-anchor="middle" class="m" font-size="13">RTT della WAN simulata (±5 ms per verso)</text>
+      </svg>
+      <p class="xs muted" style="margin-top:6px">L'event store ha un solo primario, in EU. Ogni append da AM o APAC paga almeno un round trip WAN mentre tiene il lock globale.</p>
+    </div>
+    <div class="cols-3" style="grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card"><h3>Routing a isole</h3><p>La mappa degli handler vive nella memoria di ogni server e non esiste un collegamento tra server. Se l'handler è attaccato a un altro server la richiesta fallisce con <code>no handler for</code> (G1).</p></div>
+      <div class="card"><h3>Un lock globale sulla WAN</h3><p>In CPES ogni append prende l'<code>es-lock</code> sul primario. Nella 2.4.6 servivano circa 4 round trip con il lock tenuto (G9), quindi le celle remote saturano.</p></div>
+      <div class="card"><h3>Lock legati a sessioni</h3><p>Una sola connessione JDBC per tutti i lock advisory di un server (G3): una partizione silenziosa lascia i lock orfani e blocca gli altri server (N11, G25).</p></div>
+      <div class="card"><h3>Failover e identità</h3><p>Il bundle si collega solo al primo indirizzo (G2). Le richieste in volo scadono dopo 30 s (G4) e non si sa a quale cluster appartenga il broker (G13).</p></div>
+      <div class="card"><h3>Esattamente una volta</h3><p>Un comando il cui esito è indeterminato viene ritentato e scritto due volte: non esiste una chiave di idempotenza (G5).</p></div>
+      <div class="card"><h3>Catalogo condiviso</h3><p>Tre server scrivono le tabelle <code>core__*</code> in concorrenza. Righe perse (G8), cancellazioni stantie (G7) e <code>schema.sql</code> concorrente (G14).</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Evento · laboratorio multi-regione</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 5. READINESS VERDICT ================= -->
+<section class="slide" data-title="Verdetto di readiness">
+  <p class="kicker">Verdetto di readiness</p>
+  <h2>Tre server attivi funzionano solo come celle, non come mesh</h2>
+  <div class="body cols">
+    <div>
+      <svg viewBox="0 0 560 250" width="560" height="250" role="img" aria-label="Confronto tra mesh di server, che non esiste, e celle che condividono l'event store">
+        <!-- mesh -->
+        <text x="130" y="18" text-anchor="middle" class="b" font-size="15">Mesh instradata</text>
+        <circle cx="60" cy="80" r="28" class="node"/><text x="60" y="85" text-anchor="middle" font-size="13">srv EU</text>
+        <circle cx="200" cy="80" r="28" class="node"/><text x="200" y="85" text-anchor="middle" font-size="13">srv AM</text>
+        <circle cx="130" cy="185" r="28" class="node"/><text x="130" y="190" text-anchor="middle" font-size="12">srv APAC</text>
+        <line x1="88" y1="80" x2="172" y2="80" style="stroke:var(--bad);stroke-width:1.8" class="dash"/>
+        <line x1="75" y1="104" x2="116" y2="160" style="stroke:var(--bad);stroke-width:1.8" class="dash"/>
+        <line x1="185" y1="104" x2="144" y2="160" style="stroke:var(--bad);stroke-width:1.8" class="dash"/>
+        <line x1="120" y1="62" x2="140" y2="98" class="xmark"/><line x1="140" y1="62" x2="120" y2="98" class="xmark"/>
+        <text x="130" y="238" text-anchor="middle" class="t-bad b" font-size="13.5">nessun link tra server (G1)</text>
+        <!-- cells -->
+        <text x="420" y="18" text-anchor="middle" class="b" font-size="15">Celle (quello che funziona)</text>
+        <rect x="300" y="40" width="72" height="80" rx="8" class="cell-eu"/><text x="336" y="62" text-anchor="middle" class="b t-eu" font-size="13">EU</text><text x="336" y="82" text-anchor="middle" class="s" font-size="11">server +</text><text x="336" y="97" text-anchor="middle" class="s" font-size="11">tutti gli</text><text x="336" y="112" text-anchor="middle" class="s" font-size="11">handler</text>
+        <rect x="384" y="40" width="72" height="80" rx="8" class="cell-am"/><text x="420" y="62" text-anchor="middle" class="b t-am" font-size="13">AM</text><text x="420" y="82" text-anchor="middle" class="s" font-size="11">server +</text><text x="420" y="97" text-anchor="middle" class="s" font-size="11">tutti gli</text><text x="420" y="112" text-anchor="middle" class="s" font-size="11">handler</text>
+        <rect x="468" y="40" width="72" height="80" rx="8" class="cell-apac"/><text x="504" y="62" text-anchor="middle" class="b t-apac" font-size="13">APAC</text><text x="504" y="82" text-anchor="middle" class="s" font-size="11">server +</text><text x="504" y="97" text-anchor="middle" class="s" font-size="11">tutti gli</text><text x="504" y="112" text-anchor="middle" class="s" font-size="11">handler</text>
+        <path class="edge-good" d="M336,120 L400,168"/><path class="edge-good" d="M420,120 L420,168"/><path class="edge-good" d="M504,120 L440,168"/>
+        <rect x="320" y="170" width="200" height="46" rx="8" class="node-good"/>
+        <text x="420" y="191" text-anchor="middle" class="b" font-size="13.5">event store Postgres condiviso</text>
+        <text x="420" y="208" text-anchor="middle" class="s" font-size="11.5">lock advisory · ordine CPES · catalogo</text>
+        <text x="420" y="238" text-anchor="middle" class="t-good b" font-size="13.5">ogni richiesta si risolve nella propria cella</text>
+      </svg>
+      <p class="small ink2" style="margin-top:10px">La consistenza tra celle viene tutta da Postgres: lock per aggregate, ordine globale CPES e fetch degli eventi da qualunque server.</p>
+    </div>
+    <div>
+      <table class="t tight">
+        <tr><th>Topologia (2.4.6)</th><th style="width:230px">Funziona?</th></tr>
+        <tr><td>Celle con set completo di handler; consumer ovunque</td><td><span class="tag t-fixed">sì</span></td></tr>
+        <tr><td>Handler solo in una cella, chiamati da altre</td><td><span class="tag t-open">no</span> G1</td></tr>
+        <tr><td>Bundle con 3 indirizzi per il failover</td><td><span class="tag t-open">no</span> G2 <span class="xs muted">→ corretto</span></td></tr>
+        <tr><td>Bundle dietro un VIP L4 con backup</td><td><span class="tag t-part">in parte</span> G4</td></tr>
+        <tr><td>Consumer puri su qualunque server</td><td><span class="tag t-fixed">sì</span></td></tr>
+        <tr><td>Modalità APES con 3 server</td><td><span class="tag t-open">non sicura</span> usare CPES</td></tr>
+        <tr><td>Avvio a freddo simultaneo dei 3 server</td><td><span class="tag t-part">instabile</span> G14 <span class="xs muted">→ corretto</span></td></tr>
+        <tr><td>Tre server con identità di default</td><td><span class="tag t-part">ingannevole</span> G13 <span class="xs muted">→ corretto</span></td></tr>
+      </table>
+      <div class="callout" style="margin-top:14px">L'obiettivo realistico sono <b>3 celle attive</b>: il laboratorio le costruisce e mostra dove si rompono.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: .claude/CLUSTER-READINESS.md §1</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 6. LAB TOPOLOGY ================= -->
+<section class="slide" data-title="Topologia del laboratorio">
+  <p class="kicker">Il laboratorio</p>
+  <h2 style="margin-bottom:10px">Topologia: 7 regioni in 3 celle, una WAN simulata</h2>
+  <div class="body">
+    <svg viewBox="0 0 1170 548" width="1160" height="543" role="img" aria-label="Topologia del laboratorio: load balancer, tre celle con server, bundle e database, toxiproxy per la WAN">
+      <!-- LB -->
+      <rect class="node-acc" x="300" y="0" width="570" height="46" rx="9"/>
+      <text x="585" y="20" text-anchor="middle" class="b" font-size="15">lb (nginx) · HTTP :8080 · X-Region → gateway-&lt;regione&gt;</text>
+      <text x="585" y="38" text-anchor="middle" class="s" font-size="12.5">VIP stream bus-eu | bus-am | bus-apac :3030 (primario = server della cella)</text>
+      <path class="edge" d="M420,46 L180,70"/><path class="edge" d="M585,46 L585,70"/><path class="edge" d="M750,46 L990,70"/>
+
+      <!-- EU cell -->
+      <rect class="cell-eu" x="0" y="72" width="360" height="345" rx="12"/>
+      <text x="16" y="96" class="b t-eu" font-size="16">Cella EU</text><text x="100" y="96" class="s" font-size="13">EUROPA, AFRICA</text>
+      <rect class="chip" x="16" y="106" width="104" height="22" rx="11"/><text x="68" y="121" text-anchor="middle" font-size="11.5" class="mono">gw-europa</text>
+      <rect class="chip" x="126" y="106" width="96" height="22" rx="11"/><text x="174" y="121" text-anchor="middle" font-size="11.5" class="mono">gw-africa</text>
+      <g class="mono" font-size="11.5">
+        <text x="18" y="150">▪ order-command-eu</text>
+        <text x="18" y="168">▪ order-query-eu <tspan class="s">(EUROPA,AFRICA)</tspan></text>
+        <text x="18" y="186">▪ order-query-global-eu <tspan class="t-acc">(ALL)</tspan></text>
+        <text x="18" y="204">▪ order-query-wildcard <tspan class="s">(*)</tspan></text>
+        <text x="18" y="222">▪ order-saga-eu <tspan class="s">(EUROPA,AFRICA)</tspan></text>
+        <text x="18" y="240">▪ order-observer <tspan class="s">(*)</tspan></text>
+      </g>
+      <rect class="node" x="16" y="256" width="328" height="42" rx="8"/>
+      <text x="180" y="274" text-anchor="middle" class="b" font-size="14">evento-eu :3030</text>
+      <text x="180" y="291" text-anchor="middle" class="s" font-size="11.5">LOCALITY_PREFERRED · zone EU</text>
+      <rect class="node" x="16" y="310" width="178" height="36" rx="8"/><text x="105" y="333" text-anchor="middle" font-size="12.5" class="mono">app-pg-eu (P)</text>
+      <rect class="node-sunk" x="224" y="310" width="120" height="36" rx="8"/><text x="284" y="333" text-anchor="middle" font-size="12.5" class="mono">app-pg-eu-r</text>
+      <path class="edge" d="M194,328 L222,328"/>
+      <rect class="node-acc" x="16" y="358" width="328" height="44" rx="8"/>
+      <text x="180" y="377" text-anchor="middle" class="b mono" font-size="13">es-pg-eu · PRIMARIO</text>
+      <text x="180" y="394" text-anchor="middle" class="s" font-size="11.5">db evento + consumers (stato della lane ALL)</text>
+
+      <!-- AM cell -->
+      <rect class="cell-am" x="405" y="72" width="360" height="345" rx="12"/>
+      <text x="421" y="96" class="b t-am" font-size="16">Cella AM</text><text x="503" y="96" class="s" font-size="13">AMERICA, SUD_AMERICA</text>
+      <rect class="chip" x="421" y="106" width="110" height="22" rx="11"/><text x="476" y="121" text-anchor="middle" font-size="11.5" class="mono">gw-america</text>
+      <rect class="chip" x="537" y="106" width="138" height="22" rx="11"/><text x="606" y="121" text-anchor="middle" font-size="11.5" class="mono">gw-sud-america</text>
+      <g class="mono" font-size="11.5">
+        <text x="423" y="150">▪ order-command-am</text>
+        <text x="423" y="168">▪ order-query-am <tspan class="s">(AMERICA,SUD_AMERICA)</tspan></text>
+        <text x="423" y="186">▪ order-saga-am <tspan class="s">(AMERICA,SUD_AMERICA)</tspan></text>
+      </g>
+      <rect class="node" x="421" y="256" width="328" height="42" rx="8"/>
+      <text x="585" y="274" text-anchor="middle" class="b" font-size="14">evento-am :3030</text>
+      <text x="585" y="291" text-anchor="middle" class="s" font-size="11.5">LOCALITY_PREFERRED · zone AM</text>
+      <rect class="node" x="421" y="310" width="178" height="36" rx="8"/><text x="510" y="333" text-anchor="middle" font-size="12.5" class="mono">app-pg-am (P)</text>
+      <rect class="node-sunk" x="629" y="310" width="120" height="36" rx="8"/><text x="689" y="333" text-anchor="middle" font-size="12.5" class="mono">app-pg-am-r</text>
+      <path class="edge" d="M599,328 L627,328"/>
+      <rect class="node" x="421" y="358" width="328" height="44" rx="8"/>
+      <text x="585" y="377" text-anchor="middle" class="b mono" font-size="13">es-pg-am · standby SYNC</text>
+      <text x="585" y="394" text-anchor="middle" class="s" font-size="11.5">promosso in S08</text>
+
+      <!-- APAC cell -->
+      <rect class="cell-apac" x="810" y="72" width="360" height="345" rx="12"/>
+      <text x="826" y="96" class="b t-apac" font-size="16">Cella APAC</text><text x="924" y="96" class="s" font-size="13">CINA, INDIA, AUSTRALIA_NZ</text>
+      <rect class="chip" x="826" y="106" width="84" height="22" rx="11"/><text x="868" y="121" text-anchor="middle" font-size="11.5" class="mono">gw-cina</text>
+      <rect class="chip" x="916" y="106" width="90" height="22" rx="11"/><text x="961" y="121" text-anchor="middle" font-size="11.5" class="mono">gw-india</text>
+      <rect class="chip" x="1012" y="106" width="144" height="22" rx="11"/><text x="1084" y="121" text-anchor="middle" font-size="11.5" class="mono">gw-australia-nz</text>
+      <g class="mono" font-size="11.5">
+        <text x="828" y="150">▪ order-command-apac</text>
+        <text x="828" y="168">▪ order-query-cina <tspan class="s">(CINA)</tspan></text>
+        <text x="828" y="186">▪ order-query-apac <tspan class="s">(INDIA,AUSTRALIA_NZ)</tspan></text>
+        <text x="828" y="204">▪ order-query-global-apac <tspan class="t-acc">(ALL)</tspan></text>
+        <text x="828" y="222">▪ order-saga-apac <tspan class="s">(3 regioni)</tspan></text>
+      </g>
+      <rect class="node" x="826" y="256" width="328" height="42" rx="8"/>
+      <text x="990" y="274" text-anchor="middle" class="b" font-size="14">evento-apac :3030</text>
+      <text x="990" y="291" text-anchor="middle" class="s" font-size="11.5">LOCALITY_PREFERRED · zone APAC</text>
+      <rect class="node" x="826" y="310" width="178" height="36" rx="8"/><text x="915" y="333" text-anchor="middle" font-size="12.5" class="mono">app-pg-apac (P)</text>
+      <rect class="node-sunk" x="1034" y="310" width="120" height="36" rx="8"/><text x="1094" y="333" text-anchor="middle" font-size="12.5" class="mono">app-pg-apac-r</text>
+      <path class="edge" d="M1004,328 L1032,328"/>
+      <rect class="node" x="826" y="358" width="328" height="44" rx="8"/>
+      <text x="990" y="377" text-anchor="middle" class="b mono" font-size="13">es-pg-apac · standby ASYNC</text>
+      <text x="990" y="394" text-anchor="middle" class="s" font-size="11.5">replica attraverso la WAN</text>
+
+      <!-- ES replication -->
+      <path class="edge-acc" d="M344,380 L419,380"/>
+      <text x="382" y="372" text-anchor="middle" class="t-acc b" font-size="12">sync</text>
+      <path class="edge-acc dash" d="M180,402 L180,432 L990,432 L990,404"/>
+      <text x="585" y="446" text-anchor="middle" class="t-acc" font-size="12">streaming async es-pg-eu → es-pg-apac</text>
+
+      <!-- toxiproxy -->
+      <rect class="node-warn" x="0" y="458" width="1170" height="56" rx="10"/>
+      <text x="585" y="481" text-anchor="middle" class="b" font-size="15">toxiproxy: 18 proxy WAN · EU↔AM 80 ms · EU↔APAC 150 ms · AM↔APAC 170 ms (RTT)</text>
+      <text x="585" y="502" text-anchor="middle" class="s" font-size="12.5">server → ES remoto, repliche ES, JVM → server remoti (failover), fan-out globale, letture della vista globale</text>
+      <text x="585" y="536" text-anchor="middle" class="m" font-size="13">36 servizi · 21 JVM bundle · circa 8,9 GiB · ogni container è solo sulla rete della propria cella: fuori dalla cella passa per toxiproxy</text>
+    </svg>
+  </div>
+  <div class="foot"><span>Fonte: evento-lab-cluster/README.md, docker/compose.yaml · gw = gateway</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 7. BUNDLES & CONFIG ================= -->
+<section class="slide" data-title="Bundle per responsabilità">
+  <p class="kicker">Il laboratorio</p>
+  <h2>Un bundle per responsabilità, la stessa immagine con configurazioni diverse</h2>
+  <div class="body cols-46">
+    <div>
+      <table class="t">
+        <tr><th>Bundle</th><th>Componenti</th><th>Deploy</th></tr>
+        <tr><td class="mono small">order-command</td><td>OrderAggregate, PaymentService, PriceListService</td><td class="num">3 (uno per cella)</td></tr>
+        <tr><td class="mono small">order-query</td><td><b>un</b> OrderProjector, <b>un</b> CatalogProjector, OrderProjection</td><td class="num">7</td></tr>
+        <tr><td class="mono small">order-saga</td><td><b>una</b> PaymentSaga</td><td class="num">3</td></tr>
+        <tr><td class="mono small">order-observer</td><td><b>un</b> NotificationObserver</td><td class="num">1 (<code>*</code>)</td></tr>
+        <tr><td class="mono small">order-gateway</td><td>nessuno: API HTTP, invia comandi e query</td><td class="num">7 (uno per regione)</td></tr>
+      </table>
+      <p class="small ink2" style="margin-top:14px">Nessuna classe per regione e nessuna topologia compilata nel codice. Un deploy è un servizio compose che esegue un'immagine con il proprio ambiente.</p>
+      <p class="xs muted">Totale 21 JVM. <code>lab-api</code> contiene i tipi (comandi, eventi, <code>Contexts.GLOBAL</code>); <code>lab-support</code> contiene il contratto di deploy, gli store JDBC e <code>/whoami</code>.</p>
+    </div>
+    <div>
+      <h3 class="small" style="margin-bottom:6px">Immagine <code>order-query</code>, quattro deploy diversi</h3>
+<pre><span class="c"># order-query-eu: due regioni, due engine, una JVM</span>
+EVENTO_CONTEXTS=<span class="k">EUROPA,AFRICA</span>   EVENTO_ZONE=EU
+EVENTO_SERVER_ADDRESSES=evento-eu:3030,<span class="c">&lt;am e apac via toxiproxy&gt;</span>
+
+<span class="c"># order-query-cina</span>
+EVENTO_CONTEXTS=<span class="k">CINA</span>            EVENTO_ZONE=APAC
+
+<span class="c"># order-query-global-eu: la lane globale unica</span>
+EVENTO_CONTEXTS=<span class="k">ALL</span>             EVENTO_ZONE=EU
+DATA_TARGETS=eu=jdbc:…;am=jdbc:…;apac=jdbc:…
+
+<span class="c"># order-query-wildcard: vista globale di tutti gli ordini</span>
+EVENTO_CONTEXTS=<span class="k">*</span>               EVENTO_ZONE=EU
+
+<span class="c"># comuni a tutti</span>
+EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre>
+      <p class="xs muted" style="margin-top:8px"><code>ContextSelection</code> rifiuta nomi sconosciuti, liste vuote e <code>*</code> mescolato ad altro: un errore di battitura non può diventare una lane silenziosa.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: README.md §Bundles, §Deployments</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 8. CONTEXTS → ENGINES ================= -->
+<section class="slide" data-title="Contesti ed engine">
+  <p class="kicker">Contesti</p>
+  <h2>Un componente generico, un engine per contesto</h2>
+  <div class="body cols">
+    <svg viewBox="0 0 580 470" width="580" height="470" role="img" aria-label="Una classe OrderProjector, un deploy con due contesti, due engine che leggono ciascuno il proprio contesto">
+      <rect class="node" x="190" y="0" width="200" height="50" rx="9"/>
+      <text x="290" y="22" text-anchor="middle" class="b mono" font-size="14">OrderProjector</text>
+      <text x="290" y="40" text-anchor="middle" class="s" font-size="12">una sola classe</text>
+      <path class="edge" d="M290,50 L290,80"/>
+      <rect class="node-sunk" x="20" y="82" width="540" height="176" rx="12"/>
+      <text x="36" y="106" class="b" font-size="14">JVM order-query-eu</text>
+      <text x="36" y="126" class="mono s" font-size="11.5">builder.setComponentContexts(OrderProjector.class, "EUROPA", "AFRICA")</text>
+      <rect class="cell-eu" x="40" y="142" width="240" height="96" rx="10"/>
+      <text x="160" y="166" text-anchor="middle" class="b" font-size="14">engine EUROPA</text>
+      <text x="160" y="186" text-anchor="middle" class="mono s" font-size="11.5">fetch context = 'EUROPA'</text>
+      <text x="160" y="206" text-anchor="middle" class="mono" font-size="10.5">order-query_OrderProjector_1_EUROPA</text>
+      <text x="160" y="226" text-anchor="middle" class="s" font-size="11.5">→ order_view (app-pg-eu)</text>
+      <rect class="cell-eu" x="300" y="142" width="240" height="96" rx="10"/>
+      <text x="420" y="166" text-anchor="middle" class="b" font-size="14">engine AFRICA</text>
+      <text x="420" y="186" text-anchor="middle" class="mono s" font-size="11.5">fetch context = 'AFRICA'</text>
+      <text x="420" y="206" text-anchor="middle" class="mono" font-size="10.5">order-query_OrderProjector_1_AFRICA</text>
+      <text x="420" y="226" text-anchor="middle" class="s" font-size="11.5">→ order_view (app-pg-eu)</text>
+      <!-- event stream -->
+      <text x="20" y="344" class="b" font-size="13">es__events</text>
+      <g font-size="11" class="mono">
+        <rect x="100" y="328" width="66" height="24" rx="5" class="cell-eu"/><text x="133" y="344" text-anchor="middle">EUROPA</text>
+        <rect x="172" y="328" width="52" height="24" rx="5" class="node-sunk"/><text x="198" y="344" text-anchor="middle" class="m">CINA</text>
+        <rect x="230" y="328" width="62" height="24" rx="5" class="cell-eu"/><text x="261" y="344" text-anchor="middle">EUROPA</text>
+        <rect x="298" y="328" width="44" height="24" rx="5" class="node-sunk"/><text x="320" y="344" text-anchor="middle" class="m">ALL</text>
+        <rect x="348" y="328" width="66" height="24" rx="5" class="cell-eu"/><text x="381" y="344" text-anchor="middle">AFRICA</text>
+        <rect x="420" y="328" width="58" height="24" rx="5" class="node-sunk"/><text x="449" y="344" text-anchor="middle" class="m">INDIA</text>
+        <rect x="484" y="328" width="62" height="24" rx="5" class="cell-eu"/><text x="515" y="344" text-anchor="middle">AFRICA</text>
+      </g>
+      <path class="edge dash" d="M133,328 L130,240"/><path class="edge dash" d="M261,328 L200,240"/>
+      <path class="edge dash" d="M381,328 L400,240"/><path class="edge dash" d="M515,328 L470,240"/>
+      <text x="290" y="386" text-anchor="middle" class="s" font-size="12.5">Gli eventi grigi (CINA, INDIA, ALL) non vengono nemmeno letti da questa JVM:</text>
+      <text x="290" y="404" text-anchor="middle" class="s" font-size="12.5">il filtro sul contesto sta nella query SQL del fetch.</text>
+      <text x="290" y="440" text-anchor="middle" class="b" font-size="13">id consumer = &lt;bundleId&gt;_&lt;Componente&gt;_&lt;versione&gt;_&lt;contesto&gt;</text>
+    </svg>
+    <div>
+      <h3>Cosa si ottiene</h3>
+      <ul class="small ink2">
+        <li>Una lane indipendente per ogni regione, con checkpoint e lock propri. Una regione lenta non ferma le altre.</li>
+        <li>Stesso bundle id per tutti i deploy di <code>order-query</code>: le lane si distinguono per contesto, quindi i deploy regionali non competono tra loro.</li>
+        <li>Due repliche con lo stesso bundle, contesto e database di stato competono per la stessa lane: una lavora e l'altra resta in standby.</li>
+      </ul>
+      <h3 style="margin-top:14px">17 id consumer nel cluster</h3>
+      <table class="t tight small">
+        <tr><td class="mono">order-query_OrderProjector_1_&lt;R&gt;</td><td class="num">× 7</td></tr>
+        <tr><td class="mono">order-query_OrderProjector_1_*</td><td class="num">× 1</td></tr>
+        <tr><td class="mono">order-query_CatalogProjector_1_ALL</td><td class="num">× 1</td></tr>
+        <tr><td class="mono">order-saga_PaymentSaga_1_&lt;R&gt;</td><td class="num">× 7</td></tr>
+        <tr><td class="mono">order-observer_NotificationObserver_1_*</td><td class="num">× 1</td></tr>
+      </table>
+      <p class="xs muted" style="margin-top:8px">Verificati nella run di integrazione su <code>:after</code>. S17 è passato 8/8 su entrambe le immagini: nessuna riga in un contesto sbagliato e 16 checkpoint nei database giusti.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: OrderQueryBundle.plan, results/_integration/after/checks.md, results/S17</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 9. ALL != * ================= -->
+<section class="slide" data-title="ALL non è *">
+  <p class="kicker">Contesti</p>
+  <h2>La trappola: il contesto <code style="font-size:.9em">"ALL"</code> non è il wildcard <code style="font-size:.9em">"*"</code></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 330" width="1160" height="330" role="img" aria-label="Quali eventi ricevono tre consumer: regionale, wildcard e ALL">
+      <text x="10" y="18" class="b" font-size="15">Eventi</text>
+      <rect x="10" y="40" width="300" height="46" rx="8" class="node-acc"/><text x="24" y="60" class="b mono" font-size="13">PriceChangedEvent</text><text x="24" y="78" class="s mono" font-size="12">context = "ALL"</text>
+      <rect x="10" y="110" width="300" height="46" rx="8" class="cell-eu"/><text x="24" y="130" class="b mono" font-size="13">OrderCreatedEvent</text><text x="24" y="148" class="s mono" font-size="12">context = "EUROPA"</text>
+      <rect x="10" y="180" width="300" height="46" rx="8" class="cell-apac"/><text x="24" y="200" class="b mono" font-size="13">OrderCreatedEvent</text><text x="24" y="218" class="s mono" font-size="12">context = "CINA"</text>
+      <rect x="10" y="250" width="300" height="46" rx="8" class="cell-am"/><text x="24" y="270" class="b mono" font-size="13">OrderCreatedEvent</text><text x="24" y="288" class="s mono" font-size="12">context = "SUD_AMERICA"</text>
+
+      <text x="760" y="18" class="b" font-size="15">Lane</text>
+      <rect x="760" y="40" width="390" height="66" rx="8" class="node"/>
+      <text x="776" y="62" class="b mono" font-size="13">OrderProjector_1_EUROPA</text>
+      <text x="776" y="82" class="s" font-size="12.5">riceve solo EUROPA</text>
+      <text x="776" y="98" class="m mono" font-size="11.5">context LIKE 'EUROPA' (con escape)</text>
+      <rect x="760" y="130" width="390" height="66" rx="8" class="node"/>
+      <text x="776" y="152" class="b mono" font-size="13">OrderProjector_1_*  (wildcard)</text>
+      <text x="776" y="172" class="s" font-size="12.5">riceve tutto, eventi ALL compresi</text>
+      <text x="776" y="188" class="m mono" font-size="11.5">"*" → context LIKE '%'</text>
+      <rect x="760" y="220" width="390" height="76" rx="8" class="node-acc"/>
+      <text x="776" y="242" class="b mono" font-size="13">CatalogProjector_1_ALL</text>
+      <text x="776" y="262" class="s" font-size="12.5">riceve solo gli eventi globali: un contesto vero</text>
+      <text x="776" y="280" class="m mono" font-size="11.5">"ALL" → Contexts.GLOBAL, letterale</text>
+
+      <!-- EUROPA lane -->
+      <path class="edge" d="M310,133 L758,73"/>
+      <!-- wildcard lane receives all four -->
+      <path class="edge dash" d="M310,63 L758,158"/>
+      <path class="edge dash" d="M310,133 L758,163"/>
+      <path class="edge dash" d="M310,203 L758,168"/>
+      <path class="edge dash" d="M310,273 L758,173"/>
+      <!-- ALL lane -->
+      <path class="edge-acc" d="M310,63 L758,258"/>
+    </svg>
+    <div class="cols" style="margin-top:6px">
+      <div class="callout warn small"><b>Trappola.</b> In Evento <code>Context.ALL</code> è il wildcard <code>"*"</code>, che l'event store traduce in <code>LIKE '%'</code>. Ora è deprecato in favore di <code>Context.WILDCARD</code>. Un consumer configurato con <code>Context.ALL</code> riceve tutto, non "gli eventi globali".</div>
+      <div class="callout small"><b>Regola del lab.</b> Gli eventi validi per tutte le regioni portano il contesto letterale <code>Contexts.GLOBAL = "ALL"</code>. <code>EVENTO_CONTEXTS=ALL</code> vuol dire sempre quel contesto; <code>*</code> va scritto come <code>*</code>, da solo. Con G15 anche <code>_</code> e <code>%</code> nei nomi sono letterali.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: README.md §"ALL is not *", CLUSTER-READINESS.md (G15)</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 10. GLOBAL LANE ================= -->
+<section class="slide" data-title="Lane globale ALL">
+  <p class="kicker">Eventi globali</p>
+  <h2>Una sola lane ALL nel cluster, fan-out idempotente su tre database</h2>
+  <div class="body cols-64">
+    <div>
+      <svg viewBox="0 0 740 330" width="740" height="330" role="img" aria-label="Lane globale: event store, replica holder e standby, lock condiviso, fan-out ai tre database regionali">
+        <text x="10" y="16" class="s" font-size="12.5">POST /catalog/prices → SetPriceCommand</text>
+        <rect x="10" y="30" width="170" height="60" rx="9" class="node"/>
+        <text x="95" y="54" text-anchor="middle" class="b mono" font-size="13">es__events</text>
+        <text x="95" y="74" text-anchor="middle" class="s mono" font-size="11.5">PriceChanged · ALL</text>
+        <path class="edge" d="M180,60 L248,60"/>
+        <text x="214" y="52" text-anchor="middle" class="s" font-size="11">fetch</text>
+        <rect x="250" y="30" width="220" height="60" rx="9" class="node-acc"/>
+        <text x="360" y="54" text-anchor="middle" class="b mono" font-size="12.5">order-query-global-eu</text>
+        <text x="360" y="74" text-anchor="middle" class="s" font-size="11.5">HOLDER della lane</text>
+        <rect x="250" y="135" width="220" height="60" rx="9" class="node-sunk"/>
+        <text x="360" y="157" text-anchor="middle" class="b mono" font-size="12">CatalogProjector_1_ALL</text>
+        <text x="360" y="176" text-anchor="middle" class="s" font-size="11">lock + 1 checkpoint · DB consumers</text>
+        <rect x="250" y="240" width="220" height="60" rx="9" class="node" style="stroke-dasharray:5 4"/>
+        <text x="360" y="264" text-anchor="middle" class="b mono" font-size="12.5">order-query-global-apac</text>
+        <text x="360" y="284" text-anchor="middle" class="s" font-size="11.5">STANDBY (stesso bundle id)</text>
+        <line x1="360" y1="90" x2="360" y2="135" class="axis" style="stroke-width:1.6"/>
+        <line x1="360" y1="195" x2="360" y2="240" class="axis dash" style="stroke-width:1.6"/>
+        <!-- DBs -->
+        <rect x="560" y="12" width="170" height="44" rx="8" class="cell-eu"/><text x="645" y="39" text-anchor="middle" class="mono b" font-size="12.5">app-pg-eu</text>
+        <rect x="560" y="82" width="170" height="44" rx="8" class="cell-am"/><text x="645" y="109" text-anchor="middle" class="mono b" font-size="12.5">app-pg-am</text>
+        <rect x="560" y="152" width="170" height="44" rx="8" class="cell-apac"/><text x="645" y="179" text-anchor="middle" class="mono b" font-size="12.5">app-pg-apac</text>
+        <line x1="712" y1="160" x2="728" y2="190" class="xmark"/><line x1="728" y1="160" x2="712" y2="190" class="xmark"/>
+        <path class="edge-acc" d="M470,50 L558,34"/>
+        <path class="edge-acc" d="M470,60 L558,104"/>
+        <path class="edge-bad dash" d="M470,72 L558,172"/>
+        <text x="645" y="224" text-anchor="middle" class="s" font-size="11.5">UPSERT solo se seq &gt; last_seq</text>
+        <text x="645" y="242" text-anchor="middle" class="s" font-size="11.5">(rigiocare è innocuo)</text>
+        <text x="645" y="280" text-anchor="middle" class="t-bad b" font-size="12">S16: APAC giù → l'evento fallisce</text>
+        <text x="645" y="298" text-anchor="middle" class="t-bad" font-size="12">e la lane si ferma per tutti</text>
+      </svg>
+      <p class="small ink2" style="margin-top:6px">Le due repliche condividono bundle id e database di stato, quindi competono per <b>un</b> lock: resta una sola lane con un solo checkpoint. Un secondo bundle id creerebbe una seconda lane indipendente e ogni prezzo verrebbe applicato due volte (G24).</p>
+    </div>
+    <div>
+      <h3>S16, misurato</h3>
+      <table class="t tight small">
+        <tr><th></th><th class="before">prima</th><th class="after">dopo</th></tr>
+        <tr><td>Fan-out di 5 eventi su 3 DB</td><td class="num">2,1 s</td><td class="num">10,2 s</td></tr>
+        <tr><td>Scrittori della lane</td><td class="num">eu 15</td><td class="num">eu 9 / apac 6</td></tr>
+        <tr><td>Checkpoint della lane ALL</td><td class="num">1</td><td class="num">1</td></tr>
+        <tr><td>EU/AM durante il guasto APAC</td><td class="num">1 di 4</td><td class="num">1 di 4</td></tr>
+        <tr><td>Convergenza dopo il ripristino</td><td class="num">2,07 s</td><td class="num">0,07 s</td></tr>
+        <tr><td>Rigiocate assorbite, duplicati</td><td class="num">6, 0</td><td class="num">6, 0</td></tr>
+        <tr><td>Takeover dello standby</td><td class="num">7,7 s</td><td class="num">7,3 s</td></tr>
+      </table>
+      <div class="callout warn small" style="margin-top:12px"><b>Il prezzo di una sola lane:</b> con il DB APAC giù, EU e AM ricevono solo il primo dei 4 prezzi e il checkpoint resta fermo finché APAC non torna. Ogni DB riceve ogni evento esattamente una volta, ma il DB più lento detta il ritmo di tutti.</div>
+      <p class="xs muted" style="margin-top:8px">Il fan-out su <code>:after</code> è più lento perché il lock viene preso a ogni ciclo di fetch: l'holder salta tra le repliche e APAC scrive su EU e AM attraverso la WAN (N4, aperto). Nella run di integrazione il takeover è stato di 5,2 s.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: results/S16/{before,after}/summary.json</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 11. LEVELS OVERVIEW ================= -->
+<section class="slide" data-title="Livelli di complessità">
+  <p class="kicker">Livelli di complessità</p>
+  <h2>Sei livelli, da un server a un cluster geografico</h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 360" width="1160" height="360" role="img" aria-label="Scala dei livelli di complessità da L0 a L5">
+      <g font-size="14">
+        <rect x="0"   y="270" width="180" height="80"  rx="10" class="node"/>
+        <rect x="196" y="225" width="180" height="125" rx="10" class="node"/>
+        <rect x="392" y="180" width="180" height="170" rx="10" class="node"/>
+        <rect x="588" y="135" width="180" height="215" rx="10" class="node-acc"/>
+        <rect x="784" y="90"  width="180" height="260" rx="10" class="node-acc"/>
+        <rect x="980" y="45"  width="180" height="305" rx="10" class="node-warn"/>
+        <text x="16" y="298" class="b" font-size="22">L0</text><text x="16" y="322" font-size="14">Un server, un DB</text>
+        <text x="212" y="253" class="b" font-size="22">L1</text><text x="212" y="277" font-size="14">Repliche nello</text><text x="212" y="295" font-size="14">stesso server</text>
+        <text x="408" y="208" class="b" font-size="22">L2</text><text x="408" y="232" font-size="14">Contesti e dati</text><text x="408" y="250" font-size="14">regionali</text>
+        <text x="604" y="163" class="b" font-size="22">L3</text><text x="604" y="187" font-size="14">Tre celle, un</text><text x="604" y="205" font-size="14">event store</text>
+        <text x="800" y="118" class="b" font-size="22">L4</text><text x="800" y="142" font-size="14">Alta disponibilità:</text><text x="800" y="160" font-size="14">server e database</text>
+        <text x="996" y="73" class="b" font-size="22">L5</text><text x="996" y="97" font-size="14">WAN, partizioni,</text><text x="996" y="115" font-size="14">eventi globali</text>
+        <text x="16" y="342" class="m" font-size="12">baseline</text>
+        <text x="212" y="342" class="m" font-size="12">S02</text>
+        <text x="408" y="342" class="m" font-size="12">S11 · S17</text>
+        <text x="604" y="342" class="m" font-size="12">S01 · S05 · S10 · S13</text>
+        <text x="800" y="342" class="m" font-size="12">S03 · S04 · S08 · S09</text>
+        <text x="996" y="342" class="m" font-size="12">S00 · S06 · S07 · S14–S16</text>
+      </g>
+    </svg>
+    <p class="small ink2" style="margin-top:8px">Ogni livello aggiunge un'unica fonte di difficoltà. Nelle slide seguenti: cosa aggiunge il livello, cosa si rompe nella 2.4.6 e cosa misura il lab dopo le correzioni.</p>
+    <p class="xs muted">L0–L5 sono livelli di complessità del deployment e non vanno confusi con gli id L1–L24 dei difetti del laboratorio in FINDINGS.md.</p>
+  </div>
+  <div class="foot"><span>Evento · laboratorio multi-regione</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 12. L0 ================= -->
+<section class="slide" data-title="L0">
+  <p class="kicker">Livello 0</p>
+  <h2>L0 · Un server, un database</h2>
+  <div class="body cols">
+    <svg viewBox="0 0 540 380" width="540" height="380" role="img" aria-label="L0: tre bundle, un server, un Postgres">
+      <rect x="20" y="20" width="150" height="54" rx="9" class="node"/><text x="95" y="52" text-anchor="middle" class="mono" font-size="13">order-command</text>
+      <rect x="195" y="20" width="150" height="54" rx="9" class="node"/><text x="270" y="52" text-anchor="middle" class="mono" font-size="13">order-query</text>
+      <rect x="370" y="20" width="150" height="54" rx="9" class="node"/><text x="445" y="52" text-anchor="middle" class="mono" font-size="13">order-saga</text>
+      <path class="edge" d="M95,74 L240,150"/><path class="edge" d="M270,74 L270,150"/><path class="edge" d="M445,74 L300,150"/>
+      <rect x="150" y="152" width="240" height="60" rx="10" class="node-acc"/><text x="270" y="188" text-anchor="middle" class="b" font-size="16">evento-server</text>
+      <path class="edge" d="M270,212 L270,270"/>
+      <rect x="150" y="272" width="240" height="60" rx="10" class="node"/><text x="270" y="300" text-anchor="middle" class="b" font-size="15">Postgres</text><text x="270" y="320" text-anchor="middle" class="s" font-size="12">event store + catalogo</text>
+    </svg>
+    <div>
+      <h3>Cosa aggiunge</h3>
+      <p class="small ink2">Niente: è il punto di partenza. Tutti gli handler sono sullo stesso server, il routing è locale e i lock advisory stanno su un database vicino.</p>
+      <h3 style="margin-top:14px">Stato</h3>
+      <p class="small ink2"><span class="tag t-fixed">funziona</span> È il caso per cui Evento 2.4.6 è stato progettato. Nessuno dei 25 gap si manifesta.</p>
+      <div class="callout small" style="margin-top:14px">L0 è il riferimento: quando S06 toglie la latenza WAN aggiunta (0 ms), le due immagini fanno le stesse 7,0 append/s. Le differenze nascono dai livelli successivi.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Livelli di complessità · 1/6</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 13. L1 ================= -->
+<section class="slide" data-title="L1">
+  <p class="kicker">Livello 1</p>
+  <h2>L1 · Repliche nello stesso server</h2>
+  <div class="body cols">
+    <svg viewBox="0 0 540 380" width="540" height="380" role="img" aria-label="L1: due repliche di order-command, una uccisa; due repliche di un consumer in competizione per un lock">
+      <rect x="20" y="20" width="200" height="54" rx="9" class="node"/><text x="120" y="52" text-anchor="middle" class="mono" font-size="13">order-command-eu</text>
+      <line x1="196" y1="28" x2="212" y2="46" class="xmark"/><line x1="212" y1="28" x2="196" y2="46" class="xmark"/>
+      <rect x="20" y="94" width="200" height="54" rx="9" class="node-good"/><text x="120" y="126" text-anchor="middle" class="mono" font-size="13">order-command-eu-b</text>
+      <path class="edge-bad dash" d="M220,47 L300,170"/>
+      <path class="edge-good" d="M220,121 L300,180"/>
+      <rect x="300" y="150" width="220" height="60" rx="10" class="node-acc"/><text x="410" y="186" text-anchor="middle" class="b" font-size="16">evento-eu</text>
+      <rect x="20" y="230" width="200" height="54" rx="9" class="node"/><text x="120" y="254" text-anchor="middle" class="mono" font-size="12.5">consumer replica A</text><text x="120" y="272" text-anchor="middle" class="s" font-size="11.5">tiene la lane</text>
+      <rect x="20" y="300" width="200" height="54" rx="9" class="node" style="stroke-dasharray:5 4"/><text x="120" y="324" text-anchor="middle" class="mono" font-size="12.5">consumer replica B</text><text x="120" y="342" text-anchor="middle" class="s" font-size="11.5">in attesa</text>
+      <rect x="300" y="262" width="220" height="60" rx="10" class="node-sunk"/><text x="410" y="288" text-anchor="middle" class="b" font-size="13">JdbcConsumerLock</text><text x="410" y="307" text-anchor="middle" class="s" font-size="11.5">una lane per bundle + contesto</text>
+      <line x1="220" y1="257" x2="300" y2="287" class="axis" style="stroke-width:1.6"/>
+      <line x1="220" y1="327" x2="300" y2="297" class="axis dash" style="stroke-width:1.6"/>
+    </svg>
+    <div>
+      <h3>Cosa aggiunge</h3>
+      <p class="small ink2">Più JVM con lo stesso bundle su un server. Il server sceglie un handler vivo per ogni comando; i consumer competono per un lock e uno solo lavora.</p>
+      <h3 style="margin-top:14px">Evidenza: S02, uccisione di una replica</h3>
+      <table class="t tight small">
+        <tr><th></th><th class="before">prima</th><th class="after">dopo</th></tr>
+        <tr><td>Operazioni confermate</td><td class="num">487/487</td><td class="num">486/486</td></tr>
+        <tr><td>p50 / p99 dopo il kill</td><td class="num">166 / 296 ms</td><td class="num">176 / 283 ms</td></tr>
+        <tr><td>In volo al kill, fallite</td><td class="num">0 di 1</td><td class="num">0 di 2</td></tr>
+      </table>
+      <p class="small ink2" style="margin-top:12px"><span class="tag t-same">già funzionante</span> Il failover dentro un server funzionava già nella 2.4.6 e continua a funzionare.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Livelli di complessità · 2/6 · Fonte: results/S02</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 14. L2 ================= -->
+<section class="slide" data-title="L2">
+  <p class="kicker">Livello 2</p>
+  <h2>L2 · Contesti e dati regionali</h2>
+  <div class="body cols">
+    <svg viewBox="0 0 540 380" width="540" height="380" role="img" aria-label="L2: engine per contesto che scrivono nel database della cella, isolati dalle altre celle">
+      <rect x="20" y="20" width="500" height="120" rx="12" class="node-sunk"/>
+      <text x="36" y="44" class="b mono" font-size="13">order-query-eu</text>
+      <rect x="40" y="60" width="215" height="60" rx="9" class="cell-eu"/><text x="147" y="95" text-anchor="middle" class="b" font-size="14">engine EUROPA</text>
+      <rect x="285" y="60" width="215" height="60" rx="9" class="cell-eu"/><text x="392" y="95" text-anchor="middle" class="b" font-size="14">engine AFRICA</text>
+      <path class="edge" d="M147,120 L240,190"/><path class="edge" d="M392,120 L300,190"/>
+      <rect x="150" y="192" width="240" height="60" rx="10" class="cell-eu"/><text x="270" y="218" text-anchor="middle" class="b mono" font-size="13">app-pg-eu</text><text x="270" y="238" text-anchor="middle" class="s" font-size="11.5">order_view (colonna context)</text>
+      <rect x="20" y="300" width="230" height="54" rx="10" class="cell-am"/><text x="135" y="332" text-anchor="middle" class="mono" font-size="13">app-pg-am</text>
+      <rect x="290" y="300" width="230" height="54" rx="10" class="cell-apac"/><text x="405" y="332" text-anchor="middle" class="mono" font-size="13">app-pg-apac</text>
+      <text x="270" y="282" text-anchor="middle" class="s" font-size="12">I4: ogni DB contiene solo i contesti della propria cella</text>
+    </svg>
+    <div>
+      <h3>Cosa aggiunge</h3>
+      <p class="small ink2">Regioni come contesti di un solo componente (<code>setComponentContexts</code>) e un database applicativo per ogni cella. I nomi dei contesti contengono <code>_</code> (SUD_AMERICA, AUSTRALIA_NZ).</p>
+      <h3 style="margin-top:14px">Cosa si rompe nella 2.4.6 (S11)</h3>
+      <table class="t tight small">
+        <tr><th></th><th class="before">prima</th><th class="after">dopo</th></tr>
+        <tr><td>Righe finite nella regione sbagliata (G15: <code>_</code> nel LIKE)</td><td class="num">2</td><td class="num">0</td></tr>
+        <tr><td>Consumer regionali visibili nella GUI (N10, G16)</td><td class="num">0 di 7</td><td class="num">7 di 7</td></tr>
+        <tr><td>S17 instradamento per contesto</td><td class="num">8/8</td><td class="num">8/8</td></tr>
+      </table>
+      <p class="small ink2" style="margin-top:12px"><span class="tag t-fixed">corretto</span> Nel LIKE, <code>_</code> e <code>%</code> vengono ora trattati come caratteri letterali (<code>ESCAPE '!'</code>). Gli id consumer si leggono con <code>ConsumerIds.parse</code> e i componenti hanno una chiave per bundle (N1).</p>
+    </div>
+  </div>
+  <div class="foot"><span>Livelli di complessità · 3/6 · Fonte: results/S11, results/S17</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 15. L3 ================= -->
+<section class="slide" data-title="L3">
+  <p class="kicker">Livello 3</p>
+  <h2>L3 · Tre celle su un event store condiviso</h2>
+  <div class="body cols">
+    <svg viewBox="0 0 540 380" width="540" height="380" role="img" aria-label="L3: tre server che condividono un event store, senza collegamento tra loro">
+      <rect x="20" y="30" width="150" height="70" rx="10" class="cell-eu"/><text x="95" y="60" text-anchor="middle" class="b t-eu" font-size="15">evento-eu</text><text x="95" y="80" text-anchor="middle" class="s" font-size="11.5">handler EU</text>
+      <rect x="195" y="30" width="150" height="70" rx="10" class="cell-am"/><text x="270" y="60" text-anchor="middle" class="b t-am" font-size="15">evento-am</text><text x="270" y="80" text-anchor="middle" class="s" font-size="11.5">handler AM</text>
+      <rect x="370" y="30" width="150" height="70" rx="10" class="cell-apac"/><text x="445" y="60" text-anchor="middle" class="b t-apac" font-size="15">evento-apac</text><text x="445" y="80" text-anchor="middle" class="s" font-size="11.5">handler APAC</text>
+      <line x1="170" y1="50" x2="195" y2="50" style="stroke:var(--bad);stroke-width:2" class="dash"/>
+      <line x1="345" y1="50" x2="370" y2="50" style="stroke:var(--bad);stroke-width:2" class="dash"/>
+      <text x="270" y="20" text-anchor="middle" class="t-bad" font-size="12">nessun link tra server (G1)</text>
+      <path class="edge" d="M95,100 L230,200"/><path class="edge" d="M270,100 L270,200"/><path class="edge" d="M445,100 L310,200"/>
+      <rect x="120" y="202" width="300" height="80" rx="10" class="node-acc"/>
+      <text x="270" y="228" text-anchor="middle" class="b mono" font-size="13">es-pg-eu</text>
+      <text x="270" y="248" text-anchor="middle" class="s" font-size="11.5">es-lock · RESOURCE:&lt;aggregate&gt; · core__*</text>
+      <text x="270" y="266" text-anchor="middle" class="s" font-size="11.5">lock pool dedicato (G3) · schema sotto lock (G14)</text>
+      <text x="270" y="320" text-anchor="middle" class="s" font-size="12.5">Un aggregate scritto da due celle (S05):</text>
+      <text x="270" y="340" text-anchor="middle" class="s" font-size="12.5">il lock per aggregate serializza tra server diversi</text>
+    </svg>
+    <div>
+      <h3>Cosa aggiunge</h3>
+      <p class="small ink2">Tre broker attivi che condividono lock, sequenza e catalogo solo attraverso Postgres.</p>
+      <table class="t tight small">
+        <tr><th>Scenario</th><th class="before">prima</th><th class="after">dopo</th></tr>
+        <tr><td>S05 contesa EU+APAC: confermati</td><td class="num">112/120</td><td class="num">120/120</td></tr>
+        <tr><td>S05 deadlock tra server (G3)</td><td class="num">8</td><td class="num">0</td></tr>
+        <tr><td>Avvii puliti con catalogo da riparare (G8)</td><td class="num">7 di 7</td><td class="num">0 di 7</td></tr>
+        <tr><td>S10 avvio a freddo fallito (G14)</td><td class="num">1 di 3</td><td class="num">0 di 3</td></tr>
+        <tr><td>S13 bundle che si attacca a un cluster estraneo (G13)</td><td class="num">sì</td><td class="num">rifiutato</td></tr>
+        <tr><td>S01 handler in un'altra cella (G1)</td><td class="num">0/5</td><td class="num">0/5</td></tr>
+      </table>
+      <p class="xs muted" style="margin-top:10px">Località (G12): in S05 su <code>:after</code> il p50 è 186 ms per EUROPA e 1070 ms per CINA, perché ognuno viene servito dall'handler della propria zona. G1 resta aperto per scelta di progetto: il lab è costruito a celle.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Livelli di complessità · 4/6 · Fonte: results/S01, S05, S10, S13, BEFORE/AFTER-SUMMARY</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 16. L4 ================= -->
+<section class="slide" data-title="L4">
+  <p class="kicker">Livello 4</p>
+  <h2>L4 · Alta disponibilità di server e database</h2>
+  <div class="body cols">
+    <svg viewBox="0 0 540 380" width="540" height="380" role="img" aria-label="L4: failover dei bundle verso un altro server, promozione dei database">
+      <rect x="20" y="20" width="160" height="60" rx="10" class="cell-apac"/><text x="100" y="47" text-anchor="middle" class="b t-apac" font-size="14">evento-apac</text><text x="100" y="66" text-anchor="middle" class="s" font-size="11.5">ucciso (S03)</text>
+      <line x1="150" y1="28" x2="170" y2="50" class="xmark"/><line x1="170" y1="28" x2="150" y2="50" class="xmark"/>
+      <rect x="20" y="130" width="160" height="54" rx="10" class="node"/><text x="100" y="152" text-anchor="middle" class="mono" font-size="12">bundle APAC</text><text x="100" y="170" text-anchor="middle" class="s" font-size="11">lista di endpoint</text>
+      <path class="edge-bad dash" d="M100,130 L100,82"/>
+      <path class="edge-good" d="M180,157 L358,60"/>
+      <rect x="360" y="20" width="160" height="60" rx="10" class="cell-eu"/><text x="440" y="47" text-anchor="middle" class="b t-eu" font-size="14">evento-eu</text><text x="440" y="66" text-anchor="middle" class="s" font-size="11.5">endpoint successivo</text>
+      <text x="290" y="132" class="t-good" font-size="12">failover (G2)</text>
+      <!-- ES -->
+      <rect x="20" y="230" width="150" height="54" rx="10" class="node-bad"/><text x="95" y="262" text-anchor="middle" class="mono" font-size="12.5">es-pg-eu (P)</text>
+      <rect x="200" y="230" width="150" height="54" rx="10" class="node-good"/><text x="275" y="252" text-anchor="middle" class="mono" font-size="12.5">es-pg-am</text><text x="275" y="270" text-anchor="middle" class="s" font-size="11">sync → promosso</text>
+      <path class="edge" d="M170,257 L198,257"/>
+      <rect x="380" y="230" width="140" height="54" rx="10" class="node-good"/><text x="450" y="252" text-anchor="middle" class="mono" font-size="12">app-pg-eu-r</text><text x="450" y="270" text-anchor="middle" class="s" font-size="11">promossa (S09)</text>
+      <text x="270" y="320" text-anchor="middle" class="s" font-size="12.5">URL multi-host con targetServerType=primary:</text>
+      <text x="270" y="340" text-anchor="middle" class="s" font-size="12.5">server e bundle trovano da soli il nuovo primario</text>
+    </svg>
+    <div>
+      <table class="t tight small">
+        <tr><th>Scenario</th><th class="before">prima</th><th class="after">dopo</th></tr>
+        <tr><td>S03 comandi APAC con il server giù</td><td class="num">0/18</td><td class="num">44/44</td></tr>
+        <tr><td>S03 prima risposta APAC dopo il kill</td><td class="num">mai</td><td class="num">10,3 s</td></tr>
+        <tr><td>S03 chiamate in volo fallite dopo ≥ 25 s (G4)</td><td class="num">3</td><td class="num">0</td></tr>
+        <tr><td>S04 sonde durante la pausa del server</td><td class="num">0/3</td><td class="num">3/3</td></tr>
+        <tr><td>S04 id consumer cancellati (G7, N12)</td><td class="num">10</td><td class="num">0</td></tr>
+        <tr><td>S08 promozione ES → scritture riprese</td><td class="num">7,6 s</td><td class="num">15,1 s</td></tr>
+        <tr><td>S09 checkpoint monotoni (campioni)</td><td class="num">58</td><td class="num">59</td></tr>
+      </table>
+      <div class="callout bad small" style="margin-top:12px"><b>Aperto, N16: nessun failback.</b> Quando il server torna, i bundle restano su quello remoto e il traffico della cella continua ad attraversare la WAN. Con G1, un gateway che si ricollega al server tornato trova <code>no handler</code>.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Livelli di complessità · 5/6 · Fonte: results/S03, S04, S08, S09</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 17. L5 ================= -->
+<section class="slide" data-title="L5">
+  <p class="kicker">Livello 5</p>
+  <h2>L5 · WAN, partizioni ed eventi globali</h2>
+  <div class="body cols">
+    <svg viewBox="0 0 540 380" width="540" height="380" role="img" aria-label="L5: tre celle con latenze WAN, APAC isolata da una partizione">
+      <circle cx="100" cy="90" r="50" class="cell-eu"/><text x="100" y="96" text-anchor="middle" class="b t-eu" font-size="17">EU</text>
+      <circle cx="440" cy="90" r="50" class="cell-am"/><text x="440" y="96" text-anchor="middle" class="b t-am" font-size="17">AM</text>
+      <circle cx="270" cy="290" r="50" class="cell-apac"/><text x="270" y="296" text-anchor="middle" class="b t-apac" font-size="17">APAC</text>
+      <line x1="150" y1="90" x2="390" y2="90" class="axis" style="stroke-width:2"/>
+      <text x="270" y="80" text-anchor="middle" class="b" font-size="13">80 ms</text>
+      <line x1="132" y1="128" x2="238" y2="252" style="stroke:var(--bad);stroke-width:2" class="dash"/>
+      <line x1="408" y1="128" x2="302" y2="252" style="stroke:var(--bad);stroke-width:2" class="dash"/>
+      <text x="160" y="200" text-anchor="end" class="t-bad b" font-size="13">150 ms</text>
+      <text x="380" y="200" class="t-bad b" font-size="13">170 ms</text>
+      <text x="270" y="200" text-anchor="middle" class="t-bad b" font-size="13">partizione</text>
+      <text x="270" y="218" text-anchor="middle" class="t-bad" font-size="12">silenziosa (S07)</text>
+      <text x="100" y="166" text-anchor="middle" class="s" font-size="11.5">primario ES</text>
+    </svg>
+    <div>
+      <table class="t tight small">
+        <tr><th>Scenario</th><th class="before">prima</th><th class="after">dopo</th></tr>
+        <tr><td>S00 7×20 ordini/min: confermati</td><td class="num">71 %</td><td class="num">100 %</td></tr>
+        <tr><td>S06 append/s con 300 ms di RTT (G9)</td><td class="num">1,65</td><td class="num">6,55</td></tr>
+        <tr><td>S07 EU+AM confermati con APAC isolata (N11)</td><td class="num">0/16</td><td class="num">41/41</td></tr>
+        <tr><td>S14 chiavi scritte due volte (G5)</td><td class="num">1</td><td class="num">8</td></tr>
+        <tr><td>S15 orologio −40 s: ordini proiettati</td><td class="num">0/5</td><td class="num">0/5</td></tr>
+      </table>
+      <p class="small ink2" style="margin-top:12px"><span class="tag t-fixed">corretto</span> L'append ora è un solo statement (circa 1,1 RTT) e i lock hanno un pool dedicato, quindi una partizione non blocca più l'intero cluster.</p>
+      <p class="small ink2"><span class="tag t-open">aperto</span> Manca l'idempotenza tra un tentativo e il suo retry (G5, N14). Le append restano serializzate su un lock attraverso la WAN (N5, N9, N15) e il controllo di staleness del fetch non tollera un orologio indietro di 40 s (S15).</p>
+    </div>
+  </div>
+  <div class="foot"><span>Livelli di complessità · 6/6 · Fonte: results/S00, S06, S07, S14, S15</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 18. FLOW: SERVER KILL ================= -->
+<section class="slide" data-title="Flusso: kill del server">
+  <p class="kicker">Flussi di guasto · S03</p>
+  <h2>Kill di un evento-server: failover degli endpoint</h2>
+  <div class="body" style="display:grid;grid-template-columns:780px 1fr;gap:24px">
+    <svg viewBox="0 0 780 500" width="780" height="500" role="img" aria-label="Diagramma di sequenza del failover dopo il kill di evento-apac">
+      <g font-size="12.5">
+        <rect x="10" y="0" width="130" height="36" rx="7" class="cell-apac"/><text x="75" y="23" text-anchor="middle" class="mono b" font-size="12">gw-cina</text>
+        <rect x="160" y="0" width="150" height="36" rx="7" class="cell-apac"/><text x="235" y="23" text-anchor="middle" class="mono b" font-size="12">order-command-apac</text>
+        <rect x="330" y="0" width="130" height="36" rx="7" class="cell-apac"/><text x="395" y="23" text-anchor="middle" class="mono b" font-size="12">evento-apac</text>
+        <rect x="480" y="0" width="130" height="36" rx="7" class="cell-eu"/><text x="545" y="23" text-anchor="middle" class="mono b" font-size="12">evento-eu</text>
+        <rect x="630" y="0" width="130" height="36" rx="7" class="node-acc"/><text x="695" y="23" text-anchor="middle" class="mono b" font-size="12">es-pg-eu</text>
+        <line x1="75" y1="36" x2="75" y2="490" class="life"/>
+        <line x1="235" y1="36" x2="235" y2="490" class="life"/>
+        <line x1="395" y1="36" x2="395" y2="92" class="life"/>
+        <line x1="395" y1="400" x2="395" y2="490" class="life"/>
+        <line x1="545" y1="36" x2="545" y2="490" class="life"/>
+        <line x1="695" y1="36" x2="695" y2="490" class="life"/>
+        <!-- kill -->
+        <line x1="383" y1="84" x2="407" y2="108" class="xmark"/><line x1="407" y1="84" x2="383" y2="108" class="xmark"/>
+        <text x="415" y="92" class="t-bad b">t = 0: docker kill evento-apac</text>
+        <path class="edge-bad dash edge-no" d="M235,125 L380,125" style="marker-end:none"/>
+        <text x="245" y="119" class="t-bad">sessione TCP persa (anche gw-cina)</text>
+        <!-- failover -->
+        <path class="edge-acc" d="M235,160 L543,160"/>
+        <text x="250" y="154" class="t-acc">handshake con l'endpoint successivo (via toxiproxy)</text>
+        <path class="edge" d="M545,190 L237,190"/>
+        <text x="535" y="184" text-anchor="end">Welcome(server = evento-eu, cluster = evento-lab-cluster)</text>
+        <rect x="160" y="200" width="310" height="40" rx="6" class="node-warn"/>
+        <text x="170" y="216" font-size="12">richieste in volo → BrokerChangedException (G4)</text>
+        <text x="170" y="232" font-size="12" class="s">"may or may not have been applied": fallisce subito</text>
+        <!-- new command -->
+        <path class="edge" d="M75,270 L543,270"/>
+        <text x="85" y="264">CreateOrderCommand (anche il gateway ora è su evento-eu)</text>
+        <path class="edge" d="M545,300 L237,300"/>
+        <text x="535" y="294" text-anchor="end">handler di order-command-apac, ora su evento-eu</text>
+        <path class="edge" d="M235,330 L543,330"/>
+        <text x="250" y="324">eventi</text>
+        <path class="edge" d="M545,350 L693,350"/>
+        <text x="555" y="344">append (1 statement)</text>
+        <path class="edge-good" d="M545,378 L77,378"/>
+        <text x="535" y="372" text-anchor="end" class="t-good b">ack · prima risposta APAC 10,3 s dopo il kill</text>
+        <!-- restart -->
+        <rect x="335" y="402" width="120" height="30" rx="6" class="node"/><text x="395" y="422" text-anchor="middle">evento-apac torna</text>
+        <rect x="10" y="446" width="760" height="40" rx="6" class="node-bad"/>
+        <text x="20" y="463" class="t-bad b" font-size="12.5">N16, nessun failback: i bundle APAC restano su evento-eu e il traffico APAC continua ad attraversare la WAN.</text>
+        <text x="20" y="479" class="s" font-size="12">Il lab, prima di ogni scenario, riavvia le JVM finite sul server sbagliato (L22).</text>
+      </g>
+    </svg>
+    <div>
+      <h3 class="before">Prima (2.4.6)</h3>
+      <ul class="small ink2">
+        <li>Il bundle ritenta all'infinito solo il primo indirizzo.</li>
+        <li>APAC: <b>0/18</b> comandi confermati finché il server era giù.</li>
+        <li>3 chiamate in volo fallite dopo ≥ 25 s per timeout.</li>
+        <li>Convergenza I6: 25,9 s.</li>
+      </ul>
+      <h3 class="after" style="margin-top:14px">Dopo</h3>
+      <ul class="small ink2">
+        <li>APAC <b>44/44</b>, p50 448 ms, p99 570 ms dopo il kill.</li>
+        <li>0 chiamate appese; EU+AM 62/62.</li>
+        <li>Convergenza I6: 0,36 s.</li>
+        <li>Nella <code>after-run1</code> la saga ha ritentato un <code>ProcessPaymentCommand</code> dopo una <code>BrokerChangedException</code> e il pagamento è stato eseguito due volte (N14).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: results/S03/{before,after,after-run1}, FINDINGS.md N14, N16</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 19. FLOW: DB FAILOVER ================= -->
+<section class="slide" data-title="Flusso: failover dei database">
+  <p class="kicker">Flussi di guasto · S08 · S09</p>
+  <h2>Failover dei database: event store e database applicativo</h2>
+  <div class="body cols">
+    <div>
+      <h3>S08 · primario ES ucciso, <code>es-pg-am</code> promosso</h3>
+      <svg viewBox="0 0 560 380" width="560" height="380" role="img" aria-label="Sequenza del failover del primario event store">
+        <g font-size="12.5">
+          <rect x="10" y="0" width="160" height="34" rx="7" class="node"/><text x="90" y="22" text-anchor="middle" class="mono b" font-size="12">evento-eu/am/apac</text>
+          <rect x="200" y="0" width="160" height="34" rx="7" class="node-acc"/><text x="280" y="22" text-anchor="middle" class="mono b" font-size="12">es-pg-eu (P)</text>
+          <rect x="390" y="0" width="160" height="34" rx="7" class="node"/><text x="470" y="22" text-anchor="middle" class="mono b" font-size="12">es-pg-am (sync)</text>
+          <line x1="90" y1="34" x2="90" y2="370" class="life"/>
+          <line x1="280" y1="34" x2="280" y2="78" class="life"/>
+          <line x1="470" y1="34" x2="470" y2="370" class="life"/>
+          <path class="edge-acc" d="M280,56 L468,56"/><text x="375" y="50" text-anchor="middle" class="t-acc" font-size="11.5">replica sincrona</text>
+          <line x1="268" y1="80" x2="292" y2="104" class="xmark"/><line x1="292" y1="80" x2="268" y2="104" class="xmark"/>
+          <text x="300" y="96" class="t-bad b">kill</text>
+          <rect x="10" y="120" width="330" height="40" rx="6" class="node-warn"/>
+          <text x="20" y="136" font-size="12">sessioni e lock advisory spariscono;</text>
+          <text x="20" y="152" font-size="12">le append in corso hanno esito indeterminato</text>
+          <rect x="390" y="180" width="160" height="30" rx="6" class="node"/><text x="470" y="200" text-anchor="middle" class="mono" font-size="12">pg_promote()</text>
+          <path class="edge-good" d="M90,240 L468,240"/>
+          <text x="100" y="234" class="t-good">URL multi-host · targetServerType=primary</text>
+          <path class="edge-good" d="M470,270 L92,270"/>
+          <text x="460" y="264" text-anchor="end" class="t-good">nuovo primario: scritture riprese</text>
+          <text x="100" y="304" class="b" font-size="13">prima 7,6 s · dopo 15,1 s (N17, una run per immagine)</text>
+          <text x="100" y="326" class="s">dopo: 103/106 confermati dopo il kill; 0 persi, 0 duplicati, 0 fork</text>
+          <text x="100" y="348" class="s">nessun checkpoint oltre la nuova testa dell'event store</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <h3>S09 · <code>app-pg-eu</code> ucciso, replica promossa</h3>
+      <svg viewBox="0 0 560 250" width="560" height="250" role="img" aria-label="Sequenza del failover del database applicativo">
+        <g font-size="12.5">
+          <rect x="10" y="0" width="160" height="34" rx="7" class="cell-eu"/><text x="90" y="22" text-anchor="middle" class="mono b" font-size="12">consumer EU</text>
+          <rect x="200" y="0" width="160" height="34" rx="7" class="node-acc"/><text x="280" y="22" text-anchor="middle" class="mono b" font-size="12">app-pg-eu</text>
+          <rect x="390" y="0" width="160" height="34" rx="7" class="node"/><text x="470" y="22" text-anchor="middle" class="mono b" font-size="12">app-pg-eu-r</text>
+          <line x1="90" y1="34" x2="90" y2="240" class="life"/>
+          <line x1="280" y1="34" x2="280" y2="64" class="life"/>
+          <line x1="470" y1="34" x2="470" y2="240" class="life"/>
+          <line x1="268" y1="66" x2="292" y2="90" class="xmark"/><line x1="292" y1="66" x2="268" y2="90" class="xmark"/>
+          <text x="300" y="82" class="t-bad b">kill</text>
+          <rect x="390" y="100" width="160" height="30" rx="6" class="node"/><text x="470" y="120" text-anchor="middle" class="mono" font-size="12">pg_promote()</text>
+          <path class="edge-good" d="M90,160 L468,160"/>
+          <text x="100" y="154" class="t-good">checkpoint: GREATEST(last_sequence, ?) (G11)</text>
+          <text x="100" y="192" class="b" font-size="13">checkpoint mai tornati indietro: 58 / 59 campioni</text>
+          <text x="100" y="214" class="s">tutte le lane ripartono; le rigiocate sono idempotenti (I2)</text>
+        </g>
+      </svg>
+      <div class="callout warn small" style="margin-top:10px"><b>Difetto del lab, non di Evento (L24).</b> Le repliche ES ereditavano <code>synchronous_standby_names</code>, quindi la replica promossa aspettava sé stessa come standby sincrono e nessuna scrittura ripartiva. Il vecchio risultato <code>:before</code> che dava la colpa a G3 dipendeva da questo.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: results/S08, results/S09, FINDINGS.md N17, L24</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 20. FLOW: PARTITION ================= -->
+<section class="slide" data-title="Flusso: partizione">
+  <p class="kicker">Flussi di guasto · S07</p>
+  <h2>Partizione silenziosa di APAC: una cella non deve fermare le altre</h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 330" width="1160" height="330" role="img" aria-label="Linea temporale della partizione di APAC, prima e dopo le correzioni">
+      <g font-size="13">
+        <!-- time axis -->
+        <rect x="360" y="0" width="520" height="300" class="band"/>
+        <text x="620" y="20" text-anchor="middle" class="b t-before" font-size="14">APAC staccata da toxiproxy e dal lb: nessun RST, pacchetti persi</text>
+        <text x="360" y="318" text-anchor="middle" class="m" font-size="12">partizione</text>
+        <text x="880" y="318" text-anchor="middle" class="m" font-size="12">guarigione</text>
+        <line x1="150" y1="300" x2="1150" y2="300" class="axis"/>
+        <!-- BEFORE row -->
+        <text x="0" y="78" class="b t-before" font-size="16">Prima</text>
+        <text x="0" y="98" class="s" font-size="12">2.4.6 · 72 s</text>
+        <rect x="150" y="56" width="210" height="44" rx="6" class="node"/>
+        <text x="160" y="74" font-size="12">evento-apac tiene l'es-lock</text>
+        <text x="160" y="91" font-size="12" class="s">sull'unica sessione di lock (G3)</text>
+        <rect x="360" y="64" width="520" height="28" rx="4" class="node-bad"/>
+        <text x="620" y="83" text-anchor="middle" class="t-bad b" font-size="13">es-lock orfano: tutti gli altri server fanno la coda</text>
+        <g class="t-bad" font-size="18" font-weight="700">
+          <text x="400" y="128">✕</text><text x="460" y="128">✕</text><text x="520" y="128">✕</text><text x="580" y="128">✕</text><text x="640" y="128">✕</text><text x="700" y="128">✕</text><text x="760" y="128">✕</text><text x="820" y="128">✕</text>
+        </g>
+        <text x="620" y="150" text-anchor="middle" class="b" font-size="13">EU+AM: 0/16 confermati · nella run1 nessun append in tutto il cluster per circa 90 s (N11)</text>
+        <text x="900" y="83" class="s" font-size="12">convergenza 0,17 s dopo la guarigione</text>
+        <!-- AFTER row -->
+        <text x="0" y="208" class="b t-acc" font-size="16">Dopo</text>
+        <text x="0" y="228" class="s" font-size="12">correzioni · 62 s</text>
+        <rect x="150" y="186" width="210" height="44" rx="6" class="node"/>
+        <text x="160" y="204" font-size="12">lock tenuto solo dentro</text>
+        <text x="160" y="221" font-size="12" class="s">un singolo statement (G9, G3)</text>
+        <rect x="360" y="194" width="520" height="28" rx="4" class="node-good"/>
+        <text x="620" y="213" text-anchor="middle" class="t-good b" font-size="13">EU e AM continuano a scrivere; le lane * restano ≤ 5 s indietro</text>
+        <g class="t-good" font-size="18" font-weight="700">
+          <text x="400" y="258">✓</text><text x="460" y="258">✓</text><text x="520" y="258">✓</text><text x="580" y="258">✓</text><text x="640" y="258">✓</text><text x="700" y="258">✓</text><text x="760" y="258">✓</text><text x="820" y="258">✓</text>
+        </g>
+        <text x="620" y="282" text-anchor="middle" class="b" font-size="13">EU+AM: 41/41 confermati · p50 585 ms · p99 866 ms</text>
+        <text x="900" y="206" class="s" font-size="12">convergenza 0,2 s dopo la guarigione</text>
+        <text x="900" y="226" class="t-bad" font-size="12">N14: 2 pagamenti eseguiti due volte</text>
+        <text x="900" y="244" class="t-bad" font-size="12">e 1 evento scritto due volte</text>
+      </g>
+    </svg>
+    <div class="cols" style="margin-top:12px">
+      <p class="small ink2"><b>Meccanismo nella 2.4.6:</b> la sessione di lock di <code>evento-apac</code> verso <code>es-pg-eu</code> passa dalla WAN. Con una partizione silenziosa Postgres tiene vivo quel backend, e i suoi lock advisory, finché non interviene il keepalive TCP. Il guasto di una regione remota blocca le scritture di tutte, compresa la cella del primario.</p>
+      <p class="small ink2"><b>Dopo:</b> APAC isolata risponde 504 dal lb (0/12, come previsto), il resto del cluster lavora. Emerge però un difetto che prima era nascosto, perché prima si fermava tutto: la saga di APAC ritenta un comando con esito indeterminato e il pagamento viene eseguito due volte (N14, cioè G5 a livello applicativo).</p>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: results/S07/{before,before-run1,after}, FINDINGS.md N11, N14</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 21. GAPS & FIXES ================= -->
+<section class="slide" data-title="Gap e correzioni">
+  <p class="kicker">Gap trovati e correzioni</p>
+  <h2>Cosa è stato corretto, e con quale evidenza</h2>
+  <div class="body">
+    <table class="t tight" style="font-size:13.5px">
+      <tr><th style="width:70px">Gap</th><th>Problema nella 2.4.6</th><th>Correzione</th><th style="width:250px">Evidenza nel lab</th><th style="width:96px">Stato</th></tr>
+      <tr><td>G1</td><td>Nessun routing tra server</td><td>Nessuna: architettura a celle</td><td>S01 0/5 su entrambe</td><td><span class="tag t-open">aperto</span></td></tr>
+      <tr><td>G2</td><td>Il bundle usa solo il primo indirizzo</td><td>Lista ordinata di endpoint, failover sul successivo</td><td>S03 APAC 0/18 → 44/44</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G3</td><td>Tutti i lock su un'unica connessione</td><td>Pool di lock dedicato, attese limitate, <code>LockLostException</code></td><td>S05 8 deadlock → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G4</td><td>Richieste in volo perse al cambio di broker</td><td><code>BrokerChangedException</code> al nuovo <code>Welcome</code></td><td>S14 24/24 dopo ≥ 25 s → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G5</td><td>Nessun exactly-once tra server</td><td>N3 scarta i comandi scaduti; manca la chiave di idempotenza</td><td>S14 chiavi doppie 1 → 8</td><td><span class="tag t-open">aperto</span></td></tr>
+      <tr><td>G7 · N12</td><td>NodeLeft stantio cancella i consumer</td><td>Tabella di presenza <code>core__bundle_instance</code></td><td>S04 10 id cancellati → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G8</td><td>Race di inserimento nel catalogo</td><td>Un lock per bundle, <code>ON CONFLICT</code>, una transazione</td><td>riparazioni 7/7 → 0/7</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G9 · N11</td><td>Append CPES in circa 4 round trip con lock tenuto</td><td>Uno statement: <code>pg_advisory_xact_lock</code> + <code>INSERT … RETURNING</code></td><td>S00 5,2 → 9,35 append/s; S07 0/16 → 41/41</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G12</td><td>Nessuna località nella scelta dell'handler</td><td><code>LOCALITY_PREFERRED</code> + capability <code>zone</code></td><td>letture servite nella cella</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G13</td><td>Identità del server non verificata</td><td><code>Welcome.clusterName</code>, <code>withExpectedClusterName</code></td><td>S13 C: si attacca → rifiutato</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G14</td><td><code>schema.sql</code> concorrente</td><td>Inizializzazione dello schema sotto lock advisory</td><td>S10 1/3 falliti → 0/3</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G15 · G16</td><td><code>_</code> nel LIKE; id consumer spezzato su <code>_</code></td><td><code>ESCAPE '!'</code>; <code>ConsumerIds.parse</code></td><td>S11 2 righe trapelate → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>N1</td><td>Componenti con chiave = nome semplice della classe</td><td><code>core__component.id = bundle:nome</code></td><td>niente più classi per regione</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>N3</td><td>Comandi eseguiti dopo il timeout del chiamante</td><td>Deadline controllata fino all'append</td><td>S00 83 → 0; S06 136 → 31</td><td><span class="tag t-part">in parte</span></td></tr>
+      <tr><td>G6</td><td>Nessuna barriera di sequenza sull'append</td><td>PK online + <code>verifyHeld</code>; manca la barriera <code>aggregate_seq</code></td><td>nessun fork su entrambe</td><td><span class="tag t-part">in parte</span></td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>Fonte: CLUSTER-READINESS.md "Status after fixes", results/COMPARISON.md</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 22. CHART: S00 ================= -->
+<section class="slide" data-title="Prima/dopo: S00">
+  <p class="kicker">Prima / dopo · S00 baseline, 7 regioni × 20 ordini/min</p>
+  <h2>Carico normale: da timeout a secondi</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Comandi confermati</div><div class="val"><span class="from">71 %</span><span class="arrow">→</span><span class="to">100 %</span></div><div class="sub">227/319 → 492/492</div></div>
+    <div class="kpi"><div class="lbl">Append/s nell'event store</div><div class="val"><span class="from">5,2</span><span class="arrow">→</span><span class="to">9,35</span></div><div class="sub">con lo stesso carico offerto</div></div>
+    <div class="kpi"><div class="lbl">Convergenza delle viste (I6)</div><div class="val"><span class="from">13,1 s</span><span class="arrow">→</span><span class="to">3,5 s</span></div><div class="sub">read model = event store</div></div>
+    <div class="kpi"><div class="lbl">Scritti dopo il timeout</div><div class="val"><span class="from">83</span><span class="arrow">→</span><span class="to">0</span></div><div class="sub">pagamenti doppi 3 → 0</div></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 4px">
+    <h3 style="margin:0">Latenza mediana (p50) di un comando, per regione</h3>
+    <div class="legend"><span><span class="swatch" style="background:var(--before)"></span>prima (2.4.6)</span><span><span class="swatch" style="background:var(--acc)"></span>dopo</span></div>
+  </div>
+  <div id="chart-s00" class="body"></div>
+  <div class="foot"><span>Fonte: results/S00/{before,after}/summary.json (latencyByRegion.p50). Timeout del gateway 30 s: nella 2.4.6 AM e APAC ci arrivano.</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 23. CHART: S06 ================= -->
+<section class="slide" data-title="Prima/dopo: S06">
+  <p class="kicker">Prima / dopo · S06 latenza WAN verso il primario ES</p>
+  <h2>Più latenza WAN: la 2.4.6 crolla a 150 ms, la versione corretta regge</h2>
+  <div class="body cols">
+    <div>
+      <h3>Append/s nell'event store</h3>
+      <div id="chart-s06a"></div>
+    </div>
+    <div>
+      <h3>Latenza p50 dei comandi APAC</h3>
+      <div id="chart-s06b"></div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+    <div class="legend"><span><span class="swatch" style="background:var(--before)"></span>prima (2.4.6)</span><span><span class="swatch" style="background:var(--acc)"></span>dopo</span></div>
+    <p class="small ink2" style="margin:0">Comandi falliti: <span class="before">226</span> → <span class="after">31</span> (tutti di APAC a 300 ms) · scritti comunque dopo il timeout: <span class="before">136</span> → <span class="after">31</span> (N15)</p>
+  </div>
+  <div class="foot"><span>Fonte: results/S06/{before,after}/summary.json (metrics.throughputCurve)</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 24. CHART: RESILIENCE ================= -->
+<section class="slide" data-title="Prima/dopo: resilienza">
+  <p class="kicker">Prima / dopo · guasti</p>
+  <h2>Sotto guasto: quota di operazioni riuscite</h2>
+  <div class="body cols-64">
+    <div>
+      <div class="legend" style="margin-bottom:6px"><span><span class="swatch" style="background:var(--before)"></span>prima (2.4.6)</span><span><span class="swatch" style="background:var(--acc)"></span>dopo</span></div>
+      <div id="chart-res"></div>
+    </div>
+    <div>
+      <h3>Verdetti delle 80 osservazioni</h3>
+      <div id="chart-verdicts"></div>
+      <div class="legend" style="flex-wrap:wrap;gap:10px 16px;margin-top:6px;font-size:13.5px">
+        <span><span class="swatch" style="background:var(--good)"></span>AS_EXPECTED 58 → 73</span>
+        <span><span class="swatch" style="background:var(--warn-mark)"></span>KNOWN_DEFECT 16 → 5</span>
+        <span><span class="swatch" style="background:var(--bad)"></span>UNEXPECTED 4 → 0</span>
+        <span><span class="swatch" style="background:var(--line-strong)"></span>INCONCLUSIVE 2 → 2</span>
+      </div>
+      <p class="xs muted" style="margin-top:12px">Somma di <code>verdictCounts</code> su S00–S17. I 5 KNOWN_DEFECT che restano su <code>:after</code> sono S01 (G1), S07 (N14), S13 A (guardia legacy, rifiuta per contratto), S14 (G5) e S15 (orologio). I 2 INCONCLUSIVE sono S03 (nessuna chiamata in volo al kill) e S12 (G10 non misurabile con CPES).</p>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: results/S03, S04, S05, S07, S10, S13 e BEFORE/AFTER-SUMMARY (G8); verdictCounts di tutti i summary.json</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 25. CHART: TIMES & COUNTERS ================= -->
+<section class="slide" data-title="Prima/dopo: tempi e contatori">
+  <p class="kicker">Prima / dopo · onestà</p>
+  <h2>Tempi di recupero e contatori, regressioni comprese</h2>
+  <div class="body cols-64">
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <h3 style="margin:0">Secondi (meno è meglio)</h3>
+        <div class="legend"><span><span class="swatch" style="background:var(--before)"></span>prima</span><span><span class="swatch" style="background:var(--acc)"></span>dopo</span></div>
+      </div>
+      <div id="chart-times"></div>
+    </div>
+    <div>
+      <h3>Contatori</h3>
+      <table class="t tight small">
+        <tr><th></th><th class="before">prima</th><th class="after">dopo</th><th></th></tr>
+        <tr><td>S05 deadlock tra server</td><td class="num">8</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S04 id consumer cancellati</td><td class="num">10</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S10 righe di race sullo schema</td><td class="num">20</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S11 righe nella regione sbagliata</td><td class="num">2</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S06 scritti dopo il timeout</td><td class="num">136</td><td class="num">31</td><td><span class="tag t-part">residuo</span></td></tr>
+        <tr><td>S14 chiavi scritte due volte</td><td class="num">1</td><td class="num">8</td><td><span class="tag t-worse">peggio</span></td></tr>
+        <tr><td>S07 pagamenti eseguiti due volte</td><td class="num">0</td><td class="num">2</td><td><span class="tag t-worse">emerso</span></td></tr>
+      </table>
+      <p class="xs muted" style="margin-top:10px">G5 peggiora in pratica: fallendo subito, il chiamante ritenta mentre il primo tentativo sta ancora facendo commit (S14: 9 dei 13 primi tentativi falliti erano già stati scritti). Per S08 (N17) e per il fan-out di S16 (N4) c'è una sola run per immagine.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: results/S00, S03, S08, S16 (metrics), COMPARISON.md</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 26. LIMITS & ROADMAP ================= -->
+<section class="slide" data-title="Limiti e roadmap">
+  <p class="kicker">Cosa resta</p>
+  <h2>Limiti residui e roadmap</h2>
+  <div class="body cols-3">
+    <div class="card">
+      <h3>Subito <span class="tag t-open">correttezza</span></h3>
+      <ul>
+        <li><b>Chiave di idempotenza</b> dal chiamante (gateway o saga) fino all'append (G5, N14). È il difetto più grave che resta aperto.</li>
+        <li><b><code>lock_timeout</code> legato alla deadline</b> durante l'attesa dell'<code>es-lock</code> (N15).</li>
+        <li><b>Gate di staleness</b> misurato sull'ora di ricezione del server, non sull'orologio del client (S15).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Prossimo <span class="tag t-part">disponibilità</span></h3>
+      <ul>
+        <li><b>Failback</b>: una sonda verso l'endpoint preferito con jitter e drain, oppure un suggerimento "torna a casa" nel <code>Welcome</code> (N16).</li>
+        <li><b>Affinità della lane ALL</b>, oppure lane nella cella del primario (N4).</li>
+        <li>Ripetere S08 3 volte per immagine per capire N17.</li>
+        <li>Barriera <code>aggregate_seq</code> sull'append (G6).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Lungo termine <span class="tag t-same">architettura</span></h3>
+      <ul>
+        <li><b>Mesh di server</b> (G1): i server si collegano come peer e inoltrano con la <code>ForwardingTable</code>, con un marcatore di hop contro i loop.</li>
+        <li>Append senza un lock globale attraverso la WAN (N5, N9): ogni append remota paga ancora il suo RTT.</li>
+        <li>Non esercitati o non misurabili qui: G10, G17, G18, G20, G21 (tra cui dashboard e amministrazione solo locali, discovery sul thread del bus, nessun datasource di lettura).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:14px">Conclusione: con le correzioni Evento regge <b>tre celle attive</b> con WAN, kill di server, promozioni di database e partizioni. <b>Non</b> è ancora un cluster instradato e <b>non</b> garantisce l'exactly-once tra un tentativo e il suo retry.</div>
+  <div class="foot"><span>Fonte: results/COMPARISON.md "What is still broken", .claude/STATUS.md</span><span class="pg"></span></div>
+</section>
+
+<!-- ================= 27. HOW TO RUN ================= -->
+<section class="slide" data-title="Come eseguire il lab">
+  <p class="kicker">Riproducibilità</p>
+  <h2>Come eseguire il laboratorio</h2>
+  <div class="body cols-64" style="align-items:start">
+<pre><span class="c"># immagini: stesso lab, framework prima e dopo le correzioni</span>
+FRAMEWORK_REF=e7b823fe LAB_TAG=before scripts/build-images.sh
+LAB_TAG=after scripts/build-images.sh
+
+<span class="c"># topologia completa: attende ogni healthcheck, poi controlla il catalogo</span>
+LAB_TAG=after scripts/up.sh
+
+<span class="c"># uno scenario, un pattern o tutti; risultati in results/&lt;S&gt;/&lt;label&gt;/</span>
+scripts/run-scenario.sh S00BaselineTest after
+scripts/run-scenario.sh 'S03*' after
+scripts/run-scenario.sh all after
+
+<span class="c"># report di integrazione dello stack in esecuzione</span>
+scripts/integration-checks.sh &gt; results/_integration/after/checks-raw.md
+
+<span class="c"># guasti manuali</span>
+scripts/partition.sh apac on   <span class="c">|</span>  scripts/wan.sh off
+docker exec es-pg-am psql -U postgres -c 'select pg_promote()'
+
+scripts/down.sh                 <span class="c"># container, reti e volumi (-v)</span></pre>
+    <div class="small">
+      <h3>Requisiti</h3>
+      <ul class="ink2">
+        <li>Docker con compose v2; circa 8,9 GiB per 36 servizi.</li>
+        <li>JDK 25 per Gradle. Gli script <code>.sh</code> girano anche in Git Bash e hanno gemelli <code>.ps1</code>.</li>
+      </ul>
+      <h3 style="margin-top:12px">Regole</h3>
+      <ul class="ink2">
+        <li><b>Mai due driver di scenario insieme</b> (L23: il lb aveva instradato tutte le regioni su un solo gateway).</li>
+        <li>Ricreare lo stack dopo S10 e S04; S08 e S09 lo ricreano da soli.</li>
+        <li>S15 richiede l'immagine con libfaketime (<code>docker/faketime/Dockerfile</code>).</li>
+        <li>Ogni scenario scrive <code>summary.json</code> e <code>report.md</code>; le invarianti I1–I8 si verificano da sole.</li>
+      </ul>
+      <p class="xs muted" style="margin-top:10px">Documenti: <code>README.md</code>, <code>FINDINGS.md</code>, <code>results/COMPARISON.md</code>, <code>.claude/CLUSTER-READINESS.md</code>.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Fonte: evento-lab-cluster/README.md §Build and run</span><span class="pg"></span></div>
+</section>
+
+</main>
+
+<nav class="controls" aria-label="Navigazione slide">
+  <button id="prev" title="Precedente (←)" aria-label="Slide precedente">‹</button>
+  <span class="count" id="count">1 / 1</span>
+  <button id="next" title="Successiva (→)" aria-label="Slide successiva">›</button>
+  <button id="theme" title="Tema chiaro/scuro (T)" aria-label="Cambia tema">◐</button>
+</nav>
+
+<script>
+// ============ data, copied from results/<S>/<label>/summary.json (2026-09-29) ============
+const DATA = {
+  // results/S00/{before,after}/summary.json -> metrics.latencyByRegion[R].p50 (ms), acked/count
+  s00: [
+    { r: 'EUROPA',       b: 10319, a: 265,  bAck: '72/72', aAck: '67/67' },
+    { r: 'AFRICA',       b: 10347, a: 131,  bAck: '72/72', aAck: '74/74' },
+    { r: 'AMERICA',      b: 26584, a: 761,  bAck: '24/41', aAck: '70/70' },
+    { r: 'SUD_AMERICA',  b: 25004, a: 733,  bAck: '23/40', aAck: '74/74' },
+    { r: 'CINA',         b: 30103, a: 1168, bAck: '11/31', aAck: '70/70' },
+    { r: 'INDIA',        b: 30035, a: 1178, bAck: '14/32', aAck: '70/70' },
+    { r: 'AUSTRALIA_NZ', b: 30121, a: 1156, bAck: '11/31', aAck: '67/67' },
+  ],
+  // results/S06/{before,after}/summary.json -> metrics.throughputCurve
+  s06: {
+    rtt: [0, 50, 150, 300],
+    appendsB: [7, 7, 4.05, 1.65], appendsA: [7, 7, 7, 6.55],
+    apacP50B: [32, 12303, 30111, 30208], apacP50A: [29, 434, 2726, 22811],
+  },
+  // success ratios under faults
+  res: [
+    { l: 'S03 comandi APAC, server APAC ucciso', b: [0, 18],   a: [44, 44] },
+    { l: 'S07 EU+AM, APAC partizionata',          b: [0, 16],   a: [41, 41] },
+    { l: 'S04 sonde durante la pausa del server', b: [0, 3],    a: [3, 3] },
+    { l: 'S05 stesso aggregate da EU e APAC',     b: [112, 120], a: [120, 120] },
+    { l: 'S13 B failover con guardia di cluster', b: [2, 3],    a: [3, 3], bNote: 'senza guardia' },
+    { l: 'S10 avvii a freddo riusciti',           b: [2, 3],    a: [3, 3] },
+    { l: 'Avvii puliti senza riparazione (G8)',   b: [0, 7],    a: [7, 7] },
+  ],
+  // sum of verdictCounts over results/S00..S17/{before,after}/summary.json
+  verdicts: {
+    before: { AS_EXPECTED: 58, KNOWN_DEFECT_REPRODUCED: 16, UNEXPECTED: 4, INCONCLUSIVE: 2 },
+    after:  { AS_EXPECTED: 73, KNOWN_DEFECT_REPRODUCED: 5,  UNEXPECTED: 0, INCONCLUSIVE: 2 },
+  },
+  // seconds; null = never within the fault window
+  times: [
+    { l: 'S03 prima risposta APAC dopo il kill', b: null,   a: 10.252, bNote: 'mai (0/18 con il server giù)' },
+    { l: 'S03 convergenza I6',                  b: 25.918, a: 0.359 },
+    { l: 'S00 convergenza I6',                  b: 13.123, a: 3.545 },
+    { l: 'S16 convergenza dopo il ripristino',  b: 2.071,  a: 0.074 },
+    { l: 'S16 takeover della lane ALL',         b: 7.678,  a: 7.262 },
+    { l: 'S08 promozione ES → scritture',       b: 7.569,  a: 15.125, worse: true },
+    { l: 'S16 fan-out su 3 DB',                 b: 2.077,  a: 10.183, worse: true },
+  ],
+};
+
+/* ============ tiny SVG helpers ============ */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs = {}, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  return e;
+}
+function tip(node, s) { node.appendChild(el('title', {}, s)); return node; }
+// bar anchored at x0, rounded only at the data end
+function hbarPath(x, y, w, h, r) {
+  r = Math.min(r, h / 2, w);
+  if (w <= 0) return '';
+  return `M${x},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} H${x} Z`;
+}
+function vbarPath(x, yBase, w, h, r) {
+  r = Math.min(r, w / 2, h);
+  if (h <= 0) return '';
+  const y = yBase - h;
+  return `M${x},${yBase} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${yBase} Z`;
+}
+const it = (n, d = 1) => n.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d });
+const secs = ms => ms < 1000 ? `${Math.round(ms)} ms` : `${it(ms / 1000, ms >= 10000 ? 1 : 2)} s`;
+
+/* grouped horizontal bars, two series */
+function groupedHBars(host, { rows, max, ticks, fmtTick, W, labelW, rowH, barH, gap, valueText, extraRight = 0 }) {
+  const plotW = W - labelW - 150 - extraRight;
+  const H = rows.length * rowH + 28;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img' });
+  const x = v => labelW + (v / max) * plotW;
+  for (const t of ticks) {
+    svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: 0, y2: rows.length * rowH, class: 'grid' }));
+    svg.appendChild(el('text', { x: x(t), y: rows.length * rowH + 18, 'text-anchor': 'middle', class: 'm', 'font-size': 12 }, fmtTick(t)));
+  }
+  svg.appendChild(el('line', { x1: labelW, x2: labelW, y1: 0, y2: rows.length * rowH, class: 'axis' }));
+  rows.forEach((row, i) => {
+    const y0 = i * rowH + (rowH - (barH * 2 + gap)) / 2;
+    svg.appendChild(el('text', { x: labelW - 12, y: y0 + barH + gap / 2 + 4, 'text-anchor': 'end', 'font-size': 14 }, row.label));
+    [['b', 'bar-before', y0], ['a', 'bar-after', y0 + barH + gap]].forEach(([k, cls, y]) => {
+      const v = row[k];
+      const g = el('g');
+      if (v == null) {
+        const w = plotW;
+        g.appendChild(el('path', { d: hbarPath(labelW, y, w, barH, 4), class: 'hatch' }));
+        const note = row.bNote || 'mai';
+        g.appendChild(el('rect', { x: labelW + 4, y: y + 1, width: note.length * 7 + 12, height: barH - 2, rx: 3, style: 'fill:var(--paper)' }));
+        g.appendChild(el('text', { x: labelW + 10, y: y + barH - 4, 'font-size': 12.5, class: 't-before b' }, note));
+      } else {
+        const w = Math.max(2, x(v) - labelW);
+        g.appendChild(el('path', { d: hbarPath(labelW, y, w, barH, 4), class: cls }));
+        g.appendChild(el('text', { x: labelW + w + 6, y: y + barH - 3, 'font-size': 12.5, class: 's' }, valueText(row, k)));
+      }
+      tip(g, `${row.label} · ${k === 'b' ? 'prima' : 'dopo'}: ${v == null ? (row.bNote || 'mai') : valueText(row, k)}`);
+      svg.appendChild(g);
+    });
+  });
+  host.appendChild(svg);
+  return svg;
+}
+
+/* line chart, two series, one y axis */
+function lineChart(host, { xs, series, yMax, yTicks, fmtY, W, H, refY, refLabel, fmtPoint }) {
+  const m = { l: 56, r: 64, t: 14, b: 40 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const xMax = xs[xs.length - 1];
+  const X = v => m.l + (v / xMax) * pw, Y = v => m.t + ph - (v / yMax) * ph;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img' });
+  for (const t of yTicks) {
+    svg.appendChild(el('line', { x1: m.l, x2: m.l + pw, y1: Y(t), y2: Y(t), class: 'grid' }));
+    svg.appendChild(el('text', { x: m.l - 8, y: Y(t) + 4, 'text-anchor': 'end', class: 'm', 'font-size': 12 }, fmtY(t)));
+  }
+  for (const v of xs) svg.appendChild(el('text', { x: X(v), y: m.t + ph + 20, 'text-anchor': 'middle', class: 'm', 'font-size': 12 }, `${v} ms`));
+  svg.appendChild(el('text', { x: m.l + pw / 2, y: H - 2, 'text-anchor': 'middle', class: 'm', 'font-size': 12 }, 'RTT aggiunto verso il primario ES'));
+  svg.appendChild(el('line', { x1: m.l, x2: m.l + pw, y1: m.t + ph, y2: m.t + ph, class: 'axis' }));
+  if (refY != null) {
+    svg.appendChild(el('line', { x1: m.l, x2: m.l + pw, y1: Y(refY), y2: Y(refY), style: 'stroke:var(--bad);stroke-width:1.2;stroke-dasharray:6 4' }));
+    svg.appendChild(el('text', { x: m.l + 6, y: Y(refY) - 6, class: 't-bad', 'font-size': 12 }, refLabel));
+  }
+  for (const s of series) {
+    const d = s.values.map((v, i) => `${i ? 'L' : 'M'}${X(xs[i])},${Y(v)}`).join(' ');
+    svg.appendChild(el('path', { d, style: `fill:none;stroke:var(${s.color});stroke-width:2.2;stroke-linejoin:round` }));
+    s.values.forEach((v, i) => {
+      const g = el('g');
+      g.appendChild(el('circle', { cx: X(xs[i]), cy: Y(v), r: 10, class: 'hit' }));
+      g.appendChild(el('circle', { cx: X(xs[i]), cy: Y(v), r: 4.5, style: `fill:var(${s.color});stroke:var(--paper);stroke-width:2` }));
+      tip(g, `${s.name} · ${xs[i]} ms: ${fmtPoint(v)}`);
+      svg.appendChild(g);
+      if (s.labels && s.labels[i] != null) {
+        const [dx, dy, anchor] = s.labels[i];
+        svg.appendChild(el('text', { x: X(xs[i]) + dx, y: Y(v) + dy, 'text-anchor': anchor || 'middle', 'font-size': 12.5, class: 'b' }, fmtPoint(v)));
+      }
+    });
+    const last = s.values.length - 1;
+    svg.appendChild(el('text', { x: X(xs[last]) + 10, y: Y(s.values[last]) + (s.endDy || 4), 'font-size': 13, class: 'b', style: `fill:var(${s.color})` }, s.name));
+  }
+  host.appendChild(svg);
+}
+
+/* 100%-stacked horizontal bars (verdicts) */
+function stacked(host, { rows, keys, W }) {
+  const labelW = 64, rowH = 54, barH = 30, pw = W - labelW - 10;
+  const H = rows.length * rowH + 4;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img' });
+  rows.forEach((row, i) => {
+    const total = keys.reduce((s, k) => s + row.v[k.k], 0);
+    const y = i * rowH + (rowH - barH) / 2;
+    svg.appendChild(el('text', { x: 0, y: y + barH / 2 + 5, 'font-size': 14, class: 'b', style: `fill:var(${row.color})` }, row.label));
+    let x = labelW;
+    keys.forEach(k => {
+      const v = row.v[k.k];
+      if (!v) return;
+      const w = (v / total) * pw;
+      const g = el('g');
+      g.appendChild(el('rect', { x: x + 1, y, width: Math.max(0, w - 2), height: barH, rx: 3, class: k.cls }));
+      if (w > 22) g.appendChild(el('text', { x: x + w / 2, y: y + barH / 2 + 5, 'text-anchor': 'middle', 'font-size': 13, class: 'b', style: 'fill:#fff' }, v));
+      tip(g, `${row.label} · ${k.k}: ${v} di ${total}`);
+      svg.appendChild(g);
+      x += w;
+    });
+  });
+  host.appendChild(svg);
+}
+
+/* ============ build charts ============ */
+function buildCharts() {
+  groupedHBars(document.getElementById('chart-s00'), {
+    rows: DATA.s00.map(d => ({ label: d.r, b: d.b, a: d.a, bAck: d.bAck, aAck: d.aAck })),
+    max: 32000, ticks: [0, 5000, 10000, 15000, 20000, 25000, 30000], fmtTick: t => `${t / 1000} s`,
+    W: 1160, labelW: 130, rowH: 44, barH: 16, gap: 3,
+    valueText: (row, k) => `${secs(row[k])} · ${k === 'b' ? row.bAck : row.aAck} confermati`,
+  });
+
+  lineChart(document.getElementById('chart-s06a'), {
+    xs: DATA.s06.rtt, W: 560, H: 380, yMax: 8, yTicks: [0, 2, 4, 6, 8], fmtY: t => t,
+    fmtPoint: v => it(v, v % 1 ? 2 : 1),
+    series: [
+      { name: 'prima', color: '--before', values: DATA.s06.appendsB, labels: [null, null, [-10, 20, 'end'], [-10, 18, 'end']], endDy: 4 },
+      { name: 'dopo', color: '--acc', values: DATA.s06.appendsA, labels: [[0, -12], null, [0, -12], [-10, -10, 'end']], endDy: 4 },
+    ],
+  });
+  lineChart(document.getElementById('chart-s06b'), {
+    xs: DATA.s06.rtt, W: 560, H: 380, yMax: 32000, yTicks: [0, 10000, 20000, 30000], fmtY: t => `${t / 1000} s`,
+    fmtPoint: v => secs(v), refY: 30000, refLabel: 'timeout del gateway: 30 s',
+    series: [
+      { name: 'prima', color: '--before', values: DATA.s06.apacP50B, labels: [null, [-8, -6, 'end'], null, [-10, -10, 'end']], endDy: 4 },
+      { name: 'dopo', color: '--acc', values: DATA.s06.apacP50A, labels: [null, [0, -12], [0, -12], [-8, 4, 'end']], endDy: 4 },
+    ],
+  });
+
+  groupedHBars(document.getElementById('chart-res'), {
+    rows: DATA.res.map(d => ({ label: d.l, b: d.b[0] / d.b[1] * 100, a: d.a[0] / d.a[1] * 100, bf: d.b, af: d.a, bNote: d.bNote })),
+    max: 100, ticks: [0, 25, 50, 75, 100], fmtTick: t => `${t} %`,
+    W: 700, labelW: 290, rowH: 58, barH: 17, gap: 3, extraRight: -60,
+    valueText: (row, k) => {
+      const f = k === 'b' ? row.bf : row.af;
+      return `${f[0]}/${f[1]}${k === 'b' && row.bNote ? ' ' + row.bNote : ''}`;
+    },
+  });
+
+  stacked(document.getElementById('chart-verdicts'), {
+    W: 430,
+    rows: [
+      { label: 'prima', color: '--before', v: DATA.verdicts.before },
+      { label: 'dopo', color: '--acc', v: DATA.verdicts.after },
+    ],
+    keys: [
+      { k: 'AS_EXPECTED', cls: 'st-good' },
+      { k: 'KNOWN_DEFECT_REPRODUCED', cls: 'st-warn' },
+      { k: 'UNEXPECTED', cls: 'st-bad' },
+      { k: 'INCONCLUSIVE', cls: 'st-none' },
+    ],
+  });
+
+  groupedHBars(document.getElementById('chart-times'), {
+    rows: DATA.times.map(d => ({ label: d.l, b: d.b, a: d.a, bNote: d.bNote, worse: d.worse })),
+    max: 27, ticks: [0, 5, 10, 15, 20, 25], fmtTick: t => `${t} s`,
+    W: 700, labelW: 280, rowH: 58, barH: 17, gap: 3, extraRight: -50,
+    valueText: (row, k) => `${it(row[k], row[k] < 1 ? 2 : 1)} s${k === 'a' && row.worse ? ' · peggio' : ''}`,
+  });
+}
+
+/* ============ deck ============ */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const stage = document.getElementById('stage');
+const count = document.getElementById('count');
+const progress = document.getElementById('progress');
+let cur = 0;
+
+slides.forEach((s, i) => { const p = s.querySelector('.pg'); if (p) p.textContent = `${i + 1} / ${slides.length}`; });
+
+function fit() {
+  const k = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+  stage.style.transform = `translate(-50%, -50%) scale(${k})`;
+}
+function show(i) {
+  cur = Math.max(0, Math.min(slides.length - 1, i));
+  slides.forEach((s, j) => s.classList.toggle('active', j === cur));
+  count.textContent = `${cur + 1} / ${slides.length}`;
+  progress.style.width = `${((cur + 1) / slides.length) * 100}%`;
+  const h = `#${cur + 1}`;
+  if (location.hash !== h) history.replaceState(null, '', h);
+  document.title = `${slides[cur].dataset.title || 'Slide'} · Evento multi-regione`;
+}
+function fromHash() { const n = parseInt(location.hash.slice(1), 10); return Number.isFinite(n) ? n - 1 : 0; }
+
+function setTheme(t) {
+  if (t) document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme');
+  try { t ? localStorage.setItem('evento-slides-theme', t) : localStorage.removeItem('evento-slides-theme'); } catch (e) {}
+}
+function toggleTheme() {
+  const explicit = document.documentElement.getAttribute('data-theme');
+  const dark = explicit ? explicit === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  setTheme(dark ? 'light' : 'dark');
+}
+try { const t = localStorage.getItem('evento-slides-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+
+document.addEventListener('keydown', e => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  switch (e.key) {
+    case 'ArrowRight': case 'PageDown': case ' ': case 'Enter': show(cur + 1); e.preventDefault(); break;
+    case 'ArrowLeft': case 'PageUp': case 'Backspace': show(cur - 1); e.preventDefault(); break;
+    case 'Home': show(0); e.preventDefault(); break;
+    case 'End': show(slides.length - 1); e.preventDefault(); break;
+    case 't': case 'T': toggleTheme(); break;
+    case 'f': case 'F': if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); break;
+  }
+});
+document.getElementById('prev').onclick = () => show(cur - 1);
+document.getElementById('next').onclick = () => show(cur + 1);
+document.getElementById('theme').onclick = toggleTheme;
+let tx = null;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', e => {
+  if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; tx = null;
+  if (Math.abs(dx) > 50) show(cur + (dx < 0 ? 1 : -1));
+});
+window.addEventListener('resize', fit);
+window.addEventListener('hashchange', () => show(fromHash()));
+
+const ctrls = document.querySelector('.controls');
+let idleT = null;
+function wake() { ctrls.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!ctrls.matches(':hover')) ctrls.classList.add('idle'); }, 2500); }
+document.addEventListener('mousemove', wake); document.addEventListener('touchstart', wake, { passive: true });
+wake();
+
+buildCharts();
+fit();
+show(fromHash());
+</script>
+</body>
+</html>
