@@ -53,6 +53,10 @@ dependencies {
 	testImplementation 'org.awaitility:awaitility:4.3.0'
 	testImplementation "io.netty:netty-pkitesting:${nettyVersion}"
 	testImplementation project(':evento-bundle')
+	// Real-Postgres ITs for the event store, locks and schema init (gated by EVENTO_RUN_JDBC_IT).
+	// Versions come from Spring Boot's Testcontainers 2.x BOM.
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {
@@ -68,4 +72,11 @@ processResources {
 test {
 	useJUnitPlatform()
 	jvmArgs '-Xmx2g'
+	// Testcontainers-based ITs only run with EVENTO_RUN_JDBC_IT=true. Forward DOCKER_HOST when
+	// set, and pin the Docker Engine API version docker-java negotiates (see the same block in
+	// evento-consumer-state-store-jdbc for why 1.40).
+	if (System.getenv("DOCKER_HOST")) {
+		environment "DOCKER_HOST", System.getenv("DOCKER_HOST")
+	}
+	systemProperty "api.version", System.getProperty("api.version") ?: "1.40"
 }

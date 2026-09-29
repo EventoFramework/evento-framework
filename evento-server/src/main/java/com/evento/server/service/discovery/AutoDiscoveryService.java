@@ -15,7 +15,6 @@ import com.evento.server.service.BundleService;
 import com.evento.transport.protocol.BundleDiscoveryInfo;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +41,7 @@ public class AutoDiscoveryService {
                                 HandlerService handlerService,
                                 PayloadRepository payloadRepository, BundleService bundleService,
                                 ComponentRepository componentRepository,
-                                ConsumerService consumerService, DataSource dataSource) {
+                                ConsumerService consumerService, PgDistributedLock distributedLock) {
         this.bundleRepository = bundleRepository;
         this.handlerService = handlerService;
         this.payloadRepository = payloadRepository;
@@ -57,7 +56,9 @@ public class AutoDiscoveryService {
             }
         });
         this.componentRepository = componentRepository;
-        this.pgDistributedLock = new PgDistributedLock(dataSource);
+        // The shared, pool-backed lock (DistributedLockConfiguration); null = JVM-local only
+        // (embedded brokers and unit tests).
+        this.pgDistributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
     }
 
     private void onNodeJoin(NodeAddress node, BundleDiscoveryInfo registration) {
