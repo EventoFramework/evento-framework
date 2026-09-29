@@ -21,7 +21,7 @@ package com.evento.lab.cluster.api;
  *   <caption>What a consumer registered for each value receives</caption>
  *   <tr><th>value</th><th>constant</th><th>receives</th></tr>
  *   <tr><td>{@code "ALL"}</td><td>{@link #GLOBAL}</td><td>only events whose context is exactly {@code ALL}</td></tr>
- *   <tr><td>{@code "*"}</td><td>{@link #WILDCARD} (= {@code Context.ALL})</td><td>every event: all regions and {@code ALL}</td></tr>
+ *   <tr><td>{@code "*"}</td><td>{@link #WILDCARD} (= {@code Context.WILDCARD}, deprecated alias {@code Context.ALL})</td><td>every event: all regions and {@code ALL}</td></tr>
  *   <tr><td>{@code "EUROPA"}</td><td>{@link Regions#ALL}</td><td>only EUROPA's events</td></tr>
  * </table>
  *
@@ -34,8 +34,8 @@ public final class Contexts {
     /** The literal cross-region context: events for every region, consumed by one global lane. */
     public static final String GLOBAL = "ALL";
 
-    /** The consumer-side wildcard {@code "*"}: every context. The same value as {@code Context.ALL}. */
-    public static final String WILDCARD = com.evento.common.utils.Context.ALL;
+    /** The consumer-side wildcard {@code "*"}: every context. The same value as {@code Context.WILDCARD} (formerly {@code Context.ALL}). */
+    public static final String WILDCARD = com.evento.common.utils.Context.WILDCARD;
 
     private Contexts() {
     }
