@@ -103,6 +103,9 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
     /** Partial unique index on {@code es__events.idempotency_key}; the name the event store probes for. */
     public static final String ES_EVENTS_IDEMPOTENCY_INDEX = "es__events_idempotency_key_uidx";
 
+    /** Claims of in-flight keyed service commands (G5); created by {@code schema.sql}. */
+    public static final String IDEMPOTENCY_CLAIMS_TABLE = "es__idempotency_claims";
+
     private final boolean enforcePrimaryKey;
 
     public AdvisoryLockedSchemaInitializer(DataSource dataSource,
@@ -178,9 +181,13 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
             log.warn("event=es_events_primary_key_missing reason=\"spring.sql.init.mode is not 'always', "
                     + "so the server does not add it\" script=classpath:{}", ES_EVENTS_PK_UPGRADE_SCRIPT);
         }
-        if (tableExists(connection, "es__events") && !validIndexExists(connection, ES_EVENTS_IDEMPOTENCY_INDEX)) {
+        if (tableExists(connection, "es__events")
+                && (!validIndexExists(connection, ES_EVENTS_IDEMPOTENCY_INDEX)
+                || !columnExists(connection, "es__events", "idempotency_command")
+                || !relationResolves(connection, IDEMPOTENCY_CLAIMS_TABLE))) {
             log.warn("event=es_events_idempotency_key_missing reason=\"spring.sql.init.mode is not 'always', "
-                    + "so the server does not add it; keyed commands run without exactly-once\" script=classpath:{}",
+                    + "so the server does not add the idempotency index, column and claims table; keyed commands "
+                    + "run without exactly-once\" script=classpath:{}",
                     ES_EVENTS_IDEMPOTENCY_UPGRADE_SCRIPT);
         }
     }
@@ -202,12 +209,16 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
      * Keys have no expiry (they live as long as their events); a retention policy is future work.
      */
     private void applyIdempotencyKey(Connection connection) throws SQLException {
-        if (queryLong(connection, "SELECT count(*) FROM information_schema.columns "
-                + "WHERE table_schema = current_schema() AND table_name = 'es__events' "
-                + "AND column_name = 'idempotency_key'") == 0) {
+        if (!columnExists(connection, "es__events", "idempotency_key")) {
             runWithLockTimeout(connection, "ALTER TABLE es__events ADD COLUMN IF NOT EXISTS idempotency_key varchar(255)",
                     "es_events_idempotency_key_column");
             log.info("event=es_events_idempotency_key_column_added");
+        }
+        if (!columnExists(connection, "es__events", "idempotency_command")) {
+            runWithLockTimeout(connection,
+                    "ALTER TABLE es__events ADD COLUMN IF NOT EXISTS idempotency_command varchar(255)",
+                    "es_events_idempotency_command_column");
+            log.info("event=es_events_idempotency_command_column_added");
         }
         dropInvalidIndex(connection, ES_EVENTS_IDEMPOTENCY_INDEX);
         if (validIndexExists(connection, ES_EVENTS_IDEMPOTENCY_INDEX)) return;
@@ -223,18 +234,41 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                 ES_EVENTS_IDEMPOTENCY_INDEX, (System.nanoTime() - started) / 1_000_000);
     }
 
+    /**
+     * Whether {@code index} exists, valid, <em>on the {@code es__events} this server uses</em>:
+     * the table {@code search_path} resolves, as every statement of the server does. Matching the
+     * index name alone in {@code pg_index} also matched an index of another schema's
+     * {@code es__events} (another tenant, a copy), and the server then trusted an index that
+     * did not guard its own table.
+     */
     private static boolean validIndexExists(Connection connection, String index) throws SQLException {
         return queryLong(connection, "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
-                "WHERE c.relname = '" + index + "' AND i.indisvalid") > 0;
+                "WHERE i.indrelid = to_regclass('es__events') AND c.relname = '" + index + "' AND i.indisvalid") > 0;
     }
 
+    /** Drops an INVALID {@code index} of the {@code es__events} this server uses, schema-qualified. */
     private static void dropInvalidIndex(Connection connection, String index) throws SQLException {
-        long invalid = queryLong(connection, "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
-                "WHERE c.relname = '" + index + "' AND NOT i.indisvalid");
-        if (invalid > 0) {
-            log.warn("event=es_events_index_invalid action=drop index={}", index);
-            execute(connection, "DROP INDEX CONCURRENTLY IF EXISTS " + index);
+        String qualified;
+        try (var stmt = connection.createStatement();
+             var rs = stmt.executeQuery("SELECT c.oid::regclass::text FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
+                     "WHERE i.indrelid = to_regclass('es__events') AND c.relname = '" + index + "' AND NOT i.indisvalid")) {
+            qualified = rs.next() ? rs.getString(1) : null;
         }
+        if (qualified != null) {
+            log.warn("event=es_events_index_invalid action=drop index={}", qualified);
+            execute(connection, "DROP INDEX CONCURRENTLY IF EXISTS " + qualified);
+        }
+    }
+
+    /** Whether {@code table}, as {@code search_path} resolves it, has {@code column}. */
+    private static boolean columnExists(Connection connection, String table, String column) throws SQLException {
+        return queryLong(connection, "SELECT count(*) FROM pg_attribute WHERE attrelid = to_regclass('" + table + "') "
+                + "AND attname = '" + column + "' AND NOT attisdropped") > 0;
+    }
+
+    /** Whether {@code relation} resolves through {@code search_path}. */
+    private static boolean relationResolves(Connection connection, String relation) throws SQLException {
+        return queryLong(connection, "SELECT count(*) WHERE to_regclass('" + relation + "') IS NOT NULL") > 0;
     }
 
     /** One DDL statement that needs {@code ACCESS EXCLUSIVE} for an instant, retried under a short lock timeout. */
