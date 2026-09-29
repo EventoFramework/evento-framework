@@ -279,7 +279,7 @@ public class Db {
         var handlers = new LinkedHashMap<String, java.util.Set<String>>();
         try (var st = c.createStatement(); var rs = st.executeQuery("""
                 SELECT h.handled_payload_name, c.bundle_id
-                FROM core__handler h JOIN core__component c ON h.component_component_name = c.component_name""")) {
+                FROM core__handler h JOIN core__component c ON %s""".formatted(handlerJoin(c)))) {
             while (rs.next()) {
                 handlers.computeIfAbsent(rs.getString(1), k -> new HashSet<>()).add(rs.getString(2));
             }
@@ -290,6 +290,21 @@ public class Db {
             while (rs.next()) consumers.put(rs.getString(1), rs.getString(2));
         }
         return new Rows.Catalog(bundles, handlers, consumers);
+    }
+
+    /**
+     * The join between core__handler and core__component for the catalog shape of the running
+     * server: after the N1 fix handlers reference {@code core__component.id} ({@code <bundle>:<name>})
+     * through {@code component_id}; before it they reference the component name, which was the key.
+     */
+    static String handlerJoin(Connection c) throws SQLException {
+        try (var ps = c.prepareStatement("""
+                SELECT count(*) FROM information_schema.columns
+                WHERE table_name = 'core__handler' AND column_name = 'component_id'""");
+             var rs = ps.executeQuery()) {
+            rs.next();
+            return rs.getInt(1) > 0 ? "h.component_id = c.id" : "h.component_component_name = c.component_name";
+        }
     }
 
     /**
