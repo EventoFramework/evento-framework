@@ -1,0 +1,34 @@
+plugins {
+    id 'org.springframework.boot' version '4.1.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+}
+
+group = 'com.evento'
+version = "${eventoVersion}"
+
+java { toolchain { languageVersion = javaLanguageVersion } }
+
+repositories { mavenCentral(); mavenLocal() }
+
+dependencyManagement {
+    // Flyway (via the JDBC consumer state store) needs jackson-annotations >= 2.20.
+    dependencies {
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+    }
+}
+
+dependencies {
+    implementation project(':evento-lab-cluster:lab-support')
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+}
+
+// One fat jar with an explicit, stable name: the lab Dockerfile copies it by
+// name, never by glob, so a stale *-plain.jar can never be picked up (L1).
+jar { enabled = false }
+bootJar { archiveFileName = 'order-saga.jar' }
+
+test { useJUnitPlatform() }
