@@ -7,7 +7,9 @@
 # env: LAB_TAG        image tag (default dev)
 #      BUS_VIA_LB     true -> app JVMs dial their cell VIP bus-<cell>:3030 (nginx stream,
 #                     primary = own server, backup = the others) instead of the direct list
-#      REPLICA        true -> also start cell-core-eu-b (compose profile 'replica', S2)
+#      REPLICA        true -> also start order-command-eu-b (compose profile 'replica', S2)
+#      REGIONAL_OBSERVERS true -> also start order-observer-eu|am|apac (profile 'regional-observers')
+#      PICK_STRATEGY  server handler pick: locality-preferred (default), random, first
 #      COLD_START     true -> no health chain between the three servers (S10)
 #      UP_TIMEOUT     seconds to wait for health (default 900)
 #      REPAIR_CATALOG false -> skip repair-catalog.sh after a full start (G8 workaround)
@@ -23,6 +25,7 @@ fi
 
 args=()
 [ "${REPLICA:-false}" = "true" ] && args+=(--profile replica)
+[ "${REGIONAL_OBSERVERS:-false}" = "true" ] && args+=(--profile regional-observers)
 files=(-f "$DOCKER_DIR/compose.yaml")
 [ "${COLD_START:-false}" = "true" ] && files+=(-f "$DOCKER_DIR/compose.cold-start.yaml")
 

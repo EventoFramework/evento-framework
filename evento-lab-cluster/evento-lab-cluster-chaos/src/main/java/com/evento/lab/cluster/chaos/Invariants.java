@@ -283,41 +283,61 @@ public final class Invariants {
 
     // ---- I4 ---------------------------------------------------------------------------------------
 
-    /** I4: {@code order_view_<r>} holds only rows whose context is exactly R. */
-    public static InvariantResult i4RegionalIsolation(Map<String, List<Rows.ViewRow>> regional) {
+    /**
+     * I4: each cell database's {@code order_view} holds only rows whose context
+     * is one of that cell's regions. The consumers write exactly the contexts
+     * they were given ({@code setComponentContexts}); a foreign context means
+     * the server's context match leaked (G15, e.g. {@code SUDXAMERICA} into the
+     * {@code SUD_AMERICA} engine).
+     */
+    public static InvariantResult i4RegionalIsolation(Map<String, List<Rows.ViewRow>> cellViews) {
         var violations = new ArrayList<String>();
         var metrics = new LinkedHashMap<String, Object>();
         int rows = 0;
-        for (var e : regional.entrySet()) {
+        for (var e : cellViews.entrySet()) {
+            var cell = e.getKey();
+            var allowed = LabConfig.regionsOfCell(cell);
             int leaked = 0;
+            var byContext = new TreeMap<String, Integer>();
             for (var row : e.getValue()) {
                 rows++;
-                if (!e.getKey().equals(row.context())) {
+                byContext.merge(String.valueOf(row.context()), 1, Integer::sum);
+                if (!allowed.contains(row.context())) {
                     leaked++;
-                    violations.add(LabConfig.regionTable(e.getKey()) + " holds " + row.orderId()
-                            + " with context " + row.context());
+                    violations.add(LabConfig.appPg(cell) + "." + LabConfig.REGIONAL_TABLE + " holds " + row.orderId()
+                            + " with context " + row.context() + " (cell " + cell + " serves " + allowed + ")");
                 }
             }
-            metrics.put(e.getKey() + ".rows", e.getValue().size());
-            if (leaked > 0) metrics.put(e.getKey() + ".foreignRows", leaked);
+            metrics.put(cell + ".rows", e.getValue().size());
+            metrics.put(cell + ".byContext", byContext);
+            if (leaked > 0) metrics.put(cell + ".foreignRows", leaked);
         }
         metrics.put("rows", rows);
         return InvariantResult.of("I4", "regional isolation",
-                "order_view_<r> contains only context R",
+                "order_view of each cell database contains only that cell's contexts",
                 violations.size() + " foreign row(s) in " + rows, metrics, violations);
     }
 
     // ---- I5 ---------------------------------------------------------------------------------------
 
-    /** I5: the global view is exactly the union of the regional views (same orders, same state). */
+    /**
+     * I5: {@code order_view_global} (the wildcard deployment) is exactly the
+     * union of the three cells' {@code order_view} (same orders, same state).
+     */
     public static InvariantResult i5GlobalCompleteness(List<Rows.ViewRow> global,
-                                                       Map<String, List<Rows.ViewRow>> regional) {
+                                                       Map<String, List<Rows.ViewRow>> cellViews) {
         var violations = new ArrayList<String>();
         var union = new LinkedHashMap<String, Rows.ViewRow>();
-        for (var rows : regional.values()) {
-            for (var r : rows) {
+        var cellOf = new HashMap<String, String>();
+        for (var e : cellViews.entrySet()) {
+            for (var r : e.getValue()) {
                 var prev = union.putIfAbsent(r.orderId(), r);
-                if (prev != null) violations.add(r.orderId() + " present in two regional views");
+                if (prev != null) {
+                    violations.add(r.orderId() + " present in two cell databases (" + cellOf.get(r.orderId())
+                            + ", " + e.getKey() + ")");
+                } else {
+                    cellOf.put(r.orderId(), e.getKey());
+                }
             }
         }
         var globalById = new LinkedHashMap<String, Rows.ViewRow>();
@@ -329,7 +349,7 @@ public final class Invariants {
             var g = globalById.get(r.orderId());
             if (g == null) {
                 missingInGlobal++;
-                violations.add(r.orderId() + " in " + LabConfig.regionTable(r.context()) + " but not in global");
+                violations.add(r.orderId() + " in " + LabConfig.appPg(cellOf.get(r.orderId())) + " but not in global");
             } else if (!Objects.equals(g.status(), r.status()) || g.itemCount() != r.itemCount()
                     || !Objects.equals(g.context(), r.context())) {
                 mismatched++;
@@ -340,7 +360,7 @@ public final class Invariants {
         for (var g : global) {
             if (!union.containsKey(g.orderId())) {
                 missingInRegional++;
-                violations.add(g.orderId() + " (" + g.context() + ") in global but in no regional view");
+                violations.add(g.orderId() + " (" + g.context() + ") in global but in no cell database");
             }
         }
         var metrics = new LinkedHashMap<String, Object>();
@@ -350,7 +370,7 @@ public final class Invariants {
         metrics.put("missingInRegional", missingInRegional);
         metrics.put("mismatched", mismatched);
         return InvariantResult.of("I5", "global completeness",
-                "order_view_global = union of order_view_<r> (same ids, status, item count, context)",
+                "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
                 missingInGlobal + " missing in global, " + missingInRegional + " missing regionally, "
                         + mismatched + " mismatched",
                 metrics, violations);
@@ -360,44 +380,47 @@ public final class Invariants {
 
     /**
      * The read models vs. the event store, right now: every order must be in
-     * the global view and in its context's regional view (when that context
-     * is one of the regions) with the event store's status, item count and
-     * last sequence. Empty = converged.
+     * the global view and, when its context is a region, in the {@code order_view}
+     * of that region's cell database, both with the event store's status, item
+     * count, payment and last sequence (every order-query deployment runs the
+     * same projector, payments included). Empty = converged.
      */
     public static List<String> convergenceGaps(Collection<Rows.EsEvent> events, List<Rows.ViewRow> global,
-                                               Map<String, List<Rows.ViewRow>> regional) {
+                                               Map<String, List<Rows.ViewRow>> cellViews) {
         var gaps = new ArrayList<String>();
         var expected = expectedOrders(events);
         var g = index(global);
-        var regionalIdx = new HashMap<String, Map<String, Rows.ViewRow>>();
-        regional.forEach((r, rows) -> regionalIdx.put(r, index(rows)));
+        var cellIdx = new HashMap<String, Map<String, Rows.ViewRow>>();
+        cellViews.forEach((cell, rows) -> cellIdx.put(cell, index(rows)));
         for (var e : expected.values()) {
             if (e.created() == 0) continue; // payment of an order outside the scope, or a lost create
             var gr = g.get(e.orderId());
             if (gr == null) {
                 gaps.add(e.orderId() + " missing in global");
-            } else {
-                if (!e.status().equals(gr.status()) || e.items() != gr.itemCount()
-                        || gr.lastSeq() != e.lastSeqWithPayment()
-                        || (e.paid() > 0 && !"PAID".equals(gr.paymentStatus()))) {
-                    gaps.add(e.orderId() + " global " + gr.status() + "/" + gr.itemCount() + "/" + gr.lastSeq()
-                            + " != es " + e.status() + "/" + e.items() + "/" + e.lastSeqWithPayment());
-                }
+            } else if (differs(e, gr)) {
+                gaps.add(e.orderId() + " global " + gr.status() + "/" + gr.itemCount() + "/" + gr.lastSeq()
+                        + " != es " + e.status() + "/" + e.items() + "/" + e.lastSeqWithPayment());
             }
-            var rIdx = regionalIdx.get(e.context());
+            var cell = LabConfig.cellOfContext(e.context());
+            var rIdx = cell == null ? null : cellIdx.get(cell);
             if (rIdx != null) {
                 var rr = rIdx.get(e.orderId());
+                var where = LabConfig.appPg(cell) + "." + LabConfig.REGIONAL_TABLE;
                 if (rr == null) {
-                    gaps.add(e.orderId() + " missing in " + LabConfig.regionTable(e.context()));
-                } else if (!e.status().equals(rr.status()) || e.items() != rr.itemCount()
-                        || rr.lastSeq() != e.lastOrderSeq()) {
-                    gaps.add(e.orderId() + " " + LabConfig.regionTable(e.context()) + " " + rr.status() + "/"
-                            + rr.itemCount() + "/" + rr.lastSeq() + " != es " + e.status() + "/" + e.items() + "/"
-                            + e.lastOrderSeq());
+                    gaps.add(e.orderId() + " missing in " + where);
+                } else if (differs(e, rr)) {
+                    gaps.add(e.orderId() + " " + where + " " + rr.status() + "/" + rr.itemCount() + "/"
+                            + rr.lastSeq() + " != es " + e.status() + "/" + e.items() + "/" + e.lastSeqWithPayment());
                 }
             }
         }
         return gaps;
+    }
+
+    private static boolean differs(ExpectedOrder e, Rows.ViewRow row) {
+        return !e.status().equals(row.status()) || e.items() != row.itemCount()
+                || row.lastSeq() != e.lastSeqWithPayment()
+                || (e.paid() > 0 && !"PAID".equals(row.paymentStatus()));
     }
 
     /**
@@ -412,8 +435,8 @@ public final class Invariants {
         while (true) {
             polls++;
             last = snapshots.get();
-            if (last.events() != null && last.global() != null && last.regional() != null) {
-                gaps = convergenceGaps(last.events(), last.global(), last.regional());
+            if (last.events() != null && last.global() != null && last.cellViews() != null) {
+                gaps = convergenceGaps(last.events(), last.global(), last.cellViews());
                 if (gaps.isEmpty()) break;
             } else {
                 gaps = List.of("snapshot incomplete: " + last.loadErrors());
@@ -430,7 +453,7 @@ public final class Invariants {
         metrics.put("remainingGaps", gaps.size());
         if (last != null && last.consumers() != null && last.esHead() != null) {
             var cps = new TreeMap<String, Object>();
-            for (var c : last.consumers()) cps.put(c.consumerId(), c.lastSequence());
+            for (var c : last.consumers()) cps.put(c.key(), c.lastSequence());
             metrics.put("esHead", last.esHead());
             metrics.put("checkpoints", cps);
         }
@@ -443,25 +466,18 @@ public final class Invariants {
 
     // ---- I7 ---------------------------------------------------------------------------------------
 
-    /** {@code SUD_AMERICA -> SudAmericaOrderProjector} (mirrors the app's {@code Regions.projectorName}). */
-    static String projectorName(String region) {
-        var sb = new StringBuilder();
-        for (var part : region.toLowerCase(java.util.Locale.ROOT).split("_")) {
-            sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
-        }
-        return sb.append("OrderProjector").toString();
-    }
-
-    /** Consumer id prefixes the default topology must have registered. */
+    /**
+     * Consumer ids ({@code <bundleId>_<Component>_<version>_<context>}) the
+     * default topology must have registered: one per engine, i.e. per
+     * component and context of each deployment's {@code EVENTO_CONTEXTS}.
+     */
     public static List<String> expectedConsumerPrefixes() {
         var out = new ArrayList<String>();
-        for (var r : LabConfig.REGIONS) {
-            // query-<r>_<R>OrderProjector_1_<R>: one projector class per region (N1)
-            out.add("query-" + r.toLowerCase() + "_" + projectorName(r) + "_");
-        }
-        out.add("cluster-query-global_GlobalOrderProjector_");
-        out.add("cluster-saga_PaymentSaga_");
-        out.add("cluster-saga_ClusterEventObserver_");
+        for (var r : LabConfig.REGIONS) out.add("order-query_OrderProjector_1_" + r);
+        out.add("order-query_OrderProjector_1_*");
+        out.add("order-query_CatalogProjector_1_" + LabConfig.GLOBAL_CONTEXT);
+        for (var r : LabConfig.REGIONS) out.add("order-saga_PaymentSaga_1_" + r);
+        out.add("order-observer_NotificationObserver_1_*");
         return out;
     }
 
@@ -487,15 +503,16 @@ public final class Invariants {
                 violations.add("no handler row for " + p);
             }
         }
-        // Every live bundle must own at least one handler row. core__component is keyed by the
-        // component's simple class name (N1 in FINDINGS.md), so bundles sharing a component class
-        // (before the lab's workaround the seven query-<region> bundles all ran RegionOrderProjector) end up with the rows of
-        // whichever registered last and the others have none.
+        // Every live bundle that has components must own at least one handler row (the gateway
+        // has none by design). Before the N1 fix core__component is keyed by the component's simple
+        // class name across bundles, so two bundles sharing a component class end up with the rows
+        // of whichever registered last; G8 can also leave a bundle without handler rows.
         var bundlesWithHandlers = new HashSet<String>();
         catalog.handlersByPayload().values().forEach(bundlesWithHandlers::addAll);
         int bundlesWithoutHandlers = 0;
         for (var b : expectedBundles) {
-            if (catalog.bundles().containsKey(b) && !bundlesWithHandlers.contains(b)) {
+            if (catalog.bundles().containsKey(b) && !bundlesWithHandlers.contains(b)
+                    && !LabConfig.BUNDLES_WITHOUT_HANDLERS.contains(b)) {
                 bundlesWithoutHandlers++;
                 violations.add("bundle " + b + " has no core__handler rows");
             }
@@ -555,12 +572,12 @@ public final class Invariants {
             out.add(i2NoDuplicates(ledgers, snap.events(), snap.observed(), snap.payments()));
             out.add(i3NoFork(snap.events(), snap.duplicateSeqsGlobal()));
         }
-        if (snap.regional() == null || snap.global() == null) {
+        if (snap.cellViews() == null || snap.global() == null) {
             out.add(InvariantResult.error("I4", "regional isolation", "app db unreadable: " + snap.loadErrors()));
             out.add(InvariantResult.error("I5", "global completeness", "app db unreadable: " + snap.loadErrors()));
         } else {
-            out.add(i4RegionalIsolation(snap.regional()));
-            out.add(i5GlobalCompleteness(snap.global(), snap.regional()));
+            out.add(i4RegionalIsolation(snap.cellViews()));
+            out.add(i5GlobalCompleteness(snap.global(), snap.cellViews()));
         }
         out.add(i6);
         out.add(i7Catalog(snap.catalog(), LabConfig.EXPECTED_BUNDLES, LabConfig.EXPECTED_HANDLED_PAYLOADS,

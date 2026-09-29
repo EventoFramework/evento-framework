@@ -11,9 +11,10 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * JDBC reads of the event-store DB and the app DB, through the host-published
- * ports with a multi-host URL ({@code targetServerType=primary}), so reads
- * follow a promoted replica after S8/S9.
+ * JDBC reads of the event store, the three regional app databases and the
+ * {@code consumers} database, through the host-published ports with
+ * multi-host URLs ({@code targetServerType=primary}), so reads follow a
+ * promoted replica after S8/S9.
  */
 public class Db {
 
@@ -27,8 +28,21 @@ public class Db {
         return connect(config.esJdbcUrl());
     }
 
-    public Connection app() throws SQLException {
-        return connect(config.appJdbcUrl());
+    /** The app database of one cell ({@code EU}, {@code AM}, {@code APAC}). */
+    public Connection app(String cell) throws SQLException {
+        var url = config.appJdbcUrls().get(cell);
+        if (url == null) throw new IllegalArgumentException("no app database for cell " + cell);
+        return connect(url);
+    }
+
+    /** The database holding {@code order_view_global}. */
+    public Connection globalView() throws SQLException {
+        return app(LabConfig.GLOBAL_VIEW_CELL);
+    }
+
+    /** The {@code consumers} database (state of the global ALL lane). */
+    public Connection consumers() throws SQLException {
+        return connect(config.consumersJdbcUrl());
     }
 
     private Connection connect(String url) throws SQLException {
@@ -62,25 +76,32 @@ public class Db {
         } catch (SQLException e) {
             errors.add("es db: " + e.getMessage());
         }
-        Map<String, List<Rows.ViewRow>> regional = null;
+        Map<String, List<Rows.ViewRow>> cellViews = new LinkedHashMap<>();
         List<Rows.ViewRow> global = null;
-        List<Rows.ObservedRow> observed = null;
-        List<Rows.PaymentRow> payments = null;
-        List<Rows.ConsumerStateRow> consumers = null;
-        try (var c = app()) {
-            regional = new LinkedHashMap<>();
-            for (var r : LabConfig.REGIONS) {
-                regional.put(r, views(c, LabConfig.regionTable(r), prefix));
+        List<Rows.ObservedRow> observed = new ArrayList<>();
+        var attempts = new LinkedHashMap<String, Integer>();
+        boolean cellsOk = true;
+        for (var cell : LabConfig.CELLS) {
+            try (var c = app(cell)) {
+                cellViews.put(cell, views(c, LabConfig.REGIONAL_TABLE, prefix));
+                if (cell.equals(LabConfig.GLOBAL_VIEW_CELL)) global = views(c, LabConfig.GLOBAL_TABLE, prefix);
+                observed.addAll(observed(c, prefix));
+                for (var pr : payments(c, prefix)) attempts.merge(pr.orderId(), pr.attempts(), Integer::sum);
+            } catch (SQLException e) {
+                cellsOk = false;
+                errors.add("app db " + cell + ": " + e.getMessage());
             }
-            global = views(c, "order_view_global", prefix);
-            observed = observed(c, prefix);
-            payments = payments(c, prefix);
-            consumers = consumerStates(c);
-        } catch (SQLException e) {
-            errors.add("app db: " + e.getMessage());
         }
-        return new Rows.Snapshot(prefix, events, head, dupSeqs, regional, global, observed, payments,
-                consumers, catalog, errors);
+        List<Rows.PaymentRow> payments = new ArrayList<>();
+        attempts.forEach((id, n) -> payments.add(new Rows.PaymentRow(id, n)));
+        List<Rows.ConsumerStateRow> consumers = null;
+        try {
+            consumers = consumerStates();
+        } catch (SQLException e) {
+            errors.add("consumer state: " + e.getMessage());
+        }
+        return new Rows.Snapshot(prefix, events, head, dupSeqs, cellsOk ? cellViews : null, global,
+                cellsOk ? observed : null, cellsOk ? payments : null, consumers, catalog, errors);
     }
 
     public List<Rows.EsEvent> events(Connection c, String prefix) throws SQLException {
@@ -152,11 +173,12 @@ public class Db {
     public List<Rows.ObservedRow> observed(Connection c, String prefix) throws SQLException {
         var out = new ArrayList<Rows.ObservedRow>();
         try (var ps = c.prepareStatement(
-                "SELECT event_seq, event_name, order_id, deliveries FROM observed_events WHERE order_id LIKE ? ESCAPE '\\'")) {
+                "SELECT lane, event_seq, event_name, order_id, deliveries FROM observed_events WHERE order_id LIKE ? ESCAPE '\\'")) {
             ps.setString(1, likePrefix(prefix));
             try (var rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    out.add(new Rows.ObservedRow(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getInt(4)));
+                    out.add(new Rows.ObservedRow(rs.getString(1), rs.getLong(2), rs.getString(3), rs.getString(4),
+                            rs.getInt(5)));
                 }
             }
         } catch (SQLException e) {
@@ -180,12 +202,12 @@ public class Db {
         return out;
     }
 
-    public List<Rows.ConsumerStateRow> consumerStates(Connection c) throws SQLException {
+    public List<Rows.ConsumerStateRow> consumerStates(Connection c, String db) throws SQLException {
         var out = new ArrayList<Rows.ConsumerStateRow>();
         try (var st = c.createStatement(); var rs = st.executeQuery(
                 "SELECT consumer_id, kind, last_sequence, updated_at FROM evento_v2_consumer_state ORDER BY consumer_id")) {
             while (rs.next()) {
-                out.add(new Rows.ConsumerStateRow(rs.getString(1), rs.getString(2), rs.getLong(3), rs.getString(4)));
+                out.add(new Rows.ConsumerStateRow(db, rs.getString(1), rs.getString(2), rs.getLong(3), rs.getString(4)));
             }
         } catch (SQLException e) {
             if ("42P01".equals(e.getSQLState())) return out;
@@ -194,10 +216,59 @@ public class Db {
         return out;
     }
 
+    /**
+     * Every consumer checkpoint of the lab: the three cell databases and the
+     * {@code consumers} database. Fails if any of them is unreachable.
+     */
     public List<Rows.ConsumerStateRow> consumerStates() throws SQLException {
-        try (var c = app()) {
-            return consumerStates(c);
+        var out = new ArrayList<Rows.ConsumerStateRow>();
+        for (var cell : LabConfig.CELLS) {
+            try (var c = app(cell)) {
+                out.addAll(consumerStates(c, cell));
+            }
         }
+        try (var c = consumers()) {
+            out.addAll(consumerStates(c, "consumers"));
+        }
+        return out;
+    }
+
+    /** Like {@link #consumerStates()} but skips an unreachable database (for time series during an outage). */
+    public List<Rows.ConsumerStateRow> consumerStatesBestEffort() {
+        var out = new ArrayList<Rows.ConsumerStateRow>();
+        for (var cell : LabConfig.CELLS) {
+            try (var c = app(cell)) {
+                out.addAll(consumerStates(c, cell));
+            } catch (SQLException ignored) {
+                // that cell is down right now
+            }
+        }
+        try (var c = consumers()) {
+            out.addAll(consumerStates(c, "consumers"));
+        } catch (SQLException ignored) {
+            // down right now
+        }
+        return out;
+    }
+
+    /** {@code catalog_price} rows whose SKU starts with {@code prefix}, in one cell database. */
+    public List<Rows.PriceRow> prices(String cell, String prefix) throws SQLException {
+        var out = new ArrayList<Rows.PriceRow>();
+        try (var c = app(cell); var ps = c.prepareStatement("""
+                SELECT sku, price_cents, context, last_seq, applied_events, stale_skips, updated_by
+                FROM catalog_price WHERE sku LIKE ? ESCAPE '\\' ORDER BY sku""")) {
+            ps.setString(1, likePrefix(prefix));
+            try (var rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new Rows.PriceRow(cell, rs.getString(1), rs.getLong(2), rs.getString(3), rs.getLong(4),
+                            rs.getInt(5), rs.getInt(6), rs.getString(7)));
+                }
+            }
+        } catch (SQLException e) {
+            if ("42P01".equals(e.getSQLState())) return out;
+            throw e;
+        }
+        return out;
     }
 
     public Rows.Catalog catalog(Connection c) throws SQLException {
@@ -242,10 +313,17 @@ public class Db {
         return out;
     }
 
-    /** Current value of each consumer's checkpoint, keyed by consumer id. */
+    /** Current value of each consumer's checkpoint, keyed by {@code <db>/<consumerId>}. */
     public Map<String, Long> checkpoints() throws SQLException {
         var out = new LinkedHashMap<String, Long>();
-        for (var r : consumerStates()) out.put(r.consumerId(), r.lastSequence());
+        for (var r : consumerStates()) out.put(r.key(), r.lastSequence());
+        return out;
+    }
+
+    /** {@link #checkpoints()} without failing on an unreachable database. */
+    public Map<String, Long> checkpointsBestEffort() {
+        var out = new LinkedHashMap<String, Long>();
+        for (var r : consumerStatesBestEffort()) out.put(r.key(), r.lastSequence());
         return out;
     }
 }

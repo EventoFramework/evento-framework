@@ -12,8 +12,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * S2: two handler replicas in one cell ({@code cell-core-eu} + the
- * {@code replica}-profile {@code cell-core-eu-b}); kill one under load. The
+ * S2: two handler replicas in one cell ({@code order-command-eu} + the
+ * {@code replica}-profile {@code order-command-eu-b}, the same image with
+ * another instance id); kill one under load. The
  * server picks among available nodes, so new commands must land on eu-b;
  * commands in flight on the killed node fail ({@code peer disconnected}).
  */
@@ -41,14 +42,14 @@ class S02KillHandlerReplicaTest extends AbstractScenario {
     void killHandlerReplica() throws Exception {
         scenario(() -> {
             onCleanup(() -> {
-                cluster.ensureRunning("cell-core-eu");
-                cluster.waitReady("cell-core-eu", Duration.ofSeconds(300));
-                cluster.removeService("replica", "cell-core-eu-b");
+                cluster.ensureRunning("order-command-eu");
+                cluster.waitReady("order-command-eu", Duration.ofSeconds(300));
+                cluster.removeService("replica", "order-command-eu-b");
             });
-            cluster.upProfileService("replica", "cell-core-eu-b");
-            var ready = cluster.waitReady("cell-core-eu-b", Duration.ofSeconds(300));
-            report.event("cell-core-eu-b ready=" + ready);
-            if (!ready) report.harnessError("cell-core-eu-b did not become ready");
+            cluster.upProfileService("replica", "order-command-eu-b");
+            var ready = cluster.waitReady("order-command-eu-b", Duration.ofSeconds(300));
+            report.event("order-command-eu-b ready=" + ready);
+            if (!ready) report.harnessError("order-command-eu-b did not become ready");
 
             var killAt = new AtomicReference<Instant>();
             var killAfter = envSeconds("S02_KILL_AFTER_S", 20);
@@ -56,8 +57,8 @@ class S02KillHandlerReplicaTest extends AbstractScenario {
             var records = load(EU, env("S02_RATE", 60), 2, 0.5, envSeconds("S02_DURATION_S", 70), elapsed -> {
                 if (killAt.get() == null && elapsed.compareTo(killAfter) >= 0) {
                     killAt.set(Instant.now());
-                    cluster.kill("cell-core-eu");
-                    report.event("killed cell-core-eu");
+                    cluster.kill("order-command-eu");
+                    report.event("killed order-command-eu");
                 }
             });
             if (killAt.get() == null) {
@@ -91,7 +92,7 @@ class S02KillHandlerReplicaTest extends AbstractScenario {
             var results = checkInvariants(records, envSeconds("S02_CONVERGENCE_S", 120));
             report.observe("I1 holds for acknowledged orders", "no acknowledged command lost",
                     find(results, "I1").observed(), find(results, "I1").passed());
-            markers(List.of("evento-eu", "cell-core-eu-b"), since, MARKERS);
+            markers(List.of("evento-eu", "order-command-eu-b"), since, MARKERS);
         });
     }
 }

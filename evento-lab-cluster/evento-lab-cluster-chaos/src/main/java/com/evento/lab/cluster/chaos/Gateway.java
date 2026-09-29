@@ -104,6 +104,22 @@ public class Gateway {
         return call("get_global", region, orderId, "GET", "/orders/global/" + orderId, null, null);
     }
 
+    /**
+     * Set a world-wide price through a region's gateway: one {@code PriceChangedEvent}
+     * with the literal context {@code ALL}. Recorded with op {@code set_price} and the
+     * SKU in the order-id slot (not an order command: the order ledgers ignore it).
+     */
+    public RequestRecord setPrice(String region, String sku, long priceCents, String idempotencyKey) {
+        return call("set_price", region, sku, "POST", "/catalog/prices",
+                Json.write(Map.of("sku", sku, "priceCents", priceCents, "currency", "EUR")), idempotencyKey);
+    }
+
+    /** A price from one regional database ({@code db} = {@code eu}/{@code am}/{@code apac}), or the caller's cell. */
+    public RequestRecord getPrice(String region, String sku, String db) {
+        return call("get_price", region, sku, "GET", "/catalog/prices/" + sku + (db == null ? "" : "?db=" + db),
+                null, null);
+    }
+
     /** Raw GET through the LB with a region key, returning the body (or null). */
     public String getBody(String region, String path) {
         try {
