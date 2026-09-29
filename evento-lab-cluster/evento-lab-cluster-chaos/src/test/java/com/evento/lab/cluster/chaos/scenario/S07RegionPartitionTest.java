@@ -32,8 +32,15 @@ import java.util.concurrent.atomic.AtomicReference;
 class S07RegionPartitionTest extends AbstractScenario {
 
     private static final List<String> NON_APAC = List.of("EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA");
-    private static final List<String> GLOBAL_LANES = List.of("cluster-query-global_GlobalOrderProjector_",
-            "cluster-saga_PaymentSaga_", "cluster-saga_ClusterEventObserver_");
+    /**
+     * The lanes that serve every region (checkpoint keys {@code <db>/<consumerId>}): the global
+     * ALL lane (replicas in EU and APAC compete for it), the wildcard order projector and the
+     * wildcard observer. Regional lanes of APAC are expected to stop; these must not.
+     */
+    private static final List<String> GLOBAL_LANES = List.of(
+            "consumers/order-query_CatalogProjector_1_ALL",
+            "EU/order-query_OrderProjector_1_*",
+            "EU/order-observer_NotificationObserver_1_*");
 
     @Override
     protected String id() {
@@ -68,7 +75,7 @@ class S07RegionPartitionTest extends AbstractScenario {
                     var row = new LinkedHashMap<String, Object>();
                     row.put("t", Instant.now().toString());
                     try {
-                        db.checkpoints().forEach((k, v) -> {
+                        db.checkpointsBestEffort().forEach((k, v) -> {
                             if (GLOBAL_LANES.stream().anyMatch(k::startsWith)) row.put(k, v);
                         });
                     } catch (Exception e) {

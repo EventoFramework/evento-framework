@@ -88,7 +88,8 @@ class InvariantsTest {
                 ev(3, "o1", "OrderItemAddedEvent", "EUROPA", "k-item-000"),
                 ev(4, "o1", "OrderItemAddedEvent", "EUROPA", "k-item-000"));
         var r = Invariants.i2NoDuplicates(ledgers, events,
-                List.of(new Rows.ObservedRow(3, "OrderItemAddedEvent", "o1", 2)),
+                List.of(new Rows.ObservedRow("order-observer", 3, "OrderItemAddedEvent", "o1", 2),
+                        new Rows.ObservedRow("order-observer-regional", 3, "OrderItemAddedEvent", "o1", 1)),
                 List.of(new Rows.PaymentRow("o1", 3)));
         assertThat(r.status()).isEqualTo(InvariantResult.Status.FAIL);
         assertThat(r.metrics())
@@ -135,20 +136,24 @@ class InvariantsTest {
     }
 
     @Test
-    void i4FlagsForeignContextRows() {
+    void i4FlagsForeignContextRowsPerCellDatabase() {
         var r = Invariants.i4RegionalIsolation(Map.of(
-                "SUD_AMERICA", List.of(view("a", "SUD_AMERICA", "CREATED", 0, 1), view("b", "SUDXAMERICA", "CREATED", 0, 2)),
-                "EUROPA", List.of(view("c", "EUROPA", "CREATED", 0, 3))));
+                "AM", List.of(view("a", "SUD_AMERICA", "CREATED", 0, 1), view("b", "SUDXAMERICA", "CREATED", 0, 2),
+                        view("d", "AMERICA", "CREATED", 0, 4)),
+                "EU", List.of(view("c", "EUROPA", "CREATED", 0, 3), view("e", "AFRICA", "CREATED", 0, 5)),
+                "APAC", List.of(view("f", "EUROPA", "CREATED", 0, 6))));
         assertThat(r.status()).isEqualTo(InvariantResult.Status.FAIL);
-        assertThat(r.violationCount()).isEqualTo(1);
-        assertThat(r.violations().getFirst()).contains("order_view_sud_america").contains("SUDXAMERICA");
+        assertThat(r.violationCount()).isEqualTo(2);
+        assertThat(r.violations()).anyMatch(v -> v.contains("app-pg-am.order_view") && v.contains("SUDXAMERICA"))
+                .anyMatch(v -> v.contains("app-pg-apac.order_view") && v.contains("EUROPA"));
+        assertThat(r.metrics()).containsEntry("EU.rows", 2).containsEntry("AM.foreignRows", 1);
     }
 
     @Test
     void i5ComparesGlobalWithTheUnionOfRegions() {
         var regional = Map.of(
-                "EUROPA", List.of(view("a", "EUROPA", "CREATED", 1, 2)),
-                "CINA", List.of(view("b", "CINA", "COMPLETED", 0, 5), view("c", "CINA", "CREATED", 0, 6)));
+                "EU", List.of(view("a", "EUROPA", "CREATED", 1, 2)),
+                "APAC", List.of(view("b", "CINA", "COMPLETED", 0, 5), view("c", "CINA", "CREATED", 0, 6)));
         var global = List.of(view("a", "EUROPA", "CREATED", 1, 2), view("b", "CINA", "CREATED", 0, 4),
                 view("z", "INDIA", "CREATED", 0, 7));
         var r = Invariants.i5GlobalCompleteness(global, regional);
@@ -164,16 +169,17 @@ class InvariantsTest {
                 ev(3, "a", "OrderCompletedEvent", "EUROPA"),
                 ev(4, "payment-a", "PaymentProcessedEvent", "EUROPA"),
                 ev(5, "s", "OrderCreatedEvent", "SUDXAMERICA"));
+        var paidRow = new Rows.ViewRow("a", "EUROPA", "COMPLETED", 1, 1, "PAID", 4, 4, 0);
         var converged = Invariants.convergenceGaps(events,
-                List.of(new Rows.ViewRow("a", "EUROPA", "COMPLETED", 1, 1, "PAID", 4, 4, 0),
-                        view("s", "SUDXAMERICA", "CREATED", 0, 5)),
-                Map.of("EUROPA", List.of(view("a", "EUROPA", "COMPLETED", 1, 3))));
+                List.of(paidRow, view("s", "SUDXAMERICA", "CREATED", 0, 5)),
+                Map.of("EU", List.of(paidRow)));
         assertThat(converged).isEmpty();
 
         var lagging = Invariants.convergenceGaps(events,
                 List.of(view("a", "EUROPA", "COMPLETED", 1, 3)),
-                Map.of("EUROPA", List.of(view("a", "EUROPA", "CREATED", 1, 2))));
-        assertThat(lagging).hasSize(3); // global missing payment, regional behind, synthetic missing in global
+                Map.of("EU", List.of(view("a", "EUROPA", "CREATED", 1, 2))));
+        // global missing payment, regional behind, synthetic missing in global
+        assertThat(lagging).hasSize(3).anyMatch(g -> g.contains("app-pg-eu.order_view"));
     }
 
     @Test
@@ -183,11 +189,12 @@ class InvariantsTest {
         var r = Invariants.i6Convergence(() -> {
             var n = calls.incrementAndGet();
             var rows = n < 2 ? List.<Rows.ViewRow>of() : List.of(view("a", "EUROPA", "CREATED", 0, 1));
-            return new Rows.Snapshot("p", events, 1L, List.of(), Map.of("EUROPA", rows), rows, List.of(), List.of(),
-                    List.of(new Rows.ConsumerStateRow("c", "PROJECTOR", 1, "now")), null, List.of());
+            return new Rows.Snapshot("p", events, 1L, List.of(), Map.of("EU", rows), rows, List.of(), List.of(),
+                    List.of(new Rows.ConsumerStateRow("EU", "c", "PROJECTOR", 1, "now")), null, List.of());
         }, Duration.ofSeconds(5), Duration.ofMillis(10));
         assertThat(r.status()).isEqualTo(InvariantResult.Status.PASS);
-        assertThat(r.metrics()).containsEntry("converged", true).containsEntry("polls", 2);
+        assertThat(r.metrics()).containsEntry("converged", true).containsEntry("polls", 2)
+                .containsEntry("checkpoints", new java.util.TreeMap<>(Map.of("EU/c", 1L)));
     }
 
     @Test
@@ -202,30 +209,35 @@ class InvariantsTest {
     @Test
     void i7ChecksBundlesHandlersAndConsumers() {
         var catalog = new Rows.Catalog(
-                Map.of("cluster-command", "cell-core-eu-cluster-command"),
-                Map.of("CreateOrderCommand", Set.of("cluster-command")),
-                Map.of("query-europa_EuropaOrderProjector_1_EUROPA", "i1"));
-        var r = Invariants.i7Catalog(catalog, List.of("cluster-command", "query-europa"),
+                Map.of("order-command", "order-command-eu", "order-gateway", "gateway-europa"),
+                Map.of("CreateOrderCommand", Set.of("order-command")),
+                Map.of("order-query_OrderProjector_1_EUROPA", "order-query-eu"));
+        var r = Invariants.i7Catalog(catalog, List.of("order-command", "order-query", "order-gateway"),
                 List.of("CreateOrderCommand", "FindGlobalOrderQuery"),
-                List.of("query-europa_EuropaOrderProjector_", "cluster-saga_PaymentSaga_"));
+                List.of("order-query_OrderProjector_1_EUROPA", "order-saga_PaymentSaga_1_EUROPA"));
+        // the gateway owns no handler by design and is not flagged
         assertThat(r.metrics()).containsEntry("missingBundles", 1).containsEntry("missingHandlers", 1)
                 .containsEntry("missingConsumers", 1).containsEntry("bundlesWithoutHandlers", 0);
-        // N1: a bundle whose component rows were taken over by a sibling bundle has no handlers
-        var shared = new Rows.Catalog(
-                Map.of("query-europa", "a", "query-africa", "b"),
-                Map.of("OrderCreatedEvent", Set.of("query-africa")),
+        // G8 / N1: a live bundle left without handler rows is flagged
+        var lost = new Rows.Catalog(
+                Map.of("order-query", "a", "order-saga", "b"),
+                Map.of("OrderCreatedEvent", Set.of("order-saga")),
                 Map.of());
-        assertThat(Invariants.i7Catalog(shared, List.of("query-europa", "query-africa"), List.of(), List.of())
+        assertThat(Invariants.i7Catalog(lost, List.of("order-query", "order-saga"), List.of(), List.of())
                 .metrics()).containsEntry("bundlesWithoutHandlers", 1);
         assertThat(Invariants.i7Catalog(null, List.of(), List.of(), List.of()).status())
                 .isEqualTo(InvariantResult.Status.ERROR);
     }
 
     @Test
-    void expectedConsumerPrefixesCoverEveryRegionWithItsUnderscore() {
+    void expectedConsumerIdsAreOneEnginePerComponentAndContext() {
         assertThat(Invariants.expectedConsumerPrefixes())
-                .contains("query-sud_america_SudAmericaOrderProjector_", "query-australia_nz_AustraliaNzOrderProjector_")
-                .hasSize(LabConfig.REGIONS.size() + 3);
+                .contains("order-query_OrderProjector_1_SUD_AMERICA", "order-query_OrderProjector_1_AUSTRALIA_NZ",
+                        "order-query_OrderProjector_1_*", "order-query_CatalogProjector_1_ALL",
+                        "order-saga_PaymentSaga_1_CINA", "order-observer_NotificationObserver_1_*")
+                // the global lane is the literal ALL context, never the wildcard
+                .doesNotContain("order-query_CatalogProjector_1_*")
+                .hasSize(2 * LabConfig.REGIONS.size() + 3);
     }
 
     @Test

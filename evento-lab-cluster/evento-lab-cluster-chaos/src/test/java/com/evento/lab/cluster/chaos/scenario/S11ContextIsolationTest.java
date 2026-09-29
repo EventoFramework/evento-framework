@@ -27,8 +27,10 @@ import java.util.UUID;
  * each whose events carry the context {@code SUDXAMERICA} / {@code AUSTRALIAXNZ}
  * (lab hook: the gateway's {@code context} body field). The server matches
  * contexts with an unescaped LIKE, where {@code _} is a one-character wildcard
- * (G15), so the synthetic events leak into the regional projectors. The GUI's
- * consumer list parses consumer ids by splitting on {@code _} (G16).
+ * (G15), so the synthetic events leak into the {@code SUD_AMERICA} /
+ * {@code AUSTRALIA_NZ} engines of {@code OrderProjector} and show up as
+ * foreign-context rows in the AM / APAC cell databases. The GUI's consumer
+ * list parses consumer ids by splitting on {@code _} (G16).
  * This is also the real-server version of the missing isolation assert (L6).
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
@@ -80,12 +82,12 @@ class S11ContextIsolationTest extends AbstractScenario {
             var leakWait = envSeconds("S11_LEAK_WAIT_S", 60);
             var settled = Cluster.waitUntil(leakWait, Duration.ofSeconds(2), () -> {
                 var s = db.snapshot(prefix);
-                if (s.global() == null || s.regional() == null) return false;
+                if (s.global() == null || s.cellViews() == null) return false;
                 return synthetic.entrySet().stream().allMatch(e -> {
                     var region = SYNTHETIC.entrySet().stream().filter(x -> x.getValue().equals(e.getKey()))
                             .map(Map.Entry::getKey).findFirst().orElseThrow();
                     return s.global().stream().anyMatch(v -> v.orderId().equals(e.getValue()))
-                            && s.regional().getOrDefault(region, List.of()).stream()
+                            && s.cellViews().getOrDefault(LabConfig.CELL_OF.get(region), List.of()).stream()
                             .anyMatch(v -> v.orderId().equals(e.getValue()));
                 });
             });
@@ -96,11 +98,13 @@ class S11ContextIsolationTest extends AbstractScenario {
             var snap = db.snapshot(prefix);
             for (var region : SYNTHETIC.keySet()) {
                 var fake = SYNTHETIC.get(region);
-                var rows = snap.regional() == null ? List.<Rows.ViewRow>of() : snap.regional().get(region);
+                var cell = LabConfig.CELL_OF.get(region);
+                var rows = snap.cellViews() == null ? List.<Rows.ViewRow>of() : snap.cellViews().get(cell);
                 var leaked = rows.stream().filter(v -> fake.equals(v.context())).map(Rows.ViewRow::orderId).toList();
                 var own = rows.stream().filter(v -> region.equals(v.context())).count();
-                report.observe(LabConfig.regionTable(region) + " vs context " + fake,
-                        "only " + region + " events reach query-" + region.toLowerCase(),
+                report.observe(LabConfig.appPg(cell) + ".order_view vs context " + fake,
+                        "only " + region + " events reach OrderProjector's " + region + " engine in "
+                                + LabConfig.queryService(region),
                         "LIKE '" + region + "' matches " + fake + ": the synthetic order leaks in (G15)",
                         own + " own rows, leaked: " + (leaked.isEmpty() ? "none" : leaked),
                         leaked.isEmpty(), !leaked.isEmpty(), null);
@@ -129,7 +133,7 @@ class S11ContextIsolationTest extends AbstractScenario {
             var shown = new LinkedHashMap<String, String>();
             for (var c : Json.read(resp.body())) {
                 var bundle = c.path("bundleId").asText();
-                if (bundle.startsWith("query-") || bundle.startsWith("cluster-")) {
+                if (bundle.startsWith("order-")) {
                     shown.put(c.path("consumerId").asText(), "bundle=" + bundle + " context=" + c.path("context").asText()
                             + " version=" + c.path("componentVersion").asText());
                 }
@@ -141,19 +145,19 @@ class S11ContextIsolationTest extends AbstractScenario {
                 var ctx = id.substring(id.lastIndexOf("_1_") + 3);
                 return id.contains("_1_") && !e.getValue().contains("context=" + ctx + " ");
             }).map(Map.Entry::getKey).toList();
-            var regionalShown = shown.keySet().stream().filter(k -> k.startsWith("query-")).count();
+            var regionalShown = shown.keySet().stream().filter(k -> k.startsWith("order-query_OrderProjector_1_")
+                    && LabConfig.REGIONS.stream().anyMatch(k::endsWith)).count();
             report.observe("GUI consumer context (G16)",
                     "every consumer shows its full context (SUD_AMERICA, AUSTRALIA_NZ)",
-                    "split('_') cuts names with '_' (e.g. SUD), and the bundle ids query-sud_america/"
-                            + "query-australia_nz shift every field",
+                    "split('_') cuts names with '_' (e.g. SUD_AMERICA is shown as SUD)",
                     wrong.isEmpty() ? "all contexts shown correctly" : "wrong for " + wrong,
                     wrong.isEmpty(), !wrong.isEmpty(), null);
-            report.observe("GUI lists one consumer per regional projector",
-                    "7 regional consumers (one per query-<region> bundle)",
-                    "one row: consumers are grouped by component simple name, shared by all 7 bundles",
+            report.observe("GUI lists one consumer per regional engine",
+                    "7 regional consumers of order-query's OrderProjector (one per context)",
+                    "fewer rows: consumer registration lost to the discovery race (G8)",
                     regionalShown + " regional consumer row(s)", regionalShown == LabConfig.REGIONS.size(),
                     regionalShown < LabConfig.REGIONS.size(),
-                    "core__component is keyed by the component's simple class name across bundles.");
+                    "One OrderProjector class, one engine per context (setComponentContexts).");
         } catch (Exception e) {
             report.observe("GUI consumer context (G16)", "full context names", "GUI unreachable: " + e, null);
         }
