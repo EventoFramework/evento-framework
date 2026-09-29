@@ -80,6 +80,29 @@ class InMemoryConsumerStateStoreTest {
     }
 
     @Test
+    void aLowerCommitBumpsTheVersionButNeverRewindsThePosition() throws Exception {
+        // The new owner of the lane is at 200; a replica that lost its lock without
+        // noticing re-reads the version and commits its older position.
+        store.commit("c1", new ProjectorCheckpoint(100), 0L);
+        store.commit("c1", new ProjectorCheckpoint(200), 1L);
+
+        long v = store.commit("c1", new ProjectorCheckpoint(150), 2L);
+
+        assertThat(v).isEqualTo(3L);
+        assertThat(store.read("c1").orElseThrow().checkpoint()).isEqualTo(new ProjectorCheckpoint(200));
+        store.commit("c1", new ProjectorCheckpoint(201), 3L);
+        assertThat(store.read("c1").orElseThrow().checkpoint()).isEqualTo(new ProjectorCheckpoint(201));
+    }
+
+    @Test
+    void deleteIsTheOnlyWayToLowerAPosition() throws Exception {
+        store.commit("c1", new EventCheckpoint(100), 0L);
+        store.delete("c1");
+        store.commit("c1", new EventCheckpoint(7), 0L);
+        assertThat(store.read("c1").orElseThrow().checkpoint()).isEqualTo(new EventCheckpoint(7));
+    }
+
+    @Test
     void deleteOnMissingConsumerIsNoOp() {
         store.delete("ghost");
         assertThat(store.read("ghost")).isEmpty();

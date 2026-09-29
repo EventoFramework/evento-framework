@@ -319,6 +319,43 @@ class ConsumerProcessorTest {
     static final class TestSaga extends SagaState {}
 
     /** Fake EventoServer that replies with programmable canned responses. */
+    // ── a stale replica cannot rewind ───────────────────────────────────────
+
+    @Test
+    void aVersionDriftDoesNotOverwriteAHigherCheckpointWrittenByAnotherReplica() throws Throwable {
+        // Replica A believes it owns the lane; replica B took it over during a partition
+        // (separate lock instances = a lock lost without its holder noticing) and moved
+        // the checkpoint to 500 while A was still processing event 5.
+        server.nextFetch(TestEvents.event(5, "E5"));
+        processor.consumeEventsForProjector("c1", "ProjA", "ctx", e -> {
+            var v = stateStore.read("c1").map(VersionedCheckpoint::version).orElse(0L);
+            stateStore.commit("c1", new ProjectorCheckpoint(500L), v);
+        }, 10, null, CheckpointMode.ON_START);
+
+        var stored = stateStore.read("c1").orElseThrow();
+        assertThat(stored.checkpoint().lastSequenceNumber())
+                .as("A's drift retry must not rewind B's position")
+                .isEqualTo(500L);
+        assertThat(stored.version())
+                .as("A recognised it had nothing to add and did not write at all")
+                .isEqualTo(1L);
+    }
+
+    @Test
+    void aVersionDriftStillCommitsWhenTheStaleRowIsBehind() throws Throwable {
+        // The leaked-state case the drift path was written for: the row moved, but to a
+        // position below ours, so our commit is still progress.
+        server.nextFetch(TestEvents.event(5, "E5"));
+        processor.consumeEventsForProjector("c1", "ProjA", "ctx", e -> {
+            var v = stateStore.read("c1").map(VersionedCheckpoint::version).orElse(0L);
+            stateStore.commit("c1", new ProjectorCheckpoint(2L), v);
+        }, 10, null, CheckpointMode.ON_START);
+
+        var stored = stateStore.read("c1").orElseThrow();
+        assertThat(stored.checkpoint().lastSequenceNumber()).isEqualTo(5L);
+        assertThat(stored.version()).isEqualTo(2L);
+    }
+
     static final class FakeEventoServer implements EventoServer {
         private EventFetchResponse nextFetchResponse;
         private Long nextHeadResponse;
