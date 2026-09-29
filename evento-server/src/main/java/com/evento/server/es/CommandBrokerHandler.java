@@ -149,6 +149,12 @@ public class CommandBrokerHandler {
             var cmdResponse = (DomainCommandResponseMessage) eventoResponse.getBody();
             var eventMessage = cmdResponse.getDomainEventMessage();
 
+            // The bundle computed the event from the story fetched under the lock. If the
+            // session owning the lock died meanwhile (failover, socket timeout), another server
+            // may already be appending from the same story: refuse to commit a fork. The window
+            // between this check and the INSERT stays open; closing it needs a DB-level fence
+            // (aggregate_seq, see CLUSTER-READINESS G6).
+            if (lockAcquired) distributedLock.verifyHeld(lockKey);
             long seqNum = eventStore.publishEvent(eventMessage, cmd.getAggregateId());
             log.debug("event=domain_event_stored payloadType={} aggregateId={} seq={}",
                     commandPayloadType, cmd.getAggregateId(), seqNum);
@@ -170,7 +176,7 @@ public class CommandBrokerHandler {
 
         } finally {
             if (lockAcquired) {
-                distributedLock.release(lockKey);
+                releaseQuietly(lockKey);
             }
         }
     }
@@ -209,6 +215,7 @@ public class CommandBrokerHandler {
             // Only store if the event payload class is known (guard against corrupted records)
             if (serviceEvent.getSerializedPayload() != null
                     && serviceEvent.getSerializedPayload().getObjectClass() != null) {
+                if (lockAcquired) distributedLock.verifyHeld(lockKey);
                 eventStore.publishEvent(serviceEvent, cmd.getAggregateId());
                 log.debug("event=service_event_stored payloadType={}", commandPayloadType);
             }
@@ -217,8 +224,23 @@ public class CommandBrokerHandler {
 
         } finally {
             if (lockAcquired) {
-                distributedLock.release(lockKey);
+                releaseQuietly(lockKey);
             }
+        }
+    }
+
+    /**
+     * Releases a command lock from a {@code finally} block without replacing the command's
+     * outcome: by then the event is either stored (the reply must reach the caller, or it will
+     * retry and double-apply) or the command already failed with its own exception. A lock lost
+     * before the append was refused by {@code verifyHeld}; one lost after it is logged
+     * ({@code event=lock_lost}) by the lock itself.
+     */
+    private void releaseQuietly(String lockKey) {
+        try {
+            distributedLock.release(lockKey);
+        } catch (RuntimeException e) {
+            log.warn("event=command_lock_release_failed key={} error=\"{}\"", lockKey, e.getMessage());
         }
     }
 
