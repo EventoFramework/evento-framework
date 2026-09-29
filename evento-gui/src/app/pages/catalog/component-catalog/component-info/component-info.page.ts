@@ -14,6 +14,9 @@ import {stringToColour} from '../../../../services/utils';
 export class ComponentInfoPage implements OnInit {
 
   component;
+  /** Set instead of {@link component} when a bare name matches components of several bundles. */
+  ambiguous: {identifier: string, error: string, candidates: string[]};
+  error: string;
 
   constructor(private route: ActivatedRoute,
               private catalogService: CatalogService,
@@ -22,7 +25,19 @@ export class ComponentInfoPage implements OnInit {
 
   async ngOnInit() {
     await this.repository.whenReady();
-    this.catalogService.findComponentByName(this.route.snapshot.paramMap.get('identifier')).then(r => {
+    // The page is reused when a candidate link points back at it, so follow the parameter.
+    this.route.paramMap.subscribe(params => this.load(params.get('identifier')));
+  }
+
+  private load(identifier: string) {
+    this.component = undefined;
+    this.ambiguous = undefined;
+    this.error = undefined;
+    this.catalogService.findComponentByName(identifier).then(r => {
+      if (r.ambiguous) {
+        this.ambiguous = r;
+        return;
+      }
       r.bundleColor = stringToColour(r.bundleId);
       r.domains = new Set();
       r.repoLink = this.repository.link(r.bundleId, r.path, r.line);
@@ -43,6 +58,6 @@ export class ComponentInfoPage implements OnInit {
                           .filter(x => x.link),
       }));
       this.component = r;
-    });
+    }).catch(e => this.error = e.message);
   }
 }

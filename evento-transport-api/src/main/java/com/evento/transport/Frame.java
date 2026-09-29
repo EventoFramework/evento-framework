@@ -19,13 +19,16 @@ import com.evento.transport.message.Message;
  * <p>The buffer is not retained beyond the dispatcher call. If a handler needs
  * to hold onto the raw bytes past that point, it should copy them itself.
  *
- * <p>{@code receivedAtMs} is the local wall-clock time at which the frame was
+ * <p>{@code receivedAtNanos} is the {@link System#nanoTime()} at which the frame was
  * decoded, on the I/O thread, before it waited in any dispatch queue. A broker
  * measures a request's deadline from it ({@link com.evento.transport.message.Request#deadlineFrom}),
  * so time spent queued behind a saturated executor counts against the caller's
- * budget, and no clock of another machine is involved.
+ * budget, and no clock of another machine is involved. It is a monotonic clock, not
+ * the wall clock: a deadline is a purely local interval, and an NTP step of the wall
+ * clock must neither expire every queued request at once nor stretch them. Only
+ * differences between two {@code nanoTime} readings are meaningful.
  */
-public record Frame(Message message, byte[] rawBytes, long receivedAtMs) {
+public record Frame(Message message, byte[] rawBytes, long receivedAtNanos) {
 
     public Frame {
         if (message == null) throw new IllegalArgumentException("message");
@@ -34,6 +37,11 @@ public record Frame(Message message, byte[] rawBytes, long receivedAtMs) {
 
     /** A frame received now. */
     public Frame(Message message, byte[] rawBytes) {
-        this(message, rawBytes, System.currentTimeMillis());
+        this(message, rawBytes, System.nanoTime());
+    }
+
+    /** {@link #receivedAtNanos()} in milliseconds, on the same monotonic clock. */
+    public long receivedAtMonotonicMs() {
+        return receivedAtNanos / 1_000_000L;
     }
 }

@@ -182,35 +182,7 @@ class SchemaInitializationPostgresIT {
         PostgresItSupport.createDatabase(POSTGRES, "schema_rekey");
         try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_rekey"), 2)) {
             var jdbc = new JdbcTemplate(ds);
-            // The catalog tables as the previous schema.sql created them.
-            jdbc.execute("""
-                    create table core__bundle (id varchar(255) not null primary key, instance_id varchar(255) null,
-                        contains_handlers boolean not null, description text null, detail text null,
-                        line_prefix varchar(255) null, repository_url text null, updated_at timestamp null,
-                        version bigint not null);
-                    create table core__component (component_name varchar(255) not null primary key,
-                        component_type varchar(255) null, description text null, detail text null, line int null,
-                        path text null, updated_at timestamp null, bundle_id varchar(255) null,
-                        foreign key (bundle_id) references core__bundle (id));
-                    create table core__consumer (identifier varchar(512) not null primary key,
-                        component_component_name varchar(255) null, instance_id varchar(255) null,
-                        consumer_id varchar(255) null,
-                        foreign key (component_component_name) references core__component (component_name));
-                    create table core__handler (uuid varchar(255) not null primary key,
-                        association_property varchar(255) null, handler_type varchar(255) null, line int null,
-                        executor varchar(255) null, return_is_multiple boolean not null,
-                        component_component_name varchar(255) null, handled_payload_name varchar(255) null,
-                        return_type_name varchar(255) null,
-                        foreign key (component_component_name) references core__component (component_name));
-                    insert into core__bundle (id, contains_handlers, version) values ('query-cina', true, 1);
-                    insert into core__component (component_name, component_type, bundle_id)
-                        values ('OrderProjector', 'Projector', 'query-cina');
-                    insert into core__handler (uuid, handler_type, return_is_multiple, component_component_name,
-                        handled_payload_name) values ('h1', 'EventHandler', false, 'OrderProjector', 'OrderCreated');
-                    insert into core__consumer (identifier, component_component_name, instance_id, consumer_id)
-                        values ('i1_query-cina_OrderProjector_1_CINA', 'OrderProjector', 'i1',
-                                'query-cina_OrderProjector_1_CINA');
-                    """);
+            createPreN1Catalog(jdbc);
 
             PostgresItSupport.initializer(ds, true).initializeDatabase();
 
@@ -244,6 +216,75 @@ class SchemaInitializationPostgresIT {
                     .as("consumer rows still reference a real component")
                     .hasMessageContaining("core__consumer_component_id_fkey");
         }
+    }
+
+    /**
+     * With {@code spring.sql.init.mode=never} the server does not touch the schema: an old
+     * catalog used to boot fine and then fail every catalog read and write. It now fails the
+     * boot naming the shipped upgrade script, and that script brings the catalog to the shape
+     * the initializer's in-place migration produces.
+     */
+    @Test
+    void anExternallyManagedOldCatalogFailsTheBootUntilTheShippedScriptIsApplied() throws Exception {
+        PostgresItSupport.createDatabase(POSTGRES, "schema_external");
+        try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_external"), 2)) {
+            var jdbc = new JdbcTemplate(ds);
+            createPreN1Catalog(jdbc);
+
+            assertThatThrownBy(() -> PostgresItSupport.initializer(ds, true,
+                    org.springframework.boot.sql.init.DatabaseInitializationMode.NEVER).initializeDatabase())
+                    .hasMessageContaining(com.evento.server.config.AdvisoryLockedSchemaInitializer.COMPONENT_ID_UPGRADE_SCRIPT);
+
+            try (var c = ds.getConnection()) {
+                org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(c,
+                        new org.springframework.core.io.ClassPathResource(
+                                com.evento.server.config.AdvisoryLockedSchemaInitializer.COMPONENT_ID_UPGRADE_SCRIPT));
+            }
+            assertThatCode(() -> PostgresItSupport.initializer(ds, true,
+                    org.springframework.boot.sql.init.DatabaseInitializationMode.NEVER).initializeDatabase())
+                    .doesNotThrowAnyException();
+            assertThat(jdbc.queryForList("select id from core__component", String.class))
+                    .containsExactly("query-cina:OrderProjector");
+            assertThat(jdbc.queryForObject("select component_id from core__handler where uuid = 'h1'", String.class))
+                    .isEqualTo("query-cina:OrderProjector");
+            assertThat(jdbc.queryForObject("select component_id from core__consumer", String.class))
+                    .isEqualTo("query-cina:OrderProjector");
+            assertThatThrownBy(() -> jdbc.update(
+                    "insert into core__consumer (identifier, component_id) values ('x', 'nobody:Nothing')"))
+                    .hasMessageContaining("core__consumer_component_id_fkey");
+        }
+    }
+
+    /** The catalog tables as the schema.sql before N1 created them, with one row each. */
+    private static void createPreN1Catalog(JdbcTemplate jdbc) {
+        jdbc.execute("""
+            create table core__bundle (id varchar(255) not null primary key, instance_id varchar(255) null,
+                contains_handlers boolean not null, description text null, detail text null,
+                line_prefix varchar(255) null, repository_url text null, updated_at timestamp null,
+                version bigint not null);
+            create table core__component (component_name varchar(255) not null primary key,
+                component_type varchar(255) null, description text null, detail text null, line int null,
+                path text null, updated_at timestamp null, bundle_id varchar(255) null,
+                foreign key (bundle_id) references core__bundle (id));
+            create table core__consumer (identifier varchar(512) not null primary key,
+                component_component_name varchar(255) null, instance_id varchar(255) null,
+                consumer_id varchar(255) null,
+                foreign key (component_component_name) references core__component (component_name));
+            create table core__handler (uuid varchar(255) not null primary key,
+                association_property varchar(255) null, handler_type varchar(255) null, line int null,
+                executor varchar(255) null, return_is_multiple boolean not null,
+                component_component_name varchar(255) null, handled_payload_name varchar(255) null,
+                return_type_name varchar(255) null,
+                foreign key (component_component_name) references core__component (component_name));
+            insert into core__bundle (id, contains_handlers, version) values ('query-cina', true, 1);
+            insert into core__component (component_name, component_type, bundle_id)
+                values ('OrderProjector', 'Projector', 'query-cina');
+            insert into core__handler (uuid, handler_type, return_is_multiple, component_component_name,
+                handled_payload_name) values ('h1', 'EventHandler', false, 'OrderProjector', 'OrderCreated');
+            insert into core__consumer (identifier, component_component_name, instance_id, consumer_id)
+                values ('i1_query-cina_OrderProjector_1_CINA', 'OrderProjector', 'i1',
+                        'query-cina_OrderProjector_1_CINA');
+            """);
     }
 
     private static List<String> primaryKeyColumns(JdbcTemplate jdbc) {

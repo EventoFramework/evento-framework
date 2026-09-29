@@ -38,6 +38,21 @@ import java.util.concurrent.atomic.AtomicInteger;
  * and is retried within the acquire timeout, while the holders keep working on the other pool
  * and release. The server builds such a pool ({@code evento.lock.pool.*}).
  *
+ * <p>Pass the pool's size as {@code maxConnections} and the lock never asks the pool for a
+ * connection it cannot hand out at once: a permit per connection is taken first, without waiting
+ * in {@link #tryAcquire} and bounded by the caller's remaining wait in {@link #acquire(String,
+ * Duration)}. Without it an exhausted pool made every attempt wait the pool's connection timeout
+ * (1 s in the server), whatever the caller's deadline, and turned the "non-blocking"
+ * {@code tryAcquire} into a one-second stall on the thread that called it.
+ *
+ * <h2>Reserved key</h2>
+ * The key {@value #EVENT_STORE_LOCK_KEY} is the event store's append lock
+ * ({@code pg_advisory_xact_lock(hashtext('es-lock'))}), shared with servers that predate the
+ * single-statement append. Any <em>other</em> key whose {@code hashtext} equals it would make its
+ * holder wait on its own append from another session, which PostgreSQL cannot detect as a
+ * deadlock; such a key is locked under {@code hashtext(key || '#evento-lock')} instead
+ * ({@link #KEY_EXPR}).
+ *
  * <h2>Bounded wait</h2>
  * Waiting never blocks a connection inside PostgreSQL: {@link #acquire(String)} polls
  * {@code pg_try_advisory_lock} with jittered exponential backoff, borrowing a connection only
@@ -67,6 +82,19 @@ public class PgDistributedLock {
     private static final long MAX_BACKOFF_MS = 200;
     private static final int VALIDATION_TIMEOUT_SECONDS = 3;
 
+    /** The event store's append lock key; see "Reserved key" above. */
+    public static final String EVENT_STORE_LOCK_KEY = "es-lock";
+    static final String COLLISION_SUFFIX = "#evento-lock";
+
+    /**
+     * The advisory lock id of a key, as SQL with four {@code ?} placeholders all bound to the key
+     * ({@link #bindKey}): {@code hashtext(key)}, except for a key other than
+     * {@value #EVENT_STORE_LOCK_KEY} whose hash collides with it.
+     */
+    static final String KEY_EXPR =
+            "(CASE WHEN ? <> '" + EVENT_STORE_LOCK_KEY + "' AND hashtext(?) = hashtext('" + EVENT_STORE_LOCK_KEY + "') " +
+            "THEN hashtext(? || '" + COLLISION_SUFFIX + "') ELSE hashtext(?) END)";
+
     /**
      * Whether the current session holds the {@code bigint} advisory lock {@code hashtext(key)}.
      * pg_locks splits a bigint key into {@code classid} (high 32 bits) and {@code objid} (low 32
@@ -77,10 +105,12 @@ public class PgDistributedLock {
     private static final String HOLDS_ADVISORY_LOCK_SQL =
             "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND granted " +
             "AND pid = pg_backend_pid() AND objsubid = 1 " +
-            "AND ((classid::bigint << 32) | objid::bigint) = hashtext(?)::bigint)";
+            "AND ((classid::bigint << 32) | objid::bigint) = " + KEY_EXPR + "::bigint)";
 
     private final DataSource lockDatasource;
     private final Duration acquireTimeout;
+    /** One permit per connection of a dedicated lock pool; {@code null} = unbounded (shared pool). */
+    private final Semaphore connectionPermits;
 
     private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<>();
 
@@ -90,11 +120,24 @@ public class PgDistributedLock {
     }
 
     public PgDistributedLock(DataSource lockDatasource, Duration acquireTimeout) {
+        this(lockDatasource, acquireTimeout, 0);
+    }
+
+    /**
+     * @param maxConnections the size of {@code lockDatasource} when it is a pool dedicated to this
+     *                       lock (see "Give it its own pool"); {@code 0} when it is shared or
+     *                       unbounded, in which case each attempt waits on the pool as it would
+     */
+    public PgDistributedLock(DataSource lockDatasource, Duration acquireTimeout, int maxConnections) {
         if (acquireTimeout == null || acquireTimeout.isNegative() || acquireTimeout.isZero()) {
             throw new IllegalArgumentException("acquireTimeout must be positive");
         }
+        if (maxConnections < 0) {
+            throw new IllegalArgumentException("maxConnections must not be negative");
+        }
         this.lockDatasource = lockDatasource;
         this.acquireTimeout = acquireTimeout;
+        this.connectionPermits = maxConnections > 0 ? new Semaphore(maxConnections) : null;
     }
 
 
@@ -153,6 +196,9 @@ public class PgDistributedLock {
         if (key == null) return;
         long waitNanos = Math.min(acquireTimeout.toNanos(), Math.max(0L, maxWait.toNanos()));
         long deadline = System.nanoTime() + waitNanos;
+        // A wait bounded by the caller's deadline that runs out is the caller's business (the
+        // broker logs it as a dropped request); only the lock's own bound is a lock problem.
+        boolean callerBound = waitNanos < acquireTimeout.toNanos();
 
         // Acquire local (JVM-level) lock, bounded by the same deadline.
         LockWrapper lockWrapper = locks.compute(key, (k, v) -> v == null ? new LockWrapper() : v.addThreadInQueue());
@@ -166,7 +212,7 @@ public class PgDistributedLock {
         }
         if (!localAcquired) {
             exitQueue(key);
-            throw timeout(key, TimeUnit.NANOSECONDS.toMillis(waitNanos));
+            throw timeout(key, TimeUnit.NANOSECONDS.toMillis(waitNanos), callerBound);
         }
 
         // Skip distributed lock when no DataSource is configured (embedded/test mode)
@@ -175,14 +221,14 @@ public class PgDistributedLock {
         try {
             long backoff = INITIAL_BACKOFF_MS;
             while (true) {
-                Connection owner = tryAdvisoryLock(key);
+                Connection owner = tryAdvisoryLock(key, Math.max(0L, deadline - System.nanoTime()));
                 if (owner != null) {
                     lockWrapper.connection = owner;
                     return;
                 }
                 long remainingNanos = deadline - System.nanoTime();
                 if (remainingNanos <= 0) {
-                    throw timeout(key, TimeUnit.NANOSECONDS.toMillis(waitNanos));
+                    throw timeout(key, TimeUnit.NANOSECONDS.toMillis(waitNanos), callerBound);
                 }
                 long sleepMs = Math.min(ThreadLocalRandom.current().nextLong(backoff / 2, backoff + 1),
                         TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1);
@@ -202,6 +248,10 @@ public class PgDistributedLock {
         }
     }
 
+    /**
+     * One attempt that never waits: {@code false} when the key is held here or elsewhere, or when
+     * every lock connection is in use (with a dedicated pool, see {@code maxConnections}).
+     */
     public boolean tryAcquire(String key) {
         if (key == null) return false;
 
@@ -216,7 +266,7 @@ public class PgDistributedLock {
         if (lockDatasource == null) return true;
 
         try {
-            Connection owner = tryAdvisoryLock(key);
+            Connection owner = tryAdvisoryLock(key, 0L);
             if (owner == null) {
                 lockWrapper.lock.release();  // Roll back local lock
                 exitQueue(key);
@@ -235,18 +285,13 @@ public class PgDistributedLock {
      * One non-blocking attempt on a freshly borrowed connection. Returns the connection (whose
      * session now owns the lock) on success; on failure the connection goes straight back to
      * the pool so a waiter never occupies one between attempts. A pool that cannot hand out a
-     * connection in time ({@link SQLTransientConnectionException}: every lock connection pinned
-     * by a holder, or the database briefly unreachable) is a failed attempt, not an error; the
-     * caller retries within its own deadline.
+     * connection within {@code maxWaitNanos} (every lock connection pinned by a holder), or in
+     * time at all ({@link SQLTransientConnectionException}: the database briefly unreachable), is
+     * a failed attempt, not an error; the caller retries within its own deadline.
      */
-    private Connection tryAdvisoryLock(String key) throws SQLException {
-        Connection con;
-        try {
-            con = lockDatasource.getConnection();
-        } catch (SQLTransientConnectionException e) {
-            logger.debug("event=lock_connection_unavailable key={} error=\"{}\"", key, e.getMessage());
-            return null;
-        }
+    private Connection tryAdvisoryLock(String key, long maxWaitNanos) throws SQLException, InterruptedException {
+        Connection con = borrow(key, maxWaitNanos);
+        if (con == null) return null;
         boolean locked = false;
         try {
             // Session advisory locks are independent of transactions, but a connection handed out
@@ -254,8 +299,8 @@ public class PgDistributedLock {
             if (!con.getAutoCommit()) con.setAutoCommit(true);
             // The key is bound as a parameter (never concatenated) so a caller-controlled
             // lockId/aggregateId cannot inject SQL.
-            try (var stmt = con.prepareStatement("SELECT pg_try_advisory_lock(hashtext(?))")) {
-                stmt.setString(1, key);
+            try (var stmt = con.prepareStatement("SELECT pg_try_advisory_lock(" + KEY_EXPR + ")")) {
+                bindKey(stmt, 1, key);
                 try (var resultSet = stmt.executeQuery()) {
                     if (!resultSet.next()) {
                         throw new IllegalMonitorStateException("Failed to acquire advisory lock for key: " + key);
@@ -267,15 +312,67 @@ public class PgDistributedLock {
             // Anything failing after the lock was granted (closing the statement, say) must not
             // hand a lock-owning session back to the pool, where it would keep the key locked for
             // good: abort the connection instead, which ends the session and drops the lock.
-            if (locked) abortQuietly(con);
-            else closeQuietly(con);
+            // The abort alone would leave the pool slot taken for good: Hikari recycles an entry
+            // only on close(), which then finds the connection dead and evicts it.
+            if (locked) discard(con);
+            else giveBack(con);
             throw t;
         }
         if (!locked) {
-            closeQuietly(con);
+            giveBack(con);
             return null;
         }
         return con;
+    }
+
+    /**
+     * Borrows a lock connection, waiting at most {@code maxWaitNanos} for a free one when the
+     * pool is dedicated ({@link #connectionPermits}); {@code null} when none is free in time.
+     */
+    private Connection borrow(String key, long maxWaitNanos) throws SQLException, InterruptedException {
+        if (connectionPermits != null) {
+            boolean permitted = maxWaitNanos <= 0
+                    ? connectionPermits.tryAcquire()
+                    : connectionPermits.tryAcquire(maxWaitNanos, TimeUnit.NANOSECONDS);
+            if (!permitted) {
+                logger.debug("event=lock_connection_unavailable key={} reason=\"every lock connection is in use\"", key);
+                return null;
+            }
+        }
+        try {
+            return lockDatasource.getConnection();
+        } catch (SQLTransientConnectionException e) {
+            releasePermit();
+            logger.debug("event=lock_connection_unavailable key={} error=\"{}\"", key, e.getMessage());
+            return null;
+        } catch (SQLException | RuntimeException | Error e) {
+            releasePermit();
+            throw e;
+        }
+    }
+
+    /** Returns a connection that holds no lock to the pool. */
+    private void giveBack(Connection con) {
+        closeQuietly(con);
+        releasePermit();
+    }
+
+    /**
+     * Ends the session of a connection that may still hold a lock (dropping the lock with it) and
+     * then closes the pool proxy, so the pool evicts it and frees its slot.
+     */
+    private void discard(Connection con) {
+        abortQuietly(con);
+        closeQuietly(con);
+        releasePermit();
+    }
+
+    private void releasePermit() {
+        if (connectionPermits != null) connectionPermits.release();
+    }
+
+    private static void bindKey(java.sql.PreparedStatement stmt, int first, String key) throws SQLException {
+        for (int i = 0; i < 4; i++) stmt.setString(first + i, key);
     }
 
     /**
@@ -299,7 +396,7 @@ public class PgDistributedLock {
         boolean held;
         try (var stmt = owner.prepareStatement(HOLDS_ADVISORY_LOCK_SQL)) {
             stmt.setQueryTimeout(VALIDATION_TIMEOUT_SECONDS);
-            stmt.setString(1, key);
+            bindKey(stmt, 1, key);
             try (var resultSet = stmt.executeQuery()) {
                 held = resultSet.next() && resultSet.getBoolean(1);
             }
@@ -346,7 +443,8 @@ public class PgDistributedLock {
         try {
             unlock(key, owner);
         } finally {
-            closeQuietly(owner);
+            // After an abort (see unlock) the close makes the pool evict the connection.
+            giveBack(owner);
             // Unlock in PostgreSQL before letting the next local waiter in, so it does not
             // spend a round trip on a try-lock that is bound to fail.
             lockWrapper.lock.release();
@@ -355,8 +453,8 @@ public class PgDistributedLock {
     }
 
     private void unlock(String key, Connection owner) {
-        try (var stmt = owner.prepareStatement("SELECT pg_advisory_unlock(hashtext(?))")) {
-            stmt.setString(1, key);
+        try (var stmt = owner.prepareStatement("SELECT pg_advisory_unlock(" + KEY_EXPR + ")")) {
+            bindKey(stmt, 1, key);
             try (var resultSet = stmt.executeQuery()) {
                 if (!resultSet.next()) {
                     throw new IllegalMonitorStateException("Failed to release advisory lock for key: " + key + " — no result returned.");
@@ -381,8 +479,12 @@ public class PgDistributedLock {
         return new LockLostException(key, "Distributed lock lost for key '" + key + "': " + reason, cause);
     }
 
-    private LockAcquisitionTimeoutException timeout(String key, long waitedMs) {
-        logger.warn("event=lock_acquire_timeout key={} timeoutMs={}", key, waitedMs);
+    private LockAcquisitionTimeoutException timeout(String key, long waitedMs, boolean callerBound) {
+        if (callerBound) {
+            logger.debug("event=lock_acquire_timeout key={} timeoutMs={} bound=caller", key, waitedMs);
+        } else {
+            logger.warn("event=lock_acquire_timeout key={} timeoutMs={}", key, waitedMs);
+        }
         return new LockAcquisitionTimeoutException(key,
                 "Could not acquire lock '" + key + "' within " + waitedMs + " ms");
     }

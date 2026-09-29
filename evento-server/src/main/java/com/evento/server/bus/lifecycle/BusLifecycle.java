@@ -101,8 +101,17 @@ public final class BusLifecycle {
     }
 
     /**
+     * This server's monotonic clock in milliseconds ({@link System#nanoTime()} based), on
+     * which request deadlines are expressed. Only differences are meaningful; it does not
+     * move with wall-clock (NTP) steps.
+     */
+    public static long monotonicMillis() {
+        return System.nanoTime() / 1_000_000L;
+    }
+
+    /**
      * A server-local handler that also honours the caller's deadline: {@code deadlineMs}
-     * is this server's wall-clock time after which the caller no longer waits
+     * is the {@link #monotonicMillis()} after which the caller no longer waits
      * ({@link Request#deadlineFrom}), or {@link Long#MAX_VALUE} when the caller set no
      * timeout. {@code CommandBrokerHandler} uses it to stop before the lock, the forward
      * and the append of a command nobody waits for any more.
@@ -133,8 +142,10 @@ public final class BusLifecycle {
     /** Stage label: the deadline passed before a command was forwarded to its handler bundle. */
     public static final String EXPIRED_STAGE_BEFORE_FORWARD = "before_forward";
     /**
-     * Stage label: the deadline passed while the handler bundle worked on the command (it
-     * did not answer in time, or answered late); the broker appended nothing for it.
+     * Stage label: the deadline passed while the handler bundle worked on an aggregate
+     * command (it did not answer in time, or answered late); the broker appended nothing for
+     * it. Never used for service commands, whose handlers may have had side effects: their
+     * event is stored whenever the handler answers.
      */
     public static final String EXPIRED_STAGE_BEFORE_APPEND = "before_append";
     /** Every stage label, for metrics binding. */
@@ -152,7 +163,7 @@ public final class BusLifecycle {
      */
     public com.evento.transport.RequestExpiredException expiredDrop(String stage, String payloadType,
                                                                     Object correlationId, long deadlineMs) {
-        long overdueMs = System.currentTimeMillis() - deadlineMs;
+        long overdueMs = monotonicMillis() - deadlineMs;
         expiredDropped.computeIfAbsent(stage, k -> new java.util.concurrent.atomic.AtomicLong()).incrementAndGet();
         log.warn("event=request_expired_dropped stage={} payloadType={} correlationId={} overdueMs={}",
                 stage, payloadType, correlationId, overdueMs);
@@ -447,6 +458,17 @@ public final class BusLifecycle {
             log.warn("event=duplicate_hello session={}", session.address().instanceId());
             return;
         }
+        // Validate first, and touch no shared state for a Hello that is refused. A rejected
+        // Hello (bad token, wrong protocol) may carry the instanceId of a session that is live
+        // here or on another server: registering it even speculatively published NodeJoined
+        // then NodeLeft for that instance, whose presence claim and release then wiped the
+        // live instance's catalog rows (G7), and overwrote then erased its zone.
+        var verdict = handshakeHandler.validate(hello);
+        if (verdict instanceof HandshakeOutcome.Rejected) {
+            handshakeHandler.reply(hello, session.transport(), verdict)
+                    .whenComplete((outcome, ex) -> session.transport().close());
+            return;
+        }
         // Bind + register synchronously, BEFORE sending Welcome. Otherwise the client
         // can receive Welcome and immediately fire follow-up notifications (enable,
         // register-handlers, even a Request) that arrive on the server before
@@ -455,21 +477,16 @@ public final class BusLifecycle {
         var address = new NodeAddress(hello.bundleId(), version, hello.instanceId());
         session.bindAddress(address);
         session.transitionTo(BundleSession.Phase.REGISTERED);
-        // The zone rides in the Hello capabilities (no wire field of its own). It is
-        // recorded on every Hello, so a reconnect that moved zones is picked up.
-        clusterRegistry.setZone(address, HandshakeProtocol.zoneOf(hello.capabilities()));
         connectionRegistry.register(new Connection(
                 address, session.transport(), session.connectionToken(), Instant.now()));
-        handshakeHandler.handle(hello, session.transport()).whenComplete((outcome, ex) -> {
+        // The zone rides in the Hello capabilities (no wire field of its own). It is
+        // recorded on every Hello, so a reconnect that moved zones is picked up; recorded
+        // after the registration and tagged with this session's token, so the teardown of
+        // the session this one replaces can no longer erase it (see onTransportDisconnected).
+        clusterRegistry.setZone(address, session.connectionToken(), HandshakeProtocol.zoneOf(hello.capabilities()));
+        handshakeHandler.reply(hello, session.transport(), verdict).whenComplete((outcome, ex) -> {
             if (ex != null) {
                 log.error("event=handshake_send_failed", ex);
-                session.transport().close();
-                return;
-            }
-            if (outcome instanceof HandshakeOutcome.Rejected) {
-                // Roll back the speculative registration.
-                connectionRegistry.unregister(address, session.connectionToken(), "handshake_rejected");
-                clusterRegistry.forgetZone(address);
                 session.transport().close();
                 return;
             }
@@ -529,8 +546,8 @@ public final class BusLifecycle {
         // it queued for a dispatch thread): a request nobody waits for any more is not
         // routed, so a saturated broker stops executing commands whose callers already
         // saw a timeout (and may be retrying them). No timeout = no deadline.
-        long deadlineMs = request.deadlineFrom(frame == null ? System.currentTimeMillis() : frame.receivedAtMs());
-        if (System.currentTimeMillis() >= deadlineMs) {
+        long deadlineMs = request.deadlineFrom(frame == null ? monotonicMillis() : frame.receivedAtMonotonicMs());
+        if (monotonicMillis() >= deadlineMs) {
             replyWithError(session.transport(), request.correlationId(),
                     expiredDrop(EXPIRED_STAGE_QUEUED, request.payloadType(), request.correlationId(), deadlineMs));
             return;
@@ -680,7 +697,10 @@ public final class BusLifecycle {
         // instead of the cleaner "no handler for" routing-miss path.
         var nowEmptyTypes = clusterRegistry.removeNode(address);
         nowEmptyTypes.forEach(localHandlers::remove);
-        clusterRegistry.forgetZone(address);
+        // Token-scoped: if a newer session of this instance has registered meanwhile (its
+        // Hello ran on another event loop between the unregister above and this line), the
+        // zone it recorded stays.
+        clusterRegistry.forgetZone(address, session.connectionToken());
 
         // Only drain entries where the disconnecting peer was the *destination*
         // (handler). Surface a failure to each originator so its future resolves

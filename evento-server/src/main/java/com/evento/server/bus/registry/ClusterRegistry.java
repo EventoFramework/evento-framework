@@ -49,10 +49,15 @@ public final class ClusterRegistry {
     private final Map<String, Set<NodeAddress>> handlers = new ConcurrentHashMap<>();
 
     /**
-     * instanceId → zone the instance advertised in its Hello ({@code zone:<ZONE>}).
-     * Keyed by instanceId because {@link NodeAddress} equality is by instanceId.
+     * instanceId → zone the instance advertised in its Hello ({@code zone:<ZONE>}), tagged
+     * with the connection token of the session that advertised it. Keyed by instanceId
+     * because {@link NodeAddress} equality is by instanceId; the token lets the teardown of
+     * one session forget only its own zone, never the one a newer session of the same
+     * instance has just recorded.
      */
-    private final Map<String, String> zoneByInstance = new ConcurrentHashMap<>();
+    private record ZoneEntry(String zone, String connectionToken) {}
+
+    private final Map<String, ZoneEntry> zoneByInstance = new ConcurrentHashMap<>();
 
     private final ConnectionRegistry connectionRegistry;
     private final PickStrategy defaultStrategy;
@@ -77,29 +82,65 @@ public final class ClusterRegistry {
      * takes effect on the next pick.
      */
     public void setZone(NodeAddress node, String zone) {
+        setZone(node, null, zone);
+    }
+
+    /**
+     * Record the zone the session {@code connectionToken} of {@code node} advertised; a null
+     * or blank zone forgets it. The bus calls this once the session is registered, so a
+     * disconnect of an older session of the same instance can no longer erase it
+     * ({@link #forgetZone(NodeAddress, String)} checks the token).
+     */
+    public void setZone(NodeAddress node, String connectionToken, String zone) {
         if (node == null || node.instanceId() == null) return;
         if (zone == null || zone.isBlank()) {
             zoneByInstance.remove(node.instanceId());
         } else {
-            zoneByInstance.put(node.instanceId(), zone.trim());
+            zoneByInstance.put(node.instanceId(), new ZoneEntry(zone.trim(), connectionToken));
         }
     }
 
-    /** Forget the zone of {@code node}; called when its connection is gone for good. */
+    /** Forget the zone of {@code node}, whichever session recorded it. */
     public void forgetZone(NodeAddress node) {
         if (node == null || node.instanceId() == null) return;
         zoneByInstance.remove(node.instanceId());
     }
 
+    /**
+     * Forget the zone of {@code node} only if the session {@code connectionToken} recorded it:
+     * a newer session of the same instance that has already advertised its zone keeps it.
+     *
+     * @return whether an entry was removed
+     */
+    public boolean forgetZone(NodeAddress node, String connectionToken) {
+        if (node == null || node.instanceId() == null) return false;
+        var removed = new boolean[1];
+        zoneByInstance.computeIfPresent(node.instanceId(), (id, entry) -> {
+            if (java.util.Objects.equals(entry.connectionToken(), connectionToken)) {
+                removed[0] = true;
+                return null;
+            }
+            return entry;
+        });
+        return removed[0];
+    }
+
     /** The zone {@code node} advertised, if any. */
     public Optional<String> zoneOf(NodeAddress node) {
         if (node == null || node.instanceId() == null) return Optional.empty();
-        return Optional.ofNullable(zoneByInstance.get(node.instanceId()));
+        return Optional.ofNullable(zoneOfInstance(node.instanceId()));
+    }
+
+    private String zoneOfInstance(String instanceId) {
+        var entry = zoneByInstance.get(instanceId);
+        return entry == null ? null : entry.zone();
     }
 
     /** Snapshot of instanceId → zone for every node that advertised one. */
     public Map<String, String> zones() {
-        return Map.copyOf(zoneByInstance);
+        var snapshot = new java.util.HashMap<String, String>();
+        zoneByInstance.forEach((id, entry) -> snapshot.put(id, entry.zone()));
+        return Map.copyOf(snapshot);
     }
 
     public void registerHandler(NodeAddress node, String payloadType) {
@@ -168,7 +209,7 @@ public final class ClusterRegistry {
                 String zone = zoneOf(originator).orElse(null);
                 if (zone == null) yield randomOf(candidates);
                 var local = candidates.stream()
-                        .filter(n -> zone.equals(zoneByInstance.get(n.instanceId())))
+                        .filter(n -> zone.equals(zoneOfInstance(n.instanceId())))
                         .toList();
                 yield local.isEmpty() ? randomOf(candidates) : randomOf(local);
             }

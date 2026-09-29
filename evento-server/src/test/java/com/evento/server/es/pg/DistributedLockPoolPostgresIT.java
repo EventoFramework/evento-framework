@@ -40,7 +40,7 @@ class DistributedLockPoolPostgresIT {
                 var pool = ctx.getBean(DistributedLockConfiguration.LockConnectionPool.class);
                 assertThat(pool.dataSource()).isInstanceOf(HikariDataSource.class).isNotSameAs(application);
                 lockPool = (HikariDataSource) pool.dataSource();
-                assertThat(lockPool.getMaximumPoolSize()).isEqualTo(16);
+                assertThat(lockPool.getMaximumPoolSize()).isEqualTo(10);
                 assertThat(lockPool.getJdbcUrl()).isEqualTo(application.getJdbcUrl());
 
                 var lock = ctx.getBean(PgDistributedLock.class);

@@ -41,6 +41,9 @@ public class BusConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(BusConfiguration.class);
 
+    /** The {@code evento.cluster.name} of the shipped application.properties. */
+    static final String SHIPPED_DEFAULT_CLUSTER_NAME = "evento-server";
+
     @Bean
     public BusEventBus busEventBus() {
         return new BusEventBus();
@@ -171,6 +174,14 @@ public class BusConfiguration {
         // Announced in Welcome: a bundle holding several broker endpoints checks the
         // cluster it lands in, since no single expected instance id fits all of them.
         lifecycle.setClusterName(clusterName);
+        if (SHIPPED_DEFAULT_CLUSTER_NAME.equals(clusterName)) {
+            // Every server started from the stock application.properties announces this
+            // name, so a bundle requiring it is not protected against landing on another
+            // deployment's broker (the split-brain case G13 is for).
+            log.warn("event=cluster_name_shipped_default cluster={} "
+                    + "hint=\"set evento.cluster.name (EVENTO_CLUSTER_NAME) to a name unique to this deployment\"",
+                    clusterName);
+        }
         return lifecycle;
     }
 

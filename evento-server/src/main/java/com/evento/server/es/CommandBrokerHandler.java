@@ -60,6 +60,13 @@ import java.util.concurrent.TimeoutException;
  * then outlives its deadline during the append is still indeterminate for the
  * caller; that window needs an idempotency key (CLUSTER-READINESS G5).
  *
+ * <p>The {@code before_append} drop applies to aggregate commands only, whose handlers
+ * are pure (they compute an event from the story; nothing happened until the broker
+ * appends it). A service command handler runs its own side effects: once it has
+ * answered, its event is stored whatever the deadline, and a forward that failed after
+ * the deadline stays an indeterminate error rather than "not executed". Service
+ * commands are still dropped before the lock and before the forward, where nothing ran.
+ *
  * <p>Service command flow:
  * <ol>
  *   <li>Optionally acquire the distributed lock on {@code "RESOURCE:" + lockId}
@@ -150,10 +157,10 @@ public class CommandBrokerHandler {
             forwardRequest.setTimestamp(eventoRequest.getTimestamp());
 
             long timeoutMs = forwardBudget(eventoRequest.getUnit().toMillis(eventoRequest.getTimeout()),
-                    deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
+                    deadlineMs, commandPayloadType, eventoRequest.getCorrelationId(), true);
             var response = forwardWithin(commandPayloadType,
                     codec.encodeRequest(forwardRequest), timeoutMs, originator, deadlineMs,
-                    eventoRequest.getCorrelationId());
+                    eventoRequest.getCorrelationId(), true);
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -221,10 +228,13 @@ public class CommandBrokerHandler {
             }
 
             // Forward the original payload unchanged — the bundle decodes EventoRequest{body: ServiceCommandMessage}.
+            // Once forwarded, the broker waits the command's own timeout rather than what is
+            // left of the caller's: a service handler that answers late has still run, and its
+            // event must be stored (see the class javadoc).
             long timeoutMs = forwardBudget(eventoRequest.getUnit().toMillis(eventoRequest.getTimeout()),
-                    deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
+                    deadlineMs, commandPayloadType, eventoRequest.getCorrelationId(), false);
             var response = forwardWithin(commandPayloadType, payload, timeoutMs, originator, deadlineMs,
-                    eventoRequest.getCorrelationId());
+                    eventoRequest.getCorrelationId(), false);
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -243,8 +253,17 @@ public class CommandBrokerHandler {
             if (serviceEvent.getSerializedPayload() != null
                     && serviceEvent.getSerializedPayload().getObjectClass() != null) {
                 if (lockAcquired) distributedLock.verifyHeld(lockKey);
-                checkDeadline(deadlineMs, BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND, commandPayloadType,
-                        eventoRequest.getCorrelationId());
+                // No deadline check here, unlike the aggregate path: the service handler has
+                // already run, with whatever side effects it has (a payment, a mail). Dropping
+                // its event would hide an effect that happened from every saga, projector and
+                // observer, and tell a retrying caller "not executed". The event is the record
+                // of the effect, so it is always stored; a caller that gave up has seen an
+                // indeterminate timeout, which is the truth.
+                if (deadlineMs != Long.MAX_VALUE && BusLifecycle.monotonicMillis() >= deadlineMs) {
+                    log.info("event=service_event_stored_after_deadline payloadType={} correlationId={} overdueMs={}",
+                            commandPayloadType, eventoRequest.getCorrelationId(),
+                            BusLifecycle.monotonicMillis() - deadlineMs);
+                }
                 eventStore.publishEvent(serviceEvent, cmd.getAggregateId());
                 log.debug("event=service_event_stored payloadType={}", commandPayloadType);
             }
@@ -259,7 +278,8 @@ public class CommandBrokerHandler {
     }
 
     /**
-     * Acquires the command's lock, waiting no longer than the caller does. A wait cut short
+     * Acquires the command's lock, waiting no longer than the caller does (deadline on
+     * {@link BusLifecycle#monotonicMillis()}). A wait cut short
      * by the caller's deadline is a drop ({@code lock_wait}); one cut short by the lock's own
      * bound, while the caller still waits, stays a {@code LockAcquisitionTimeoutException}.
      */
@@ -268,14 +288,14 @@ public class CommandBrokerHandler {
             distributedLock.acquire(lockKey);
             return;
         }
-        long remainingMs = deadlineMs - System.currentTimeMillis();
+        long remainingMs = deadlineMs - BusLifecycle.monotonicMillis();
         if (remainingMs <= 0) {
             throw lifecycle.expiredDrop(BusLifecycle.EXPIRED_STAGE_LOCK_WAIT, payloadType, correlationId, deadlineMs);
         }
         try {
             distributedLock.acquire(lockKey, Duration.ofMillis(remainingMs));
         } catch (LockAcquisitionTimeoutException e) {
-            if (System.currentTimeMillis() >= deadlineMs) {
+            if (BusLifecycle.monotonicMillis() >= deadlineMs) {
                 throw lifecycle.expiredDrop(BusLifecycle.EXPIRED_STAGE_LOCK_WAIT, payloadType, correlationId, deadlineMs);
             }
             throw e;
@@ -283,28 +303,35 @@ public class CommandBrokerHandler {
     }
 
     /**
-     * How long the forward to the handler bundle may take: what is left of the caller's
-     * deadline (the lock wait and the story fetch already used part of it), capped by the
-     * command's own timeout. Throws the {@code before_forward} drop when nothing is left.
+     * How long the forward to the handler bundle may take: for an aggregate command
+     * ({@code capAtDeadline}), what is left of the caller's deadline (the lock wait and the
+     * story fetch already used part of it), capped by the command's own timeout; for a
+     * service command, the command's own timeout. Throws the {@code before_forward} drop
+     * when the deadline has already passed.
      */
-    private long forwardBudget(long commandTimeoutMs, long deadlineMs, String payloadType, String correlationId) {
+    private long forwardBudget(long commandTimeoutMs, long deadlineMs, String payloadType, String correlationId,
+                               boolean capAtDeadline) {
         checkDeadline(deadlineMs, BusLifecycle.EXPIRED_STAGE_BEFORE_FORWARD, payloadType, correlationId);
         if (deadlineMs == Long.MAX_VALUE) return commandTimeoutMs;
-        long remainingMs = deadlineMs - System.currentTimeMillis();
+        if (!capAtDeadline && commandTimeoutMs > 0) return commandTimeoutMs;
+        long remainingMs = deadlineMs - BusLifecycle.monotonicMillis();
         return commandTimeoutMs > 0 ? Math.min(commandTimeoutMs, remainingMs) : remainingMs;
     }
 
     /**
-     * {@link #forwardOrRetry} within the caller's deadline. A forward that fails once the
-     * deadline has passed (the handler bundle had not answered in time; a late answer is
-     * discarded) is a {@code before_append} drop: the broker appends nothing for it.
+     * {@link #forwardOrRetry} within the caller's deadline. For an aggregate command
+     * ({@code pureHandler}), a forward that fails once the deadline has passed (the handler
+     * bundle had not answered in time; a late answer is discarded) is a {@code before_append}
+     * drop: the handler only computed an event from the story, and the broker appends nothing,
+     * so "not executed" is true. A service handler may have run its side effects even though
+     * its answer never arrived, so its failure stays the indeterminate error it is.
      */
     private Response forwardWithin(String payloadType, byte[] payload, long timeoutMs, NodeAddress originator,
-                                   long deadlineMs, String correlationId) throws Exception {
+                                   long deadlineMs, String correlationId, boolean pureHandler) throws Exception {
         try {
             return forwardOrRetry(payloadType, payload, timeoutMs, originator);
         } catch (Exception e) {
-            if (deadlineMs != Long.MAX_VALUE && System.currentTimeMillis() >= deadlineMs) {
+            if (pureHandler && deadlineMs != Long.MAX_VALUE && BusLifecycle.monotonicMillis() >= deadlineMs) {
                 throw lifecycle.expiredDrop(BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND, payloadType, correlationId,
                         deadlineMs);
             }
@@ -313,7 +340,7 @@ public class CommandBrokerHandler {
     }
 
     private void checkDeadline(long deadlineMs, String stage, String payloadType, String correlationId) {
-        if (deadlineMs != Long.MAX_VALUE && System.currentTimeMillis() >= deadlineMs) {
+        if (deadlineMs != Long.MAX_VALUE && BusLifecycle.monotonicMillis() >= deadlineMs) {
             throw lifecycle.expiredDrop(stage, payloadType, correlationId, deadlineMs);
         }
     }
@@ -347,11 +374,11 @@ public class CommandBrokerHandler {
      */
     private Response forwardOrRetry(String payloadType, byte[] payload, long timeoutMs,
                                     NodeAddress originator) throws Exception {
-        long deadlineMs = System.currentTimeMillis() + timeoutMs;
+        long deadlineMs = BusLifecycle.monotonicMillis() + timeoutMs;
         long backoffMs = SEND_RETRY_BACKOFF_INITIAL_MS;
         int attempt = 0;
         while (true) {
-            long remainingMs = deadlineMs - System.currentTimeMillis();
+            long remainingMs = deadlineMs - BusLifecycle.monotonicMillis();
             if (remainingMs <= 0) {
                 throw new TimeoutException("forward timed out after " + attempt + " attempt(s) for " + payloadType);
             }
@@ -362,7 +389,7 @@ public class CommandBrokerHandler {
                 return future.get(remainingMs, TimeUnit.MILLISECONDS);
             } catch (ExecutionException e) {
                 if (e.getCause() instanceof SendFailedException sfe && sfe.connectionState().isActive()) {
-                    long sleep = Math.min(backoffMs, deadlineMs - System.currentTimeMillis());
+                    long sleep = Math.min(backoffMs, deadlineMs - BusLifecycle.monotonicMillis());
                     if (sleep > 0) {
                         log.warn("event=forward_retry attempt={} payloadType={} state={} backoffMs={}",
                                 ++attempt, payloadType, sfe.connectionState(), sleep);

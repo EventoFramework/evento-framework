@@ -97,6 +97,7 @@ class BusLifecycleIT {
     private BusLifecycle lifecycle;
     private PayloadCodec payloadCodec;
     private BusEventBus eventBus;
+    private ClusterRegistry cluster;
     private List<BusEvent> seenEvents;
 
     @BeforeEach
@@ -104,7 +105,7 @@ class BusLifecycleIT {
         transportServer = new InjectableServer();
         eventBus = new BusEventBus();
         var connections = new ConnectionRegistry(eventBus);
-        var cluster = new ClusterRegistry(connections);
+        cluster = new ClusterRegistry(connections);
         var correlations = new CorrelationStore(Duration.ofMillis(50));
         var forwarding = new ForwardingTable();
         payloadCodec = new JacksonCborPayloadCodec();
@@ -112,7 +113,7 @@ class BusLifecycleIT {
                 forwarding, eventBus, "server-1", Set.of(HandshakeProtocol.CAPABILITY_PING_PONG),
                 payloadCodec);
         lifecycle.start(0);
-        seenEvents = new ArrayList<>();
+        seenEvents = new java.util.concurrent.CopyOnWriteArrayList<>();
         eventBus.subscribe(seenEvents::add);
     }
 
@@ -169,11 +170,15 @@ class BusLifecycleIT {
         }
 
         CompletableFuture<Welcome> sayHello() {
+            return sayHello(HandshakeProtocol.PROTOCOL_VERSION, Set.of());
+        }
+
+        CompletableFuture<Welcome> sayHello(int protocolVersion, Set<String> capabilities) {
             var corr = UUID.randomUUID();
             var future = new CompletableFuture<Welcome>();
             pendingHellos.put(corr, future);
-            var hello = new Hello(corr, HandshakeProtocol.PROTOCOL_VERSION,
-                    bundleId, instanceId, "100", Set.of(), null, System.currentTimeMillis());
+            var hello = new Hello(corr, (byte) protocolVersion,
+                    bundleId, instanceId, "100", capabilities, null, System.currentTimeMillis());
             clientSide.send(hello);
             return future;
         }
@@ -219,6 +224,54 @@ class BusLifecycleIT {
         assertThat(lifecycle.view()).hasSize(1);
         assertThat(lifecycle.view().iterator().next().bundleId()).isEqualTo("bundle-A");
         assertThat(seenEvents.stream().anyMatch(e -> e instanceof BusEvent.NodeJoined)).isTrue();
+    }
+
+    @Test
+    void aRejectedHelloReusingALiveInstanceIdLeavesThatInstanceAlone() throws Exception {
+        // The live instance, in zone EU.
+        var live = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        live.sayHello(HandshakeProtocol.PROTOCOL_VERSION, Set.of(HandshakeProtocol.zoneCapability("EU")))
+                .orTimeout(2, TimeUnit.SECONDS).join();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.view().size() == 1);
+        assertThat(lifecycle.zones()).containsEntry("inst-A1", "EU");
+        seenEvents.clear();
+
+        // A Hello refused by the validator (here: protocol version) carrying the same
+        // instanceId, e.g. a misconfigured duplicate. It used to be registered speculatively:
+        // NodeJoined + NodeLeft for the live instance (presence claim, then catalog cleanup),
+        // and its zone overwritten then erased.
+        var impostor = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        impostor.sayHello(HandshakeProtocol.PROTOCOL_VERSION + 9, Set.of(HandshakeProtocol.zoneCapability("AM")));
+        await().atMost(2, TimeUnit.SECONDS).until(() ->
+                impostor.serverSide.state() == com.evento.transport.state.ConnectionState.CLOSED
+                        || impostor.serverSide.state() == com.evento.transport.state.ConnectionState.DISCONNECTED);
+        Thread.sleep(100);
+
+        assertThat(seenEvents).as("a refused Hello publishes no membership event")
+                .noneMatch(e -> e instanceof BusEvent.NodeJoined || e instanceof BusEvent.NodeLeft);
+        assertThat(lifecycle.view()).hasSize(1);
+        assertThat(lifecycle.zones()).containsEntry("inst-A1", "EU");
+    }
+
+    @Test
+    void theTeardownOfAReplacedSessionKeepsTheZoneItsSuccessorRecorded() {
+        var first = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        first.sayHello(HandshakeProtocol.PROTOCOL_VERSION, Set.of(HandshakeProtocol.zoneCapability("EU")))
+                .orTimeout(2, TimeUnit.SECONDS).join();
+        var second = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        second.sayHello(HandshakeProtocol.PROTOCOL_VERSION, Set.of(HandshakeProtocol.zoneCapability("AM")))
+                .orTimeout(2, TimeUnit.SECONDS).join();
+        // The superseded session is closed by the registry; its teardown (token mismatch, or,
+        // on another event loop, a successful unregister before the successor registered) must
+        // not forget the successor's zone.
+        first.clientSide.close();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.view().size() == 1);
+        assertThat(lifecycle.zones()).containsEntry("inst-A1", "AM");
+
+        // The zone is token-scoped: only the session that recorded it can forget it.
+        var node = lifecycle.view().iterator().next();
+        assertThat(cluster.forgetZone(node, "some-older-token")).isFalse();
+        assertThat(lifecycle.zones()).containsEntry("inst-A1", "AM");
     }
 
     @Test

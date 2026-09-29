@@ -40,7 +40,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   It extends `RequestTimeoutException` because the outcome is equally indeterminate.
   Reconnecting to the same broker keeps the survive-reconnect behaviour.
 - **Cluster identity in the handshake (G13).** `Welcome` gains an additive `clusterName`
-  (from `evento.cluster.name`; empty when not announced, older peers decode it unchanged),
+  (from `evento.cluster.name`, `EVENTO_CLUSTER_NAME`; empty means not announced, and older
+  peers decode it unchanged). The shipped `application.properties` sets it to
+  `evento-server`, so every stock server announces the same name: set it per deployment,
+  or requiring it protects nothing (the server logs `event=cluster_name_shipped_default`
+  at WARN while it keeps the shipped value),
   and bundles gain `expectedClusterName` (`BundleClient.Builder`, `BundleClientConfig`,
   `EventoServerMessageBusConfiguration.withExpectedClusterName`). A broker announcing another
   cluster, or none, is refused before registration and the bundle keeps dialing the next
@@ -71,23 +75,44 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`PgDistributedLock` waits are bounded and a lost lock is an error.** `acquire` used to
   wait forever; it now throws `LockAcquisitionTimeoutException` after 60 s
-  (`-Devento.lock.acquire.timeout.ms`). `lockedArea`/`tryLockedArea` throw
+  (`evento.lock.acquire.timeout.ms`, a Spring property like the pool settings, env
+  `EVENTO_LOCK_ACQUIRE_TIMEOUT_MS`; the `-D` system property of the same name is the
+  fallback). It logs `event=lock_acquire_timeout` at WARN only when that bound ran out; a
+  wait cut short by a command's deadline is logged by the broker as its `lock_wait` drop.
+  `lockedArea`/`tryLockedArea` throw
   `LockLostException` when the lock turns out to have been lost, even if the section
   succeeded (its effects are applied but may have overlapped another holder). The
   server's callers (bundle discovery, consumer registration) catch and log both, as they
   did any database error; a discovery that times out is logged instead of hanging a
-  thread, and is redone on the bundle's next reconnect. `tryAcquire` returns `false`
-  when no lock connection is available in time.
+  thread, and is redone on the bundle's next reconnect. `tryAcquire` never waits: it
+  returns `false` at once when the key is held or every lock connection is in use.
 - **Distributed locks use a connection pool of their own** (`evento.lock.pool.maximum-size`,
-  default 16; `evento.lock.pool.connection-timeout-ms`, default 1000). It copies the
-  application pool's settings. The application pool default is 20. Budget
-  `servers x (20 + 16)` under PostgreSQL's `max_connections`.
+  default 10; `evento.lock.pool.connection-timeout-ms`, default 1000). It copies the
+  application pool's settings. The lock is told the pool size (new
+  `PgDistributedLock(DataSource, Duration, int maxConnections)`) and takes a permit per
+  connection before borrowing, so an exhausted pool no longer makes each attempt wait the
+  pool's connection timeout: telemetry's `tryLockedArea` fails at once instead of holding
+  a bus dispatch thread for a second, and `acquire(key, maxWait)` keeps to `maxWait`.
+- **Upgrade note, PostgreSQL connections:** the shipped application pool is now
+  `maximum-pool-size=20` with `minimum-idle=5` (before: Hikari's default 10, all opened at
+  boot), plus the lock pool (10, 2 idle). Peak per server is 30 connections, idle 7:
+  three servers peak at 90, inside PostgreSQL's default `max_connections=100`. With more
+  servers, or other clients on the same database, raise `max_connections` or lower these
+  before upgrading.
+- **Upgrade note, PostgreSQL 12 or later is required** (11 and older are end-of-life and
+  untested; the ITs run 16 and 17). The server checks `server_version_num` at boot and
+  refuses an older server with a clear message, instead of failing later on a statement.
 - **Upgrade note, `es__events` primary key:** the first server of this version to boot
   builds a unique index on `es__events(event_sequence_number)` with
   `CREATE INDEX CONCURRENTLY` (reads and appends continue; it takes as long as a scan of
   the table), then attaches it as the primary key, which needs `ACCESS EXCLUSIVE` only
   for an instant (`lock_timeout` 3 s, retried). Other booting servers wait for it on the
-  schema lock.
+  schema lock. This and the catalog re-key below run only when Boot runs `schema.sql`
+  (`spring.sql.init.mode=always`, the shipped value). With the schema managed outside the
+  server, apply the shipped scripts instead (`db/upgrade/es-events-primary-key.sql` and
+  `db/upgrade/n1-component-id.sql` in `evento-server.jar`): the server then refuses to
+  boot over a pre-N1 catalog, naming the script, and warns when the primary key is
+  missing.
 
 - **Upgrade note, component catalog re-keyed (N1):** the first server of this version to
   boot migrates an existing catalog in place, in one transaction under the schema lock
@@ -107,21 +132,67 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   retrying a "failed" payment applied it four times. `Request.timeoutMillis`, which every
   sender has always filled from its request timeout, is now read as the caller's
   remaining budget: the broker derives a local deadline from it and the frame's arrival
-  time (`Request.deadlineFrom`, `Frame.receivedAtMs`, stamped on the I/O thread before
-  any queueing; no cross-machine clock comparison), and drops the request unexecuted
+  time (`Request.deadlineFrom`, `Frame.receivedAtNanos`, stamped on the I/O thread before
+  any queueing; no cross-machine clock comparison, and a monotonic clock so an NTP step
+  neither expires every queued command nor stretches deadlines), and drops the request unexecuted
   when the deadline has passed before routing (`queued`), while waiting for the command
   lock (`lock_wait`, the wait is now bounded by the deadline:
   `PgDistributedLock.acquire(key, maxWait)`), before the forward (`before_forward`), or
-  when the handler bundle has not answered in time (`before_append`; the forward budget
-  is what is left of the deadline and no event is appended). Each drop logs
+  when an aggregate handler has not answered in time (`before_append`; the forward budget
+  is what is left of the deadline and no event is appended). A service command is dropped
+  only before its lock and its forward: once its handler has run (with side effects of its
+  own) its event is always stored, even when it answers after the deadline, and a failed
+  forward after the deadline stays an indeterminate error. Each drop logs
   `event=request_expired_dropped stage=...`, counts in
-  `evento.server.requests.expired{stage}` and answers `RequestExpiredException` (new,
-  determinate: nothing was stored), which `EventoServerAdapter` rebuilds as that type.
+  `evento.server.requests.expired{stage}` and answers `RequestExpiredException` (new),
+  which `EventoServerAdapter` rebuilds as that type. A caller normally does not see it:
+  the broker's deadline is never earlier than the caller's own timer, so the caller has
+  already failed the request with the indeterminate `RequestTimeoutException`. The gain is
+  that nothing runs for a caller that gave up (see the metric); do not branch on
+  `RequestExpiredException`.
   Requests without a timeout (`timeoutMillis = 0`) keep the old behaviour, and no wire
   field was added. A command that passes the last check and outlives its deadline during
   the append itself is still indeterminate; that needs an idempotency key (G5). Tested
-  over real TCP (`CommandDeadlineIT`): lock wait, late handler, saturated dispatch
-  queue, and the no-deadline path.
+  over real TCP (`CommandDeadlineIT`): lock wait, late handler, late service handler,
+  saturated dispatch queue, and the no-deadline path.
+- **A rejected Hello could wipe a live instance's catalog rows and zone.** The broker
+  registered a session before validating its Hello, so a Hello refused for a bad token or
+  protocol that carried the instanceId of a live instance published `NodeJoined` then
+  `NodeLeft`: the presence claim took the instance's row, the release found it owned
+  here and not connected, and cleared the instance's consumers and, with no other
+  instance, its whole bundle catalog (the G7 outcome). It also overwrote, then erased, the
+  live session's zone. The Hello is now validated first (`HandshakeHandler.validate` /
+  `reply`); a rejected one touches no shared state.
+- **A reconnect could erase an instance's zone.** The zone was recorded before the new
+  session's registration and forgotten by instanceId alone, so the old session's teardown,
+  on another event loop, could erase the zone the new session had just recorded: that
+  instance then routed as zone-less under `locality-preferred` until its next reconnect.
+  Zones are now tagged with the connection token, recorded after registration and
+  forgotten only by the session that recorded them (`ClusterRegistry.forgetZone(node, token)`).
+- **A failed lock attempt leaked a lock-pool slot for good.** When something failed after
+  `pg_try_advisory_lock` had granted the lock, the connection was aborted but never closed,
+  and Hikari only recycles an entry on `close()`: each occurrence permanently lowered how
+  many locks the server could hold (leak detection is off for that pool). It is now
+  aborted and closed, so the pool evicts it.
+- **A `lockId` whose hash collided with the event store lock hung its own append.** Command
+  locks and the CPES append lock share the `hashtext` key space; a key colliding with
+  `hashtext('es-lock')` held that lock on one session while its append waited for it on
+  another, which PostgreSQL cannot detect, stalling every appender. Such a key is now
+  locked as `hashtext(key || '#evento-lock')`; the key `es-lock` itself keeps mapping to
+  the append lock, so servers of the previous version still exclude each other.
+- **Presence timing was unchecked.** A `stale-after-ms` at or below
+  `heartbeat-interval-ms` made every server's live presence rows go stale between
+  refreshes, and a server then unregistered bundles still live elsewhere. Boot now fails
+  in that case and warns below 3 x the heartbeat; the heartbeat gets its own scheduler
+  thread (`spring.task.scheduling.pool.size=2`) so the hourly telemetry sweep cannot
+  delay it.
+- **The CPES append no longer relies on `WITH ... AS MATERIALIZED`.** The keyword is
+  dropped: a CTE calling the volatile `pg_advisory_xact_lock` is materialised anyway, so
+  the lock-before-`nextval` order holds without it, and an unsupported server now fails at
+  boot (above) rather than on its first append.
+- **GUI: a component name used by several bundles broke the component page.** The page
+  read the `409` body as a component. It now lists the candidate ids as links, and the
+  bundle page links each component by its id.
 - **The catalog keyed components by class name across bundles (N1).** `core__component`
   had `component_name` as primary key, so the same class deployed by several bundles
   (one projector class run by a `query-<region>` bundle per region) shared one row: all

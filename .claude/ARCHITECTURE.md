@@ -261,21 +261,33 @@ and service `CommandHandler` payload type.
 Spring JPA `EventStore` — enables in-memory test implementations.
 
 **Caller deadline (N3).** `CommandBrokerHandler` registers as a
-`BusLifecycle.DeadlineAwareRequestHandler`. The deadline is `Frame.receivedAtMs +
+`BusLifecycle.DeadlineAwareRequestHandler`. The deadline is `Frame.receivedAtMonotonicMs() +
 Request.timeoutMillis` (`Request.deadlineFrom`): the sender's remaining budget, which every
 sender has always filled from its request timeout, added to the local arrival time, so no
 clocks of different machines are compared (the deadline errs late by the one-way delay, never
-early). `timeoutMillis = 0` means no deadline (old behaviour). A request nobody waits for any
-more is dropped unexecuted at four points, each logging `event=request_expired_dropped
+early). Arrival and every later check use the monotonic clock (`System.nanoTime`,
+`BusLifecycle.monotonicMillis()`), so an NTP step neither expires every queued command at once
+nor stretches deadlines. `timeoutMillis = 0` means no deadline (old behaviour). A request nobody
+waits for any more is dropped unexecuted at four points, each logging `event=request_expired_dropped
 stage=...`, counting in `evento.server.requests.expired{stage}` and answering
-`RequestExpiredException` (determinate: nothing stored):
+`RequestExpiredException`. The caller normally never sees that answer: the broker's deadline is
+never earlier than the caller's own timer, so the caller has already failed the request with the
+indeterminate `RequestTimeoutException`. The gain is non-execution, visible in the metric; callers
+must not branch on `RequestExpiredException`.
 
 | Stage | Where | What is skipped |
 |---|---|---|
 | `queued` | `BusLifecycle.onRequest`, before routing (any request, local or forwarded) | everything; covers time queued for a dispatch thread |
 | `lock_wait` | `acquire(key, remaining)`; the lock wait is bounded by the deadline | lock, fetch, forward, append |
 | `before_forward` | after lock + story fetch | forward, append |
-| `before_append` | the handler bundle did not answer in time (the forward budget is what is left of the deadline, not a fresh timeout), or answered after it | append, snapshot |
+| `before_append` | aggregate commands only: the handler bundle did not answer in time (the forward budget is what is left of the deadline, not a fresh timeout), or answered after it | append, snapshot |
+
+A **service** command is dropped only before its lock and before its forward. Once forwarded it
+gets the command's own timeout, and its event is stored whenever the handler answers, even after
+the deadline (`event=service_event_stored_after_deadline`): the handler has side effects (a
+payment, a mail), and dropping the event would hide an effect that happened from every consumer
+and tell a retrying caller "not executed". A service forward that fails after the deadline stays
+an indeterminate error.
 
 What stays open: an append that starts before the deadline and ends after it is indeterminate
 for the caller; only an idempotency key (G5) closes that.
@@ -283,13 +295,22 @@ for the caller; only an idempotency key (G5) closes that.
 `PgDistributedLock`: when `DataSource` is null, falls back to JVM-only semaphore (safe for
 single-JVM/embedded scenarios like integration tests). With a `DataSource` (production) it is
 one shared Spring bean (`DistributedLockConfiguration`) over a **dedicated Hikari pool**
-(`evento.lock.pool.maximum-size`, default 16; `evento.lock.pool.connection-timeout-ms`, default
+(`evento.lock.pool.maximum-size`, default 10; `evento.lock.pool.connection-timeout-ms`, default
 1000): each *held* lock owns one pooled connection from acquire to release, so holders never pin
 the connections their own work needs, and a waiter polls `pg_try_advisory_lock` with jittered
-backoff holding no connection between attempts. Waits are bounded (`-Devento.lock.acquire.timeout.ms`,
-60 s, or `acquire(key, maxWait)`) → `LockAcquisitionTimeoutException`; `verifyHeld` / `release`
-detect a lock whose session died → `LockLostException` (`event=lock_lost`). Budget
-`servers × (spring.datasource.hikari.maximum-pool-size 20 + 16)` under `max_connections`.
+backoff holding no connection between attempts. The lock keeps one permit per pool connection
+and takes it before borrowing, so an exhausted pool never costs the pool's connection timeout:
+`tryAcquire` (telemetry) fails at once, `acquire(key, maxWait)` waits at most `maxWait`. Waits
+are bounded (`evento.lock.acquire.timeout.ms`, a Spring property, 60 s, or `acquire(key, maxWait)`)
+→ `LockAcquisitionTimeoutException`, logged at WARN only when the lock's own bound ran out (a wait
+cut by the caller's deadline is the broker's `lock_wait` drop, DEBUG here); `verifyHeld` / `release`
+detect a lock whose session died → `LockLostException` (`event=lock_lost`). A connection whose
+session may still hold a lock is aborted *and* closed, so Hikari evicts it and the slot comes back.
+The key `es-lock` is the event store's append lock; any other key whose `hashtext` collides with it
+is locked as `hashtext(key || '#evento-lock')` (`PgDistributedLock.KEY_EXPR`), so a caller-chosen
+`lockId` can never make its holder wait on its own append. Budget
+`servers × (spring.datasource.hikari.maximum-pool-size 20 + lock pool 10)` under `max_connections`:
+90 for three servers, inside PostgreSQL's default 100 (idle: `minimum-idle` 5 + 2 per server).
 
 ### 4.7 Shared Catalog Across Servers (`com.evento.server.service.discovery.*`)
 
@@ -312,7 +333,10 @@ id is `bundleId_Component_version_context`, so one bundle id run by several inst
 different contexts lists every lane and a leaving instance removes only its own
 (`clearInstance`). Catalogs created before this are re-keyed in place, once, by
 `AdvisoryLockedSchemaInitializer` (one transaction under the schema lock,
-`event=catalog_component_rekeyed`). REST/GUI identify a component by `componentId`;
+`event=catalog_component_rekeyed`) when Boot runs `schema.sql` (`spring.sql.init.mode=always`).
+With the schema managed outside the server the boot fails on a pre-N1 catalog, naming the shipped
+script `classpath:db/upgrade/n1-component-id.sql`; a missing `es__events` primary key is only
+warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses PostgreSQL older than 12. REST/GUI identify a component by `componentId`;
 `GET /api/catalog/component/{identifier}` also takes a bare name when it is unambiguous
 (`409` with the candidate ids otherwise).
 
@@ -321,11 +345,12 @@ different contexts lists every lane and a leaving instance removes only its own
 | Setting | Default | Meaning |
 |---|---|---|
 | `evento.server.instance.id` / `evento.cluster.node.server.id` (`EVENTO_SERVER_INSTANCE_ID`, `EVENTO_CLUSTER_NODE_SERVER_ID`) | `server-0` / `iris-evento-server` | Must be unique per server: presence ownership and the `Welcome.serverInstanceId` depend on it |
-| `evento.cluster.name` | empty | Announced in `Welcome.clusterName`; bundles may require it (`withExpectedClusterName`) instead of one server id (G13) |
+| `evento.cluster.name` (`EVENTO_CLUSTER_NAME`) | `evento-server` (shipped properties; empty = not announced) | Announced in `Welcome.clusterName`; bundles may require it (`withExpectedClusterName`) instead of one server id (G13). Set it per deployment: every stock server announces `evento-server`, so requiring that value protects nothing (`event=cluster_name_shipped_default` WARN at boot) |
 | `evento.server.bus.pick-strategy` | `random` | `random`, `first`, `locality-preferred` (§6 decision 11) |
-| `evento.lock.pool.maximum-size` / `evento.lock.pool.connection-timeout-ms` | 16 / 1000 | Dedicated lock pool (§4.6) |
-| `-Devento.lock.acquire.timeout.ms` | 60000 | Bound on any lock wait |
-| `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7) |
+| `spring.datasource.hikari.maximum-pool-size` / `minimum-idle` | 20 / 5 | Application pool |
+| `evento.lock.pool.maximum-size` / `evento.lock.pool.connection-timeout-ms` | 10 / 1000 | Dedicated lock pool (§4.6) |
+| `evento.lock.acquire.timeout.ms` (`EVENTO_LOCK_ACQUIRE_TIMEOUT_MS`; `-D` system property as fallback) | 60000 | Bound on any lock wait |
+| `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7). Not independent: boot fails when stale-after <= heartbeat and warns below 3 x heartbeat; the heartbeat has its own scheduler thread (`spring.task.scheduling.pool.size=2`) so the hourly telemetry sweep cannot delay it |
 | `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
 | `evento.es.mode` | `APES` in code, `CPES` shipped | Use CPES with several servers |
 

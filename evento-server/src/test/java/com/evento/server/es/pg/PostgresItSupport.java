@@ -55,9 +55,14 @@ final class PostgresItSupport {
     }
 
     static AdvisoryLockedSchemaInitializer initializer(DataSource ds, boolean enforcePrimaryKey) {
+        return initializer(ds, enforcePrimaryKey, DatabaseInitializationMode.ALWAYS);
+    }
+
+    static AdvisoryLockedSchemaInitializer initializer(DataSource ds, boolean enforcePrimaryKey,
+                                                       DatabaseInitializationMode mode) {
         var settings = new DatabaseInitializationSettings();
         settings.setSchemaLocations(List.of("classpath:schema.sql"));
-        settings.setMode(DatabaseInitializationMode.ALWAYS);
+        settings.setMode(mode);
         var init = new AdvisoryLockedSchemaInitializer(ds, settings, enforcePrimaryKey);
         init.setResourceLoader(new DefaultResourceLoader());
         return init;

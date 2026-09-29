@@ -63,8 +63,41 @@ public class BundlePresence {
 
     @Autowired
     public BundlePresence(JdbcTemplate jdbc, BusProperties busProperties,
-                          @Value("${evento.server.presence.stale-after-ms:180000}") long staleAfterMs) {
+                          @Value("${evento.server.presence.stale-after-ms:180000}") long staleAfterMs,
+                          @Value("${evento.server.presence.heartbeat-interval-ms:30000}") long heartbeatIntervalMs) {
         this(jdbc, busProperties.serverInstanceId(), Duration.ofMillis(staleAfterMs));
+        checkTiming(Duration.ofMillis(staleAfterMs), Duration.ofMillis(heartbeatIntervalMs));
+    }
+
+    /**
+     * Minimum ratio between the stale-after window and the heartbeat interval. Below it a single
+     * late refresh (a slow database, a busy scheduler thread) lets live rows go stale, and then
+     * {@link #liveElsewhere} and {@link #release} treat live sessions on other servers as dead,
+     * which is the G7 failure the table exists to prevent.
+     */
+    static final int MIN_STALE_TO_HEARTBEAT_RATIO = 3;
+
+    /**
+     * Refuses a stale-after window no longer than the heartbeat interval (every row would go
+     * stale between two refreshes) and warns below {@link #MIN_STALE_TO_HEARTBEAT_RATIO}.
+     */
+    static void checkTiming(Duration staleAfter, Duration heartbeatInterval) {
+        if (heartbeatInterval.isNegative() || heartbeatInterval.isZero()) {
+            throw new IllegalStateException("evento.server.presence.heartbeat-interval-ms must be positive");
+        }
+        if (staleAfter.compareTo(heartbeatInterval) <= 0) {
+            throw new IllegalStateException(("evento.server.presence.stale-after-ms (%d) must be well above "
+                    + "evento.server.presence.heartbeat-interval-ms (%d), at least %d times it: otherwise live "
+                    + "presence rows go stale between refreshes and a server unregisters bundles that are "
+                    + "still live on another server").formatted(staleAfter.toMillis(), heartbeatInterval.toMillis(),
+                    MIN_STALE_TO_HEARTBEAT_RATIO));
+        }
+        if (staleAfter.compareTo(heartbeatInterval.multipliedBy(MIN_STALE_TO_HEARTBEAT_RATIO)) < 0) {
+            logger.warn("event=bundle_presence_timing_tight staleAfterMs={} heartbeatIntervalMs={} "
+                    + "hint=\"keep stale-after at least {} x heartbeat-interval, or one late refresh makes live "
+                    + "instances look dead to other servers\"", staleAfter.toMillis(), heartbeatInterval.toMillis(),
+                    MIN_STALE_TO_HEARTBEAT_RATIO);
+        }
     }
 
     BundlePresence(JdbcTemplate jdbc, String serverInstanceId, Duration staleAfter) {

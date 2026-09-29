@@ -67,6 +67,7 @@ class CommandDeadlineIT {
 
     /** The payload name a command message reports: the class name after the last dot. */
     private static final String COMMAND = payloadName(DeadlineCmd.class);
+    private static final String SERVICE_COMMAND = payloadName(DeadlineServiceCmd.class);
 
     private BusLifecycle lifecycle;
     private ClusterRegistry cluster;
@@ -248,6 +249,69 @@ class CommandDeadlineIT {
     }
 
     @Test
+    void aServiceCommandThatAnswersAfterTheCallersDeadlineStillHasItsEventStored() throws Exception {
+        // A service handler has side effects (a payment, a mail). Once it has run, its event is
+        // the only record of the effect: dropping it at before_append (as for a pure aggregate
+        // command) hid the effect from every consumer and told a retrying caller "not executed".
+        startBroker(Executors.newVirtualThreadPerTaskExecutor());
+        var handler = new RegisteredHandler(ComponentType.Service, "DeadlineService",
+                HandlerType.CommandHandler, PayloadType.ServiceCommand, SERVICE_COMMAND,
+                payloadName(DeadlineServiceEvt.class), false, null);
+        var service = BundleClient.builder("deadline-service", "service-1")
+                .host("127.0.0.1").port(port).bundleVersion("1")
+                .registeredHandlers(List.of(handler))
+                .handlerPayloadTypes(List.of(SERVICE_COMMAND))
+                .transportConfig(NettyTransportConfig.defaults())
+                .build();
+        var effects = new AtomicInteger();
+        var handlerStarted = new AtomicInteger();
+        service.registerRequestHandler(SERVICE_COMMAND, (payload, ctx) -> {
+            handlerStarted.incrementAndGet();
+            var request = codec.decodeRequest(payload);
+            var cmd = (DeadlineServiceCmd) ((com.evento.common.modeling.messaging.message.application.ServiceCommandMessage)
+                    request.getBody()).getPayload();
+            Thread.sleep(cmd.handlerDelayMs);
+            effects.incrementAndGet();  // the side effect happened
+            var reply = new EventoResponse();
+            reply.setCorrelationId(request.getCorrelationId());
+            reply.setBody(new com.evento.common.modeling.messaging.message.application.ServiceEventMessage(
+                    new DeadlineServiceEvt(cmd.id)));
+            return codec.encodeResponse(reply);
+        });
+        clients.add(service);
+        service.start().get(10, TimeUnit.SECONDS);
+        await().atMost(Duration.ofSeconds(5)).until(() -> cluster.availableNodesFor(SERVICE_COMMAND).size() == 1);
+        var caller = caller();
+
+        // The first payment holds the resource lock for 2 s. The second (2.2 s budget) waits
+        // ~2 s for it, is forwarded in time, and its handler answers ~1.8 s later: well past
+        // its caller's deadline (the caller's tracker sweeps once a second, so a smaller margin
+        // could still reach it), within the command's own timeout counted from the forward
+        // (what the broker waited before N3, when such an answer was stored).
+        var account = "acct-" + UUID.randomUUID();
+        var first = caller.<java.io.Serializable>request(
+                new com.evento.common.modeling.messaging.message.application.ServiceCommandMessage(
+                        new DeadlineServiceCmd(account, 2_000)),
+                10_000, TimeUnit.MILLISECONDS);
+        await().atMost(Duration.ofSeconds(5)).until(() -> handlerStarted.get() == 1);
+        var late = caller.<java.io.Serializable>request(
+                new com.evento.common.modeling.messaging.message.application.ServiceCommandMessage(
+                        new DeadlineServiceCmd(account, 1_800)),
+                2_200, TimeUnit.MILLISECONDS);
+        // Indeterminate for the caller, which is the truth: the handler did run.
+        assertThatThrownBy(() -> late.get(10, TimeUnit.SECONDS))
+                .isInstanceOf(ExecutionException.class)
+                .satisfies(e -> assertThat(e.getCause()).isInstanceOf(RequestTimeoutException.class)
+                        .isNotInstanceOf(RequestExpiredException.class));
+        first.get(10, TimeUnit.SECONDS);
+
+        // Both effects happened, so both events are stored.
+        await().atMost(Duration.ofSeconds(10)).until(() -> store.appended.size() == 2);
+        assertThat(effects).hasValue(2);
+        assertThat(lifecycle.expiredDroppedCount(BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND)).isZero();
+    }
+
+    @Test
     void aRequestWithoutATimeoutKeepsThePreviousBehaviour() throws Exception {
         startBroker(Executors.newVirtualThreadPerTaskExecutor());
         startAggregate();
@@ -314,6 +378,36 @@ class CommandDeadlineIT {
         }
 
         DeadlineEvt(String id) {
+            this.id = id;
+        }
+    }
+
+    public static class DeadlineServiceCmd extends com.evento.common.modeling.messaging.payload.ServiceCommand {
+        public String id;
+        public long handlerDelayMs;
+
+        public DeadlineServiceCmd() {
+        }
+
+        DeadlineServiceCmd(String id, long handlerDelayMs) {
+            this.id = id;
+            this.handlerDelayMs = handlerDelayMs;
+        }
+
+        /** Serialises the commands of one account on the broker's resource lock. */
+        @Override
+        public String getLockId() {
+            return id;
+        }
+    }
+
+    public static class DeadlineServiceEvt extends com.evento.common.modeling.messaging.payload.ServiceEvent {
+        public String id;
+
+        public DeadlineServiceEvt() {
+        }
+
+        DeadlineServiceEvt(String id) {
             this.id = id;
         }
     }

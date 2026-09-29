@@ -95,6 +95,17 @@ class MultiServerCatalogIT {
     private final List<BundleClient> clients = new CopyOnWriteArrayList<>();
     private ListAppender<ILoggingEvent> logs;
 
+    /**
+     * A copy of the captured events. Bus and discovery threads keep logging while a test
+     * asserts; iterating {@code logs.list} directly raced them (ConcurrentModificationException).
+     * Appends are synchronized on the appender, so copying under its monitor is consistent.
+     */
+    private java.util.List<ILoggingEvent> logSnapshot() {
+        synchronized (logs) {
+            return new java.util.ArrayList<>(logs.list);
+        }
+    }
+
     @BeforeAll
     void startCluster() {
         postgres = new PostgreSQLContainer("postgres:16-alpine")
@@ -376,7 +387,7 @@ class MultiServerCatalogIT {
                     """, Integer.class)).isEqualTo(shared);
         });
         assertNoDiscoveryErrors();
-        assertThat(logs.list).noneMatch(e -> String.valueOf(e.getFormattedMessage()).contains("deadlock")
+        assertThat(logSnapshot()).noneMatch(e -> String.valueOf(e.getFormattedMessage()).contains("deadlock")
                 || (e.getThrowableProxy() != null
                 && String.valueOf(e.getThrowableProxy().getMessage()).contains("deadlock")));
     }
@@ -566,14 +577,14 @@ class MultiServerCatalogIT {
 
     /** Discovery and registration swallow their failures into ERROR logs; surface them. */
     private void assertNoDiscoveryErrors() {
-        var errors = logs.list.stream()
+        var errors = logSnapshot().stream()
                 .filter(e -> e.getLevel().isGreaterOrEqual(Level.ERROR))
                 .filter(e -> e.getLoggerName().startsWith("com.evento.server.service"))
                 .map(e -> e.getLoggerName() + ": " + e.getFormattedMessage()
                         + (e.getThrowableProxy() == null ? "" : " / " + e.getThrowableProxy().getMessage()))
                 .toList();
         assertThat(errors).isEmpty();
-        assertThat(logs.list).noneMatch(e -> String.valueOf(e.getFormattedMessage()).contains("duplicate key")
+        assertThat(logSnapshot()).noneMatch(e -> String.valueOf(e.getFormattedMessage()).contains("duplicate key")
                 || (e.getThrowableProxy() != null
                 && String.valueOf(e.getThrowableProxy().getMessage()).contains("duplicate key")));
     }

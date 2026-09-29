@@ -1,5 +1,19 @@
 <ion-content>
   <app-wrapped-content>
+    @if (ambiguous) {
+      <div class="ion-padding">
+        <h2>{{ ambiguous.identifier }}</h2>
+        <ion-text>{{ ambiguous.error }}</ion-text>
+        <div class="ion-margin-top">
+          @for (id of ambiguous.candidates; track id) {
+            <ion-chip outline="true" [routerLink]="['/component-info', id]">{{ id }}</ion-chip>
+          }
+        </div>
+      </div>
+    }
+    @if (error) {
+      <div class="ion-padding"><ion-text color="danger">{{ error }}</ion-text></div>
+    }
     @if (component) {
       <ion-grid>
         <ion-row>

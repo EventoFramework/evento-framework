@@ -54,7 +54,7 @@
                 </div>
                 @for (r of components; track r) {
                   <div>
-                    <ion-chip outline="true"  routerLink="/component-info/{{r.name}}">
+                    <ion-chip outline="true" [routerLink]="['/component-info', bundleId + ':' + r.name]">
                       <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
                     </ion-chip>
                   </div>

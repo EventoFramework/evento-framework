@@ -67,13 +67,30 @@ public final class HandshakeHandler {
      * post-handshake setup or close on rejection.
      */
     public CompletableFuture<HandshakeOutcome> handle(Hello hello, Transport transport) {
+        return reply(hello, transport, validate(hello));
+    }
+
+    /**
+     * Decides on the {@link Hello} without replying or touching any state. The lifecycle
+     * validates first and registers only an accepted session: a rejected Hello that reuses
+     * the instanceId of a live session must not look, even for an instant, like that
+     * instance joining and leaving (presence claim, zone, catalog cleanup).
+     */
+    public HandshakeOutcome validate(Hello hello) {
         if (hello.protocolVersion() != HandshakeProtocol.PROTOCOL_VERSION) {
-            return sendReject(hello, transport, Reject.CODE_PROTOCOL_VERSION,
+            return new HandshakeOutcome.Rejected(Reject.CODE_PROTOCOL_VERSION,
                     "server speaks v" + HandshakeProtocol.PROTOCOL_VERSION
                             + ", client offered v" + hello.protocolVersion());
         }
         var info = new BundleVersionInfo(hello.bundleId(), hello.instanceId(), hello.bundleVersion());
-        var verdict = validator.apply(hello, info);
+        return validator.apply(hello, info);
+    }
+
+    /**
+     * Sends the {@link Welcome} or {@link Reject} for an outcome of {@link #validate}; the
+     * future completes with that outcome once the reply was accepted by the I/O layer.
+     */
+    public CompletableFuture<HandshakeOutcome> reply(Hello hello, Transport transport, HandshakeOutcome verdict) {
         if (verdict instanceof HandshakeOutcome.Rejected(String code, String reason)) {
             return sendReject(hello, transport, code, reason);
         }
