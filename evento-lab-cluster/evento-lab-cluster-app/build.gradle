@@ -1,0 +1,44 @@
+plugins {
+    id 'org.springframework.boot' version '4.1.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+}
+
+group = 'com.evento'
+version = "${eventoVersion}"
+
+java { toolchain { languageVersion = javaLanguageVersion } }
+
+repositories { mavenCentral(); mavenLocal() }
+
+dependencyManagement {
+    // Flyway (pulled in by the JDBC consumer state store) needs
+    // jackson-annotations >= 2.20; the Boot BOM would pin an older one.
+    // Same override as evento-lab.
+    dependencies {
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+    }
+}
+
+dependencies {
+    // Project dependencies on purpose: rebuilding the image picks up the
+    // framework fixes being made on this branch.
+    implementation project(':evento-bundle')
+    implementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation "com.zaxxer:HikariCP:${hikariVersion}"
+    runtimeOnly "org.postgresql:postgresql:${postgresJdbcVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+}
+
+// One fat jar with an explicit, stable name: the lab Dockerfile copies it by
+// name, never by glob, so a stale *-plain.jar can never be picked up (L1).
+jar { enabled = false }
+bootJar { archiveFileName = 'evento-lab-cluster-app.jar' }
+
+test { useJUnitPlatform() }
