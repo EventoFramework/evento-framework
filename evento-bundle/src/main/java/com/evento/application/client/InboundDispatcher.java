@@ -106,7 +106,8 @@ public final class InboundDispatcher {
             case ProcessedRequestCache.Outcome.Replay replay -> {
                 log.info("event=request_replayed correlationId={} payloadType={}",
                         req.correlationId(), req.payloadType());
-                trySend(replay.response());
+                inFlight.incrementAndGet();
+                whenWritten(trySend(replay.response()));
             }
             case ProcessedRequestCache.Outcome.InFlight ignored ->
                     log.info("event=request_inflight_duplicate_dropped correlationId={}",
@@ -114,35 +115,47 @@ public final class InboundDispatcher {
             case ProcessedRequestCache.Outcome.Claimed ignored -> runCounted(() -> {
                 var response = computeResponse(req);
                 dedupCache.recordResponse(req.correlationId(), response);
-                trySend(response);
+                return trySend(response);
             });
         }
     }
 
     /**
      * Inbound requests accepted but not yet answered: from dispatch until the
-     * reply has been handed to the transport. The fail-back switch waits for
-     * this to reach zero before it closes the session, because a reply sent
-     * after the close would reach the other broker, which has no route back to
-     * the caller.
+     * reply has been written to the socket (not merely handed to the
+     * transport). The fail-back switch waits for this to reach zero before it
+     * closes the session, because a reply sent after the close would reach the
+     * other broker, which has no route back to the caller — and closing the
+     * channel while a large, chunked reply is still being written truncates it.
      */
     public int inFlightRequests() {
         return inFlight.get();
     }
 
-    private void runCounted(Runnable task) {
+    /** Runs {@code task} counted in flight until the write it returns has completed. */
+    private void runCounted(java.util.function.Supplier<java.util.concurrent.CompletableFuture<Void>> task) {
         inFlight.incrementAndGet();
         try {
             businessExecutor.execute(() -> {
+                java.util.concurrent.CompletableFuture<Void> written = null;
                 try {
-                    task.run();
+                    written = task.get();
                 } finally {
-                    inFlight.decrementAndGet();
+                    whenWritten(written);
                 }
             });
         } catch (RuntimeException rejected) {
             inFlight.decrementAndGet();
             throw rejected;
+        }
+    }
+
+    /** Ends one in-flight count when {@code written} completes, or now if nothing was written. */
+    private void whenWritten(java.util.concurrent.CompletableFuture<Void> written) {
+        if (written == null) {
+            inFlight.decrementAndGet();
+        } else {
+            written.whenComplete((v, t) -> inFlight.decrementAndGet());
         }
     }
 
@@ -183,11 +196,13 @@ public final class InboundDispatcher {
         });
     }
 
-    private void trySend(Message m) {
+    /** @return the write, or null if it could not even be started */
+    private java.util.concurrent.CompletableFuture<Void> trySend(Message m) {
         try {
-            sender.apply(m);
+            return sender.apply(m);
         } catch (SendFailedException sfe) {
             log.warn("event=reply_send_failed type={}", m.getClass().getSimpleName(), sfe);
+            return null;
         }
     }
 }

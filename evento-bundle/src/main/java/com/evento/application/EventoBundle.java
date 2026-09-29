@@ -905,7 +905,6 @@ public class EventoBundle {
                         .computeIfAbsent(c.getObserverName(), k -> new HashSet<>())
                         .add(c.getConsumerId());
             }
-            eventoServer.send(cr);
             // Consumer rows on the server exist only while this instance is known
             // to the cluster (they are cleared when the instance leaves, and a
             // fresh server database starts empty). A one-shot registration would
@@ -913,6 +912,8 @@ public class EventoBundle {
             // restart or connection blip until the bundle itself restarted —
             // re-send on every re-established session instead. Registration is
             // idempotent server-side (rows are keyed by instanceId + consumerId).
+            // The listener goes in first: if the send below cannot go out (the
+            // bundle is between sessions), the next READY sends it.
             bundleClient.onStateChange((from, to) -> {
                 if (to == BundleClientState.READY) {
                     try {
@@ -922,6 +923,14 @@ public class EventoBundle {
                     }
                 }
             });
+            try {
+                eventoServer.send(cr);
+            } catch (Exception e) {
+                // Not fatal to startup: throwing here used to skip the stats publisher
+                // and the started hook for good (N16 review).
+                logger.info("Consumer registration not sent now ({}); it is sent when the next session is READY",
+                        e.getMessage());
+            }
         }
 
         /**
