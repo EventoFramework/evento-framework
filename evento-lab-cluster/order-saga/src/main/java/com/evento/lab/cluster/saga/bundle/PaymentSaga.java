@@ -21,7 +21,7 @@ import com.evento.lab.cluster.api.event.PaymentProcessedEvent;
  *
  * <p>No idempotency code here on purpose: on a framework with G5 the saga's
  * gateway derives the key of {@code ProcessPaymentCommand} from (consumer id,
- * sequence number of the {@code OrderCompletedEvent}, 0). When the event is
+ * sequence number of the {@code OrderCompletedEvent}, ProcessPaymentCommand, 0). When the event is
  * redelivered (a {@code BrokerChangedException} or timeout failed the handler,
  * a lane changed owner before the checkpoint) the retry carries the same key
  * and the broker answers with the stored {@code PaymentProcessedEvent} instead
