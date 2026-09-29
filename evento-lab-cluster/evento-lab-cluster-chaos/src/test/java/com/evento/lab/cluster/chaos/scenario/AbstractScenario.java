@@ -48,7 +48,8 @@ abstract class AbstractScenario {
             "duplicate key", "core__bundle_pkey", "core__component_pkey", "core__payload_pkey",
             "pg_type_typname_nsp_index", "tuple concurrently updated", "RequestTimeoutException",
             "event=gateway_command_failed", "event=lab_ready", "deadlock detected",
-            "Failed to acquire advisory lock");
+            "Failed to acquire advisory lock", "event=failback_started", "event=failback_completed",
+            "event=failback_failed");
 
     /**
      * Default background load (orders/min/region) of the fault scenarios S3, S7, S8, S9.
@@ -168,11 +169,42 @@ abstract class AbstractScenario {
     }
 
     /**
-     * Put every bundle JVM of the default topology back on its own cell's server (L22). A bundle
-     * that failed over (G2 fix) stays on the remote server until its next disconnect: there is no
-     * failback (N16). A later scenario would then run with a cell's commands and consumers crossing
-     * the WAN, and with gateways and handlers on different servers (no_handler, G1). Restarting the
-     * misplaced JVMs makes them dial their first, local address again. Returns what was misplaced
+     * The JVMs among {@code jvms} (of {@code cell}) attached to another cell's server right now,
+     * service to server. A JVM whose logs carry no server id (2.4.6) is left out.
+     */
+    protected Map<String, String> remoteJvms(String cell, List<String> jvms) {
+        var own = LabConfig.cellServer(cell);
+        var out = new java.util.TreeMap<String, String>();
+        for (var jvm : jvms) {
+            var at = cluster.attachedServer(jvm);
+            if (at != null && !at.equals(own)) out.put(jvm, at);
+        }
+        return out;
+    }
+
+    /**
+     * Wait until none of {@code jvms} is attached outside its cell (N16 fail-back: after the
+     * framework's stability window, 30 s + up to 10 s jitter, plus one more window for bundles
+     * without handlers such as the gateways). Returns what is still remote when it gives up;
+     * empty means every JVM is home.
+     */
+    protected Map<String, String> awaitFailback(String cell, List<String> jvms, Duration timeout) {
+        var still = new java.util.concurrent.atomic.AtomicReference<Map<String, String>>(Map.of());
+        Cluster.waitUntil(timeout, Duration.ofSeconds(10), () -> {
+            still.set(remoteJvms(cell, jvms));
+            return still.get().isEmpty();
+        });
+        return still.get();
+    }
+
+    /**
+     * Put every bundle JVM of the default topology back on its own cell's server (L22). Before the
+     * N16 fix a bundle that failed over (G2 fix) stayed on the remote server until its next
+     * disconnect; with it, it moves back once its server has been healthy for the stability
+     * window, so on those images this normally finds nothing (the killing scenario waits for the
+     * fail-back and reports it). A later scenario must not run with a cell's commands and
+     * consumers crossing the WAN, or with gateways and handlers on different servers (no_handler,
+     * G1). Restarting the misplaced JVMs makes them dial their first, local address again. Returns what was misplaced
      * (service to server it was found on); empty when placement was nominal or not readable
      * (2.4.6 images log no server id and never fail over). {@code EVENTO_LAB_RESTORE_PLACEMENT=false}
      * turns it off.
