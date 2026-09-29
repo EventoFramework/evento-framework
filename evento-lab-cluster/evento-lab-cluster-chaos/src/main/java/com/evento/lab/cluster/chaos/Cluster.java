@@ -383,15 +383,26 @@ public class Cluster {
      * temporary compose override file (the base compose file is never edited).
      */
     public void recreateWithEnv(String service, Map<String, String> env) {
+        recreateWithEnv(service, env, null);
+    }
+
+    /**
+     * Same, and also replace the service's image when {@code image} is not blank (S15 runs a
+     * derived image that ships libfaketime, see {@code docker/faketime/Dockerfile}).
+     */
+    public void recreateWithEnv(String service, Map<String, String> env, String image) {
         try {
-            var sb = new StringBuilder("services:\n  ").append(service).append(":\n    environment:\n");
+            var sb = new StringBuilder("services:\n  ").append(service).append(":\n");
+            if (image != null && !image.isBlank()) sb.append("    image: \"").append(image.trim()).append("\"\n");
+            sb.append("    environment:\n");
             for (var e : env.entrySet()) {
                 sb.append("      ").append(e.getKey()).append(": \"")
                         .append(e.getValue().replace("\"", "\\\"")).append("\"\n");
             }
             var tmp = Files.createTempFile("evento-lab-override-", ".yaml");
             Files.writeString(tmp, sb.toString());
-            action("compose up -d --no-deps --force-recreate " + service + " with env " + env);
+            action("compose up -d --no-deps --force-recreate " + service + " with env " + env
+                    + (image == null || image.isBlank() ? "" : " image " + image));
             must(compose(Duration.ofSeconds(300), List.of(tmp), List.of(),
                     "up", "-d", "--no-deps", "--force-recreate", service), "recreate " + service);
             Files.deleteIfExists(tmp);
@@ -448,11 +459,37 @@ public class Cluster {
             action("catalog repair skipped: " + script + " not found");
             return new Exec(-2, "", "missing " + script);
         }
-        action("bash scripts/repair-catalog.sh (G8 workaround)");
-        var e = run(Duration.ofSeconds(900), List.of("bash", script.toString().replace('\\', '/')));
-        action("catalog repair exit " + e.exit() + ": "
-                + Cluster.grep(e.combined(), "event=lab_catalog_repair", 40));
+        var bash = bash();
+        action(bash + " scripts/repair-catalog.sh (G8 workaround)");
+        var e = run(Duration.ofSeconds(900), List.of(bash, script.toString().replace('\\', '/')));
+        var lines = Cluster.grep(e.combined(), "event=lab_catalog_repair", 40);
+        // a run that never reached the script (wrong bash) must say why, not print "[]" (L16)
+        action("catalog repair exit " + e.exit() + ": " + (lines.isEmpty() ? tail(e.combined(), 400) : lines));
         return e;
+    }
+
+    /**
+     * The bash that runs the lab scripts: {@code LAB_BASH}, else Git Bash on Windows, else
+     * {@code bash}. On Windows a bare "bash" resolves to System32\bash.exe (WSL) before Git
+     * Bash, and WSL without a distribution exits 1 at once (L16).
+     */
+    static String bash() {
+        var explicit = System.getenv("LAB_BASH");
+        if (explicit != null && !explicit.isBlank()) return explicit.trim();
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            var candidates = new ArrayList<Path>();
+            for (var base : new String[]{System.getenv("ProgramFiles"), System.getenv("ProgramFiles(x86)"),
+                    System.getenv("LOCALAPPDATA") == null ? null : System.getenv("LOCALAPPDATA") + "\\Programs"}) {
+                if (base != null) candidates.add(Path.of(base, "Git", "bin", "bash.exe"));
+            }
+            for (var c : candidates) if (Files.isRegularFile(c)) return c.toString();
+        }
+        return "bash";
+    }
+
+    private static String tail(String s, int max) {
+        var t = s == null ? "" : s.strip();
+        return t.length() <= max ? t : "..." + t.substring(t.length() - max);
     }
 
     public boolean composeFileExists() {
