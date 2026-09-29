@@ -3,13 +3,15 @@
   "title" : "Kill an evento-server",
   "gaps" : [ "G2", "G4", "G5", "G8", "G13" ],
   "label" : "before",
-  "startedAt" : "2026-09-29T12:46:22.928129300Z",
-  "finishedAt" : "2026-09-29T12:49:19.370824Z",
-  "durationSeconds" : 176,
+  "startedAt" : "2026-09-29T16:44:32.979443200Z",
+  "finishedAt" : "2026-09-29T16:47:34.603556100Z",
+  "durationSeconds" : 181,
   "parameters" : {
-    "orderIdPrefix" : "s03-before-6d35dc-",
+    "orderIdPrefix" : "s03-before-424d3e-",
     "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
     "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
     "gateway-cina whoami" : {
       "bundleId" : "order-gateway",
       "instance" : "gateway-cina",
@@ -45,10 +47,10 @@
     "busMode" : "direct address list",
     "load" : {
       "completeRatio" : 0.5,
-      "ratePerMinutePerRegion" : 4.0,
-      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "itemsPerOrder" : 1,
       "durationSeconds" : 110,
-      "itemsPerOrder" : 1
+      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "ratePerMinutePerRegion" : 4.0
     }
   },
   "verdictCounts" : {
@@ -63,18 +65,18 @@
     "verdict" : "KNOWN_DEFECT_REPRODUCED",
     "note" : null
   }, {
-    "name" : "in-flight APAC calls at the kill",
-    "expected" : "fail immediately with a typed broker-changed/disconnect error (G4 fix)",
-    "expectedBeforeFix" : "hang until the 30 s request timeout, outcome indeterminate (G4)",
-    "observed" : "3 in flight: 3 failed after >= 25 s, 0 failed fast, kinds {timeout=3}",
-    "verdict" : "KNOWN_DEFECT_REPRODUCED",
-    "note" : null
-  }, {
     "name" : "catalog registration under mass reconnect",
     "expected" : "no duplicate-key errors while bundles re-register (G8 fix)",
     "expectedBeforeFix" : "'duplicate key' on core__bundle/component/payload during the reconnect storm (G8)",
     "observed" : "0 duplicate-key log lines on the servers",
     "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "in-flight APAC calls at the kill",
+    "expected" : "fail immediately with a typed broker-changed/disconnect error (G4 fix)",
+    "expectedBeforeFix" : "hang until the 30 s request timeout, outcome indeterminate (G4)",
+    "observed" : "3 gateway command(s) in flight: 3 failed after >= 25 s, 0 failed fast, kinds {timeout=3}; bundle side: 0 BrokerChangedException, 0 RequestTimeoutException",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
     "note" : null
   }, {
     "name" : "I1 after the server returns",
@@ -108,7 +110,7 @@
     "name" : "I6 after the server returns",
     "expected" : "read models reach the event store's state within 180 s",
     "expectedBeforeFix" : null,
-    "observed" : "converged in 22914 ms",
+    "observed" : "converged in 25918 ms",
     "verdict" : "AS_EXPECTED",
     "note" : null
   }, {
@@ -210,31 +212,31 @@
     "name" : "convergence",
     "status" : "PASS",
     "expected" : "read models reach the event store's state within 180 s",
-    "observed" : "converged in 22914 ms",
+    "observed" : "converged in 25918 ms",
     "metrics" : {
       "converged" : true,
-      "secondsToConverge" : 22.914,
+      "secondsToConverge" : 25.918,
       "timeoutSeconds" : 180,
-      "polls" : 8,
+      "polls" : 9,
       "remainingGaps" : 0,
-      "esHead" : 713,
+      "esHead" : 109,
       "checkpoints" : {
-        "AM/order-query_OrderProjector_1_AMERICA" : 713,
-        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 712,
-        "AM/order-saga_PaymentSaga_1_AMERICA" : 713,
-        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 712,
-        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 628,
-        "APAC/order-query_OrderProjector_1_CINA" : 630,
-        "APAC/order-query_OrderProjector_1_INDIA" : 632,
-        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 628,
-        "APAC/order-saga_PaymentSaga_1_CINA" : 619,
-        "APAC/order-saga_PaymentSaga_1_INDIA" : 620,
-        "EU/order-observer_NotificationObserver_1_*" : 713,
-        "EU/order-query_OrderProjector_1_*" : 713,
-        "EU/order-query_OrderProjector_1_AFRICA" : 709,
-        "EU/order-query_OrderProjector_1_EUROPA" : 705,
-        "EU/order-saga_PaymentSaga_1_AFRICA" : 709,
-        "EU/order-saga_PaymentSaga_1_EUROPA" : 705
+        "AM/order-query_OrderProjector_1_AMERICA" : 106,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 109,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 106,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 109,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 33,
+        "APAC/order-query_OrderProjector_1_CINA" : 28,
+        "APAC/order-query_OrderProjector_1_INDIA" : 31,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 17,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 28,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 31,
+        "EU/order-observer_NotificationObserver_1_*" : 109,
+        "EU/order-query_OrderProjector_1_*" : 109,
+        "EU/order-query_OrderProjector_1_AFRICA" : 104,
+        "EU/order-query_OrderProjector_1_EUROPA" : 102,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 104,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 102
       }
     },
     "violationCount" : 0,
@@ -266,36 +268,36 @@
     "name" : "command latency per region",
     "status" : "OBSERVED",
     "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
-    "observed" : "n=111 ack=90 failed=21 p50=181ms p95=3798ms p99=30177ms max=30474ms failures={error=18, timeout=3}",
+    "observed" : "n=111 ack=90 failed=21 p50=197ms p95=3875ms p99=30054ms max=30483ms failures={error=18, timeout=3}",
     "metrics" : {
       "AFRICA" : {
-        "count" : 22,
-        "acked" : 22,
-        "failed" : 0,
-        "p50" : 100,
-        "p95" : 185,
-        "p99" : 193,
-        "max" : 193,
-        "kinds" : { }
-      },
-      "AMERICA" : {
         "count" : 20,
         "acked" : 20,
         "failed" : 0,
-        "p50" : 1221,
-        "p95" : 2492,
-        "p99" : 3179,
-        "max" : 3179,
+        "p50" : 126,
+        "p95" : 260,
+        "p99" : 367,
+        "max" : 367,
+        "kinds" : { }
+      },
+      "AMERICA" : {
+        "count" : 19,
+        "acked" : 19,
+        "failed" : 0,
+        "p50" : 1216,
+        "p95" : 2658,
+        "p99" : 2658,
+        "max" : 2658,
         "kinds" : { }
       },
       "AUSTRALIA_NZ" : {
-        "count" : 11,
-        "acked" : 4,
+        "count" : 9,
+        "acked" : 2,
         "failed" : 7,
-        "p50" : 26,
-        "p95" : 30076,
-        "p99" : 30076,
-        "max" : 30076,
+        "p50" : 7,
+        "p95" : 30483,
+        "p99" : 30483,
+        "max" : 30483,
         "kinds" : {
           "error" : 6,
           "timeout" : 1
@@ -305,46 +307,46 @@
         "count" : 10,
         "acked" : 3,
         "failed" : 7,
-        "p50" : 10,
-        "p95" : 30474,
-        "p99" : 30474,
-        "max" : 30474,
+        "p50" : 8,
+        "p95" : 30054,
+        "p99" : 30054,
+        "max" : 30054,
         "kinds" : {
           "error" : 6,
           "timeout" : 1
         }
       },
       "EUROPA" : {
-        "count" : 20,
-        "acked" : 20,
+        "count" : 22,
+        "acked" : 22,
         "failed" : 0,
-        "p50" : 100,
-        "p95" : 193,
-        "p99" : 197,
-        "max" : 197,
+        "p50" : 113,
+        "p95" : 194,
+        "p99" : 474,
+        "max" : 474,
         "kinds" : { }
       },
       "INDIA" : {
-        "count" : 9,
-        "acked" : 2,
+        "count" : 10,
+        "acked" : 3,
         "failed" : 7,
-        "p50" : 14,
-        "p95" : 30177,
-        "p99" : 30177,
-        "max" : 30177,
+        "p50" : 8,
+        "p95" : 30023,
+        "p99" : 30023,
+        "max" : 30023,
         "kinds" : {
           "error" : 6,
           "timeout" : 1
         }
       },
       "SUD_AMERICA" : {
-        "count" : 19,
-        "acked" : 19,
+        "count" : 21,
+        "acked" : 21,
         "failed" : 0,
-        "p50" : 1265,
-        "p95" : 2596,
-        "p99" : 2596,
-        "max" : 2596,
+        "p50" : 1235,
+        "p95" : 2577,
+        "p99" : 2672,
+        "max" : 2672,
         "kinds" : { }
       }
     },
@@ -358,21 +360,21 @@
       "acked" : 0,
       "failed" : 18,
       "p50" : 7,
-      "p95" : 60,
-      "p99" : 60,
-      "max" : 60,
+      "p95" : 10,
+      "p99" : 10,
+      "max" : 10,
       "kinds" : {
         "error" : 18
       }
     },
     "otherCellsAfterKill" : {
-      "count" : 63,
-      "acked" : 63,
+      "count" : 62,
+      "acked" : 62,
       "failed" : 0,
-      "p50" : 193,
-      "p95" : 1928,
-      "p99" : 1994,
-      "max" : 1994,
+      "p50" : 197,
+      "p95" : 1263,
+      "p99" : 1333,
+      "max" : 1333,
       "kinds" : { }
     },
     "apacInFlightAtKill" : 3,
@@ -385,14 +387,13 @@
         "event=supervisor_session_failed" : 9
       },
       "order-query-cina" : {
-        "event=bundle_state_transition" : 19,
-        "event=supervisor_session_failed" : 9
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 21,
+        "event=supervisor_session_failed" : 8
       },
       "order-query-apac" : {
         "event=bundle_state_transition" : 19,
-        "event=supervisor_session_failed" : 9,
-        "event=bundle_correlation_expired" : 1,
-        "RequestTimeoutException" : 4
+        "event=supervisor_session_failed" : 9
       },
       "order-query-global-apac" : {
         "event=bundle_state_transition" : 19,
@@ -400,9 +401,7 @@
       },
       "order-saga-apac" : {
         "event=bundle_state_transition" : 19,
-        "event=supervisor_session_failed" : 9,
-        "event=bundle_correlation_expired" : 1,
-        "RequestTimeoutException" : 4
+        "event=supervisor_session_failed" : 9
       },
       "gateway-cina" : {
         "event=bundle_state_transition" : 19,
@@ -423,8 +422,10 @@
         "event=gateway_command_failed" : 7
       }
     },
-    "apacHandshakes" : 0,
-    "apacCorrelationExpired" : 5,
+    "apacHandshakes" : 1,
+    "apacCorrelationExpired" : 3,
+    "apacBundleBrokerChanged" : 0,
+    "apacBundleRequestTimeouts" : 0,
     "failedRequestsByError" : {
       "error: bundle not ready: state=CONNECTING" : 2,
       "error: bundle not ready: state=RECONNECTING" : 16,
@@ -432,75 +433,75 @@
       "timeout: CreateOrderCommand: request expired after <n>ms (timeout=30000)" : 1
     },
     "consumerLagAfterConvergenceWait" : {
+      "esHead" : 109,
       "lag" : {
-        "AM/order-query_OrderProjector_1_AMERICA" : 0,
-        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 1,
-        "AM/order-saga_PaymentSaga_1_AMERICA" : 0,
-        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 1,
-        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 85,
-        "APAC/order-query_OrderProjector_1_CINA" : 83,
-        "APAC/order-query_OrderProjector_1_INDIA" : 81,
-        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 85,
-        "APAC/order-saga_PaymentSaga_1_CINA" : 94,
-        "APAC/order-saga_PaymentSaga_1_INDIA" : 93,
+        "AM/order-query_OrderProjector_1_AMERICA" : 3,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 0,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 3,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 0,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 76,
+        "APAC/order-query_OrderProjector_1_CINA" : 81,
+        "APAC/order-query_OrderProjector_1_INDIA" : 78,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 92,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 81,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 78,
         "EU/order-observer_NotificationObserver_1_*" : 0,
         "EU/order-query_OrderProjector_1_*" : 0,
-        "EU/order-query_OrderProjector_1_AFRICA" : 4,
-        "EU/order-query_OrderProjector_1_EUROPA" : 8,
-        "EU/order-saga_PaymentSaga_1_AFRICA" : 4,
-        "EU/order-saga_PaymentSaga_1_EUROPA" : 8
-      },
-      "esHead" : 713
+        "EU/order-query_OrderProjector_1_AFRICA" : 5,
+        "EU/order-query_OrderProjector_1_EUROPA" : 7,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 5,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 7
+      }
     }
   },
   "timeline" : [ {
-    "tMs" : 5839,
-    "at" : "2026-09-29T12:46:28.767814700Z",
+    "tMs" : 7871,
+    "at" : "2026-09-29T16:44:40.851422200Z",
     "event" : "scenario start"
   }, {
-    "tMs" : 5863,
-    "at" : "2026-09-29T12:46:28.791815800Z",
+    "tMs" : 7884,
+    "at" : "2026-09-29T16:44:40.864166500Z",
     "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @4.0/min for 110 s"
   }, {
-    "tMs" : 26327,
-    "at" : "2026-09-29T12:46:49.255784Z",
+    "tMs" : 28310,
+    "at" : "2026-09-29T16:45:01.289799500Z",
     "event" : "killed evento-apac"
   }, {
-    "tMs" : 126848,
-    "at" : "2026-09-29T12:48:29.776295900Z",
+    "tMs" : 128740,
+    "at" : "2026-09-29T16:46:41.720133100Z",
     "event" : "load done: 111 requests"
   }, {
-    "tMs" : 126860,
-    "at" : "2026-09-29T12:48:29.788607900Z",
+    "tMs" : 128745,
+    "at" : "2026-09-29T16:46:41.725135Z",
     "event" : "restarting evento-apac"
   }, {
-    "tMs" : 148951,
-    "at" : "2026-09-29T12:48:51.879359600Z",
+    "tMs" : 150785,
+    "at" : "2026-09-29T16:47:03.764744200Z",
     "event" : "evento-apac ready=true"
   }, {
-    "tMs" : 150962,
-    "at" : "2026-09-29T12:48:53.890577800Z",
+    "tMs" : 153403,
+    "at" : "2026-09-29T16:47:06.382450100Z",
     "event" : "invariants: converging up to 180 s"
   }, {
-    "tMs" : 174171,
-    "at" : "2026-09-29T12:49:17.099575800Z",
+    "tMs" : 179661,
+    "at" : "2026-09-29T16:47:32.640865600Z",
     "event" : "cleanup start"
   }, {
-    "tMs" : 176442,
-    "at" : "2026-09-29T12:49:19.370824Z",
+    "tMs" : 181624,
+    "at" : "2026-09-29T16:47:34.603556100Z",
     "event" : "cleanup done"
   } ],
-  "notes" : [ ],
+  "notes" : [ "bundle-side in-flight evidence counts 'Caused by' lines in the APAC JVM logs from the kill until the invariant check (2026-09-29T16:45:00.884679900Z onwards)" ],
   "harnessErrors" : [ ],
   "attachments" : {
-    "log excerpts: order-command-apac" : [ "2026-09-29T12:46:49.000Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.553Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:52.880Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:52.880Z  WARN 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:53.481Z  WARN 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:54.596Z  WARN 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
-    "log excerpts: order-query-cina" : [ "2026-09-29T12:46:49.040Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.477Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:52.802Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:52.801Z  WARN 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:53.336Z  WARN 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:54.209Z  WARN 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
-    "log excerpts: order-query-apac" : [ "2026-09-29T12:46:49.014Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.500Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:52.833Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:52.833Z  WARN 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:53.350Z  WARN 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:54.263Z  WARN 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:47:18.931Z  WARN 1 --- [order-query] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=2 pending=0 byType={EventFetchRequest=2}", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30158ms (timeout=30000)", "Caused by: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30158ms (timeout=30000)", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30287ms (timeout=30000)" ],
-    "log excerpts: order-query-global-apac" : [ "2026-09-29T12:46:49.009Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.432Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:52.754Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:52.754Z  WARN 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:53.267Z  WARN 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:54.278Z  WARN 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
-    "log excerpts: order-saga-apac" : [ "2026-09-29T12:46:49.013Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.609Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:51.484Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:51.484Z  WARN 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:51.955Z  WARN 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:52.926Z  WARN 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:47:18.729Z  WARN 1 --- [order-saga] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=2 pending=0 byType={EventFetchRequest=2}", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30087ms (timeout=30000)", "Caused by: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30087ms (timeout=30000)", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30098ms (timeout=30000)" ],
-    "log excerpts: gateway-cina" : [ "2026-09-29T12:46:49.004Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.593Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:51.468Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:51.468Z  WARN 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:52.013Z  WARN 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:53.097Z  WARN 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:47:18.754Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={AddOrderItemCommand=1}", "2026-09-29T12:46:59.374Z  WARN 1 --- [order-gateway] [cat-handler-144] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-6d35dc-cina-18 region=CINA kind=error latencyMs=1 idempotencyKey=6ec6253b-ae8b-482a-b9fb-4badfe82f35c error=bundle not ready: state=RECONNECTING", "2026-09-29T12:47:14.373Z  WARN 1 --- [order-gateway] [cat-handler-148] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-6d35dc-cina-25 region=CINA kind=error latencyMs=0 idempotencyKey=3077b68a-9cfe-43b3-acea-583da0677613 error=bundle not ready: state=RECONNECTING", "2026-09-29T12:47:18.754Z  WARN 1 --- [order-gateway] [cat-handler-141] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=add_item orderId=s03-before-6d35dc-cina-11 region=CINA kind=timeout latencyMs=30468 idempotencyKey=efcdbd5d-6da5-4402-823b-1a2f4e684f34 error=AddOrderItemCommand: request expired after 30465ms (timeout=30000)" ],
-    "log excerpts: gateway-india" : [ "2026-09-29T12:46:49.025Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.529Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:52.864Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:52.864Z  WARN 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:53.460Z  WARN 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:54.428Z  WARN 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:47:14.788Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={CreateOrderCommand=1}", "2026-09-29T12:46:59.623Z  WARN 1 --- [order-gateway] [cat-handler-144] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-6d35dc-india-19 region=INDIA kind=error latencyMs=1 idempotencyKey=cce75a27-5ff9-4313-8e98-b26944ec8dbf error=bundle not ready: state=CONNECTING", "2026-09-29T12:47:14.619Z  WARN 1 --- [order-gateway] [cat-handler-148] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-6d35dc-india-26 region=INDIA kind=error latencyMs=0 idempotencyKey=5655005e-633a-474f-86a0-de4c8df6c139 error=bundle not ready: state=RECONNECTING", "2026-09-29T12:47:14.788Z  WARN 1 --- [order-gateway] [cat-handler-140] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-6d35dc-india-12 region=INDIA kind=timeout latencyMs=30169 idempotencyKey=e5da7a22-0761-4e50-95be-d504653788a9 error=CreateOrderCommand: request expired after 30165ms (timeout=30000)" ],
-    "log excerpts: gateway-australia-nz" : [ "2026-09-29T12:46:49.000Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:49.577Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T12:46:52.915Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T12:46:52.915Z  WARN 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T12:46:53.415Z  WARN 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:46:54.545Z  WARN 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T12:47:17.089Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={AddOrderItemCommand=1}", "2026-09-29T12:46:59.147Z  WARN 1 --- [order-gateway] [cat-handler-168] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-6d35dc-australia-nz-17 region=AUSTRALIA_NZ kind=error latencyMs=1 idempotencyKey=938e8f9d-2b5f-4d96-9c8c-c121c15d2ddb error=bundle not ready: state=RECONNECTING", "2026-09-29T12:47:14.144Z  WARN 1 --- [order-gateway] [cat-handler-172] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-6d35dc-australia-nz-24 region=AUSTRALIA_NZ kind=error latencyMs=0 idempotencyKey=a763ab34-1c56-4af1-b3d5-1a7189fbcc28 error=bundle not ready: state=RECONNECTING", "2026-09-29T12:47:17.089Z  WARN 1 --- [order-gateway] [cat-handler-165] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=add_item orderId=s03-before-6d35dc-australia-nz-10 region=AUSTRALIA_NZ kind=timeout latencyMs=30072 idempotencyKey=2afc216b-bca9-4ac0-b997-9ec8393f9548 error=AddOrderItemCommand: request expired after 30069ms (timeout=30000)" ],
-    "stack actions" : [ "2026-09-29T12:46:48.813700800Z docker kill evento-apac", "2026-09-29T12:48:29.788607900Z docker start evento-apac" ]
+    "log excerpts: order-command-apac" : [ "2026-09-29T16:45:01.048Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.629Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:03.522Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:03.521Z  WARN 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:03.941Z  WARN 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:04.940Z  WARN 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
+    "log excerpts: order-query-cina" : [ "2026-09-29T16:46:58.694Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-apac accepted_caps=[]", "2026-09-29T16:45:01.038Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.468Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:04.796Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:04.796Z  WARN 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:05.329Z  WARN 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:06.375Z  WARN 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
+    "log excerpts: order-query-apac" : [ "2026-09-29T16:45:01.050Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.556Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:04.970Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:04.970Z  WARN 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:05.491Z  WARN 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:06.539Z  WARN 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
+    "log excerpts: order-query-global-apac" : [ "2026-09-29T16:45:01.045Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.580Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:04.973Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:04.973Z  WARN 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:05.537Z  WARN 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:06.398Z  WARN 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
+    "log excerpts: order-saga-apac" : [ "2026-09-29T16:45:01.055Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.602Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:04.962Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:04.961Z  WARN 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:05.370Z  WARN 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:06.332Z  WARN 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac" ],
+    "log excerpts: gateway-cina" : [ "2026-09-29T16:45:01.065Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.651Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:03.538Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:03.538Z  WARN 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:04.119Z  WARN 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:05.307Z  WARN 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:29.111Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={AddOrderItemCommand=1}", "2026-09-29T16:45:11.167Z  WARN 1 --- [order-gateway] [mcat-handler-78] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-424d3e-cina-16 region=CINA kind=error latencyMs=1 idempotencyKey=80f9505a-9905-415a-afa9-118bbf7abb4e error=bundle not ready: state=RECONNECTING", "2026-09-29T16:45:26.168Z  WARN 1 --- [order-gateway] [mcat-handler-82] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-424d3e-cina-23 region=CINA kind=error latencyMs=0 idempotencyKey=718651d7-8620-4117-90be-ff57edaab8bc error=bundle not ready: state=RECONNECTING", "2026-09-29T16:45:29.111Z  WARN 1 --- [order-gateway] [mcat-handler-74] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=add_item orderId=s03-before-424d3e-cina-9 region=CINA kind=timeout latencyMs=30050 idempotencyKey=869a4bf9-4ffc-4a55-a267-17c4f3f10bef error=AddOrderItemCommand: request expired after 30047ms (timeout=30000)" ],
+    "log excerpts: gateway-india" : [ "2026-09-29T16:45:01.063Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.518Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:04.859Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:04.858Z  WARN 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:05.387Z  WARN 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:06.425Z  WARN 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:30.429Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={AddOrderItemCommand=1}", "2026-09-29T16:45:11.610Z  WARN 1 --- [order-gateway] [mcat-handler-77] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-424d3e-india-19 region=INDIA kind=error latencyMs=1 idempotencyKey=2165f451-066b-4ba9-9a06-e712fd040297 error=bundle not ready: state=RECONNECTING", "2026-09-29T16:45:26.612Z  WARN 1 --- [order-gateway] [mcat-handler-81] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-424d3e-india-26 region=INDIA kind=error latencyMs=1 idempotencyKey=57fa16d5-ebe2-4e96-8d4e-cef4a28836f9 error=bundle not ready: state=RECONNECTING", "2026-09-29T16:45:30.429Z  WARN 1 --- [order-gateway] [mcat-handler-74] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=add_item orderId=s03-before-424d3e-india-12 region=INDIA kind=timeout latencyMs=30018 idempotencyKey=3726e704-cc9c-49db-bbc6-6462cb040f8b error=AddOrderItemCommand: request expired after 30016ms (timeout=30000)" ],
+    "log excerpts: gateway-australia-nz" : [ "2026-09-29T16:45:01.051Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:01.621Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T16:45:04.980Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T16:45:04.979Z  WARN 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known", "2026-09-29T16:45:05.509Z  WARN 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=2 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:06.654Z  WARN 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=3 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac", "2026-09-29T16:45:27.115Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={CreateOrderCommand=1}", "2026-09-29T16:45:11.640Z  WARN 1 --- [order-gateway] [mcat-handler-75] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-424d3e-australia-nz-20 region=AUSTRALIA_NZ kind=error latencyMs=1 idempotencyKey=d4c88c91-1bd5-4586-8234-57a3037af48d error=bundle not ready: state=RECONNECTING", "2026-09-29T16:45:26.642Z  WARN 1 --- [order-gateway] [mcat-handler-79] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-424d3e-australia-nz-27 region=AUSTRALIA_NZ kind=error latencyMs=0 idempotencyKey=c9c7f096-30f1-4bca-9cee-1d32501192f8 error=bundle not ready: state=RECONNECTING", "2026-09-29T16:45:27.115Z  WARN 1 --- [order-gateway] [mcat-handler-71] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s03-before-424d3e-australia-nz-13 region=AUSTRALIA_NZ kind=timeout latencyMs=30478 idempotencyKey=f5b66a3d-3c15-4582-9866-7b84717d3d0d error=CreateOrderCommand: request expired after 30475ms (timeout=30000)" ],
+    "stack actions" : [ "2026-09-29T16:45:00.884679900Z docker kill evento-apac", "2026-09-29T16:46:41.725135Z docker start evento-apac" ]
   }
 }

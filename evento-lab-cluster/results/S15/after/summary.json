@@ -1,0 +1,84 @@
+{
+  "scenario" : "S15",
+  "title" : "Clock skew on one region JVM (optional)",
+  "gaps" : [ "fetch staleness gate (Low)", "G20" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T16:00:38.255527200Z",
+  "finishedAt" : "2026-09-29T16:03:10.478344600Z",
+  "durationSeconds" : 152,
+  "parameters" : {
+    "orderIdPrefix" : "s15-after-8dcae3-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : {
+      "gateway-australia-nz" : "evento-eu",
+      "gateway-cina" : "evento-eu",
+      "gateway-india" : "evento-eu",
+      "order-command-apac" : "evento-eu",
+      "order-query-apac" : "evento-eu",
+      "order-query-cina" : "evento-eu",
+      "order-query-global-apac" : "evento-eu",
+      "order-saga-apac" : "evento-eu"
+    },
+    "lbRoutingAtStart" : "ok",
+    "skewEnv" : {
+      "LD_PRELOAD" : "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1",
+      "FAKETIME" : "-40s",
+      "FAKETIME_DONT_FAKE_MONOTONIC" : "1"
+    },
+    "skewImage" : "evento-lab-cluster/order-query:after-faketime",
+    "skewedClockMinusHostSeconds" : "-41"
+  },
+  "verdictCounts" : {
+    "KNOWN_DEFECT_REPRODUCED" : 1
+  },
+  "observations" : [ {
+    "name" : "skewed region consumer",
+    "expected" : "the AFRICA projector (skewed clock) still projects its orders within 60 s",
+    "expectedBeforeFix" : "the staleness gate drops the skewed consumer's fetches: the orders never appear",
+    "observed" : "orders not projected within 60 s",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "logMarkers" : {
+      "evento-eu" : {
+        "stale" : 120,
+        "fetch" : 120
+      },
+      "order-query-eu" : {
+        "stale" : 240,
+        "fetch" : 364
+      }
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 3300,
+    "at" : "2026-09-29T16:00:41.556362300Z",
+    "event" : "placement: 8 JVM(s) on a remote server, restarting them: {gateway-australia-nz=evento-eu, gateway-cina=evento-eu, gateway-india=evento-eu, order-command-apac=evento-eu, order-query-apac=evento-eu, order-query-cina=evento-eu, order-query-global-apac=evento-eu, order-saga-apac=evento-eu}"
+  }, {
+    "tMs" : 59361,
+    "at" : "2026-09-29T16:01:37.617112500Z",
+    "event" : "placement restored, ready={gateway-australia-nz=true, gateway-cina=true, gateway-india=true, order-command-apac=true, order-query-apac=true, order-query-cina=true, order-query-global-apac=true, order-saga-apac=true}"
+  }, {
+    "tMs" : 59439,
+    "at" : "2026-09-29T16:01:37.695076100Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 142035,
+    "at" : "2026-09-29T16:03:00.290853900Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 152222,
+    "at" : "2026-09-29T16:03:10.478344600Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: evento-eu" : [ "java.lang.IllegalStateException: EventFetchRequest expired: age=40018ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40014ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40002ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40018ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40014ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40002ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch" ],
+    "log excerpts: order-query-eu" : [ "java.util.concurrent.ExecutionException: java.lang.IllegalStateException: EventFetchRequest expired: age=40014ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "Caused by: java.lang.IllegalStateException: EventFetchRequest expired: age=40014ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.util.concurrent.ExecutionException: java.lang.IllegalStateException: EventFetchRequest expired: age=40018ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.util.concurrent.ExecutionException: java.lang.IllegalStateException: EventFetchRequest expired: age=40014ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "\tat com.evento.common.messaging.consumer.ConsumerProcessor.fetchEvents(ConsumerProcessor.java:1072) ~[evento-common-2.4.6.jar!/:na]", "Caused by: java.lang.IllegalStateException: EventFetchRequest expired: age=40014ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch" ],
+    "stack actions" : [ "2026-09-29T16:00:41.560067Z docker restart gateway-australia-nz gateway-cina gateway-india order-command-apac order-query-apac order-query-cina order-query-global-apac order-saga-apac", "2026-09-29T16:01:37.699157900Z compose up -d --no-deps --force-recreate order-query-eu with env {FAKETIME_DONT_FAKE_MONOTONIC=1, LD_PRELOAD=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1, FAKETIME=-40s} image evento-lab-cluster/order-query:after-faketime", "2026-09-29T16:03:00.291381200Z compose up -d --no-deps --force-recreate order-query-eu (restore default)" ]
+  }
+}

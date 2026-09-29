@@ -363,7 +363,7 @@ over the three cell databases.
 | S10 | Cold start of 3 servers | simultaneous start on an empty DB | G14 |
 | S11 | Underscore contexts | SUD_AMERICA / AUSTRALIA_NZ + `SUDXAMERICA` | G15, G16, L6 |
 | S12 | Per-context WATERMARK cost | `order-query-eu` redeployed with `EVENTO_CONTEXTS=EUROPA` under global load | G10, G20 |
-| S13 | Wrong-broker / identity | `gateway-europa` behind the VIP, kill `evento-eu` | G13 |
+| S13 | Wrong-broker / identity | `gateway-europa` behind the VIP: C expects a foreign cluster; A single-id guard + kill `evento-eu`; B cluster-name guard + kill `evento-eu` | G13, N16 |
 | S14 | Retry storm | retry CreateOrder through another cell | G5 |
 | S15 | Clock skew (optional) | +40 s on `order-query-eu` | fetch staleness gate |
 | S16 | Global ALL events | fan-out to 3 databases; stop `app-pg-apac`; kill the lane holder | G24, G11, N4 |
@@ -374,6 +374,15 @@ Suggested order: S0, S17, S16, S10, S11, S1, S2, S3, S4, S5, S6, S12, S7, S8, S9
 Recreate the stack (`scripts/down.sh && scripts/up.sh`) after S10 and after S04. S10 drops the
 event store, and S04's variant B leaves the `:before` catalog beyond repair (N12). S08 and S09
 recreate it themselves.
+
+Every scenario starts with two guards: it moves bundle JVMs that failed over to a remote server
+back to their own cell's server by restarting them (there is no failback, N16; this is a no-op on
+2.4.6), and it checks that each region's `/whoami` comes from its own gateway, recreating the lb
+once if not (L23). Both are recorded as `placementRestoredAtStart` and `lbRoutingAtStart`, and
+`EVENTO_LAB_RESTORE_PLACEMENT=false` turns the first off. **Never run two scenario drivers at
+once.** Overlapping runs broke the lb's network re-attach and silently routed every region to one
+gateway. To stop a run, kill the whole process tree (bash, `run-scenario.sh`, the Gradle client),
+not only the parent shell.
 
 Scenario knobs worth knowing:
 - `S14_KILL_DELAY_MS=2000` on `:before`: at the default 150 ms no command reaches the append
@@ -386,10 +395,17 @@ Scenario knobs worth knowing:
   S15_FAKETIME_ENV='LD_PRELOAD=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1,FAKETIME=-40s,FAKETIME_DONT_FAKE_MONOTONIC=1' \
     scripts/run-scenario.sh S15ClockSkewTest before
   ```
+  The same for `:after` with `BASE=...:after`, tag `order-query:after-faketime`, label `after`.
+- `S12_IDLE_S` (30), `S12_NOISE_FLOOR_MS` (1000): S12 subtracts the JVM's idle CPU rate and calls a
+  difference below the floor INCONCLUSIVE (L19).
 - `LAB_BASH`: the bash the chaos driver uses for `repair-catalog.sh` (default Git Bash on
   Windows, L16).
+- ES replicas start without `synchronous_standby_names` (L24), so a promoted replica (S08) takes
+  writes; the primary still has its sync standby.
 
-Results of the full `:before` run: [`results/BEFORE-SUMMARY.md`](results/BEFORE-SUMMARY.md).
+Results: `:before` [`results/BEFORE-SUMMARY.md`](results/BEFORE-SUMMARY.md), `:after`
+[`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md), side by side with the list of what is still
+broken in [`results/COMPARISON.md`](results/COMPARISON.md).
 
 ## Files
 

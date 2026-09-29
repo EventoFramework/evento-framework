@@ -1,0 +1,104 @@
+{
+  "scenario" : "S12",
+  "title" : "Per-context WATERMARK consumer cost",
+  "gaps" : [ "G10", "G20" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T14:30:29.557547400Z",
+  "finishedAt" : "2026-09-29T14:35:24.957964700Z",
+  "durationSeconds" : 295,
+  "parameters" : {
+    "orderIdPrefix" : "s12-after-6a407a-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "load" : {
+      "regions" : [ "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "durationSeconds" : 60,
+      "itemsPerOrder" : 1,
+      "completeRatio" : 0.0,
+      "ratePerMinutePerRegion" : 120.0
+    }
+  },
+  "verdictCounts" : {
+    "KNOWN_DEFECT_REPRODUCED" : 1
+  },
+  "observations" : [ {
+    "name" : "EUROPA consumer cost vs global volume",
+    "expected" : "WATERMARK costs about the same as DEFAULT (ratio <= 1.5): flat in the other regions' traffic",
+    "expectedBeforeFix" : "recordAbsent is O(numeric gap): WATERMARK burns CPU/heap proportional to global volume (G10)",
+    "observed" : "CPU per 1k global events: DEFAULT 1116,4 ms, WATERMARK 1809,3 ms (x1,62)",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : "APES (G20) would make the gap ~4M ids/ms; the lab runs CPES only."
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "phases" : {
+      "DEFAULT" : {
+        "mode" : "DEFAULT",
+        "requests" : 1035,
+        "globalEventsAppended" : 636,
+        "cpuMs" : 710.0,
+        "cpuMsPer1kEvents" : 1116.3522012578617,
+        "gcMsPer1kEvents" : 0.0,
+        "heapFirst" : 31203728,
+        "heapLast" : 36168320,
+        "heapMax" : 36168320
+      },
+      "WATERMARK" : {
+        "mode" : "WATERMARK",
+        "requests" : 1051,
+        "globalEventsAppended" : 818,
+        "cpuMs" : 1480.0,
+        "cpuMsPer1kEvents" : 1809.2909535452325,
+        "gcMsPer1kEvents" : 0.0,
+        "heapFirst" : 31069928,
+        "heapLast" : 36651112,
+        "heapMax" : 36651112
+      }
+    },
+    "watermarkToDefaultCpuRatio" : 1.620716966837701
+  },
+  "timeline" : [ {
+    "tMs" : 8766,
+    "at" : "2026-09-29T14:30:38.324223800Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 17599,
+    "at" : "2026-09-29T14:30:47.157147700Z",
+    "event" : "order-query-eu (EUROPA only) in DEFAULT ready=true whoami={\"bundleId\":\"order-query\",\"instance\":\"order-query-eu\",\"zone\":\"EU\",\"cell\":\"EU\",\"region\":null,\"contexts\":[\"EUROPA\"],\"consumerPlan\":{\"OrderProjector\":[\"EUROPA\"],\"CatalogProjector\":[]},\"server\":\"evento-eu:3030\",\"addresses\":[\"evento-eu:3030\",\"toxi-eu:20123\",\"toxi-eu:20133\"],\"clusterName\":\"evento-lab-cluster\",\"expectedServerInstanceId\":null,\"checkpointMode\":\"DEFAULT\",\"appDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"consumerStateDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"dataTargets\":[],\"frameworkFeatures\":[{\"feature\":\"endpointFailover\",\"available\":true,\"value\":\"3 address(es)\"},{\"feature\":\"expectedClusterName\",\"available\":true,\"value\":\"evento-lab-cluster\"},{\"feature\":\"zone\",\"available\":true,\"value\":\"EU\"}],\"busState\":\"READY\",\"ready\":true}"
+  }, {
+    "tMs" : 27788,
+    "at" : "2026-09-29T14:30:57.345807900Z",
+    "event" : "load start [AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @120.0/min for 60 s"
+  }, {
+    "tMs" : 132756,
+    "at" : "2026-09-29T14:32:42.314052600Z",
+    "event" : "load done: 1035 requests"
+  }, {
+    "tMs" : 165141,
+    "at" : "2026-09-29T14:33:14.699289100Z",
+    "event" : "order-query-eu (EUROPA only) in WATERMARK ready=true whoami={\"bundleId\":\"order-query\",\"instance\":\"order-query-eu\",\"zone\":\"EU\",\"cell\":\"EU\",\"region\":null,\"contexts\":[\"EUROPA\"],\"consumerPlan\":{\"OrderProjector\":[\"EUROPA\"],\"CatalogProjector\":[]},\"server\":\"evento-eu:3030\",\"addresses\":[\"evento-eu:3030\",\"toxi-eu:20123\",\"toxi-eu:20133\"],\"clusterName\":\"evento-lab-cluster\",\"expectedServerInstanceId\":null,\"checkpointMode\":\"WATERMARK\",\"appDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"consumerStateDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"dataTargets\":[],\"frameworkFeatures\":[{\"feature\":\"endpointFailover\",\"available\":true,\"value\":\"3 address(es)\"},{\"feature\":\"expectedClusterName\",\"available\":true,\"value\":\"evento-lab-cluster\"},{\"feature\":\"zone\",\"available\":true,\"value\":\"EU\"}],\"busState\":\"READY\",\"ready\":true}"
+  }, {
+    "tMs" : 175167,
+    "at" : "2026-09-29T14:33:24.724891600Z",
+    "event" : "load start [AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @120.0/min for 60 s"
+  }, {
+    "tMs" : 270633,
+    "at" : "2026-09-29T14:35:00.190636Z",
+    "event" : "load done: 1051 requests"
+  }, {
+    "tMs" : 280667,
+    "at" : "2026-09-29T14:35:10.225470500Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 295399,
+    "at" : "2026-09-29T14:35:24.957452700Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "samples DEFAULT" : [ "{t=1790692257326, cpuNanos=12680000000, heap=31203728, gcMillis=336, dockerStats=0.75%|173.6MiB / 256MiB}", "{t=1790692263564, cpuNanos=12760000000, heap=31506496, gcMillis=336, dockerStats=1.08%|173.7MiB / 256MiB}", "{t=1790692269773, cpuNanos=12860000000, heap=31875384, gcMillis=336, dockerStats=0.78%|173.8MiB / 256MiB}", "{t=1790692276003, cpuNanos=12930000000, heap=32316088, gcMillis=336, dockerStats=0.08%|173.9MiB / 256MiB}", "{t=1790692282228, cpuNanos=12950000000, heap=32540608, gcMillis=336, dockerStats=0.07%|173.9MiB / 256MiB}", "{t=1790692288463, cpuNanos=12980000000, heap=33028104, gcMillis=336, dockerStats=0.11%|174MiB / 256MiB}", "{t=1790692294710, cpuNanos=13010000000, heap=33249960, gcMillis=336, dockerStats=0.07%|174MiB / 256MiB}", "{t=1790692300949, cpuNanos=13030000000, heap=33456152, gcMillis=336, dockerStats=5.29%|174.2MiB / 256MiB}", "{t=1790692307205, cpuNanos=13080000000, heap=33731944, gcMillis=336, dockerStats=0.09%|174.3MiB / 256MiB}", "{t=1790692313433, cpuNanos=13110000000, heap=33966696, gcMillis=336, dockerStats=0.14%|174.4MiB / 256MiB}", "{t=1790692319647, cpuNanos=13140000000, heap=34179128, gcMillis=336, dockerStats=0.13%|174.4MiB / 256MiB}", "{t=1790692325898, cpuNanos=13170000000, heap=34375624, gcMillis=336, dockerStats=3.69%|174.6MiB / 256MiB}", "{t=1790692332157, cpuNanos=13220000000, heap=34652720, gcMillis=336, dockerStats=0.87%|174.7MiB / 256MiB}", "{t=1790692338387, cpuNanos=13250000000, heap=34903320, gcMillis=336, dockerStats=0.16%|174.8MiB / 256MiB}", "{t=1790692344614, cpuNanos=13270000000, heap=35128224, gcMillis=336, dockerStats=0.08%|174.8MiB / 256MiB}", "{t=1790692350974, cpuNanos=13290000000, heap=35344664, gcMillis=336, dockerStats=3.46%|177.9MiB / 256MiB}", "{t=1790692357204, cpuNanos=13330000000, heap=35665056, gcMillis=336, dockerStats=0.06%|175MiB / 256MiB}", "{t=1790692363413, cpuNanos=13360000000, heap=35914760, gcMillis=336, dockerStats=0.55%|175.1MiB / 256MiB}", "{t=1790692369632, cpuNanos=13390000000, heap=36168320, gcMillis=336, dockerStats=0.06%|175.1MiB / 256MiB}" ],
+    "samples WATERMARK" : [ "{t=1790692404856, cpuNanos=13140000000, heap=31069928, gcMillis=358, dockerStats=15.82%|190.6MiB / 256MiB}", "{t=1790692411156, cpuNanos=13430000000, heap=31672344, gcMillis=358, dockerStats=1.24%|191.7MiB / 256MiB}", "{t=1790692417381, cpuNanos=13530000000, heap=32186056, gcMillis=358, dockerStats=1.59%|191MiB / 256MiB}", "{t=1790692423649, cpuNanos=13620000000, heap=32440856, gcMillis=358, dockerStats=4.47%|191MiB / 256MiB}", "{t=1790692429885, cpuNanos=13700000000, heap=32780296, gcMillis=358, dockerStats=0.96%|191.1MiB / 256MiB}", "{t=1790692436120, cpuNanos=13800000000, heap=33167664, gcMillis=358, dockerStats=1.29%|191.7MiB / 256MiB}", "{t=1790692442399, cpuNanos=13870000000, heap=33348584, gcMillis=358, dockerStats=1.01%|191.5MiB / 256MiB}", "{t=1790692448734, cpuNanos=13940000000, heap=33600624, gcMillis=358, dockerStats=4.26%|191.6MiB / 256MiB}", "{t=1790692454992, cpuNanos=14020000000, heap=33893576, gcMillis=358, dockerStats=0.82%|191.8MiB / 256MiB}", "{t=1790692461273, cpuNanos=14090000000, heap=34324752, gcMillis=358, dockerStats=1.03%|192.1MiB / 256MiB}", "{t=1790692467518, cpuNanos=14160000000, heap=34709032, gcMillis=358, dockerStats=1.04%|192.3MiB / 256MiB}", "{t=1790692473734, cpuNanos=14230000000, heap=34969096, gcMillis=358, dockerStats=0.22%|192.6MiB / 256MiB}", "{t=1790692479951, cpuNanos=14290000000, heap=35275488, gcMillis=358, dockerStats=3.75%|192.7MiB / 256MiB}", "{t=1790692486178, cpuNanos=14360000000, heap=35631056, gcMillis=358, dockerStats=0.93%|192.6MiB / 256MiB}", "{t=1790692492397, cpuNanos=14420000000, heap=35844952, gcMillis=358, dockerStats=1.55%|192.8MiB / 256MiB}", "{t=1790692498663, cpuNanos=14540000000, heap=36207488, gcMillis=358, dockerStats=0.88%|193MiB / 256MiB}", "{t=1790692504897, cpuNanos=14620000000, heap=36651112, gcMillis=358, dockerStats=3.76%|193.2MiB / 256MiB}" ],
+    "stack actions" : [ "2026-09-29T14:30:38.331827800Z compose up -d --no-deps --force-recreate order-query-eu with env {EVENTO_CHECKPOINT_MODE=DEFAULT, EVENTO_CONTEXTS=EUROPA}", "2026-09-29T14:32:52.341370600Z compose up -d --no-deps --force-recreate order-query-eu with env {EVENTO_CHECKPOINT_MODE=WATERMARK, EVENTO_CONTEXTS=EUROPA}", "2026-09-29T14:35:10.225470500Z compose up -d --no-deps --force-recreate order-query-eu (restore default)" ]
+  }
+}

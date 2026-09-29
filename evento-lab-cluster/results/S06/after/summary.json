@@ -1,0 +1,508 @@
+{
+  "scenario" : "S06",
+  "title" : "WAN latency sweep to the ES primary",
+  "gaps" : [ "G9", "G18" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T15:39:17.339012700Z",
+  "finishedAt" : "2026-09-29T15:42:57.100515600Z",
+  "durationSeconds" : 219,
+  "parameters" : {
+    "orderIdPrefix" : "s06-after-ae4eee-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "proxiesTowardsEsPrimary" : [ "am-to-es-pg-eu", "apac-to-es-pg-eu" ],
+    "rttsMs" : [ 0, 50, 150, 300 ],
+    "wanBaselinePresent" : true,
+    "load" : {
+      "completeRatio" : 0.0,
+      "ratePerMinutePerRegion" : 30.0,
+      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "durationSeconds" : 40,
+      "itemsPerOrder" : 1
+    }
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 6
+  },
+  "observations" : [ {
+    "name" : "I1 across the sweep",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 1071 acknowledged ops missing; 31 unacknowledged ops were stored anyway",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I2 across the sweep",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "expectedBeforeFix" : null,
+    "observed" : "no duplicates",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I3 across the sweep",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 560 aggregates invalid",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I4 across the sweep",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "expectedBeforeFix" : null,
+    "observed" : "0 foreign row(s) in 560",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I5 across the sweep",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "expectedBeforeFix" : null,
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I6 across the sweep",
+    "expected" : "read models reach the event store's state within 180 s",
+    "expectedBeforeFix" : null,
+    "observed" : "converged in 212 ms",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 1071 acknowledged ops missing; 31 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 560,
+      "acknowledgedOps" : 1071,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 31
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 560 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 560,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "observed" : "0 foreign row(s) in 560",
+    "metrics" : {
+      "EU.rows" : 160,
+      "EU.byContext" : {
+        "AFRICA" : 80,
+        "EUROPA" : 80
+      },
+      "AM.rows" : 160,
+      "AM.byContext" : {
+        "AMERICA" : 80,
+        "SUD_AMERICA" : 80
+      },
+      "APAC.rows" : 240,
+      "APAC.byContext" : {
+        "AUSTRALIA_NZ" : 80,
+        "CINA" : 80,
+        "INDIA" : 80
+      },
+      "rows" : 560
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 560,
+      "regionalRows" : 560,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 180 s",
+    "observed" : "converged in 212 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.212,
+      "timeoutSeconds" : 180,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 1410,
+      "checkpoints" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 1395,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 1397,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 1395,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 1397,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 1409,
+        "APAC/order-query_OrderProjector_1_CINA" : 1410,
+        "APAC/order-query_OrderProjector_1_INDIA" : 1408,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 1409,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 1410,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 1408,
+        "EU/order-observer_NotificationObserver_1_*" : 1410,
+        "EU/order-query_OrderProjector_1_*" : 1410,
+        "EU/order-query_OrderProjector_1_AFRICA" : 1377,
+        "EU/order-query_OrderProjector_1_EUROPA" : 1375,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 1377,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 1375
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=1102 ack=1071 failed=31 p50=530ms p95=24948ms p99=30373ms max=30444ms failures={timeout=31}",
+    "metrics" : {
+      "AFRICA" : {
+        "count" : 160,
+        "acked" : 160,
+        "failed" : 0,
+        "p50" : 176,
+        "p95" : 16931,
+        "p99" : 19616,
+        "max" : 19685,
+        "kinds" : { }
+      },
+      "AMERICA" : {
+        "count" : 160,
+        "acked" : 160,
+        "failed" : 0,
+        "p50" : 642,
+        "p95" : 21843,
+        "p99" : 26466,
+        "max" : 26480,
+        "kinds" : { }
+      },
+      "AUSTRALIA_NZ" : {
+        "count" : 154,
+        "acked" : 144,
+        "failed" : 10,
+        "p50" : 546,
+        "p95" : 30372,
+        "p99" : 30407,
+        "max" : 30444,
+        "kinds" : {
+          "timeout" : 10
+        }
+      },
+      "CINA" : {
+        "count" : 154,
+        "acked" : 143,
+        "failed" : 11,
+        "p50" : 532,
+        "p95" : 30382,
+        "p99" : 30437,
+        "max" : 30440,
+        "kinds" : {
+          "timeout" : 11
+        }
+      },
+      "EUROPA" : {
+        "count" : 160,
+        "acked" : 160,
+        "failed" : 0,
+        "p50" : 119,
+        "p95" : 16795,
+        "p99" : 19405,
+        "max" : 20014,
+        "kinds" : { }
+      },
+      "INDIA" : {
+        "count" : 154,
+        "acked" : 144,
+        "failed" : 10,
+        "p50" : 508,
+        "p95" : 30172,
+        "p99" : 30211,
+        "max" : 30278,
+        "kinds" : {
+          "timeout" : 10
+        }
+      },
+      "SUD_AMERICA" : {
+        "count" : 160,
+        "acked" : 160,
+        "failed" : 0,
+        "p50" : 536,
+        "p95" : 22462,
+        "p99" : 26672,
+        "max" : 27399,
+        "kinds" : { }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "throughputCurve" : {
+      "0ms" : {
+        "esAppendsPerSecond" : 7.0,
+        "EU" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 75,
+          "failed" : 0,
+          "p50" : 23
+        },
+        "AM" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 53,
+          "failed" : 0,
+          "p50" : 22
+        },
+        "APAC" : {
+          "ackedPerSecond" : 3.0,
+          "p99" : 151,
+          "failed" : 0,
+          "p50" : 29
+        },
+        "predictedPre-G9RemoteCellAppendsPerSecond" : null
+      },
+      "50ms" : {
+        "esAppendsPerSecond" : 7.0,
+        "EU" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 182,
+          "failed" : 0,
+          "p50" : 75
+        },
+        "AM" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 642,
+          "failed" : 0,
+          "p50" : 429
+        },
+        "APAC" : {
+          "ackedPerSecond" : 3.0,
+          "p99" : 548,
+          "failed" : 0,
+          "p50" : 434
+        },
+        "predictedPre-G9RemoteCellAppendsPerSecond" : 5.0
+      },
+      "150ms" : {
+        "esAppendsPerSecond" : 7.0,
+        "EU" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 3156,
+          "failed" : 0,
+          "p50" : 1719
+        },
+        "AM" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 4835,
+          "failed" : 0,
+          "p50" : 2877
+        },
+        "APAC" : {
+          "ackedPerSecond" : 3.0,
+          "p99" : 4391,
+          "failed" : 0,
+          "p50" : 2726
+        },
+        "predictedPre-G9RemoteCellAppendsPerSecond" : 1.6666666666666667
+      },
+      "300ms" : {
+        "esAppendsPerSecond" : 6.55,
+        "EU" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 20014,
+          "failed" : 0,
+          "p50" : 12997
+        },
+        "AM" : {
+          "ackedPerSecond" : 2.0,
+          "p99" : 27399,
+          "failed" : 0,
+          "p50" : 16498
+        },
+        "APAC" : {
+          "ackedPerSecond" : 1.775,
+          "p99" : 30440,
+          "failed" : 31,
+          "p50" : 22811
+        },
+        "predictedPre-G9RemoteCellAppendsPerSecond" : 0.8333333333333334
+      }
+    },
+    "failedRequestsByError" : {
+      "timeout: AddOrderItemCommand: request expired after <n>ms (timeout=30000)" : 13,
+      "timeout: CreateOrderCommand: request expired after <n>ms (timeout=30000)" : 18
+    },
+    "consumerLagAfterConvergenceWait" : {
+      "lag" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 15,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 13,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 15,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 13,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 1,
+        "APAC/order-query_OrderProjector_1_CINA" : 0,
+        "APAC/order-query_OrderProjector_1_INDIA" : 2,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 1,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 0,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 2,
+        "EU/order-observer_NotificationObserver_1_*" : 0,
+        "EU/order-query_OrderProjector_1_*" : 0,
+        "EU/order-query_OrderProjector_1_AFRICA" : 33,
+        "EU/order-query_OrderProjector_1_EUROPA" : 35,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 33,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 35
+      },
+      "esHead" : 1410
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 7858,
+    "at" : "2026-09-29T15:39:25.197067600Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 7921,
+    "at" : "2026-09-29T15:39:25.260916200Z",
+    "event" : "RTT to ES primary = 0 ms"
+  }, {
+    "tMs" : 8087,
+    "at" : "2026-09-29T15:39:25.426521900Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @30.0/min for 40 s"
+  }, {
+    "tMs" : 48873,
+    "at" : "2026-09-29T15:40:06.212051300Z",
+    "event" : "load done: 280 requests"
+  }, {
+    "tMs" : 48911,
+    "at" : "2026-09-29T15:40:06.250539800Z",
+    "event" : "RTT 0 ms: {esAppendsPerSecond=7.0, EU={ackedPerSecond=2.0, p99=75, failed=0, p50=23}, AM={ackedPerSecond=2.0, p99=53, failed=0, p50=22}, APAC={ackedPerSecond=3.0, p99=151, failed=0, p50=29}, predictedPre-G9RemoteCellAppendsPerSecond=null}"
+  }, {
+    "tMs" : 48931,
+    "at" : "2026-09-29T15:40:06.270538600Z",
+    "event" : "RTT to ES primary = 50 ms"
+  }, {
+    "tMs" : 48959,
+    "at" : "2026-09-29T15:40:06.298534700Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @30.0/min for 40 s"
+  }, {
+    "tMs" : 89948,
+    "at" : "2026-09-29T15:40:47.287053100Z",
+    "event" : "load done: 280 requests"
+  }, {
+    "tMs" : 89971,
+    "at" : "2026-09-29T15:40:47.310055600Z",
+    "event" : "RTT 50 ms: {esAppendsPerSecond=7.0, EU={ackedPerSecond=2.0, p99=182, failed=0, p50=75}, AM={ackedPerSecond=2.0, p99=642, failed=0, p50=429}, APAC={ackedPerSecond=3.0, p99=548, failed=0, p50=434}, predictedPre-G9RemoteCellAppendsPerSecond=5.0}"
+  }, {
+    "tMs" : 89991,
+    "at" : "2026-09-29T15:40:47.330443400Z",
+    "event" : "RTT to ES primary = 150 ms"
+  }, {
+    "tMs" : 90009,
+    "at" : "2026-09-29T15:40:47.348515700Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @30.0/min for 40 s"
+  }, {
+    "tMs" : 135460,
+    "at" : "2026-09-29T15:41:32.799064800Z",
+    "event" : "load done: 280 requests"
+  }, {
+    "tMs" : 135481,
+    "at" : "2026-09-29T15:41:32.820062400Z",
+    "event" : "RTT 150 ms: {esAppendsPerSecond=7.0, EU={ackedPerSecond=2.0, p99=3156, failed=0, p50=1719}, AM={ackedPerSecond=2.0, p99=4835, failed=0, p50=2877}, APAC={ackedPerSecond=3.0, p99=4391, failed=0, p50=2726}, predictedPre-G9RemoteCellAppendsPerSecond=1.6666666666666667}"
+  }, {
+    "tMs" : 135499,
+    "at" : "2026-09-29T15:41:32.838996300Z",
+    "event" : "RTT to ES primary = 300 ms"
+  }, {
+    "tMs" : 135524,
+    "at" : "2026-09-29T15:41:32.863992800Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @30.0/min for 40 s"
+  }, {
+    "tMs" : 217447,
+    "at" : "2026-09-29T15:42:54.786765600Z",
+    "event" : "load done: 262 requests"
+  }, {
+    "tMs" : 217465,
+    "at" : "2026-09-29T15:42:54.804800500Z",
+    "event" : "RTT 300 ms: {esAppendsPerSecond=6.55, EU={ackedPerSecond=2.0, p99=20014, failed=0, p50=12997}, AM={ackedPerSecond=2.0, p99=27399, failed=0, p50=16498}, APAC={ackedPerSecond=1.775, p99=30440, failed=31, p50=22811}, predictedPre-G9RemoteCellAppendsPerSecond=0.8333333333333334}"
+  }, {
+    "tMs" : 217477,
+    "at" : "2026-09-29T15:42:54.816341Z",
+    "event" : "WAN baseline restored"
+  }, {
+    "tMs" : 217483,
+    "at" : "2026-09-29T15:42:54.822339900Z",
+    "event" : "invariants: converging up to 180 s"
+  }, {
+    "tMs" : 218007,
+    "at" : "2026-09-29T15:42:55.346743800Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 219761,
+    "at" : "2026-09-29T15:42:57.100515600Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ "Compare the AM/APAC p50 per step with the RTT: ~4 RTT per append before G9, ~1-2 RTT after." ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ "2026-09-29T15:39:25.215292400Z set am-to-es-pg-eu/wan-latency-up latency=0 jitter=0", "2026-09-29T15:39:25.249223800Z set am-to-es-pg-eu/wan-latency-down latency=0 jitter=0", "2026-09-29T15:39:25.255563200Z set apac-to-es-pg-eu/wan-latency-up latency=0 jitter=0", "2026-09-29T15:39:25.258191700Z set apac-to-es-pg-eu/wan-latency-down latency=0 jitter=0", "2026-09-29T15:40:06.256540700Z set am-to-es-pg-eu/wan-latency-up latency=25 jitter=5", "2026-09-29T15:40:06.259537900Z set am-to-es-pg-eu/wan-latency-down latency=25 jitter=5", "2026-09-29T15:40:06.265538400Z set apac-to-es-pg-eu/wan-latency-up latency=25 jitter=5", "2026-09-29T15:40:06.267538500Z set apac-to-es-pg-eu/wan-latency-down latency=25 jitter=5", "2026-09-29T15:40:47.315055100Z set am-to-es-pg-eu/wan-latency-up latency=75 jitter=5", "2026-09-29T15:40:47.318054Z set am-to-es-pg-eu/wan-latency-down latency=75 jitter=5", "2026-09-29T15:40:47.325054300Z set apac-to-es-pg-eu/wan-latency-up latency=75 jitter=5", "2026-09-29T15:40:47.328349Z set apac-to-es-pg-eu/wan-latency-down latency=75 jitter=5", "2026-09-29T15:41:32.826099100Z set am-to-es-pg-eu/wan-latency-up latency=150 jitter=5", "2026-09-29T15:41:32.828795Z set am-to-es-pg-eu/wan-latency-down latency=150 jitter=5", "2026-09-29T15:41:32.833993Z set apac-to-es-pg-eu/wan-latency-up latency=150 jitter=5", "2026-09-29T15:41:32.835995600Z set apac-to-es-pg-eu/wan-latency-down latency=150 jitter=5", "2026-09-29T15:42:54.804800500Z restore am-to-es-pg-eu/wan-latency-up {latency=40, jitter=5}", "2026-09-29T15:42:54.808722600Z restore am-to-es-pg-eu/wan-latency-down {latency=40, jitter=5}", "2026-09-29T15:42:54.811598800Z restore apac-to-es-pg-eu/wan-latency-up {latency=75, jitter=5}", "2026-09-29T15:42:54.814293100Z restore apac-to-es-pg-eu/wan-latency-down {latency=75, jitter=5}" ]
+  }
+}

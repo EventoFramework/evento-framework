@@ -2,7 +2,40 @@
 
 Last updated: 2026-09-29.
 
-## Full chaos run on `:before` (2026-09-29, latest)
+## Full chaos run on `:after` + before/after comparison (2026-09-29, latest)
+
+- **All 18 scenarios S00..S17 (S15 included)** ran on `LAB_TAG=after`; each has
+  `evento-lab-cluster/results/<S>/after/`. Summary: `results/AFTER-SUMMARY.md`; side by side:
+  `results/COMPARISON.md`. S03, S07, S08, S12 and S13 were re-run on `:before` with the changed
+  harness, so every pair is comparable.
+- **Fixed end to end:** G2 (S03 APAC 44/44, first ack 10.3 s), G3 (S05 0 deadlocks), N11 (S07
+  EU+AM 41/41 during the APAC partition, `:before` 0/16), G4 (S14 0 failures after ≥ 25 s), G7/N12
+  (S04), G8 (0/7 fresh starts need the repair, `:before` 7/7), G9 (S00 492/492, 9.35 appends/s; S06
+  6.55/s at 300 ms against 1.65), G13 (S13 C/B), G14 (S10), G15/G16/N10 (S11), N3 up to the append.
+- **Still broken:** G1 (S01), G5 (S14 8 keys stored twice), N4 (S16 lane hops, fan-out 10.2 s), the
+  fetch staleness gate (S15), and the new ones:
+  - N14 (High): saga retries after `BrokerChangedException`/partition run the payment twice (S03,
+    S07).
+  - N15 (Medium): commands commit after the caller's deadline while waiting on `es-lock` (S06:
+    31).
+  - N16 (High): no failback after endpoint failover; cells stay on remote servers.
+  - N17 (Low): ES promotion outage 15.1 s vs 7.6 s.
+- **Lab defects found and fixed (L19..L24):**
+  - L19: S12 idle-CPU noise.
+  - L20: S07 idle-lane stall.
+  - L21: S13 had no cluster-name variant; S03's in-flight check.
+  - L22: placement restore before each scenario.
+  - L23: lb misrouting after a failed re-attach.
+  - L24: promoted ES replica waited for itself as sync standby. This lab defect, not G3, was
+    behind the `:before` S08 "no write".
+- **Next:**
+  - idempotency key (G5/N14);
+  - deadline-bound `lock_timeout` on the append (N15);
+  - a fail-back probe (N16);
+  - lane affinity (N4);
+  - repeat S08 3× per image set (N17).
+
+## Full chaos run on `:before` (2026-09-29)
 
 - **All 18 scenarios S00..S17 (S15 included)** ran on `LAB_TAG=before`; each has
   `evento-lab-cluster/results/<S>/before/`. The summary is in
