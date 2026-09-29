@@ -49,6 +49,15 @@ public final class NettyClientTransport implements Transport {
     private final EventLoopGroup workerGroup;
     private final boolean ownsWorkerGroup;
     private volatile Channel channel;
+    /**
+     * The pending connect, kept so that {@link #close()} can abort a connect that
+     * has not completed yet. Without it a close that ran before the TCP connect
+     * finished found {@code channel == null}, closed nothing, and the channel
+     * connected afterwards was never closed: one leaked socket per such close.
+     */
+    private volatile io.netty.channel.ChannelFuture connectFuture;
+    /** Connection lifecycle lines at DEBUG instead of INFO/WARN (health probes). */
+    private volatile boolean quietLifecycleLogging;
     private volatile Consumer<Frame> frameHandler = f -> {};
 
     public NettyClientTransport(String remoteId, String host, int port, NettyTransportConfig config) {
@@ -71,6 +80,22 @@ public final class NettyClientTransport implements Transport {
             this.workerGroup = NettyEventLoops.newNioEventLoopGroup(0);
             this.ownsWorkerGroup = true;
         }
+    }
+
+    /**
+     * Log connect, connect failure and close at DEBUG instead of INFO/WARN. For
+     * short-lived connections opened every few seconds only to check that a peer
+     * answers (the bundle's fail-back probe): at INFO they would drown the log.
+     * Call before {@link #connect()}.
+     */
+    public NettyClientTransport quietLifecycleLogging() {
+        this.quietLifecycleLogging = true;
+        return this;
+    }
+
+    private boolean closingOrClosed() {
+        var s = state.current();
+        return s == ConnectionState.CLOSING || s == ConnectionState.CLOSED;
     }
 
     @Override public String remoteId() { return remoteId; }
@@ -103,26 +128,60 @@ public final class NettyClientTransport implements Transport {
                 });
 
         var promise = new CompletableFuture<Void>();
-        bootstrap.connect(host, port).addListener((io.netty.channel.ChannelFuture cf) -> {
+        var pending = bootstrap.connect(host, port);
+        connectFuture = pending;
+        pending.addListener((io.netty.channel.ChannelFuture cf) -> {
             if (cf.isSuccess()) {
-                channel = cf.channel();
+                var ch = cf.channel();
+                if (closingOrClosed()) {
+                    // close() ran while the connect was in flight: nobody will ever
+                    // use or close this channel, so close it here.
+                    ch.close();
+                    promise.completeExceptionally(new TransportException("closed while connecting"));
+                    return;
+                }
+                channel = ch;
                 state.compareAndTransition(ConnectionState.CONNECTING, ConnectionState.HANDSHAKING, "tcp_established");
                 // Application-level handshake is performed by the layer above (Hello/Welcome message exchange).
                 // For now we mark the connection as CONNECTED; the handshake supervisor will downgrade
                 // the state to DEGRADED if the Hello/Welcome handshake fails.
                 state.compareAndTransition(ConnectionState.HANDSHAKING, ConnectionState.CONNECTED, "tcp_ready");
-                channel.closeFuture().addListener(closeFuture -> {
+                ch.closeFuture().addListener(closeFuture -> {
                     if (state.current() != ConnectionState.CLOSED) {
                         state.forceTransition(ConnectionState.DISCONNECTED, "channel_closed");
                     }
                 });
-                log.info("event=client_connected remote={} host={} port={}", remoteId, host, port);
+                if (closingOrClosed()) {
+                    // close() slipped in between the check above and the assignment:
+                    // it may have seen channel == null.
+                    ch.close();
+                    promise.completeExceptionally(new TransportException("closed while connecting"));
+                    return;
+                }
+                if (quietLifecycleLogging) {
+                    log.debug("event=client_connected remote={} host={} port={}", remoteId, host, port);
+                } else {
+                    log.info("event=client_connected remote={} host={} port={}", remoteId, host, port);
+                }
                 promise.complete(null);
             } else {
-                state.forceTransition(ConnectionState.DISCONNECTED, "connect_failed");
-                log.warn("event=client_connect_failed remote={} host={} port={} cause={}",
-                        remoteId, host, port, cf.cause().toString());
-                promise.completeExceptionally(cf.cause());
+                Throwable cause = cf.cause() != null ? cf.cause()
+                        : new TransportException("connect cancelled");
+                if (closingOrClosed()) {
+                    // Aborted by close(): not a failure worth a WARN, and the state
+                    // must stay CLOSED rather than fall back to DISCONNECTED.
+                    log.debug("event=client_connect_aborted remote={} host={} port={}", remoteId, host, port);
+                } else {
+                    state.forceTransition(ConnectionState.DISCONNECTED, "connect_failed");
+                    if (quietLifecycleLogging) {
+                        log.debug("event=client_connect_failed remote={} host={} port={} cause={}",
+                                remoteId, host, port, cause.toString());
+                    } else {
+                        log.warn("event=client_connect_failed remote={} host={} port={} cause={}",
+                                remoteId, host, port, cause.toString());
+                    }
+                }
+                promise.completeExceptionally(cause);
             }
         });
         return promise;
@@ -200,6 +259,13 @@ public final class NettyClientTransport implements Transport {
         state.forceTransition(ConnectionState.CLOSING, "close()");
         try {
             var ch = channel;
+            if (ch == null) {
+                // Connect still in flight: close the channel it is connecting, which
+                // aborts the connect (the listener above sees CLOSING and closes it
+                // again if it completed anyway).
+                var pending = connectFuture;
+                if (pending != null) ch = pending.channel();
+            }
             if (ch != null) {
                 // Bounded wait — see ServerChildTransport.close(): an unbounded
                 // syncUninterruptibly() wedges the caller if the promise never completes.
@@ -213,7 +279,11 @@ public final class NettyClientTransport implements Transport {
                 workerGroup.shutdownGracefully();
             }
             state.forceTransition(ConnectionState.CLOSED, "closed");
-            log.info("event=client_closed remote={}", remoteId);
+            if (quietLifecycleLogging) {
+                log.debug("event=client_closed remote={}", remoteId);
+            } else {
+                log.info("event=client_closed remote={}", remoteId);
+            }
         }
     }
 }

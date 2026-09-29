@@ -40,4 +40,17 @@ public interface TransportServer extends AutoCloseable {
      * The bound port after a successful {@link #start(int)}, or {@code -1} if not bound.
      */
     int boundPort();
+
+    /**
+     * Gate for health probes: a transport-level Ping that arrives on a connection
+     * before any other frame (no session behind it) is answered only while
+     * {@code ready} returns true, so that a peer probing this server does not
+     * take a bound port for a server ready to serve. Sessions that have sent
+     * anything else are not affected. The default ignores the gate (every Ping
+     * is answered), which is what a transport without probes needs.
+     *
+     * @param ready readiness of the server; null answers every Ping
+     */
+    default void setPreSessionReadiness(java.util.function.BooleanSupplier ready) {
+    }
 }

@@ -50,10 +50,21 @@ public final class NettyServerTransport implements TransportServer {
     private Channel serverChannel;
     private Consumer<Transport> connectionHandler;
     private volatile int boundPort = -1;
+    private volatile java.util.function.BooleanSupplier preSessionReady;
 
     public NettyServerTransport(NettyTransportConfig config) {
         this.config = Objects.requireNonNull(config);
         this.pipelineFactory = new EventoPipelineFactory(config);
+    }
+
+    /**
+     * Answer a Ping that arrives before any other frame (a health probe, no
+     * session behind it) only while {@code ready} is true. Applies to channels
+     * accepted after the call; null (the default) answers every Ping.
+     */
+    @Override
+    public void setPreSessionReadiness(java.util.function.BooleanSupplier ready) {
+        this.preSessionReady = ready;
     }
 
     @Override
@@ -92,7 +103,7 @@ public final class NettyServerTransport implements TransportServer {
                         childState.compareAndTransition(ConnectionState.HANDSHAKING, ConnectionState.CONNECTED, "tcp_ready");
                         var lastInboundMs = new AtomicLong(System.currentTimeMillis());
                         var child = new ServerChildTransport(ch, childState, lastInboundMs, config);
-                        pipelineFactory.configure(ch, childState, lastInboundMs, child::deliver);
+                        pipelineFactory.configure(ch, childState, lastInboundMs, child::deliver, preSessionReady);
                         childChannels.add(ch);
                         ch.closeFuture().addListener(cf -> {
                             childChannels.remove(ch);
