@@ -1,0 +1,20 @@
+[
+  {"name": "eu-to-es-pg-am", "listen": "0.0.0.0:20121", "upstream": "es-pg-am:5432", "enabled": true},
+  {"name": "eu-to-app-pg-am", "listen": "0.0.0.0:20122", "upstream": "app-pg-am:5432", "enabled": true},
+  {"name": "eu-to-evento-am", "listen": "0.0.0.0:20123", "upstream": "evento-am:3030", "enabled": true},
+  {"name": "eu-to-es-pg-apac", "listen": "0.0.0.0:20131", "upstream": "es-pg-apac:5432", "enabled": true},
+  {"name": "eu-to-app-pg-apac", "listen": "0.0.0.0:20132", "upstream": "app-pg-apac:5432", "enabled": true},
+  {"name": "eu-to-evento-apac", "listen": "0.0.0.0:20133", "upstream": "evento-apac:3030", "enabled": true},
+  {"name": "am-to-es-pg-eu", "listen": "0.0.0.0:20211", "upstream": "es-pg-eu:5432", "enabled": true},
+  {"name": "am-to-app-pg-eu", "listen": "0.0.0.0:20212", "upstream": "app-pg-eu:5432", "enabled": true},
+  {"name": "am-to-evento-eu", "listen": "0.0.0.0:20213", "upstream": "evento-eu:3030", "enabled": true},
+  {"name": "am-to-es-pg-apac", "listen": "0.0.0.0:20231", "upstream": "es-pg-apac:5432", "enabled": true},
+  {"name": "am-to-app-pg-apac", "listen": "0.0.0.0:20232", "upstream": "app-pg-apac:5432", "enabled": true},
+  {"name": "am-to-evento-apac", "listen": "0.0.0.0:20233", "upstream": "evento-apac:3030", "enabled": true},
+  {"name": "apac-to-es-pg-eu", "listen": "0.0.0.0:20311", "upstream": "es-pg-eu:5432", "enabled": true},
+  {"name": "apac-to-app-pg-eu", "listen": "0.0.0.0:20312", "upstream": "app-pg-eu:5432", "enabled": true},
+  {"name": "apac-to-evento-eu", "listen": "0.0.0.0:20313", "upstream": "evento-eu:3030", "enabled": true},
+  {"name": "apac-to-es-pg-am", "listen": "0.0.0.0:20321", "upstream": "es-pg-am:5432", "enabled": true},
+  {"name": "apac-to-app-pg-am", "listen": "0.0.0.0:20322", "upstream": "app-pg-am:5432", "enabled": true},
+  {"name": "apac-to-evento-am", "listen": "0.0.0.0:20323", "upstream": "evento-am:3030", "enabled": true}
+]
