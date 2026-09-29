@@ -2,7 +2,6 @@ package com.evento.server.service.discovery;
 
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
-import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.domain.model.core.Component;
 import com.evento.server.domain.model.core.Consumer;
 import com.evento.server.domain.repository.core.BundleRepository;
@@ -21,6 +20,9 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,22 +36,24 @@ import static org.mockito.Mockito.when;
  * catch silently dropped the whole registration (empty Consumers tab until the
  * next reconnect). The fix resolves each component up front and recreates an
  * ephemeral row (and bundle) when it is gone; discovery backfills the metadata.
+ * The recreate goes through {@link CatalogWriter}'s ON CONFLICT inserts, so it
+ * cannot collide with a concurrent discovery on another server.
  */
 class ConsumerServiceRegistrationTest {
 
     private ComponentRepository componentRepository;
     private ConsumerRepository consumerRepository;
-    private BundleRepository bundleRepository;
+    private CatalogWriter catalogWriter;
     private ConsumerService service;
 
     @BeforeEach
     void setUp() {
         componentRepository = mock(ComponentRepository.class);
         consumerRepository = mock(ConsumerRepository.class);
-        bundleRepository = mock(BundleRepository.class);
+        catalogWriter = mock(CatalogWriter.class);
         // Null lock → a JVM-local PgDistributedLock (embedded/test mode).
         service = new ConsumerService(componentRepository, consumerRepository,
-                bundleRepository, "test-server", null);
+                mock(BundleRepository.class), "test-server", null, catalogWriter, null);
     }
 
     private static BundleConsumerRegistrationMessage registration(
@@ -72,29 +76,31 @@ class ConsumerServiceRegistrationTest {
     @Test
     @SuppressWarnings("unchecked")
     void missingComponentIsRecreatedInsteadOfDroppingTheRegistration() {
-        when(componentRepository.findById("OrderObserver")).thenReturn(Optional.empty());
-        when(bundleRepository.findById("lab-bundle")).thenReturn(Optional.empty());
-        when(bundleRepository.save(any(Bundle.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(componentRepository.save(any(Component.class))).thenAnswer(inv -> inv.getArgument(0));
+        var recreated = new Component();
+        recreated.setComponentName("OrderObserver");
+        recreated.setComponentType(ComponentType.Observer);
+        when(componentRepository.findById("OrderObserver"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(recreated));
+        when(catalogWriter.insertBundleIfAbsent(anyString(), anyLong(), any(), any(), any(), any(), any(), anyBoolean()))
+                .thenReturn(true);
+        when(catalogWriter.insertComponentIfAbsent(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
 
         service.registerConsumers("lab-bundle", "instance-1", 3,
                 registration(new HashMap<>(), new HashMap<>(),
                         byComponent("OrderObserver", "OrderObserver_consumer")));
 
-        var componentCaptor = ArgumentCaptor.forClass(Component.class);
-        verify(componentRepository).save(componentCaptor.capture());
-        var component = componentCaptor.getValue();
-        assertThat(component.getComponentName()).isEqualTo("OrderObserver");
-        assertThat(component.getComponentType()).isEqualTo(ComponentType.Observer);
-        assertThat(component.getBundle().getId()).isEqualTo("lab-bundle");
-        assertThat(component.getBundle().getInstanceId()).isEqualTo("instance-1");
+        verify(catalogWriter).insertBundleIfAbsent("lab-bundle", 3, "", "", "", "", "instance-1", true);
+        verify(catalogWriter).insertComponentIfAbsent("OrderObserver", ComponentType.Observer, "lab-bundle",
+                null, null, null, null);
 
         var consumersCaptor = ArgumentCaptor.forClass(List.class);
-        verify(consumerRepository).saveAll(consumersCaptor.capture());
+        verify(catalogWriter).upsertConsumers(consumersCaptor.capture());
         List<Consumer> saved = consumersCaptor.getValue();
         assertThat(saved).hasSize(1);
         assertThat(saved.getFirst().getIdentifier()).isEqualTo("instance-1_OrderObserver_consumer");
-        assertThat(saved.getFirst().getComponent()).isSameAs(component);
+        assertThat(saved.getFirst().getComponent()).isSameAs(recreated);
     }
 
     @Test
@@ -110,10 +116,11 @@ class ConsumerServiceRegistrationTest {
                 registration(byComponent("OrderProjector", "c1", "c2"),
                         new HashMap<>(), new HashMap<>()));
 
-        verify(componentRepository, never()).save(any());
-        verify(bundleRepository, never()).save(any());
+        verify(catalogWriter, never()).insertComponentIfAbsent(any(), any(), any(), any(), any(), any(), any());
+        verify(catalogWriter, never()).insertBundleIfAbsent(any(), anyLong(), any(), any(), any(), any(), any(), anyBoolean());
+        verify(consumerRepository, never()).saveAll(any());
         var consumersCaptor = ArgumentCaptor.forClass(List.class);
-        verify(consumerRepository).saveAll(consumersCaptor.capture());
+        verify(catalogWriter).upsertConsumers(consumersCaptor.capture());
         List<Consumer> saved = consumersCaptor.getValue();
         assertThat(saved).hasSize(2);
         assertThat(saved).allSatisfy(c -> assertThat(c.getComponent()).isSameAs(projector));

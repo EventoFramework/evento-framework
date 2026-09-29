@@ -7,7 +7,6 @@ import com.evento.common.modeling.messaging.message.internal.consumer.*;
 import com.evento.common.modeling.messaging.message.internal.discovery.BundleConsumerRegistrationMessage;
 import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.bus.BusFacade;
-import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.domain.model.core.Component;
 import com.evento.server.domain.model.core.Consumer;
 import com.evento.server.domain.repository.core.*;
@@ -15,8 +14,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +47,9 @@ public class ConsumerService {
     private final ConsumerRepository consumerRepository;
     private final BundleRepository bundleRepository;
     private final String eventoServerInstanceId;
+    private final CatalogWriter catalogWriter;
+    /** Null in unit tests: the registration then runs without a surrounding transaction. */
+    private final TransactionTemplate tx;
 
     private final PgDistributedLock distributedLock;
 
@@ -54,14 +57,36 @@ public class ConsumerService {
                            ConsumerRepository consumerRepository,
                            BundleRepository bundleRepository,
                            @Value("${evento.server.instance.id}") String eventoServerInstanceId,
-                           PgDistributedLock distributedLock) {
+                           PgDistributedLock distributedLock,
+                           CatalogWriter catalogWriter,
+                           PlatformTransactionManager transactionManager) {
         this.componentRepository = componentRepository;
         this.consumerRepository = consumerRepository;
         this.bundleRepository = bundleRepository;
         this.eventoServerInstanceId = eventoServerInstanceId;
+        this.catalogWriter = catalogWriter;
+        this.tx = transactionManager == null ? null : new TransactionTemplate(transactionManager);
         // The shared, pool-backed lock (DistributedLockConfiguration); null = JVM-local only
         // (embedded brokers and unit tests).
         this.distributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
+    }
+
+    /**
+     * The advisory-lock key under which every write to a bundle's catalog rows runs.
+     * Discovery, node-leave cleanup and consumer registration all create or delete the
+     * same bundle and component rows, so they must serialize on one key. Consumer
+     * registration used to take an instance-scoped key and raced the other two.
+     */
+    static String catalogLockKey(String bundleId) {
+        return "DISCOVERY:" + bundleId;
+    }
+
+    static void inTransaction(TransactionTemplate tx, Runnable work) {
+        if (tx == null) {
+            work.run();
+        } else {
+            tx.executeWithoutResult(status -> work.run());
+        }
     }
 
     /**
@@ -81,8 +106,7 @@ public class ConsumerService {
                                   long sourceBundleVersion,
                                   BundleConsumerRegistrationMessage cr) {
         try {
-            var key = "CONSUMER_DISCOVERY:" + sourceInstanceId;
-            this.distributedLock.lockedArea(key, () -> {
+            this.distributedLock.lockedArea(catalogLockKey(sourceBundleId), () -> inTransaction(tx, () -> {
                 logger.info("Discovering consumers in bundle: %s and instance: %s".formatted(sourceBundleId, sourceInstanceId));
                 var consumers = new ArrayList<Consumer>();
                 collectConsumers(cr.getProjectorConsumers(), ComponentType.Projector,
@@ -91,8 +115,10 @@ public class ConsumerService {
                         sourceBundleId, sourceInstanceId, sourceBundleVersion, consumers);
                 collectConsumers(cr.getObserverConsumers(), ComponentType.Observer,
                         sourceBundleId, sourceInstanceId, sourceBundleVersion, consumers);
-                consumerRepository.saveAll(consumers);
-            });
+                // All rows of one registration land together or not at all: a half-written
+                // set would show some of the instance's consumers and silently hide the rest.
+                catalogWriter.upsertConsumers(consumers);
+            }));
         } catch (Exception e) {
             logger.error("Consumer registration failed for bundle: %s and instance: %s — its consumers stay unregistered until the next reconnect"
                     .formatted(sourceBundleId, sourceInstanceId), e);
@@ -126,22 +152,26 @@ public class ConsumerService {
                                        String sourceInstanceId,
                                        long sourceBundleVersion) {
         return componentRepository.findById(componentName).orElseGet(() -> {
-            // Registration can race auto-discovery (the two run under different lock
-            // keys on different bus threads), and a stale NodeLeft can delete the
-            // component rows between the two. The old getReferenceById proxy blew up
-            // at flush time and the whole registration was silently dropped; recreate
-            // an ephemeral row instead — the next discovery pass backfills its metadata.
-            logger.warn("Component %s not found while registering consumers for bundle: %s — creating an ephemeral one"
-                    .formatted(componentName, sourceBundleId));
-            var bundle = bundleRepository.findById(sourceBundleId).orElseGet(() ->
-                    bundleRepository.save(new Bundle(sourceBundleId, sourceBundleVersion,
-                            "", "", "", "", sourceInstanceId, true, Instant.now())));
-            var component = new Component();
-            component.setComponentName(componentName);
-            component.setBundle(bundle);
-            component.setComponentType(componentType);
-            component.setUpdatedAt(Instant.now());
-            return componentRepository.save(component);
+            // Registration can run before discovery has written the component, and a
+            // stale NodeLeft can delete the component rows between the two. The old
+            // getReferenceById proxy blew up at flush time and the whole registration
+            // was silently dropped; recreate an ephemeral row instead, and the next
+            // discovery pass backfills its metadata. The inserts are ON CONFLICT DO
+            // NOTHING, so a concurrent discovery on another server (or of another bundle
+            // sharing the component name) cannot turn this into a duplicate-key failure.
+            if (catalogWriter.insertBundleIfAbsent(sourceBundleId, sourceBundleVersion,
+                    "", "", "", "", sourceInstanceId, true)) {
+                logger.warn("Bundle %s not found while registering consumers: created an ephemeral one"
+                        .formatted(sourceBundleId));
+            }
+            if (catalogWriter.insertComponentIfAbsent(componentName, componentType, sourceBundleId,
+                    null, null, null, null)) {
+                logger.warn("Component %s not found while registering consumers for bundle: %s: created an ephemeral one"
+                        .formatted(componentName, sourceBundleId));
+            }
+            return componentRepository.findById(componentName).orElseThrow(() -> new IllegalStateException(
+                    "Component %s vanished while registering consumers for bundle %s"
+                            .formatted(componentName, sourceBundleId)));
         });
     }
 
