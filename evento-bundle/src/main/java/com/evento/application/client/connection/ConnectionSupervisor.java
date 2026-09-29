@@ -45,12 +45,30 @@ import java.util.function.Consumer;
  * most preferred first. A session that fails before reaching READY (refused
  * connection, handshake timeout, a broker that fails the identity checks)
  * moves the next attempt to the next endpoint, wrapping around. A session that
- * was READY and then dropped restarts from endpoint 0, which is how a bundle
- * fails back to its local broker: there is no background probe while attached
- * elsewhere — the next disconnect is the fail-back point. The backoff counts
+ * was READY and then dropped restarts from endpoint 0. The backoff counts
  * <em>passes over the list</em>, not single dials, so trying the second broker
  * after the first refused costs one base delay, not an exponentially growing
  * one; with a single endpoint this is exactly the pre-2.5 behaviour.
+ *
+ * <p><b>Fail-back (N16).</b> While a session is READY on any endpoint but 0,
+ * a background thread probes endpoint 0 every
+ * {@link BundleClientConfig#failbackProbeInterval()}. The probe is a TCP
+ * connect plus a transport-level {@code Ping} answered by the broker's
+ * heartbeat handler, on a separate connection that never sends {@code Hello}:
+ * a broker registers a bundle, publishes {@code NodeJoined} and replays its
+ * buffered replies only on an accepted Hello, so the probe cannot register
+ * anything, steal a reply buffer or supersede a session. Once every probe has
+ * answered for the stability window (plus per-instance jitter; a bundle that
+ * handles no requests waits one more window so the handlers of a cell are
+ * back before its callers), the bundle switches gracefully:
+ * {@code evento:disable} on the current broker, new outbound requests refused
+ * with {@link SendFailedException} (definitely not sent, safe to retry), a
+ * bounded wait for the requests in flight in both directions, then the
+ * session is closed and endpoint 0 dialled at once. The identity checks run
+ * on that handshake as on any other; a failed switch lands the bundle on the
+ * next endpoint through the normal rotation and doubles the window of the
+ * next attempt (up to 16x), so a broker that is up but refuses the bundle
+ * cannot cause ping-pong.
  *
  * <p>Reconnect is mandatory by design: the supervisor only stops trying when
  * {@link #stop(Duration)} is called. A user that wants give-up-after-N
@@ -91,6 +109,27 @@ public final class ConnectionSupervisor implements AutoCloseable {
     private volatile String serverInstanceId;
     private volatile BundleClientConfig.Endpoint currentEndpoint;
     private final CopyOnWriteArrayList<Consumer<String>> brokerListeners = new CopyOnWriteArrayList<>();
+
+    // ---- fail-back (N16) ----
+    /** Endpoint index of the session that is READY right now; -1 when there is none. */
+    private volatile int readyEndpointIndex = -1;
+    /** Set by the fail-back thread right before it closes the session; consumed by the next session. */
+    private final java.util.concurrent.atomic.AtomicBoolean failbackRequested =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+    /** While true, {@link #send} refuses everything but replies: the session is being drained. */
+    private volatile boolean draining;
+    private volatile long failbackStartedAtMs;
+    private volatile BundleClientConfig.Endpoint failbackFrom;
+    /** Consecutive switches that did not end READY on endpoint 0; doubles the next window. */
+    private volatile int failbackFailures;
+    private final java.util.concurrent.atomic.AtomicLong failbacksCompleted = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong failbacksFailed = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong probesAnswered = new java.util.concurrent.atomic.AtomicLong();
+    private volatile java.util.function.IntSupplier inboundInFlight = () -> 0;
+    private volatile java.util.function.IntSupplier outboundPending = () -> 0;
+    private volatile Thread failbackThread;
+    private volatile io.netty.channel.EventLoopGroup probeGroup;
+    private final Object probeLock = new Object();
 
     public ConnectionSupervisor(BundleClientConfig config, PayloadCodec payloadCodec) {
         this.config = config;
@@ -145,6 +184,12 @@ public final class ConnectionSupervisor implements AutoCloseable {
         if (!snapshot.canSend()) {
             throw new SendFailedException("bundle not ready: state=" + snapshot, null);
         }
+        if (draining && !(message instanceof com.evento.transport.message.Response)) {
+            // Replies must still go out: they finish the inbound requests the
+            // drain is waiting for. Anything new would only add to the drain,
+            // or be stranded on the broker the bundle is leaving.
+            throw new SendFailedException("bundle failing back to its preferred broker: not sent", null);
+        }
         var t = currentTransport.get();
         if (t == null) {
             throw new SendFailedException("transport not bound: state=" + snapshot, null);
@@ -166,8 +211,32 @@ public final class ConnectionSupervisor implements AutoCloseable {
         supervisorThread = Thread.ofVirtual()
                 .name("evento-supervisor-" + config.instanceId())
                 .start(() -> runLoop(firstAttempt));
+        if (config.failbackActive()) {
+            failbackThread = Thread.ofVirtual()
+                    .name("evento-failback-" + config.instanceId())
+                    .start(this::failbackLoop);
+        }
         return firstAttempt;
     }
+
+    /**
+     * What the fail-back drain waits for: inbound requests being handled and
+     * outbound requests awaiting a reply. Both default to zero (no drain).
+     */
+    public void setDrainCounters(java.util.function.IntSupplier inboundInFlight,
+                                 java.util.function.IntSupplier outboundPending) {
+        this.inboundInFlight = inboundInFlight == null ? () -> 0 : inboundInFlight;
+        this.outboundPending = outboundPending == null ? () -> 0 : outboundPending;
+    }
+
+    /** Switches back to endpoint 0 that ended READY there. */
+    public long failbacksCompleted() { return failbacksCompleted.get(); }
+
+    /** Switches back to endpoint 0 that did not (the bundle landed elsewhere). */
+    public long failbacksFailed() { return failbacksFailed.get(); }
+
+    /** Probes of endpoint 0 that the broker answered. */
+    public long failbackProbesAnswered() { return probesAnswered.get(); }
 
     /**
      * Initiate graceful shutdown. Blocks up to {@code deadline} for in-flight
@@ -181,6 +250,8 @@ public final class ConnectionSupervisor implements AutoCloseable {
         // Wake the reconnect loop so it observes CLOSING and exits.
         var thread = supervisorThread;
         if (thread != null) thread.interrupt();
+        var fb = failbackThread;
+        if (fb != null) fb.interrupt();
 
         var t = currentTransport.getAndSet(null);
         if (t != null) {
@@ -194,6 +265,11 @@ public final class ConnectionSupervisor implements AutoCloseable {
         }
 
         transitionTo(BundleClientState.CLOSING, BundleClientState.CLOSED, "stopped");
+        synchronized (probeLock) {
+            var group = probeGroup;
+            probeGroup = null;
+            if (group != null) group.shutdownGracefully(0, 200, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
     }
 
     /**
@@ -221,17 +297,28 @@ public final class ConnectionSupervisor implements AutoCloseable {
             // Passes over the endpoint list, 1-based: what the backoff and the
             // give-up decision count. Equal to `attempt` with one endpoint.
             int pass = (attempt + n - 1) / n;
-            var endpoint = endpoints.get(Math.floorMod(endpointIndex.get(), n));
+            int index = Math.floorMod(endpointIndex.get(), n);
+            var endpoint = endpoints.get(index);
             try {
-                runOneSession(firstAttempt, endpoint);
+                runOneSession(firstAttempt, endpoint, index);
                 attempt = 0;  // a successful session resets the backoff counter
                 pass = 0;
-                // Fail back: after a READY session drops, the preferred broker is
-                // dialled first again, even if this session was on a fallback.
+                // After a READY session drops, the preferred broker is dialled
+                // first again, even if this session was on a fallback.
                 endpointIndex.set(0);
             } catch (Throwable t) {
                 log.warn("event=supervisor_session_failed attempt={} endpoint={} cause={}",
                         attempt, endpoint, t.toString());
+                if (failbackRequested.getAndSet(false)) {
+                    // The switch closed a healthy session and endpoint 0 did not take
+                    // the bundle (identity refused, died in between). The rotation
+                    // below lands it elsewhere; the next attempt waits longer.
+                    failbackFailures++;
+                    failbacksFailed.incrementAndGet();
+                    log.warn("event=failback_failed from={} to={} cause={} consecutive_failures={} "
+                                    + "- continuing on the next endpoint",
+                            failbackFrom, endpoint, t.toString(), failbackFailures);
+                }
                 endpointIndex.set(Math.floorMod(endpointIndex.get() + 1, n));
                 // start() fails only once every endpoint has been tried: a bundle
                 // whose preferred broker is down at boot but whose second one is
@@ -247,6 +334,9 @@ public final class ConnectionSupervisor implements AutoCloseable {
             }
             if (state.get() == BundleClientState.CLOSING) break;
             transitionToForce(BundleClientState.RECONNECTING, "post_session");
+            // A deliberate fail-back dials endpoint 0 at once: it was probed healthy
+            // a moment ago, and every millisecond here is a gap in service.
+            if (failbackRequested.get()) continue;
             var delay = reconnectStrategy.nextDelay(pass);
             try { Thread.sleep(delay.toMillis()); }
             catch (InterruptedException e) {
@@ -265,8 +355,11 @@ public final class ConnectionSupervisor implements AutoCloseable {
      * whether to reconnect.
      */
     private void runOneSession(CompletableFuture<Void> firstAttempt,
-                               BundleClientConfig.Endpoint endpoint) throws Exception {
+                               BundleClientConfig.Endpoint endpoint, int index) throws Exception {
         transitionToForce(BundleClientState.CONNECTING, "open_transport");
+        // A drain belongs to the session it was started on; the new one sends freely
+        // (nothing can be sent before READY anyway).
+        draining = false;
         currentEndpoint = endpoint;
         var transport = new NettyClientTransport(
                 config.bundleId() + "-" + config.instanceId(),
@@ -293,14 +386,239 @@ public final class ConnectionSupervisor implements AutoCloseable {
             transitionToForce(BundleClientState.REGISTERING, "after_welcome");
             performRegistration(transport);
 
+            readyEndpointIndex = index;
             transitionToForce(BundleClientState.READY, "registered");
+            if (failbackRequested.getAndSet(false)) {
+                if (index == 0) {
+                    failbackFailures = 0;
+                    failbacksCompleted.incrementAndGet();
+                    log.info("event=failback_completed from={} to={} server_instance={} took_ms={}",
+                            failbackFrom, endpoint, serverInstanceId,
+                            System.currentTimeMillis() - failbackStartedAtMs);
+                } else {
+                    failbackFailures++;
+                    failbacksFailed.incrementAndGet();
+                    log.warn("event=failback_failed from={} to={} landed_on={} consecutive_failures={}",
+                            failbackFrom, config.endpoints().getFirst(), endpoint, failbackFailures);
+                }
+            }
 
             if (!firstAttempt.isDone()) firstAttempt.complete(null);
             sessionEnded.get();  // block until the transport drops
         } finally {
+            readyEndpointIndex = -1;
             currentTransport.compareAndSet(transport, null);
             try { transport.close(); } catch (Throwable ignored) {}
         }
+    }
+
+    // ---------- fail-back (N16) ----------
+
+    private boolean stopping() {
+        var s = state.get();
+        return s.isTerminal() || s == BundleClientState.CLOSING;
+    }
+
+    /**
+     * Probe endpoint 0 while READY elsewhere; switch once it has answered every
+     * probe for the required time. Runs on its own virtual thread for the life
+     * of the supervisor.
+     */
+    private void failbackLoop() {
+        var preferred = config.endpoints().getFirst();
+        long healthySince = -1L;
+        long requiredMs = 0L;
+        boolean lastProbeFailed = true;
+        while (!stopping()) {
+            try {
+                Thread.sleep(config.failbackProbeInterval());
+            } catch (InterruptedException e) {
+                return;
+            }
+            if (stopping()) return;
+            int at = readyEndpointIndex;
+            if (state.get() != BundleClientState.READY || at <= 0) {
+                healthySince = -1L;
+                continue;
+            }
+            boolean healthy = probe(preferred, lastProbeFailed);
+            lastProbeFailed = !healthy;
+            long now = System.currentTimeMillis();
+            if (!healthy) {
+                if (healthySince >= 0) {
+                    log.info("event=failback_probe_unhealthy endpoint={} healthy_for_ms={} "
+                            + "- stability window restarts", preferred, now - healthySince);
+                }
+                healthySince = -1L;
+                continue;
+            }
+            if (healthySince < 0) {
+                healthySince = now;
+                requiredMs = requiredHealthyMs();
+                log.info("event=failback_probe_healthy endpoint={} current={} failback_after_ms={}",
+                        preferred, currentEndpoint, requiredMs);
+            }
+            if (now - healthySince < requiredMs) continue;
+            healthySince = -1L;
+            try {
+                performFailback(preferred);
+            } catch (Throwable t) {
+                draining = false;
+                log.warn("event=failback_error endpoint={} cause={}", preferred, t.toString());
+            }
+        }
+    }
+
+    /**
+     * The stability window, doubled per consecutive failed switch (up to 16x),
+     * plus a fresh random jitter; a bundle that handles no requests (a pure
+     * caller, e.g. a gateway) adds one more window, so that the handlers of a
+     * cell tend to be back on the preferred broker before its callers are.
+     */
+    private long requiredHealthyMs() {
+        long window = config.failbackStabilityWindow().toMillis();
+        long base = window << Math.min(failbackFailures, 4);
+        long jitterMax = config.failbackJitter().toMillis();
+        long jitter = jitterMax <= 0 ? 0 : java.util.concurrent.ThreadLocalRandom.current().nextLong(jitterMax + 1);
+        long callersLast = config.handlerPayloadTypes().isEmpty() ? window : 0;
+        return base + jitter + callersLast;
+    }
+
+    /**
+     * Is endpoint 0 an Evento broker that answers? TCP connect plus a
+     * {@code Ping} that the broker's heartbeat handler answers with a
+     * {@code Pong} below the message router: no {@code Hello}, so nothing is
+     * registered, no {@code NodeJoined} is published, no buffered reply is
+     * replayed and no live session is superseded. Answering through the
+     * Evento pipeline (not just an open port) matters when the endpoint is a
+     * proxy or a VIP that accepts TCP while the broker behind it is dead.
+     *
+     * @param quietPrecheck first try a plain socket connect, so that a broker
+     *                      that is down does not produce a transport WARN line
+     *                      per probe for as long as it stays down
+     */
+    private boolean probe(BundleClientConfig.Endpoint endpoint, boolean quietPrecheck) {
+        long timeoutMs = Math.max(100L, Math.min(config.handshakeTimeout().toMillis(),
+                config.failbackProbeInterval().toMillis()));
+        if (quietPrecheck) {
+            try (var s = new java.net.Socket()) {
+                s.connect(new java.net.InetSocketAddress(endpoint.host(), endpoint.port()), (int) timeoutMs);
+            } catch (Exception e) {
+                log.debug("event=failback_probe_refused endpoint={} cause={}", endpoint, e.toString());
+                return false;
+            }
+        }
+        var group = probeGroup();
+        if (group == null) return false;
+        var transport = new NettyClientTransport(
+                config.bundleId() + "-" + config.instanceId() + "-failback-probe",
+                endpoint.host(), endpoint.port(), config.transportConfig(), group);
+        var pingId = UUID.randomUUID();
+        var pong = new CompletableFuture<Void>();
+        transport.onMessage(m -> {
+            if (m instanceof com.evento.transport.message.Pong p && pingId.equals(p.correlationId())) {
+                pong.complete(null);
+            }
+        });
+        try {
+            transport.connect().get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            transport.send(new com.evento.transport.message.Ping(pingId, 0L, System.currentTimeMillis()))
+                    .get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            pong.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            probesAnswered.incrementAndGet();
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception e) {
+            log.debug("event=failback_probe_failed endpoint={} cause={}", endpoint, e.toString());
+            return false;
+        } finally {
+            try { transport.close(); } catch (Throwable ignored) {}
+        }
+    }
+
+    /** One small event loop shared by all probes of this supervisor, created on first use. */
+    @SuppressWarnings("deprecation") // NioEventLoopGroup: the API that exists in Netty 4.1 and 4.2
+    private io.netty.channel.EventLoopGroup probeGroup() {
+        synchronized (probeLock) {
+            if (stopping()) return null;
+            if (probeGroup == null) {
+                probeGroup = new io.netty.channel.nio.NioEventLoopGroup(1, r -> {
+                    var t = new Thread(r, "evento-failback-probe-" + config.instanceId());
+                    t.setDaemon(true);
+                    return t;
+                });
+            }
+            return probeGroup;
+        }
+    }
+
+    /**
+     * Leave the current broker gracefully and dial endpoint 0: disable here,
+     * refuse new outbound work, wait (bounded) for what is in flight, close.
+     * The run loop sees the session end with {@link #failbackRequested} set and
+     * dials endpoint 0 without backoff.
+     */
+    private void performFailback(BundleClientConfig.Endpoint preferred) throws InterruptedException {
+        var transport = currentTransport.get();
+        if (transport == null || state.get() != BundleClientState.READY || readyEndpointIndex <= 0) return;
+        var from = currentEndpoint;
+        long started = System.currentTimeMillis();
+        long drainMs = config.failbackDrainTimeout().toMillis();
+        log.info("event=failback_started from={} from_instance={} to={} drain_timeout_ms={} "
+                        + "inbound_in_flight={} outbound_pending={}",
+                from, serverInstanceId, preferred, drainMs,
+                inboundInFlight.getAsInt(), outboundPending.getAsInt());
+
+        // 1. Out of the current broker's available view: it stops picking this
+        //    bundle for new requests. The session and its routes stay up, so the
+        //    replies to what is already in flight still find their way.
+        try {
+            transport.send(new Notification(UUID.randomUUID(), ProtocolNotifications.DISABLE,
+                    new byte[0], System.currentTimeMillis()))
+                    .get(config.registrationTimeout().toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("event=failback_disable_failed from={} cause={}", from, e.toString());
+        }
+        // 2. New outbound requests fail fast with SendFailedException (definitely not
+        //    sent) instead of joining a drain they could extend indefinitely.
+        draining = true;
+
+        // 3. Drain. The short grace covers requests the broker picked this bundle for
+        //    just before it processed the disable and that are still on the wire.
+        long graceEnd = started + Math.min(250L, drainMs);
+        long deadline = started + drainMs;
+        int in, out;
+        while (true) {
+            in = inboundInFlight.getAsInt();
+            out = outboundPending.getAsInt();
+            long now = System.currentTimeMillis();
+            if (currentTransport.get() != transport || state.get() != BundleClientState.READY) {
+                draining = false;
+                log.info("event=failback_aborted from={} reason=session_ended_during_drain", from);
+                return;
+            }
+            if ((in == 0 && out == 0 && now >= graceEnd) || now >= deadline) break;
+            Thread.sleep(10L);
+        }
+        long waited = System.currentTimeMillis() - started;
+        if (in > 0 || out > 0) {
+            log.warn("event=failback_drain_timeout from={} waited_ms={} inbound_in_flight={} outbound_pending={} "
+                    + "- outbound requests still pending fail with BrokerChangedException on the new broker",
+                    from, waited, in, out);
+        } else {
+            log.info("event=failback_drained from={} waited_ms={}", from, waited);
+        }
+
+        // 4. Switch.
+        failbackFrom = from;
+        failbackStartedAtMs = started;
+        endpointIndex.set(0);
+        failbackRequested.set(true);
+        try { transport.close(); } catch (Throwable ignored) {}
     }
 
     private void performHandshake(NettyClientTransport transport,

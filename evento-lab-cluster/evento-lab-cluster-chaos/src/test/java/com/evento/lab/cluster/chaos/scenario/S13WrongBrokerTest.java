@@ -26,7 +26,9 @@ import java.util.UUID;
  *       id): after the kill the bundle must accept any {@code evento-lab-cluster} server behind the
  *       VIP and EUROPA must work again, with the guard still active.</li>
  * </ul>
- * Before L21 only variant A ran, so the G13 fix could never show on {@code :after}.
+ * Before L21 only variant A ran, so the G13 fix could never show on {@code :after}. Between A and
+ * B the other EU JVMs, which failed over to another server when evento-eu was killed, must fail
+ * back to it on their own once it is healthy again (N16).
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S13WrongBrokerTest extends AbstractScenario {
@@ -45,7 +47,7 @@ class S13WrongBrokerTest extends AbstractScenario {
 
     @Override
     protected List<String> gaps() {
-        return List.of("G13");
+        return List.of("G13", "N16");
     }
 
     @Test
@@ -113,13 +115,35 @@ class S13WrongBrokerTest extends AbstractScenario {
             markers(List.of(SERVICE, "lb"), since, MARKERS);
 
             // ---- B: cluster-name guard only --------------------------------------------------------
+            // The other EU JVMs (direct address lists) failed over to evento-am during A. SERVICE is
+            // behind the VIP with one address: it has nothing to fail back to and is recreated below.
+            var euJvms = com.evento.lab.cluster.chaos.LabConfig.cellJvms("EU").stream()
+                    .filter(j -> !j.equals(SERVICE)).toList();
+            var remoteDuringA = remoteJvms("EU", euJvms);
+            report.metric("A.bundlesRemoteWhileEuDown", remoteDuringA);
             cluster.ensureRunning("evento-eu");
             var euBack = cluster.waitReady("evento-eu", Duration.ofSeconds(420));
+            var euBackAt = Instant.now();
             report.event("evento-eu back, ready=" + euBack);
-            // no failback (N16): the EU bundles that failed over during A are still remote; B needs
-            // them home, otherwise the gateway lands on evento-eu with no handler there (G1)
+            // N16: they must come home by themselves once evento-eu has been healthy for the
+            // stability window. B needs them home, otherwise the gateway lands on evento-eu with
+            // no handler there (G1).
+            var failbackWait = envSeconds("S13_FAILBACK_WAIT_S", 180);
+            var stillRemote = awaitFailback("EU", euJvms, failbackWait);
+            report.metric("A.bundlesStillRemoteAfterEuReturned", stillRemote);
+            report.metric("A.allHomeSecondsAfterEuReady", stillRemote.isEmpty()
+                    ? Duration.between(euBackAt, Instant.now()).toMillis() / 1000.0 : null);
+            report.observe("A: EU bundles fail back to evento-eu once it is healthy again (N16)",
+                    "every EU JVM that failed over to another server is attached to evento-eu again,"
+                            + " without a restart, within " + failbackWait.toSeconds() + " s",
+                    "no failback: they stay on the remote server until restarted (N16)",
+                    remoteDuringA.isEmpty() ? "no EU JVM had failed over"
+                            : remoteDuringA.size() + " JVM(s) remote while evento-eu was down " + remoteDuringA
+                                    + "; still remote after the wait: " + stillRemote,
+                    remoteDuringA.isEmpty() ? null : stillRemote.isEmpty(), !stillRemote.isEmpty(), null);
+            // Safety net for the images without the fix: B must start from the nominal placement.
             var leftRemote = restorePlacement();
-            report.metric("A.bundlesStillRemoteAfterEuReturned", leftRemote);
+            report.metric("A.bundlesRestartedIntoPlace", leftRemote);
             cluster.recreateWithEnv(SERVICE, Map.of(
                     "EVENTO_SERVER_ADDRESSES", vip,
                     "EVENTO_EXPECTED_SERVER_ID", ""));

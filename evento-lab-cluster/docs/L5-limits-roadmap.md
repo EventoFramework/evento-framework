@@ -19,7 +19,7 @@ esistono** nel codice: sono progetti.
 | Id | Limite | Gravità | Prova | Rimedio oggi | Lavoro che lo chiude |
 |---|---|---|---|---|---|
 | G1 | nessun inoltro server-server | Blocker (per la topologia) | [S01](../results/S01/after/report.md): 0/5 `no handler` in ≤ 14 ms | architettura a celle con handler completi (L2) | mesh di server (sotto) |
-| N16 | nessun failback dopo il failover degli endpoint | High | [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md) | riavviare i bundle rimasti fuori cella (il laboratorio lo fa, L22) | sonda di failback o hint "torna a casa" |
+| N16 | failback dopo il failover degli endpoint: **implementato** (sonda lato bundle), da rimisurare nel laboratorio; resta la finestra non atomica per cella | High → Medium | prima: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md); fix: `BundleClientFailbackIT` | lista di indirizzi (non VIP); il laboratorio ripristina comunque il posizionamento (L22) | ritorno coordinato per cella, o la mesh G1 che rende innocuo l'ordine (sotto) |
 | G5 / N14 | nessuna idempotenza tra retry | High | [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi | handler idempotenti a livello applicativo (`payments` per ordine) | chiave di idempotenza end-to-end (sotto) |
 | G6 | nessuna fence `aggregate_seq` sugli append | High (latente) | nessun fork osservato (S05, S08); PK su `es__events` aggiunta | lock per aggregato + `verifyHeld` | colonna `aggregate_seq` con `UNIQUE(aggregate_id, aggregate_seq)` (sotto) |
 | N5 / N9 / N15 | ogni append serializza sul `es-lock` globale raggiunto via WAN; commit dopo la deadline | Medium | [S06](../results/S06/after/report.md): p50 APAC 22.8 s a 300 ms; 31 commit dopo il timeout | primario ES nella cella più scrivente | `SET LOCAL lock_timeout` = deadline residua; append per aggregato con la fence G6 |
@@ -54,15 +54,36 @@ per le richieste inoltrate, e una tabella di routing da mantenere coerente tra s
 
 ## N16: failback
 
-`ConnectionSupervisor` torna all'endpoint 0 solo alla disconnessione successiva. Due strade:
+Delle due strade considerate (sonda lato bundle, hint "go home" lato server) è stata implementata
+la **sonda lato bundle**, perché non richiede messaggi nuovi sul filo né stato di cluster sul
+server. `ConnectionSupervisor`, mentre è READY su un endpoint diverso dallo 0:
 
-1. **sonda lato bundle**: mentre è collegato a un endpoint non preferito, prova periodicamente
-   l'endpoint 0 (con jitter); quando risponde, drena le richieste in volo e cambia sessione;
-2. **hint lato server**: il server che vede tornare disponibile il server "di casa" di un bundle
-   (presenza + zona) chiude la sessione di quel bundle con un motivo "go home".
+1. sonda l'endpoint 0 ogni `failbackProbeInterval` (5 s) con TCP + `Ping`/`Pong` (risposto
+   dall'heartbeat handler del server, sotto il router): senza `Hello` non c'è registrazione,
+   `NodeJoined`, consegna del buffer di risposte né supersede;
+2. si sposta quando l'endpoint 0 ha risposto a ogni sonda per `failbackStabilityWindow` (30 s) +
+   jitter casuale fino a `failbackJitter` (10 s); una sonda fallita azzera la finestra (niente
+   ping-pong con un server che va e viene); i bundle senza handler aspettano una finestra in più;
+3. `evento:disable` sul server attuale, nuove richieste in uscita rifiutate
+   (`SendFailedException`, non inviate), drain limitato da `failbackDrainTimeout` (10 s) di
+   richieste in entrata e in uscita, chiusura e dial immediato dell'endpoint 0; le richieste
+   rimaste aperte falliscono con `BrokerChangedException` al `Welcome` del nuovo server;
+4. i controlli di identità (`expectedClusterName` / `expectedServerInstanceId`) valgono
+   sull'handshake del ritorno: se falliscono il bundle ruota al successivo e la finestra seguente
+   raddoppia (fino a 16×).
 
-Finché non esiste, la regola operativa è: dopo il ritorno di un server, riavviare **tutti** i bundle
-della sua cella rimasti altrove, insieme (riavviarne solo una parte divide la cella, e G1 fa il resto).
+Configurazione: `EventoBundle.Builder.setFailbackEnabled/ProbeInterval/StabilityWindow/Jitter/DrainTimeout`
+(nel laboratorio `EVENTO_FAILBACK_WINDOW_S`). Resta aperto:
+
+- **ritorno non atomico per cella**: ogni bundle torna al proprio istante, e per qualche secondo
+  chiamanti e handler di una cella possono stare su server diversi (G1: `no handler for`).
+  L'ordine "handler prima, chiamanti dopo" riduce ma non elimina la finestra; la chiudono la mesh
+  G1 o un ritorno coordinato (tutti i bundle di una zona insieme, deciso dal server con presenza +
+  zona);
+- **VIP**: con un solo indirizzo non c'è un endpoint 0 da sondare;
+- la sonda prova che il server risponde, non che abbia finito di avviarsi (database, catalogo): la
+  finestra di stabilità è la protezione;
+- rimisurare S03 e S13 su immagini con il fix.
 
 ## G5 / N14: chiave di idempotenza end-to-end
 
@@ -112,7 +133,7 @@ append per aggregato, a ridurre il peso del `es-lock` globale (N5, N15).
 
 ## Configurazione
 
-Nessuna delle voci sopra ha oggi una configurazione. Le leve disponibili che **mitigano**:
+Salvo il failback N16, nessuna delle voci sopra ha oggi una configurazione. Le leve disponibili che **mitigano**:
 
 | Leva | Dove | Mitiga |
 |---|---|---|
@@ -120,6 +141,7 @@ Nessuna delle voci sopra ha oggi una configurazione. Le leve disponibili che **m
 | `evento.es.fetch.max.age.ms` (`EVENTO_ES_FETCH_MAX_AGE_MS`) `=0` | server | gate di staleness (a costo di servire fetch scaduti) |
 | `EVENTO_LOCK_ACQUIRE_TIMEOUT_MS` | server | attese sui lock per aggregato; **non** il `es-lock` dentro l'istruzione (N15) |
 | `EVENTO_HEARTBEAT_READ_IDLE_S` | bundle | rilevamento di un broker silenzioso |
+| `EVENTO_FAILBACK_WINDOW_S` (`setFailbackStabilityWindow`) | bundle | N16: quanto a lungo il server 0 deve essere sano prima del failback |
 | `EVENTO_LAB_RESTORE_PLACEMENT` (driver del laboratorio) | scenari | N16 nei test |
 
 ## Matrice bundle × roadmap
@@ -139,7 +161,7 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 | Lavoro | Scenario | Risultato atteso |
 |---|---|---|
 | G1 mesh | S01 | AMERICA 5/5 anche senza `order-command-am` |
-| N16 failback | S03, S13 | dopo il ritorno del server, 0 bundle fuori cella senza riavvii (`placementRestoredAtStart` vuoto) |
+| N16 failback (implementato, da misurare) | S03, S13 | dopo il ritorno del server, 0 bundle fuori cella senza riavvii: osservazioni "fail back" di S03 e S13 AS_EXPECTED, `placementRestoredAtStart` vuoto nello scenario successivo |
 | G5 | S14, S03, S07 | 0 chiavi doppie, 0 pagamenti doppi |
 | N4 | S16 | un solo scrittore, fan-out vicino ai 2.1 s di `:before` |
 | N15 | S06 | 0 comandi salvati dopo il timeout a 300 ms |
@@ -156,7 +178,8 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 ## Checklist decisionale
 
 - [ ] I miei comandi sono idempotenti a livello applicativo? Se no, L1+ duplica sotto guasto (G5).
-- [ ] Posso riavviare una cella intera dopo il ritorno del suo server (N16)?
+- [ ] Posso tollerare qualche secondo di `no handler for` mentre una cella torna sul suo server
+      (N16 residuo + G1)? Uso una lista di indirizzi, non un VIP, così il failback avviene da solo?
 - [ ] Ogni cella avrà sempre tutti gli handler (G1)?
 - [ ] Il RTT verso il primario ES delle celle remote è compatibile con la latenza richiesta
       (≈ 7–9 RTT per comando, N9)?

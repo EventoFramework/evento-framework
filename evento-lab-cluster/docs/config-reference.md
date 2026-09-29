@@ -37,6 +37,7 @@ Fonte: [`BundleDeployment`](../lab-support/src/main/java/com/evento/lab/cluster/
 | `DATA_TARGETS` | vuoto | `nome=jdbc:...;nome=jdbc:...` (anche `,` davanti a `nome=jdbc:`); fan-out della lane `ALL`, diagnostica `?db=` del gateway. Un pool da 3 per target, 0 connessioni idle | L3 |
 | `COMMAND_TIMEOUT_MS` | 30000 | timeout di comandi e query del gateway; diventa la deadline sul server (N3) | L0 |
 | `EVENTO_HEARTBEAT_READ_IDLE_S` | nessuno (framework: 45 s) | rilevamento di un broker silenzioso (`Builder.setHeartbeatReadIdle`, G22) | L1 |
+| `EVENTO_FAILBACK_WINDOW_S` | nessuno (framework: 30 s) | quanto il primo indirizzo deve essere sano prima che un bundle in failover ci torni (`Builder.setFailbackStabilityWindow`, N16); nel compose vuoto = default; `/whoami` riporta la feature `failback` | L1 |
 | `JAVA_OPTS` | nel compose `LAB_JAVA_OPTS` | opzioni JVM | – |
 
 Pool Hikari creati da [`LabDatabases`](../lab-support/src/main/java/com/evento/lab/cluster/support/LabDatabases.java):
@@ -84,7 +85,7 @@ Fonte: [`../docker/compose.yaml`](../docker/compose.yaml), [`../scripts/`](../sc
 | `EVENTO_LAB_ES_JDBC`, `EVENTO_LAB_CONSUMERS_JDBC`, `EVENTO_LAB_APP_JDBC_EU` / `_AM` / `_APAC`, `EVENTO_LAB_DB_USER` / `_PASSWORD` | porte host del compose, `postgres` / `secret` | accesso degli invarianti ai database |
 | `EVENTO_LAB_HTTP_TIMEOUT_S` | 45 | timeout HTTP del driver |
 | `EVENTO_LAB_READY_TIMEOUT_S` | 420 | attesa dei servizi pronti |
-| `EVENTO_LAB_RESTORE_PLACEMENT` | `true` | riavvia i bundle fuori cella prima di ogni scenario (N16, L22) |
+| `EVENTO_LAB_RESTORE_PLACEMENT` | `true` | riavvia i bundle fuori cella prima di ogni scenario (L22); con il failback N16 è una rete di sicurezza che normalmente non trova nulla |
 | `EVENTO_LAB_PLACEMENT_SETTLE_S` | 20 | attesa dopo quel riavvio |
 | `EVENTO_LAB_SKIP_RECREATE` | `false` | S08/S09 non ricreano lo stack alla fine |
 | `LAB_BASH` | Git Bash su Windows | bash usata per `repair-catalog.sh` (L16) |
@@ -92,7 +93,7 @@ Fonte: [`../docker/compose.yaml`](../docker/compose.yaml), [`../scripts/`](../sc
 | `S00_RATE`, `S00_ITEMS`, `S00_COMPLETE_RATIO`, `S00_DURATION_S`, `S00_CONVERGENCE_S` | 20, 2, 0.5, 60, 90 | S00 |
 | `S01_PROBES`, `S01_SETTLE_S` | 5, 10 | S01 |
 | `S02_RATE`, `S02_DURATION_S`, `S02_KILL_AFTER_S`, `S02_CONVERGENCE_S` | 60, 70, 20, 120 | S02 |
-| `S03_RATE`, `S03_DURATION_S`, `S03_KILL_AFTER_S`, `S03_CONVERGENCE_S` | `LAB_FAULT_RATE`, 110, 20, 180 | S03 |
+| `S03_RATE`, `S03_DURATION_S`, `S03_KILL_AFTER_S`, `S03_CONVERGENCE_S`, `S03_FAILBACK_WAIT_S` | `LAB_FAULT_RATE`, 110, 20, 180, 180 | S03 (l'ultima: attesa del failback N16 dopo il ritorno di `evento-apac`) |
 | `S04_OUTAGE_S`, `S04_PAUSE_S`, `S04_SETTLE_S` | 45, 60, 60 | S04 |
 | `S05_WORKERS_PER_REGION`, `S05_COMMANDS_PER_WORKER`, `S05_HOT_ORDERS`, `S05_CONVERGENCE_S` | 2, 30, 2, 120 | S05 |
 | `S06_RTTS_MS`, `S06_STEP_S`, `S06_RATE`, `S06_CONVERGENCE_S` | `0,50,150,300`, 40, 30, 180 | S06 |
@@ -102,7 +103,7 @@ Fonte: [`../docker/compose.yaml`](../docker/compose.yaml), [`../scripts/`](../sc
 | `S10_ITERATIONS`, `S10_BOOT_TIMEOUT_S` | 3, 360 | S10 |
 | `S11_ORDERS`, `S11_LEAK_WAIT_S`, `S11_CONVERGENCE_S` | 5, 60, 90 | S11 |
 | `S12_RATE`, `S12_PHASE_S`, `S12_IDLE_S`, `S12_NOISE_FLOOR_MS` | 120, 60, 30, 1000 | S12 (L19) |
-| `S13_BUS_ADDRESSES`, `S13_WAIT_S` | `bus-eu:3030`, 60 | S13 |
+| `S13_BUS_ADDRESSES`, `S13_WAIT_S`, `S13_FAILBACK_WAIT_S` | `bus-eu:3030`, 60, 180 | S13 (l'ultima: attesa del failback N16 dei JVM EU dopo il ritorno di `evento-eu`) |
 | `S14_KILL_DELAY_MS`, `S14_PROBES_PER_KIND`, `S14_RETRY_REGION` | 150, 8, `EUROPA` | S14 (2000 per catturare G5, L17) |
 | `S15_IMAGE`, `S15_FAKETIME_ENV` | – | S15: immagine con libfaketime e il suo ambiente (L18) |
 | `S16_EVENTS`, `S16_OUTAGE_EVENTS`, `S16_OUTAGE_S`, `S16_CONVERGENCE_S` | 5, 4, 40, 120 | S16 |
@@ -164,6 +165,11 @@ anche contro 2.4.6; `/whoami` dice quali sono state applicate).
 | `EventoBundle.Builder.setHeartbeatReadIdle(Duration)` | 45 s (`NettyTransportConfig.defaults()`; write-idle 15 s) | rilevamento di un broker silenzioso |
 | `EventoBundle.Builder.setDefaultRequestTimeout(Duration)` | 30 s | timeout (e deadline) di default |
 | `EventoBundle.Builder.setMaxInFlightRequests(int)` | 2048 | richieste in volo per bundle |
+| `EventoBundle.Builder.setFailbackEnabled(Boolean)` | `null` = attivo con 2+ indirizzi | failback all'endpoint 0 dopo un failover (N16); `false` = torna solo alla disconnessione successiva |
+| `EventoBundle.Builder.setFailbackProbeInterval(Duration)` | 5 s | cadenza della sonda TCP + `Ping` verso l'endpoint 0 (nessun `Hello`) |
+| `EventoBundle.Builder.setFailbackStabilityWindow(Duration)` | 30 s | quanto l'endpoint 0 deve rispondere a ogni sonda prima del ritorno; una sonda fallita la azzera; ×2 dopo ogni ritorno fallito (max 16×); +1 finestra per i bundle senza handler |
+| `EventoBundle.Builder.setFailbackJitter(Duration)` | 10 s | ritardo casuale massimo aggiunto per istanza |
+| `EventoBundle.Builder.setFailbackDrainTimeout(Duration)` | 10 s | attesa massima delle richieste in volo; le uscenti rimaste falliscono con `BrokerChangedException` |
 | `EventoBundle.Builder.setTransportConfig(NettyTransportConfig)` | `NettyTransportConfig.defaults()` (connect 5 s) | trasporto completo |
 | `EventoBundle.Builder.setConsumerEngineConfigBuilder(...)` | in-memory | nel laboratorio JDBC: `JdbcConsumerLock`, `JdbcConsumerStateStore`, `JdbcSagaStateStore`, `JdbcDeadEventQueue`, `JdbcDedupeStore` |
 

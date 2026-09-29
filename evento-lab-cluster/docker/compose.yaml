@@ -143,10 +143,14 @@ x-env-common: &env-common
   EVENTO_CHECKPOINT_MODE: ${CONSUMER_CHECKPOINT_MODE:-DEFAULT}
   APP_DB_USER: postgres
   APP_DB_PASSWORD: secret
+  # Optional: seconds the own server must be healthy before a failed-over bundle moves back
+  # (N16). Empty = the framework default (30 s); ignored by images without fail-back.
+  EVENTO_FAILBACK_WINDOW_S: ${EVENTO_FAILBACK_WINDOW_S:-}
   JAVA_OPTS: *java-opts
 
 # Per-cell bus: zone + address list "own server first, then the other two through toxiproxy"
-# (before G2 only the first is dialled; after G2 the rest are failover targets).
+# (before G2 only the first is dialled; after G2 the rest are failover targets; after N16
+# the bundle also moves back to the first once it has been healthy for the fail-back window).
 x-bus-eu: &bus-eu
   EVENTO_ZONE: EU
   EVENTO_SERVER_ADDRESSES: ${BUS_ADDR_EU:-evento-eu:3030,toxi-eu:20123,toxi-eu:20133}

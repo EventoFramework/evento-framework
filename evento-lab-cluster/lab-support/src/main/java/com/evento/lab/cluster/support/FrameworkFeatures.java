@@ -62,6 +62,19 @@ public final class FrameworkFeatures {
         record("heartbeatReadIdle", invoke(builder, "setHeartbeatReadIdle", Duration.class, readIdle), readIdle);
     }
 
+    /**
+     * Fail-back to the first address after a failover (N16). Recorded on every
+     * start, so {@code /whoami} tells a scenario whether its images can fail
+     * back at all; {@code window} (null = the framework's 30 s) is applied
+     * through {@code Builder.setFailbackStabilityWindow} when present.
+     */
+    public void failback(EventoBundle.Builder builder, Duration window) {
+        boolean available = window == null
+                ? find(builder.getClass(), "setFailbackStabilityWindow", Duration.class) != null
+                : invoke(builder, "setFailbackStabilityWindow", Duration.class, window);
+        record("failback", available, window == null ? "default window" : window);
+    }
+
     public void defaultRequestTimeout(EventoBundle.Builder builder, Duration timeout) {
         if (timeout == null) return;
         record("defaultRequestTimeout", invoke(builder, "setDefaultRequestTimeout", Duration.class, timeout), timeout);

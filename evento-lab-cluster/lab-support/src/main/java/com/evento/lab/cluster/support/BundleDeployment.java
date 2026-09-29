@@ -34,6 +34,7 @@ import java.util.function.Function;
  *   <tr><td>{@code DATA_TARGETS}</td><td>fan-out targets {@code name=jdbc:...;...}, see {@link DataTargets}</td></tr>
  *   <tr><td>{@code COMMAND_TIMEOUT_MS}</td><td>gateway command/query timeout (30000)</td></tr>
  *   <tr><td>{@code EVENTO_HEARTBEAT_READ_IDLE_S}</td><td>silent-partition detection (framework feature)</td></tr>
+ *   <tr><td>{@code EVENTO_FAILBACK_WINDOW_S}</td><td>how long the first address must be healthy before a failed-over bundle moves back (framework feature, N16; framework default 30)</td></tr>
  * </table>
  */
 public record BundleDeployment(
@@ -52,7 +53,8 @@ public record BundleDeployment(
         DbSettings globalViewDb,
         Map<String, String> dataTargets,
         long commandTimeoutMs,
-        Duration heartbeatReadIdle) {
+        Duration heartbeatReadIdle,
+        Duration failbackWindow) {
 
     public record Address(String host, int port) {
         @Override
@@ -100,8 +102,10 @@ public record BundleDeployment(
         var timeout = Long.parseLong(orDefault(env.apply("COMMAND_TIMEOUT_MS"), "30000"));
         var readIdleRaw = blankToNull(env.apply("EVENTO_HEARTBEAT_READ_IDLE_S"));
         var readIdle = readIdleRaw == null ? null : Duration.ofSeconds(Long.parseLong(readIdleRaw));
+        var failbackRaw = blankToNull(env.apply("EVENTO_FAILBACK_WINDOW_S"));
+        var failbackWindow = failbackRaw == null ? null : Duration.ofSeconds(Long.parseLong(failbackRaw));
         return new BundleDeployment(bundleId.trim(), instance, addresses, clusterName, expected, zone, cell, region,
-                contexts, mode, appDb, consumerDb, globalViewDb, targets, timeout, readIdle);
+                contexts, mode, appDb, consumerDb, globalViewDb, targets, timeout, readIdle, failbackWindow);
     }
 
     /** {@code "a:3030, b:3031,c"} -> [a:3030, b:3031, c:3030]. */

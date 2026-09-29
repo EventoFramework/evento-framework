@@ -21,7 +21,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code BUS_VIA_LB=true} they reach another server through the stream VIP and
  * re-register, racing the catalog (G8). In-flight calls hang for the 30 s
  * request timeout (G4). After the fixes: address rotation, an immediate
- * {@code BrokerChangedException}, a clean catalog.
+ * {@code BrokerChangedException}, a clean catalog, and once {@code evento-apac}
+ * is back and healthy for the stability window, every APAC JVM fails back to it
+ * without a restart (N16).
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S03KillServerTest extends AbstractScenario {
@@ -41,7 +43,7 @@ class S03KillServerTest extends AbstractScenario {
 
     @Override
     protected List<String> gaps() {
-        return List.of("G2", "G4", "G5", "G8", "G13");
+        return List.of("G2", "G4", "G5", "G8", "G13", "N16");
     }
 
     @Test
@@ -94,11 +96,41 @@ class S03KillServerTest extends AbstractScenario {
             var failedFast = filter(inFlight, r -> r.outcome() != RequestRecord.Outcome.ACK && r.latencyMs() < 25_000);
             report.metric("apacInFlightAtKill", inFlight.size());
 
+            // Where the APAC JVMs are while their server is down: the failover targets.
+            var remoteWhileDown = remoteJvms("APAC", APAC_JVMS);
+            report.metric("apacRemoteWhileDown", remoteWhileDown);
+
             report.event("restarting evento-apac");
             cluster.start("evento-apac");
             var back = cluster.waitReady("evento-apac", Duration.ofSeconds(420));
+            var backAt = Instant.now();
             report.event("evento-apac ready=" + back);
             cluster.waitAllReady(APAC_JVMS, Duration.ofSeconds(300));
+
+            // N16: the JVMs that failed over must come home by themselves, without a restart,
+            // once evento-apac has been healthy for the stability window (30 s + jitter, one more
+            // window for the gateways, which handle nothing).
+            var stillRemote = awaitFailback("APAC", APAC_JVMS, envSeconds("S03_FAILBACK_WAIT_S", 180));
+            var failbackSeconds = stillRemote.isEmpty()
+                    ? Duration.between(backAt, Instant.now()).toMillis() / 1000.0 : null;
+            report.metric("apacStillRemoteAfterFailbackWait", stillRemote);
+            report.metric("apacAllHomeSecondsAfterServerReady", failbackSeconds);
+            var failbackMarkers = markers(APAC_JVMS, backAt, List.of(
+                    "event=failback_started", "event=failback_completed", "event=failback_failed"));
+            report.metric("apacFailbacksCompleted", total(failbackMarkers, "event=failback_completed"));
+            report.metric("apacFailbacksFailed", total(failbackMarkers, "event=failback_failed"));
+            report.observe("APAC bundles fail back to evento-apac once it is healthy again (N16)",
+                    "every APAC JVM that failed over is attached to evento-apac again, without a restart,"
+                            + " within the stability window + jitter (+ one window for gateways)",
+                    "no failback: the JVMs stay on evento-eu/evento-am until their next disconnect or a"
+                            + " restart (N16); 2.4.6 never failed over, so there is nothing to fail back",
+                    remoteWhileDown.isEmpty()
+                            ? "no APAC JVM was on another server while evento-apac was down"
+                            : remoteWhileDown.size() + " JVM(s) failed over " + remoteWhileDown + "; still remote after "
+                                    + envSeconds("S03_FAILBACK_WAIT_S", 180).toSeconds() + " s: " + stillRemote
+                                    + (failbackSeconds == null ? "" : ", all home " + failbackSeconds
+                                    + " s after evento-apac was ready"),
+                    remoteWhileDown.isEmpty() ? null : stillRemote.isEmpty(), !stillRemote.isEmpty(), null);
 
             var serverMarkers = markers(new ArrayList<>(List.of("evento-eu", "evento-am", "evento-apac")), since, MARKERS);
             var appMarkers = markers(APAC_JVMS, since, MARKERS);

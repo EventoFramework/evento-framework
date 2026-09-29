@@ -177,8 +177,8 @@ class BundleClientFailoverIT {
         await().atMost(Duration.ofSeconds(10)).until(() ->
                 bundle.state() == BundleClientState.READY && "broker-remote".equals(bundle.serverInstanceId()));
 
-        // The local broker comes back on its old port. No background probe moves the
-        // bundle while its remote session is healthy...
+        // The local broker comes back on its old port. Within the fail-back stability
+        // window (30 s by default, BundleClientFailbackIT) nothing moves the bundle...
         var restarted = brokerOn("broker-local-2", CLUSTER, localPort);
         Thread.sleep(500);
         assertThat(bundle.serverInstanceId()).isEqualTo("broker-remote");

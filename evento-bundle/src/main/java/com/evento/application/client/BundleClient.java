@@ -77,6 +77,8 @@ public final class BundleClient implements AutoCloseable {
         // replayed to this bundle on that broker. Attaching anywhere else strands
         // it; say so now instead of after the whole request timeout.
         this.supervisor.onBrokerAccepted(correlationTracker::failSentOnOtherBroker);
+        // What a fail-back switch waits for before it closes the session (N16).
+        this.supervisor.setDrainCounters(inboundDispatcher::inFlightRequests, correlationTracker::pendingCount);
     }
 
     // ---------- Lifecycle ----------
@@ -114,6 +116,15 @@ public final class BundleClient implements AutoCloseable {
 
     /** The endpoint of the current (or last) session. */
     public BundleClientConfig.Endpoint currentEndpoint() { return supervisor.currentEndpoint(); }
+
+    /** Fail-backs to the preferred endpoint that completed (READY on endpoint 0). */
+    public long failbacksCompleted() { return supervisor.failbacksCompleted(); }
+
+    /** Fail-back switches that did not end on the preferred endpoint. */
+    public long failbacksFailed() { return supervisor.failbacksFailed(); }
+
+    /** Probes of the preferred endpoint that its broker answered (while attached elsewhere). */
+    public long failbackProbesAnswered() { return supervisor.failbackProbesAnswered(); }
 
     public void onStateChange(BiConsumer<BundleClientState, BundleClientState> listener) {
         supervisor.onStateChange(listener);
@@ -289,6 +300,12 @@ public final class BundleClient implements AutoCloseable {
          * Use this rather than {@link #expectedServerInstanceId} with several endpoints.
          */
         public Builder expectedClusterName(String name) { cfg.expectedClusterName(name); return this; }
+        /** Move back to the first endpoint once it is healthy again (default true, needs 2+ endpoints). */
+        public Builder failbackEnabled(boolean v) { cfg.failbackEnabled(v); return this; }
+        public Builder failbackProbeInterval(Duration d) { cfg.failbackProbeInterval(d); return this; }
+        public Builder failbackStabilityWindow(Duration d) { cfg.failbackStabilityWindow(d); return this; }
+        public Builder failbackJitter(Duration d) { cfg.failbackJitter(d); return this; }
+        public Builder failbackDrainTimeout(Duration d) { cfg.failbackDrainTimeout(d); return this; }
 
         public BundleClient build() {
             return new BundleClient(cfg.build(), payloadCodec);
