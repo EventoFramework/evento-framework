@@ -2,7 +2,19 @@
 
 Last updated: 2026-09-29.
 
-## Full chaos run on `:after` + before/after comparison (2026-09-29, latest)
+## Cluster-mode guide (2026-09-29, latest)
+
+- `evento-lab-cluster/docs/` (Italian): `README.md` (index, reading path, bundle × level matrix),
+  `L0-single-server.md`, `L1-server-ha.md`, `L2-cells.md`, `L3-multi-region-contexts.md`,
+  `L4-db-failover.md`, `L5-limits-roadmap.md`, `config-reference.md`, `contexts.md`,
+  `chaos-scenarios.md`. Mermaid flowchart + sequence diagram per level; configuration shown as
+  compose fragments of the same images (L3 copied from `docker/compose.yaml`); every limit links
+  to `results/<S>/{before,after}/report.md`. Linked from `evento-lab-cluster/README.md`.
+- Documented but **not measured**: the async ES promotion (S08 with `S08_PROMOTE=es-pg-apac`) and
+  the per-region `ALL` lanes alternative (B in `docs/contexts.md`, configuration only:
+  `EVENTO_BUNDLE_ID=order-query-catalog-<cell>`).
+
+## Full chaos run on `:after` + before/after comparison (2026-09-29)
 
 - **All 18 scenarios S00..S17 (S15 included)** ran on `LAB_TAG=after`; each has
   `evento-lab-cluster/results/<S>/after/`. Summary: `results/AFTER-SUMMARY.md`; side by side:
