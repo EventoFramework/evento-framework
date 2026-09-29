@@ -166,9 +166,9 @@ anche contro 2.4.6; `/whoami` dice quali sono state applicate).
 | `EventoBundle.Builder.setDefaultRequestTimeout(Duration)` | 30 s | timeout (e deadline) di default |
 | `EventoBundle.Builder.setMaxInFlightRequests(int)` | 2048 | richieste in volo per bundle |
 | `EventoBundle.Builder.setFailbackEnabled(Boolean)` | `null` = attivo con 2+ indirizzi | failback all'endpoint 0 dopo un failover (N16); `false` = torna solo alla disconnessione successiva |
-| `EventoBundle.Builder.setFailbackProbeInterval(Duration)` | 5 s | cadenza della sonda TCP + `Ping` verso l'endpoint 0 (nessun `Hello`) |
-| `EventoBundle.Builder.setFailbackStabilityWindow(Duration)` | 30 s | quanto l'endpoint 0 deve rispondere a ogni sonda prima del ritorno; una sonda fallita la azzera; ×2 dopo ogni ritorno fallito (max 16×); +1 finestra per i bundle senza handler |
-| `EventoBundle.Builder.setFailbackJitter(Duration)` | 10 s | ritardo casuale massimo aggiunto per istanza |
+| `EventoBundle.Builder.setFailbackProbeInterval(Duration)` | 5 s | cadenza della sonda TCP + `Ping` verso l'endpoint 0 (nessun `Hello`; il server risponde solo quando è pronto); anche il ritardo massimo del ritorno reattivo dopo un `no handler for` |
+| `EventoBundle.Builder.setFailbackStabilityWindow(Duration)` | 30 s | quanto l'endpoint 0 deve rispondere a ogni sonda prima del ritorno; una sonda fallita la azzera; ×2 dopo ogni ritorno fallito (max 16×); dopo 3 rifiuti di fila dell'handshake il failback si sospende; un `no handler for` dal server attuale la salta (ritorno reattivo) |
+| `EventoBundle.Builder.setFailbackJitter(Duration)` | 10 s | ritardo casuale massimo aggiunto per istanza; i bundle senza handler aspettano in più l'intero intervallo (prima: una finestra intera, 30 s) |
 | `EventoBundle.Builder.setFailbackDrainTimeout(Duration)` | 10 s | attesa massima delle richieste in volo; le uscenti rimaste falliscono con `BrokerChangedException` |
 | `EventoBundle.Builder.setTransportConfig(NettyTransportConfig)` | `NettyTransportConfig.defaults()` (connect 5 s) | trasporto completo |
 | `EventoBundle.Builder.setConsumerEngineConfigBuilder(...)` | in-memory | nel laboratorio JDBC: `JdbcConsumerLock`, `JdbcConsumerStateStore`, `JdbcSagaStateStore`, `JdbcDeadEventQueue`, `JdbcDedupeStore` |

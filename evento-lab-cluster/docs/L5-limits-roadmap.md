@@ -23,7 +23,7 @@ S14, S03 e S07 citate sotto sono ancora quelle **senza** la chiave e vanno ripet
 | Id | Limite | Gravità | Prova | Rimedio oggi | Lavoro che lo chiude |
 |---|---|---|---|---|---|
 | G1 | nessun inoltro server-server | Blocker (per la topologia) | [S01](../results/S01/after/report.md): 0/5 `no handler` in ≤ 14 ms | architettura a celle con handler completi (L2) | mesh di server (sotto) |
-| N16 | failback dopo il failover degli endpoint: **implementato** (sonda lato bundle), da rimisurare nel laboratorio; resta la finestra non atomica per cella | High → Medium | prima: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md); fix: `BundleClientFailbackIT` | lista di indirizzi (non VIP); il laboratorio ripristina comunque il posizionamento (L22) | ritorno coordinato per cella, o la mesh G1 che rende innocuo l'ordine (sotto) |
+| N16 | failback dopo il failover degli endpoint: **implementato** (sonda lato bundle con readiness del server, ritorno reattivo su `no handler for`), da rimisurare nel laboratorio; resta il ritorno non atomico per cella (una richiesta fallita per chiamante) | High → Medium | prima: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md); fix: `BundleClientFailbackIT` | lista di indirizzi (non VIP); il laboratorio ripristina comunque il posizionamento (L22) | ritorno coordinato per cella, o la mesh G1 che rende innocuo l'ordine (sotto) |
 | G5 / N14 | ~~nessuna idempotenza tra retry~~ **implementato** (da rimisurare); resta la finestra "handler di servizio eseguito, evento non salvato" | High → Low | misure pre-fix: [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi. Codice: `IdempotentCommandPostgresIT` | `X-Idempotency-Key` → `sendIdempotent`; saghe: chiave derivata automatica | handler di servizio idempotenti sulla chiave ricevuta (finestra residua); retention delle chiavi |
 | G6 | nessuna fence `aggregate_seq` sugli append | High (latente) | nessun fork osservato (S05, S08); PK su `es__events` aggiunta | lock per aggregato + `verifyHeld` | colonna `aggregate_seq` con `UNIQUE(aggregate_id, aggregate_seq)` (sotto) |
 | N5 / N9 / N15 | ogni append serializza sul `es-lock` globale raggiunto via WAN; commit dopo la deadline | Medium | [S06](../results/S06/after/report.md): p50 APAC 22.8 s a 300 ms; 31 commit dopo il timeout | primario ES nella cella più scrivente | `SET LOCAL lock_timeout` = deadline residua; append per aggregato con la fence G6 |
@@ -64,29 +64,38 @@ server. `ConnectionSupervisor`, mentre è READY su un endpoint diverso dallo 0:
 
 1. sonda l'endpoint 0 ogni `failbackProbeInterval` (5 s) con TCP + `Ping`/`Pong` (risposto
    dall'heartbeat handler del server, sotto il router): senza `Hello` non c'è registrazione,
-   `NodeJoined`, consegna del buffer di risposte né supersede;
+   `NodeJoined`, consegna del buffer di risposte né supersede. Il server risponde solo quando è
+   pronto (`BusLifecycle.setProbeReadiness`, nel server Spring la readiness
+   `ACCEPTING_TRAFFIC`): la porta del bus si apre molto prima di JPA ed event store;
 2. si sposta quando l'endpoint 0 ha risposto a ogni sonda per `failbackStabilityWindow` (30 s) +
    jitter casuale fino a `failbackJitter` (10 s); una sonda fallita azzera la finestra (niente
-   ping-pong con un server che va e viene); i bundle senza handler aspettano una finestra in più;
-3. `evento:disable` sul server attuale, nuove richieste in uscita rifiutate
-   (`SendFailedException`, non inviate), drain limitato da `failbackDrainTimeout` (10 s) di
-   richieste in entrata e in uscita, chiusura e dial immediato dell'endpoint 0; le richieste
-   rimaste aperte falliscono con `BrokerChangedException` al `Welcome` del nuovo server;
-4. i controlli di identità (`expectedClusterName` / `expectedServerInstanceId`) valgono
+   ping-pong con un server che va e viene); i bundle senza handler aspettano in più l'intero
+   intervallo di jitter, così partono dopo gli handler che hanno iniziato la finestra insieme;
+3. **ritorno reattivo**: se una richiesta riceve `no handler for` dal server attuale mentre
+   l'endpoint 0 risponde alle sonde, il bundle si sposta subito (`event=failback_reactive`);
+4. nuove richieste in uscita rifiutate (`SendFailedException`, non inviate; ai gateway
+   `RequestNotSentException`), `evento:disable` sul server attuale, drain limitato da
+   `failbackDrainTimeout` (10 s) di richieste in entrata (fino alla scrittura completa della
+   risposta) e in uscita, chiusura e dial immediato dell'endpoint 0; le richieste rimaste aperte
+   falliscono con `BrokerChangedException` al `Welcome` del nuovo server. Notifiche e risposte
+   passano; un `enable()` durante il drain è rimandato alla registrazione sull'endpoint 0;
+5. i controlli di identità (`expectedClusterName` / `expectedServerInstanceId`) valgono
    sull'handshake del ritorno: se falliscono il bundle ruota al successivo e la finestra seguente
-   raddoppia (fino a 16×).
+   raddoppia (fino a 16×); dopo 3 rifiuti di fila il failback si sospende
+   (`event=failback_suspended`) finché una sessione sull'endpoint 0 non riesce per altra via o il
+   processo riparte.
 
 Configurazione: `EventoBundle.Builder.setFailbackEnabled/ProbeInterval/StabilityWindow/Jitter/DrainTimeout`
 (nel laboratorio `EVENTO_FAILBACK_WINDOW_S`). Resta aperto:
 
-- **ritorno non atomico per cella**: ogni bundle torna al proprio istante, e per qualche secondo
-  chiamanti e handler di una cella possono stare su server diversi (G1: `no handler for`).
-  L'ordine "handler prima, chiamanti dopo" riduce ma non elimina la finestra; la chiudono la mesh
-  G1 o un ritorno coordinato (tutti i bundle di una zona insieme, deciso dal server con presenza +
-  zona);
+- **ritorno non atomico per cella**: ogni bundle torna al proprio istante, e chiamanti e handler di
+  una cella possono stare per poco su server diversi (G1: `no handler for`). "Handler prima,
+  chiamanti dopo" più il ritorno reattivo riducono il costo a una richiesta fallita per chiamante
+  (poi il chiamante torna entro un intervallo di sonda + drain); lo eliminano la mesh G1 o un
+  ritorno coordinato (tutti i bundle di una zona insieme, deciso dal server con presenza + zona);
 - **VIP**: con un solo indirizzo non c'è un endpoint 0 da sondare;
-- la sonda prova che il server risponde, non che abbia finito di avviarsi (database, catalogo): la
-  finestra di stabilità è la protezione;
+- la readiness copre l'avvio; un guasto del database **dopo** l'avvio non la ritira (Spring non
+  mette il database nel gruppo di readiness di default): lì resta la finestra di stabilità;
 - rimisurare S03 e S13 su immagini con il fix.
 
 ## G5 / N14: chiave di idempotenza end-to-end
