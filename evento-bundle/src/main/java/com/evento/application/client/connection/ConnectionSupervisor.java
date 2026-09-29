@@ -41,6 +41,17 @@ import java.util.function.Consumer;
  * {@link #state()} or {@link #currentTransport()}; sends issued while the
  * supervisor is between transports fail fast with {@link SendFailedException}.
  *
+ * <p><b>Endpoint failover.</b> The config carries an ordered list of brokers,
+ * most preferred first. A session that fails before reaching READY (refused
+ * connection, handshake timeout, a broker that fails the identity checks)
+ * moves the next attempt to the next endpoint, wrapping around. A session that
+ * was READY and then dropped restarts from endpoint 0, which is how a bundle
+ * fails back to its local broker: there is no background probe while attached
+ * elsewhere — the next disconnect is the fail-back point. The backoff counts
+ * <em>passes over the list</em>, not single dials, so trying the second broker
+ * after the first refused costs one base delay, not an exponentially growing
+ * one; with a single endpoint this is exactly the pre-2.5 behaviour.
+ *
  * <p>Reconnect is mandatory by design: the supervisor only stops trying when
  * {@link #stop(Duration)} is called. A user that wants give-up-after-N
  * semantics injects a bounded {@link ReconnectStrategy}.
@@ -73,6 +84,14 @@ public final class ConnectionSupervisor implements AutoCloseable {
 
     private volatile Thread supervisorThread;
 
+    /** Index into {@code config.endpoints()} of the broker the next session dials. */
+    private final java.util.concurrent.atomic.AtomicInteger endpointIndex =
+            new java.util.concurrent.atomic.AtomicInteger();
+    /** The broker of the current (or last) session that passed the handshake; null before the first. */
+    private volatile String serverInstanceId;
+    private volatile BundleClientConfig.Endpoint currentEndpoint;
+    private final CopyOnWriteArrayList<Consumer<String>> brokerListeners = new CopyOnWriteArrayList<>();
+
     public ConnectionSupervisor(BundleClientConfig config, PayloadCodec payloadCodec) {
         this.config = config;
         this.payloadCodec = payloadCodec;
@@ -86,6 +105,25 @@ public final class ConnectionSupervisor implements AutoCloseable {
 
     public void onStateChange(BiConsumer<BundleClientState, BundleClientState> listener) {
         stateListeners.add(listener);
+    }
+
+    /**
+     * The {@code serverInstanceId} announced by the broker of the current
+     * session, or of the last one that passed the handshake; null before any.
+     */
+    public String serverInstanceId() { return serverInstanceId; }
+
+    /** The endpoint of the current (or last) session; null before the first dial. */
+    public BundleClientConfig.Endpoint currentEndpoint() { return currentEndpoint; }
+
+    /**
+     * Called with the broker's {@code serverInstanceId} every time a session
+     * passes the handshake (identity checks included), before the bundle
+     * registers and becomes READY — i.e. before any request can be sent on the
+     * new session.
+     */
+    public void onBrokerAccepted(Consumer<String> listener) {
+        brokerListeners.add(listener);
     }
 
     /**
@@ -175,26 +213,41 @@ public final class ConnectionSupervisor implements AutoCloseable {
     // ---------- internals ----------
 
     private void runLoop(CompletableFuture<Void> firstAttempt) {
+        var endpoints = config.endpoints();
+        int n = endpoints.size();
         int attempt = 0;
         while (!state.get().isTerminal() && state.get() != BundleClientState.CLOSING) {
             attempt++;
+            // Passes over the endpoint list, 1-based: what the backoff and the
+            // give-up decision count. Equal to `attempt` with one endpoint.
+            int pass = (attempt + n - 1) / n;
+            var endpoint = endpoints.get(Math.floorMod(endpointIndex.get(), n));
             try {
-                runOneSession(firstAttempt);
+                runOneSession(firstAttempt, endpoint);
                 attempt = 0;  // a successful session resets the backoff counter
+                pass = 0;
+                // Fail back: after a READY session drops, the preferred broker is
+                // dialled first again, even if this session was on a fallback.
+                endpointIndex.set(0);
             } catch (Throwable t) {
-                log.warn("event=supervisor_session_failed attempt={} cause={}", attempt, t.toString());
-                if (!firstAttempt.isDone() && attempt == 1) {
+                log.warn("event=supervisor_session_failed attempt={} endpoint={} cause={}",
+                        attempt, endpoint, t.toString());
+                endpointIndex.set(Math.floorMod(endpointIndex.get() + 1, n));
+                // start() fails only once every endpoint has been tried: a bundle
+                // whose preferred broker is down at boot but whose second one is
+                // healthy must start, not crash.
+                if (!firstAttempt.isDone() && attempt == n) {
                     firstAttempt.completeExceptionally(t);
                 }
-                if (reconnectStrategy.shouldGiveUp(attempt)) {
-                    log.error("event=supervisor_gave_up attempt={}", attempt);
+                if (attempt % n == 0 && reconnectStrategy.shouldGiveUp(pass)) {
+                    log.error("event=supervisor_gave_up attempt={} passes={}", attempt, pass);
                     transitionToForce(BundleClientState.CLOSED, "give_up");
                     return;
                 }
             }
             if (state.get() == BundleClientState.CLOSING) break;
             transitionToForce(BundleClientState.RECONNECTING, "post_session");
-            var delay = reconnectStrategy.nextDelay(attempt);
+            var delay = reconnectStrategy.nextDelay(pass);
             try { Thread.sleep(delay.toMillis()); }
             catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -211,11 +264,13 @@ public final class ConnectionSupervisor implements AutoCloseable {
      * here until the transport drops — at which point the run loop decides
      * whether to reconnect.
      */
-    private void runOneSession(CompletableFuture<Void> firstAttempt) throws Exception {
+    private void runOneSession(CompletableFuture<Void> firstAttempt,
+                               BundleClientConfig.Endpoint endpoint) throws Exception {
         transitionToForce(BundleClientState.CONNECTING, "open_transport");
+        currentEndpoint = endpoint;
         var transport = new NettyClientTransport(
                 config.bundleId() + "-" + config.instanceId(),
-                config.host(), config.port(),
+                endpoint.host(), endpoint.port(),
                 config.transportConfig());
         var sessionEnded = new CompletableFuture<Void>();
 
@@ -233,7 +288,7 @@ public final class ConnectionSupervisor implements AutoCloseable {
                     java.util.concurrent.TimeUnit.MILLISECONDS);
 
             transitionToForce(BundleClientState.HANDSHAKING, "tcp_up");
-            performHandshake(transport);
+            performHandshake(transport, endpoint);
 
             transitionToForce(BundleClientState.REGISTERING, "after_welcome");
             performRegistration(transport);
@@ -248,7 +303,8 @@ public final class ConnectionSupervisor implements AutoCloseable {
         }
     }
 
-    private void performHandshake(NettyClientTransport transport) throws Exception {
+    private void performHandshake(NettyClientTransport transport,
+                                  BundleClientConfig.Endpoint endpoint) throws Exception {
         var hello = HelloFactory.build(config);
         var helloFuture = new CompletableFuture<Welcome>();
         pendingHellos.put(hello.correlationId(), helloFuture);
@@ -270,13 +326,33 @@ public final class ConnectionSupervisor implements AutoCloseable {
             if (expected != null && !expected.equals(welcome.serverInstanceId())) {
                 log.error("event=server_instance_mismatch host={} port={} announced={} expected={} "
                                 + "- refusing to register with this broker",
-                        config.host(), config.port(), welcome.serverInstanceId(), expected);
-                throw new IllegalStateException("broker at " + config.host() + ":" + config.port()
+                        endpoint.host(), endpoint.port(), welcome.serverInstanceId(), expected);
+                throw new IllegalStateException("broker at " + endpoint
                         + " announced instance '" + welcome.serverInstanceId()
                         + "', expected '" + expected + "'");
             }
-            log.info("event=handshake_complete server_instance={} accepted_caps={}",
-                    welcome.serverInstanceId(), welcome.acceptedCapabilities());
+            // Same rule for the cluster: with an endpoint list every broker has its
+            // own instance id, so the cluster name is the identity they share. An
+            // empty announcement (older broker, or evento.cluster.name unset) cannot
+            // prove membership and is refused like a wrong one.
+            var expectedCluster = config.expectedClusterName();
+            if (expectedCluster != null && !expectedCluster.equals(welcome.clusterName())) {
+                log.error("event=cluster_name_mismatch host={} port={} announced={} expected={} "
+                                + "- refusing to register with this broker",
+                        endpoint.host(), endpoint.port(),
+                        welcome.clusterName().isEmpty() ? "<none>" : welcome.clusterName(), expectedCluster);
+                throw new IllegalStateException("broker at " + endpoint
+                        + " announced cluster '" + welcome.clusterName()
+                        + "', expected '" + expectedCluster + "'");
+            }
+            log.info("event=handshake_complete server_instance={} cluster={} endpoint={} accepted_caps={}",
+                    welcome.serverInstanceId(), welcome.clusterName(), endpoint,
+                    welcome.acceptedCapabilities());
+            serverInstanceId = welcome.serverInstanceId();
+            for (var l : brokerListeners) {
+                try { l.accept(welcome.serverInstanceId()); }
+                catch (Throwable t) { log.warn("event=broker_listener_error", t); }
+            }
         } finally {
             pendingHellos.remove(hello.correlationId());
         }

@@ -80,6 +80,32 @@ public record NettyTransportConfig(
                 reconnectStrategy, codec, businessExecutor, ssl);
     }
 
+    /**
+     * The same config with other heartbeat timings. {@code readIdle} is how long
+     * a silent peer is tolerated before the link is declared dead — the time a
+     * silent partition takes to be noticed — and {@code writeIdle} is the Ping
+     * cadence that keeps the peer's (and, via Pong, our own) read side busy, so
+     * it must be shorter than {@code readIdle}.
+     */
+    public NettyTransportConfig withHeartbeat(Duration writeIdle, Duration readIdle) {
+        Objects.requireNonNull(writeIdle, "writeIdle");
+        Objects.requireNonNull(readIdle, "readIdle");
+        if (writeIdle.compareTo(readIdle) >= 0) {
+            throw new IllegalArgumentException("heartbeat writeIdle (" + writeIdle
+                    + ") must be shorter than readIdle (" + readIdle + ")");
+        }
+        return new NettyTransportConfig(writeIdle, readIdle, connectTimeout,
+                maxFrameLength, writeBufferHighWaterMark, writeBufferLowWaterMark,
+                reconnectStrategy, codec, businessExecutor, sslContext);
+    }
+
+    /** The same config with another reconnect strategy. */
+    public NettyTransportConfig withReconnectStrategy(ReconnectStrategy strategy) {
+        return new NettyTransportConfig(heartbeatWriteIdle, heartbeatReadIdle, connectTimeout,
+                maxFrameLength, writeBufferHighWaterMark, writeBufferLowWaterMark,
+                strategy, codec, businessExecutor, sslContext);
+    }
+
     public static NettyTransportConfig defaults() {
         return new NettyTransportConfig(
                 Duration.ofSeconds(15),
