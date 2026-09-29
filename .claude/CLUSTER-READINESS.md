@@ -365,7 +365,10 @@ Folder layout:
 
 ```
 evento-lab-cluster/
-  evento-lab-cluster-app/          # one boot jar; role selected by EVENTO_ROLE=server-core|region|saga
+  lab-api/ lab-support/           # shared messages + Contexts.GLOBAL="ALL"; deployment contract, stores
+  order-command/ order-query/ order-saga/ order-observer/ order-gateway/
+                                   # one bundle per responsibility; topology by env only (EVENTO_CONTEXTS, ...)
+                                   # (as built: supersedes the original one-jar EVENTO_ROLE design)
   evento-lab-cluster-chaos/        # scenario tests + invariant checker
   docker/{Dockerfile,compose.yaml,pg/,nginx/,toxiproxy/}
   scenarios/S1..Sn/{run.sh,run.ps1,README.md}

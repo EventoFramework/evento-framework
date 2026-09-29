@@ -9,7 +9,7 @@ import com.evento.lab.cluster.api.event.PriceChangedEvent;
 /**
  * The world-wide price list. Every price change is a cross-region event: it
  * is stamped with the literal context {@link Contexts#GLOBAL} ({@code "ALL"},
- * <b>not</b> the wildcard {@code Context.ALL = "*"}), so no regional consumer
+ * <b>not</b> the wildcard {@code Context.WILDCARD = "*"}, formerly {@code Context.ALL}), so no regional consumer
  * receives it and the single global lane of order-query fans it out to every
  * regional database.
  */

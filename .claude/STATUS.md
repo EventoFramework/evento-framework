@@ -2,7 +2,27 @@
 
 Last updated: 2026-09-29.
 
-## Multi-region cluster: framework batches 1 and 2 on `feat/evento-lab-cluster` (2026-09-29, latest)
+## Lab bundles merged; completeness check (2026-09-29, latest)
+
+- **`lab/bundles` merged** into `feat/evento-lab-cluster` (it had been finished in its worktree
+  but never merged, which is why `AfricaOrderProjector` & co. were still on the lab branch). The
+  role-switched `evento-lab-cluster-app` (EVENTO_ROLE, one projector class per region,
+  `RegionOrderProjection`, `GlobalOrderProjector`) is gone; the lab is now `lab-api`,
+  `lab-support` and five bundles (`order-command|query|saga|observer|gateway`), each deployed by
+  env only. Regions are contexts of one `OrderProjector` via `setComponentContexts`; the literal
+  context `Contexts.GLOBAL = "ALL"` has one lane (`order-query_CatalogProjector_1_ALL`) fanning
+  prices out to the three regional app DBs with a per-target `last_seq` guard.
+- Follow-ups: `Contexts.WILDCARD` now points at `Context.WILDCARD` (not the deprecated alias);
+  CLUSTER-READINESS folder layout updated to the as-built modules.
+- Standard suite + all lab-cluster module tests green (`CatalogStoreIT` on real Postgres;
+  S00..S17 scenario tests skip without a running lab).
+- **Still open (bigger):** images not rebuilt / scenarios not re-run on the bundle topology;
+  no `after/` results for any scenario (only `before/` for S00, S01, S05, S06, S11, S12);
+  S16/S17 never run; no complexity-tiered docs, diagrams or HTML slides under
+  `evento-lab-cluster`; the old containers (`region-*`, `cell-core-*`, `saga-*`) from the
+  pre-split image may still be running and must be torn down before `scripts/up.sh`.
+
+## Multi-region cluster: framework batches 1 and 2 on `feat/evento-lab-cluster` (2026-09-29)
 
 - **Batch 1 merged** into the lab branch (merge commits, no rebase): `cluster/consumer` (G10,
   G11), `cluster/es-locks` (G3, G6 PK, G9, G14, G15, G19, dedicated lock pool),
