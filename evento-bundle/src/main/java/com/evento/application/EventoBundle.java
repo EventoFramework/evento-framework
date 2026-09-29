@@ -370,6 +370,25 @@ public class EventoBundle {
          */
         private Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors = new HashMap<>();
 
+        /**
+         * The event contexts a consumer component (projector, saga, observer) reads.
+         * Default is {@code Context.DEFAULT}.
+         *
+         * <p>Each value is either an exact context name ({@code "SUD_AMERICA"}) or a
+         * pattern in which {@code *} stands for any run of characters ({@code "*"}
+         * reads every context). Nothing else is a wildcard: in particular {@code _}
+         * and {@code %} are ordinary characters of a name. The server turns the
+         * value into a SQL {@code LIKE} pattern; servers before the G15 fix did not
+         * escape {@code _} / {@code %}, so on those a name like {@code SUD_AMERICA}
+         * also matched {@code SUDXAMERICA}. Against such a server, either avoid
+         * {@code _} and {@code %} in context names or check that no other context
+         * name collides with the pattern.
+         *
+         * <p>Context is carried by events only ({@code Event#getContext}); commands
+         * and queries have no framework-level context, so an aggregate that must
+         * emit events in the caller's context has to copy it from a command field
+         * into the event itself.
+         */
         public Builder setComponentContexts(Class<?> componentClass, String... contexts) {
             this.contexts.put(componentClass.getSimpleName(), new HashSet<>(Arrays.asList(contexts)));
             return this;

@@ -25,6 +25,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `LocalityPickIT` runs three handler replicas (EU, AM, APAC) and an AM caller over real TCP:
   every call stays in AM until the AM replica is killed, then spreads over EU and APAC.
 
+### Documentation
+
+- **Context naming and matching (G15, client side).** `EventoBundle.Builder.setComponentContexts`
+  now documents that `*` is the only wildcard in a context value and that servers without the
+  G15 fix treat `_` and `%` as `LIKE` wildcards too (`SUD_AMERICA` also matches `SUDXAMERICA`).
+- **Commands carry no framework-level context (G23).** The stale `DomainCommand` javadoc that
+  described a `PayloadWithContext` base class is replaced by what is true: only `Event` has a
+  context, and an aggregate that emits region-scoped events copies the context from a command
+  field into the event.
+
 ---
 
 ## [2.4.6] — 2026-09-05
