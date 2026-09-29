@@ -14,12 +14,15 @@ import com.evento.server.bus.event.BusEvent;
 import com.evento.server.service.BundleService;
 import com.evento.transport.protocol.BundleDiscoveryInfo;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Service class for auto-discovery of bundles, handlers, and payloads.
@@ -34,6 +37,10 @@ public class AutoDiscoveryService {
     private final ComponentRepository componentRepository;
     private final ConsumerService consumerService;
     private final BusFacade busFacade;
+    private final BundlePresence presence;
+    private final CatalogWriter catalogWriter;
+    /** Null in unit tests: catalog passes then run without a surrounding transaction. */
+    private final TransactionTemplate tx;
 
     private final PgDistributedLock pgDistributedLock;
 
@@ -42,33 +49,69 @@ public class AutoDiscoveryService {
                                 HandlerService handlerService,
                                 PayloadRepository payloadRepository, BundleService bundleService,
                                 ComponentRepository componentRepository,
-                                ConsumerService consumerService, DataSource dataSource) {
+                                ConsumerService consumerService, DataSource dataSource,
+                                BundlePresence presence,
+                                CatalogWriter catalogWriter,
+                                PlatformTransactionManager transactionManager) {
         this.bundleRepository = bundleRepository;
         this.handlerService = handlerService;
         this.payloadRepository = payloadRepository;
         this.bundleService = bundleService;
         this.consumerService = consumerService;
         this.busFacade = busFacade;
+        this.presence = presence;
+        this.catalogWriter = catalogWriter;
+        this.tx = transactionManager == null ? null : new TransactionTemplate(transactionManager);
+        this.componentRepository = componentRepository;
+        this.pgDistributedLock = new PgDistributedLock(dataSource);
         busFacade.subscribe(event -> {
             switch (event) {
+                case BusEvent.NodeJoined joined -> onSessionOpened(joined.node());
                 case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
                 case BusEvent.NodeLeft left -> onNodeLeave(left.node());
                 default -> { /* ignore other event types */ }
             }
         });
-        this.componentRepository = componentRepository;
-        this.pgDistributedLock = new PgDistributedLock(dataSource);
+    }
+
+    /**
+     * Claims the instance's session for this server before anything else about the
+     * instance is written: the claim is what tells a server that still holds a stale
+     * session of the same instance to keep its hands off on the eventual NodeLeft.
+     * Joins and leaves of one server are published in order on its bus (a superseded
+     * session's NodeLeft precedes the replacement's NodeJoined), so the claim never
+     * races a leave on the same server.
+     */
+    private void onSessionOpened(NodeAddress node) {
+        try {
+            presence.claim(node);
+        } catch (Exception e) {
+            logger.error("Failed to record the session of instance %s (bundle %s) on this server"
+                    .formatted(node.instanceId(), node.bundleId()), e);
+        }
     }
 
     private void onNodeJoin(NodeAddress node, BundleDiscoveryInfo registration) {
         try {
-            var key = "DISCOVERY:" + node.bundleId();
+            var key = ConsumerService.catalogLockKey(node.bundleId());
             pgDistributedLock.lockedArea(key, () -> {
+                // One transaction per discovery pass: a failure part-way used to leave
+                // the catalog half-written (some handlers without their payloads).
+                ConsumerService.inTransaction(tx, () -> discover(node, registration));
+                registration.handlers().stream().map(RegisteredHandler::getComponentName)
+                        .distinct().forEach(handlerService::clearCache);
+            });
+
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
+    }
+
+    private void discover(NodeAddress node, BundleDiscoveryInfo registration) {
                 logger.info("Discovering bundle: %s".formatted(node.bundleId()));
                 if (!registration.handlers().isEmpty()) {
                     var bundle = bundleRepository.findById(node.bundleId()).orElseGet(() -> {
-                                logger.info("Bundle %s not found, creating one from discovery".formatted(node.bundleId()));
-                                return bundleRepository.save(new Bundle(
+                                if (catalogWriter.insertBundleIfAbsent(
                                         node.bundleId(),
                                         registration.bundleVersion(),
                                         registration.description(),
@@ -76,8 +119,12 @@ public class AutoDiscoveryService {
                                         registration.linePrefix(),
                                         registration.repositoryUrl(),
                                         node.instanceId(),
-                                        true,
-                                        Instant.now()));
+                                        true)) {
+                                    logger.info("Bundle %s not found, created one from discovery".formatted(node.bundleId()));
+                                }
+                                return bundleRepository.findById(node.bundleId()).orElseThrow(() ->
+                                        new IllegalStateException("Bundle %s vanished during discovery"
+                                                .formatted(node.bundleId())));
                             }
                     );
 
@@ -132,39 +179,22 @@ public class AutoDiscoveryService {
                             logger.info(registeredHandler.toString());
                             var handler = new Handler();
                             handler.setComponent(componentRepository.findById(registeredHandler.getComponentName()).orElseGet(() -> {
-                                var c = new Component();
-                                c.setBundle(bundle);
-                                c.setComponentName(registeredHandler.getComponentName());
-                                c.setComponentType(registeredHandler.getComponentType());
-                                c.setDescription(registeredHandler.getComponentDescription());
-                                c.setDetail(registeredHandler.getComponentDetail());
-                                c.setPath(registeredHandler.getComponentPath());
-                                c.setLine(registeredHandler.getComponentLine() > 0
-                                        ? registeredHandler.getComponentLine() : null);
-                                c.setUpdatedAt(Instant.now());
-                                return componentRepository.save(c);
+                                catalogWriter.insertComponentIfAbsent(
+                                        registeredHandler.getComponentName(),
+                                        registeredHandler.getComponentType(),
+                                        bundle.getId(),
+                                        registeredHandler.getComponentDescription(),
+                                        registeredHandler.getComponentDetail(),
+                                        registeredHandler.getComponentPath(),
+                                        registeredHandler.getComponentLine() > 0
+                                                ? registeredHandler.getComponentLine() : null);
+                                return componentRepository.findById(registeredHandler.getComponentName())
+                                        .orElseThrow(() -> new IllegalStateException(
+                                                "Component %s vanished during discovery"
+                                                        .formatted(registeredHandler.getComponentName())));
                             }));
-                            handler.setHandledPayload(payloadRepository.findById(registeredHandler.getHandledPayload())
-                                    .map(p -> {
-                                        if (p.getType() != registeredHandler.getHandledPayloadType()) {
-                                            p.setType(registeredHandler.getHandledPayloadType());
-                                            return payloadRepository.save(p);
-                                        }
-                                        return p;
-                                    })
-                                    .orElseGet(
-                                            () -> {
-                                                logger.info("Payload %s not found, creating an ephemeral one".formatted(registeredHandler.getHandledPayload()));
-                                                var payload = new Payload();
-                                                payload.setName(registeredHandler.getHandledPayload());
-                                                payload.setJsonSchema("null");
-                                                payload.setValidJsonSchema(false);
-                                                payload.setType(registeredHandler.getHandledPayloadType());
-                                                payload.setUpdatedAt(Instant.now());
-                                                payload.setRegisteredIn(bundle.getId());
-                                                return payloadRepository.save(payload);
-                                            }
-                                    ));
+                            handler.setHandledPayload(ensurePayload(registeredHandler.getHandledPayload(),
+                                    registeredHandler.getHandledPayloadType(), bundle.getId(), true));
                             var type = switch (registeredHandler.getComponentType()) {
                                 case Aggregate -> PayloadType.DomainEvent;
                                 case Service -> PayloadType.ServiceEvent;
@@ -172,27 +202,7 @@ public class AutoDiscoveryService {
                                 default -> null;
                             };
                             handler.setReturnType(registeredHandler.getReturnType() == null ? null :
-                                    payloadRepository.findById(registeredHandler.getReturnType())
-                                    .map(p -> {
-                                        if (p.getType() != type) {
-                                            p.setType(type);
-                                            return payloadRepository.save(p);
-                                        }
-                                        return p;
-                                    })
-                                    .orElseGet(
-                                            () -> {
-                                                logger.info("Payload %s not found, creating an ephemeral one".formatted(registeredHandler.getReturnType()));
-                                                var payload = new Payload();
-                                                payload.setName(registeredHandler.getReturnType());
-                                                payload.setJsonSchema("null");
-                                                payload.setType(type);
-                                                payload.setValidJsonSchema(false);
-                                                payload.setUpdatedAt(Instant.now());
-                                                payload.setRegisteredIn(bundle.getId());
-                                                return payloadRepository.save(payload);
-                                            }
-                                    ));
+                                    ensurePayload(registeredHandler.getReturnType(), type, bundle.getId(), true));
                             handler.setHandlerType(registeredHandler.getHandlerType());
                             handler.setReturnIsMultiple(registeredHandler.isReturnIsMultiple());
                             handler.setAssociationProperty(registeredHandler.getAssociationProperty());
@@ -265,35 +275,39 @@ public class AutoDiscoveryService {
                         p.setUpdatedAt(Instant.now());
                         payloadRepository.save(p);
                     }));
-                registration.handlers().stream().map(RegisteredHandler::getComponentName)
-                        .distinct().forEach(handlerService::clearCache);
-            });
-
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-        }
     }
 
     private Map<Integer, Payload> buildInvocations(RegisteredHandler rh, String bundleId) {
         var invocations = new HashMap<Integer, Payload>();
         rh.getInvokedCommands().forEach((line, name) ->
-                invocations.put(line, resolveOrCreatePayload(name, PayloadType.Command, bundleId)));
+                invocations.put(line, ensurePayload(name, PayloadType.Command, bundleId, false)));
         rh.getInvokedQueries().forEach((line, name) ->
-                invocations.put(line, resolveOrCreatePayload(name, PayloadType.Query, bundleId)));
+                invocations.put(line, ensurePayload(name, PayloadType.Query, bundleId, false)));
         return invocations;
     }
 
-    private Payload resolveOrCreatePayload(String name, PayloadType type, String bundleId) {
-        return payloadRepository.findById(name).orElseGet(() -> {
-            var payload = new Payload();
-            payload.setName(name);
-            payload.setJsonSchema("null");
-            payload.setType(type);
-            payload.setUpdatedAt(Instant.now());
-            payload.setRegisteredIn(bundleId);
-            payload.setValidJsonSchema(false);
-            return payloadRepository.save(payload);
+    /**
+     * Returns the payload row, creating a placeholder when it is missing. Payload names
+     * are shared across bundles, so two bundles discovered at once (under different
+     * per-bundle lock keys, possibly on different servers) can both miss the row; the
+     * ON CONFLICT insert lets the second one read what the first wrote instead of
+     * failing on {@code core__payload_pkey}.
+     *
+     * @param alignType when true, an existing row whose type differs is corrected to {@code type}
+     */
+    private Payload ensurePayload(String name, PayloadType type, String bundleId, boolean alignType) {
+        var p = payloadRepository.findById(name).orElseGet(() -> {
+            if (catalogWriter.insertPayloadIfAbsent(name, type, bundleId)) {
+                logger.info("Payload %s not found, created an ephemeral one".formatted(name));
+            }
+            return payloadRepository.findById(name).orElseThrow(() ->
+                    new IllegalStateException("Payload %s vanished during discovery".formatted(name)));
         });
+        if (alignType && p.getType() != type) {
+            p.setType(type);
+            return payloadRepository.save(p);
+        }
+        return p;
     }
 
     /**
@@ -307,8 +321,22 @@ public class AutoDiscoveryService {
             // leave both touch bundle-scoped rows (components, handlers, the bundle
             // itself), so they must serialize per bundle. The old instance-scoped key
             // let a leave interleave with a join for the same bundle.
-            var key = "DISCOVERY:" + node.bundleId();
-            pgDistributedLock.lockedArea(key, () -> {
+            var key = ConsumerService.catalogLockKey(node.bundleId());
+            var removed = new AtomicBoolean();
+            pgDistributedLock.lockedArea(key, () -> ConsumerService.inTransaction(tx, () -> {
+                // The instance may have failed over to another server before this one
+                // noticed the dead socket. That server has since re-registered it, so
+                // this departure is stale: clearing the consumer rows or unregistering
+                // the bundle here would wipe the live registration cluster-wide. The
+                // conditional delete holds the presence row lock until this transaction
+                // commits, so a concurrent claim by another server waits for the cleanup
+                // below instead of interleaving with it.
+                if (presence.release(node) == BundlePresence.Release.OWNED_ELSEWHERE) {
+                    logger.info("Skipping leave cleanup of instance %s (bundle %s): its session is now held by server %s"
+                            .formatted(node.instanceId(), node.bundleId(),
+                                    presence.ownerOf(node.instanceId()).orElse("?")));
+                    return;
+                }
                 // Consumer rows are per-instance; the instance is gone, so its
                 // rows go with it. Bundles (>= this version) re-send their
                 // consumer registration on every re-established session, so a
@@ -316,21 +344,31 @@ public class AutoDiscoveryService {
                 // that ConsumerController did destructively inside a GET.
                 consumerService.clearInstance(node.instanceId());
                 bundleRepository.findById(node.bundleId()).ifPresent(b -> {
-                    if (!node.instanceId().equals(b.getInstanceId())) return;
+                    // A null instanceId marks a manually published bundle: never reclaimed.
+                    if (b.getInstanceId() == null) return;
                     // Reclaim the ephemeral registration only when no instance of the
-                    // bundle is connected anymore: a live instance still needs the
-                    // components and handlers, and wiping them here made its later
-                    // consumer registration fail on missing component rows.
+                    // bundle is connected anymore, here or on another server sharing this
+                    // catalog: a live instance still needs the components and handlers,
+                    // and wiping them here made its later consumer registration fail on
+                    // missing component rows. The last instance out reclaims, whichever
+                    // it is: requiring the leaver to be the instance recorded on the row
+                    // leaked the bundle whenever the recorded one left first while another
+                    // instance (on this server or another) was still connected.
                     boolean bundleStillLive = busFacade.currentView().stream()
-                            .anyMatch(n -> node.bundleId().equals(n.bundleId()));
+                            .anyMatch(n -> node.bundleId().equals(n.bundleId()))
+                            || presence.liveElsewhere(node.bundleId(), node.instanceId());
                     if (bundleStillLive) {
                         logger.info("Skipping unregister of bundle %s: another live instance is connected"
                                 .formatted(node.bundleId()));
                         return;
                     }
-                    bundleService.unregister(node.bundleId());
+                    bundleService.removeBundle(node.bundleId());
+                    removed.set(true);
                 });
-            });
+            }));
+            // Payload rows are shared across bundles, so their sweep runs after the commit,
+            // one best-effort delete at a time (see BundleService#sweepOrphanPayloads).
+            if (removed.get()) bundleService.sweepOrphanPayloads();
         }catch (Exception e){
             logger.error(e.getMessage(), e);
         }

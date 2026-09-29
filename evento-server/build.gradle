@@ -53,6 +53,8 @@ dependencies {
 	testImplementation 'org.awaitility:awaitility:4.3.0'
 	testImplementation "io.netty:netty-pkitesting:${nettyVersion}"
 	testImplementation project(':evento-bundle')
+	testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+	testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
 }
 
 tasks.register('prepareKotlinBuildScriptModel') {
@@ -68,4 +70,13 @@ processResources {
 test {
 	useJUnitPlatform()
 	jvmArgs '-Xmx2g'
+	// Testcontainers-based ITs (gated on EVENTO_RUN_JDBC_IT=true). Forward DOCKER_HOST
+	// only when set: Testcontainers' own lookup finds the Windows named pipe and the
+	// Linux socket, and a forced unix:// default would break the former.
+	def dockerHost = System.getenv("DOCKER_HOST")
+	if (dockerHost) environment "DOCKER_HOST", dockerHost
+	environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+	// Same Docker Engine API pin as the JDBC state-store module: 1.40 is accepted both
+	// by recent Docker Desktop daemons and by older CI engines.
+	systemProperty "api.version", System.getProperty("api.version") ?: "1.40"
 }

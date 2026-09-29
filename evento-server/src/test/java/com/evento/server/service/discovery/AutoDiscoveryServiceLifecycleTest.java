@@ -48,6 +48,7 @@ class AutoDiscoveryServiceLifecycleTest {
     private HandlerService handlerService;
     private BundleService bundleService;
     private ConsumerService consumerService;
+    private BundlePresence presence;
     private Consumer<BusEvent> subscriber;
 
     @BeforeEach
@@ -58,10 +59,15 @@ class AutoDiscoveryServiceLifecycleTest {
         handlerService = mock(HandlerService.class);
         bundleService = mock(BundleService.class);
         consumerService = mock(ConsumerService.class);
-        // Null DataSource → PgDistributedLock stays JVM-local (embedded/test mode).
+        presence = mock(BundlePresence.class);
+        // Single-server default: this server held the leaving session.
+        when(presence.release(any())).thenReturn(BundlePresence.Release.OWNED);
+        // Null DataSource → PgDistributedLock stays JVM-local (embedded/test mode);
+        // null transaction manager → catalog passes run without a transaction.
         new AutoDiscoveryService(busFacade, bundleRepository, handlerService,
                 mock(PayloadRepository.class), bundleService,
-                mock(ComponentRepository.class), consumerService, null);
+                mock(ComponentRepository.class), consumerService, null,
+                presence, mock(CatalogWriter.class), null);
         var captor = ArgumentCaptor.forClass(Consumer.class);
         verify(busFacade).subscribe(captor.capture());
         subscriber = captor.getValue();
@@ -100,7 +106,7 @@ class AutoDiscoveryServiceLifecycleTest {
         subscriber.accept(new BusEvent.NodeLeft(node("old-instance"), "socket_closed", Instant.now()));
 
         verify(consumerService).clearInstance("old-instance");
-        verify(bundleService, never()).unregister(any());
+        verify(bundleService, never()).removeBundle(any());
     }
 
     @Test
@@ -111,7 +117,54 @@ class AutoDiscoveryServiceLifecycleTest {
         subscriber.accept(new BusEvent.NodeLeft(node("old-instance"), "socket_closed", Instant.now()));
 
         verify(consumerService).clearInstance("old-instance");
-        verify(bundleService).unregister(BUNDLE);
+        verify(bundleService).removeBundle(BUNDLE);
+        verify(bundleService).sweepOrphanPayloads();
+    }
+
+    @Test
+    void lastInstanceOutReclaimsEvenWhenTheRowRecordsAnotherInstance() {
+        // The recorded instance left first while this one was still connected; without
+        // this, nobody reclaimed the bundle and it leaked in the catalog for ever.
+        when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("recorded-instance")));
+        when(busFacade.currentView()).thenReturn(Set.of());
+
+        subscriber.accept(new BusEvent.NodeLeft(node("other-instance"), "socket_closed", Instant.now()));
+
+        verify(bundleService).removeBundle(BUNDLE);
+    }
+
+    @Test
+    void sessionOpenClaimsTheInstanceForThisServer() {
+        subscriber.accept(new BusEvent.NodeJoined(node("inst-1"), Instant.now()));
+
+        verify(presence).claim(node("inst-1"));
+    }
+
+    @Test
+    void staleLeaveOfAnInstanceNowHeldByAnotherServerTouchesNothing() {
+        // G7: the instance failed over to another server, which re-registered it,
+        // before this server noticed the dead socket.
+        when(presence.release(node("inst-1"))).thenReturn(BundlePresence.Release.OWNED_ELSEWHERE);
+        when(presence.ownerOf("inst-1")).thenReturn(Optional.of("server-b"));
+        when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("inst-1")));
+        when(busFacade.currentView()).thenReturn(Set.of());
+
+        subscriber.accept(new BusEvent.NodeLeft(node("inst-1"), "read_idle", Instant.now()));
+
+        verify(consumerService, never()).clearInstance(any());
+        verify(bundleService, never()).removeBundle(any());
+    }
+
+    @Test
+    void leaveKeepsTheBundleWhileAnotherInstanceIsLiveOnAnotherServer() {
+        when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("old-instance")));
+        when(busFacade.currentView()).thenReturn(Set.of());
+        when(presence.liveElsewhere(BUNDLE, "old-instance")).thenReturn(true);
+
+        subscriber.accept(new BusEvent.NodeLeft(node("old-instance"), "socket_closed", Instant.now()));
+
+        verify(consumerService).clearInstance("old-instance");
+        verify(bundleService, never()).removeBundle(any());
     }
 
     @Test
@@ -121,6 +174,6 @@ class AutoDiscoveryServiceLifecycleTest {
 
         subscriber.accept(new BusEvent.NodeLeft(node("old-instance"), "socket_closed", Instant.now()));
 
-        verify(bundleService, never()).unregister(any());
+        verify(bundleService, never()).removeBundle(any());
     }
 }

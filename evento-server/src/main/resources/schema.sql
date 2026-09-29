@@ -79,6 +79,22 @@ create table if not exists core__handler__invocation
     foreign key (invocations_name) references core__payload (name)
 );
 
+-- Which evento-server holds the live session of each bundle instance. Several
+-- servers share this catalog: when an instance fails over from server A to server B,
+-- A notices the dead socket only later (heartbeat read-idle), and A's NodeLeft must
+-- then leave B's fresh registration alone. Only this row can tell A that.
+create table if not exists core__bundle_instance
+(
+    instance_id        varchar(255) not null
+        primary key,
+    bundle_id          varchar(255) not null,
+    server_instance_id varchar(255) not null,
+    updated_at         timestamp    null
+);
+
+create index if not exists core__bundle_instance_bundle_id_index
+    on core__bundle_instance (bundle_id);
+
 
 CREATE TABLE IF NOT EXISTS int_lock
 (
