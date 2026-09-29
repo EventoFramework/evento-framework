@@ -73,6 +73,10 @@ public final class BundleClient implements AutoCloseable {
                 queryPayloadTypes(config)
         );
         this.supervisor.setInboundSink(inboundDispatcher.asMessageSink());
+        // A reply is buffered by the broker the request went through and is only
+        // replayed to this bundle on that broker. Attaching anywhere else strands
+        // it; say so now instead of after the whole request timeout.
+        this.supervisor.onBrokerAccepted(correlationTracker::failSentOnOtherBroker);
     }
 
     // ---------- Lifecycle ----------
@@ -104,6 +108,12 @@ public final class BundleClient implements AutoCloseable {
     }
 
     public BundleClientState state() { return supervisor.state(); }
+
+    /** The {@code serverInstanceId} of the broker this bundle is (or was last) attached to. */
+    public String serverInstanceId() { return supervisor.serverInstanceId(); }
+
+    /** The endpoint of the current (or last) session. */
+    public BundleClientConfig.Endpoint currentEndpoint() { return supervisor.currentEndpoint(); }
 
     public void onStateChange(BiConsumer<BundleClientState, BundleClientState> listener) {
         supervisor.onStateChange(listener);
@@ -144,7 +154,8 @@ public final class BundleClient implements AutoCloseable {
                             + " requests already in flight (max " + limit + ")"));
         }
         var correlationId = UUID.randomUUID();
-        var future = correlationTracker.track(correlationId, payloadType, timeout);
+        var future = correlationTracker.track(correlationId, payloadType, timeout,
+                supervisor.serverInstanceId());
         var request = new Request(
                 correlationId,
                 config.bundleId(), config.instanceId(), config.bundleVersion(),
@@ -249,6 +260,9 @@ public final class BundleClient implements AutoCloseable {
 
         public Builder host(String host) { cfg.host(host); return this; }
         public Builder port(int port) { cfg.port(port); return this; }
+        /** Append a broker to the failover list; the first added is the preferred one. */
+        public Builder endpoint(String host, int port) { cfg.endpoint(host, port); return this; }
+        public Builder endpoints(java.util.List<BundleClientConfig.Endpoint> endpoints) { cfg.endpoints(endpoints); return this; }
         public Builder bundleVersion(String v) { cfg.bundleVersion(v); return this; }
         public Builder authToken(String t) { cfg.authToken(t); return this; }
         public Builder description(String d) { cfg.description(d); return this; }
@@ -261,11 +275,18 @@ public final class BundleClient implements AutoCloseable {
         public Builder capabilities(java.util.Set<String> caps) { cfg.capabilities(caps); return this; }
         public Builder handshakeTimeout(Duration d) { cfg.handshakeTimeout(d); return this; }
         public Builder defaultRequestTimeout(Duration d) { cfg.defaultRequestTimeout(d); return this; }
+        /** Cap on outstanding requests; 0 disables the bound. */
+        public Builder maxInFlightRequests(int n) { cfg.maxInFlightRequests(n); return this; }
         public Builder transportConfig(com.evento.transport.netty.NettyTransportConfig c) { cfg.transportConfig(c); return this; }
         public Builder payloadCodec(PayloadCodec c) { this.payloadCodec = c; return this; }
         public Builder autoEnable(boolean v) { cfg.autoEnable(v); return this; }
         /** Refuse any broker whose announced instance id is not this one; null accepts all. */
         public Builder expectedServerInstanceId(String id) { cfg.expectedServerInstanceId(id); return this; }
+        /**
+         * Refuse any broker that does not announce this cluster name; null accepts all.
+         * Use this rather than {@link #expectedServerInstanceId} with several endpoints.
+         */
+        public Builder expectedClusterName(String name) { cfg.expectedClusterName(name); return this; }
 
         public BundleClient build() {
             return new BundleClient(cfg.build(), payloadCodec);
