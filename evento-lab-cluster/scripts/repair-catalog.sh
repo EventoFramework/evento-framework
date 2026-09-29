@@ -34,7 +34,8 @@ check_only=false
 
 # container -> "<consumer rows its instance must own> [bundle ids that must own handler rows]".
 # One bundle per JVM, instance id = container name; one consumer row per consumer engine
-# (component x context of EVENTO_CONTEXTS). Gateways own no handler and no consumer.
+# (component x context of EVENTO_CONTEXTS). Every bundle with components must own handler rows,
+# sagas and observers included: G8 drops theirs silently too (L14). Gateways own neither.
 declare -A expected=(
   [order-command-eu]="0 order-command"
   [order-command-am]="0 order-command"
@@ -46,10 +47,10 @@ declare -A expected=(
   [order-query-global-eu]="1 order-query"
   [order-query-global-apac]="1 order-query"
   [order-query-wildcard]="1 order-query"
-  [order-saga-eu]="2"
-  [order-saga-am]="2"
-  [order-saga-apac]="3"
-  [order-observer]="1"
+  [order-saga-eu]="2 order-saga"
+  [order-saga-am]="2 order-saga"
+  [order-saga-apac]="3 order-saga"
+  [order-observer]="1 order-observer"
 )
 if [ "$(docker inspect -f '{{.State.Status}}' order-command-eu-b 2>/dev/null || true)" = "running" ]; then
   expected[order-command-eu-b]="0 order-command"
