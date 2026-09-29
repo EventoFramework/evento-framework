@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,14 +32,25 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p><b>Derived idempotency keys (G5).</b> One proxy is created per handled message. When a
  * consumer engine (saga, projector, observer) scopes it with
  * {@link #withDerivedIdempotencyKeys(String, long)}, every command the handler sends without an
- * explicit key gets {@code evento:<consumerId>:<eventSequenceNumber>:<ordinal>}, the ordinal
- * counting the commands sent in this handler invocation from 0. A redelivered event (the consumer
- * failed or crashed before its checkpoint, a dead event retried, the handler's own retry loop)
- * therefore re-issues the same keys, and the broker answers the commands that already ran with
- * their stored events instead of running them again. The ordinal is reset by
- * {@link #beginAttempt()} before each attempt of the handler's retry loop. Deterministic as long
- * as the handler sends its commands in a deterministic order; a handler that fans commands out
- * from several threads gets ordinals in arrival order and should pass explicit keys instead.
+ * explicit key gets {@code evento:<consumerId>:<eventSequenceNumber>:<CommandSimpleName>:<n>},
+ * {@code n} counting the commands <em>of that type</em> sent in this handler invocation from 0.
+ * A redelivered event (the consumer failed or crashed before its checkpoint, a dead event
+ * retried, the handler's own retry loop) therefore re-issues the same keys, and the broker
+ * answers the commands that already ran with their stored events instead of running them again.
+ * The ordinals are reset by {@link #beginAttempt()} before each attempt of the handler's retry
+ * loop.
+ *
+ * <p>Ordinals are counted per command type so that an attempt which sends fewer commands (a
+ * branch that depends on a query answer, say) can only shift keys among commands of one type,
+ * never hand one command type the key of another; the broker records the command type and
+ * aggregate id with each key and refuses a key presented by a different command
+ * ({@code IdempotencyKeyMismatchException}) instead of replaying the other command's event.
+ * Deterministic as long as the handler sends the commands of one type in a deterministic order;
+ * a handler that fans commands out from several threads should pass explicit keys instead.
+ *
+ * <p>Keys are derived only when the target gateway {@linkplain CommandGateway#supportsIdempotencyKeys()
+ * supports them}; a gateway that does not (a decorator written before keys existed) gets the
+ * plain five-argument send, as before G5.
  */
 public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
@@ -60,10 +72,11 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
     /** {@code consumerId:eventSequenceNumber} when commands get derived keys, else {@code null}. */
     private volatile String idempotencyScope;
-    private final AtomicInteger commandOrdinal = new AtomicInteger();
+    /** Per command type (simple name): the ordinal of the next command of that type. */
+    private final ConcurrentHashMap<String, AtomicInteger> commandOrdinals = new ConcurrentHashMap<>();
 
-    /** Prefix of every derived key, so it cannot be mistaken for a caller-chosen one. */
-    static final String DERIVED_KEY_PREFIX = "evento:";
+    /** Prefix of every derived key; caller-chosen keys may not use it. */
+    static final String DERIVED_KEY_PREFIX = CommandMessage.RESERVED_IDEMPOTENCY_KEY_PREFIX;
 
     /**
      * Constructs a new GatewayTelemetryProxy with the specified parameters.
@@ -130,21 +143,40 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
     /**
      * Sends with the explicit key when given, else with the derived key when this proxy is
-     * scoped to a consumed event, else without a key. Every command takes an ordinal, keyed or
-     * not, so an explicit key on one command does not shift the derived keys of the others.
+     * scoped to a consumed event and the target gateway supports keys, else without a key
+     * through the target's five-argument {@code send}. Every command takes an ordinal of its
+     * type, keyed or not, so an explicit key on one command does not shift the derived keys of
+     * the others. An explicit key in the reserved {@code evento:} namespace fails the send.
      */
     @Override
     public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage,
                                          long timeout, TimeUnit unit, String idempotencyKey) {
         updateInvocationCounter(command);
-        int ordinal = commandOrdinal.getAndIncrement();
+        var type = commandType(command);
+        int ordinal = commandOrdinals.computeIfAbsent(type, t -> new AtomicInteger()).getAndIncrement();
         var key = CommandMessage.normalizeIdempotencyKey(idempotencyKey);
-        var scope = idempotencyScope;
-        if (key == null && scope != null) {
-            key = deriveIdempotencyKey(scope, ordinal);
+        var correlated = tracingAgent.correlate(metadata, this.handledMessage);
+        if (key != null) {
+            try {
+                CommandMessage.checkCallerIdempotencyKey(key);
+            } catch (IllegalArgumentException e) {
+                return CompletableFuture.failedFuture(e);
+            }
+            // Explicit: the target carries it or fails loudly (never dropped silently).
+            return commandGateway.send(command, correlated, this.handledMessage, timeout, unit, key);
         }
-        return commandGateway.send(command, tracingAgent.correlate(metadata, this.handledMessage),
-                this.handledMessage, timeout, unit, key);
+        var scope = idempotencyScope;
+        if (scope != null && commandGateway.supportsIdempotencyKeys()) {
+            return commandGateway.send(command, correlated, this.handledMessage, timeout, unit,
+                    deriveIdempotencyKey(scope, type, ordinal));
+        }
+        return commandGateway.send(command, correlated, this.handledMessage, timeout, unit);
+    }
+
+    /** Whether the target gateway carries keys (see {@link CommandGateway#supportsIdempotencyKeys()}). */
+    @Override
+    public boolean supportsIdempotencyKeys() {
+        return commandGateway != null && commandGateway.supportsIdempotencyKeys();
     }
 
     /**
@@ -157,13 +189,13 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
      */
     public GatewayTelemetryProxy withDerivedIdempotencyKeys(String consumerId, long eventSequenceNumber) {
         this.idempotencyScope = consumerId == null ? null : consumerId + ":" + eventSequenceNumber;
-        this.commandOrdinal.set(0);
+        this.commandOrdinals.clear();
         return this;
     }
 
-    /** Restarts the command ordinal: called before each attempt of a handler's retry loop. */
+    /** Restarts the command ordinals: called before each attempt of a handler's retry loop. */
     public void beginAttempt() {
-        commandOrdinal.set(0);
+        commandOrdinals.clear();
     }
 
     /**
@@ -174,13 +206,20 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
         if (gateway instanceof GatewayTelemetryProxy proxy) proxy.beginAttempt();
     }
 
+    /** The simple name of the command's class (the full name for an anonymous or local class). */
+    static String commandType(Command command) {
+        var simple = command.getClass().getSimpleName();
+        return simple.isEmpty() ? command.getClass().getName() : simple;
+    }
+
     /**
-     * {@code evento:<scope>:<ordinal>}, or, when that exceeds
-     * {@link CommandMessage#MAX_IDEMPOTENCY_KEY_LENGTH} (a very long consumer id), its SHA-256
-     * as {@code evento:sha256:<hex>}: same input, same key, always within the column width.
+     * {@code evento:<scope>:<commandType>:<ordinal>}, or, when that exceeds
+     * {@link CommandMessage#MAX_IDEMPOTENCY_KEY_LENGTH} (a very long consumer id or class name),
+     * its SHA-256 as {@code evento:sha256:<hex>}: same input, same key, always within the column
+     * width.
      */
-    static String deriveIdempotencyKey(String scope, int ordinal) {
-        var key = DERIVED_KEY_PREFIX + scope + ":" + ordinal;
+    static String deriveIdempotencyKey(String scope, String commandType, int ordinal) {
+        var key = DERIVED_KEY_PREFIX + scope + ":" + commandType + ":" + ordinal;
         if (key.length() <= CommandMessage.MAX_IDEMPOTENCY_KEY_LENGTH) return key;
         try {
             var digest = MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
@@ -189,8 +228,6 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
-
-
 
 
     @Override

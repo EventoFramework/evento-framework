@@ -96,7 +96,7 @@ public class ProjectorReference extends Reference {
         var retry = 0;
         while (true) {
             try {
-                // Same derived idempotency keys on every attempt (G5): the ordinal restarts.
+                // Same derived idempotency keys on every attempt (G5): the per-type ordinals restart.
                 GatewayTelemetryProxy.beginAttempt(commandGateway);
                 messageHandlerInterceptor.beforeProjectorEventHandling(
                         getRef(),
