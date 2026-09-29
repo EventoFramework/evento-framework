@@ -7,9 +7,12 @@ Questo non è un livello da deployare: è l'elenco di ciò che, dopo le correzio
 dimostra e il lavoro che lo chiuderebbe. Tutti i nomi di proprietà o API marcati *(proposta)* **non
 esistono** nel codice: sono progetti.
 
-**Aggiornamento G5.** La chiave di idempotenza end-to-end è stata implementata dopo le misure
-(branch `cluster/idempotency`, sezione [G5](#g5--n14-chiave-di-idempotenza-end-to-end)); le prove
-S14, S03 e S07 citate sotto sono ancora quelle **senza** la chiave e vanno ripetute.
+**Aggiornamento G5 e N16 (misurati).** La chiave di idempotenza end-to-end (G5) e il failback (N16)
+sono stati implementati dopo le prime misure e poi misurati nella riesecuzione `after-g5n16`
+([AFTER-SUMMARY](../results/AFTER-SUMMARY.md), §"Re-run with idempotency keys"): S14 **0 chiavi salvate
+due volte** (prima 8) e 4/4 retry di comandi già salvati con risposta 2xx; S03 e S07 **0 pagamenti
+eseguiti due volte**; S03 **8/8** JVM APAC e S13 **7/7** JVM EU tornati sul proprio server senza
+riavvii, in 55.7 s e 53.3 s.
 
 ## Quando leggerlo
 
@@ -23,8 +26,8 @@ S14, S03 e S07 citate sotto sono ancora quelle **senza** la chiave e vanno ripet
 | Id | Limite | Gravità | Prova | Rimedio oggi | Lavoro che lo chiude |
 |---|---|---|---|---|---|
 | G1 | nessun inoltro server-server | Blocker (per la topologia) | [S01](../results/S01/after/report.md): 0/5 `no handler` in ≤ 14 ms | architettura a celle con handler completi (L2) | mesh di server (sotto) |
-| N16 | failback dopo il failover degli endpoint: **implementato** (sonda lato bundle con readiness del server, ritorno reattivo su `no handler for`), da rimisurare nel laboratorio; resta il ritorno non atomico per cella (una richiesta fallita per chiamante) | High → Medium | prima: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md); fix: `BundleClientFailbackIT` | lista di indirizzi (non VIP); il laboratorio ripristina comunque il posizionamento (L22) | ritorno coordinato per cella, o la mesh G1 che rende innocuo l'ordine (sotto) |
-| G5 / N14 | ~~nessuna idempotenza tra retry~~ **implementato** (da rimisurare); resta la finestra "handler di servizio eseguito, evento non salvato" | High → Low | misure pre-fix: [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi. Codice: `IdempotentCommandPostgresIT` | `X-Idempotency-Key` → `sendIdempotent`; saghe: chiave derivata automatica | handler di servizio idempotenti sulla chiave ricevuta (finestra residua); retention delle chiavi |
+| N16 | failback dopo il failover degli endpoint: **implementato e misurato** (sonda lato bundle con readiness del server, ritorno reattivo su `no handler for`): S03 8/8 JVM a casa in 55.7 s, S13 7/7 in 53.3 s, senza riavvii, 0 falliti; resta il ritorno non atomico per cella (al più una richiesta fallita per chiamante; 0 osservate) | High → Medium | prima: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md); dopo: [S03 `after-g5n16`](../results/S03/after-g5n16/report.md), [S13 `after-g5n16`](../results/S13/after-g5n16/report.md); `BundleClientFailbackIT` | lista di indirizzi (non VIP); il laboratorio ripristina comunque il posizionamento (L22) | ritorno coordinato per cella, o la mesh G1 che rende innocuo l'ordine (sotto) |
+| G5 / N14 | ~~nessuna idempotenza tra retry~~ **implementato e misurato**: 0 chiavi doppie, 0 pagamenti doppi; resta la finestra "handler di servizio eseguito, evento non salvato" (non colpita nella S07 rieseguita) | High → Low | prima: [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi. Dopo: [S14 `after-g5n16`](../results/S14/after-g5n16/report.md) 0 chiavi doppie, 4/4 retry 2xx; [S03](../results/S03/after-g5n16/report.md) e [S07](../results/S07/after-g5n16/report.md) 0 pagamenti doppi. Codice: `IdempotentCommandPostgresIT` | `X-Idempotency-Key` → `sendIdempotent`; saghe: chiave derivata automatica | handler di servizio idempotenti sulla chiave ricevuta (finestra residua); retention delle chiavi |
 | G6 | nessuna fence `aggregate_seq` sugli append | High (latente) | nessun fork osservato (S05, S08); PK su `es__events` aggiunta | lock per aggregato + `verifyHeld` | colonna `aggregate_seq` con `UNIQUE(aggregate_id, aggregate_seq)` (sotto) |
 | N5 / N9 / N15 | ogni append serializza sul `es-lock` globale raggiunto via WAN; commit dopo la deadline | Medium | [S06](../results/S06/after/report.md): p50 APAC 22.8 s a 300 ms; 31 commit dopo il timeout | primario ES nella cella più scrivente | `SET LOCAL lock_timeout` = deadline residua; append per aggregato con la fence G6 |
 | N4 | la lane `ALL` salta tra repliche, senza località | Medium | [S16](../results/S16/after/report.md): scrittori EU 9 / APAC 6, fan-out 10.2 s | una sola replica attiva nella cella del primario | affinità della lane (sotto) |
@@ -96,12 +99,18 @@ Configurazione: `EventoBundle.Builder.setFailbackEnabled/ProbeInterval/Stability
 - **VIP**: con un solo indirizzo non c'è un endpoint 0 da sondare;
 - la readiness copre l'avvio; un guasto del database **dopo** l'avvio non la ritira (Spring non
   mette il database nel gruppo di readiness di default): lì resta la finestra di stabilità;
-- rimisurare S03 e S13 su immagini con il fix.
+- **misurato** (`after-g5n16`): in S03 gli 8 JVM APAC tornano tutti su `evento-apac` (handler 38–44 s
+  dopo l'avvio del server, gateway 51–55 s, ogni passaggio 0.50–0.68 s), in S13 i 7 JVM EU su
+  `evento-eu` in 53.3 s; nessun `failback_failed`, `failback_suspended` o `failback_reactive`, e nessun
+  `no handler for`, perché gli handler erano già a casa quando i gateway si sono spostati.
 
 ## G5 / N14: chiave di idempotenza end-to-end
 
-**Stato: implementata** (branch `cluster/idempotency`). Nessuna configurazione: basta mandare la
-chiave, oppure lasciarla derivare.
+**Stato: implementata e misurata** (branch `cluster/idempotency`; laboratorio `after-g5n16`: S14 0
+chiavi doppie e 4/4 retry 2xx con `event=idempotent_replay stage=before_lock`, S03/S07 0 pagamenti
+doppi). Nessuna configurazione: basta mandare la chiave, oppure lasciarla derivare. Costo misurato: un
+comando con chiave da una cella remota paga circa un RTT in più verso il primario ES (S00 p50 APAC
+1.36–1.47 s contro 1.16–1.18 s; la cella del primario non cambia).
 
 ```mermaid
 sequenceDiagram
@@ -214,8 +223,8 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 | Lavoro | Scenario | Risultato atteso |
 |---|---|---|
 | G1 mesh | S01 | AMERICA 5/5 anche senza `order-command-am` |
-| N16 failback (implementato, da misurare) | S03, S13 | dopo il ritorno del server, 0 bundle fuori cella senza riavvii: osservazioni "fail back" di S03 e S13 AS_EXPECTED, `placementRestoredAtStart` vuoto nello scenario successivo |
-| G5 (implementato, da misurare) | S14, S03, S07 | 0 chiavi doppie; ogni retry di un comando già salvato risponde 2xx; 0 pagamenti doppi salvo la finestra residua (S07) |
+| N16 failback (implementato, **misurato**) | S03, S13 | **ottenuto**: S03 8/8 e S13 7/7 JVM a casa senza riavvii (55.7 s, 53.3 s), osservazioni "fail back" AS_EXPECTED, il ripristino di sicurezza di S13 non trova nulla |
+| G5 (implementato, **misurato**) | S14, S03, S07 | **ottenuto**: S14 0 chiavi doppie, 4/4 retry di comandi già salvati 2xx (kill a 3000 ms); S03 e S07 0 pagamenti doppi (finestra residua non colpita) |
 | N4 | S16 | un solo scrittore, fan-out vicino ai 2.1 s di `:before` |
 | N15 | S06 | 0 comandi salvati dopo il timeout a 300 ms |
 | staleness | S15 | ordini proiettati con orologio a −40 s |

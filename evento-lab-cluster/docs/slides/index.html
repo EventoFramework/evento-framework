@@ -912,7 +912,7 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
         <tr><td>S08 promozione ES → scritture riprese</td><td class="num">7,6 s</td><td class="num">15,1 s</td></tr>
         <tr><td>S09 checkpoint monotoni (campioni)</td><td class="num">58</td><td class="num">59</td></tr>
       </table>
-      <div class="callout bad small" style="margin-top:12px"><b>Aperto, N16: nessun failback.</b> Quando il server torna, i bundle restano su quello remoto e il traffico della cella continua ad attraversare la WAN. Con G1, un gateway che si ricollega al server tornato trova <code>no handler</code>.</div>
+      <div class="callout good small" style="margin-top:12px"><b>N16, failback: corretto e misurato.</b> Quando il server torna, i bundle tornano da soli: S03 8/8 JVM APAC (l'ultima 55,7 s dopo il ritorno), S13 7/7 JVM EU (53,3 s), senza riavvii. Resta il ritorno per bundle e non per cella (G1: un chiamante può ricevere <code>no handler</code> per poco; 0 casi osservati).</div>
     </div>
   </div>
   <div class="foot"><span>Livelli di complessità · 5/6 · Fonte: results/S03, S04, S08, S09</span><span class="pg"></span></div>
@@ -943,11 +943,12 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
         <tr><td>S00 7×20 ordini/min: confermati</td><td class="num">71 %</td><td class="num">100 %</td></tr>
         <tr><td>S06 append/s con 300 ms di RTT (G9)</td><td class="num">1,65</td><td class="num">6,55</td></tr>
         <tr><td>S07 EU+AM confermati con APAC isolata (N11)</td><td class="num">0/16</td><td class="num">41/41</td></tr>
-        <tr><td>S14 chiavi scritte due volte (G5)</td><td class="num">1</td><td class="num">8</td></tr>
+        <tr><td>S14 chiavi scritte due volte (G5)</td><td class="num">1</td><td class="num">8 → 0 con le chiavi</td></tr>
         <tr><td>S15 orologio −40 s: ordini proiettati</td><td class="num">0/5</td><td class="num">0/5</td></tr>
       </table>
       <p class="small ink2" style="margin-top:12px"><span class="tag t-fixed">corretto</span> L'append ora è un solo statement (circa 1,1 RTT) e i lock hanno un pool dedicato, quindi una partizione non blocca più l'intero cluster.</p>
-      <p class="small ink2"><span class="tag t-open">aperto</span> Manca l'idempotenza tra un tentativo e il suo retry (G5, N14). Le append restano serializzate su un lock attraverso la WAN (N5, N9, N15) e il controllo di staleness del fetch non tollera un orologio indietro di 40 s (S15).</p>
+      <p class="small ink2"><span class="tag t-fixed">corretto dopo</span> Con le chiavi di idempotenza (G5, N14) un retry riceve l'evento salvato: 0 chiavi doppie in S14, 0 pagamenti doppi in S07 (<code>after-g5n16</code>).</p>
+      <p class="small ink2"><span class="tag t-open">aperto</span> Le append restano serializzate su un lock attraverso la WAN (N5, N9, N15) e il controllo di staleness del fetch non tollera un orologio indietro di 40 s (S15).</p>
     </div>
   </div>
   <div class="foot"><span>Livelli di complessità · 6/6 · Fonte: results/S00, S06, S07, S14, S15</span><span class="pg"></span></div>
@@ -997,9 +998,9 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
         <text x="535" y="372" text-anchor="end" class="t-good b">ack · prima risposta APAC 10,3 s dopo il kill</text>
         <!-- restart -->
         <rect x="335" y="402" width="120" height="30" rx="6" class="node"/><text x="395" y="422" text-anchor="middle">evento-apac torna</text>
-        <rect x="10" y="446" width="760" height="40" rx="6" class="node-bad"/>
-        <text x="20" y="463" class="t-bad b" font-size="12.5">N16, nessun failback: i bundle APAC restano su evento-eu e il traffico APAC continua ad attraversare la WAN.</text>
-        <text x="20" y="479" class="s" font-size="12">Il lab, prima di ogni scenario, riavvia le JVM finite sul server sbagliato (L22).</text>
+        <rect x="10" y="446" width="760" height="40" rx="6" class="node-good"/>
+        <text x="20" y="463" class="t-good b" font-size="12.5">N16, failback: gli 8 bundle APAC tornano da soli su evento-apac, l'ultimo 55,7 s dopo il suo ritorno.</text>
+        <text x="20" y="479" class="s" font-size="12">Prima gli handler, poi i gateway; nessun riavvio. Senza N16 restavano su evento-eu (L22 li riavviava).</text>
       </g>
     </svg>
     <div>
@@ -1015,11 +1016,12 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
         <li>APAC <b>44/44</b>, p50 448 ms, p99 570 ms dopo il kill.</li>
         <li>0 chiamate appese; EU+AM 62/62.</li>
         <li>Convergenza I6: 0,36 s.</li>
-        <li>Nella <code>after-run1</code> la saga ha ritentato un <code>ProcessPaymentCommand</code> dopo una <code>BrokerChangedException</code> e il pagamento è stato eseguito due volte (N14).</li>
+        <li><code>after-run1</code>: la saga ritenta dopo una <code>BrokerChangedException</code>, pagamento doppio (N14).</li>
+        <li>Con G5 + N16: APAC 46/46, 0 pagamenti doppi, 8/8 bundle a casa senza riavvii.</li>
       </ul>
     </div>
   </div>
-  <div class="foot"><span>Fonte: results/S03/{before,after,after-run1}, FINDINGS.md N14, N16</span><span class="pg"></span></div>
+  <div class="foot"><span>Fonte: results/S03/{before,after,after-run1,after-g5n16}, FINDINGS.md N14, N16</span><span class="pg"></span></div>
 </section>
 
 <!-- ================= 19. FLOW: DB FAILOVER ================= -->
@@ -1118,16 +1120,16 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
         </g>
         <text x="620" y="282" text-anchor="middle" class="b" font-size="13">EU+AM: 41/41 confermati · p50 585 ms · p99 866 ms</text>
         <text x="900" y="206" class="s" font-size="12">convergenza 0,2 s dopo la guarigione</text>
-        <text x="900" y="226" class="t-bad" font-size="12">N14: 2 pagamenti eseguiti due volte</text>
-        <text x="900" y="244" class="t-bad" font-size="12">e 1 evento scritto due volte</text>
+        <text x="900" y="226" class="t-bad" font-size="12">senza G5: 2 pagamenti doppi (N14)</text>
+        <text x="900" y="244" class="t-good" font-size="12">con G5: 0 (after-g5n16, 44/44)</text>
       </g>
     </svg>
     <div class="cols" style="margin-top:12px">
       <p class="small ink2"><b>Meccanismo nella 2.4.6:</b> la sessione di lock di <code>evento-apac</code> verso <code>es-pg-eu</code> passa dalla WAN. Con una partizione silenziosa Postgres tiene vivo quel backend, e i suoi lock advisory, finché non interviene il keepalive TCP. Il guasto di una regione remota blocca le scritture di tutte, compresa la cella del primario.</p>
-      <p class="small ink2"><b>Dopo:</b> APAC isolata risponde 504 dal lb (0/12, come previsto), il resto del cluster lavora. Emerge però un difetto che prima era nascosto, perché prima si fermava tutto: la saga di APAC ritenta un comando con esito indeterminato e il pagamento viene eseguito due volte (N14, cioè G5 a livello applicativo).</p>
+      <p class="small ink2"><b>Dopo:</b> APAC isolata risponde 504 dal lb (0/12, come previsto), il resto del cluster lavora. Emerge però un difetto che prima era nascosto, perché prima si fermava tutto: la saga di APAC ritenta un comando con esito indeterminato e il pagamento viene eseguito due volte (N14, cioè G5 a livello applicativo). Con le chiavi di idempotenza (<code>after-g5n16</code>) il retry porta la chiave derivata del primo tentativo: EU+AM 44/44 e 0 pagamenti doppi. Resta la finestra di un pagamento eseguito il cui evento non si è potuto salvare (non colpita).</p>
     </div>
   </div>
-  <div class="foot"><span>Fonte: results/S07/{before,before-run1,after}, FINDINGS.md N11, N14</span><span class="pg"></span></div>
+  <div class="foot"><span>Fonte: results/S07/{before,before-run1,after,after-g5n16}, FINDINGS.md N11, N14</span><span class="pg"></span></div>
 </section>
 
 <!-- ================= 21. GAPS & FIXES ================= -->
@@ -1138,10 +1140,10 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
     <table class="t tight" style="font-size:13.5px">
       <tr><th style="width:70px">Gap</th><th>Problema nella 2.4.6</th><th>Correzione</th><th style="width:250px">Evidenza nel lab</th><th style="width:96px">Stato</th></tr>
       <tr><td>G1</td><td>Nessun routing tra server</td><td>Nessuna: architettura a celle</td><td>S01 0/5 su entrambe</td><td><span class="tag t-open">aperto</span></td></tr>
-      <tr><td>G2</td><td>Il bundle usa solo il primo indirizzo</td><td>Lista ordinata di endpoint, failover sul successivo</td><td>S03 APAC 0/18 → 44/44</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G2 · N16</td><td>Il bundle usa solo il primo indirizzo</td><td>Lista di endpoint: failover, poi failback (sonda)</td><td>S03 APAC 0/18 → 46/46; failback 8/8</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G3</td><td>Tutti i lock su un'unica connessione</td><td>Pool di lock dedicato, attese limitate, <code>LockLostException</code></td><td>S05 8 deadlock → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G4</td><td>Richieste in volo perse al cambio di broker</td><td><code>BrokerChangedException</code> al nuovo <code>Welcome</code></td><td>S14 24/24 dopo ≥ 25 s → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
-      <tr><td>G5</td><td>Nessun exactly-once tra server</td><td>N3 scarta i comandi scaduti; manca la chiave di idempotenza</td><td>S14 chiavi doppie 1 → 8</td><td><span class="tag t-open">aperto</span></td></tr>
+      <tr><td>G5 · N14</td><td>Nessun exactly-once tra server</td><td>Chiave di idempotenza salvata con l'evento</td><td>S14 chiavi doppie 1 → 8 → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G7 · N12</td><td>NodeLeft stantio cancella i consumer</td><td>Tabella di presenza <code>core__bundle_instance</code></td><td>S04 10 id cancellati → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G8</td><td>Race di inserimento nel catalogo</td><td>Un lock per bundle, <code>ON CONFLICT</code>, una transazione</td><td>riparazioni 7/7 → 0/7</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G9 · N11</td><td>Append CPES in circa 4 round trip con lock tenuto</td><td>Uno statement: <code>pg_advisory_xact_lock</code> + <code>INSERT … RETURNING</code></td><td>S00 5,2 → 9,35 append/s; S07 0/16 → 41/41</td><td><span class="tag t-fixed">corretto</span></td></tr>
@@ -1154,7 +1156,7 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
       <tr><td>G6</td><td>Nessuna barriera di sequenza sull'append</td><td>PK online + <code>verifyHeld</code>; manca la barriera <code>aggregate_seq</code></td><td>nessun fork su entrambe</td><td><span class="tag t-part">in parte</span></td></tr>
     </table>
   </div>
-  <div class="foot"><span>Fonte: CLUSTER-READINESS.md "Status after fixes", results/COMPARISON.md</span><span class="pg"></span></div>
+  <div class="foot"><span>Fonte: CLUSTER-READINESS.md "Status after fixes", results/COMPARISON.md (G5, N16: run after-g5n16)</span><span class="pg"></span></div>
 </section>
 
 <!-- ================= 22. CHART: S00 ================= -->
@@ -1206,15 +1208,15 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
       <div id="chart-res"></div>
     </div>
     <div>
-      <h3>Verdetti delle 80 osservazioni</h3>
+      <h3>Verdetti delle 87 osservazioni</h3>
       <div id="chart-verdicts"></div>
       <div class="legend" style="flex-wrap:wrap;gap:10px 16px;margin-top:6px;font-size:13.5px">
-        <span><span class="swatch" style="background:var(--good)"></span>AS_EXPECTED 58 → 73</span>
-        <span><span class="swatch" style="background:var(--warn-mark)"></span>KNOWN_DEFECT 16 → 5</span>
+        <span><span class="swatch" style="background:var(--good)"></span>AS_EXPECTED 63 → 83</span>
+        <span><span class="swatch" style="background:var(--warn-mark)"></span>KNOWN_DEFECT 16 → 3</span>
         <span><span class="swatch" style="background:var(--bad)"></span>UNEXPECTED 4 → 0</span>
-        <span><span class="swatch" style="background:var(--line-strong)"></span>INCONCLUSIVE 2 → 2</span>
+        <span><span class="swatch" style="background:var(--line-strong)"></span>INCONCLUSIVE 4 → 1</span>
       </div>
-      <p class="xs muted" style="margin-top:12px">Somma di <code>verdictCounts</code> su S00–S17. I 5 KNOWN_DEFECT che restano su <code>:after</code> sono S01 (G1), S07 (N14), S13 A (guardia legacy, rifiuta per contratto), S14 (G5) e S15 (orologio). I 2 INCONCLUSIVE sono S03 (nessuna chiamata in volo al kill) e S12 (G10 non misurabile con CPES).</p>
+      <p class="xs muted" style="margin-top:12px">Somma di <code>verdictCounts</code> su S00–S17, con l'harness più recente su entrambi i lati: <code>after-g5n16</code> per S00, S02, S03, S05, S07, S13, S14, S16 e <code>before-g5n16</code> per S03, S07, S13, S14. I 3 KNOWN_DEFECT che restano su <code>:after</code> sono S01 (G1), S13 A (guardia legacy, rifiuta per contratto) e S15 (orologio); l'INCONCLUSIVE è S12 (G10 non misurabile con CPES). Senza G5/N16 erano 73/5/0/2 su 80.</p>
     </div>
   </div>
   <div class="foot"><span>Fonte: results/S03, S04, S05, S07, S10, S13 e BEFORE/AFTER-SUMMARY (G8); verdictCounts di tutti i summary.json</span><span class="pg"></span></div>
@@ -1235,19 +1237,20 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
     <div>
       <h3>Contatori</h3>
       <table class="t tight small">
-        <tr><th></th><th class="before">prima</th><th class="after">dopo</th><th></th></tr>
-        <tr><td>S05 deadlock tra server</td><td class="num">8</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
-        <tr><td>S04 id consumer cancellati</td><td class="num">10</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
-        <tr><td>S10 righe di race sullo schema</td><td class="num">20</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
-        <tr><td>S11 righe nella regione sbagliata</td><td class="num">2</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
-        <tr><td>S06 scritti dopo il timeout</td><td class="num">136</td><td class="num">31</td><td><span class="tag t-part">residuo</span></td></tr>
-        <tr><td>S14 chiavi scritte due volte</td><td class="num">1</td><td class="num">8</td><td><span class="tag t-worse">peggio</span></td></tr>
-        <tr><td>S07 pagamenti eseguiti due volte</td><td class="num">0</td><td class="num">2</td><td><span class="tag t-worse">emerso</span></td></tr>
+        <tr><th></th><th class="before">prima</th><th class="after">dopo</th><th class="after">+G5/N16</th><th></th></tr>
+        <tr><td>S05 deadlock</td><td class="num">8</td><td class="num">0</td><td class="num">0</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S04 consumer cancellati</td><td class="num">10</td><td class="num">0</td><td class="num">–</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S10 race sullo schema</td><td class="num">20</td><td class="num">0</td><td class="num">–</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S11 righe fuori regione</td><td class="num">2</td><td class="num">0</td><td class="num">–</td><td><span class="tag t-fixed">meglio</span></td></tr>
+        <tr><td>S06 scritti dopo timeout</td><td class="num">136</td><td class="num">31</td><td class="num">–</td><td><span class="tag t-part">residuo</span></td></tr>
+        <tr><td>S14 chiavi doppie</td><td class="num">1</td><td class="num">8</td><td class="num">0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+        <tr><td>S07 pagamenti doppi</td><td class="num">0</td><td class="num">2</td><td class="num">0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+        <tr><td>S03 JVM fuori cella</td><td class="num">–</td><td class="num">8</td><td class="num">0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       </table>
-      <p class="xs muted" style="margin-top:10px">G5 peggiora in pratica: fallendo subito, il chiamante ritenta mentre il primo tentativo sta ancora facendo commit (S14: 9 dei 13 primi tentativi falliti erano già stati scritti). Per S08 (N17) e per il fan-out di S16 (N4) c'è una sola run per immagine.</p>
+      <p class="xs muted" style="margin-top:10px">Senza G5 il fallimento rapido peggiorava i duplicati (S14: 8 chiavi doppie). Con le chiavi 4 comandi già scritti sono stati ritentati e hanno ricevuto 2xx con l'evento salvato. S08 (N17) e S16 (N4): una run per immagine.</p>
     </div>
   </div>
-  <div class="foot"><span>Fonte: results/S00, S03, S08, S16 (metrics), COMPARISON.md</span><span class="pg"></span></div>
+  <div class="foot"><span>Fonte: results/S00, S03, S08, S16 (metrics), S07/S14 after-g5n16, COMPARISON.md</span><span class="pg"></span></div>
 </section>
 
 <!-- ================= 26. LIMITS & ROADMAP ================= -->
@@ -1258,15 +1261,15 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
     <div class="card">
       <h3>Subito <span class="tag t-open">correttezza</span></h3>
       <ul>
-        <li><b>Chiave di idempotenza</b> dal chiamante (gateway o saga) fino all'append (G5, N14). È il difetto più grave che resta aperto.</li>
         <li><b><code>lock_timeout</code> legato alla deadline</b> durante l'attesa dell'<code>es-lock</code> (N15).</li>
+        <li><b>Finestra residua di G5</b>: un handler di servizio eseguito il cui evento non è stato salvato viene rieseguito dal retry; il side effect deve deduplicare sulla chiave. Le chiavi non scadono.</li>
         <li><b>Gate di staleness</b> misurato sull'ora di ricezione del server, non sull'orologio del client (S15).</li>
       </ul>
     </div>
     <div class="card">
       <h3>Prossimo <span class="tag t-part">disponibilità</span></h3>
       <ul>
-        <li><b>Failback</b>: una sonda verso l'endpoint preferito con jitter e drain, oppure un suggerimento "torna a casa" nel <code>Welcome</code> (N16).</li>
+        <li><b>Ritorno per cella</b>: il failback (N16) è per bundle; un ritorno coordinato della zona, o la mesh G1, eliminerebbe il <code>no handler</code> transitorio. Dietro un VIP non c'è failback.</li>
         <li><b>Affinità della lane ALL</b>, oppure lane nella cella del primario (N4).</li>
         <li>Ripetere S08 3 volte per immagine per capire N17.</li>
         <li>Barriera <code>aggregate_seq</code> sull'append (G6).</li>
@@ -1281,8 +1284,8 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
       </ul>
     </div>
   </div>
-  <div class="callout" style="margin-top:14px">Conclusione: con le correzioni Evento regge <b>tre celle attive</b> con WAN, kill di server, promozioni di database e partizioni. <b>Non</b> è ancora un cluster instradato e <b>non</b> garantisce l'exactly-once tra un tentativo e il suo retry.</div>
-  <div class="foot"><span>Fonte: results/COMPARISON.md "What is still broken", .claude/STATUS.md</span><span class="pg"></span></div>
+  <div class="callout" style="margin-top:14px">Conclusione: con le correzioni Evento regge <b>tre celle attive</b> con WAN, kill di server, promozioni di database e partizioni; i bundle tornano da soli al proprio server (N16) e un retry con la stessa chiave riceve l'evento già salvato (G5: 0 duplicati in S03, S07, S14). <b>Non</b> è ancora un cluster instradato (G1), e la chiave costa alle celle remote circa un RTT per comando.</div>
+  <div class="foot"><span>Fonte: results/COMPARISON.md "What is still broken", results/AFTER-SUMMARY.md (after-g5n16), .claude/STATUS.md</span><span class="pg"></span></div>
 </section>
 
 <!-- ================= 27. HOW TO RUN ================= -->
@@ -1367,10 +1370,22 @@ const DATA = {
     { l: 'S10 avvii a freddo riusciti',           b: [2, 3],    a: [3, 3] },
     { l: 'Avvii puliti senza riparazione (G8)',   b: [0, 7],    a: [7, 7] },
   ],
-  // sum of verdictCounts over results/S00..S17/{before,after}/summary.json
+  // sum of verdictCounts over results/S00..S17, latest harness on both sides:
+  // before = before-g5n16 for S03/S07/S13/S14, before elsewhere;
+  // after  = after-g5n16 for S00/S02/S03/S05/S07/S13/S14/S16, after elsewhere (87 observations each).
+  // Without the G5/N16 re-runs (80 observations): before 58/16/4/2, after 73/5/0/2.
   verdicts: {
-    before: { AS_EXPECTED: 58, KNOWN_DEFECT_REPRODUCED: 16, UNEXPECTED: 4, INCONCLUSIVE: 2 },
-    after:  { AS_EXPECTED: 73, KNOWN_DEFECT_REPRODUCED: 5,  UNEXPECTED: 0, INCONCLUSIVE: 2 },
+    before: { AS_EXPECTED: 63, KNOWN_DEFECT_REPRODUCED: 16, UNEXPECTED: 4, INCONCLUSIVE: 4 },
+    after:  { AS_EXPECTED: 83, KNOWN_DEFECT_REPRODUCED: 3,  UNEXPECTED: 0, INCONCLUSIVE: 1 },
+  },
+  // results/<S>/after-g5n16/summary.json (idempotency keys G5 + fail-back N16); quoted in the tables above
+  g5n16: {
+    s00: { acked: '482/482', appendsPerSecond: 9.02, apacP50: [1359, 1472], i6Seconds: 3.464 },
+    s03: { apacAfterKill: '46/46', firstAckSeconds: 10.859, failedBack: '8/8', allHomeSeconds: 55.713, dupEvents: 0, dupPayments: 0 },
+    s07: { euAmDuringPartition: '44/44', dupEvents: 0, dupPayments: 0 },
+    s13: { failedBack: '7/7', allHomeSeconds: 53.314, restartedIntoPlace: 0 },
+    s14: { killDelayMs: 3000, failedFirst: '18/24', storedBeforeRetry: 4, keysStoredTwice: 0, storedRetriesAcked: '4/4' },
+    s16: { fanOutSeconds: 8.149, takeoverSeconds: 4.38, writers: { apac: 9, eu: 6 } },
   },
   // seconds; null = never within the fault window
   times: [

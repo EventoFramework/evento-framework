@@ -12,6 +12,9 @@ scenari sono stati eseguiti una volta per set di immagini:
 
 - `:before` = Evento 2.4.6 ([BEFORE-SUMMARY](../results/BEFORE-SUMMARY.md));
 - `:after` = con le correzioni ([AFTER-SUMMARY](../results/AFTER-SUMMARY.md));
+- `after-g5n16` = `:after` con chiavi di idempotenza (G5) e failback (N16): S00, S02, S03, S05, S07,
+  S13, S14, S16 rieseguiti su stack nuovi (AFTER-SUMMARY, §"Re-run with idempotency keys"); S03, S07,
+  S13 e S14 anche su `:before` (`before-g5n16`), perché il loro harness è cambiato;
 - confronto: [COMPARISON](../results/COMPARISON.md).
 
 Verdetti: `AS_EXPECTED` (comportamento corretto), `KNOWN_DEFECT_REPRODUCED` (il difetto
@@ -59,26 +62,26 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 
 ## Riepilogo
 
-| Scenario | Livello | Gap | `:before` | `:after` |
-|---|---|---|---|---|
-| S00 baseline | L2–L3 | G9, N3 | 227/319, 5.2 append/s | **492/492**, 9.35 append/s |
-| S01 routing miss | L2 | G1 | 0/5 `no handler` | 0/5 `no handler` (aperto) |
-| S02 kill replica handler | L1 | – | 487/487 | 486/486 |
-| S03 kill server | L1–L2 | G2, G4, G5 | APAC 0/18 | APAC 44/44, 10.3 s |
-| S04 ritorno del server | L1–L2 | G7, N12, N13 | 10 consumer cancellati | 0 |
-| S05 stesso aggregato da 2 celle | L2 | G3, G6 | 8 deadlock | 0 |
-| S06 sweep WAN | L2 | G9, N5, N15 | 1.65 append/s a 300 ms | 6.55 |
-| S07 partizione | L2–L4 | N11, G25, N14 | EU+AM 0/16 | 41/41 |
-| S08 failover primario ES | L4 | G3, G6, N17 | ripresa 7.6 s | 15.1 s |
-| S09 failover primario applicativo | L4 | G11 | monotono | monotono |
-| S10 avvio a freddo | L1 | G14 | 1/3 fallito | 0/3 |
-| S11 contesti con `_` | L3 | G15, G16, N10 | 2 righe trapelate | 0 |
-| S12 costo WATERMARK | L3 | G10 | INCONCLUSIVE | INCONCLUSIVE |
-| S13 identità del broker | L1 | G13, N16 | cluster estraneo accettato | rifiutato |
-| S14 retry storm | L1 | G4, G5 | 24/24 dopo ≥ 25 s | 0 dopo ≥ 25 s; 8 chiavi doppie (prima di G5; atteso 0 con le chiavi) |
-| S15 orologio −40 s | L0+ | staleness | 0 proiettati | 0 proiettati (aperto) |
-| S16 lane `ALL` | L3 | G24, N4 | fan-out 2.1 s | 10.2 s (N4) |
-| S17 routing per contesto | L3 | setComponentContexts | 8/8 | 8/8 |
+| Scenario | Livello | Gap | `:before` | `:after` | `after-g5n16` |
+|---|---|---|---|---|---|
+| S00 baseline | L2–L3 | G9, N3 | 227/319, 5.2 append/s | **492/492**, 9.35 append/s | 482/482, 9.02 append/s |
+| S01 routing miss | L2 | G1 | 0/5 `no handler` | 0/5 `no handler` (aperto) | – |
+| S02 kill replica handler | L1 | – | 487/487 | 486/486 | 490/490 |
+| S03 kill server | L1–L2 | G2, G4, G5, N16 | APAC 0/18 | APAC 44/44, 10.3 s | APAC 46/46, 10.9 s; **failback 8/8** in 55.7 s; 0 doppi |
+| S04 ritorno del server | L1–L2 | G7, N12, N13 | 10 consumer cancellati | 0 | – |
+| S05 stesso aggregato da 2 celle | L2 | G3, G6 | 8 deadlock | 0 | 120/120, 0 deadlock |
+| S06 sweep WAN | L2 | G9, N5, N15 | 1.65 append/s a 300 ms | 6.55 | – |
+| S07 partizione | L2–L4 | N11, G25, N14 | EU+AM 0/16 | 41/41 | 44/44; **0 pagamenti doppi** |
+| S08 failover primario ES | L4 | G3, G6, N17 | ripresa 7.6 s | 15.1 s | – |
+| S09 failover primario applicativo | L4 | G11 | monotono | monotono | – |
+| S10 avvio a freddo | L1 | G14 | 1/3 fallito | 0/3 | – |
+| S11 contesti con `_` | L3 | G15, G16, N10 | 2 righe trapelate | 0 | – |
+| S12 costo WATERMARK | L3 | G10 | INCONCLUSIVE | INCONCLUSIVE | – |
+| S13 identità del broker | L1 | G13, N16 | cluster estraneo accettato | rifiutato | rifiutato; **failback 7/7** in 53.3 s |
+| S14 retry storm | L1 | G4, G5 | 24/24 dopo ≥ 25 s | 0 dopo ≥ 25 s; 8 chiavi doppie (prima di G5) | **0 chiavi doppie**, 4/4 retry 2xx (kill 3000 ms) |
+| S15 orologio −40 s | L0+ | staleness | 0 proiettati | 0 proiettati (aperto) | – |
+| S16 lane `ALL` | L3 | G24, N4 | fan-out 2.1 s | 10.2 s (N4) | fan-out 8.1 s (N4), takeover 4.4 s |
+| S17 routing per contesto | L3 | setComponentContexts | 8/8 | 8/8 | – |
 
 ## Dettaglio
 
@@ -92,6 +95,10 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **`:after`** ([report](../results/S00/after/report.md)): **492/492**. p50/p99 EU 131–265/449–611 ms,
   AM 733–761/1202–1390 ms, APAC 1156–1178/1927–1980 ms. 9.35 append/s, I6 in 3.5 s, 72/72 pagamenti,
   0 salvati dopo il timeout.
+- **`after-g5n16`** ([report](../results/S00/after-g5n16/report.md)): **482/482**; p50/p99 EU 176–180/434–449 ms,
+  AM 834–879/1556–1586 ms, APAC 1359–1472/2486–2673 ms; 9.02 append/s, I6 in 3.5 s, 62/62 pagamenti. Ogni
+  evento porta una chiave (62 derivate dalla saga): le celle remote pagano circa un RTT in più verso il
+  primario ES per comando (APAC +0.2–0.3 s di p50).
 - Anche: [`before-catalog-gap`](../results/S00/before-catalog-gap/report.md) (L14),
   [`after-smoke`](../results/S00/after-smoke/report.md) (integrazione, 498/498).
 
@@ -109,6 +116,8 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **Invarianti**: I1 per le operazioni confermate; i nuovi comandi vanno alla replica viva.
 - **`:before`** ([report](../results/S02/before/report.md)): 487/487; dopo il kill p50/p99 166/296 ms; 1 in volo, riuscito.
 - **`:after`** ([report](../results/S02/after/report.md)): 486/486; 176/283 ms; 2 in volo, 0 falliti.
+- **`after-g5n16`** ([report](../results/S02/after-g5n16/report.md)): 490/490; dopo il kill 315/315, 174/274 ms;
+  2 in volo, 0 falliti.
 
 ### S03: kill di un evento-server
 - **Obiettivo**: failover del bus (G2), richieste in volo (G4), catalogo sotto riconnessione di massa (G8).
@@ -120,14 +129,16 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
   p50/p99 448/570 ms; EU+AM 62/62 (p50 192 ms); 0 chiamate appese; I6 in 0.36 s.
   [`after-run1`](../results/S03/after-run1/report.md): una `ProcessPaymentCommand` riceve
   `BrokerChangedException`, la saga la ripete e il pagamento avviene due volte (**N14**).
-- **Failback (N16, da misurare)**: dopo il riavvio lo scenario aspetta (`S03_FAILBACK_WAIT_S`, 180 s)
-  che ogni JVM APAC finita su `evento-eu`/`evento-am` torni da sola su `evento-apac`
-  (`apacStillRemoteAfterFailbackWait` vuoto, `apacFailbacksCompleted`); atteso AS_EXPECTED sulle
-  immagini con il fix, KNOWN_DEFECT_REPRODUCED su quelle precedenti, INCONCLUSIVE su 2.4.6 (nessun
-  failover).
-- **Atteso con G5** (idempotenza, da misurare): lo scenario osserva a parte "nessun comando applicato
-  due volte" e "nessun pagamento eseguito due volte" (`observeExactlyOnce` su I2): entrambi 0, perché il
-  retry della saga porta la chiave derivata del primo tentativo e il broker risponde con l'evento salvato.
+- **`after-g5n16`** ([report](../results/S03/after-g5n16/report.md)): **12/12 AS_EXPECTED**. Primo ack APAC
+  10.9 s dopo il kill, APAC 46/46 (p50/p99 449/686 ms), EU+AM 57/57, I6 in 0.38 s.
+  **Failback (N16), misurato**: gli 8 JVM APAC finiti su `evento-eu` tornano tutti su `evento-apac` senza
+  riavvii, l'ultimo 55.7 s dopo che il server è pronto (`apacStillRemoteAfterFailbackWait` vuoto, 8
+  `failback_completed`, 0 falliti, 0 sospesi, 0 reattivi). Gli handler tornano 38–44 s dopo l'avvio del
+  server, i tre gateway 51–55 s; ogni passaggio dura 0.50–0.68 s (drain 0.26 s); nessun `no handler for`.
+  **Idempotenza (G5), misurata**: 0 eventi salvati due volte e 0 pagamenti eseguiti due volte, con 3
+  `BrokerChangedException` lato bundle.
+- **`before-g5n16`** ([report](../results/S03/before-g5n16/report.md)): APAC 0/18 come prima; failback
+  INCONCLUSIVE (2.4.6 non fa failover, quindi non c'è nulla da riportare indietro); I6 in 22.6 s.
 
 ### S04: il server torna dopo il failover
 - **Obiettivo**: il `NodeLeft` tardivo del vecchio server non deve cancellare un bundle vivo altrove (G7).
@@ -144,6 +155,8 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **`:before`** ([report](../results/S05/before/report.md)): 112/120, **8 `deadlock detected`** tra server; p50 2.3 s, p99 4.8 s.
 - **`:after`** ([report](../results/S05/after/report.md)): **120/120**, 0 deadlock, al massimo 1 attesa di
   lock; p50 0.93 s, p99 2.8 s (EUROPA 186 ms, CINA 1070 ms). Nessun fork su entrambi.
+- **`after-g5n16`** ([report](../results/S05/after-g5n16/report.md)): 120/120, 0 deadlock, al massimo 1
+  attesa; p50 1.16 s, p99 3.0 s (EUROPA 212 ms, CINA 1317 ms: la lettura della chiave costa un RTT in più).
 
 ### S06: sweep di latenza WAN
 - **Obiettivo**: curva di throughput in funzione del RTT verso il primario ES (G9, N5).
@@ -165,10 +178,12 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **`:after`** ([report](../results/S07/after/report.md)): EU+AM **41/41** (p50 585 ms); lane `*` ferme
   ≤ 5 s; I6 0.2 s dopo la guarigione; APAC 0/12 (504 dal lb, atteso). 2 pagamenti doppi e un
   `PaymentProcessedEvent` salvato due volte (**N14**).
-- **Atteso con G5** (da misurare): 0 eventi salvati due volte. Un pagamento eseguito da
-  `order-command-apac` mentre `evento-apac` non poteva salvarne l'evento resta la **finestra residua**
-  documentata: non lascia la chiave, e il retry della saga dopo la guarigione lo riesegue
-  (`payments.attempts = 2` possibile, con un solo `PaymentProcessedEvent`).
+- **`after-g5n16`** ([report](../results/S07/after-g5n16/report.md)): **6/6 AS_EXPECTED**. EU+AM **44/44**
+  durante la partizione (p50 666 ms), lane `*` ferme 0 s, I6 0.2 s. **0 eventi salvati due volte, 0
+  pagamenti eseguiti due volte** (G5 misurato). La **finestra residua** (un pagamento eseguito da
+  `order-command-apac` mentre `evento-apac` non poteva salvarne l'evento: nessuna chiave registrata, il
+  retry della saga lo riesegue) non si è presentata in questa esecuzione: resta documentata, non misurata.
+- **`before-g5n16`** ([report](../results/S07/before-g5n16/report.md)): EU+AM 0/16 come prima (N11).
 
 ### S08: failover del primario ES
 - **Obiettivo**: i server seguono la promozione via URL multi-host; lock persi senza fork (G3, G6).
@@ -218,10 +233,13 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **`:after`** ([report](../results/S13/after/report.md)): C **rifiutato** (40 `cluster_name_mismatch`, mai
   READY); B **3/3 con il guard**; A 0/3 (per contratto). Dopo il ritorno di `evento-eu`, 7 JVM EU ancora
   su `evento-am` (**N16**, [`after-n16-evidence`](../results/S13/after-n16-evidence/report.md)).
-- **Failback (N16, da misurare)**: tra A e B lo scenario aspetta (`S13_FAILBACK_WAIT_S`, 180 s) che i JVM
-  EU tornino da soli su `evento-eu` (osservazione "A: EU bundles fail back", metrica
-  `A.bundlesStillRemoteAfterEuReturned` vuota); il riavvio di sicurezza (`A.bundlesRestartedIntoPlace`)
-  dovrebbe allora non trovare nulla.
+- **`after-g5n16`** ([report](../results/S13/after-g5n16/report.md)): C rifiutato (40 `cluster_name_mismatch`),
+  B 3/3 con il guard, A 0/3 (per contratto). **Failback (N16), misurato**: i 7 JVM EU finiti su `evento-am`
+  tornano tutti su `evento-eu` senza riavvii, 53.3 s dopo il suo ritorno; il riavvio di sicurezza
+  (`A.bundlesRestartedIntoPlace`) non trova nulla.
+- **`before-g5n16`** ([report](../results/S13/before-g5n16/report.md)): C si collega; B 0/3 prima del kill
+  (`no handler`, probabilmente gli handler EU non ancora registrati sul server riavviato; non indagato) e 3/3 dopo; failback
+  INCONCLUSIVE (2.4.6 non fa failover).
 
 ### S14: retry storm
 - **Obiettivo**: richieste in volo al cambio di broker (G4) e duplicati da retry (G5).
@@ -234,11 +252,18 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
   retry parte mentre il primo tentativo committa).
 - Varianti a 150 ms: [`before-kill150`](../results/S14/before-kill150/report.md),
   [`after-kill150`](../results/S14/after-kill150/report.md): INCONCLUSIVE per G5 (L17).
-- **Atteso con G5** (da misurare): il gateway passa `X-Idempotency-Key` a `sendIdempotent`, quindi il
-  retry attraverso un'altra cella riceve l'evento salvato dal primo tentativo: **0 chiavi salvate due
-  volte**, e ogni retry di un comando già salvato risponde 2xx (osservazione "the retry of a stored
-  command is acknowledged"): la create con id del client non riceve più 409, la create con id generato
-  restituisce l'`orderId` del primo tentativo (`replayed: true`).
+- **`after-g5n16`** ([report](../results/S14/after-g5n16/report.md), kill a **3000 ms**): **4/4 AS_EXPECTED**.
+  18/24 primi tentativi falliti, tutti `broker_changed`, 0 dopo ≥ 25 s; 4/18 già salvati prima del retry;
+  **0 chiavi salvate due volte** e **4/4 retry di comandi già salvati con risposta 2xx** e l'evento salvato
+  (`event=idempotent_replay stage=before_lock`, 2 create e 2 add-item). A 2000 ms
+  ([`after-g5n16-kill2000`](../results/S14/after-g5n16-kill2000/report.md)) nessun comando era ancora
+  arrivato all'append (22/24 falliti, 0 salvati): INCONCLUSIVE. Su uno stack appena creato la prima raffica
+  di comandi con chiave è più lenta, per questo il ritardo è salito a 3000 ms (la manopola di L17). A
+  150 ms ([`after-g5n16-kill150`](../results/S14/after-g5n16-kill150/report.md)): INCONCLUSIVE come prima.
+- **`before-g5n16`** (gateway nuovo, che deriva l'id dell'ordine dalla chiave): kill a 2000 ms
+  ([report](../results/S14/before-g5n16/report.md)) 24/24 dopo ≥ 25 s, 1 salvato; a 3000 ms
+  ([report](../results/S14/before-g5n16-kill3000/report.md)) 24/24 dopo ≥ 25 s, 2 salvati. 0 chiavi doppie,
+  ma ogni retry di una create già salvata è rifiutato con 409 dall'aggregato (0/1 e 0/2 con 2xx).
 
 ### S15: orologio sfasato
 - **Obiettivo**: il gate di staleness del fetch confronta orologi diversi.
@@ -258,6 +283,10 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **`:after`** ([report](../results/S16/after/report.md)): fan-out in **10.2 s**, scrittori EU 9 / APAC 6
   (**N4**); EU/AM 1 su 4; convergenza 0.07 s dopo; 6 replay assorbiti; takeover **7.3 s**
   (integrazione 5.2 s). Discussione in [contexts.md](contexts.md).
+- **`after-g5n16`** ([report](../results/S16/after-g5n16/report.md)): 7/7 AS_EXPECTED; fan-out in **8.1 s**,
+  scrittori APAC 9 / EU 6 (N4 invariato); EU/AM 1 su 4; convergenza 16.3 s dopo il ripristino, 8 replay
+  assorbiti; takeover **4.4 s**. I `SetPriceCommand` (comandi di servizio con chiave) non lasciano righe
+  in `es__idempotency_claims`.
 
 ### S17: routing per contesto
 - **Obiettivo**: una classe, un engine per contesto; niente righe tra contesti; `*` vede tutto; nessuna riga `ALL` nelle viste ordini.
@@ -276,4 +305,6 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 | `S08/*-l24` | esecuzioni con il difetto L24 |
 | `S13/after-n16-evidence`, `S13/*-run1` | prima osservazione di N16; harness precedente (L21) |
 | `S14/*-kill150` | kill a 150 ms, INCONCLUSIVE (L17) |
+| `S14/after-g5n16-kill2000` | kill a 2000 ms con G5: nessun comando nella finestra ambigua, INCONCLUSIVE |
+| `S14/before-g5n16-kill3000` | `:before` allo stesso ritardo dell'esecuzione principale `after-g5n16` |
 | `S15/before-ahead40` | orologio avanti: innocuo (L18) |

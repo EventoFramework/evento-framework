@@ -1,6 +1,26 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-09-29.
+Last updated: 2026-09-30.
+
+## G5 + N16 measured on the Docker lab (`after-g5n16`, 2026-09-30)
+
+- Full suite with `EVENTO_RUN_JDBC_IT=true` (transport-api/netty, server, common, bundle, JDBC state
+  store, lab, lab-ms-it, every evento-lab-cluster module): **716 tests, 0 failures, 18 skipped** (the
+  scenario classes, gated on `EVENTO_LAB_CLUSTER`).
+- `:after` rebuilt from the working tree; S00, S02, S03, S05, S07, S13, S14 (+ kill 2000/150 variants),
+  S16 re-run on fresh stacks. S03/S07/S13/S14 also on `:before` (`before-g5n16`, 2.4.6 + current lab).
+  Numbers: `results/AFTER-SUMMARY.md` §"Re-run with idempotency keys"; side by side in COMPARISON.md.
+- **N16 works end to end:** S03 8/8 APAC JVMs and S13 7/7 EU JVMs failed back without restarts (last
+  55.7 s / 53.3 s after the server was ready); handlers before gateways; 0 failed / suspended /
+  reactive; no leaked probe sessions; no `no handler for`.
+- **G5 works end to end:** S14 (kill 3000 ms) 0 keys twice, 4/4 stored retries 2xx via
+  `idempotent_replay stage=before_lock`; S03/S07 0 duplicate events and payments. At 2000 ms no command
+  reached the append on a fresh stack (keyed commands are slower on a cold stack), kept as
+  `after-g5n16-kill2000`. Residual window (service handler ran, event not stored) not hit.
+- Costs: keyed commands from remote cells pay ~1 RTT more (S00 p50 APAC 1.36–1.47 s vs 1.16–1.18 s).
+  No regressions in S02/S05 (0 deadlocks, lock pool never exhausted); S16 unchanged (N4 still open).
+- No framework or harness change was needed; docs, FINDINGS, CLUSTER-READINESS, L5 and slides updated.
+- Next: N4 lane affinity, N15 deadline-bound `lock_timeout`, repeat S08 (N17), S15 staleness gate.
 
 ## N16 fail-back review fixes (branch `cluster/failback-fixes`, 2026-09-29)
 

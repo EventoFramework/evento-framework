@@ -156,7 +156,7 @@ Con `*` il deployment proietterebbe tutti gli ordini in `order_view_global` e **
 | Limite | Effetto | Prova |
 |---|---|---|
 | Server e database sono single point of failure | ogni guasto ferma tutto | per costruzione; vedi L1 e L4 |
-| G5: nessuna idempotenza tra retry | un retry dopo un timeout può duplicare gli eventi | [S14](../results/S14/after/report.md), [S00 `:before`](../results/S00/before/report.md) (3 pagamenti doppi) |
+| G5: nessuna idempotenza tra retry (**corretto**: chiavi di idempotenza, [L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)) | senza chiave un retry dopo un timeout può duplicare gli eventi; con la chiave il retry riceve l'evento salvato | prima: [S14](../results/S14/after/report.md), [S00 `:before`](../results/S00/before/report.md) (3 pagamenti doppi); dopo: [S14 `after-g5n16`](../results/S14/after-g5n16/report.md) 0 chiavi doppie |
 | Gate di staleness del fetch (Low) | un consumer con orologio indietro > 30 s non riceve eventi (`evento.es.fetch.max.age.ms`) | [S15](../results/S15/after/report.md) |
 | N7 | `updated_at` del checkpoint non si muove: una lane ferma non si vede dalla tabella | [FINDINGS N7](../FINDINGS.md#n7-consumer-checkpoints-carry-no-update-time) |
 | N8 | un bundle senza handler (il gateway) non ha riga in `core__bundle` | [FINDINGS N8](../FINDINGS.md#n8-a-send-only-bundle-is-absent-from-the-catalog) |

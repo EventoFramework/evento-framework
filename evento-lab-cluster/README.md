@@ -393,8 +393,8 @@ event store, and S04's variant B leaves the `:before` catalog beyond repair (N12
 recreate it themselves.
 
 Every scenario starts with two guards: it moves bundle JVMs that failed over to a remote server
-back to their own cell's server by restarting them (there is no failback, N16; this is a no-op on
-2.4.6), and it checks that each region's `/whoami` comes from its own gateway, recreating the lb
+back to their own cell's server by restarting them (a safety net since N16: with fail-back it normally finds
+nothing, and on 2.4.6 it is a no-op), and it checks that each region's `/whoami` comes from its own gateway, recreating the lb
 once if not (L23). Both are recorded as `placementRestoredAtStart` and `lbRoutingAtStart`, and
 `EVENTO_LAB_RESTORE_PLACEMENT=false` turns the first off. **Never run two scenario drivers at
 once.** Overlapping runs broke the lb's network re-attach and silently routed every region to one

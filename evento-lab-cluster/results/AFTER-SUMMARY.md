@@ -11,6 +11,66 @@ Verdicts: AS_EXPECTED means the system behaved correctly. KNOWN_DEFECT_REPRODUCE
 defect still shows. UNEXPECTED means the behaviour was wrong in a way the scenario did not predict.
 INCONCLUSIVE means the fault did not exercise the question.
 
+## Re-run with idempotency keys (G5) and fail-back (N16): `after-g5n16`, 2026-09-29
+
+After G5 and N16 (and their review fixes) were merged, the images were rebuilt from the working tree
+(`LAB_TAG=after`) and eight scenarios ran again, each on a fresh stack (`down -v` + `up`), one at a
+time, with `EVENTO_LAB_LABEL=after-g5n16`: the two that measure the new code (S03 and S13 for fail-back,
+S14 plus S03 and S07 for exactly-once) and regressions (S00, S02, S05, S16; S02 and S05 exercise the lock
+paths now that service commands claim their key with a row instead of taking a lock). The harness was not
+changed in this pass. The S03/S07/S13/S14 harness had changed since the `:before` runs (fail-back wait,
+exactly-once observations, the gateway passing `X-Idempotency-Key`), so those four were also re-run on
+`:before` (2.4.6 rebuilt with the current lab source) as `before-g5n16`. Everything else in this file below
+this section is the earlier `:after` run, now called "after (pre-G5/N16)" in
+[`COMPARISON.md`](COMPARISON.md).
+
+| Scenario | Verdicts | Key numbers (`after-g5n16`) | after (pre-G5/N16) |
+|---|---|---|---|
+| **S00** baseline 7×20/min | 9 AS_EXPECTED | **482/482** acked. p50/p99: EUROPA 176/449 ms, AFRICA 180/434 ms, AMERICA 834/1586 ms, SUD_AMERICA 879/1556 ms, CINA 1472/2673 ms, INDIA 1359/2486 ms, AUSTRALIA_NZ 1472/2521 ms. 9.02 appends/s, I6 3.5 s, 62/62 payments, 0 unacked stored, 0 duplicates. All 544 events carry a key (62 derived by the saga). | 492/492; APAC p50 1156–1178 ms, AM 733–761 ms; 9.35 appends/s |
+| **S02** kill a handler replica | 3 AS_EXPECTED | 490 ops acked; after the kill 315/315, p50 174 ms, p99 274 ms; 2 in flight, 0 failed | 486/486; 176/283 ms |
+| **S03** kill `evento-apac` | **12 AS_EXPECTED** | First APAC ack **10.9 s** after the kill; APAC after the kill 46/46 (p50 449 ms, p99 686 ms); EU+AM 57/57. 8 APAC JVMs failed over to `evento-eu`; **all 8 failed back without a restart**, the last 55.7 s after `evento-apac` was reported ready (8 `failback_completed`, 0 failed, 0 suspended). Bundle side: 3 `BrokerChangedException`. **0 events stored twice, 0 payments executed twice.** I6 0.38 s. | 44/44, first ack 10.3 s; no fail-back (N16); `after-run1`: 1 payment twice (N14) |
+| **S05** same order from EU and APAC | 4 AS_EXPECTED | 120/120; 0 deadlocks; p50 1159 ms, p99 3.0 s (EUROPA p50 212 ms, CINA 1317 ms); at most 1 advisory-lock waiter | 120/120; p50 933 ms (EUROPA 186, CINA 1070) |
+| **S07** APAC partition 62 s | **6 AS_EXPECTED** | EU+AM **44/44** during the partition (p50 666 ms, p99 1.1 s); APAC 0/12 (lb 504, expected); `*` lanes stalled 0 s; I6 0.2 s. **0 events stored twice, 0 payments executed twice.** The residual window (a payment executed while its event could not be stored) was not hit in this run. | 41/41; 2 payments twice, 1 event twice (N14) |
+| **S13** wrong broker / identity | 4 AS_EXPECTED, 1 KNOWN_DEFECT (A, legacy guard by contract) | C refused (40 `cluster_name_mismatch`); B 3/3 with the guard. A: 7 EU JVMs failed over to `evento-am` and **all 7 failed back** without a restart, 53.3 s after `evento-eu` was ready; the safety-net restore found nothing (`A.bundlesRestartedIntoPlace` empty). | same C/B/A; 7 EU JVMs still on `evento-am` (N16) |
+| **S14** retry storm, kill 3000 ms | **4 AS_EXPECTED** | 18/24 first attempts failed, all `broker_changed`, 0 after ≥ 25 s. 4 of 18 had been stored before the retry; **0 keys stored twice**; **4/4 of those retries answered 2xx** with the stored event (`event=idempotent_replay stage=before_lock` ×4 on `evento-eu`: 2 creates, 2 add-items). | kill 2000 ms: 13/24 failed, 9 stored, **8 keys twice** |
+| S14 kill 2000 ms (`after-g5n16-kill2000`) | 2 AS_EXPECTED, 2 INCONCLUSIVE | 22/24 failed `broker_changed`, none had been stored: the kill came before any probe reached the append (below), so G5 was not exercised | – |
+| S14 kill 150 ms (`after-g5n16-kill150`) | 2 AS_EXPECTED, 2 INCONCLUSIVE | 24/24 `broker_changed`, none stored; every retry stored once | same (INCONCLUSIVE) |
+| **S16** global ALL lane | 7 AS_EXPECTED | Fan-out to 3 DBs **8.1 s**; writers split `global-apac` 9 / `global-eu` 6 (N4 unchanged); EU/AM 1 of 4 prices during the APAC DB outage; converged 16.3 s after healing, 8 replays absorbed; **lane takeover 4.4 s**. The `SetPriceCommand` service path (key claim rows) left 0 claims behind. | fan-out 10.2 s, takeover 7.3 s, convergence 0.07 s |
+
+**Why S14 moved from 2000 to 3000 ms.** On a fresh stack the first burst of 24 keyed CINA commands was
+slower than on the pre-G5 images: in the 2000 ms run only 2 had been appended when `evento-apac` died (event
+timestamps), against 11 acked + 9 stored before. A controlled burst on a warm stack afterwards (24
+concurrent CINA creates through the lb, twice each way) showed the steady cost is small: keyed 1.46–3.34 s
+against unkeyed 1.17–3.21 s per command, and 3.7 s against 3.5 s for the burst; serial creates 1.47–1.77 s
+keyed against 1.16–1.48 s unkeyed (one extra read of the key on the ES primary, 150 ms RTT away). The very
+first burst after the stack had settled was slower (keyed: first ack 2.1 s, burst 7.0 s; the unkeyed burst
+right after it: 1.2 s and 3.7 s), which matches the 2000 ms run on a fresh stack.
+`S14_KILL_DELAY_MS` is the documented knob for exactly this (L17), so the main run uses 3000 ms; the
+2000 ms run is kept as evidence.
+
+**Latency cost of the keys (S00, S05).** Every lab command now carries a key. Remote cells pay about one
+more round trip to the ES primary: S00 p50 AM 834–879 ms against 733–761 ms, APAC 1359–1472 ms against
+1156–1178 ms; S05 CINA 1317 ms against 1070 ms. EU, next to the primary, is unchanged (176–180 ms against
+131–265 ms). Appends/s at the same offered load: 9.02 against 9.35 (one run each).
+
+**Log verification** (every run, `docker logs` of the 3 servers and 21 bundle JVMs after the scenario):
+- Fail-back events only where a server returned: S03 8 × `failback_probe_healthy` / `failback_started` /
+  `failback_drained` / `failback_completed` (APAC); S13 7 × each (EU). **0** `failback_failed`, **0**
+  `failback_suspended`, **0** `failback_reactive` in every run: the gateways came home 7–11 s after the
+  last handler (S03: `order-*-apac` switched 38–44 s after `evento-apac` had started, the three gateways 51–55 s),
+  so no caller ever met `no handler for` (0 on every server in every run). Each switch took 0.50–0.68 s,
+  of which the drain 0.26 s.
+- `event=idempotent_replay`: only S14 (4, all `stage=before_lock`). **0** `idempotent_duplicate_execution`,
+  `idempotency_key_mismatch`, `idempotency_key_in_progress`, `idempotency_key_ignored`,
+  `idempotency_claim_lost`, `service_event_stored_after_deadline` in every run; `es__idempotency_claims`
+  empty at the end of every run; the index was built at boot (`es_events_idempotency_index_built`).
+- No leaked probe sessions: after every run the established connections on each server's `:3030` equal the
+  bundles attached to it (EU 8, AM 5, APAC 8 at steady state; S03: `evento-apac` 8 after 93 closed probe
+  connections), and `handshake_accepted` counts only real sessions (probes never send `Hello`).
+- Lock pool: **0** `lock_acquire_timeout`, **0** `Failed to acquire advisory lock` on `:after`. The only pool
+  errors are S07's `evento-apac` data pool (`HikariPool-1 ... total=0`, 41 lines) and 2 `LockLostException`
+  while its ES connection was partitioned away, as designed.
+
 ## How the run went (read this before the numbers)
 
 The first pass looked plausible, but most of it was measured on the wrong topology. Four harness

@@ -6,7 +6,7 @@
 | G8 | discovery / consumer-registration insert race | High (catalog) | fixed: `:after` starts complete with `REPAIR_CATALOG=false`; `:before` still needs `repair-catalog.sh` (integration run) |
 | G9 (+G3) | about 14 sequential WAN round trips per command from a remote cell | High (throughput) | `:after` S00: 498/498 acked, p50 AM 0.72 s, APAC 1.12 s; residual in N9 |
 | N2 | connection liveness probes on the command path, each one a WAN round trip | Medium | recorded |
-| N3 (+G4/G5) | commands still executed after the caller timed out; saga retries duplicate the payment | High (correctness) | fixed up to the append on `:after` (S00: 0 stored after timeout, `:before` 83); residual in N15, retries in N14 |
+| N3 (+G4/G5) | commands still executed after the caller timed out; saga retries duplicate the payment | High (correctness) | fixed up to the append on `:after` (S00: 0 stored after timeout, `:before` 83); residual in N15; retries fixed by G5 (N14) |
 | N4 (+G24/G12) | the single global consumer lane hops between cells and projects over the WAN | Medium | **open**: `:after` S16 writers split EU 9 / APAC 6, fan-out 10.2 s (`:before` 2.1 s) |
 | N5 | the CPES `es-lock` favours the cell nearest the ES primary | Medium | recorded |
 | L7 | toxiproxy OOM-killed at 64m during base backups | Blocker | fixed (256m) |
@@ -29,9 +29,9 @@
 | L16 | the chaos driver ran the catalog repair with WSL `bash` on Windows | High (lab) | fixed |
 | L17 | S14 marked G5 AS_EXPECTED with no command in the ambiguous window | Medium (lab) | fixed |
 | L18 | S15 skewed the clock ahead, which can never trip the staleness gate | Medium (lab) | fixed |
-| N14 (+G5) | a saga retries an indeterminate command (broker change, partition) and the payment runs twice | High (correctness) | **open** (`:after` S03 run 1, S07) |
+| N14 (+G5) | a saga retries an indeterminate command (broker change, partition) and the payment runs twice | High (correctness) | **fixed, measured** (`after-g5n16`: S03 and S07 0 events twice, 0 payments twice; S14 0 keys twice, 4/4 stored retries answered 2xx); residual window (payment ran, event not stored) not hit |
 | N15 (+N3/N5) | under `es-lock` contention commands commit after their caller's deadline; N3 drops none | Medium (correctness) | **open** (`:after` S06: 31 at 300 ms) |
-| N16 (+G2/G1) | no failback: bundles stay on the remote server after their own server returns | High (availability, cost) | fixed in code (`cluster/failback`, `BundleClientFailbackIT`); seen open on `:after` S03, S13; lab re-run pending |
+| N16 (+G2/G1) | no failback: bundles stay on the remote server after their own server returns | High (availability, cost) | **fixed, measured** (`after-g5n16`: S03 8/8 APAC JVMs home without restarts, last 55.7 s after the server was ready; S13 7/7 EU, 53.3 s; 0 failed/suspended/reactive) |
 | N17 | ES promotion outage 15.1 s on `:after` vs 7.6 s on `:before` | Low (availability) | recorded, one run each |
 | L19 | S12's per-event CPU ratio was idle-cost noise | Medium (lab) | fixed |
 | L20 | S07 read a lane with nothing to consume as stalled | Medium (lab) | fixed |
@@ -367,7 +367,31 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   foreign cluster is refused, and failover works with the guard on), G14 (S10 0/3), G15/G16/N10 (S11),
   N3 up to the append (S00 0 stored after timeout).
 - **Still open:** G1 (S01), G5 (S14: 8 keys stored twice; N14), N4 (S16), the fetch staleness gate
-  (S15), N15, N16. G6, G10 and G25 were not observable in this lab.
+  (S15), N15, N16. G6, G10 and G25 were not observable in this lab. (G5/N14 and N16 were fixed and
+  measured afterwards: see "Re-run with G5 and N16" below.)
+
+## Re-run with G5 and N16 (`after-g5n16`, 2026-09-29)
+Summary and log verification: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md) §"Re-run with
+idempotency keys"; side by side: [`results/COMPARISON.md`](results/COMPARISON.md). Eight scenarios on fresh
+stacks (S00, S02, S03, S05, S07, S13, S14, S16); S03/S07/S13/S14 also on `:before` (`before-g5n16`), because
+their harness changed after the first `:before` run.
+
+- **N16 measured, fixed:** S03 8 of 8 APAC JVMs and S13 7 of 7 EU JVMs moved back to their own server with no
+  restart, the last one 55.7 s / 53.3 s after the server was ready. Handlers first, gateways 7–11 s later;
+  each switch 0.50–0.68 s. 0 `failback_failed`, 0 `failback_suspended`, 0 `failback_reactive`, 0
+  `no handler for` on any server. Probes left no sessions behind (connections on `:3030` = attached bundles).
+- **G5 / N14 measured, fixed:** S03 and S07 0 events stored twice and 0 payments executed twice (S03 had 3
+  `BrokerChangedException` on the bundle side; S07 kept EU+AM 44/44). S14 at 3000 ms: 4 of 18 failed first
+  attempts had been stored, 0 keys stored twice, 4/4 retries answered 2xx through `idempotent_replay`
+  (`stage=before_lock`). The residual window (a service handler that ran while its event could not be
+  stored, S07) was not hit in this run, so it stays documented, not measured.
+- **Costs and side effects:** a keyed command from a remote cell pays about one more RTT to the ES primary
+  (S00 p50 APAC 1.36–1.47 s against 1.16–1.18 s, AM 0.83–0.88 s against 0.73–0.76 s; S05 CINA 1.32 s against
+  1.07 s); EU is unchanged. On a fresh stack the first keyed burst was slower still, so S14 at 2000 ms caught
+  no command in the ambiguous window (kept as `after-g5n16-kill2000`) and the main S14 run uses 3000 ms
+  (L17's knob).
+- **Unchanged:** S02 (315/315 after the kill), S05 (0 deadlocks, 120/120), S16 (N4 still splits the
+  writers 9/6; takeover 4.4 s; convergence after healing 16.3 s against 0.07 s, one run each).
 
 ## N14: a saga's automatic retry duplicates the payment (G5 at application level)
 - **Evidence (`:after`):**
@@ -397,7 +421,9 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   `evento:<consumerId>:<seq>:<CommandType>:<n>` automatically, and the broker answers a stored key
   with the stored event on any server (only for the same command type and aggregate; another
   command presenting the key is refused, never answered with the stored event). The S07 case where the payment ran but its event could not be stored
-  stays open (no key is recorded without the event). Not yet re-measured.
+  stays open (no key is recorded without the event). **Measured** (`after-g5n16`): S03 and S07 0 payments
+  executed twice and 0 events stored twice; S14 0 keys stored twice, 4/4 stored-then-retried commands
+  answered 2xx with the stored event. The residual window was not hit in S07's run.
 
 ## N15: commands commit after their caller's deadline under `es-lock` contention
 - **Evidence (`:after` S06, 300 ms RTT to the ES primary):** 31 commands timed out at the caller
@@ -437,7 +463,7 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   calls; or have the server shed bundles whose preferred server is back (a "go home" hint in
   `Welcome`/presence). Until then: restart the cell's JVMs after a server returns. The lab does
   this before every scenario (L22).
-- **Fix (`cluster/failback`, not yet run on the lab):** the bundle-side probe. While READY away
+- **Fix (`cluster/failback`, measured below):** the bundle-side probe. While READY away
   from endpoint 0, `ConnectionSupervisor` probes it with TCP + a transport `Ping` (no `Hello`, so
   nothing is registered there), and after 30 s of healthy probes + jitter (+ 30 s for bundles
   without handlers, so handlers are home first) disables itself on the current server, drains
@@ -445,6 +471,12 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   (`S03_FAILBACK_WAIT_S`, `S13_FAILBACK_WAIT_S`) and observe "fail back ... (N16)"; the L22
   placement restore stays as a safety net. The G1 split during the per-bundle return is the
   residual (L1/L2 docs).
+- **Measured (`after-g5n16`):** S03: the 8 APAC JVMs that failed over to `evento-eu` all came back to
+  `evento-apac` without a restart, the last 55.7 s after it was ready (handlers 38–44 s after the server
+  started, gateways 51–55 s; each switch 0.50–0.68 s, drain 0.26 s). S13 A: 7 of 7 EU JVMs back on
+  `evento-eu` 53.3 s after it was ready, and the safety-net restore found nothing. No `failback_failed`,
+  `failback_suspended` or `failback_reactive`, and no `no handler for`: the handlers were home before the
+  gateways moved, so the cell split was never visible to a caller in these runs.
 
 ## N17: the ES promotion outage is longer on `:after`
 - **Evidence (S08, with L24 fixed, one run each):** the first ack after `es-pg-eu` was killed and
