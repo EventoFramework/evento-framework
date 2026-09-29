@@ -45,7 +45,7 @@ export class BundleComponentsDiagramComponent implements AfterViewInit, OnDestro
           id: comp,
           label: h.componentName,
           color: componentColor[h.componentType],
-          route: '/component-info/' + h.componentName,
+          route: '/component-info/' + encodeURIComponent(h.componentId || h.componentName),
         });
       }
 

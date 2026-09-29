@@ -20,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * G14 + G6 (PK part) against a real Postgres: {@code schema.sql} run by several servers at the
- * same instant, and the idempotent, fail-loud {@code es__events} primary key.
+ * same instant, the idempotent, fail-loud {@code es__events} primary key, and the in-place
+ * per-bundle re-keying of an old component catalog (N1).
  */
 @Testcontainers
 @EnabledIfEnvironmentVariable(named = "EVENTO_RUN_JDBC_IT", matches = "true",
@@ -168,6 +169,80 @@ class SchemaInitializationPostgresIT {
                     "select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid " +
                     "where i.indrelid = 'es__events'::regclass and not i.indisvalid", Integer.class))
                     .as("no invalid index left behind").isZero();
+        }
+    }
+
+    /**
+     * N1: a catalog created before components were keyed per bundle is re-keyed in place on
+     * the first boot of the new version, keeping its rows and their links, and later boots
+     * leave it alone.
+     */
+    @Test
+    void aCatalogKeyedByComponentNameIsRekeyedPerBundleInPlace() throws Exception {
+        PostgresItSupport.createDatabase(POSTGRES, "schema_rekey");
+        try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_rekey"), 2)) {
+            var jdbc = new JdbcTemplate(ds);
+            // The catalog tables as the previous schema.sql created them.
+            jdbc.execute("""
+                    create table core__bundle (id varchar(255) not null primary key, instance_id varchar(255) null,
+                        contains_handlers boolean not null, description text null, detail text null,
+                        line_prefix varchar(255) null, repository_url text null, updated_at timestamp null,
+                        version bigint not null);
+                    create table core__component (component_name varchar(255) not null primary key,
+                        component_type varchar(255) null, description text null, detail text null, line int null,
+                        path text null, updated_at timestamp null, bundle_id varchar(255) null,
+                        foreign key (bundle_id) references core__bundle (id));
+                    create table core__consumer (identifier varchar(512) not null primary key,
+                        component_component_name varchar(255) null, instance_id varchar(255) null,
+                        consumer_id varchar(255) null,
+                        foreign key (component_component_name) references core__component (component_name));
+                    create table core__handler (uuid varchar(255) not null primary key,
+                        association_property varchar(255) null, handler_type varchar(255) null, line int null,
+                        executor varchar(255) null, return_is_multiple boolean not null,
+                        component_component_name varchar(255) null, handled_payload_name varchar(255) null,
+                        return_type_name varchar(255) null,
+                        foreign key (component_component_name) references core__component (component_name));
+                    insert into core__bundle (id, contains_handlers, version) values ('query-cina', true, 1);
+                    insert into core__component (component_name, component_type, bundle_id)
+                        values ('OrderProjector', 'Projector', 'query-cina');
+                    insert into core__handler (uuid, handler_type, return_is_multiple, component_component_name,
+                        handled_payload_name) values ('h1', 'EventHandler', false, 'OrderProjector', 'OrderCreated');
+                    insert into core__consumer (identifier, component_component_name, instance_id, consumer_id)
+                        values ('i1_query-cina_OrderProjector_1_CINA', 'OrderProjector', 'i1',
+                                'query-cina_OrderProjector_1_CINA');
+                    """);
+
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+
+            assertThat(jdbc.queryForList("select id from core__component", String.class))
+                    .containsExactly("query-cina:OrderProjector");
+            assertThat(jdbc.queryForObject("select component_id from core__handler where uuid = 'h1'", String.class))
+                    .isEqualTo("query-cina:OrderProjector");
+            assertThat(jdbc.queryForObject("select component_id from core__consumer", String.class))
+                    .isEqualTo("query-cina:OrderProjector");
+            assertThat(jdbc.queryForObject("""
+                    select count(*) from information_schema.columns
+                    where table_name in ('core__handler', 'core__consumer') and column_name = 'component_component_name'
+                    """, Integer.class)).as("old link columns dropped").isZero();
+            assertThat(jdbc.queryForList("""
+                    select a.attname from pg_constraint c
+                    join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+                    where c.conrelid = 'core__component'::regclass and c.contype = 'p'
+                    """, String.class)).containsExactly("id");
+
+            // Idempotent, and the same class now fits in a second bundle.
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+            jdbc.update("insert into core__bundle (id, contains_handlers, version) values ('query-europa', true, 1)");
+            jdbc.update("""
+                    insert into core__component (id, component_name, component_type, bundle_id)
+                    values ('query-europa:OrderProjector', 'OrderProjector', 'Projector', 'query-europa')
+                    """);
+            assertThat(jdbc.queryForObject("select count(*) from core__component where component_name = 'OrderProjector'",
+                    Integer.class)).isEqualTo(2);
+            assertThatThrownBy(() -> jdbc.update(
+                    "insert into core__consumer (identifier, component_id) values ('x', 'nobody:Nothing')"))
+                    .as("consumer rows still reference a real component")
+                    .hasMessageContaining("core__consumer_component_id_fkey");
         }
     }
 

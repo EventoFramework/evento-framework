@@ -289,7 +289,7 @@ public class PerformanceStoreService extends PerformanceService {
                 "GROUP BY gs.interval_start " +
                 "ORDER BY gs.interval_start";
         var resp = new HashMap<String, Collection<PerformancePoint>>();
-        var handlers = handlerRepository.findAllHandledPayloadsNameByComponentName(componentId);
+        var handlers = handlerRepository.findAllHandledPayloadsNameByBundleIdAndComponentName(bundleId, componentId);
 
         var tsFrom = from.toInstant().toEpochMilli();
         var toTs = to.toInstant().toEpochMilli();
@@ -334,7 +334,7 @@ public class PerformanceStoreService extends PerformanceService {
                 "GROUP BY gs.interval_start " +
                 "ORDER BY gs.interval_start;";
         var resp = new HashMap<String, Collection<AggregatePerformancePoint>>();
-        var handlers = handlerRepository.findAllByComponentComponentName(componentId);
+        var handlers = handlerRepository.findAllByComponent_Bundle_IdAndComponent_ComponentName(bundleId, componentId);
 
         var tsFrom = from.toInstant().toEpochMilli();
         var toTs = to.toInstant().toEpochMilli();

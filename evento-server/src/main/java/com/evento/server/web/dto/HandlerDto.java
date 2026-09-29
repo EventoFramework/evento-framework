@@ -23,6 +23,8 @@ public class HandlerDto implements Serializable {
 	private String uuid;
 	private PayloadDto handledPayload;
 	private String bundleId;
+	/** Catalog key of the component, {@code bundleId:componentName}. */
+	private String componentId;
 	private String componentName;
 	private PayloadDto returnType;
 	private ComponentType componentType;
@@ -38,6 +40,7 @@ public class HandlerDto implements Serializable {
 	public HandlerDto(Handler handler) {
 		this.uuid = handler.getUuid();
 		this.bundleId = handler.getComponent().getBundle().getId();
+		this.componentId = handler.getComponent().getId();
 		this.componentName = handler.getComponent().getComponentName();
 		this.componentType = handler.getComponent().getComponentType();
 		this.handlerType = handler.getHandlerType();

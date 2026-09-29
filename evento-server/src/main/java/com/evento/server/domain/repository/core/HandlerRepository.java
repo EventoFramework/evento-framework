@@ -21,8 +21,8 @@ public interface HandlerRepository extends JpaRepository<Handler, String> {
 
 	List<Handler> findAllByHandlerTypeOrderByUuid(HandlerType handlerType);
 
-	@Query("select distinct h.handledPayload.name from Handler h where h.component.componentName = ?1")
-	List<String> findAllHandledPayloadsNameByComponentName(String componentName);
+	@Query("select distinct h.handledPayload.name from Handler h where h.component.bundle.id = ?1 and h.component.componentName = ?2")
+	List<String> findAllHandledPayloadsNameByBundleIdAndComponentName(String bundleId, String componentName);
 
 	boolean existsByComponent_BundleAndHandledPayload_NameAndHandlerType(Bundle bundle, String payloadName, HandlerType handlerType);
 
@@ -41,7 +41,7 @@ public interface HandlerRepository extends JpaRepository<Handler, String> {
 
 
 	List<Handler> findAllByComponent(Component c);
-	List<Handler> findAllByComponentComponentName(String componentName);
+	List<Handler> findAllByComponent_Bundle_IdAndComponent_ComponentName(String bundleId, String componentName);
 
 	boolean existsByHandledPayload_Name(String payloadName);
 	boolean existsByReturnType_Name(String payloadName);

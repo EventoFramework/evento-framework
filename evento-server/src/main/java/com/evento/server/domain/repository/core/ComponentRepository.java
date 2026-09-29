@@ -10,7 +10,8 @@ import java.util.Optional;
 
 public interface ComponentRepository extends JpaRepository<Component, String> {
 
-	@Query(value = "select c.component_name as componentName, " +
+	@Query(value = "select c.id as componentId, " +
+			"   c.component_name as componentName, " +
 			"   c.component_type as componentType, " +
 			"   c.description, " +
 			"   string_agg(distinct p.domain, ',') as domains, " +
@@ -19,16 +20,19 @@ public interface ComponentRepository extends JpaRepository<Component, String> {
 			"   count(h.return_type_name) as producedMessages, " +
 			"   count(distinct concat(i.handler_uuid, i.invocations_key)) as invocations " +
 			"from core__component c " +
-			" left join core__handler h on c.component_name = h.component_component_name and h.handler_type <> 'EventSourcingHandler' " +
+			" left join core__handler h on c.id = h.component_id and h.handler_type <> 'EventSourcingHandler' " +
 			"left join core__handler__invocation i on h.uuid = i.handler_uuid " +
 			"left join core__payload p on h.handled_payload_name = p.name " +
-			"group by c.component_name " +
+			"group by c.id " +
 			"order by c.updated_at", nativeQuery = true)
 	List<ComponentListProjection> findAllComponentProjection();
 
 	Optional<Component> findComponentByComponentNameAndBundle_Id(String componentName, String bundleId);
 
 	List<Component> findAllByBundle_Id(String bundleId);
+
+	/** Every bundle's component of that name: a class deployed in several bundles has one row per bundle. */
+	List<Component> findAllByComponentNameOrderByBundle_Id(String componentName);
 
 	@Query("select c.componentType as type, count(c) as count from Component c group by c.componentType")
 	List<ComponentTypeCount> countByType();

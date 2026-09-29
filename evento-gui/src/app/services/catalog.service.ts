@@ -22,7 +22,7 @@ export class CatalogService {
   }
 
   findComponentByName(identifier: string) {
-    return apiFetch('/api/catalog/component/' + identifier).then(r => r.json());
+    return apiFetch('/api/catalog/component/' + encodeURIComponent(identifier)).then(r => r.json());
 
   }
 }

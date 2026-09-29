@@ -89,7 +89,7 @@ public class BundleService {
         } else {
             log.info("[BundleService] Bundle record not found for bundleId={}", bundleId);
         }
-        components.forEach(c -> handlerService.clearCache(c.getComponentName()));
+        components.forEach(c -> handlerService.clearCache(bundleId, c.getComponentName()));
     }
 
     /**

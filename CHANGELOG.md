@@ -80,8 +80,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   for an instant (`lock_timeout` 3 s, retried). Other booting servers wait for it on the
   schema lock.
 
+- **Upgrade note, component catalog re-keyed (N1):** the first server of this version to
+  boot migrates an existing catalog in place, in one transaction under the schema lock
+  (`event=catalog_component_rekeyed`): it adds `core__component.id`, moves
+  `core__handler` / `core__consumer` from `component_component_name` to `component_id`,
+  and swaps the primary and foreign keys. Rows the old keying had already mixed up keep
+  pointing at the bundle that owned the row until that bundle's next discovery. Servers
+  of an older version sharing the database fail their catalog writes after the
+  migration (routing is in memory and unaffected): upgrade the servers together.
+
 ### Fixed
 
+- **The catalog keyed components by class name across bundles (N1).** `core__component`
+  had `component_name` as primary key, so the same class deployed by several bundles
+  (one projector class run by a `query-<region>` bundle per region) shared one row: all
+  but one bundle lost their `core__handler` rows, and one bundle's unregister deleted
+  every other bundle's `core__consumer` rows with it (the lab lost all 7 regions'
+  consumer rows on one JVM restart). Components are now keyed per bundle,
+  `core__component.id = bundle_id || ':' || component_name` (`Component.idOf`), with a
+  unique `(bundle_id, component_name)` index; handler and consumer rows reference
+  `component_id`. Discovery, consumer registration, `BundleService.removeBundle`, the
+  catalog/bundle/payload queries and the telemetry lookups all resolve components within
+  their bundle. Consumer rows stay keyed by `instanceId_consumerId`, and the consumer id
+  carries the context, so one bundle id run by several instances with different contexts
+  (`CINA` in one JVM, `EUROPA,AFRICA` in another) lists every lane and a leaving instance
+  removes only its own. REST: `ComponentDTO`, `HandlerDto`, `ConsumerDTO` and the
+  component list gain `componentId`; `GET /api/catalog/component/{identifier}` takes the
+  id, or a bare name when exactly one bundle has it (`409` with the candidate ids
+  otherwise). The GUI links components by id. Tested on real Postgres with two servers
+  (`MultiServerCatalogIT`) and the in-place migration (`SchemaInitializationPostgresIT`).
 - **`WATERMARK` bookkeeping cost grew with the numeric width of a gap (G10).** Since
   2.4.6 the processor closes every sequence number a fetched batch proves absent — but it
   did so one number at a time into a `TreeSet<Long>`. A consumer filtered to one context

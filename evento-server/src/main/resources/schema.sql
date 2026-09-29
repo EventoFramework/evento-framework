@@ -12,10 +12,15 @@ create table if not exists core__bundle
     version                bigint       not null
 );
 
+-- A component is identified per bundle: id = bundle_id || ':' || component_name (see
+-- Component.idOf). The same class deployed in several bundles has one row per bundle.
+-- Catalogs created before that keyed rows by component_name alone; the schema
+-- initializer (AdvisoryLockedSchemaInitializer) migrates them in place.
 create table if not exists core__component
 (
-    component_name varchar(255) not null
+    id             varchar(512) not null
         primary key,
+    component_name varchar(255) not null,
     component_type varchar(255) null,
     description    text         null,
     detail         text         null,
@@ -30,10 +35,10 @@ create table if not exists core__consumer
 (
     identifier varchar(512) not null
         primary key,
-    component_component_name varchar(255) null,
+    component_id varchar(512) null,
     instance_id    varchar(255) null,
     consumer_id        varchar(255) null,
-    foreign key (component_component_name) references core__component (component_name)
+    foreign key (component_id) references core__component (id)
 );
 
 create table if not exists core__payload
@@ -61,12 +66,12 @@ create table if not exists core__handler
     line                     int          null,
     executor                 varchar(255) null,
     return_is_multiple       boolean      not null,
-    component_component_name varchar(255) null,
+    component_id             varchar(512) null,
     handled_payload_name     varchar(255) null,
     return_type_name         varchar(255) null,
     foreign key (return_type_name) references core__payload (name),
     foreign key (handled_payload_name) references core__payload (name),
-    foreign key (component_component_name) references core__component (component_name)
+    foreign key (component_id) references core__component (id)
 );
 
 create table if not exists core__handler__invocation

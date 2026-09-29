@@ -3,6 +3,7 @@ package com.evento.server.service;
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.server.domain.model.core.Bundle;
+import com.evento.server.domain.model.core.Component;
 import com.evento.server.domain.model.core.Handler;
 import com.evento.server.domain.repository.core.HandlerRepository;
 import org.springframework.stereotype.Service;
@@ -60,12 +61,14 @@ public class HandlerService {
 
     private final Map<String, List<String>> handlerCache = new ConcurrentHashMap<String, List<String> >();
 
-	public List<String> findAllHandledPayloadsNameByComponentName(String componentName) {
-        return handlerCache.computeIfAbsent(componentName, handlerRepository::findAllHandledPayloadsNameByComponentName);
+	/** Keyed per bundle ({@link Component#idOf}): the same component class may live in several bundles. */
+	public List<String> findAllHandledPayloadsNameByComponent(String bundleId, String componentName) {
+        return handlerCache.computeIfAbsent(Component.idOf(bundleId, componentName),
+                k -> handlerRepository.findAllHandledPayloadsNameByBundleIdAndComponentName(bundleId, componentName));
 	}
 
-    public void clearCache(String componentName) {
-        handlerCache.remove(componentName);
+    public void clearCache(String bundleId, String componentName) {
+        handlerCache.remove(Component.idOf(bundleId, componentName));
     }
 
     public void deleteAll(List<Handler> handlers) {

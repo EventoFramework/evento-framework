@@ -47,6 +47,13 @@ import java.sql.SQLException;
  *       query in flight makes it retry instead of queueing every later query behind it.</li>
  * </ol>
  *
+ * <p><b>Why the catalog migration is here.</b> Catalogs created before components were keyed per
+ * bundle have {@code core__component.component_name} as primary key, referenced by
+ * {@code core__handler.component_component_name} and {@code core__consumer.component_component_name}.
+ * Re-keying them to {@code core__component.id} ({@code bundle_id || ':' || component_name}) is
+ * conditional on the old shape and needs {@code DO}-free, ordered DDL, so it runs here, once, in
+ * one transaction ({@link #migrateComponentIdentity}).
+ *
  * <p>On a non-PostgreSQL database it defers to the plain initializer.
  */
 public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScriptDatabaseInitializer {
@@ -91,6 +98,7 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
             try {
                 boolean applied = super.initializeDatabase();
                 if (applied) {
+                    migrateComponentIdentity(lockConnection);
                     applyEventStoreConstraints(lockConnection);
                 }
                 return applied;
@@ -104,6 +112,86 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
             }
         } catch (SQLException e) {
             throw new DataAccessResourceFailureException("Schema initialisation failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Re-keys the component catalog per bundle (N1) when it still has the old shape, then makes
+     * sure the lookup indexes exist. Idempotent: a catalog that already has
+     * {@code core__component.id} is left alone, so every boot after the first is a no-op.
+     *
+     * <p>The rewrite runs in one transaction: a server that dies half-way leaves the old shape,
+     * and the next boot starts over. Existing rows keep their bundle; handler and consumer rows
+     * follow their component. Rows that the old keying had already mixed up (one row standing for
+     * a class several bundles run) keep pointing at whichever bundle owned the row; the next
+     * discovery of each bundle writes its own component and handler rows next to it.
+     *
+     * <p>The DDL takes {@code ACCESS EXCLUSIVE} on the three catalog tables for as long as the
+     * rewrite of a few hundred rows lasts. Under a short {@code lock_timeout} a busy catalog makes
+     * it retry rather than queue every catalog query behind it. Servers of an older version that
+     * still run against the same database fail their catalog writes once this has run (routing is
+     * in memory and unaffected); upgrade all servers together.
+     */
+    private void migrateComponentIdentity(Connection connection) throws SQLException {
+        if (queryLong(connection, "SELECT count(*) FROM information_schema.columns " +
+                "WHERE table_schema = current_schema() AND table_name = 'core__component' " +
+                "AND column_name = 'id'") == 0) {
+            long started = System.nanoTime();
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    rekeyComponents(connection);
+                    break;
+                } catch (SQLException e) {
+                    if (!LOCK_NOT_AVAILABLE.equals(e.getSQLState()) || attempt >= ATTACH_ATTEMPTS) throw e;
+                    log.warn("event=catalog_component_rekey_lock_busy attempt={} lockTimeout={}",
+                            attempt, ATTACH_LOCK_TIMEOUT);
+                    sleep(Math.min(250L * attempt, 2_000L));
+                }
+            }
+            log.info("event=catalog_component_rekeyed durationMs={}", (System.nanoTime() - started) / 1_000_000);
+        }
+        execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS core__component_bundle_name_uidx " +
+                "ON core__component (bundle_id, component_name)");
+        execute(connection, "CREATE INDEX IF NOT EXISTS core__handler_component_id_idx ON core__handler (component_id)");
+        execute(connection, "CREATE INDEX IF NOT EXISTS core__consumer_component_id_idx ON core__consumer (component_id)");
+    }
+
+    private static void rekeyComponents(Connection connection) throws SQLException {
+        boolean autoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            execute(connection, "SET LOCAL lock_timeout = '" + ATTACH_LOCK_TIMEOUT + "'");
+            execute(connection, "LOCK TABLE core__component, core__handler, core__consumer IN ACCESS EXCLUSIVE MODE");
+            execute(connection, "ALTER TABLE core__component ADD COLUMN id varchar(512)");
+            execute(connection, "UPDATE core__component SET id = coalesce(bundle_id, '') || ':' || component_name");
+            for (String table : new String[]{"core__handler", "core__consumer"}) {
+                execute(connection, "ALTER TABLE " + table + " ADD COLUMN IF NOT EXISTS component_id varchar(512)");
+                execute(connection, "UPDATE " + table + " t SET component_id = c.id FROM core__component c " +
+                        "WHERE c.component_name = t.component_component_name");
+                // Drops the foreign key on the old column with it.
+                execute(connection, "ALTER TABLE " + table + " DROP COLUMN IF EXISTS component_component_name");
+            }
+            String oldKey;
+            try (var stmt = connection.createStatement();
+                 var rs = stmt.executeQuery("SELECT conname FROM pg_constraint " +
+                         "WHERE conrelid = 'core__component'::regclass AND contype = 'p'")) {
+                oldKey = rs.next() ? rs.getString(1) : null;
+            }
+            if (oldKey != null) {
+                execute(connection, "ALTER TABLE core__component DROP CONSTRAINT \"" + oldKey + "\"");
+            }
+            execute(connection, "ALTER TABLE core__component ALTER COLUMN id SET NOT NULL");
+            execute(connection, "ALTER TABLE core__component ADD CONSTRAINT core__component_pkey PRIMARY KEY (id)");
+            execute(connection, "ALTER TABLE core__handler ADD CONSTRAINT core__handler_component_id_fkey " +
+                    "FOREIGN KEY (component_id) REFERENCES core__component (id)");
+            execute(connection, "ALTER TABLE core__consumer ADD CONSTRAINT core__consumer_component_id_fkey " +
+                    "FOREIGN KEY (component_id) REFERENCES core__component (id)");
+            connection.commit();
+        } catch (SQLException | RuntimeException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(autoCommit);
         }
     }
 
