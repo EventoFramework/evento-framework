@@ -126,7 +126,7 @@ public class LabBundles implements AutoCloseable {
         }
         var injectables = injectables(spec);
         var builder = EventoBundle.Builder.builder()
-                .setBasePackage(packageOf(spec.basePackage()))
+                .setBasePackage(packageOf(spec))
                 .setBundleId(spec.bundleId())
                 .setInstanceId(settings.bundleInstanceId(spec.bundleId()))
                 .setBundleVersion(1)
@@ -154,10 +154,13 @@ public class LabBundles implements AutoCloseable {
         return m;
     }
 
-    private static Package packageOf(String name) throws ClassNotFoundException {
+    private static Package packageOf(BundleSpec spec) throws ClassNotFoundException {
         // Package.getPackage only knows packages whose classes were already
         // loaded; load one component class to define it.
-        for (var candidate : List.of("OrderAggregate", "GlobalOrderProjector", "RegionOrderProjector", "PaymentSaga")) {
+        var name = spec.basePackage();
+        var candidates = new ArrayList<String>(spec.contexts().keySet());
+        candidates.addAll(List.of("OrderAggregate", "GlobalOrderProjector", "PaymentSaga"));
+        for (var candidate : candidates) {
             try {
                 return Class.forName(name + "." + candidate).getPackage();
             } catch (ClassNotFoundException ignored) {

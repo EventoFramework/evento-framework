@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -442,11 +443,21 @@ public final class Invariants {
 
     // ---- I7 ---------------------------------------------------------------------------------------
 
+    /** {@code SUD_AMERICA -> SudAmericaOrderProjector} (mirrors the app's {@code Regions.projectorName}). */
+    static String projectorName(String region) {
+        var sb = new StringBuilder();
+        for (var part : region.toLowerCase(java.util.Locale.ROOT).split("_")) {
+            sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        }
+        return sb.append("OrderProjector").toString();
+    }
+
     /** Consumer id prefixes the default topology must have registered. */
     public static List<String> expectedConsumerPrefixes() {
         var out = new ArrayList<String>();
         for (var r : LabConfig.REGIONS) {
-            out.add("query-" + r.toLowerCase() + "_RegionOrderProjector_");
+            // query-<r>_<R>OrderProjector_1_<R>: one projector class per region (N1)
+            out.add("query-" + r.toLowerCase() + "_" + projectorName(r) + "_");
         }
         out.add("cluster-query-global_GlobalOrderProjector_");
         out.add("cluster-saga_PaymentSaga_");
@@ -476,6 +487,19 @@ public final class Invariants {
                 violations.add("no handler row for " + p);
             }
         }
+        // Every live bundle must own at least one handler row. core__component is keyed by the
+        // component's simple class name (N1 in FINDINGS.md), so bundles sharing a component class
+        // (before the lab's workaround the seven query-<region> bundles all ran RegionOrderProjector) end up with the rows of
+        // whichever registered last and the others have none.
+        var bundlesWithHandlers = new HashSet<String>();
+        catalog.handlersByPayload().values().forEach(bundlesWithHandlers::addAll);
+        int bundlesWithoutHandlers = 0;
+        for (var b : expectedBundles) {
+            if (catalog.bundles().containsKey(b) && !bundlesWithHandlers.contains(b)) {
+                bundlesWithoutHandlers++;
+                violations.add("bundle " + b + " has no core__handler rows");
+            }
+        }
         int missingConsumers = 0;
         for (var prefix : expectedConsumerPrefixes) {
             boolean found = catalog.consumers().keySet().stream().anyMatch(c -> c != null && c.startsWith(prefix));
@@ -489,12 +513,13 @@ public final class Invariants {
         metrics.put("consumers", catalog.consumers().size());
         metrics.put("missingBundles", missingBundles);
         metrics.put("missingHandlers", missingHandlers);
+        metrics.put("bundlesWithoutHandlers", bundlesWithoutHandlers);
         metrics.put("missingConsumers", missingConsumers);
         metrics.put("bundleInstances", new TreeMap<>(catalog.bundles()));
         return InvariantResult.of("I7", "catalog matches live bundles",
                 "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
                 missingBundles + " bundle(s), " + missingHandlers + " handler(s), " + missingConsumers
-                        + " consumer(s) missing",
+                        + " consumer(s) missing; " + bundlesWithoutHandlers + " bundle(s) without handler rows",
                 metrics, violations);
     }
 

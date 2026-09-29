@@ -34,7 +34,9 @@ class LabWiringTest {
         assertThat(specs).hasSize(1);
         assertThat(specs.getFirst().bundleId()).isEqualTo("query-sud_america");
         assertThat(specs.getFirst().viewTable()).isEqualTo("order_view_sud_america");
-        assertThat(specs.getFirst().contexts()).containsEntry("RegionOrderProjector", List.of("SUD_AMERICA"));
+        // one projector class per region (N1: the server keys components by simple name)
+        assertThat(specs.getFirst().contexts()).containsEntry("SudAmericaOrderProjector", List.of("SUD_AMERICA"));
+        assertThat(specs.getFirst().basePackage()).isEqualTo("com.evento.lab.cluster.bundle.region.sud_america");
         assertThat(s.bundleInstanceId("query-sud_america")).isEqualTo("region-sud-america-query-sud_america");
     }
 
