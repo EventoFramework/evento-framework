@@ -61,6 +61,11 @@ public final class BusLifecycleFacade implements BusFacade {
     }
 
     @Override
+    public java.util.Map<String, String> currentZones() {
+        return lifecycle.zones();
+    }
+
+    @Override
     public boolean isBundleAvailable(String bundleId) {
         return lifecycle.isBundleAvailable(bundleId);
     }

@@ -273,6 +273,8 @@ public final class BundleClient implements AutoCloseable {
         public Builder registeredHandlers(java.util.List<com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler> handlers) { cfg.registeredHandlers(handlers); return this; }
         public Builder payloadInfo(java.util.Map<String, com.evento.transport.protocol.PayloadDiscoveryInfo> info) { cfg.payloadInfo(info); return this; }
         public Builder capabilities(java.util.Set<String> caps) { cfg.capabilities(caps); return this; }
+        /** Advertise where this bundle runs ({@code zone:<ZONE>} in Hello); null clears it. */
+        public Builder zone(String zone) { cfg.zone(zone); return this; }
         public Builder handshakeTimeout(Duration d) { cfg.handshakeTimeout(d); return this; }
         public Builder defaultRequestTimeout(Duration d) { cfg.defaultRequestTimeout(d); return this; }
         /** Cap on outstanding requests; 0 disables the bound. */

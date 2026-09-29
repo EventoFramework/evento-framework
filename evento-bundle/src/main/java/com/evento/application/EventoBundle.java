@@ -336,6 +336,15 @@ public class EventoBundle {
         /** Bundle long-form markdown description. */
         private String detail = "";
 
+        /**
+         * Where this bundle instance runs (e.g. {@code "EU"}), advertised to the
+         * broker as the {@code zone:<ZONE>} Hello capability. A broker running the
+         * {@code LOCALITY_PREFERRED} pick strategy routes this bundle's commands and
+         * queries to handlers in the same zone when any is available, and to any
+         * handler otherwise. Null (the default) advertises no zone.
+         */
+        private String zone;
+
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
@@ -391,6 +400,25 @@ public class EventoBundle {
          */
         private Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors = new HashMap<>();
 
+        /**
+         * The event contexts a consumer component (projector, saga, observer) reads.
+         * Default is {@code Context.DEFAULT}.
+         *
+         * <p>Each value is either an exact context name ({@code "SUD_AMERICA"}) or a
+         * pattern in which {@code *} stands for any run of characters ({@code "*"}
+         * reads every context). Nothing else is a wildcard: in particular {@code _}
+         * and {@code %} are ordinary characters of a name. The server turns the
+         * value into a SQL {@code LIKE} pattern; servers before the G15 fix did not
+         * escape {@code _} / {@code %}, so on those a name like {@code SUD_AMERICA}
+         * also matched {@code SUDXAMERICA}. Against such a server, either avoid
+         * {@code _} and {@code %} in context names or check that no other context
+         * name collides with the pattern.
+         *
+         * <p>Context is carried by events only ({@code Event#getContext}); commands
+         * and queries have no framework-level context, so an aggregate that must
+         * emit events in the caller's context has to copy it from a command field
+         * into the event itself.
+         */
         public Builder setComponentContexts(Class<?> componentClass, String... contexts) {
             this.contexts.put(componentClass.getSimpleName(), new HashSet<>(Arrays.asList(contexts)));
             return this;
@@ -679,6 +707,7 @@ public class EventoBundle {
                     .transportConfig(effectiveTransportConfig())
                     .defaultRequestTimeout(defaultRequestTimeout)
                     .maxInFlightRequests(maxInFlightRequests)
+                    .zone(zone)
                     .bundleVersion(String.valueOf(bundleVersion))
                     .description(description.isEmpty() ? bundleId : description)
                     .detail(detail)
