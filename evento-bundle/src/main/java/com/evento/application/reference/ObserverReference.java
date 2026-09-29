@@ -2,6 +2,7 @@ package com.evento.application.reference;
 
 import com.evento.application.manager.ConsumerSetError;
 import com.evento.application.manager.MessageHandlerInterceptor;
+import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.messaging.gateway.CommandGateway;
 import com.evento.common.messaging.gateway.QueryGateway;
@@ -92,6 +93,8 @@ public class ObserverReference extends Reference {
         var retry = 0;
         while (true) {
             try {
+                // Same derived idempotency keys on every attempt (G5): the ordinal restarts.
+                GatewayTelemetryProxy.beginAttempt(commandGateway);
                 messageHandlerInterceptor.beforeObserverEventHandling(
                         getRef(),
                         publishedEvent,

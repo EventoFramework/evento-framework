@@ -14,8 +14,12 @@ import com.evento.common.utils.LockAcquisitionTimeoutException;
 import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.event.BusEvent;
+import com.evento.transport.RequestExpiredException;
 import com.evento.transport.SendFailedException;
 import com.evento.transport.message.Response;
+import io.micrometer.core.instrument.FunctionCounter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
 import com.evento.server.bus.lifecycle.BusLifecycle;
 import com.evento.server.bus.registry.ClusterRegistry;
 import org.slf4j.Logger;
@@ -27,6 +31,7 @@ import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Restores the broker-side command interception that lived in the deleted v1
@@ -58,7 +63,19 @@ import java.util.concurrent.TimeoutException;
  * applied it twice. A drop answers {@code RequestExpiredException} and logs
  * {@code event=request_expired_dropped}. A command that passes the last check and
  * then outlives its deadline during the append is still indeterminate for the
- * caller; that window needs an idempotency key (CLUSTER-READINESS G5).
+ * caller; a retry with the same idempotency key resolves it (below).
+ *
+ * <p><b>Idempotency keys (CLUSTER-READINESS G5).</b> A command may carry an idempotency
+ * key ({@code CommandMessage#getIdempotencyKey()}), which is stored with its event under a
+ * partial unique index. A keyed command whose key already has an event is answered with
+ * that event before the lock and the forward, on whichever server it arrives
+ * ({@code event=idempotent_replay}, {@code evento.server.commands.idempotent.replayed}), and
+ * no handler runs. Concurrent duplicates are serialised by the aggregate lock (aggregate
+ * commands, key re-checked under it; the unique index backs it up) or by a cluster-wide
+ * {@code IDEMPOTENCY:<key>} lock taken before the forward (service commands, whose
+ * handlers have side effects). A deadline drop of a keyed command whose key is found
+ * stored becomes the replay: once the original committed, a retry never hears "expired".
+ * One window stays open: a service handler that ran while its event was not stored.
  *
  * <p>The {@code before_append} drop applies to aggregate commands only, whose handlers
  * are pure (they compute an event from the story; nothing happened until the broker
@@ -78,10 +95,13 @@ import java.util.concurrent.TimeoutException;
  * </ol>
  */
 @Component
-public class CommandBrokerHandler {
+public class CommandBrokerHandler implements MeterBinder {
 
     private static final Logger log = LoggerFactory.getLogger(CommandBrokerHandler.class);
     private static final String RESOURCE_LOCK_PREFIX = "RESOURCE:";
+    /** Lock serialising the executions of one idempotency key across servers (service commands). */
+    static final String IDEMPOTENCY_LOCK_PREFIX = "IDEMPOTENCY:";
+    private final AtomicLong idempotentReplays = new AtomicLong();
     private static final long SEND_RETRY_BACKOFF_INITIAL_MS = 50;
     private static final long SEND_RETRY_BACKOFF_MAX_MS = 1_000;
 
@@ -121,19 +141,97 @@ public class CommandBrokerHandler {
         });
     }
 
+    // ---- idempotency (G5) ----
+
+    /**
+     * Runs a keyed command at most once: a command whose key already has a stored event is
+     * answered with that event before anything else happens (no lock, no handler, no deadline
+     * check), and a deadline drop is turned into that answer when the event turns out to be
+     * stored meanwhile, so a replay is never reported as "expired, not executed" once the
+     * original committed. Unkeyed commands go straight to {@code execution}.
+     */
+    private byte[] idempotent(String key, String payloadType, EventoRequest request, CommandExecution execution)
+            throws Exception {
+        if (key == null) return execution.run();
+        var replay = replay(key, payloadType, request, "before_lock");
+        if (replay != null) return replay;
+        try {
+            return execution.run();
+        } catch (RequestExpiredException e) {
+            var late = replay(key, payloadType, request, "after_expiry");
+            if (late != null) return late;
+            throw e;
+        }
+    }
+
+    @FunctionalInterface
+    private interface CommandExecution {
+        byte[] run() throws Exception;
+    }
+
+    /**
+     * The stored event of {@code key} as this request's response, or {@code null} when no event
+     * has that key. Logs {@code event=idempotent_replay} and counts
+     * {@code evento.server.commands.idempotent.replayed}.
+     */
+    private byte[] replay(String key, String payloadType, EventoRequest request, String stage) {
+        var stored = eventStore.findByIdempotencyKey(key);
+        if (stored.isEmpty()) return null;
+        idempotentReplays.incrementAndGet();
+        log.info("event=idempotent_replay payloadType={} idempotencyKey={} correlationId={} stage={} seq={}",
+                payloadType, key, request.getCorrelationId(), stage, stored.get().eventSequenceNumber());
+        var reply = new EventoResponse();
+        reply.setCorrelationId(request.getCorrelationId());
+        reply.setBody(stored.get().eventMessage());
+        return codec.encodeResponse(reply);
+    }
+
+    /** Commands answered with a stored event instead of being executed (G5). */
+    public long idempotentReplayedCount() {
+        return idempotentReplays.get();
+    }
+
+    @Override
+    public void bindTo(MeterRegistry registry) {
+        FunctionCounter.builder("evento.server.commands.idempotent.replayed", this,
+                        CommandBrokerHandler::idempotentReplayedCount)
+                .description("Commands answered with the event stored under their idempotency key, not executed again")
+                .register(registry);
+    }
+
     // ---- aggregate command ----
 
     private byte[] handleAggregateCommand(String commandPayloadType, byte[] payload,
                                           NodeAddress originator, long deadlineMs) throws Exception {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (DomainCommandMessage) eventoRequest.getBody();
+        String key = cmd.getIdempotencyKey();
+        return idempotent(key, commandPayloadType, eventoRequest,
+                () -> executeAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs));
+    }
 
+    /**
+     * The aggregate path. With a key, concurrent duplicates are serialised by the aggregate lock
+     * (a domain command locks on its aggregate id unless it names another lock) and the key is
+     * checked again under it, before the story is fetched: the second duplicate must not run the
+     * handler against a story that already holds the first one's event (a creation would be
+     * refused as "already exists" instead of replayed). Without a lock, or with a lost one, the
+     * unique index is the fence: the losing append replays. Aggregate handlers are pure, so a
+     * handler run whose append then loses changes nothing.
+     */
+    private byte[] executeAggregateCommand(String commandPayloadType, EventoRequest eventoRequest,
+                                           DomainCommandMessage cmd, String key,
+                                           NodeAddress originator, long deadlineMs) throws Exception {
         String lockKey = cmd.getLockId() != null ? RESOURCE_LOCK_PREFIX + cmd.getLockId() : null;
         boolean lockAcquired = false;
         try {
             if (lockKey != null) {
                 acquireWithin(lockKey, deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
                 lockAcquired = true;
+                if (key != null) {
+                    var replay = replay(key, commandPayloadType, eventoRequest, "after_lock");
+                    if (replay != null) return replay;
+                }
             }
 
             var story = eventStore.fetchAggregateStory(
@@ -163,12 +261,19 @@ public class CommandBrokerHandler {
                     eventoRequest.getCorrelationId(), true);
 
             if (response.isError()) {
+                var replay = key == null ? null : replay(key, commandPayloadType, eventoRequest, "after_handler_error");
+                if (replay != null) return replay;
                 return errorResponse(eventoRequest.getCorrelationId(),
                         response.error() != null ? response.error().message() : "command failed");
             }
 
             var eventoResponse = codec.decodeResponse(response.payload());
             if (eventoResponse.getBody() instanceof ExceptionWrapper) {
+                // Without the aggregate lock a duplicate can see the original's event in its
+                // story and be refused by the domain ("already created"): that refusal is the
+                // original's success, not a failure.
+                var replay = key == null ? null : replay(key, commandPayloadType, eventoRequest, "after_handler_error");
+                if (replay != null) return replay;
                 return codec.encodeResponse(eventoResponse);
             }
 
@@ -186,7 +291,16 @@ public class CommandBrokerHandler {
             // the event now would apply a command the caller may retry.
             checkDeadline(deadlineMs, BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND, commandPayloadType,
                     eventoRequest.getCorrelationId());
-            long seqNum = eventStore.publishEvent(eventMessage, cmd.getAggregateId());
+            long seqNum;
+            try {
+                seqNum = eventStore.publishEvent(eventMessage, cmd.getAggregateId(), key);
+            } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {
+                // A duplicate on another server (or without the lock) appended first. This
+                // handler run was pure; answer with what was stored, write no snapshot.
+                var replay = replay(key, commandPayloadType, eventoRequest, "append_conflict");
+                if (replay != null) return replay;
+                throw conflict;
+            }
             log.debug("event=domain_event_stored payloadType={} aggregateId={} seq={}",
                     commandPayloadType, cmd.getAggregateId(), seqNum);
 
@@ -218,10 +332,38 @@ public class CommandBrokerHandler {
                                         NodeAddress originator, long deadlineMs) throws Exception {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (ServiceCommandMessage) eventoRequest.getBody();
+        String key = cmd.getIdempotencyKey();
+        return idempotent(key, commandPayloadType, eventoRequest,
+                () -> executeServiceCommand(commandPayloadType, payload, eventoRequest, cmd, key, originator, deadlineMs));
+    }
 
+    /**
+     * The service path. A service handler has side effects, so the unique index alone (which
+     * only stops the second append) is not enough: with a key, the broker takes the cluster-wide
+     * lock {@code IDEMPOTENCY:<key>} before the forward and checks the key again under it, so two
+     * in-flight duplicates, on one server or two, cannot both reach the handler. The key lock is
+     * taken before the command's own lock, always in that order, so the two cannot deadlock.
+     *
+     * <p>What it cannot close: a handler that ran while its event was not stored (the append
+     * failed, the server died between the answer and the append). The key is recorded only with
+     * the event, so a retry finds nothing and runs the handler again; such a handler must be
+     * idempotent itself, which it can be on the same key
+     * ({@code ServiceCommandMessage#getIdempotencyKey()} is passed to it).
+     */
+    private byte[] executeServiceCommand(String commandPayloadType, byte[] payload, EventoRequest eventoRequest,
+                                         ServiceCommandMessage cmd, String key,
+                                         NodeAddress originator, long deadlineMs) throws Exception {
+        String keyLock = key != null ? IDEMPOTENCY_LOCK_PREFIX + key : null;
+        boolean keyLockAcquired = false;
         String lockKey = cmd.getLockId() != null ? RESOURCE_LOCK_PREFIX + cmd.getLockId() : null;
         boolean lockAcquired = false;
         try {
+            if (keyLock != null) {
+                acquireWithin(keyLock, deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
+                keyLockAcquired = true;
+                var replay = replay(key, commandPayloadType, eventoRequest, "after_lock");
+                if (replay != null) return replay;
+            }
             if (lockKey != null) {
                 acquireWithin(lockKey, deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
                 lockAcquired = true;
@@ -264,7 +406,18 @@ public class CommandBrokerHandler {
                             commandPayloadType, eventoRequest.getCorrelationId(),
                             BusLifecycle.monotonicMillis() - deadlineMs);
                 }
-                eventStore.publishEvent(serviceEvent, cmd.getAggregateId());
+                try {
+                    eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key);
+                } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {
+                    // Only possible when the key lock was lost (its session died) or is JVM-local
+                    // (no DataSource): a duplicate ran the handler too. The first event stands.
+                    log.warn("event=idempotent_duplicate_execution payloadType={} idempotencyKey={} correlationId={} "
+                                    + "reason=\"the handler ran for a key that another execution stored first\"",
+                            commandPayloadType, key, eventoRequest.getCorrelationId());
+                    var replay = replay(key, commandPayloadType, eventoRequest, "append_conflict");
+                    if (replay != null) return replay;
+                    throw conflict;
+                }
                 log.debug("event=service_event_stored payloadType={}", commandPayloadType);
             }
 
@@ -273,6 +426,9 @@ public class CommandBrokerHandler {
         } finally {
             if (lockAcquired) {
                 releaseQuietly(lockKey);
+            }
+            if (keyLockAcquired) {
+                releaseQuietly(keyLock);
             }
         }
     }

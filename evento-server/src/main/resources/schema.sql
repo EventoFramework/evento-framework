@@ -120,7 +120,12 @@ CREATE TABLE IF NOT EXISTS es__events
     event_name            varchar(100) NOT NULL,
     created_at            timestamp    NOT NULL default  (now() at time zone 'utc'),
     event_message         text         NOT NULL,
-    deleted_at            timestamp             DEFAULT NULL
+    deleted_at            timestamp             DEFAULT NULL,
+    -- The idempotency key of the command that produced the event (G5), NULL for none.
+    -- Existing tables get the column, and every table its partial UNIQUE index
+    -- es__events_idempotency_key_uidx, from AdvisoryLockedSchemaInitializer (built
+    -- CONCURRENTLY, so a rolling upgrade keeps appending).
+    idempotency_key       varchar(255)          DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS es__snapshot

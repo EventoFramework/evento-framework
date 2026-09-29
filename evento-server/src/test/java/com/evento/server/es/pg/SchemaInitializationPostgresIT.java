@@ -1,5 +1,6 @@
 package com.evento.server.es.pg;
 
+import com.evento.server.es.EventStore;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -88,6 +89,51 @@ class SchemaInitializationPostgresIT {
                     "insert into es__events (event_sequence_number, event_name, event_message) values (1, 'E', '{}')"))
                     .as("the database itself now refuses a duplicate sequence number")
                     .hasMessageContaining("es__events_pkey");
+        }
+    }
+
+    /**
+     * G5: an event store created before idempotency keys gets the column and its partial unique
+     * index on the first boot of the new version, with its rows kept (all outside the index), and
+     * later boots change nothing.
+     */
+    @Test
+    void aPreG5EventStoreGetsTheIdempotencyKeyColumnAndIndexInPlace() throws Exception {
+        PostgresItSupport.createDatabase(POSTGRES, "schema_idem");
+        try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_idem"), 2)) {
+            var jdbc = new JdbcTemplate(ds);
+            // The es__events of 2.4.x, already holding events.
+            jdbc.execute("""
+                    CREATE TABLE es__events (
+                        event_sequence_number bigint NOT NULL,
+                        context varchar(100) DEFAULT 'default',
+                        aggregate_id varchar(100) DEFAULT NULL,
+                        event_name varchar(100) NOT NULL,
+                        created_at timestamp NOT NULL default (now() at time zone 'utc'),
+                        event_message text NOT NULL,
+                        deleted_at timestamp DEFAULT NULL)""");
+            for (int i = 1; i <= 500; i++) {
+                jdbc.update("insert into es__events (event_sequence_number, event_name, event_message) values (?, 'E', '{}')", i);
+            }
+
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+
+            assertThat(jdbc.queryForObject("select count(*) from information_schema.columns "
+                    + "where table_name = 'es__events' and column_name = 'idempotency_key'", Integer.class)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select pg_get_indexdef(c.oid) from pg_class c where c.relname = ?",
+                    String.class, EventStore.IDEMPOTENCY_KEY_INDEX))
+                    .contains("UNIQUE").contains("WHERE (idempotency_key IS NOT NULL)");
+            assertThat(jdbc.queryForObject("select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid "
+                    + "where c.relname = ? and i.indisvalid", Integer.class, EventStore.IDEMPOTENCY_KEY_INDEX)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select count(*) from es__events", Integer.class)).isEqualTo(500);
+
+            jdbc.update("insert into es__events (event_sequence_number, event_name, event_message, idempotency_key) "
+                    + "values (1001, 'E', '{}', 'k-1')");
+            assertThatThrownBy(() -> jdbc.update("insert into es__events "
+                    + "(event_sequence_number, event_name, event_message, idempotency_key) values (1002, 'E', '{}', 'k-1')"))
+                    .as("one key, one event").hasMessageContaining(EventStore.IDEMPOTENCY_KEY_INDEX);
+            jdbc.update("insert into es__events (event_sequence_number, event_name, event_message) values (1003, 'E', '{}')");
         }
     }
 

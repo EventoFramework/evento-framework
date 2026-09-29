@@ -127,7 +127,11 @@ public final class EventoServerAdapter implements EventoServer {
      * well have been applied. Flattening both into one generic exception forces
      * every caller to report an indeterminate outcome as a definite failure —
      * which is how a slow-but-successful command ends up surfaced to a user as
-     * an error, and how a blind retry applies it a second time.
+     * an error, and how a blind retry applies it a second time. A retry is safe
+     * only when the command carries an idempotency key
+     * ({@code CommandGateway.sendIdempotent}, or the key a consumer handler's
+     * gateway derives): the broker then answers it with the event the first
+     * attempt stored, on whichever server the retry lands (G5).
      */
     private static RuntimeException toException(com.evento.transport.message.ResponseError error,
                                                 String payloadType) {

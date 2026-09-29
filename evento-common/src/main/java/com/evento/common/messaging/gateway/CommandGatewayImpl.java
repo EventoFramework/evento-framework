@@ -42,15 +42,27 @@ public class CommandGatewayImpl implements CommandGateway {
 	 * @return A CompletableFuture that will be completed with the result of the command execution.
 	 */
 	@Override
-	@SuppressWarnings("unchecked")
 	public <R> CompletableFuture<R> send(Command command, Metadata metadata,
 										 Message<?> handledMessage, long timeout, TimeUnit unit) {
+		return send(command, metadata, handledMessage, timeout, unit, null);
+	}
+
+	/**
+	 * Sends a command, optionally with an idempotency key carried on the command message
+	 * ({@link com.evento.common.modeling.messaging.message.application.CommandMessage#getIdempotencyKey()}).
+	 */
+	@Override
+	@SuppressWarnings("unchecked")
+	public <R> CompletableFuture<R> send(Command command, Metadata metadata,
+										 Message<?> handledMessage, long timeout, TimeUnit unit,
+										 String idempotencyKey) {
 		try
 		{
 			var message = command instanceof DomainCommand ?
 					new DomainCommandMessage((DomainCommand) command) :
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
+			message.setIdempotencyKey(idempotencyKey);
 
 			return (CompletableFuture<R>) eventoServer.request(message, timeout, unit).thenApply(e -> {
 				if (e instanceof EventMessage<?> em) {
