@@ -550,30 +550,63 @@ reaches another server. **Idempotency keys (G5)** carry exactly-once across both
 | Piece | Where | Role |
 |---|---|---|
 | `CommandMessage.idempotencyKey` | common | Optional key on domain and service command messages. Additive field: an older peer sends none (null = the old behaviour) and skips it as unknown. Blank = none; max 255 chars |
-| `CommandGateway.sendIdempotent(cmd, key[, metadata, timeout, unit])` | common | Explicit key. The six-argument `send(..., key)` is the new base; a gateway that does not implement keys refuses a non-null key rather than dropping it |
-| Derived keys | bundle, `GatewayTelemetryProxy` | A consumer engine scopes the per-event gateway with `(consumerId, eventSequenceNumber)` (`DispatchContext.consumerGateway`); commands sent without a key get `evento:<consumerId>:<seq>:<ordinal>`. The ordinal counts every command of the invocation and restarts on each attempt of the handler's retry loop, so a redelivered event re-issues identical keys (> 255 chars: `evento:sha256:<hex>`) |
-| `es__events.idempotency_key` + `es__events_idempotency_key_uidx` | server | Nullable column, partial `UNIQUE ... WHERE idempotency_key IS NOT NULL`. Added online by `AdvisoryLockedSchemaInitializer` (column only if missing, under a short retried `lock_timeout`; index `CONCURRENTLY`, invalid leftover dropped); `db/upgrade/es-events-idempotency-key.sql` for external schemas. No TTL: a key lives as long as its event |
-| Keyed append | server, `EventStore` | The CPES single statement plus `ON CONFLICT (idempotency_key) WHERE ... DO NOTHING`; no row = a committed event holds the key (`IdempotencyKeyConflictException`). Without a valid index the store runs keyed commands unkeyed (`event=idempotency_key_unsupported`, re-probed every minute) |
-| Replay | server, `CommandBrokerHandler` | Key looked up **before** lock and forward; a hit is answered with the stored event, no handler runs (`event=idempotent_replay stage=...`, `evento.server.commands.idempotent.replayed`) |
+| `CommandGateway.sendIdempotent(cmd, key[, metadata, timeout, unit])` | common | Explicit key. Refuses keys starting with `evento:` (reserved for derived keys) and keys over 255 chars. The six-argument `send(..., key)` is the new base; a gateway that does not implement keys refuses a non-null key rather than dropping it |
+| `CommandGateway.supportsIdempotencyKeys()` | common | `false` by default; `true` for `CommandGatewayImpl` unless a subclass overrides the five-argument `send` without the six-argument one (a keyed send would bypass the override). Only a supporting gateway gets derived keys; any other one gets the plain five-argument send, as before G5 |
+| Derived keys | bundle, `GatewayTelemetryProxy` | A consumer engine scopes the per-event gateway with `(consumerId, eventSequenceNumber)` (`DispatchContext.consumerGateway`); commands sent without a key get `evento:<consumerId>:<seq>:<CommandSimpleName>:<n>`, `n` counting the commands **of that type** in the invocation (reset on each attempt of the handler's retry loop), so a redelivered event re-issues identical keys (> 255 chars: `evento:sha256:<hex>`) |
+| `es__events.idempotency_key` / `idempotency_command` + `es__events_idempotency_key_uidx` | server | Nullable key and command type (the command's identity, with `aggregate_id`), partial `UNIQUE ... WHERE idempotency_key IS NOT NULL`. Added online by `AdvisoryLockedSchemaInitializer` (columns only if missing, under a short retried `lock_timeout`; index `CONCURRENTLY`, invalid leftover dropped; every check resolves `es__events` through `search_path`, never by index name alone); `db/upgrade/es-events-idempotency-key.sql` for external schemas |
+| `es__idempotency_claims` | server | One row per keyed **service** command while it executes: identity, owner, lease on the database clock. Deleted once the event carrying the key is stored or the execution failed; kept with `completed_at` when the handler returned nothing |
+| Keyed append | server, `EventStore` | The CPES single statement (APES: a plain insert) plus `ON CONFLICT (idempotency_key) WHERE ... DO NOTHING`; no row = a committed event holds the key (`IdempotencyKeyConflictException`) |
+| Support probe | server, `EventStore.idempotencySupported()` | PostgreSQL only (another database: never, logged once); valid index on the `es__events` that `search_path` resolves, `idempotency_command` column, claims table. Otherwise keyed commands run unkeyed and the broker does no lookup, claim or lock for them (`event=idempotency_key_unsupported`, re-probed every minute). An index, column or table that disappears later (`42P10`, `42703`, `42P01`) turns support off with a WARN and the append goes through unkeyed |
+| Replay / refusal | server, `CommandBrokerHandler` | Key looked up **before** lock and forward (event and claim in one statement). Recorded for the same command (type + aggregate id): answered with the stored event (or an empty result for an event-less completion), no handler runs (`event=idempotent_replay stage=...`, `evento.server.commands.idempotent.replayed`). Recorded for a different command: `IdempotencyKeyMismatchException` (`event=idempotency_key_mismatch`, `evento.server.commands.idempotent.mismatched`), nothing executed, never the other command's event |
 
 Concurrent duplicates: an aggregate command re-checks the key under the aggregate lock, before
 the story is fetched (otherwise the duplicate's handler sees the original's event and refuses,
 "already created"); without a lock, or with a lost one, the unique index lets one append through
 and the others (append conflict or domain refusal) replay — the handler is pure. A service
-command takes the cluster-wide lock `IDEMPOTENCY:<key>` before the forward, always before its
-`RESOURCE:` lock, and re-checks under it, so two in-flight duplicates never both run a handler
-with side effects. N3 interplay: a keyed command dropped at `lock_wait`/`before_forward`/
-`before_append` whose key is then found stored is answered with the stored event; a replay is
-never reported as expired once the original committed. A `queued` drop (in `BusLifecycle`,
-before the broker sees the key) executed nothing and the next retry replays.
+command **claims** the key (`INSERT ... ON CONFLICT DO UPDATE ... WHERE` the old claim's lease ran
+out and it names the same command: insert or take-over in one atomic statement) and re-checks
+under the claim; a duplicate polls the claim (10 ms to 200 ms backoff) holding nothing. The lease
+covers the lock wait and is renewed to the forward budget + 10 s right before the forward; an
+owner that finds its claim taken over does not forward. The claim is a row, not a session lock:
+an earlier design took an `IDEMPOTENCY:<key>` advisory lock, pinning a lock-pool connection for
+the whole handler run on top of the command's `RESOURCE:` lock, and with the pool full of such
+holders each waited for a second connection none could release (hold-and-wait); since every
+consumer-sent command is keyed, that was the common case. Now no command holds more than one
+lock connection.
+
+N3 interplay: a keyed command dropped at `lock_wait`/`before_forward`/`before_append` whose key is
+then found stored is answered with the stored event. A keyed command that stops waiting on
+another execution of its key (a service claim held past its deadline, or an aggregate lock
+whose holder may be that execution) is answered `IdempotencyKeyInProgressException`
+(indeterminate: the other execution may still commit; `evento.server.commands.idempotent.in_progress`),
+never "expired, not executed". A `queued` drop (in `BusLifecycle`, before the broker sees the
+key) executed nothing and the next retry replays.
 
 Only successes are recorded: a command refused by its handler can be retried with the same key.
-A key names one command: reusing it for another command replays the first one's event.
+A key names one command: the broker records its type and aggregate id and refuses the key for
+any other. Consequences: mint the aggregate id of a creation from the key (or once, before the
+first attempt), never per attempt; a handler must not forward the key it received to its own
+commands (the outer command still owns it: the nested send is refused at once, instead of
+corrupting the outer result or blocking on the outer claim) and should use `key + ":" + step`;
+a consumer handler whose attempts send commands of one type in a different order gets a
+mismatch, not a wrong replay, and should pass explicit keys.
 
 **Open window:** a service handler that ran while its event was not stored (the append failed,
 the server died between the answer and the append) leaves no key behind, and the retry runs it
-again. Such handlers must be idempotent themselves, on the same key (`ServiceCommandMessage` is
-injectable into a `@CommandHandler`). Key retention (TTL / archival of old keys) is future work.
+again (a dead owner's claim expires with its lease). Such handlers must be idempotent themselves,
+on the same key (`ServiceCommandMessage` is injectable into a `@CommandHandler`).
+
+**Mixed-version rolling upgrade (not closed):** a server without G5 ignores the key (it skips the
+unknown field and appends unkeyed). During an upgrade, a keyed retry that lands on an old server
+runs as an unkeyed command: exactly-once holds only once every server runs a G5 version. Upgrade
+the servers before relying on keys (bundles may follow in any order).
+
+**Keys never expire (not closed).** A key lives as long as its event (an event-less completion as
+long as its claim row); there is no TTL or archival yet. Two consequences: the index and the
+claims table only grow, and rewinding a consumer (resetting its checkpoint to re-process history)
+re-issues the derived keys of every event it re-reads, so the commands it sends are answered as
+replays instead of being executed again — right for a crash redelivery, wrong for a deliberate
+re-processing. Rewind under a new consumer id (new keys) when the commands must run again.
 
 ---
 
@@ -764,6 +797,10 @@ explorative read-only pivot.)
     requests dropped unexecuted because the caller's deadline had passed (§4.6)
   - `evento.server.commands.idempotent.replayed` — keyed commands answered with the event stored
     under their idempotency key instead of being executed (§8; bound by `CommandBrokerHandler`)
+  - `evento.server.commands.idempotent.mismatched` — keyed commands refused because their key is
+    recorded for a different command (type or aggregate id)
+  - `evento.server.commands.idempotent.in_progress` — keyed commands answered "in progress"
+    (indeterminate) because another execution of their key did not end before they stopped waiting
   - *Not yet covered:* heartbeat lag, per-type processing-duration timers, consumer lag (future work).
 - **Parallel-consumption metrics** — wired via `ConsumerMetricsRegistry`
   (`com.evento.server.bus.spring`), fed by a periodic `ConsumerStatsMessage` bundles push on

@@ -127,6 +127,11 @@ class SchemaInitializationPostgresIT {
             assertThat(jdbc.queryForObject("select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid "
                     + "where c.relname = ? and i.indisvalid", Integer.class, EventStore.IDEMPOTENCY_KEY_INDEX)).isEqualTo(1);
             assertThat(jdbc.queryForObject("select count(*) from es__events", Integer.class)).isEqualTo(500);
+            assertThat(jdbc.queryForObject("select count(*) from information_schema.columns "
+                    + "where table_name = 'es__events' and column_name = 'idempotency_command'", Integer.class))
+                    .as("the command identity recorded with a key").isEqualTo(1);
+            assertThat(jdbc.queryForObject("select to_regclass(?) is not null", Boolean.class,
+                    EventStore.IDEMPOTENCY_CLAIMS_TABLE)).as("the claims table").isTrue();
 
             jdbc.update("insert into es__events (event_sequence_number, event_name, event_message, idempotency_key) "
                     + "values (1001, 'E', '{}', 'k-1')");

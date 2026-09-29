@@ -89,4 +89,35 @@ public class CommandGatewayImpl implements CommandGateway {
 			return future;
 		}
 	}
+
+	/**
+	 * {@code true} when this class's six-argument {@code send} is the one its five-argument
+	 * {@code send} goes through, which holds for {@code CommandGatewayImpl} itself. A subclass
+	 * written before idempotency keys that overrides only the five-argument {@code send} (to
+	 * add headers, metrics, a fallback) would be bypassed by a keyed send, which goes straight to
+	 * the inherited six-argument one: for such a subclass this answers {@code false}, and a
+	 * consumer handler's gateway then sends without a derived key, through the override.
+	 * Computed once per class.
+	 */
+	@Override
+	public boolean supportsIdempotencyKeys() {
+		return KEYED_SEND_NOT_BYPASSED.get(getClass());
+	}
+
+	private static final ClassValue<Boolean> KEYED_SEND_NOT_BYPASSED = new ClassValue<>() {
+		@Override
+		protected Boolean computeValue(Class<?> type) {
+			try {
+				var five = type.getMethod("send", Command.class, Metadata.class, Message.class,
+						long.class, TimeUnit.class);
+				var six = type.getMethod("send", Command.class, Metadata.class, Message.class,
+						long.class, TimeUnit.class, String.class);
+				// The six-argument send must be declared no higher in the hierarchy than the
+				// five-argument one, or a keyed send skips the five-argument override.
+				return five.getDeclaringClass().isAssignableFrom(six.getDeclaringClass());
+			} catch (NoSuchMethodException e) {
+				return false;
+			}
+		}
+	};
 }

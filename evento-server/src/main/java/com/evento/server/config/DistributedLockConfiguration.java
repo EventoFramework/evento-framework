@@ -68,7 +68,7 @@ public class DistributedLockConfiguration {
     }
 
     @Bean(destroyMethod = "close")
-    LockConnectionPool eventoLockConnectionPool(
+    public LockConnectionPool eventoLockConnectionPool(
             DataSource dataSource,
             @Value("${evento.lock.pool.maximum-size:10}") int maximumSize,
             @Value("${evento.lock.pool.connection-timeout-ms:1000}") long connectionTimeoutMs) {
@@ -100,7 +100,7 @@ public class DistributedLockConfiguration {
      * connection that is not free ({@link PgDistributedLock#PgDistributedLock(DataSource, Duration, int)}).
      */
     @Bean
-    PgDistributedLock eventoDistributedLock(
+    public PgDistributedLock eventoDistributedLock(
             LockConnectionPool pool,
             @Value("${evento.lock.acquire.timeout.ms:#{null}}") Long acquireTimeoutMs) {
         long timeoutMs = acquireTimeoutMs != null ? acquireTimeoutMs

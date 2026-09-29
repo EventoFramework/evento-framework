@@ -15,6 +15,9 @@ public abstract class CommandMessage<T extends Command> extends Message<T> {
 	/** Longest idempotency key accepted (the width of {@code es__events.idempotency_key}). */
 	public static final int MAX_IDEMPOTENCY_KEY_LENGTH = 255;
 
+	/** Prefix of the keys Evento derives for commands sent by consumer handlers; refused for caller-chosen keys. */
+	public static final String RESERVED_IDEMPOTENCY_KEY_PREFIX = "evento:";
+
 	private String aggregateId;
 	private String lockId;
 	/**
@@ -129,6 +132,29 @@ public abstract class CommandMessage<T extends Command> extends Message<T> {
 	 */
 	public static String normalizeIdempotencyKey(String key) {
 		return key == null || key.isBlank() ? null : key;
+	}
+
+	/**
+	 * Checks a key chosen by application code ({@code CommandGateway.sendIdempotent}, or an
+	 * explicit key in a consumer handler): at most {@value #MAX_IDEMPOTENCY_KEY_LENGTH}
+	 * characters, and not in the {@value #RESERVED_IDEMPOTENCY_KEY_PREFIX} namespace, which
+	 * belongs to the keys the framework derives for consumer handlers. A caller-chosen key there
+	 * could collide with a derived one and be answered with another command's event.
+	 *
+	 * @param key the key as given; {@code null} or blank is "no key" and passes
+	 * @throws IllegalArgumentException for a reserved or overlong key
+	 */
+	public static void checkCallerIdempotencyKey(String key) {
+		var k = normalizeIdempotencyKey(key);
+		if (k == null) return;
+		if (k.startsWith(RESERVED_IDEMPOTENCY_KEY_PREFIX)) {
+			throw new IllegalArgumentException("idempotency keys starting with '" + RESERVED_IDEMPOTENCY_KEY_PREFIX
+					+ "' are reserved for the keys Evento derives in consumer handlers: " + k);
+		}
+		if (k.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+			throw new IllegalArgumentException("idempotency key longer than " + MAX_IDEMPOTENCY_KEY_LENGTH
+					+ " characters: " + k.length());
+		}
 	}
 
 	@Override

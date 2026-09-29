@@ -333,7 +333,7 @@ abstract class AbstractScenario {
     /**
      * The two G5 questions in I2, observed separately (S03, S07): was any command's event stored
      * twice, and did any payment execute twice. After G5 both must be 0: gateway retries carry the
-     * {@code X-Idempotency-Key}, the saga's retries the key derived from (consumer, event, ordinal),
+     * {@code X-Idempotency-Key}, the saga's retries the key derived from (consumer, event, command type, ordinal),
      * and the broker replays instead of re-executing. The one documented exception is a payment
      * that ran while its event could not be stored (a partitioned cell, S07): its retry finds no
      * stored key and runs the handler again.
