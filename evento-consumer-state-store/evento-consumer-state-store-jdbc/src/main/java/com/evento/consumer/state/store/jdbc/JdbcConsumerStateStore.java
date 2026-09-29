@@ -31,6 +31,9 @@ import java.util.stream.Stream;
  * and the running error history. Works on Postgres and MySQL via
  * {@link SqlDialect}.
  *
+ * <p>Commits are monotonic: {@code last_sequence = GREATEST(last_sequence, ?)}, so a
+ * stale lock holder can bump the version but never rewind the position.
+ *
  * <p>Schema lives in {@code db/migration/{postgres,mysql}/v2}. Apply it via
  * {@link FlywayMigrator#migrate} or by including the location in the app's own
  * Flyway configuration.
@@ -176,7 +179,7 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
         // sits at version 0, so expectedVersion=0 must still succeed: promote it
         // to version 1, guarded by version=0 to keep optimistic-lock semantics.
         try (PreparedStatement stmt = c.prepareStatement(
-                "UPDATE evento_v2_consumer_state SET kind = ?, last_sequence = ?, version = 1 "
+                "UPDATE evento_v2_consumer_state SET kind = ?, last_sequence = GREATEST(last_sequence, ?), version = 1 "
                         + "WHERE consumer_id = ? AND version = 0")) {
             stmt.setString(1, kind);
             stmt.setLong(2, seq);
@@ -189,8 +192,12 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     private long updateExisting(Connection c, String consumerId, String kind, long seq, long expectedVersion)
             throws SQLException, OptimisticLockException {
+        // GREATEST: the stored position never goes backwards (see ConsumerStateStore#commit).
+        // A replica that lost its lock without noticing re-reads the version on
+        // OptimisticLockException and commits again; the version check alone would let
+        // that stale, lower position overwrite the new owner's.
         var sql = "UPDATE evento_v2_consumer_state "
-                + "SET kind = ?, last_sequence = ?, version = version + 1 "
+                + "SET kind = ?, last_sequence = GREATEST(last_sequence, ?), version = version + 1 "
                 + "WHERE consumer_id = ? AND version = ?";
         try (PreparedStatement stmt = c.prepareStatement(sql)) {
             stmt.setString(1, kind);

@@ -37,6 +37,15 @@ public interface ConsumerStateStore extends AutoCloseable {
      *
      * <p>A successful commit clears any previously recorded error.
      *
+     * <p><b>The stored position never goes backwards.</b> If {@code checkpoint} is lower
+     * than what is already stored, the commit still succeeds and bumps the version, but
+     * the stored sequence number stays where it was (the new {@code kind} is taken). A
+     * consumer lock can be lost without its holder noticing — a network partition, a
+     * database failover — and the stale holder's next commit carries an older position
+     * than the one the new holder has written; letting it land would replay everything
+     * in between on the next takeover. The only way to lower a position is
+     * {@link #delete(String)}.
+     *
      * @return the new version (always {@code expectedVersion + 1}).
      * @throws OptimisticLockException when another writer raced ahead.
      */

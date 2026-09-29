@@ -3,7 +3,10 @@ package com.evento.common.messaging.consumer.impl;
 import com.evento.common.messaging.consumer.ConsumerCheckpoint;
 import com.evento.common.messaging.consumer.ConsumerErrorState;
 import com.evento.common.messaging.consumer.ConsumerStateStore;
+import com.evento.common.messaging.consumer.EventCheckpoint;
 import com.evento.common.messaging.consumer.OptimisticLockException;
+import com.evento.common.messaging.consumer.ProjectorCheckpoint;
+import com.evento.common.messaging.consumer.SagaCheckpoint;
 import com.evento.common.messaging.consumer.VersionedCheckpoint;
 
 import java.io.PrintWriter;
@@ -20,7 +23,8 @@ import java.util.stream.Stream;
  * where durability isn't required.
  *
  * <p>Optimistic versioning is enforced via {@link ConcurrentHashMap#compute}
- * so commits serialize per-consumer without a global lock. The enabled flag
+ * so commits serialize per-consumer without a global lock, and the stored position
+ * is monotonic exactly like the JDBC store's {@code GREATEST}. The enabled flag
  * and error history live in separate maps; both treat the absence of an entry
  * as "default state" (enabled, no error).
  */
@@ -52,7 +56,8 @@ public final class InMemoryConsumerStateStore implements ConsumerStateStore {
             }
             long next = actual + 1;
             holder[0] = next;
-            return new VersionedCheckpoint(checkpoint, next);
+            // Monotonic, as the SPI requires: a lower position keeps the stored number.
+            return new VersionedCheckpoint(monotonic(checkpoint, current), next);
         });
         if (thrown[0] != null) throw thrown[0];
         // A successful commit clears any recorded error.
@@ -99,6 +104,17 @@ public final class InMemoryConsumerStateStore implements ConsumerStateStore {
     @Override
     public ConsumerErrorState getErrorState(String consumerId) {
         return errors.getOrDefault(consumerId, ConsumerErrorState.healthy());
+    }
+
+    private static ConsumerCheckpoint monotonic(ConsumerCheckpoint next, VersionedCheckpoint current) {
+        if (current == null) return next;
+        long stored = current.checkpoint().lastSequenceNumber();
+        if (next.lastSequenceNumber() >= stored) return next;
+        return switch (next) {
+            case EventCheckpoint ignored -> new EventCheckpoint(stored);
+            case SagaCheckpoint ignored -> new SagaCheckpoint(stored);
+            case ProjectorCheckpoint ignored -> new ProjectorCheckpoint(stored);
+        };
     }
 
     private static String stackTraceOf(Throwable t) {

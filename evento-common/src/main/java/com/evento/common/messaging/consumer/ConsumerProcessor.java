@@ -565,6 +565,16 @@ public final class ConsumerProcessor {
     }
 
     /**
+     * Intervals of resolved sequence numbers the {@link CheckpointMode#WATERMARK}
+     * bookkeeping holds above the watermark. Bounded by the handlers in flight, not by
+     * how sparse the stream is; exposed for tests.
+     */
+    int watermarkIntervals(String consumerId) {
+        var tracker = inFlight.get(consumerId);
+        return tracker == null ? 0 : tracker.resolvedIntervals();
+    }
+
+    /**
      * Cumulative count of cycles this consumer ended early because its executor had no
      * capacity. In-memory and cheap — unlike {@link #toConsumerStatus}, which hits the state
      * store — so it is safe to read on a metrics timer.
@@ -768,14 +778,24 @@ public final class ConsumerProcessor {
          */
         private long dispatchedSeq;
 
-        /** Finished sequences sitting above the watermark, waiting for the gap to close. */
-        private final java.util.TreeSet<Long> completedAboveWatermark = new java.util.TreeSet<>();
+        /**
+         * Resolved sequences sitting above the watermark — finished, or proven absent —
+         * waiting for the gap below them to close. Kept as intervals so a gap costs one
+         * entry however wide it is: a context-filtered consumer skips most of a shared
+         * sequence, and Snowflake ids are billions apart.
+         */
+        private final SequenceRangeSet resolvedAboveWatermark = new SequenceRangeSet();
 
         /** Last sequence known to be persisted. */
         private long watermark;
 
         synchronized void seedWatermark(long persisted) {
-            if (persisted > watermark) watermark = persisted;
+            if (persisted > watermark) {
+                watermark = persisted;
+                // Another instance moved the checkpoint while we did not hold the lock:
+                // whatever we had resolved below it no longer matters.
+                resolvedAboveWatermark.discardThrough(persisted);
+            }
             if (persisted > dispatchedSeq) dispatchedSeq = persisted;
         }
 
@@ -789,7 +809,7 @@ public final class ConsumerProcessor {
 
         /** A handler finished — successfully, or resolved by dead-lettering. */
         synchronized void recordCompleted(long seq) {
-            if (seq > watermark) completedAboveWatermark.add(seq);
+            if (seq > watermark) resolvedAboveWatermark.add(seq, seq);
         }
 
         /**
@@ -806,31 +826,39 @@ public final class ConsumerProcessor {
          *
          * <p>Must run before this batch's {@link #recordDispatched(long)} calls: the
          * cursor it measures from is the frontier as it stood when the fetch was made.</p>
+         *
+         * <p>Each gap between consecutive returned events is closed as one interval, so
+         * the cost is O(batch · log n) whatever the numeric distance between events.</p>
          */
         synchronized void recordAbsent(java.util.Collection<PublishedEvent> batch) {
             if (batch.isEmpty()) return;
-            var present = new java.util.HashSet<Long>(batch.size() * 2);
-            long top = dispatchedSeq;
-            for (var event : batch) {
-                long seq = event.getEventSequenceNumber();
-                present.add(seq);
-                if (seq > top) top = seq;
-            }
-            for (long seq = dispatchedSeq + 1; seq <= top; seq++) {
-                if (seq > watermark && !present.contains(seq)) completedAboveWatermark.add(seq);
+            long[] present = new long[batch.size()];
+            int n = 0;
+            for (var event : batch) present[n++] = event.getEventSequenceNumber();
+            java.util.Arrays.sort(present);
+            long cursor = dispatchedSeq;
+            for (long seq : present) {
+                if (seq <= cursor) continue;             // duplicate, or behind the cursor
+                // (cursor, seq) exclusive holds no event; nothing at or below the
+                // watermark needs recording.
+                resolvedAboveWatermark.add(Math.max(cursor, watermark) + 1, seq - 1);
+                cursor = seq;
             }
         }
 
         /**
-         * Slide the watermark over the completed prefix.
+         * Slide the watermark over the resolved prefix.
          *
          * @return the new watermark, unchanged if the next sequence is still running.
          */
         synchronized long advanceWatermark() {
-            while (completedAboveWatermark.remove(watermark + 1)) {
-                watermark++;
-            }
+            watermark = resolvedAboveWatermark.advance(watermark);
             return watermark;
+        }
+
+        /** Intervals held above the watermark: the bookkeeping's whole memory cost. */
+        synchronized int resolvedIntervals() {
+            return resolvedAboveWatermark.intervalCount();
         }
 
         synchronized long watermark() {
@@ -983,11 +1011,23 @@ public final class ConsumerProcessor {
         try {
             return stateStore.commit(consumerId, next, currentVersion);
         } catch (OptimisticLockException e) {
-            // We hold the consumer lock — a version mismatch means a previous
-            // run leaked checkpoint state. Re-read and continue from there.
+            // We believed we held the consumer lock, yet someone else wrote the row: a
+            // previous run leaked checkpoint state, or — after a partition or a database
+            // failover — another replica holds this lane too. Re-read and reconcile,
+            // but never by rewinding: if the other writer is already at or past `next`,
+            // our commit carries no information and would only move the stored
+            // position backwards (replaying everything in between on the next takeover).
+            var current = stateStore.read(consumerId);
+            long actual = current.map(VersionedCheckpoint::version).orElse(0L);
+            long stored = current.map(v -> v.checkpoint().lastSequenceNumber()).orElse(Long.MIN_VALUE);
+            if (stored >= next.lastSequenceNumber()) {
+                logger.warn("Checkpoint version drift on '{}': {}; stored position {} is already at or "
+                                + "past {} — keeping it (another instance is consuming this lane).",
+                        consumerId, e.getMessage(), stored, next.lastSequenceNumber());
+                return actual;
+            }
             logger.warn("Checkpoint version drift on '{}': {}; reconciling and continuing.",
                     consumerId, e.getMessage());
-            long actual = stateStore.read(consumerId).map(VersionedCheckpoint::version).orElse(0L);
             try {
                 return stateStore.commit(consumerId, next, actual);
             } catch (OptimisticLockException ee) {

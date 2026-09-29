@@ -9,7 +9,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **`WATERMARK` bookkeeping cost grew with the numeric width of a gap (G10).** Since
+  2.4.6 the processor closes every sequence number a fetched batch proves absent — but it
+  did so one number at a time into a `TreeSet<Long>`. A consumer filtered to one context
+  of seven added ~6/7 of the shared sequence to the set on every batch, and a
+  Snowflake-numbered store (APES, ids ~4.2 billion apart per millisecond) turned a single
+  gap into a loop that hung the consumer or exhausted the heap. Resolved numbers above the
+  watermark are now kept as disjoint intervals (`SequenceRangeSet`): each gap is closed in
+  one O(log n) step and memory is bounded by the handlers still in flight, not by how
+  sparse the stream is. Semantics are unchanged — every 2.4.6 `WatermarkCheckpointTest`
+  case passes as is — and new cases pin a 1-in-7 context-filtered consumer with a held
+  handler (≤ 2 intervals over ~70,000 resolved numbers) and Snowflake-scale gaps under a
+  5 s timeout.
+- **A consumer checkpoint could go backwards (G11).** A lock can be lost without its
+  holder noticing (partition, database failover); the stale holder's next commit failed
+  the version check, and the processor's drift path re-read the version and committed its
+  older position anyway, rewinding the lane for the new owner. `ConsumerStateStore.commit`
+  is now monotonic by contract: the JDBC store writes
+  `last_sequence = GREATEST(last_sequence, ?)` (Postgres and MySQL), the in-memory store
+  does the same, and the processor's drift path no longer commits at all when the stored
+  position is already at or past its own. Only `delete` lowers a position. JDBC ITs on
+  both databases show a stale replica with its own connection cannot rewind the row, and
+  8 replicas retrying on drift converge on the highest position.
 
 ---
 
