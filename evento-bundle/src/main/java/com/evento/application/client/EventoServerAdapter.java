@@ -156,6 +156,12 @@ public final class EventoServerAdapter implements EventoServer {
                 .equals(error.exceptionClassName())) {
             return new com.evento.transport.TooManyPendingRequestsException(payloadType + ": " + message);
         }
+        // Refused before anything was written (between sessions, or a fail-back drain):
+        // definitely not executed, so safe to retry. Still an IllegalStateException, as
+        // it surfaced before, for code that catches that.
+        if (com.evento.transport.SendFailedException.class.getName().equals(error.exceptionClassName())) {
+            return new com.evento.transport.RequestNotSentException(payloadType + ": " + message);
+        }
         return new IllegalStateException(message);
     }
 

@@ -25,6 +25,15 @@ public final class EmbeddedBroker implements AutoCloseable {
     private final int port;
 
     public EmbeddedBroker() {
+        this("lab-broker", 0);
+    }
+
+    /**
+     * A broker announcing {@code instanceId} on {@code port} (0: ephemeral). Two of
+     * them, or one restarted on the port of a stopped one, stand for a cluster's
+     * servers in failover / fail-back tests.
+     */
+    public EmbeddedBroker(String instanceId, int port) {
         var eventBus = new BusEventBus();
         this.eventBus = eventBus;
         var connections = new ConnectionRegistry(eventBus);
@@ -34,9 +43,9 @@ public final class EmbeddedBroker implements AutoCloseable {
         var server = new NettyServerTransport(NettyTransportConfig.defaults());
         lifecycle = new BusLifecycle(
                 server, connections, cluster, correlations, forwarding,
-                eventBus, "lab-broker",
+                eventBus, instanceId,
                 Set.of(HandshakeProtocol.CAPABILITY_PING_PONG));
-        port = lifecycle.start(0);
+        this.port = lifecycle.start(port);
     }
 
     /** The actual TCP port the broker is listening on. */

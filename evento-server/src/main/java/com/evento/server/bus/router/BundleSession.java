@@ -43,4 +43,17 @@ public final class BundleSession {
 
     public Phase phase() { return phase.get(); }
     public void transitionTo(Phase next) { phase.set(next); }
+
+    private volatile boolean framesReceived;
+
+    /** Record that the peer sent a frame above the heartbeat layer (a Hello, at least). */
+    public void markFrameReceived() {
+        if (!framesReceived) framesReceived = true;
+    }
+
+    /**
+     * Whether the peer sent anything but heartbeats. False for a connection that
+     * only pinged — a bundle's fail-back probe — which is logged at DEBUG.
+     */
+    public boolean framesReceived() { return framesReceived; }
 }
