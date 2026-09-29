@@ -1,0 +1,115 @@
+{
+  "scenario" : "S12",
+  "title" : "Per-context WATERMARK consumer cost",
+  "gaps" : [ "G10", "G20" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T16:04:01.808771300Z",
+  "finishedAt" : "2026-09-29T16:09:26.543859400Z",
+  "durationSeconds" : 324,
+  "parameters" : {
+    "orderIdPrefix" : "s12-after-57555b-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "load" : {
+      "itemsPerOrder" : 1,
+      "durationSeconds" : 60,
+      "regions" : [ "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "ratePerMinutePerRegion" : 120.0,
+      "completeRatio" : 0.0
+    }
+  },
+  "verdictCounts" : {
+    "INCONCLUSIVE" : 1
+  },
+  "observations" : [ {
+    "name" : "EUROPA consumer cost vs global volume",
+    "expected" : "WATERMARK costs about the same as DEFAULT (ratio <= 1.5): flat in the other regions' traffic",
+    "expectedBeforeFix" : "recordAbsent is O(numeric gap): WATERMARK burns CPU/heap proportional to global volume (G10)",
+    "observed" : "no load-attributable CPU to compare (CPU under load <= idle rate); DEFAULT: 1400.0 ms CPU over 100.399 s for 743 foreign events, idle 14,1 ms/s; WATERMARK: 1310.0 ms CPU over 100.039 s for 731 foreign events, idle 14,4 ms/s;",
+    "verdict" : "INCONCLUSIVE",
+    "note" : "APES (G20) would make the gap ~4M ids/ms; the lab runs CPES only, where the gap per batch is the other regions' events, so G10 can only show as a small per-event cost."
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "phases" : {
+      "DEFAULT" : {
+        "mode" : "DEFAULT",
+        "idleCpuMsPerSecond" : 14.066958723523975,
+        "requests" : 1096,
+        "globalEventsAppended" : 743,
+        "cpuMs" : 1400.0,
+        "sampledSeconds" : 100.399,
+        "cpuMsPer1kEvents" : 1884.2530282637954,
+        "loadCpuMs" : 0.0,
+        "loadCpuMsPer1kEvents" : 0.0,
+        "gcMsPer1kEvents" : 0.0,
+        "heapFirst" : 32512368,
+        "heapLast" : 39093112,
+        "heapMax" : 39093112
+      },
+      "WATERMARK" : {
+        "mode" : "WATERMARK",
+        "idleCpuMsPerSecond" : 14.439274827530884,
+        "requests" : 1095,
+        "globalEventsAppended" : 731,
+        "cpuMs" : 1310.0,
+        "sampledSeconds" : 100.039,
+        "cpuMsPer1kEvents" : 1792.0656634746922,
+        "loadCpuMs" : 0.0,
+        "loadCpuMsPer1kEvents" : 0.0,
+        "gcMsPer1kEvents" : 0.0,
+        "heapFirst" : 32808968,
+        "heapLast" : 39336664,
+        "heapMax" : 39336664
+      }
+    },
+    "watermarkToDefaultCpuRatio" : null,
+    "noiseFloorMs" : 1000.0
+  },
+  "timeline" : [ {
+    "tMs" : 7961,
+    "at" : "2026-09-29T16:04:09.770132600Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 16770,
+    "at" : "2026-09-29T16:04:18.578799100Z",
+    "event" : "order-query-eu (EUROPA only) in DEFAULT ready=true whoami={\"bundleId\":\"order-query\",\"instance\":\"order-query-eu\",\"zone\":\"EU\",\"cell\":\"EU\",\"region\":null,\"contexts\":[\"EUROPA\"],\"consumerPlan\":{\"OrderProjector\":[\"EUROPA\"],\"CatalogProjector\":[]},\"server\":\"evento-eu:3030\",\"addresses\":[\"evento-eu:3030\",\"toxi-eu:20123\",\"toxi-eu:20133\"],\"clusterName\":\"evento-lab-cluster\",\"expectedServerInstanceId\":null,\"checkpointMode\":\"DEFAULT\",\"appDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"consumerStateDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"dataTargets\":[],\"frameworkFeatures\":[{\"feature\":\"endpointFailover\",\"available\":true,\"value\":\"3 address(es)\"},{\"feature\":\"expectedClusterName\",\"available\":true,\"value\":\"evento-lab-cluster\"},{\"feature\":\"zone\",\"available\":true,\"value\":\"EU\"}],\"busState\":\"READY\",\"ready\":true}"
+  }, {
+    "tMs" : 56972,
+    "at" : "2026-09-29T16:04:58.780951100Z",
+    "event" : "load start [AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @120.0/min for 60 s"
+  }, {
+    "tMs" : 150222,
+    "at" : "2026-09-29T16:06:32.031112Z",
+    "event" : "load done: 1096 requests"
+  }, {
+    "tMs" : 168967,
+    "at" : "2026-09-29T16:06:50.776485200Z",
+    "event" : "order-query-eu (EUROPA only) in WATERMARK ready=true whoami={\"bundleId\":\"order-query\",\"instance\":\"order-query-eu\",\"zone\":\"EU\",\"cell\":\"EU\",\"region\":null,\"contexts\":[\"EUROPA\"],\"consumerPlan\":{\"OrderProjector\":[\"EUROPA\"],\"CatalogProjector\":[]},\"server\":\"evento-eu:3030\",\"addresses\":[\"evento-eu:3030\",\"toxi-eu:20123\",\"toxi-eu:20133\"],\"clusterName\":\"evento-lab-cluster\",\"expectedServerInstanceId\":null,\"checkpointMode\":\"WATERMARK\",\"appDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"consumerStateDb\":\"jdbc:postgresql://app-pg-eu:5432,app-pg-eu-r:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10\",\"dataTargets\":[],\"frameworkFeatures\":[{\"feature\":\"endpointFailover\",\"available\":true,\"value\":\"3 address(es)\"},{\"feature\":\"expectedClusterName\",\"available\":true,\"value\":\"evento-lab-cluster\"},{\"feature\":\"zone\",\"available\":true,\"value\":\"EU\"}],\"busState\":\"READY\",\"ready\":true}"
+  }, {
+    "tMs" : 208992,
+    "at" : "2026-09-29T16:07:30.801414800Z",
+    "event" : "load start [AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @120.0/min for 60 s"
+  }, {
+    "tMs" : 304324,
+    "at" : "2026-09-29T16:09:06.133303400Z",
+    "event" : "load done: 1095 requests"
+  }, {
+    "tMs" : 314348,
+    "at" : "2026-09-29T16:09:16.157151500Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 324735,
+    "at" : "2026-09-29T16:09:26.543859400Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "samples DEFAULT" : [ "{t=1790697898736, cpuNanos=14550000000, heap=32512368, gcMillis=401, dockerStats=2.36%|193.9MiB / 256MiB}", "{t=1790697905024, cpuNanos=14660000000, heap=32744784, gcMillis=401, dockerStats=1.08%|194.1MiB / 256MiB}", "{t=1790697911328, cpuNanos=14750000000, heap=33139288, gcMillis=401, dockerStats=1.10%|194.4MiB / 256MiB}", "{t=1790697917725, cpuNanos=14860000000, heap=33465736, gcMillis=401, dockerStats=1.02%|194.7MiB / 256MiB}", "{t=1790697924090, cpuNanos=14980000000, heap=33773760, gcMillis=401, dockerStats=0.79%|194.8MiB / 256MiB}", "{t=1790697930323, cpuNanos=15050000000, heap=34144864, gcMillis=401, dockerStats=1.32%|194.9MiB / 256MiB}", "{t=1790697936573, cpuNanos=15140000000, heap=34555616, gcMillis=401, dockerStats=0.98%|195.2MiB / 256MiB}", "{t=1790697942853, cpuNanos=15250000000, heap=34828328, gcMillis=401, dockerStats=4.56%|195.4MiB / 256MiB}", "{t=1790697949138, cpuNanos=15330000000, heap=35157448, gcMillis=401, dockerStats=0.86%|195.6MiB / 256MiB}", "{t=1790697955447, cpuNanos=15400000000, heap=35457960, gcMillis=401, dockerStats=1.14%|195.7MiB / 256MiB}", "{t=1790697961697, cpuNanos=15460000000, heap=35852400, gcMillis=401, dockerStats=0.71%|196.3MiB / 256MiB}", "{t=1790697967956, cpuNanos=15560000000, heap=36449200, gcMillis=401, dockerStats=3.88%|196.4MiB / 256MiB}", "{t=1790697974192, cpuNanos=15630000000, heap=36696176, gcMillis=401, dockerStats=0.75%|196MiB / 256MiB}", "{t=1790697980468, cpuNanos=15700000000, heap=37143544, gcMillis=401, dockerStats=1.36%|196.2MiB / 256MiB}", "{t=1790697986708, cpuNanos=15830000000, heap=38379768, gcMillis=401, dockerStats=0.45%|196.8MiB / 256MiB}", "{t=1790697992921, cpuNanos=15890000000, heap=38665528, gcMillis=401, dockerStats=3.65%|197.6MiB / 256MiB}", "{t=1790697999135, cpuNanos=15950000000, heap=39093112, gcMillis=401, dockerStats=0.48%|197.5MiB / 256MiB}" ],
+    "samples WATERMARK" : [ "{t=1790698050928, cpuNanos=13500000000, heap=32808968, gcMillis=327, dockerStats=3.30%|179MiB / 256MiB}", "{t=1790698057172, cpuNanos=13620000000, heap=33224504, gcMillis=327, dockerStats=1.04%|179.2MiB / 256MiB}", "{t=1790698063438, cpuNanos=13720000000, heap=33552968, gcMillis=327, dockerStats=0.78%|179.5MiB / 256MiB}", "{t=1790698069693, cpuNanos=13790000000, heap=33767352, gcMillis=327, dockerStats=4.37%|179.7MiB / 256MiB}", "{t=1790698076006, cpuNanos=13880000000, heap=34198040, gcMillis=327, dockerStats=0.71%|179.8MiB / 256MiB}", "{t=1790698082274, cpuNanos=13950000000, heap=34477928, gcMillis=327, dockerStats=0.94%|180MiB / 256MiB}", "{t=1790698088563, cpuNanos=14040000000, heap=34777720, gcMillis=327, dockerStats=1.26%|180.2MiB / 256MiB}", "{t=1790698094796, cpuNanos=14130000000, heap=35166288, gcMillis=327, dockerStats=4.32%|180.5MiB / 256MiB}", "{t=1790698101037, cpuNanos=14220000000, heap=35719264, gcMillis=327, dockerStats=0.60%|180.6MiB / 256MiB}", "{t=1790698107332, cpuNanos=14280000000, heap=36040280, gcMillis=327, dockerStats=0.94%|180.8MiB / 256MiB}", "{t=1790698113606, cpuNanos=14340000000, heap=36286368, gcMillis=327, dockerStats=1.05%|180.9MiB / 256MiB}", "{t=1790698119839, cpuNanos=14420000000, heap=36648112, gcMillis=327, dockerStats=3.53%|181MiB / 256MiB}", "{t=1790698126069, cpuNanos=14480000000, heap=36901840, gcMillis=327, dockerStats=4.70%|181.2MiB / 256MiB}", "{t=1790698132297, cpuNanos=14580000000, heap=37411272, gcMillis=327, dockerStats=1.13%|181.3MiB / 256MiB}", "{t=1790698138522, cpuNanos=14680000000, heap=38783560, gcMillis=327, dockerStats=0.61%|182MiB / 256MiB}", "{t=1790698144740, cpuNanos=14740000000, heap=39109568, gcMillis=327, dockerStats=0.48%|183.1MiB / 256MiB}", "{t=1790698150967, cpuNanos=14810000000, heap=39336664, gcMillis=327, dockerStats=4.06%|183MiB / 256MiB}" ],
+    "stack actions" : [ "2026-09-29T16:04:09.780013500Z compose up -d --no-deps --force-recreate order-query-eu with env {EVENTO_CONTEXTS=EUROPA, EVENTO_CHECKPOINT_MODE=DEFAULT}", "2026-09-29T16:06:42.054160100Z compose up -d --no-deps --force-recreate order-query-eu with env {EVENTO_CONTEXTS=EUROPA, EVENTO_CHECKPOINT_MODE=WATERMARK}", "2026-09-29T16:09:16.157151500Z compose up -d --no-deps --force-recreate order-query-eu (restore default)" ]
+  }
+}

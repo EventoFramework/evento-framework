@@ -1,0 +1,492 @@
+{
+  "scenario" : "S03",
+  "title" : "Kill an evento-server",
+  "gaps" : [ "G2", "G4", "G5", "G8", "G13" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T15:29:00.382151900Z",
+  "finishedAt" : "2026-09-29T15:31:40.504863Z",
+  "durationSeconds" : 160,
+  "parameters" : {
+    "orderIdPrefix" : "s03-after-78eae6-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "gateway-cina whoami" : {
+      "bundleId" : "order-gateway",
+      "instance" : "gateway-cina",
+      "zone" : "APAC",
+      "cell" : "APAC",
+      "region" : "CINA",
+      "contexts" : null,
+      "consumerPlan" : { },
+      "server" : "evento-apac:3030",
+      "addresses" : [ "evento-apac:3030", "toxi-apac:20313", "toxi-apac:20323" ],
+      "clusterName" : "evento-lab-cluster",
+      "expectedServerInstanceId" : null,
+      "checkpointMode" : "DEFAULT",
+      "appDb" : null,
+      "consumerStateDb" : null,
+      "dataTargets" : [ "eu", "am", "apac" ],
+      "frameworkFeatures" : [ {
+        "feature" : "endpointFailover",
+        "available" : true,
+        "value" : "3 address(es)"
+      }, {
+        "feature" : "expectedClusterName",
+        "available" : true,
+        "value" : "evento-lab-cluster"
+      }, {
+        "feature" : "zone",
+        "available" : true,
+        "value" : "APAC"
+      } ],
+      "busState" : "READY",
+      "ready" : true
+    },
+    "busMode" : "direct address list",
+    "load" : {
+      "ratePerMinutePerRegion" : 4.0,
+      "completeRatio" : 0.5,
+      "itemsPerOrder" : 1,
+      "durationSeconds" : 110,
+      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ]
+    }
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 8,
+    "INCONCLUSIVE" : 1
+  },
+  "observations" : [ {
+    "name" : "APAC bundles fail over to a healthy server",
+    "expected" : "APAC commands acknowledged again within 60 s of the kill, through another server",
+    "expectedBeforeFix" : "stranded: the bundle redials only the first (dead) address (G2)",
+    "observed" : "first APAC ack 10.252 s after the kill",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "catalog registration under mass reconnect",
+    "expected" : "no duplicate-key errors while bundles re-register (G8 fix)",
+    "expectedBeforeFix" : "'duplicate key' on core__bundle/component/payload during the reconnect storm (G8)",
+    "observed" : "0 duplicate-key log lines on the servers",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "in-flight APAC calls at the kill",
+    "expected" : "fail immediately with a typed broker-changed/disconnect error (G4 fix)",
+    "expectedBeforeFix" : "hang until the 30 s request timeout, outcome indeterminate (G4)",
+    "observed" : "0 gateway command(s) in flight: 0 failed after >= 25 s, 0 failed fast, kinds {}; bundle side: 0 BrokerChangedException, 0 RequestTimeoutException",
+    "verdict" : "INCONCLUSIVE",
+    "note" : null
+  }, {
+    "name" : "I1 after the server returns",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 143 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I2 after the server returns",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "expectedBeforeFix" : null,
+    "observed" : "no duplicates",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I4 after the server returns",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "expectedBeforeFix" : null,
+    "observed" : "0 foreign row(s) in 56",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I5 after the server returns",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "expectedBeforeFix" : null,
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I6 after the server returns",
+    "expected" : "read models reach the event store's state within 180 s",
+    "expectedBeforeFix" : null,
+    "observed" : "converged in 359 ms",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I7 after the server returns",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "expectedBeforeFix" : null,
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 143 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 56,
+      "acknowledgedOps" : 143,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 56 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 56,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "observed" : "0 foreign row(s) in 56",
+    "metrics" : {
+      "EU.rows" : 16,
+      "EU.byContext" : {
+        "AFRICA" : 8,
+        "EUROPA" : 8
+      },
+      "AM.rows" : 16,
+      "AM.byContext" : {
+        "AMERICA" : 8,
+        "SUD_AMERICA" : 8
+      },
+      "APAC.rows" : 24,
+      "APAC.byContext" : {
+        "AUSTRALIA_NZ" : 8,
+        "CINA" : 8,
+        "INDIA" : 8
+      },
+      "rows" : 56
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 56,
+      "regionalRows" : 56,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 180 s",
+    "observed" : "converged in 359 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.359,
+      "timeoutSeconds" : 180,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 174,
+      "checkpoints" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 173,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 169,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 173,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 169,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 167,
+        "APAC/order-query_OrderProjector_1_CINA" : 161,
+        "APAC/order-query_OrderProjector_1_INDIA" : 174,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 167,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 161,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 174,
+        "EU/order-observer_NotificationObserver_1_*" : 174,
+        "EU/order-query_OrderProjector_1_*" : 174,
+        "EU/order-query_OrderProjector_1_AFRICA" : 166,
+        "EU/order-query_OrderProjector_1_EUROPA" : 160,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 166,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 160
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=143 ack=143 failed=0 p50=482ms p95=1370ms p99=1935ms max=2081ms",
+    "metrics" : {
+      "AFRICA" : {
+        "count" : 18,
+        "acked" : 18,
+        "failed" : 0,
+        "p50" : 103,
+        "p95" : 488,
+        "p99" : 488,
+        "max" : 488,
+        "kinds" : { }
+      },
+      "AMERICA" : {
+        "count" : 20,
+        "acked" : 20,
+        "failed" : 0,
+        "p50" : 662,
+        "p95" : 1018,
+        "p99" : 1370,
+        "max" : 1370,
+        "kinds" : { }
+      },
+      "AUSTRALIA_NZ" : {
+        "count" : 20,
+        "acked" : 20,
+        "failed" : 0,
+        "p50" : 451,
+        "p95" : 1583,
+        "p99" : 1866,
+        "max" : 1866,
+        "kinds" : { }
+      },
+      "CINA" : {
+        "count" : 21,
+        "acked" : 21,
+        "failed" : 0,
+        "p50" : 418,
+        "p95" : 1583,
+        "p99" : 2081,
+        "max" : 2081,
+        "kinds" : { }
+      },
+      "EUROPA" : {
+        "count" : 23,
+        "acked" : 23,
+        "failed" : 0,
+        "p50" : 109,
+        "p95" : 192,
+        "p99" : 552,
+        "max" : 552,
+        "kinds" : { }
+      },
+      "INDIA" : {
+        "count" : 19,
+        "acked" : 19,
+        "failed" : 0,
+        "p50" : 485,
+        "p95" : 1935,
+        "p99" : 1935,
+        "max" : 1935,
+        "kinds" : { }
+      },
+      "SUD_AMERICA" : {
+        "count" : 22,
+        "acked" : 22,
+        "failed" : 0,
+        "p50" : 652,
+        "p95" : 947,
+        "p99" : 1537,
+        "max" : 1537,
+        "kinds" : { }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "apacFirstAckAfterKillSeconds" : 10.252,
+    "apacAfterKill" : {
+      "count" : 44,
+      "acked" : 44,
+      "failed" : 0,
+      "p50" : 448,
+      "p95" : 539,
+      "p99" : 570,
+      "max" : 570,
+      "kinds" : { }
+    },
+    "otherCellsAfterKill" : {
+      "count" : 62,
+      "acked" : 62,
+      "failed" : 0,
+      "p50" : 192,
+      "p95" : 947,
+      "p99" : 1018,
+      "max" : 1018,
+      "kinds" : { }
+    },
+    "apacInFlightAtKill" : 0,
+    "logMarkers" : {
+      "evento-eu" : { },
+      "evento-am" : { },
+      "evento-apac" : { },
+      "order-command-apac" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      },
+      "order-query-cina" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      },
+      "order-query-apac" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      },
+      "order-query-global-apac" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      },
+      "order-saga-apac" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      },
+      "gateway-cina" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      },
+      "gateway-india" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      },
+      "gateway-australia-nz" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 7,
+        "event=supervisor_session_failed" : 1
+      }
+    },
+    "apacHandshakes" : 8,
+    "apacCorrelationExpired" : 0,
+    "apacBundleBrokerChanged" : 0,
+    "apacBundleRequestTimeouts" : 0,
+    "failedRequestsByError" : { },
+    "consumerLagAfterConvergenceWait" : {
+      "lag" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 1,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 5,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 1,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 5,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 7,
+        "APAC/order-query_OrderProjector_1_CINA" : 13,
+        "APAC/order-query_OrderProjector_1_INDIA" : 0,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 7,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 13,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 0,
+        "EU/order-observer_NotificationObserver_1_*" : 0,
+        "EU/order-query_OrderProjector_1_*" : 0,
+        "EU/order-query_OrderProjector_1_AFRICA" : 8,
+        "EU/order-query_OrderProjector_1_EUROPA" : 14,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 8,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 14
+      },
+      "esHead" : 174
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 7613,
+    "at" : "2026-09-29T15:29:07.995402200Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 7626,
+    "at" : "2026-09-29T15:29:08.008402400Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @4.0/min for 110 s"
+  }, {
+    "tMs" : 28084,
+    "at" : "2026-09-29T15:29:28.466230700Z",
+    "event" : "killed evento-apac"
+  }, {
+    "tMs" : 128503,
+    "at" : "2026-09-29T15:31:08.885503600Z",
+    "event" : "load done: 143 requests"
+  }, {
+    "tMs" : 128508,
+    "at" : "2026-09-29T15:31:08.891043300Z",
+    "event" : "restarting evento-apac"
+  }, {
+    "tMs" : 154790,
+    "at" : "2026-09-29T15:31:35.172438700Z",
+    "event" : "evento-apac ready=true"
+  }, {
+    "tMs" : 157519,
+    "at" : "2026-09-29T15:31:37.901891500Z",
+    "event" : "invariants: converging up to 180 s"
+  }, {
+    "tMs" : 158211,
+    "at" : "2026-09-29T15:31:38.593436700Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 160121,
+    "at" : "2026-09-29T15:31:40.503857300Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ "bundle-side in-flight evidence counts 'Caused by' lines in the APAC JVM logs from the kill until the invariant check (2026-09-29T15:29:28.032974500Z onwards)" ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: order-command-apac" : [ "2026-09-29T15:29:31.372Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.203Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.775Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:30.653Z  INFO 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:30.652Z  WARN 1 --- [order-command] [er-command-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "log excerpts: order-query-cina" : [ "2026-09-29T15:29:31.477Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.175Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.749Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:30.622Z  INFO 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:30.622Z  WARN 1 --- [order-query] [rder-query-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "log excerpts: order-query-apac" : [ "2026-09-29T15:29:32.825Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.165Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.678Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:31.982Z  INFO 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:31.982Z  WARN 1 --- [order-query] [rder-query-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "log excerpts: order-query-global-apac" : [ "2026-09-29T15:29:32.681Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.229Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.648Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:31.951Z  INFO 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:31.951Z  WARN 1 --- [order-query] [ery-global-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "log excerpts: order-saga-apac" : [ "2026-09-29T15:29:32.734Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.194Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.681Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:31.998Z  INFO 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:31.998Z  WARN 1 --- [order-saga] [order-saga-apac] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "log excerpts: gateway-cina" : [ "2026-09-29T15:29:32.726Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.207Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.634Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:31.935Z  INFO 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:31.935Z  WARN 1 --- [order-gateway] [or-gateway-cina] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "log excerpts: gateway-india" : [ "2026-09-29T15:29:32.768Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.206Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.691Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:32.000Z  INFO 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:32.000Z  WARN 1 --- [order-gateway] [r-gateway-india] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "log excerpts: gateway-australia-nz" : [ "2026-09-29T15:29:32.621Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-eu cluster=evento-lab-cluster endpoint=toxi-apac:20313 accepted_caps=[]", "2026-09-29T15:29:28.189Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:28.654Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-09-29T15:29:31.967Z  INFO 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=RECONNECTING reason=post_session force=true", "2026-09-29T15:29:31.966Z  WARN 1 --- [order-gateway] [ay-australia-nz] c.e.a.c.connection.ConnectionSupervisor  : event=supervisor_session_failed attempt=1 endpoint=evento-apac:3030 cause=java.util.concurrent.ExecutionException: java.net.UnknownHostException: evento-apac: Name or service not known" ],
+    "stack actions" : [ "2026-09-29T15:29:28.032974500Z docker kill evento-apac", "2026-09-29T15:31:08.891043300Z docker start evento-apac" ]
+  }
+}

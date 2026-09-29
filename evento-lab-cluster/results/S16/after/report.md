@@ -2,15 +2,15 @@
 
 - Label: `after`
 - Gaps exercised: G24 (one lane per bundleId+context), G11, N4
-- Started: 2026-09-29T11:45:54.401866200Z, finished: 2026-09-29T11:47:10.729270400Z (76 s)
+- Started: 2026-09-29T14:12:49.698942200Z, finished: 2026-09-29T14:14:14.883967100Z (85 s)
 - Verdicts: {AS_EXPECTED=7}
 
 ## Parameters
 
-- orderIdPrefix: `s16-after-0ab13c-`
+- orderIdPrefix: `s16-after-8006a7-`
 - composeFile: `D:\Gabor\DIDATTICA\UNI\TESI_MAGISTRALE\evento\evento-lab-cluster\docker\compose.yaml`
 - servicesNotReadyAtStart: `[]`
-- healedAt: `2026-09-29T11:46:56.080420900Z`
+- healedAt: `2026-09-29T14:13:58.146612700Z`
 - laneHolderBeforeKill: `order-query-global-eu`
 
 ## Observed vs expected
@@ -19,9 +19,9 @@
 |---|---|---|---|---|
 | ALL event reaches every regional database exactly once | **AS_EXPECTED** | each price in app-pg-eu, -am and -apac with its event's sequence, applied_events = 1, context ALL |  | 5 events x 3 databases, each applied once |
 | only the global lane writes the catalog | **AS_EXPECTED** | every catalog_price row written by an order-query-global-* replica |  | writers {order-query-global-apac=6, order-query-global-eu=9} |
-| one ALL lane cluster-wide | **AS_EXPECTED** | exactly one CatalogProjector checkpoint, consumers/order-query_CatalogProjector_1_ALL (the replicas share it) |  | [consumers/order-query_CatalogProjector_1_ALL=740] |
+| one ALL lane cluster-wide | **AS_EXPECTED** | exactly one CatalogProjector checkpoint, consumers/order-query_CatalogProjector_1_ALL (the replicas share it) |  | [consumers/order-query_CatalogProjector_1_ALL=583] |
 | each ALL event fanned out by one replica | **AS_EXPECTED** | every sequence appears in exactly one replica's event=lab_fanout log (standby idle meanwhile) |  | no sequence processed by both replicas |
-| healthy regions during APAC's database outage | **AS_EXPECTED** | the single ALL lane stalls for every region: EU and AM get at most the head event, the checkpoint stays before it (known trade-off of one lane with N targets) |  | EU/AM received {AM=1, EU=1} of 4 ALL events; lane checkpoint 740 -> 740 |
+| healthy regions during APAC's database outage | **AS_EXPECTED** | the single ALL lane stalls for every region: EU and AM get at most the head event, the checkpoint stays before it (known trade-off of one lane with N targets) |  | EU/AM received {AM=1, EU=1} of 4 ALL events; lane checkpoint 583 -> 583 |
 | convergence after healing, no duplicates | **AS_EXPECTED** | every ALL event in all three databases, applied_events = 1 (replays refused by the sequence guard) |  | converged; no duplicate |
 | standby takes over the ALL lane | **AS_EXPECTED** | after the holder dies, order-query-global-apac fans out the next events to all three databases |  | written by {order-query-global-apac=9} |
 
@@ -34,34 +34,34 @@ _Not evaluated in this scenario._
 
 ```json
 {
-  "fanOutSeconds" : 4.134,
+  "fanOutSeconds" : 10.183,
   "fanOutWriters" : {
     "order-query-global-apac" : 6,
     "order-query-global-eu" : 9
   },
   "catalogConsumerStates" : [ "consumers/order-query_CatalogProjector_1_ALL" ],
   "fanOutEventsByReplica" : {
-    "order-query-global-apac" : [ 739, 740 ],
-    "order-query-global-eu" : [ 736, 737, 738 ]
+    "order-query-global-apac" : [ 582, 583 ],
+    "order-query-global-eu" : [ 579, 580, 581 ]
   },
   "outageEvents" : 4,
   "outageRowsInHealthyCells" : {
     "AM" : 1,
     "EU" : 1
   },
-  "laneCheckpointBeforeOutage" : 740,
-  "laneCheckpointDuringOutage" : 740,
-  "secondsToConvergeAfterHeal" : 0.048,
+  "laneCheckpointBeforeOutage" : 583,
+  "laneCheckpointDuringOutage" : 583,
+  "secondsToConvergeAfterHeal" : 0.074,
   "replaysAbsorbed" : 6,
-  "takeoverSeconds" : 5.189,
+  "takeoverSeconds" : 7.262,
   "logMarkers" : {
     "order-query-global-eu" : {
-      "event=lab_fanout" : 4
-    },
-    "order-query-global-apac" : {
-      "event=lab_fanout" : 11,
+      "event=lab_fanout" : 10,
       "FanOutIncompleteException" : 3,
       "Event processing failed" : 3
+    },
+    "order-query-global-apac" : {
+      "event=lab_fanout" : 5
     }
   }
 }
@@ -75,85 +75,86 @@ _Not evaluated in this scenario._
 
 ## Timeline
 
-- +5,9 s: scenario start
-- +8,2 s: sent 5/5 ALL events (s16-after-0ab13c-sku-a*)
-- +13,4 s: stopped app-pg-apac (APAC's regional database)
-- +14,7 s: sent 4/4 ALL events (s16-after-0ab13c-sku-b*)
-- +61,7 s: app-pg-apac back, ready=true
-- +62,2 s: killed the lane holder order-query-global-eu
-- +62,9 s: sent 3/3 ALL events (s16-after-0ab13c-sku-c*)
-- +67,3 s: cleanup start
-- +76,3 s: cleanup done
+- +6,1 s: scenario start
+- +8,4 s: sent 5/5 ALL events (s16-after-8006a7-sku-a*)
+- +19,8 s: stopped app-pg-apac (APAC's regional database)
+- +21,1 s: sent 4/4 ALL events (s16-after-8006a7-sku-b*)
+- +68,4 s: app-pg-apac back, ready=true
+- +69,0 s: killed the lane holder order-query-global-eu
+- +69,8 s: sent 3/3 ALL events (s16-after-8006a7-sku-c*)
+- +76,1 s: cleanup start
+- +85,2 s: cleanup done
 
 ### catalog_price after the fan-out
 
 ```
-EU s16-after-0ab13c-sku-a0 seq=736 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-EU s16-after-0ab13c-sku-a1 seq=737 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-EU s16-after-0ab13c-sku-a2 seq=738 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-EU s16-after-0ab13c-sku-a3 seq=739 applied=1 stale=0 ctx=ALL by=order-query-global-apac
-EU s16-after-0ab13c-sku-a4 seq=740 applied=1 stale=0 ctx=ALL by=order-query-global-apac
-AM s16-after-0ab13c-sku-a0 seq=736 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-AM s16-after-0ab13c-sku-a1 seq=737 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-AM s16-after-0ab13c-sku-a2 seq=738 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-AM s16-after-0ab13c-sku-a3 seq=739 applied=1 stale=0 ctx=ALL by=order-query-global-apac
-AM s16-after-0ab13c-sku-a4 seq=740 applied=1 stale=0 ctx=ALL by=order-query-global-apac
-APAC s16-after-0ab13c-sku-a0 seq=736 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-APAC s16-after-0ab13c-sku-a1 seq=737 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-APAC s16-after-0ab13c-sku-a2 seq=738 applied=1 stale=0 ctx=ALL by=order-query-global-eu
-APAC s16-after-0ab13c-sku-a3 seq=739 applied=1 stale=0 ctx=ALL by=order-query-global-apac
-APAC s16-after-0ab13c-sku-a4 seq=740 applied=1 stale=0 ctx=ALL by=order-query-global-apac
+EU s16-after-8006a7-sku-a0 seq=579 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+EU s16-after-8006a7-sku-a1 seq=580 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+EU s16-after-8006a7-sku-a2 seq=581 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+EU s16-after-8006a7-sku-a3 seq=582 applied=1 stale=0 ctx=ALL by=order-query-global-apac
+EU s16-after-8006a7-sku-a4 seq=583 applied=1 stale=0 ctx=ALL by=order-query-global-apac
+AM s16-after-8006a7-sku-a0 seq=579 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+AM s16-after-8006a7-sku-a1 seq=580 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+AM s16-after-8006a7-sku-a2 seq=581 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+AM s16-after-8006a7-sku-a3 seq=582 applied=1 stale=0 ctx=ALL by=order-query-global-apac
+AM s16-after-8006a7-sku-a4 seq=583 applied=1 stale=0 ctx=ALL by=order-query-global-apac
+APAC s16-after-8006a7-sku-a0 seq=579 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+APAC s16-after-8006a7-sku-a1 seq=580 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+APAC s16-after-8006a7-sku-a2 seq=581 applied=1 stale=0 ctx=ALL by=order-query-global-eu
+APAC s16-after-8006a7-sku-a3 seq=582 applied=1 stale=0 ctx=ALL by=order-query-global-apac
+APAC s16-after-8006a7-sku-a4 seq=583 applied=1 stale=0 ctx=ALL by=order-query-global-apac
 ```
 
 ### ALL lane checkpoint (every 3 s)
 
 ```
-2026-09-29T11:46:07.315970900Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:10.408495500Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:13.476399200Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:16.539930600Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:19.638951500Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:22.703093500Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:25.765962100Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:28.844190300Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:31.908551100Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:34.969607700Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:38.031065600Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:41.098568700Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:44.178055100Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:47.261752900Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:50.323847600Z consumers/order-query_CatalogProjector_1_ALL=740
-2026-09-29T11:46:53.415655300Z consumers/order-query_CatalogProjector_1_ALL=743
+2026-09-29T14:13:08.886211300Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:12.065920700Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:15.132873800Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:18.206338800Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:21.275704400Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:24.345372100Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:27.415518Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:30.480179300Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:33.547147900Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:36.609000600Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:39.673762200Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:42.739415400Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:45.820851100Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:48.881237200Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:51.946405800Z consumers/order-query_CatalogProjector_1_ALL=583
+2026-09-29T14:13:55.028602300Z consumers/order-query_CatalogProjector_1_ALL=585
+2026-09-29T14:13:58.096191300Z consumers/order-query_CatalogProjector_1_ALL=587
 ```
 
 ### log excerpts: order-query-global-eu
 
 ```
-2026-09-29T11:46:01.661Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=736 sku=s16-after-0ab13c-sku-a0 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
-2026-09-29T11:46:02.076Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=737 sku=s16-after-0ab13c-sku-a1 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
-2026-09-29T11:46:02.494Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=738 sku=s16-after-0ab13c-sku-a2 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
+2026-09-29T14:12:59.657Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=579 sku=s16-after-8006a7-sku-a0 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
+2026-09-29T14:13:00.160Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=580 sku=s16-after-8006a7-sku-a1 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
+2026-09-29T14:13:00.584Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=581 sku=s16-after-8006a7-sku-a2 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
+com.evento.lab.cluster.support.store.CatalogFanOut$FanOutIncompleteException: fan-out incomplete, failed targets [apac], done {eu=APPLIED, am=APPLIED}
+com.evento.lab.cluster.support.store.CatalogFanOut$FanOutIncompleteException: fan-out incomplete, failed targets [apac], done {eu=STALE, am=STALE}
+com.evento.lab.cluster.support.store.CatalogFanOut$FanOutIncompleteException: fan-out incomplete, failed targets [apac], done {eu=STALE, am=STALE}
+2026-09-29T14:13:19.946Z ERROR 1 --- [order-query] [Projector_1_ALL] c.e.a.reference.ProjectorReference       : Event processing failed for projector CatalogProjector event PriceChangedEvent (attempt 1)
+2026-09-29T14:13:32.320Z ERROR 1 --- [order-query] [Projector_1_ALL] c.e.a.reference.ProjectorReference       : Event processing failed for projector CatalogProjector event PriceChangedEvent (attempt 2)
+2026-09-29T14:13:44.669Z ERROR 1 --- [order-query] [Projector_1_ALL] c.e.a.reference.ProjectorReference       : Event processing failed for projector CatalogProjector event PriceChangedEvent (attempt 3)
 ```
 
 ### log excerpts: order-query-global-apac
 
 ```
-2026-09-29T11:46:04.287Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=739 sku=s16-after-0ab13c-sku-a3 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
-2026-09-29T11:46:05.561Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=740 sku=s16-after-0ab13c-sku-a4 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
-2026-09-29T11:46:19.209Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=741 sku=s16-after-0ab13c-sku-b0 outcomes={eu=APPLIED, am=APPLIED} failed=[apac]
-com.evento.lab.cluster.support.store.CatalogFanOut$FanOutIncompleteException: fan-out incomplete, failed targets [apac], done {eu=APPLIED, am=APPLIED}
-com.evento.lab.cluster.support.store.CatalogFanOut$FanOutIncompleteException: fan-out incomplete, failed targets [apac], done {eu=STALE, am=STALE}
-com.evento.lab.cluster.support.store.CatalogFanOut$FanOutIncompleteException: fan-out incomplete, failed targets [apac], done {eu=STALE, am=STALE}
-2026-09-29T11:46:19.210Z ERROR 1 --- [order-query] [Projector_1_ALL] c.e.a.reference.ProjectorReference       : Event processing failed for projector CatalogProjector event PriceChangedEvent (attempt 1)
-2026-09-29T11:46:32.895Z ERROR 1 --- [order-query] [Projector_1_ALL] c.e.a.reference.ProjectorReference       : Event processing failed for projector CatalogProjector event PriceChangedEvent (attempt 2)
-2026-09-29T11:46:46.591Z ERROR 1 --- [order-query] [Projector_1_ALL] c.e.a.reference.ProjectorReference       : Event processing failed for projector CatalogProjector event PriceChangedEvent (attempt 3)
+2026-09-29T14:13:06.261Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=582 sku=s16-after-8006a7-sku-a3 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
+2026-09-29T14:13:07.561Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=583 sku=s16-after-8006a7-sku-a4 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
+2026-09-29T14:14:00.044Z  INFO 1 --- [order-query] [Projector_1_ALL] c.e.l.c.support.store.CatalogFanOut      : event=lab_fanout seq=588 sku=s16-after-8006a7-sku-c0 outcomes={eu=APPLIED, am=APPLIED, apac=APPLIED} failed=[]
 ```
 
 ### stack actions
 
 ```
-2026-09-29T11:46:07.315980600Z docker stop app-pg-apac
-2026-09-29T11:46:49.223281600Z docker start app-pg-apac
-2026-09-29T11:46:56.338652800Z docker kill order-query-global-eu
-2026-09-29T11:47:01.756763500Z docker start order-query-global-eu (restore)
+2026-09-29T14:13:08.885210700Z docker stop app-pg-apac
+2026-09-29T14:13:51.134221300Z docker start app-pg-apac
+2026-09-29T14:13:58.416047700Z docker kill order-query-global-eu
+2026-09-29T14:14:05.898878600Z docker start order-query-global-eu (restore)
 ```
 

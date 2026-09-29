@@ -6,8 +6,8 @@
 | G8 | discovery / consumer-registration insert race | High (catalog) | fixed: `:after` starts complete with `REPAIR_CATALOG=false`; `:before` still needs `repair-catalog.sh` (integration run) |
 | G9 (+G3) | about 14 sequential WAN round trips per command from a remote cell | High (throughput) | `:after` S00: 498/498 acked, p50 AM 0.72 s, APAC 1.12 s; residual in N9 |
 | N2 | connection liveness probes on the command path, each one a WAN round trip | Medium | recorded |
-| N3 (+G4/G5) | commands still executed after the caller timed out; saga retries duplicate the payment | High (correctness) | recorded |
-| N4 (+G24/G12) | the single global consumer lane hops between cells and projects over the WAN | Medium | recorded; still hops on `:after` (lock holder EU/APAC alternates) |
+| N3 (+G4/G5) | commands still executed after the caller timed out; saga retries duplicate the payment | High (correctness) | fixed up to the append on `:after` (S00: 0 stored after timeout, `:before` 83); residual in N15, retries in N14 |
+| N4 (+G24/G12) | the single global consumer lane hops between cells and projects over the WAN | Medium | **open**: `:after` S16 writers split EU 9 / APAC 6, fan-out 10.2 s (`:before` 2.1 s) |
 | N5 | the CPES `es-lock` favours the cell nearest the ES primary | Medium | recorded |
 | L7 | toxiproxy OOM-killed at 64m during base backups | Blocker | fixed (256m) |
 | L8 | no restart policy; no healthcheck on cell-core and saga | Medium | fixed |
@@ -21,14 +21,24 @@
 | L11 | harness catalog read (I7) used the pre-N1 column | Medium (lab) | fixed |
 | L12 | I7 expected a catalog row for the send-only gateway | Low (lab) | fixed |
 | L13 | lab-api did not compile against the pre-fix framework | High (lab) | fixed |
-| N11 | a silent partition of one remote cell stops appends cluster-wide | High (availability) | recorded (`:before` S07) |
-| N12 | a stale NodeLeft on 2.4.6 wipes a shared bundle id's consumers in every cell; the repair cannot converge | High (catalog) | recorded (`:before` S04 B) |
-| N13 | handshake supersede loop after a paused server returns | Medium (availability) | recorded (`:before` after S04) |
+| N11 | a silent partition of one remote cell stops appends cluster-wide | High (availability) | fixed on `:after` (S07: EU+AM 41/41, `:before` 0/16) |
+| N12 | a stale NodeLeft on 2.4.6 wipes a shared bundle id's consumers in every cell; the repair cannot converge | High (catalog) | not reproduced on `:after` (S04 B: 0 unregisters) |
+| N13 | handshake supersede loop after a paused server returns | Medium (availability) | not reproduced on `:after` (after S04) |
 | L14 | `repair-catalog.sh` ignored lost handler rows of sagas and the observer | Medium (lab) | fixed |
 | L15 | S11 marked G16 AS_EXPECTED on a page that shows no `_` context, and blamed G8 for N10 | Medium (lab) | fixed |
 | L16 | the chaos driver ran the catalog repair with WSL `bash` on Windows | High (lab) | fixed |
 | L17 | S14 marked G5 AS_EXPECTED with no command in the ambiguous window | Medium (lab) | fixed |
 | L18 | S15 skewed the clock ahead, which can never trip the staleness gate | Medium (lab) | fixed |
+| N14 (+G5) | a saga retries an indeterminate command (broker change, partition) and the payment runs twice | High (correctness) | **open** (`:after` S03 run 1, S07) |
+| N15 (+N3/N5) | under `es-lock` contention commands commit after their caller's deadline; N3 drops none | Medium (correctness) | **open** (`:after` S06: 31 at 300 ms) |
+| N16 (+G2/G1) | no failback: bundles stay on the remote server after their own server returns | High (availability, cost) | **open** (`:after` S03, S13) |
+| N17 | ES promotion outage 15.1 s on `:after` vs 7.6 s on `:before` | Low (availability) | recorded, one run each |
+| L19 | S12's per-event CPU ratio was idle-cost noise | Medium (lab) | fixed |
+| L20 | S07 read a lane with nothing to consume as stalled | Medium (lab) | fixed |
+| L21 | S13 ran only the legacy single-id guard; S03's G4 check ignored bundle-side calls | Medium (lab) | fixed |
+| L22 | scenarios after a server kill ran with bundles on the wrong cell's server (N16) | High (lab) | fixed |
+| L23 | a failed lb re-attach misrouted every region to gateway-cina, silently | High (lab) | fixed |
+| L24 | ES replicas inherited `synchronous_standby_names`; a promoted one blocked every commit | High (lab) | fixed |
 
 ## N1: components keyed by simple class name across bundles
 - **Cause:** `core__component.component_name` is the primary key. The seven `query-<r>` bundles all ran `RegionOrderProjector`.
@@ -253,7 +263,8 @@ results `results/S00/after-smoke`, `results/S16/after` and `results/S17/after`.
 Summary table and key numbers: [`results/BEFORE-SUMMARY.md`](results/BEFORE-SUMMARY.md). Each scenario is
 in `results/<S>/before/`.
 
-- **Gaps confirmed on 2.4.6:** G1 (S01), G2 and G4 (S03), G3 (S05 cross-server deadlocks, S08),
+- **Gaps confirmed on 2.4.6:** G1 (S01), G2 and G4 (S03), G3 (S05 cross-server deadlocks; the
+  S08 "no write resumed" was L24, and the re-run resumes in 7.6 s),
   G5 (S14), G7 (S04 B), G8 (every fresh start), G9 (S00, S06), G13 (S13), G14 (S10), G15 (S11),
   G25 (S07), N3 (S00), N10 (S11), and the fetch staleness gate (S15).
 - **Not observed:** G10 in S12 (WATERMARK ×0.86 of DEFAULT, but at a global volume capped by G9),
@@ -344,3 +355,119 @@ in `results/<S>/before/`.
   than 30 s trips it. The lab also had no libfaketime. `docker/faketime/Dockerfile` derives an
   image, and `S15_IMAGE` makes S15 recreate the JVM with it (`Cluster.recreateWithEnv(service,
   env, image)`). The report records the measured offset (`skewedClockMinusHostSeconds`).
+
+## Full scenario run on `:after` (S00..S17, 2026-09-29)
+Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side with `:before`:
+[`results/COMPARISON.md`](results/COMPARISON.md). Each scenario is in `results/<S>/after/`.
+
+- **Fixed and confirmed end to end:** G2 (S03 APAC 44/44, first ack 10.3 s; S04 probes 3/3), G3
+  (S05 0 deadlocks; S07 EU+AM 41/41 during the partition, so N11 is gone), G4 (S14: 0 of 13 failures
+  after ≥ 25 s, all `broker_changed`), G7/N12 (S04 B: 0 unregisters), G8 (0 of 7 fresh starts need the
+  repair), G9 (S00 492/492, 9.35 appends/s; S06 6.55 appends/s at 300 ms against 1.65), G13 (S13: a
+  foreign cluster is refused, and failover works with the guard on), G14 (S10 0/3), G15/G16/N10 (S11),
+  N3 up to the append (S00 0 stored after timeout).
+- **Still open:** G1 (S01), G5 (S14: 8 keys stored twice; N14), N4 (S16), the fetch staleness gate
+  (S15), N15, N16. G6, G10 and G25 were not observable in this lab.
+
+## N14: a saga's automatic retry duplicates the payment (G5 at application level)
+- **Evidence (`:after`):**
+  - `S03/after-run1`: `evento-apac` was killed while `order-saga-apac` had a `ProcessPaymentCommand` in
+    flight. The bundle re-handshook on `evento-eu` and failed the call with `BrokerChangedException:
+    outcome indeterminate ... (the request may or may not have been applied)` (the G4 fix working as
+    designed). The saga's event was redelivered, the command was sent again, and the payment of
+    `...-australia-nz-13` ran twice: 2 `PaymentProcessedEvent`, 2 rows of attempts.
+  - `S07/after`: in the partitioned cell, `order-command-apac` executed two payments in its own
+    database (reachable) while `evento-apac` could not append. Either the lock was lost
+    (`Distributed lock lost for key 'RESOURCE:payment-...'`) or the reply was lost after the append.
+    After healing, the saga's retries executed them again (`attempts = 2` for `cina-14` and
+    `india-8`), and `india-8` has 2 `PaymentProcessedEvent`.
+  - The contaminated run that was thrown away (L22/L23) showed the same pattern on
+    `...sud-america-9`: the first execution's row was in `app-pg-apac`, the retry's in `app-pg-eu`.
+- **Why:** the command handler's side effect happens before the append, and nothing ties the retry
+  to the first attempt. G4 makes the outcome *known to be unknown* quickly, which makes the retry
+  happen sooner, often while the first attempt still commits. S14 shows the same thing at the
+  gateway: 9 of 13 fast-failed first attempts were stored, and 8 keys ended up twice (`:before`
+  1 of 24, because a 30 s timeout left time for the original to finish first).
+- **Proposal:** an idempotency key minted once by the caller (gateway request, or saga + event
+  sequence), carried in the envelope, checked by the server under the aggregate lock before the
+  append, and recorded with the events. The handler's side effect must be keyed on it too
+  (`payments` keyed by order id here).
+
+## N15: commands commit after their caller's deadline under `es-lock` contention
+- **Evidence (`:after` S06, 300 ms RTT to the ES primary):** 31 commands timed out at the caller
+  (30 s), and I1 found all 31 stored. `evento.server.requests.expired` on the three servers counted
+  **0** drops at `queued`, `lock_wait`, `before_forward` and `before_append` during the run (actuator,
+  first pass). The clean re-run shows the same thing: 31 timeouts, 31 stored. At 150 ms the p50 of
+  **EU**, the cell of the primary, is already 1.7 s.
+- **Likely mechanism:** the last deadline check is `before_append`. The append statement then waits
+  inside `pg_advisory_xact_lock('es-lock')` behind every other server's append, and each remote
+  holder keeps the lock for at least one RTT. The wait is unbounded and not tied to the deadline, so
+  the command commits after the caller has given up. This is N3's window moved into the statement,
+  and N5's unfairness makes it grow with RTT.
+- **Proposal:** `SET LOCAL lock_timeout` (or `statement_timeout`) = remaining deadline for the append
+  transaction, so an expired command fails with a typed error instead of committing. Longer term,
+  per-aggregate appends with a sequence fence (G6) instead of one global lock.
+
+## N16: no failback after endpoint failover (G2 fix) — cells stay split across the WAN
+- **Evidence (`:after`):**
+  - S04, S05, S14 (`after-kill150`) and S15 each started with all 8 APAC JVMs
+    (`order-command-apac`, the query, saga and global deployments, the 3 gateways) still on
+    `evento-eu`, and S14 (`after`) with 7 EU JVMs still on `evento-am`. In each case the scenario
+    before had restarted the killed server and waited for it to be healthy
+    (`placementRestoredAtStart` in their reports).
+  - After S13 variant A (`evento-eu` killed and restarted), 7 EU JVMs were still on `evento-am`
+    (`A.bundlesStillRemoteAfterEuReturned`).
+  - Consequences seen (`results/S13/after-n16-evidence`): `gateway-europa`, recreated onto the
+    returned `evento-eu`, got `no handler for CreateOrderCommand` 0/3, because `order-command-eu`
+    was on `evento-am` (G1). The first S05 pass measured its EU-vs-APAC contention inside one server
+    (p50 0.49 s, against 0.93 s once placement was restored).
+- **Cause:** `ConnectionSupervisor` moves to the next endpoint after a failed session and goes back
+  to the first only at the next disconnect. There is no background probe (the G2 plan had one:
+  "periodically re-tries index 0 to fail back").
+- **Impact:** after any server restart, a cell's traffic crosses the WAN indefinitely (latency,
+  toxiproxy cost, exposure to other cells' faults). With G1, handlers and callers of one cell can end
+  up on different servers. The cell architecture assumes they never do.
+- **Proposals:** a fail-back probe to the preferred endpoint with jitter and a drain of in-flight
+  calls; or have the server shed bundles whose preferred server is back (a "go home" hint in
+  `Welcome`/presence). Until then: restart the cell's JVMs after a server returns. The lab does
+  this before every scenario (L22).
+
+## N17: the ES promotion outage is longer on `:after`
+- **Evidence (S08, with L24 fixed, one run each):** the first ack after `es-pg-eu` was killed and
+  `es-pg-am` promoted came at 7.6 s on `:before` and 15.1 s on `:after`. After the kill, `:after`
+  acknowledged 103/106 (p50 874 ms), `:before` 105/106 (p50 2.4 s).
+- **Hypothesis (not verified):** `:after` has two pools per server (data and the G3 lock pool).
+  Both must discover that the old primary is gone (`connectTimeout=10`) before
+  `targetServerType=primary` finds `es-pg-am`, and `verifyHeld` adds one query per locked append.
+- **Next:** repeat S08 3× on each image set; log pool acquisition timing around the promotion.
+
+## Lab defects fixed during the `:after` run
+- **L19 (S12):** the per-event CPU ratio compared totals that were mostly idle cost (polling,
+  heartbeats: ~14 ms/s against ~12 ms/s under load), so it swung from ×0.86 (`:before`) to ×1.62
+  (`:after`) on noise. Each phase now measures and subtracts an idle rate. A difference below
+  `S12_NOISE_FLOOR_MS` (1000) is INCONCLUSIVE, and the report says why. Neither image set shows any
+  load-attributable CPU for 250–750 foreign events: with CPES the gaps are too small for G10 to show.
+- **L20 (S07):** a lane whose checkpoint does not move was a "stall" even with nothing to consume
+  (the ALL lane with no price set; on `:before` the `*` lanes while N11 had stopped every append).
+  A lane now stalls only while it is behind the head of what it consumes (`Db.esHeadOfContext`).
+- **L21 (S13, S03):** S13 ran only the 2.4.6 single-id guard, which refuses failover by contract, so
+  G13 could never pass. Variants C (a bundle expects a foreign cluster: must be refused) and B
+  (cluster-name guard only: failover must work) now decide G13. S03's G4 check looked only at gateway
+  commands, which at 4/min are rarely in flight at the kill; it now also counts
+  `BrokerChangedException` / `RequestTimeoutException` in the APAC JVMs.
+- **L22 (all scenarios):** because of N16, every scenario after the first server kill ran on the
+  wrong placement. `AbstractScenario` now reads each JVM's last `handshake_complete`, restarts the
+  misplaced ones, and records `placementRestoredAtStart`. On 2.4.6 this does nothing: bundles never
+  fail over, and the log line carries no server id.
+- **L23 (all scenarios):** two runs overlapped once (a stopped Gradle driver kept going in the
+  background). S07's heal then failed to re-attach the lb to `net-apac` ("address already in use"),
+  and the lb served every `X-Region` from `gateway-cina` with 200s. Every event of every region got
+  context CINA, and no check noticed. `AbstractScenario` now checks that each region's `/whoami`
+  comes from its own gateway and recreates the lb once, and S07's heal recreates the lb when the
+  re-attach fails. Operational rule: never run two scenario drivers at once; stop one by killing the
+  whole process tree.
+- **L24 (S08):** `pg_basebackup` copies the primary's `postgresql.auto.conf`, including
+  `synchronous_standby_names = 'FIRST 1 (es_pg_am)'`. A promoted `es-pg-am` then waited on every
+  commit for a sync standby named `es_pg_am`, which is itself. The `:before` S08 "no write resumed
+  (G3)" came from this. `replica-entrypoint.sh` now appends `synchronous_standby_names = ''` on the
+  replicas. S08 was re-run on both image sets (`before-l24` / `after-l24` keep the old runs).

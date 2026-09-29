@@ -1,0 +1,86 @@
+{
+  "scenario" : "S01",
+  "title" : "Cross-cell routing miss",
+  "gaps" : [ "G1" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T14:16:06.934051Z",
+  "finishedAt" : "2026-09-29T14:16:37.041375200Z",
+  "durationSeconds" : 30,
+  "parameters" : {
+    "orderIdPrefix" : "s01-after-ef4c01-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ]
+  },
+  "verdictCounts" : {
+    "KNOWN_DEFECT_REPRODUCED" : 1,
+    "AS_EXPECTED" : 2
+  },
+  "observations" : [ {
+    "name" : "AMERICA command with no handler in its cell",
+    "expected" : "routed to a live handler in EU or APAC and acknowledged (needs the G1 server mesh)",
+    "expectedBeforeFix" : "fails immediately with 'no handler for CreateOrderCommand'",
+    "observed" : "0/5 acknowledged; 5 no_handler; kinds {no_handler=5}",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : "The cell architecture exists because of this: every cell must host a full handler set."
+  }, {
+    "name" : "EUROPA control",
+    "expected" : "unaffected: all acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "5/5",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "failure is immediate",
+    "expected" : "a routing miss fails fast (< 2 s), not after a timeout",
+    "expectedBeforeFix" : null,
+    "observed" : "max latency 14 ms",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "americaKinds" : {
+      "no_handler" : 5
+    },
+    "americaErrors" : [ "no handler for CreateOrderCommand" ],
+    "americaMaxLatencyMs" : 14,
+    "logMarkers" : {
+      "evento-am" : {
+        "Skipping unregister of bundle" : 1
+      },
+      "gateway-america" : {
+        "no handler for" : 5,
+        "event=gateway_command_failed" : 5
+      }
+    },
+    "americaRecoveredAfterRestartSeconds" : 0.878
+  },
+  "timeline" : [ {
+    "tMs" : 8870,
+    "at" : "2026-09-29T14:16:15.804976900Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 9514,
+    "at" : "2026-09-29T14:16:16.448817600Z",
+    "event" : "stopped order-command-am"
+  }, {
+    "tMs" : 20087,
+    "at" : "2026-09-29T14:16:27.021095800Z",
+    "event" : "sent 5 CreateOrder from AMERICA and EUROPA"
+  }, {
+    "tMs" : 20252,
+    "at" : "2026-09-29T14:16:27.186973200Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 30107,
+    "at" : "2026-09-29T14:16:37.041375200Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: evento-am" : [ "20260929141616806 INFO  1 --- [nioEventLoopGroup-3-8                   ] AutoDiscoveryService                     : Skipping unregister of bundle order-command: another live instance is connected" ],
+    "log excerpts: gateway-america" : [ "2026-09-29T14:16:26.465Z  WARN 1 --- [order-gateway] [cat-handler-168] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-after-ef4c01-america-1 region=AMERICA kind=no_handler latencyMs=3 idempotencyKey=b217924f-e2a7-4256-9eb1-afdfd52b986e error=no handler for CreateOrderCommand", "2026-09-29T14:16:26.581Z  WARN 1 --- [order-gateway] [cat-handler-169] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-after-ef4c01-america-3 region=AMERICA kind=no_handler latencyMs=4 idempotencyKey=aff1d2b4-4b54-4bb6-bf92-4466d9ac69fe error=no handler for CreateOrderCommand", "2026-09-29T14:16:26.709Z  WARN 1 --- [order-gateway] [cat-handler-170] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-after-ef4c01-america-5 region=AMERICA kind=no_handler latencyMs=2 idempotencyKey=c6b180f1-e60c-4f5a-a286-4708e8436557 error=no handler for CreateOrderCommand", "2026-09-29T14:16:26.465Z  WARN 1 --- [order-gateway] [cat-handler-168] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-after-ef4c01-america-1 region=AMERICA kind=no_handler latencyMs=3 idempotencyKey=b217924f-e2a7-4256-9eb1-afdfd52b986e error=no handler for CreateOrderCommand", "2026-09-29T14:16:26.581Z  WARN 1 --- [order-gateway] [cat-handler-169] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-after-ef4c01-america-3 region=AMERICA kind=no_handler latencyMs=4 idempotencyKey=aff1d2b4-4b54-4bb6-bf92-4466d9ac69fe error=no handler for CreateOrderCommand", "2026-09-29T14:16:26.709Z  WARN 1 --- [order-gateway] [cat-handler-170] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-after-ef4c01-america-5 region=AMERICA kind=no_handler latencyMs=2 idempotencyKey=c6b180f1-e60c-4f5a-a286-4708e8436557 error=no handler for CreateOrderCommand" ],
+    "stack actions" : [ "2026-09-29T14:16:15.809775500Z docker stop order-command-am", "2026-09-29T14:16:27.274262800Z docker start order-command-am (restore)" ]
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "scenario" : "S04",
+  "title" : "Server returns after failover",
+  "gaps" : [ "G7", "G17" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T15:31:48.438632900Z",
+  "finishedAt" : "2026-09-29T15:37:11.388580200Z",
+  "durationSeconds" : 322,
+  "parameters" : {
+    "orderIdPrefix" : "s04-after-491ff6-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : {
+      "gateway-australia-nz" : "evento-eu",
+      "gateway-cina" : "evento-eu",
+      "gateway-india" : "evento-eu",
+      "order-command-apac" : "evento-eu",
+      "order-query-apac" : "evento-eu",
+      "order-query-cina" : "evento-eu",
+      "order-query-global-apac" : "evento-eu",
+      "order-saga-apac" : "evento-eu"
+    },
+    "lbRoutingAtStart" : "ok"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 4
+  },
+  "observations" : [ {
+    "name" : "A: catalog after the killed server returns",
+    "expected" : "every bundle, handler and consumer still registered (I7)",
+    "expectedBeforeFix" : "the returning/old server's NodeLeft clears the moved bundle's rows (G7)",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "A: APAC commands after the return",
+    "expected" : "acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "3/3 acknowledged {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "B: catalog after a half-closed socket heals",
+    "expected" : "every bundle, handler and consumer still registered (I7)",
+    "expectedBeforeFix" : "the stale session's NodeLeft wipes a bundle that reconnected elsewhere (G7)",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "B: APAC commands after unpause",
+    "expected" : "acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "3/3 acknowledged {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I7-A",
+    "name" : "catalog matches live bundles (variant A)",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7-B",
+    "name" : "catalog matches live bundles (variant B)",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "A.probesDuringOutage" : "3/3 acknowledged {}",
+    "B.probesDuringPause" : "3/3 acknowledged {}",
+    "logMarkers" : {
+      "evento-eu" : { },
+      "evento-am" : { },
+      "evento-apac" : { }
+    },
+    "unregisterCalls" : 0,
+    "skippedUnregisters" : 0
+  },
+  "timeline" : [ {
+    "tMs" : 7397,
+    "at" : "2026-09-29T15:31:55.836375400Z",
+    "event" : "placement: 8 JVM(s) on a remote server, restarting them: {gateway-australia-nz=evento-eu, gateway-cina=evento-eu, gateway-india=evento-eu, order-command-apac=evento-eu, order-query-apac=evento-eu, order-query-cina=evento-eu, order-query-global-apac=evento-eu, order-saga-apac=evento-eu}"
+  }, {
+    "tMs" : 63744,
+    "at" : "2026-09-29T15:32:52.182822300Z",
+    "event" : "placement restored, ready={gateway-australia-nz=true, gateway-cina=true, gateway-india=true, order-command-apac=true, order-query-apac=true, order-query-cina=true, order-query-global-apac=true, order-saga-apac=true}"
+  }, {
+    "tMs" : 63811,
+    "at" : "2026-09-29T15:32:52.250570400Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 63814,
+    "at" : "2026-09-29T15:32:52.252667100Z",
+    "event" : "variant A: kill + restart"
+  }, {
+    "tMs" : 110888,
+    "at" : "2026-09-29T15:33:39.326721600Z",
+    "event" : "probe A-outage: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 137318,
+    "at" : "2026-09-29T15:34:05.757382200Z",
+    "event" : "evento-apac back; settling 60 s (> 45 s read-idle)"
+  }, {
+    "tMs" : 198577,
+    "at" : "2026-09-29T15:35:07.016486500Z",
+    "event" : "probe A-after: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 199006,
+    "at" : "2026-09-29T15:35:07.445293Z",
+    "event" : "variant B: pause 60 s"
+  }, {
+    "tMs" : 259046,
+    "at" : "2026-09-29T15:36:07.484709800Z",
+    "event" : "probe B-paused: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 259136,
+    "at" : "2026-09-29T15:36:07.575296400Z",
+    "event" : "unpaused; settling 60 s"
+  }, {
+    "tMs" : 320354,
+    "at" : "2026-09-29T15:37:08.793517300Z",
+    "event" : "probe B-after: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 320843,
+    "at" : "2026-09-29T15:37:09.281746900Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 322948,
+    "at" : "2026-09-29T15:37:11.387574600Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ "G17: the GUI/admin views of each server only show locally connected bundles; compare http://localhost:13000..13002 by hand when reading this result." ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ "2026-09-29T15:31:55.840017800Z docker restart gateway-australia-nz gateway-cina gateway-india order-command-apac order-query-apac order-query-cina order-query-global-apac order-saga-apac", "2026-09-29T15:32:52.253186900Z docker kill evento-apac", "2026-09-29T15:33:39.327247100Z docker start evento-apac", "2026-09-29T15:35:07.445293Z docker pause evento-apac", "2026-09-29T15:36:07.484709800Z docker unpause evento-apac" ]
+  }
+}

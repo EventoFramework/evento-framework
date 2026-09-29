@@ -1,0 +1,394 @@
+{
+  "scenario" : "S08",
+  "title" : "Event-store primary failover (promote es-pg-am)",
+  "gaps" : [ "G3", "G5", "G6", "G19" ],
+  "label" : "after",
+  "startedAt" : "2026-09-29T16:09:33.875017600Z",
+  "finishedAt" : "2026-09-29T16:16:03.623912200Z",
+  "durationSeconds" : 389,
+  "parameters" : {
+    "orderIdPrefix" : "s08-after-5d1be4-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "promoted" : "es-pg-am",
+    "replication" : "synchronous",
+    "load" : {
+      "completeRatio" : 0.5,
+      "ratePerMinutePerRegion" : 4.0,
+      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "durationSeconds" : 120,
+      "itemsPerOrder" : 1
+    }
+  },
+  "verdictCounts" : {
+    "UNEXPECTED" : 1,
+    "AS_EXPECTED" : 4
+  },
+  "observations" : [ {
+    "name" : "writes resume after promotion",
+    "expected" : "commands acknowledged again within 60 s (servers follow the multi-host URL)",
+    "expectedBeforeFix" : null,
+    "observed" : "no command acknowledged after the kill",
+    "verdict" : "UNEXPECTED",
+    "note" : null
+  }, {
+    "name" : "no acknowledged event lost (I1)",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 34 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "no duplicate after ambiguous commits (I2)",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "expectedBeforeFix" : "a client retry after an ambiguous commit duplicates (G5)",
+    "observed" : "no duplicates",
+    "verdict" : "AS_EXPECTED",
+    "note" : "The load generator does not retry, so duplicates here come from inside the stack."
+  }, {
+    "name" : "no fork although every advisory lock vanished (I3)",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "expectedBeforeFix" : "locks lost with the old primary let two servers append from one story (G3, G6)",
+    "observed" : "0 of 14 aggregates invalid",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "no consumer checkpoint above the new ES head",
+    "expected" : "every checkpoint <= head",
+    "expectedBeforeFix" : null,
+    "observed" : "none",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 34 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 56,
+      "acknowledgedOps" : 34,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 14 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 14,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "observed" : "0 foreign row(s) in 14",
+    "metrics" : {
+      "EU.rows" : 4,
+      "EU.byContext" : {
+        "AFRICA" : 2,
+        "EUROPA" : 2
+      },
+      "AM.rows" : 4,
+      "AM.byContext" : {
+        "AMERICA" : 2,
+        "SUD_AMERICA" : 2
+      },
+      "APAC.rows" : 6,
+      "APAC.byContext" : {
+        "AUSTRALIA_NZ" : 2,
+        "CINA" : 2,
+        "INDIA" : 2
+      },
+      "rows" : 14
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 14,
+      "regionalRows" : 14,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 180 s",
+    "observed" : "converged in 468 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.468,
+      "timeoutSeconds" : 180,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 4693,
+      "checkpoints" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 4690,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 4693,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 4690,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 4693,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 4691,
+        "APAC/order-query_OrderProjector_1_CINA" : 4692,
+        "APAC/order-query_OrderProjector_1_INDIA" : 4688,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 4691,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 4692,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 4688,
+        "EU/order-observer_NotificationObserver_1_*" : 4693,
+        "EU/order-query_OrderProjector_1_*" : 4693,
+        "EU/order-query_OrderProjector_1_AFRICA" : 4683,
+        "EU/order-query_OrderProjector_1_EUROPA" : 4682,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 4683,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 4682
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-eu",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=76 ack=34 failed=42 p50=30041ms p95=30458ms p99=30467ms max=30467ms failures={error=9, timeout=33}",
+    "metrics" : {
+      "AFRICA" : {
+        "count" : 11,
+        "acked" : 5,
+        "failed" : 6,
+        "p50" : 30222,
+        "p95" : 30234,
+        "p99" : 30234,
+        "max" : 30234,
+        "kinds" : {
+          "timeout" : 6
+        }
+      },
+      "AMERICA" : {
+        "count" : 11,
+        "acked" : 5,
+        "failed" : 6,
+        "p50" : 914,
+        "p95" : 30201,
+        "p99" : 30201,
+        "max" : 30201,
+        "kinds" : {
+          "error" : 5,
+          "timeout" : 1
+        }
+      },
+      "AUSTRALIA_NZ" : {
+        "count" : 10,
+        "acked" : 4,
+        "failed" : 6,
+        "p50" : 30147,
+        "p95" : 30162,
+        "p99" : 30162,
+        "max" : 30162,
+        "kinds" : {
+          "timeout" : 6
+        }
+      },
+      "CINA" : {
+        "count" : 10,
+        "acked" : 4,
+        "failed" : 6,
+        "p50" : 30453,
+        "p95" : 30467,
+        "p99" : 30467,
+        "max" : 30467,
+        "kinds" : {
+          "timeout" : 6
+        }
+      },
+      "EUROPA" : {
+        "count" : 11,
+        "acked" : 5,
+        "failed" : 6,
+        "p50" : 30372,
+        "p95" : 30387,
+        "p99" : 30387,
+        "max" : 30387,
+        "kinds" : {
+          "timeout" : 6
+        }
+      },
+      "INDIA" : {
+        "count" : 11,
+        "acked" : 5,
+        "failed" : 6,
+        "p50" : 30200,
+        "p95" : 30212,
+        "p99" : 30212,
+        "max" : 30212,
+        "kinds" : {
+          "timeout" : 6
+        }
+      },
+      "SUD_AMERICA" : {
+        "count" : 12,
+        "acked" : 6,
+        "failed" : 6,
+        "p50" : 874,
+        "p95" : 30057,
+        "p99" : 30057,
+        "max" : 30057,
+        "kinds" : {
+          "error" : 4,
+          "timeout" : 2
+        }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "writeOutageSeconds" : null,
+    "afterKill" : {
+      "count" : 42,
+      "acked" : 0,
+      "failed" : 42,
+      "p50" : 30204,
+      "p95" : 30462,
+      "p99" : 30467,
+      "max" : 30467,
+      "kinds" : {
+        "error" : 9,
+        "timeout" : 33
+      }
+    },
+    "logMarkers" : {
+      "evento-eu" : { },
+      "evento-am" : {
+        "Failed to acquire advisory lock" : 1
+      },
+      "evento-apac" : { }
+    },
+    "failedRequestsByError" : {
+      "error: Failed to acquire advisory lock for key: RESOURCE:<id>" : 1,
+      "error: PreparedStatementCallback; SQL [WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) INSERT INTO es__events (event_sequence_number, aggregate_id, event_message, event_name, context) SEL..." : 8,
+      "timeout: CreateOrderCommand: request expired after <n>ms (timeout=30000)" : 33
+    },
+    "consumerLagAfterConvergenceWait" : {
+      "lag" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 3,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 0,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 3,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 0,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 2,
+        "APAC/order-query_OrderProjector_1_CINA" : 1,
+        "APAC/order-query_OrderProjector_1_INDIA" : 5,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 2,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 1,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 5,
+        "EU/order-observer_NotificationObserver_1_*" : 0,
+        "EU/order-query_OrderProjector_1_*" : 0,
+        "EU/order-query_OrderProjector_1_AFRICA" : 10,
+        "EU/order-query_OrderProjector_1_EUROPA" : 11,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 10,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 11
+      },
+      "esHead" : 4693
+    },
+    "esHeadAfterFailover" : 4693,
+    "checkpointsAboveHead" : { }
+  },
+  "timeline" : [ {
+    "tMs" : 7859,
+    "at" : "2026-09-29T16:09:41.734063600Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 7866,
+    "at" : "2026-09-29T16:09:41.741370700Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @4.0/min for 120 s"
+  }, {
+    "tMs" : 38444,
+    "at" : "2026-09-29T16:10:12.319946100Z",
+    "event" : "killed es-pg-eu (ES primary)"
+  }, {
+    "tMs" : 43705,
+    "at" : "2026-09-29T16:10:17.580598600Z",
+    "event" : "promoted es-pg-am: t"
+  }, {
+    "tMs" : 143942,
+    "at" : "2026-09-29T16:11:57.818003100Z",
+    "event" : "load done: 76 requests"
+  }, {
+    "tMs" : 144252,
+    "at" : "2026-09-29T16:11:58.127863700Z",
+    "event" : "invariants: converging up to 180 s"
+  }, {
+    "tMs" : 145095,
+    "at" : "2026-09-29T16:11:58.970202300Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 389748,
+    "at" : "2026-09-29T16:16:03.623912200Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: evento-am" : [ "java.lang.RuntimeException: Failed to acquire advisory lock for key: RESOURCE:s08-after-5d1be4-america-16" ],
+    "stack actions" : [ "2026-09-29T16:10:11.775154300Z docker kill es-pg-eu", "2026-09-29T16:10:17.320585500Z psql es-pg-am/evento: SELECT pg_promote()", "2026-09-29T16:11:58.970202300Z compose down -v", "2026-09-29T16:12:45.806593400Z compose up -d --wait", "2026-09-29T16:15:14.826515100Z C:\\Program Files\\Git\\bin\\bash.exe scripts/repair-catalog.sh (G8 workaround)", "2026-09-29T16:16:01.584095300Z catalog repair exit 0: [[lab] event=lab_catalog_repair pass=1 status=complete]" ]
+  }
+}

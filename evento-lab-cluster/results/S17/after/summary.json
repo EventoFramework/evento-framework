@@ -3,11 +3,11 @@
   "title" : "Context routing: one component class, one engine per configured context",
   "gaps" : [ "setComponentContexts", "G15", "G16", "G8 (registration)" ],
   "label" : "after",
-  "startedAt" : "2026-09-29T11:45:22.510225600Z",
-  "finishedAt" : "2026-09-29T11:45:47.815376900Z",
-  "durationSeconds" : 25,
+  "startedAt" : "2026-09-29T14:12:15.768262400Z",
+  "finishedAt" : "2026-09-29T14:12:42.386316200Z",
+  "durationSeconds" : 26,
   "parameters" : {
-    "orderIdPrefix" : "s17-after-f500c8-",
+    "orderIdPrefix" : "s17-after-aaf9af-",
     "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
     "servicesNotReadyAtStart" : [ ],
     "order-query-eu whoami" : {
@@ -67,7 +67,7 @@
     "name" : "each lane's state in its deployment's database",
     "expected" : "regional engines in their cell database, the ALL lane in 'consumers', wildcard lanes in EU",
     "expectedBeforeFix" : null,
-    "observed" : "17 checkpoints, all in place",
+    "observed" : "16 checkpoints, all in place",
     "verdict" : "AS_EXPECTED",
     "note" : null
   }, {
@@ -197,32 +197,31 @@
     "name" : "convergence",
     "status" : "PASS",
     "expected" : "read models reach the event store's state within 90 s",
-    "observed" : "converged in 3553 ms",
+    "observed" : "converged in 3391 ms",
     "metrics" : {
       "converged" : true,
-      "secondsToConverge" : 3.553,
+      "secondsToConverge" : 3.391,
       "timeoutSeconds" : 90,
       "polls" : 2,
       "remainingGaps" : 0,
-      "esHead" : 735,
+      "esHead" : 578,
       "checkpoints" : {
-        "AM/order-query_OrderProjector_1_AMERICA" : 727,
-        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 729,
-        "AM/order-saga_PaymentSaga_1_AMERICA" : 727,
-        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 729,
-        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 735,
-        "APAC/order-query_OrderProjector_1_CINA" : 731,
-        "APAC/order-query_OrderProjector_1_INDIA" : 733,
-        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 735,
-        "APAC/order-saga_PaymentSaga_1_CINA" : 731,
-        "APAC/order-saga_PaymentSaga_1_INDIA" : 733,
-        "EU/order-observer_NotificationObserver_1_*" : 735,
-        "EU/order-query_OrderProjector_1_*" : 735,
-        "EU/order-query_OrderProjector_1_AFRICA" : 725,
-        "EU/order-query_OrderProjector_1_EUROPA" : 723,
-        "EU/order-saga_PaymentSaga_1_AFRICA" : 725,
-        "EU/order-saga_PaymentSaga_1_EUROPA" : 723,
-        "consumers/order-query_CatalogProjector_1_ALL" : 131
+        "AM/order-query_OrderProjector_1_AMERICA" : 570,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 572,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 570,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 572,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 578,
+        "APAC/order-query_OrderProjector_1_CINA" : 574,
+        "APAC/order-query_OrderProjector_1_INDIA" : 576,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 578,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 574,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 576,
+        "EU/order-observer_NotificationObserver_1_*" : 578,
+        "EU/order-query_OrderProjector_1_*" : 578,
+        "EU/order-query_OrderProjector_1_AFRICA" : 568,
+        "EU/order-query_OrderProjector_1_EUROPA" : 566,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 568,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 566
       }
     },
     "violationCount" : 0,
@@ -254,76 +253,76 @@
     "name" : "command latency per region",
     "status" : "OBSERVED",
     "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
-    "observed" : "n=14 ack=14 failed=0 p50=797ms p95=1471ms p99=1471ms max=1471ms",
+    "observed" : "n=14 ack=14 failed=0 p50=830ms p95=1480ms p99=1480ms max=1480ms",
     "metrics" : {
       "AFRICA" : {
         "count" : 2,
         "acked" : 2,
         "failed" : 0,
-        "p50" : 101,
-        "p95" : 106,
-        "p99" : 106,
-        "max" : 106,
+        "p50" : 108,
+        "p95" : 141,
+        "p99" : 141,
+        "max" : 141,
         "kinds" : { }
       },
       "AMERICA" : {
         "count" : 2,
         "acked" : 2,
         "failed" : 0,
-        "p50" : 797,
-        "p95" : 838,
-        "p99" : 838,
-        "max" : 838,
+        "p50" : 830,
+        "p95" : 832,
+        "p99" : 832,
+        "max" : 832,
         "kinds" : { }
       },
       "AUSTRALIA_NZ" : {
         "count" : 2,
         "acked" : 2,
         "failed" : 0,
-        "p50" : 1444,
-        "p95" : 1469,
-        "p99" : 1469,
-        "max" : 1469,
+        "p50" : 1312,
+        "p95" : 1461,
+        "p99" : 1461,
+        "max" : 1461,
         "kinds" : { }
       },
       "CINA" : {
         "count" : 2,
         "acked" : 2,
         "failed" : 0,
-        "p50" : 1303,
-        "p95" : 1458,
-        "p99" : 1458,
-        "max" : 1458,
+        "p50" : 1444,
+        "p95" : 1480,
+        "p99" : 1480,
+        "max" : 1480,
         "kinds" : { }
       },
       "EUROPA" : {
         "count" : 2,
         "acked" : 2,
         "failed" : 0,
-        "p50" : 106,
-        "p95" : 122,
-        "p99" : 122,
-        "max" : 122,
+        "p50" : 103,
+        "p95" : 107,
+        "p99" : 107,
+        "max" : 107,
         "kinds" : { }
       },
       "INDIA" : {
         "count" : 2,
         "acked" : 2,
         "failed" : 0,
-        "p50" : 1453,
-        "p95" : 1471,
-        "p99" : 1471,
-        "max" : 1471,
+        "p50" : 1451,
+        "p95" : 1456,
+        "p99" : 1456,
+        "max" : 1456,
         "kinds" : { }
       },
       "SUD_AMERICA" : {
         "count" : 2,
         "acked" : 2,
         "failed" : 0,
-        "p50" : 735,
-        "p95" : 746,
-        "p99" : 746,
-        "max" : 746,
+        "p50" : 748,
+        "p95" : 761,
+        "p99" : 761,
+        "max" : 761,
         "kinds" : { }
       }
     },
@@ -349,34 +348,33 @@
         "EU/order-query_OrderProjector_1_AFRICA" : 10,
         "EU/order-query_OrderProjector_1_EUROPA" : 12,
         "EU/order-saga_PaymentSaga_1_AFRICA" : 10,
-        "EU/order-saga_PaymentSaga_1_EUROPA" : 12,
-        "consumers/order-query_CatalogProjector_1_ALL" : 604
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 12
       },
-      "esHead" : 735
+      "esHead" : 578
     }
   },
   "timeline" : [ {
-    "tMs" : 5929,
-    "at" : "2026-09-29T11:45:28.440211900Z",
+    "tMs" : 6915,
+    "at" : "2026-09-29T14:12:22.683868100Z",
     "event" : "scenario start"
   }, {
-    "tMs" : 18499,
-    "at" : "2026-09-29T11:45:41.009668800Z",
+    "tMs" : 19642,
+    "at" : "2026-09-29T14:12:35.410614100Z",
     "event" : "invariants: converging up to 90 s"
   }, {
-    "tMs" : 23571,
-    "at" : "2026-09-29T11:45:46.081802300Z",
+    "tMs" : 24664,
+    "at" : "2026-09-29T14:12:40.432413300Z",
     "event" : "cleanup start"
   }, {
-    "tMs" : 25305,
-    "at" : "2026-09-29T11:45:47.815376900Z",
+    "tMs" : 26617,
+    "at" : "2026-09-29T14:12:42.385718400Z",
     "event" : "cleanup done"
   } ],
   "notes" : [ ],
   "harnessErrors" : [ ],
   "attachments" : {
     "core__consumer by instance" : [ "order-observer -> [order-observer_NotificationObserver_1_*]", "order-query-am -> [order-query_OrderProjector_1_AMERICA, order-query_OrderProjector_1_SUD_AMERICA]", "order-query-apac -> [order-query_OrderProjector_1_AUSTRALIA_NZ, order-query_OrderProjector_1_INDIA]", "order-query-cina -> [order-query_OrderProjector_1_CINA]", "order-query-eu -> [order-query_OrderProjector_1_AFRICA, order-query_OrderProjector_1_EUROPA]", "order-query-global-apac -> [order-query_CatalogProjector_1_ALL]", "order-query-global-eu -> [order-query_CatalogProjector_1_ALL]", "order-query-wildcard -> [order-query_OrderProjector_1_*]", "order-saga-am -> [order-saga_PaymentSaga_1_AMERICA, order-saga_PaymentSaga_1_SUD_AMERICA]", "order-saga-apac -> [order-saga_PaymentSaga_1_AUSTRALIA_NZ, order-saga_PaymentSaga_1_CINA, order-saga_PaymentSaga_1_INDIA]", "order-saga-eu -> [order-saga_PaymentSaga_1_AFRICA, order-saga_PaymentSaga_1_EUROPA]" ],
-    "consumer checkpoints" : [ "EU/order-observer_NotificationObserver_1_*=721", "EU/order-query_OrderProjector_1_*=721", "EU/order-query_OrderProjector_1_AFRICA=711", "EU/order-query_OrderProjector_1_EUROPA=709", "EU/order-saga_PaymentSaga_1_AFRICA=711", "EU/order-saga_PaymentSaga_1_EUROPA=709", "AM/order-query_OrderProjector_1_AMERICA=713", "AM/order-query_OrderProjector_1_SUD_AMERICA=715", "AM/order-saga_PaymentSaga_1_AMERICA=713", "AM/order-saga_PaymentSaga_1_SUD_AMERICA=715", "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ=721", "APAC/order-query_OrderProjector_1_CINA=717", "APAC/order-query_OrderProjector_1_INDIA=719", "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ=721", "APAC/order-saga_PaymentSaga_1_CINA=717", "APAC/order-saga_PaymentSaga_1_INDIA=719", "consumers/order-query_CatalogProjector_1_ALL=131" ],
+    "consumer checkpoints" : [ "EU/order-observer_NotificationObserver_1_*=564", "EU/order-query_OrderProjector_1_*=564", "EU/order-query_OrderProjector_1_AFRICA=542", "EU/order-query_OrderProjector_1_EUROPA=545", "EU/order-saga_PaymentSaga_1_AFRICA=542", "EU/order-saga_PaymentSaga_1_EUROPA=545", "AM/order-query_OrderProjector_1_AMERICA=551", "AM/order-query_OrderProjector_1_SUD_AMERICA=562", "AM/order-saga_PaymentSaga_1_AMERICA=551", "AM/order-saga_PaymentSaga_1_SUD_AMERICA=562", "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ=559", "APAC/order-query_OrderProjector_1_CINA=563", "APAC/order-query_OrderProjector_1_INDIA=564", "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ=559", "APAC/order-saga_PaymentSaga_1_CINA=563", "APAC/order-saga_PaymentSaga_1_INDIA=564" ],
     "stack actions" : [ ]
   }
 }
