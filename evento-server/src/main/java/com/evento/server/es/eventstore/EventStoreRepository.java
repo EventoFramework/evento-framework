@@ -8,25 +8,30 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
+/**
+ * The {@code fetchEvents} queries take a LIKE pattern built by
+ * {@code EventStore.contextLikePattern}: {@code \} is the escape character, so literal
+ * {@code _}/{@code %} in a context name never act as wildcards.
+ */
 public interface EventStoreRepository extends JpaRepository<EventStoreEntry, Long>, JpaSpecificationExecutor<EventStoreEntry> {
 
     @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
-            "where context like ?1 and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 order by event_sequence_number",
+            "where context like ?1 escape '\\' and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 order by event_sequence_number",
             nativeQuery = true)
     List<EventStoreEntry> fetchEvents(String context, Long seq, Long seqTo, Pageable pageable);
 
     @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
-            "where context like ?1 and es__events.event_sequence_number > ?2 order by event_sequence_number",
+            "where context like ?1 escape '\\' and es__events.event_sequence_number > ?2 order by event_sequence_number",
             nativeQuery = true)
     List<EventStoreEntry> fetchEvents(String context, Long seq, Pageable pageable);
 
     @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
-            "where context like ?1 and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 and event_name in ?4 order by event_sequence_number",
+            "where context like ?1 escape '\\' and es__events.event_sequence_number > ?2 and event_sequence_number < ?3 and event_name in ?4 order by event_sequence_number",
             nativeQuery = true)
     List<EventStoreEntry> fetchEvents(String context, Long seq, Long seqTo, List<String> eventNames, Pageable pageable);
 
     @Query(value = "select event_sequence_number, context, aggregate_id, created_at, event_message as event_message, event_name, deleted_at from es__events " +
-            "where context like ?1 and es__events.event_sequence_number > ?2 and event_name in ?3 order by event_sequence_number",
+            "where context like ?1 escape '\\' and es__events.event_sequence_number > ?2 and event_name in ?3 order by event_sequence_number",
             nativeQuery = true)
     List<EventStoreEntry> fetchEvents(String context, Long seq, List<String> eventNames, Pageable pageable);
 
