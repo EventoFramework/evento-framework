@@ -126,6 +126,15 @@ public final class BundleClient implements AutoCloseable {
     /** Probes of the preferred endpoint that its broker answered (while attached elsewhere). */
     public long failbackProbesAnswered() { return supervisor.failbackProbesAnswered(); }
 
+    /** Fail-backs started before the window because a request found no handler on the current broker. */
+    public long reactiveFailbacks() { return supervisor.reactiveFailbacks(); }
+
+    /** Whether fail-back is suspended after repeated refusals by the preferred broker. */
+    public boolean failbackSuspended() { return supervisor.failbackSuspended(); }
+
+    /** Whether the current session is being drained for a fail-back (new requests are refused). */
+    public boolean failbackDraining() { return supervisor.failbackDraining(); }
+
     public void onStateChange(BiConsumer<BundleClientState, BundleClientState> listener) {
         supervisor.onStateChange(listener);
     }
@@ -179,8 +188,24 @@ public final class BundleClient implements AutoCloseable {
         } catch (SendFailedException sfe) {
             correlationTracker.complete(Response.failure(correlationId,
                     com.evento.transport.message.ResponseError.of(sfe)));
+            return future;
         }
+        // A broker that has no handler for this type may simply be the wrong one:
+        // after a fail-back of the handlers of a cell, only its preferred broker has
+        // them. Let the supervisor move back now rather than after its window (N16).
+        future.thenAccept(response -> {
+            if (isNoHandler(response)) supervisor.noHandlerOnCurrentBroker(payloadType);
+        });
         return future;
+    }
+
+    /** The broker's routing miss: nothing on it handles the payload type. */
+    static boolean isNoHandler(Response response) {
+        if (response == null || !response.isError() || response.error() == null) return false;
+        var msg = response.error().message();
+        return IllegalStateException.class.getName().equals(response.error().exceptionClassName())
+                && msg != null
+                && (msg.startsWith("no handler for ") || msg.startsWith("no available handler for "));
     }
 
     public CompletableFuture<Response> request(String payloadType, byte[] payload) {
@@ -203,14 +228,36 @@ public final class BundleClient implements AutoCloseable {
      * Take this bundle in/out of the broker's available view without closing
      * the transport. Useful for graceful drain.
      */
+    /**
+     * Put this bundle in the broker's available view, now and on every later
+     * session. Never fails for want of a connection: the intent is latched first,
+     * and when it cannot be written now (between sessions, during a fail-back
+     * drain, or the write fails with the connection) the next session's
+     * registration sends it. The future completes once it has been written or
+     * deferred that way.
+     */
     public CompletableFuture<Void> enable() {
         // Mark the supervisor so future reconnect sessions re-send NOTIFY_ENABLE
         // automatically — without this, a reconnected bundle would be registered
         // in ClusterRegistry.handlers but never appear in ConnectionRegistry.enabledView,
         // causing permanent "no handler for X" routing failures.
         supervisor.markEnabled();
-        return supervisor.send(new Notification(UUID.randomUUID(),
-                ProtocolNotifications.ENABLE, new byte[0], System.currentTimeMillis()));
+        try {
+            return supervisor.send(new Notification(UUID.randomUUID(),
+                    ProtocolNotifications.ENABLE, new byte[0], System.currentTimeMillis()))
+                    .exceptionally(t -> {
+                        log.info("event=enable_deferred reason=write_failed cause={} "
+                                + "- sent by the next session's registration", t.toString());
+                        return null;
+                    });
+        } catch (SendFailedException e) {
+            // Startup code calls this once, when its projectors have caught up; if that
+            // moment falls between two sessions, throwing here aborted the rest of the
+            // startup (sagas, observers, the started hook) for good (N16 review).
+            log.info("event=enable_deferred reason=not_sent cause={} "
+                    + "- sent by the next session's registration", e.getMessage());
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     public CompletableFuture<Void> disable() {

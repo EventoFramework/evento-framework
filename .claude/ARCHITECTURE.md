@@ -182,24 +182,55 @@ answered by the broker's `HeartbeatHandler` below the `MessageRouter`, on a sepa
 that never sends `Hello`. That is the safety argument: `BusLifecycle.onHello` is the only path
 that touches shared state (`ConnectionRegistry.register` → `NodeJoined`, zone, reconnect-buffer
 replay, supersede), so a probe shows up on the broker only as `session_accepted` /
-`preregistered_disconnect`. A plain socket pre-check runs first while endpoint 0 is down, so a
-dead broker produces no transport WARN per probe. After every probe has answered for
-`failbackStabilityWindow` (30 s) + random `failbackJitter` (≤ 10 s) + one more window for bundles
-with no `handlerPayloadTypes` (callers last: a cell's handlers should be home before its
-callers, G1), `performFailback`: `evento:disable` on the current broker → `draining` gate
-(`send` refuses everything but `Response` with `SendFailedException`, i.e. definitely not sent) →
+`preregistered_disconnect`, both at DEBUG for a connection that sent no frame. The probe checks
+readiness, not just liveness: `HeartbeatHandler` answers a Ping that precedes any other frame only
+while `TransportServer.setPreSessionReadiness` says so — `BusLifecycle.setProbeReadiness`, which the
+Spring server wires to Boot's `ReadinessState.ACCEPTING_TRAFFIC` (the bus binds in a
+`@PostConstruct`, long before JPA / event store are up). Sessions past their Hello are never gated;
+an old server answers every Ping (no wire change). A plain socket pre-check runs first while
+endpoint 0 is down, so a dead broker produces no transport WARN per probe; the probe's own
+connections log at DEBUG, wait for the transport's `connectTimeout` before giving up on a connect,
+and `NettyClientTransport.close()` aborts a connect still in flight (it used to leak the channel).
+After every probe has answered for `failbackStabilityWindow` (30 s) + random `failbackJitter`
+(≤ 10 s) + the whole jitter range again for bundles with no `handlerPayloadTypes` (callers after
+handlers that started their window together, G1), `performFailback`: `draining` gate (`send`
+refuses new `Request`s with `SendFailedException`, i.e. definitely not sent; replies and
+notifications pass; `evento:enable` is deferred to the next session, ordered against the drain by
+a lock so it cannot re-enable the broker being left) → `evento:disable` on the current broker →
 wait (≥ 250 ms grace, ≤ `failbackDrainTimeout`, 10 s) for `InboundDispatcher.inFlightRequests()`
-and `BundleCorrelationTracker.pendingCount()` to reach 0 → set `failbackRequested`, close. The run
-loop dials endpoint 0 without backoff; identity checks run on that handshake as usual. Leftover
-outbound requests get `BrokerChangedException` from the new `Welcome` (G4 semantics); a leftover
-inbound reply is lost (the old broker already failed that call with "peer disconnected"). A switch
-that does not end READY on endpoint 0 counts as `failbacksFailed` and doubles the next window
-(≤ 16×); a failed probe restarts the window (no ping-pong with a flapping broker). Logs:
-`event=failback_probe_healthy` / `failback_started` / `failback_drained` / `failback_drain_timeout`
-/ `failback_completed` / `failback_failed`. Counters: `BundleClient.failbacksCompleted()`,
-`failbacksFailed()`, `failbackProbesAnswered()`. Residual: fail-back is per bundle, not per cell,
-so for a few seconds callers and handlers of one cell may sit on different brokers (G1); a
-single-address VIP has no endpoint 0 to probe. Test: `BundleClientFailbackIT`.
+(decremented when the reply's write completes, so a chunked reply is not cut off) and
+`BundleCorrelationTracker.pendingCount()` to reach 0 → set `failbackRequested` (cleared again if
+the session ended meanwhile), close. The run loop dials endpoint 0 without backoff; identity
+checks run on that handshake as usual. Leftover outbound requests get `BrokerChangedException`
+from the new `Welcome` (G4 semantics); a leftover inbound reply is lost (the old broker already
+failed that call with "peer disconnected"). **Reactive switch:** a request answered with "no
+handler for" (or "no available handler for") while away from endpoint 0 calls
+`ConnectionSupervisor.noHandlerOnCurrentBroker`; if the latest probe of endpoint 0 was answered
+(or the next one, within 2 probe intervals, is) the switch starts at once instead of after the
+window — in an HA pair the fallback has no other handler once the cell's handlers are home. It
+never probes on its own and is off after a failed switch. A switch that does not end READY on
+endpoint 0 counts as `failbacksFailed` and doubles the next window (≤ 16×); a failed probe
+restarts the window (no ping-pong with a flapping broker). A switch refused by the broker
+(`BrokerRefusedException`: identity mismatch, protocol, `Reject`) `MAX_FAILBACK_REFUSALS` (3) times
+in a row suspends fail-back (ERROR `failback_suspended`, no more probing) until a session becomes
+READY on endpoint 0 by other means or the process restarts; any READY on endpoint 0 resets the
+failure count. `CLOSING`/`CLOSED` are final in `transitionToForce`, so `stop()` racing the
+immediate redial cannot leave a supervisor running; the probe event loop (built through
+`NettyEventLoops`) is released on stop and on give-up. Logs: `event=failback_probe_healthy` /
+`failback_reactive_armed` / `failback_reactive` / `failback_started` / `failback_drained` /
+`failback_drain_timeout` / `failback_completed` / `failback_failed` / `failback_suspended` /
+`failback_resumed` / `enable_deferred`. Counters: `BundleClient.failbacksCompleted()`,
+`failbacksFailed()`, `reactiveFailbacks()`, `failbackProbesAnswered()`, `failbackSuspended()`,
+`failbackDraining()`. A request refused while not sendable reaches the v1 gateways as
+`RequestNotSentException` (an `IllegalStateException`): definitely not executed, safe to retry.
+`BundleClient.enable()` never fails for want of a connection (latched, sent by the next session)
+and `EventoBundle` registers its consumer re-registration listener before the first send, so a
+startup gate that opens during a drain or a reconnect still starts sagas, observers, the stats
+publisher and the started hook. Residual: fail-back is per bundle, not per cell. Handlers move
+first; a caller still on the fallback then gets one "no handler" per request until its reactive
+switch completes (one probe interval at most, plus the drain) — not a whole window. A
+single-address VIP has no endpoint 0 to probe. Tests: `BundleClientFailbackIT`,
+`ProbeConnectionIT`, `StartupDuringFailbackIT` (evento-lab).
 
 ### 4.4 Consumer Engines (`evento-bundle`, `com.evento.application.consumer.*`)
 
@@ -385,7 +416,8 @@ Bundle side (`EventoBundle.Builder`): `EventoServerMessageBusConfiguration` with
 `ClusterNodeAddress`es (ordered failover, G2; fail-back to the first once it has been healthy for
 the stability window, N16: `setFailbackEnabled` / `setFailbackProbeInterval` /
 `setFailbackStabilityWindow` / `setFailbackJitter` / `setFailbackDrainTimeout`, defaults on / 5 s /
-30 s / 10 s / 10 s),
+30 s / 10 s / 10 s; a bundle without request handlers waits the jitter range once more, and any
+bundle switches at once on a "no handler" reply while the first address answers probes),
 `withExpectedServerInstanceId` / `withExpectedClusterName`; `setZone` (the `zone:<Z>` Hello
 capability); `setTransportConfig`, `setDefaultRequestTimeout` (also the caller deadline the broker
 enforces), `setMaxInFlightRequests`; `setComponentContexts(Component.class, ctx...)` starts **one

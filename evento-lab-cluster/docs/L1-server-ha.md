@@ -85,15 +85,25 @@ Punti chiave, tutti nel codice di `ConnectionSupervisor` e `BundleCorrelationTra
   background sonda l'endpoint 0 ogni 5 s: connessione TCP + `Ping` a cui risponde l'heartbeat
   handler del server, **senza `Hello`**. Il server registra un bundle, pubblica `NodeJoined` e
   riconsegna le risposte in buffer solo dopo un `Hello` accettato, quindi la sonda non registra
-  nulla e non ruba sessioni. Quando l'endpoint 0 ha risposto a ogni sonda per la finestra di
-  stabilità (30 s) più un jitter per istanza (0–10 s), il bundle torna: `evento:disable` sul server
-  attuale, nuove richieste in uscita rifiutate con `SendFailedException` (sicuramente non inviate),
-  attesa limitata (10 s) delle richieste in volo nei due sensi, chiusura della sessione e dial
-  immediato dell'endpoint 0 (`event=failback_started` / `failback_completed`). Una sonda fallita
-  riazzera la finestra: un server che va e viene non si riprende i bundle. Se l'handshake sull'endpoint
-  0 fallisce (identità, G13) il bundle torna sul successivo e la finestra seguente raddoppia (fino a
-  16×). I bundle senza handler (i gateway) aspettano una finestra in più, così gli handler della
-  cella tornano prima dei chiamanti.
+  nulla e non ruba sessioni. Il server risponde alla sonda solo quando è **pronto** (in Spring,
+  `ReadinessState.ACCEPTING_TRAFFIC`: contesto avviato, JPA ed event store compresi), non appena
+  la porta del bus è aperta. Quando l'endpoint 0 ha risposto a ogni sonda per la finestra di
+  stabilità (30 s) più un jitter per istanza (0–10 s), il bundle torna: nuove richieste in uscita
+  rifiutate con `SendFailedException` (sicuramente non inviate; ai gateway arriva
+  `RequestNotSentException`), `evento:disable` sul server attuale, attesa limitata (10 s) delle
+  richieste in volo nei due sensi (una risposta conta finché non è stata scritta tutta), chiusura
+  della sessione e dial immediato dell'endpoint 0 (`event=failback_started` / `failback_completed`).
+  Notifiche e risposte passano durante l'attesa; un `enable()` (per esempio il gate di avvio dei
+  proiettori che si apre proprio allora) viene rimandato alla registrazione sull'endpoint 0.
+  Una sonda fallita riazzera la finestra: un server che va e viene non si riprende i bundle. Se
+  l'handshake sull'endpoint 0 fallisce (identità, G13) il bundle torna sul successivo e la finestra
+  seguente raddoppia (fino a 16×); dopo 3 rifiuti di fila (`event=failback_suspended`, ERROR) il
+  failback si sospende finché una sessione sull'endpoint 0 non riesce per altra via o il processo
+  riparte. I bundle senza handler (i gateway) aspettano in più l'intero intervallo di jitter
+  (10 s), così gli handler della cella tornano prima dei chiamanti. **Ritorno reattivo:** se una
+  richiesta riceve `no handler for` dal server attuale mentre l'endpoint 0 risponde alle sonde, il
+  bundle torna subito senza aspettare la finestra (`event=failback_reactive`): in una coppia HA il
+  server di riserva non ha altri handler una volta che quelli della cella sono tornati.
 - **Identità del broker (G13).** `withExpectedClusterName` fa rifiutare un broker che annuncia un
   altro `clusterName` (`event=cluster_name_mismatch`). Il vecchio `withExpectedServerInstanceId`
   accetta **un solo** id e quindi rifiuta per contratto ogni failover (S13 variante A).
@@ -199,15 +209,17 @@ default `random`), come misura S02.
 | Id | Limite | Prova |
 |---|---|---|
 | G1 | nessun inoltro tra server: chiamante e handler devono stare sullo stesso server, altrimenti `no handler for <Payload>` | [S01](../results/S01/after/report.md): 0/5 in ≤ 14 ms, identico su `:before` |
-| N16 (residuo) | il failback non è atomico per la cella: ogni bundle torna al proprio istante (finestra + jitter). Nel frattempo chiamanti e handler possono stare su server diversi e G1 dà `no handler for` per qualche secondo. Mitigazioni: gli handler tornano una finestra prima dei bundle senza handler; con un VIP (un solo indirizzo) non c'è failback | prima del fix: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), `gateway-europa` sul server tornato, 0/3 `no handler`; fix: `BundleClientFailbackIT` (S03/S13 da rieseguire) |
+| N16 (residuo) | il failback non è atomico per la cella: ogni bundle torna al proprio istante (finestra + jitter). Gli handler tornano per primi (i bundle senza handler aspettano in più l'intervallo di jitter); un chiamante rimasto sul server di riserva riceve `no handler for` e da quel momento torna subito (ritorno reattivo, entro un intervallo di sonda + drain), invece di aspettare la propria finestra: in una coppia HA sono **una richiesta fallita per chiamante e ~1–2 s**, non ~30 s. Con un VIP (un solo indirizzo) non c'è failback | prima del fix: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), `gateway-europa` sul server tornato, 0/3 `no handler`; fix: `BundleClientFailbackIT` (S03/S13 da rieseguire) |
 | G5 / N14 | `BrokerChangedException` dice "esito indeterminato". **Implementato dopo le misure**: un retry con la stessa chiave (`sendIdempotent`, o la chiave che una saga deriva da sola) riceve l'evento già salvato, su qualunque server ([L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)). Resta la finestra "handler di servizio eseguito, evento non salvato" | misure pre-fix, da ripetere: [S14](../results/S14/after/report.md): 9 dei 13 primi tentativi falliti erano già stati salvati, 8 chiavi salvate due volte; [S03 `after-run1`](../results/S03/after-run1/report.md): pagamento eseguito due volte |
 | G17 | dashboard e amministrazione dei consumer mostrano la vista **del server** a cui ti colleghi | [CLUSTER-READINESS G17](../../.claude/CLUSTER-READINESS.md) |
 | G22 | una partizione silenziosa (senza RST) si rileva solo dopo il read-idle (45 s di default) | `EVENTO_HEARTBEAT_READ_IDLE_S` / `setHeartbeatReadIdle` |
 
 Regola operativa che segue da N16 + G1: dopo il ritorno di un server i bundle con la lista di
-indirizzi tornano da soli entro finestra + jitter (+ una finestra per i gateway); aspettati qualche
-secondo di `no handler for` mentre la cella si ricompone, e fai ripetere al chiamante le query
-(idempotenti) e i comandi solo con una verifica (G5). Con un VIP, o con immagini senza il fix,
+indirizzi tornano da soli entro finestra + jitter (+ l'intervallo di jitter per i gateway, o
+subito al primo `no handler for`); aspettati qualche `no handler for` isolato mentre la cella si
+ricompone, e fai ripetere al chiamante le query (idempotenti) e i comandi solo con una verifica
+(G5). Un rifiuto per `RequestNotSentException` (richiesta non inviata: bundle tra due sessioni o
+in drain) si può invece ripetere sempre. Con un VIP, o con immagini senza il fix,
 resta la regola precedente: **riavvia insieme i bundle rimasti sul backup**. Il laboratorio lo fa
 ancora prima di ogni scenario come rete di sicurezza (`placementRestoredAtStart`, L22).
 
@@ -220,7 +232,7 @@ ancora prima di ogni scenario come rete di sicurezza (`placementRestoredAtStart`
 | Pool dei bundle | come L0; il failover non cambia il numero di connessioni applicative |
 | Memoria server | 512 MiB di limite, ~340 MiB usati: anche lo standby consuma memoria e 7 connessioni a riposo |
 | Tempo di failover | ≈ rilevamento (immediato con RST, fino a `heartbeatReadIdle` senza) + backoff di riconnessione + handshake + registrazione: 10.3 s misurati in S03 |
-| Tempo di failback | server 0 pronto + prima sonda (≤ 5 s) + finestra (30 s) + jitter (0–10 s) [+ 30 s per i bundle senza handler] + drain (≤ 10 s) + handshake; interruzione per il singolo bundle ≈ drain + handshake |
+| Tempo di failback | server 0 pronto (readiness Spring) + prima sonda (≤ 5 s) + finestra (30 s) + jitter (0–10 s) [+ 10 s per i bundle senza handler, oppure subito al primo `no handler for`] + drain (≤ 10 s) + handshake; interruzione per il singolo bundle ≈ drain + handshake |
 
 ## Checklist
 
@@ -233,6 +245,9 @@ ancora prima di ogni scenario come rete di sicurezza (`placementRestoredAtStart`
       laboratorio passa `X-Idempotency-Key`), mai senza (G5).
 - [ ] Failback (N16): lista di indirizzi (non un VIP) se vuoi che i bundle tornino da soli;
       `event=failback_completed` nei log dei bundle dopo il ritorno di un server. Runbook solo per
-      VIP o immagini senza il fix: riavviare i bundle rimasti sul backup.
+      VIP o immagini senza il fix: riavviare i bundle rimasti sul backup. Un
+      `event=failback_suspended` (ERROR) dice che il server 0 risponde ma rifiuta il bundle
+      (cluster name, id, token): va corretta la configurazione, poi il bundle torna alla prossima
+      riconnessione o al riavvio.
 - [ ] `max_connections` ≥ server × (Hikari + lock pool) + pool dei bundle.
 - [ ] Avvio dei server in catena, o almeno sulla versione con G14.

@@ -89,13 +89,19 @@ con `random` metà dei comandi attraverserebbe la WAN due volte.
 
 Quando `evento-apac` torna, i bundle APAC tornano da soli (failback, N16): ciascuno sonda il proprio
 endpoint 0 senza registrarsi e si sposta quando è rimasto sano per la finestra di stabilità (30 s)
-più un jitter (0–10 s); i bundle senza handler (i gateway) aspettano una finestra in più. L'ordine
-conta per G1: se un gateway arrivasse su `evento-apac` prima di `order-command-apac`, avrebbe
-`no handler for` finché l'handler non lo raggiunge; gli handler che tornano per primi, invece,
-lasciano i gateway ancora su `evento-eu`, dove l'handler EU della stessa classe continua a servirli
-(con `random` o, in mancanza della zona APAC, con `locality-preferred`). Il ritorno resta per
-bundle, non atomico per la cella: per qualche secondo alcuni comandi possono fallire con
-`no handler for` o `BrokerChangedException`, poi la cella è di nuovo tutta sul suo server.
+più un jitter (0–10 s); i bundle senza handler (i gateway) aspettano in più l'intero intervallo di
+jitter (10 s), così partono dopo ogni handler che ha iniziato la finestra insieme a loro. Le sonde
+ricevono risposta solo quando `evento-apac` è pronto (readiness Spring), non appena apre la porta.
+L'ordine conta per G1: se un gateway arrivasse su `evento-apac` prima di `order-command-apac`,
+avrebbe `no handler for` finché l'handler non lo raggiunge; gli handler che tornano per primi,
+invece, lasciano i gateway ancora su `evento-eu`, dove l'handler EU della stessa classe continua a
+servirli (con `random` o, in mancanza della zona APAC, con `locality-preferred`). Se su
+`evento-eu` non resta nessun handler per quel comando (una coppia HA, o una classe che esiste solo
+nella cella APAC), il primo `no handler for` fa tornare il gateway **subito**, senza aspettare la
+sua finestra (ritorno reattivo, `event=failback_reactive`): costa una richiesta fallita per
+gateway e un intervallo di sonda al massimo, non ~30 s. Il ritorno resta per bundle, non atomico
+per la cella: alcuni comandi isolati possono fallire con `no handler for`, `BrokerChangedException`
+o `RequestNotSentException` (non inviato, ripetibile), poi la cella è di nuovo tutta sul suo server.
 
 ```mermaid
 sequenceDiagram
@@ -228,7 +234,7 @@ x-env-l2: &env-l2
 | Id | Limite | Prova |
 |---|---|---|
 | G1 | nessun inoltro tra server | [S01](../results/S01/after/report.md) |
-| N16 (residuo) | il failback è per bundle, non per cella: durante il ritorno (secondi, dopo finestra + jitter) chiamanti e handler della stessa cella possono stare su server diversi e G1 dà `no handler for`; con un VIP non c'è failback | prima del fix: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [FINDINGS N16](../FINDINGS.md); fix: `BundleClientFailbackIT`, S03 e S13 da rieseguire |
+| N16 (residuo) | il failback è per bundle, non per cella: durante il ritorno chiamanti e handler della stessa cella possono stare su server diversi e G1 dà `no handler for`; il primo `no handler for` fa tornare subito il chiamante (ritorno reattivo), quindi il costo è una richiesta fallita per chiamante, non una finestra; con un VIP non c'è failback | prima del fix: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [FINDINGS N16](../FINDINGS.md); fix: `BundleClientFailbackIT`, S03 e S13 da rieseguire |
 | N5 / N9 | ogni append serializza su un lock globale raggiunto via WAN: un comando remoto costa ancora ~7–9 round trip | [S00](../results/S00/after/report.md): p50 AM 0.73–0.76 s, APAC 1.16–1.18 s; [S06](../results/S06/after/report.md): a 300 ms di RTT, p50 APAC 22.8 s |
 | N15 | sotto contesa del `es-lock` un comando può committare dopo la deadline del chiamante | [S06](../results/S06/after/report.md): 31 comandi scaduti e salvati a 300 ms |
 | N4 / G24 | le lane dei consumer non hanno affinità: il detentore può essere in una cella remota e scrivere via WAN | [S16](../results/S16/after/report.md): scrittori EU 9 / APAC 6 |
@@ -255,7 +261,7 @@ x-env-l2: &env-l2
       possedere ogni riga).
 - [ ] Il primario ES nella cella con più scritture (N5: la cella del primario è favorita).
 - [ ] Dopo il ritorno di un server, verificare `event=failback_completed` nei bundle della sua cella
-      entro finestra + jitter + una finestra per i gateway; riavviarli solo se restano altrove
-      (VIP, immagini senza N16, `event=failback_failed` ripetuti per identità).
-- [ ] Monitorare `no handler for` nei log del server: brevi raffiche durante un failback sono
-      attese (G1 + N16), una serie continua no.
+      entro finestra + jitter (+ l'intervallo di jitter per i gateway); riavviarli solo se restano
+      altrove (VIP, immagini senza N16, `event=failback_suspended` dopo rifiuti per identità).
+- [ ] Monitorare `no handler for` nei log del server: pochi casi isolati durante un failback sono
+      attesi (G1 + N16, uno per chiamante prima del ritorno reattivo), una serie continua no.

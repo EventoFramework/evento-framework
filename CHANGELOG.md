@@ -58,25 +58,47 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   endpoint 0 every `failbackProbeInterval` (5 s) with a TCP connect and a transport `Ping`, which
   the broker's heartbeat handler answers below the message router: no `Hello`, so a probe never
   registers the bundle, publishes `NodeJoined`, replays buffered replies or supersedes a session.
-  Once endpoint 0 has answered every probe for `failbackStabilityWindow` (30 s) plus a random
-  per-instance `failbackJitter` (up to 10 s) the bundle switches: `evento:disable` on the current
-  broker, new outbound requests refused with `SendFailedException` (definitely not sent), a
-  bounded drain (`failbackDrainTimeout`, 10 s) of inbound and outbound requests in flight, then
-  the session is closed and endpoint 0 dialled without backoff. Requests still pending after the
-  drain fail with `BrokerChangedException` at the new `Welcome`, as after a failover. A failed
-  probe restarts the window, so a flapping broker never gets the bundle back; a switch whose
-  handshake fails (e.g. `expectedClusterName`) lands on the next endpoint and doubles the next
-  window (up to 16x). Bundles that handle no requests (gateways) wait one extra window so that a
-  cell's handlers are back before its callers. Logged as `event=failback_started` /
-  `failback_drained` / `failback_completed` / `failback_failed`; counted by
-  `BundleClient.failbacksCompleted()` / `failbacksFailed()`. Configurable on
-  `BundleClientConfig` / `BundleClient.Builder` and on `EventoBundle.Builder`
-  (`setFailbackEnabled`, `setFailbackProbeInterval`, `setFailbackStabilityWindow`,
-  `setFailbackJitter`, `setFailbackDrainTimeout`); on by default with two or more endpoints,
-  `failbackEnabled(false)` restores the previous behaviour. No wire change. `BundleClientFailbackIT`
-  (two real brokers over TCP): fail-back after the window with a clean leave on the fallback,
-  no registration from probes, no fail-back from a flapping broker, in-flight requests completed
-  or failed with `BrokerChangedException`, identity refusal with back-off.
+  A broker answers the probe only once it is ready (`BusLifecycle.setProbeReadiness`; the Spring
+  server follows Boot's `ReadinessState.ACCEPTING_TRAFFIC`, since its bus binds long before JPA
+  and the event store are up); the gate applies only to a Ping on a connection that has sent
+  nothing else, so live sessions and older bundles are unaffected, and an older server simply
+  answers every Ping. Once endpoint 0 has answered every probe for `failbackStabilityWindow`
+  (30 s) plus a random per-instance `failbackJitter` (up to 10 s) the bundle switches: new
+  outbound requests refused with `SendFailedException` (definitely not sent), `evento:disable`
+  on the current broker, a bounded drain (`failbackDrainTimeout`, 10 s) of inbound and outbound
+  requests in flight (an inbound one counts until its reply is fully written), then the session
+  is closed and endpoint 0 dialled without backoff. Replies and notifications still go out during
+  the drain; `evento:enable` is deferred to the registration on endpoint 0. Requests still
+  pending after the drain fail with `BrokerChangedException` at the new `Welcome`, as after a
+  failover. A request that the current broker answers with "no handler for" while endpoint 0
+  answers probes switches at once instead of after the window (`event=failback_reactive`): in an
+  HA pair the fallback has no handler left once the cell's handlers are home. A failed probe
+  restarts the window, so a flapping broker never gets the bundle back; a switch whose handshake
+  fails (e.g. `expectedClusterName`) lands on the next endpoint and doubles the next window (up
+  to 16x), and three refusals in a row (`BrokerRefusedException`: identity, protocol or `Reject`)
+  suspend fail-back (`event=failback_suspended`, ERROR) until a session on endpoint 0 succeeds by
+  other means or the process restarts. Bundles that handle no requests (gateways) wait the whole
+  jitter range on top, so that a cell's handlers are back before its callers. Logged as
+  `event=failback_started` / `failback_drained` / `failback_reactive` / `failback_completed` /
+  `failback_failed` / `failback_suspended`; counted by `BundleClient.failbacksCompleted()` /
+  `failbacksFailed()` / `reactiveFailbacks()`. Configurable on `BundleClientConfig` /
+  `BundleClient.Builder` and on `EventoBundle.Builder` (`setFailbackEnabled`,
+  `setFailbackProbeInterval`, `setFailbackStabilityWindow`, `setFailbackJitter`,
+  `setFailbackDrainTimeout`); on by default with two or more endpoints, `failbackEnabled(false)`
+  restores the previous behaviour. No wire change. `BundleClientFailbackIT` (two real brokers
+  over TCP): fail-back after the window with a clean leave on the fallback, no registration from
+  probes, no fail-back from a flapping or a not-ready broker, in-flight requests completed or
+  failed with `BrokerChangedException`, a 40 MiB reply written during the drain arriving whole,
+  identity refusal with a doubled window and then suspension, the reactive switch of a caller,
+  `enable()` during the drain, `stop()` racing the switch; `ProbeConnectionIT` (transport);
+  `StartupDuringFailbackIT` (evento-lab: an `EventoBundle` whose startup gate opens mid-drain).
+- **`RequestNotSentException`** (`evento-transport-api`, an `IllegalStateException`). A request
+  the bundle refused before writing anything (between sessions, or during a fail-back drain)
+  now reaches the v1 gateways as this type instead of a plain `IllegalStateException`: nothing
+  was executed, so it is always safe to retry, unlike a timeout.
+- **`TransportServer.setPreSessionReadiness(BooleanSupplier)`** (default no-op; implemented by
+  `NettyServerTransport`) and **`NettyEventLoops.newNioEventLoopGroup(int, ThreadFactory)`**
+  (now public: the Netty 4.1-safe way to build an event loop outside the transport module).
 - **`BrokerChangedException` (G4).** Each pending request remembers the broker it was sent
   through. When a new session's `Welcome` names a different `serverInstanceId`, those
   requests fail at once (a failure `Response` naming `BrokerChangedException`, rethrown as
@@ -170,6 +192,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`EventoBundle` startup no longer dies when its gate opens between sessions.** When the last
+  head-gating projector caught up while the bundle was reconnecting or draining for a fail-back,
+  `enable()` threw, the startup thread logged "Error during startup" and stopped: sagas and
+  observers never started, no stats, no started hook, although the latched enable made the
+  bundle look healthy after the next reconnect. `BundleClient.enable()` now never fails for want
+  of a connection (the next session sends it) and the consumer registration listener is
+  installed before the first send, which no longer aborts startup.
+- **`NettyClientTransport.close()` during a pending connect** leaked the channel that connected
+  afterwards (it found no channel to close); it now aborts the connect, and a connect that
+  completes after close is closed at once.
+- **`ConnectionSupervisor.stop()` racing a reconnect** could be overwritten by the session's next
+  state transition, leaving a supervisor that reconnected behind a stopped bundle; `CLOSING` and
+  `CLOSED` are now final. The probe event loop is released on stop and on give-up, and a stop no
+  longer logs WARNs of its own.
 - **Commands were executed after their caller had timed out (N3).** The broker ignored
   the caller's deadline: a command queued behind a saturated dispatch executor or an
   aggregate lock was still forwarded, and the forward then got a fresh full timeout, so

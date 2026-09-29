@@ -202,6 +202,12 @@ public final class BusLifecycle {
     private static final long MAINTENANCE_INTERVAL_MS = 30_000L;
     private volatile java.util.concurrent.ScheduledExecutorService maintenanceScheduler;
 
+    /**
+     * Whether a health probe (a Ping on a connection that has sent nothing else)
+     * gets a Pong. Always true unless {@link #setProbeReadiness} says otherwise.
+     */
+    private volatile java.util.function.BooleanSupplier probeReadiness = () -> true;
+
     public BusLifecycle(TransportServer transportServer,
                         ConnectionRegistry connectionRegistry,
                         ClusterRegistry clusterRegistry,
@@ -275,6 +281,23 @@ public final class BusLifecycle {
                 this::onResponse,
                 this::onNotification);
         transportServer.onConnection(this::acceptConnection);
+        transportServer.setPreSessionReadiness(() -> probeReadiness.getAsBoolean());
+    }
+
+    /**
+     * What a bundle's fail-back probe is told (N16). A bundle that failed over
+     * to another broker probes this one with a bare transport Ping, never a
+     * Hello, and moves back once the Pings have been answered for its stability
+     * window. The bus binds its port early — in the Spring server before the
+     * application context has finished starting — so answering on a bound port
+     * alone would call this broker healthy while its database or event store are
+     * still coming up, and the bundles would move back only to fail. While
+     * {@code ready} is false such Pings go unanswered and the probes time out.
+     * Pings on sessions that have sent a Hello are always answered. Can be called
+     * at any time; null restores "always ready".
+     */
+    public void setProbeReadiness(java.util.function.BooleanSupplier ready) {
+        this.probeReadiness = ready == null ? () -> true : ready;
     }
 
     /**
@@ -442,13 +465,19 @@ public final class BusLifecycle {
     public void acceptConnection(Transport transport) {
         var session = new BundleSession(transport, UUID.randomUUID().toString());
         sessionsByTransport.put(transport, session);
-        transport.onFrame(frame -> router.route(frame, session));
+        transport.onFrame(frame -> {
+            session.markFrameReceived();
+            router.route(frame, session);
+        });
         transport.onStateChange((from, to) -> {
             if (to == ConnectionState.DISCONNECTED || to == ConnectionState.CLOSED) {
                 onTransportDisconnected(session);
             }
         });
-        log.info("event=session_accepted token={}", session.connectionToken());
+        // DEBUG: every fail-back probe (a bundle checking whether this broker is back,
+        // every few seconds) is an accepted connection that only pings. A real session
+        // is logged at INFO by its Hello.
+        log.debug("event=session_accepted token={}", session.connectionToken());
     }
 
     // ---- inbound handlers ----
@@ -677,7 +706,12 @@ public final class BusLifecycle {
         sessionsByTransport.remove(session.transport());
         var address = session.address();
         if (address == null) {
-            log.info("event=preregistered_disconnect token={}", session.connectionToken());
+            if (session.framesReceived()) {
+                log.info("event=preregistered_disconnect token={}", session.connectionToken());
+            } else {
+                // Nothing but heartbeats (swallowed below the router): a health probe.
+                log.debug("event=preregistered_disconnect token={} frames=none", session.connectionToken());
+            }
             return;
         }
         session.transitionTo(BundleSession.Phase.CLOSED);
