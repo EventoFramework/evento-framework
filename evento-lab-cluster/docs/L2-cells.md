@@ -87,6 +87,36 @@ Dopo un failover (vedi [L1](L1-server-ha.md)) la cella APAC finisce su `evento-e
 `locality-preferred` il gateway EU continua a usare l'handler EU e il gateway APAC quello APAC;
 con `random` metà dei comandi attraverserebbe la WAN due volte.
 
+Quando `evento-apac` torna, i bundle APAC tornano da soli (failback, N16): ciascuno sonda il proprio
+endpoint 0 senza registrarsi e si sposta quando è rimasto sano per la finestra di stabilità (30 s)
+più un jitter (0–10 s); i bundle senza handler (i gateway) aspettano una finestra in più. L'ordine
+conta per G1: se un gateway arrivasse su `evento-apac` prima di `order-command-apac`, avrebbe
+`no handler for` finché l'handler non lo raggiunge; gli handler che tornano per primi, invece,
+lasciano i gateway ancora su `evento-eu`, dove l'handler EU della stessa classe continua a servirli
+(con `random` o, in mancanza della zona APAC, con `locality-preferred`). Il ritorno resta per
+bundle, non atomico per la cella: per qualche secondo alcuni comandi possono fallire con
+`no handler for` o `BrokerChangedException`, poi la cella è di nuovo tutta sul suo server.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant H as order-command-apac
+    participant G as gateway-cina
+    participant E as evento-eu (fallback)
+    participant A as evento-apac (endpoint 0)
+    Note over A: riavviato e pronto
+    loop ogni 5 s, per ogni bundle
+        H->>A: TCP + Ping (nessun Hello)
+        A-->>H: Pong
+    end
+    Note over H: sano da 30 s + jitter
+    H->>E: evento:disable, drain delle richieste in volo
+    H->>A: Hello, Welcome, register, enable
+    Note over G: bundle senza handler: + 30 s
+    G->>E: evento:disable, drain
+    G->>A: Hello, Welcome (le richieste ancora aperte su E: BrokerChangedException)
+```
+
 ## Località, presenza e catalogo
 
 - **Pick per località (G12).** Il bundle annuncia `zone:<ZONA>` nell'Hello
@@ -198,7 +228,7 @@ x-env-l2: &env-l2
 | Id | Limite | Prova |
 |---|---|---|
 | G1 | nessun inoltro tra server | [S01](../results/S01/after/report.md) |
-| N16 | dopo un failover la cella resta sul server remoto; con G1 chiamanti e handler della stessa cella possono finire su server diversi | [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [FINDINGS N16](../FINDINGS.md) |
+| N16 (residuo) | il failback è per bundle, non per cella: durante il ritorno (secondi, dopo finestra + jitter) chiamanti e handler della stessa cella possono stare su server diversi e G1 dà `no handler for`; con un VIP non c'è failback | prima del fix: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [FINDINGS N16](../FINDINGS.md); fix: `BundleClientFailbackIT`, S03 e S13 da rieseguire |
 | N5 / N9 | ogni append serializza su un lock globale raggiunto via WAN: un comando remoto costa ancora ~7–9 round trip | [S00](../results/S00/after/report.md): p50 AM 0.73–0.76 s, APAC 1.16–1.18 s; [S06](../results/S06/after/report.md): a 300 ms di RTT, p50 APAC 22.8 s |
 | N15 | sotto contesa del `es-lock` un comando può committare dopo la deadline del chiamante | [S06](../results/S06/after/report.md): 31 comandi scaduti e salvati a 300 ms |
 | N4 / G24 | le lane dei consumer non hanno affinità: il detentore può essere in una cella remota e scrivere via WAN | [S16](../results/S16/after/report.md): scrittori EU 9 / APAC 6 |
@@ -224,5 +254,8 @@ x-env-l2: &env-l2
 - [ ] Id server univoci (la presenza si basa su di essi: con un id condiviso ogni server crede di
       possedere ogni riga).
 - [ ] Il primario ES nella cella con più scritture (N5: la cella del primario è favorita).
-- [ ] Runbook N16: dopo il ritorno di un server, riavviare i bundle della sua cella rimasti altrove.
-- [ ] Monitorare `no handler for` nei log del server: è il sintomo di G1 + N16.
+- [ ] Dopo il ritorno di un server, verificare `event=failback_completed` nei bundle della sua cella
+      entro finestra + jitter + una finestra per i gateway; riavviarli solo se restano altrove
+      (VIP, immagini senza N16, `event=failback_failed` ripetuti per identità).
+- [ ] Monitorare `no handler for` nei log del server: brevi raffiche durante un failback sono
+      attese (G1 + N16), una serie continua no.

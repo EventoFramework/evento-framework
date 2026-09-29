@@ -120,6 +120,11 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
   p50/p99 448/570 ms; EU+AM 62/62 (p50 192 ms); 0 chiamate appese; I6 in 0.36 s.
   [`after-run1`](../results/S03/after-run1/report.md): una `ProcessPaymentCommand` riceve
   `BrokerChangedException`, la saga la ripete e il pagamento avviene due volte (**N14**).
+- **Failback (N16, da misurare)**: dopo il riavvio lo scenario aspetta (`S03_FAILBACK_WAIT_S`, 180 s)
+  che ogni JVM APAC finita su `evento-eu`/`evento-am` torni da sola su `evento-apac`
+  (`apacStillRemoteAfterFailbackWait` vuoto, `apacFailbacksCompleted`); atteso AS_EXPECTED sulle
+  immagini con il fix, KNOWN_DEFECT_REPRODUCED su quelle precedenti, INCONCLUSIVE su 2.4.6 (nessun
+  failover).
 
 ### S04: il server torna dopo il failover
 - **Obiettivo**: il `NodeLeft` tardivo del vecchio server non deve cancellare un bundle vivo altrove (G7).
@@ -206,6 +211,10 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **`:after`** ([report](../results/S13/after/report.md)): C **rifiutato** (40 `cluster_name_mismatch`, mai
   READY); B **3/3 con il guard**; A 0/3 (per contratto). Dopo il ritorno di `evento-eu`, 7 JVM EU ancora
   su `evento-am` (**N16**, [`after-n16-evidence`](../results/S13/after-n16-evidence/report.md)).
+- **Failback (N16, da misurare)**: tra A e B lo scenario aspetta (`S13_FAILBACK_WAIT_S`, 180 s) che i JVM
+  EU tornino da soli su `evento-eu` (osservazione "A: EU bundles fail back", metrica
+  `A.bundlesStillRemoteAfterEuReturned` vuota); il riavvio di sicurezza (`A.bundlesRestartedIntoPlace`)
+  dovrebbe allora non trovare nulla.
 
 ### S14: retry storm
 - **Obiettivo**: richieste in volo al cambio di broker (G4) e duplicati da retry (G5).
