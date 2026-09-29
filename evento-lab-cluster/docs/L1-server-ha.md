@@ -200,7 +200,7 @@ default `random`), come misura S02.
 |---|---|---|
 | G1 | nessun inoltro tra server: chiamante e handler devono stare sullo stesso server, altrimenti `no handler for <Payload>` | [S01](../results/S01/after/report.md): 0/5 in ≤ 14 ms, identico su `:before` |
 | N16 (residuo) | il failback non è atomico per la cella: ogni bundle torna al proprio istante (finestra + jitter). Nel frattempo chiamanti e handler possono stare su server diversi e G1 dà `no handler for` per qualche secondo. Mitigazioni: gli handler tornano una finestra prima dei bundle senza handler; con un VIP (un solo indirizzo) non c'è failback | prima del fix: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), `gateway-europa` sul server tornato, 0/3 `no handler`; fix: `BundleClientFailbackIT` (S03/S13 da rieseguire) |
-| G5 / N14 | `BrokerChangedException` dice "esito indeterminato", ma nessuna chiave di idempotenza permette un retry sicuro | [S14](../results/S14/after/report.md): 9 dei 13 primi tentativi falliti erano già stati salvati, 8 chiavi salvate due volte; [S03 `after-run1`](../results/S03/after-run1/report.md): pagamento eseguito due volte |
+| G5 / N14 | `BrokerChangedException` dice "esito indeterminato". **Implementato dopo le misure**: un retry con la stessa chiave (`sendIdempotent`, o la chiave che una saga deriva da sola) riceve l'evento già salvato, su qualunque server ([L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)). Resta la finestra "handler di servizio eseguito, evento non salvato" | misure pre-fix, da ripetere: [S14](../results/S14/after/report.md): 9 dei 13 primi tentativi falliti erano già stati salvati, 8 chiavi salvate due volte; [S03 `after-run1`](../results/S03/after-run1/report.md): pagamento eseguito due volte |
 | G17 | dashboard e amministrazione dei consumer mostrano la vista **del server** a cui ti colleghi | [CLUSTER-READINESS G17](../../.claude/CLUSTER-READINESS.md) |
 | G22 | una partizione silenziosa (senza RST) si rileva solo dopo il read-idle (45 s di default) | `EVENTO_HEARTBEAT_READ_IDLE_S` / `setHeartbeatReadIdle` |
 
@@ -228,8 +228,9 @@ ancora prima di ogni scenario come rete di sicurezza (`placementRestoredAtStart`
       stesso `EVENTO_CLUSTER_NAME`.
 - [ ] Ogni bundle ha la **stessa** lista `EVENTO_SERVER_ADDRESSES`, nello stesso ordine (o lo stesso VIP).
 - [ ] `EVENTO_CLUSTER_NAME` impostato sui bundle; `EVENTO_EXPECTED_SERVER_ID` **non** impostato.
-- [ ] Il chiamante gestisce `BrokerChangedException` come esito indeterminato: non ripete un comando
-      non idempotente senza una verifica (G5).
+- [ ] Il chiamante gestisce `BrokerChangedException` come esito indeterminato: ripete il comando
+      **con la stessa chiave di idempotenza** (`CommandGateway.sendIdempotent`; il gateway del
+      laboratorio passa `X-Idempotency-Key`), mai senza (G5).
 - [ ] Failback (N16): lista di indirizzi (non un VIP) se vuoi che i bundle tornino da soli;
       `event=failback_completed` nei log dei bundle dopo il ritorno di un server. Runbook solo per
       VIP o immagini senza il fix: riavviare i bundle rimasti sul backup.

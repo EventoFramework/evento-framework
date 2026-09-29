@@ -178,6 +178,9 @@ class S03KillServerTest extends AbstractScenario {
                 var inv = find(results, id);
                 report.observe(id + " after the server returns", inv.expected(), inv.observed(), inv.passed());
             }
+            // N14 showed up here (run 1): the saga's retry of a ProcessPayment that had failed
+            // with BrokerChangedException charged again. With G5 its derived key replays it.
+            observeExactlyOnce(find(results, "I2"));
         });
     }
 }

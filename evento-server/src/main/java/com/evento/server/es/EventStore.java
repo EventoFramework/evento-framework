@@ -30,7 +30,9 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.io.Serializable;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -69,6 +71,39 @@ public class EventStore implements BrokerEventStore {
                     "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
                     "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ? FROM es_lock " +
                     "RETURNING event_sequence_number";
+
+    /** Name of the partial unique index on {@code es__events.idempotency_key} (G5). */
+    public static final String IDEMPOTENCY_KEY_INDEX =
+            com.evento.server.config.AdvisoryLockedSchemaInitializer.ES_EVENTS_IDEMPOTENCY_INDEX;
+
+    /**
+     * Arbiter of a keyed append. {@code ON CONFLICT ... DO NOTHING} rather than a caught unique
+     * violation: when the conflicting row belongs to a transaction still in flight, PostgreSQL
+     * waits for it, so an empty result means "a committed event already holds this key", which
+     * is what the broker then reads back and replays. The partial predicate names the partial
+     * index as arbiter.
+     */
+    private static final String IDEMPOTENCY_CONFLICT =
+            " ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING";
+
+    /** {@link #CPES_APPEND_SQL} for a keyed command: the same single statement, one more column. */
+    static final String CPES_KEYED_APPEND_SQL =
+            "WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) " +
+                    "INSERT INTO es__events " +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, idempotency_key) " +
+                    "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ?, ? FROM es_lock" +
+                    IDEMPOTENCY_CONFLICT +
+                    " RETURNING event_sequence_number";
+
+    private static final String APES_KEYED_APPEND_SQL =
+            "INSERT INTO es__events " +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, idempotency_key) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)" + IDEMPOTENCY_CONFLICT;
+
+    /** How long a "no idempotency index" answer is trusted before the catalog is asked again. */
+    private static final long IDEMPOTENCY_PROBE_INTERVAL_MS = 60_000;
+    private volatile boolean idempotencySupported;
+    private volatile long idempotencyProbeAt;
 
     private final long DELAY;
     private final EventStoreMode MODE;
@@ -295,6 +330,86 @@ public class EventStore implements BrokerEventStore {
             throw new RuntimeException(e);
         }
         return id.get();
+    }
+
+    /**
+     * A keyed append (G5): the event and its command's idempotency key in one statement, under
+     * the partial unique index, so no two servers can both store one key. An unkeyed append, or
+     * a keyed one on a schema without the index (see {@link #idempotencySupported()}), is the
+     * plain {@link #publishEvent(EventMessage, String)}.
+     */
+    @Override
+    public long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey) {
+        if (idempotencyKey == null || !idempotencySupported()) {
+            return publishEvent(eventMessage, aggregateId);
+        }
+        String json;
+        try {
+            json = mapper.writeValueAsString(eventMessage);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+        if (MODE == EventStoreMode.APES) {
+            long id = snowflake.nextId();
+            int inserted = jdbcTemplate.update(APES_KEYED_APPEND_SQL, id, aggregateId, json,
+                    eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey);
+            if (inserted == 0) throw new IdempotencyKeyConflictException(idempotencyKey);
+            return id;
+        }
+        List<Long> seq = jdbcTemplate.queryForList(CPES_KEYED_APPEND_SQL, Long.class, aggregateId, json,
+                eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey);
+        if (seq.isEmpty()) throw new IdempotencyKeyConflictException(idempotencyKey);
+        return seq.getFirst();
+    }
+
+    /**
+     * The event stored under {@code idempotencyKey}. Also finds an event of a deleted aggregate:
+     * the command did run, and a retry must learn that rather than run it again.
+     */
+    @Override
+    public Optional<StoredEvent> findByIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || !idempotencySupported()) return Optional.empty();
+        var rows = jdbcTemplate.query(
+                "SELECT event_sequence_number, event_message FROM es__events WHERE idempotency_key = ?",
+                (rs, i) -> {
+                    try {
+                        return new StoredEvent(rs.getLong(1),
+                                (EventMessage<?>) mapper.readValue(rs.getString(2), Serializable.class));
+                    } catch (JsonProcessingException e) {
+                        throw new IllegalStateException("stored event " + rs.getLong(1) + " is unreadable", e);
+                    }
+                },
+                idempotencyKey);
+        return rows.stream().findFirst();
+    }
+
+    /**
+     * Whether the database has a valid {@value #IDEMPOTENCY_KEY_INDEX}. Without it a key cannot
+     * be enforced across servers, so keyed commands run unkeyed (the pre-G5 behaviour) and this
+     * logs {@code event=idempotency_key_unsupported}: a schema managed outside the server
+     * ({@code spring.sql.init.mode=never}) that has not applied
+     * {@code db/upgrade/es-events-idempotency-key.sql} yet. A negative answer is re-checked
+     * every minute, so applying the script takes effect without a restart.
+     */
+    boolean idempotencySupported() {
+        if (idempotencySupported) return true;
+        long now = System.currentTimeMillis();
+        if (now < idempotencyProbeAt) return false;
+        synchronized (this) {
+            if (idempotencySupported) return true;
+            if (now < idempotencyProbeAt) return false;
+            Integer valid = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
+                            "WHERE c.relname = ? AND i.indisvalid", Integer.class, IDEMPOTENCY_KEY_INDEX);
+            idempotencySupported = valid != null && valid > 0;
+            if (!idempotencySupported) {
+                idempotencyProbeAt = now + IDEMPOTENCY_PROBE_INTERVAL_MS;
+                logger.warn("event=idempotency_key_unsupported index={} reason=\"no valid index; keyed commands "
+                        + "run without exactly-once until it exists\" script=classpath:db/upgrade/es-events-idempotency-key.sql",
+                        IDEMPOTENCY_KEY_INDEX);
+            }
+            return idempotencySupported;
+        }
     }
 
     public Long getLastAggregateSequenceNumber(String aggregateId) {

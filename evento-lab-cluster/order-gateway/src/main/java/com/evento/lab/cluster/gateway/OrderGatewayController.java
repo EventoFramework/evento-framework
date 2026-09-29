@@ -8,6 +8,7 @@ import com.evento.lab.cluster.api.command.AddOrderItemCommand;
 import com.evento.lab.cluster.api.command.CompleteOrderCommand;
 import com.evento.lab.cluster.api.command.CreateOrderCommand;
 import com.evento.lab.cluster.api.command.SetPriceCommand;
+import com.evento.lab.cluster.api.event.OrderCreatedEvent;
 import com.evento.lab.cluster.api.query.FindGlobalOrderQuery;
 import com.evento.lab.cluster.api.query.FindOrderQuery;
 import com.evento.lab.cluster.api.query.FindPriceQuery;
@@ -43,6 +44,14 @@ import java.util.concurrent.TimeUnit;
  * acknowledged it, i.e. the event is stored. Retries are never automatic: the
  * chaos driver owns them, so it can measure what a retry does (G5, S14).
  *
+ * <p>{@code X-Idempotency-Key} is passed to Evento as the command's idempotency
+ * key when the framework has them ({@code CommandGateway.sendIdempotent}, G5):
+ * a retry with the same key, through any cell, is then answered with the event
+ * of the first attempt that was stored. Items of a create carry
+ * {@code <key>#<n>}. On a replayed create the order id is the stored one, not
+ * the id this request generated. On {@code :before} images the header only
+ * travels on the payload, as evidence for the invariant checker.
+ *
  * <p>The gateway runs no consumer and owns no database; the only exception is
  * the diagnostic {@code GET /catalog/prices/{sku}?db=<cell>}, which reads one
  * regional database directly ({@code DATA_TARGETS}) to show what the global
@@ -63,6 +72,7 @@ public class OrderGatewayController {
         this.deployment = runner.deployment();
         this.priceReaders = priceReaders;
         this.region = deployment.requireRegion();
+        runner.features().idempotencyKeys();
     }
 
     public record ItemBody(String sku, Integer qty) {
@@ -94,12 +104,21 @@ public class OrderGatewayController {
         var result = base(orderId);
         long start = System.nanoTime();
         try {
-            send(new CreateOrderCommand(orderId, context, idempotencyKey));
+            // A replay answers with the order the first attempt created, whose id wins.
+            var created = send(new CreateOrderCommand(orderId, context, idempotencyKey), idempotencyKey);
+            if (created instanceof OrderCreatedEvent e && e.getOrderId() != null && !e.getOrderId().equals(orderId)) {
+                log.info("event=gateway_idempotent_replay op=create requestedOrderId={} orderId={} idempotencyKey={}",
+                        orderId, e.getOrderId(), idempotencyKey);
+                orderId = e.getOrderId();
+                result.put("orderId", orderId);
+                result.put("replayed", true);
+            }
             int added = 0;
             if (body != null && body.items() != null) {
                 for (var item : body.items()) {
+                    var itemKey = idempotencyKey == null ? null : idempotencyKey + "#" + added;
                     send(new AddOrderItemCommand(orderId, item.sku(), item.qty() == null ? 1 : item.qty(),
-                            context, idempotencyKey == null ? null : idempotencyKey + "#" + added));
+                            context, itemKey), itemKey);
                     added++;
                 }
             }
@@ -122,7 +141,7 @@ public class OrderGatewayController {
         long start = System.nanoTime();
         try {
             send(new AddOrderItemCommand(orderId, body.sku(), body.qty() == null ? 1 : body.qty(),
-                    region, idempotencyKey));
+                    region, idempotencyKey), idempotencyKey);
             result.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -139,7 +158,7 @@ public class OrderGatewayController {
         var result = base(orderId);
         long start = System.nanoTime();
         try {
-            send(new CompleteOrderCommand(orderId, region, idempotencyKey));
+            send(new CompleteOrderCommand(orderId, region, idempotencyKey), idempotencyKey);
             result.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -181,7 +200,8 @@ public class OrderGatewayController {
                 body.sku(), body.priceCents(), region, idempotencyKey);
         long start = System.nanoTime();
         try {
-            send(new SetPriceCommand(body.sku(), body.priceCents(), body.currency(), region, idempotencyKey));
+            send(new SetPriceCommand(body.sku(), body.priceCents(), body.currency(), region, idempotencyKey),
+                    idempotencyKey);
             result.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
             return ResponseEntity.status(201).body(result);
         } catch (Exception e) {
@@ -234,9 +254,10 @@ public class OrderGatewayController {
         }
     }
 
-    private void send(Command command) throws Exception {
-        bundle().getCommandGateway()
-                .send(command, deployment.commandTimeoutMs(), TimeUnit.MILLISECONDS)
+    /** Sends with {@code idempotencyKey} as the Evento idempotency key (when supported); returns the event. */
+    private Object send(Command command, String idempotencyKey) throws Exception {
+        return runner.features()
+                .send(bundle().getCommandGateway(), command, idempotencyKey, deployment.commandTimeoutMs())
                 .get();
     }
 

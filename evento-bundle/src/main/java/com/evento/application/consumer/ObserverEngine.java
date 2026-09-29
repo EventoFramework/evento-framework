@@ -184,7 +184,7 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
         var handler = handlers.getOrDefault(observerName, null);
         if (handler == null) return;
 
-        var proxy = dispatchContext.gatewayTelemetryProxy().apply(handler.getComponentName(), publishedEvent.getEventMessage());
+        var proxy = dispatchContext.consumerGateway(handler.getComponentName(), publishedEvent, consumerId);
         dispatchContext.tracingAgent().track(publishedEvent.getEventMessage(), handler.getComponentName(),
                 null,
                 () -> {
