@@ -103,16 +103,21 @@ x-server-env: &server-env
   EVENTO_ES_MODE: CPES
   JAVA_OPTS: *java-opts
 
+# Every app role runs the Spring web server on 8080, and /actuator/health stays DOWN until
+# all of the JVM's bundles completed their handshake, so the same probe gates cell cores,
+# regions and sagas ('up --wait' then means "every bundle registered").
+# restart: on-failure because the app exits (code 3/4) after repeated start failures rather
+# than retrying in-process (a failed EventoBundle start leaves its supervisor running).
 x-app: &app
   image: evento-lab-cluster/app:${LAB_TAG:-dev}
   stop_grace_period: 10s
-
-x-region-healthcheck: &region-healthcheck
-  test: ["CMD", "/app/healthcheck.sh", "8080", "/actuator/health"]
-  interval: 5s
-  timeout: 6s
-  retries: 60
-  start_period: 240s
+  restart: on-failure
+  healthcheck:
+    test: ["CMD", "/app/healthcheck.sh", "8080", "/actuator/health"]
+    interval: 5s
+    timeout: 6s
+    retries: 60
+    start_period: 240s
 
 # Per-cell environment for the app JVMs. Bus address lists are "own server first, then the
 # other two through toxiproxy"; HEAD only dials the first (G2), the rest is for the fix.
@@ -202,7 +207,10 @@ services:
       - ./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
     ports:
       - "8474:8474"
-    mem_limit: 64m
+    # 256m, not 64m: the latency toxic buffers in-flight chunks, and the four concurrent
+    # pg_basebackup streams (~30 MB each) at start-up got it OOM-killed at 64m (exit 137),
+    # which silently cut every WAN link and left the replicas unable to resolve toxi-<cell>.
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "/toxiproxy-cli", "-h", "localhost:8474", "list"]
       interval: 2s
@@ -507,7 +515,6 @@ services:
     container_name: region-europa
     hostname: region-europa
     mem_limit: 320m
-    healthcheck: *region-healthcheck
     environment:
       <<: *env-eu
       EVENTO_ROLE: region
@@ -521,7 +528,6 @@ services:
     container_name: region-africa
     hostname: region-africa
     mem_limit: 320m
-    healthcheck: *region-healthcheck
     environment:
       <<: *env-eu
       EVENTO_ROLE: region
@@ -535,7 +541,6 @@ services:
     container_name: region-america
     hostname: region-america
     mem_limit: 320m
-    healthcheck: *region-healthcheck
     environment:
       <<: *env-am
       EVENTO_ROLE: region
@@ -549,7 +554,6 @@ services:
     container_name: region-sud-america
     hostname: region-sud-america
     mem_limit: 320m
-    healthcheck: *region-healthcheck
     environment:
       <<: *env-am
       EVENTO_ROLE: region
@@ -563,7 +567,6 @@ services:
     container_name: region-cina
     hostname: region-cina
     mem_limit: 320m
-    healthcheck: *region-healthcheck
     environment:
       <<: *env-apac
       EVENTO_ROLE: region
@@ -577,7 +580,6 @@ services:
     container_name: region-india
     hostname: region-india
     mem_limit: 320m
-    healthcheck: *region-healthcheck
     environment:
       <<: *env-apac
       EVENTO_ROLE: region
@@ -591,7 +593,6 @@ services:
     container_name: region-australia-nz
     hostname: region-australia-nz
     mem_limit: 320m
-    healthcheck: *region-healthcheck
     environment:
       <<: *env-apac
       EVENTO_ROLE: region

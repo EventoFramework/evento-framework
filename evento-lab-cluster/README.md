@@ -62,7 +62,7 @@ APAC cleanly (silently: no RST), and toxics on one proxy degrade exactly one WAN
 | `region-{europa,africa,america,sud-america,cina,india,australia-nz}` | HTTP gateway :8080 + bundle `query-<region>` | via lb | 320m |
 | `saga-eu`, `saga-apac` | bundle `cluster-saga` (competing consumers) | - | 320m |
 | `lb` | nginx: HTTP geo routing + bus VIPs | 8080 | 32m |
-| `toxiproxy` | WAN emulation, 18 proxies | 8474 (API) | 64m |
+| `toxiproxy` | WAN emulation, 18 proxies | 8474 (API) | 256m |
 | `toxiproxy-init` | installs the baseline RTT toxics, then idles | - | 32m |
 
 Total limits ~8.3 GB (8.7 GB with `replica`). Container names equal service names, so
@@ -135,15 +135,19 @@ Every `.sh` works under Git Bash; the `.ps1` twins call the same script through 
 ```bash
 scripts/build-images.sh            # gradle bootJar (server + app, --offline) + docker build
                                    #   -> evento-lab-cluster/server:$LAB_TAG, evento-lab-cluster/app:$LAB_TAG
-scripts/up.sh                      # full topology, waits for every healthcheck
+scripts/up.sh                      # full topology, waits for every healthcheck (every app JVM's
+                                   #   /actuator/health is DOWN until all its bundles handshook),
+                                   #   then runs scripts/repair-catalog.sh (G8 workaround, ~5 min total)
 scripts/run-scenario.sh S00BaselineTest before
+S00_RATE=3 scripts/run-scenario.sh S00BaselineTest before-rate3   # sub-capacity reference (G9)
 scripts/run-scenario.sh all after
 scripts/down.sh                    # removes containers, networks and volumes (-v)
 ```
 
 | Variable | Effect |
 |---|---|
-| `LAB_TAG` (dev) | image tag used by build and compose |
+| `LAB_TAG` (dev) | image tag used by build and compose; when unset, the scripts use the tag of the running `evento-eu` |
+| `REPAIR_CATALOG=false` | `up.sh` skips `repair-catalog.sh` (`REPAIR_PASSES`, `REPAIR_PARALLEL` tune it) |
 | `GRADLE_ARGS` (`--offline`) | extra Gradle flags; `SKIP_GRADLE=true` reuses existing jars |
 | `BUS_VIA_LB=true` | `up.sh` points the app JVMs at their cell VIP instead of the direct list (`BUS_ADDR_EU/AM/APAC` can also be set directly) |
 | `REPLICA=true` | `up.sh` adds `cell-core-eu-b` (profile `replica`, S2) |
@@ -153,6 +157,17 @@ scripts/down.sh                    # removes containers, networks and volumes (-
 
 `scripts/up.sh <service...>` starts a subset (with dependencies), e.g. only the data tier:
 `scripts/up.sh toxiproxy-init es-pg-am es-pg-apac app-pg-am app-pg-apac lb`.
+
+**Catalog repair (G8 workaround).** On an empty event store the server's discovery and consumer
+registration race on inserts, so some JVMs end up without `core__consumer` or `core__handler` rows,
+and a plain restart does not help (NodeLeft unregisters the bundle first).
+`scripts/repair-catalog.sh` starts a helper twin of each affected JVM (`compose run`, instance id
+`<c>-helper`), restarts the JVM while the twin keeps the bundle live, then removes the twin.
+`--check` only reports. The chaos driver's `Cluster.recreateStack()` runs it too.
+
+**One projector class per region (N1 workaround).** The server keys `core__component` by simple class
+name across bundles, so the region bundles use `bundle/region/<r>/<R>OrderProjector` (consumer id
+`query-<r>_<R>OrderProjector_1_<R>`) instead of one shared `RegionOrderProjector`.
 
 Manual fault helpers: `scripts/partition.sh <eu|am|apac> on [--with-lb]` / `off`;
 `scripts/wan.sh off|apply`; promotion `docker exec es-pg-am psql -U postgres -c 'select pg_promote()'`.

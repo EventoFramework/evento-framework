@@ -26,8 +26,8 @@ public record BundleSpec(String bundleId, String basePackage, Map<String, List<S
                     new BundleSpec(COMMAND_BUNDLE, ROOT + "command", Map.of(), null),
                     new BundleSpec(GLOBAL_QUERY_BUNDLE, ROOT + "global", Map.of(), Regions.GLOBAL_TABLE));
             case REGION -> List.of(
-                    new BundleSpec(Regions.queryBundleId(s.region()), ROOT + "region",
-                            Map.of("RegionOrderProjector", List.of(s.region())),
+                    new BundleSpec(Regions.queryBundleId(s.region()), Regions.projectorPackage(s.region()),
+                            Map.of(Regions.projectorName(s.region()), List.of(s.region())),
                             Regions.regionalTable(s.region())));
             case SAGA_OBSERVER -> List.of(
                     new BundleSpec(SAGA_BUNDLE, ROOT + "saga", Map.of(), null));

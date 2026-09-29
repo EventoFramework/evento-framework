@@ -416,6 +416,25 @@ public class Cluster {
         action("compose up -d --wait");
         must(compose(Duration.ofSeconds(1200), List.of(), List.of(), "up", "-d", "--wait", "--wait-timeout", "1100"),
                 "compose up --wait");
+        repairCatalog();
+    }
+
+    /**
+     * Run {@code scripts/repair-catalog.sh} (the lab's G8 workaround, see
+     * FINDINGS.md) after a fresh start, as {@code scripts/up.sh} does. Never
+     * throws: an incomplete catalog is what I7 reports, not a harness error.
+     */
+    public Exec repairCatalog() {
+        var script = config.composeFile().getParent().getParent().resolve("scripts").resolve("repair-catalog.sh");
+        if (!Files.isRegularFile(script)) {
+            action("catalog repair skipped: " + script + " not found");
+            return new Exec(-2, "", "missing " + script);
+        }
+        action("bash scripts/repair-catalog.sh (G8 workaround)");
+        var e = run(Duration.ofSeconds(900), List.of("bash", script.toString().replace('\\', '/')));
+        action("catalog repair exit " + e.exit() + ": "
+                + Cluster.grep(e.combined(), "event=lab_catalog_repair", 40));
+        return e;
     }
 
     public boolean composeFileExists() {

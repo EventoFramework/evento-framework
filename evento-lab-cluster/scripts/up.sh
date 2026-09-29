@@ -10,6 +10,7 @@
 #      REPLICA        true -> also start cell-core-eu-b (compose profile 'replica', S2)
 #      COLD_START     true -> no health chain between the three servers (S10)
 #      UP_TIMEOUT     seconds to wait for health (default 900)
+#      REPAIR_CATALOG false -> skip repair-catalog.sh after a full start (G8 workaround)
 #      BUS_ADDR_EU / BUS_ADDR_AM / BUS_ADDR_APAC, CONSUMER_CHECKPOINT_MODE,
 #      WAN_LATENCY_SCALE, WAN_JITTER_MS, LAB_JAVA_OPTS  are passed through to compose.
 set -euo pipefail
@@ -31,3 +32,9 @@ docker compose -p "$COMPOSE_PROJECT" "${files[@]}" ${args[@]+"${args[@]}"} up -d
 
 docker compose -p "$COMPOSE_PROJECT" "${files[@]}" ${args[@]+"${args[@]}"} ps \
   --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'
+
+# G8 workaround: a first registration can lose the core__bundle insert race and leave the
+# instance's consumers out of the catalog; restart the affected JVMs (see repair-catalog.sh).
+if [ $# -eq 0 ] && [ "${REPAIR_CATALOG:-true}" = "true" ]; then
+  "$(dirname "$0")/repair-catalog.sh" || log "warning: catalog still incomplete (G8), see output above"
+fi

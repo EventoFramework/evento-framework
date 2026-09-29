@@ -7,6 +7,11 @@ LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && { pwd -W 2>/dev/null || pwd
 REPO_DIR="$(cd "$LAB_DIR/.." && { pwd -W 2>/dev/null || pwd; })"
 DOCKER_DIR="$LAB_DIR/docker"
 COMPOSE_PROJECT="evento-lab-cluster"
+# LAB_TAG: explicit value, else the tag of the running stack (so run-scenario.sh / repair and the
+# chaos driver's 'compose up' of a removed service never fall back to a different image), else dev.
+if [ -z "${LAB_TAG:-}" ]; then
+  LAB_TAG="$(docker inspect -f '{{.Config.Image}}' evento-eu 2>/dev/null | sed -n 's#^evento-lab-cluster/server:##p')"
+fi
 export LAB_TAG="${LAB_TAG:-dev}"
 
 # (Output redirection is done with the shell, never curl -o /dev/null: a native Windows

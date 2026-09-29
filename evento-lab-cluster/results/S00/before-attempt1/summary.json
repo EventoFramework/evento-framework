@@ -1,0 +1,446 @@
+{
+  "scenario" : "S00",
+  "title" : "Baseline, no faults",
+  "gaps" : [ "G9 (reference)" ],
+  "label" : "before",
+  "startedAt" : "2026-09-29T07:52:07.151627600Z",
+  "finishedAt" : "2026-09-29T07:55:53.110624600Z",
+  "durationSeconds" : 225,
+  "parameters" : {
+    "orderIdPrefix" : "s00-before-bf4af6-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "load" : {
+      "ratePerMinutePerRegion" : 20.0,
+      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "durationSeconds" : 60,
+      "itemsPerOrder" : 2,
+      "completeRatio" : 0.5
+    }
+  },
+  "verdictCounts" : {
+    "UNEXPECTED" : 3,
+    "AS_EXPECTED" : 6
+  },
+  "observations" : [ {
+    "name" : "every command acknowledged",
+    "expected" : "100% of commands 2xx with no fault injected",
+    "expectedBeforeFix" : null,
+    "observed" : "226/320 acknowledged, failures {timeout=94}",
+    "verdict" : "UNEXPECTED",
+    "note" : null
+  }, {
+    "name" : "I1 no lost events",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 226 acknowledged ops missing; 94 unacknowledged ops were stored anyway",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I2 no duplicate events or side effects",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "expectedBeforeFix" : null,
+    "observed" : "no duplicates",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I3 no aggregate fork",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 140 aggregates invalid",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I4 regional isolation",
+    "expected" : "order_view_<r> contains only context R",
+    "expectedBeforeFix" : null,
+    "observed" : "0 foreign row(s) in 140",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I5 global completeness",
+    "expected" : "order_view_global = union of order_view_<r> (same ids, status, item count, context)",
+    "expectedBeforeFix" : null,
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "I6 convergence",
+    "expected" : "read models reach the event store's state within 90 s",
+    "expectedBeforeFix" : null,
+    "observed" : "8 order(s) still diverging after 92 s",
+    "verdict" : "UNEXPECTED",
+    "note" : null
+  }, {
+    "name" : "I7 catalog matches live bundles",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "expectedBeforeFix" : null,
+    "observed" : "0 bundle(s), 0 handler(s), 1 consumer(s) missing; 6 bundle(s) without handler rows",
+    "verdict" : "UNEXPECTED",
+    "note" : null
+  }, {
+    "name" : "payment saga completes every order",
+    "expected" : "one PaymentProcessed per completed order within 60 s",
+    "expectedBeforeFix" : null,
+    "observed" : "29 payments for 29 completed orders",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 226 acknowledged ops missing; 94 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 140,
+      "acknowledgedOps" : 226,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 94
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 140 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 140,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view_<r> contains only context R",
+    "observed" : "0 foreign row(s) in 140",
+    "metrics" : {
+      "EUROPA.rows" : 20,
+      "AFRICA.rows" : 20,
+      "AMERICA.rows" : 20,
+      "SUD_AMERICA.rows" : 20,
+      "CINA.rows" : 20,
+      "INDIA.rows" : 20,
+      "AUSTRALIA_NZ.rows" : 20,
+      "rows" : 140
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of order_view_<r> (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 140,
+      "regionalRows" : 140,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "FAIL",
+    "expected" : "read models reach the event store's state within 90 s",
+    "observed" : "8 order(s) still diverging after 92 s",
+    "metrics" : {
+      "converged" : false,
+      "secondsToConverge" : null,
+      "timeoutSeconds" : 90,
+      "polls" : 31,
+      "remainingGaps" : 8,
+      "esHead" : 350,
+      "checkpoints" : {
+        "cluster-query-global_GlobalOrderProjector_1_*" : 342,
+        "cluster-saga_ClusterEventObserver_1_*" : 350,
+        "cluster-saga_PaymentSaga_1_*" : 290,
+        "query-africa_RegionOrderProjector_1_AFRICA" : 346,
+        "query-america_RegionOrderProjector_1_AMERICA" : 325,
+        "query-australia_nz_RegionOrderProjector_1_AUSTRALIA_NZ" : 337,
+        "query-cina_RegionOrderProjector_1_CINA" : 345,
+        "query-europa_RegionOrderProjector_1_EUROPA" : 350,
+        "query-india_RegionOrderProjector_1_INDIA" : 339,
+        "query-sud_america_RegionOrderProjector_1_SUD_AMERICA" : 348
+      }
+    },
+    "violationCount" : 8,
+    "violations" : [ "s00-before-bf4af6-africa-79 global COMPLETED/2/255 != es COMPLETED/2/343", "s00-before-bf4af6-africa-86 global COMPLETED/2/267 != es COMPLETED/2/346", "s00-before-bf4af6-cina-5 global COMPLETED/2/258 != es COMPLETED/2/345", "s00-before-bf4af6-europa-102 global COMPLETED/2/285 != es COMPLETED/2/350", "s00-before-bf4af6-europa-81 global COMPLETED/2/257 != es COMPLETED/2/344", "s00-before-bf4af6-europa-88 global COMPLETED/2/269 != es COMPLETED/2/347", "s00-before-bf4af6-europa-95 global COMPLETED/2/279 != es COMPLETED/2/349", "s00-before-bf4af6-sud-america-20 global COMPLETED/2/276 != es COMPLETED/2/348" ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "FAIL",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 1 consumer(s) missing; 6 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 10,
+      "consumers" : 9,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 6,
+      "missingConsumers" : 1,
+      "bundleInstances" : {
+        "cluster-command" : "cell-core-apac-cluster-command",
+        "cluster-query-global" : "cell-core-apac-cluster-query-global",
+        "cluster-saga" : "saga-apac-cluster-saga",
+        "query-africa" : "region-africa-query-africa",
+        "query-america" : "region-america-query-america",
+        "query-australia_nz" : "region-australia-nz-query-australia_nz",
+        "query-cina" : "region-cina-query-cina",
+        "query-europa" : "region-europa-query-europa",
+        "query-india" : "region-india-query-india",
+        "query-sud_america" : "region-sud-america-query-sud_america"
+      }
+    },
+    "violationCount" : 7,
+    "violations" : [ "bundle query-europa has no core__handler rows", "bundle query-america has no core__handler rows", "bundle query-sud_america has no core__handler rows", "bundle query-cina has no core__handler rows", "bundle query-india has no core__handler rows", "bundle query-australia_nz has no core__handler rows", "no core__consumer row for query-africa_RegionOrderProjector_*" ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=320 ack=226 failed=94 p50=15774ms p95=30404ms p99=30469ms max=30510ms failures={timeout=94}",
+    "metrics" : {
+      "AFRICA" : {
+        "count" : 67,
+        "acked" : 67,
+        "failed" : 0,
+        "p50" : 11254,
+        "p95" : 17561,
+        "p99" : 18358,
+        "max" : 18358,
+        "kinds" : { }
+      },
+      "AMERICA" : {
+        "count" : 42,
+        "acked" : 25,
+        "failed" : 17,
+        "p50" : 25372,
+        "p95" : 30436,
+        "p99" : 30474,
+        "max" : 30474,
+        "kinds" : {
+          "timeout" : 17
+        }
+      },
+      "AUSTRALIA_NZ" : {
+        "count" : 31,
+        "acked" : 12,
+        "failed" : 19,
+        "p50" : 30373,
+        "p95" : 30453,
+        "p99" : 30469,
+        "max" : 30469,
+        "kinds" : {
+          "timeout" : 19
+        }
+      },
+      "CINA" : {
+        "count" : 32,
+        "acked" : 12,
+        "failed" : 20,
+        "p50" : 30060,
+        "p95" : 30291,
+        "p99" : 30510,
+        "max" : 30510,
+        "kinds" : {
+          "timeout" : 20
+        }
+      },
+      "EUROPA" : {
+        "count" : 76,
+        "acked" : 76,
+        "failed" : 0,
+        "p50" : 11586,
+        "p95" : 17902,
+        "p99" : 18326,
+        "max" : 18326,
+        "kinds" : { }
+      },
+      "INDIA" : {
+        "count" : 31,
+        "acked" : 11,
+        "failed" : 20,
+        "p50" : 30116,
+        "p95" : 30412,
+        "p99" : 30461,
+        "max" : 30461,
+        "kinds" : {
+          "timeout" : 20
+        }
+      },
+      "SUD_AMERICA" : {
+        "count" : 41,
+        "acked" : 23,
+        "failed" : 18,
+        "p50" : 27531,
+        "p95" : 30351,
+        "p99" : 30475,
+        "max" : 30475,
+        "kinds" : {
+          "timeout" : 18
+        }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "latencyOverall" : {
+      "count" : 320,
+      "acked" : 226,
+      "failed" : 94,
+      "p50" : 15774,
+      "p95" : 30404,
+      "p99" : 30469,
+      "max" : 30510,
+      "kinds" : {
+        "timeout" : 94
+      }
+    },
+    "latencyByRegion" : {
+      "AFRICA" : {
+        "count" : 67,
+        "acked" : 67,
+        "failed" : 0,
+        "p50" : 11254,
+        "p95" : 17561,
+        "p99" : 18358,
+        "max" : 18358,
+        "kinds" : { }
+      },
+      "AMERICA" : {
+        "count" : 42,
+        "acked" : 25,
+        "failed" : 17,
+        "p50" : 25372,
+        "p95" : 30436,
+        "p99" : 30474,
+        "max" : 30474,
+        "kinds" : {
+          "timeout" : 17
+        }
+      },
+      "AUSTRALIA_NZ" : {
+        "count" : 31,
+        "acked" : 12,
+        "failed" : 19,
+        "p50" : 30373,
+        "p95" : 30453,
+        "p99" : 30469,
+        "max" : 30469,
+        "kinds" : {
+          "timeout" : 19
+        }
+      },
+      "CINA" : {
+        "count" : 32,
+        "acked" : 12,
+        "failed" : 20,
+        "p50" : 30060,
+        "p95" : 30291,
+        "p99" : 30510,
+        "max" : 30510,
+        "kinds" : {
+          "timeout" : 20
+        }
+      },
+      "EUROPA" : {
+        "count" : 76,
+        "acked" : 76,
+        "failed" : 0,
+        "p50" : 11586,
+        "p95" : 17902,
+        "p99" : 18326,
+        "max" : 18326,
+        "kinds" : { }
+      },
+      "INDIA" : {
+        "count" : 31,
+        "acked" : 11,
+        "failed" : 20,
+        "p50" : 30116,
+        "p95" : 30412,
+        "p99" : 30461,
+        "max" : 30461,
+        "kinds" : {
+          "timeout" : 20
+        }
+      },
+      "SUD_AMERICA" : {
+        "count" : 41,
+        "acked" : 23,
+        "failed" : 18,
+        "p50" : 27531,
+        "p95" : 30351,
+        "p99" : 30475,
+        "max" : 30475,
+        "kinds" : {
+          "timeout" : 18
+        }
+      }
+    },
+    "esEventsAppended" : 295,
+    "esAppendsPerSecond" : 4.916666666666667,
+    "ackedCommandsPerSecond" : 3.7666666666666666,
+    "commandsByOutcome" : {
+      "ACK" : 226,
+      "ERROR" : 94
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 4888,
+    "at" : "2026-09-29T07:52:12.040279700Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 5056,
+    "at" : "2026-09-29T07:52:12.208188Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @20.0/min for 60 s"
+  }, {
+    "tMs" : 110465,
+    "at" : "2026-09-29T07:53:57.617257100Z",
+    "event" : "load done: 320 requests"
+  }, {
+    "tMs" : 110518,
+    "at" : "2026-09-29T07:53:57.670256300Z",
+    "event" : "invariants: converging up to 90 s"
+  }, {
+    "tMs" : 224753,
+    "at" : "2026-09-29T07:55:51.905559600Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 225957,
+    "at" : "2026-09-29T07:55:53.109625600Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ ]
+  }
+}

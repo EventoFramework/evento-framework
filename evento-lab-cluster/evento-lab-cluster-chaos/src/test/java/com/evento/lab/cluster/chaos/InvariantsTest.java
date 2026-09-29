@@ -204,12 +204,19 @@ class InvariantsTest {
         var catalog = new Rows.Catalog(
                 Map.of("cluster-command", "cell-core-eu-cluster-command"),
                 Map.of("CreateOrderCommand", Set.of("cluster-command")),
-                Map.of("query-europa_RegionOrderProjector_1_EUROPA", "i1"));
+                Map.of("query-europa_EuropaOrderProjector_1_EUROPA", "i1"));
         var r = Invariants.i7Catalog(catalog, List.of("cluster-command", "query-europa"),
                 List.of("CreateOrderCommand", "FindGlobalOrderQuery"),
-                List.of("query-europa_RegionOrderProjector_", "cluster-saga_PaymentSaga_"));
+                List.of("query-europa_EuropaOrderProjector_", "cluster-saga_PaymentSaga_"));
         assertThat(r.metrics()).containsEntry("missingBundles", 1).containsEntry("missingHandlers", 1)
-                .containsEntry("missingConsumers", 1);
+                .containsEntry("missingConsumers", 1).containsEntry("bundlesWithoutHandlers", 0);
+        // N1: a bundle whose component rows were taken over by a sibling bundle has no handlers
+        var shared = new Rows.Catalog(
+                Map.of("query-europa", "a", "query-africa", "b"),
+                Map.of("OrderCreatedEvent", Set.of("query-africa")),
+                Map.of());
+        assertThat(Invariants.i7Catalog(shared, List.of("query-europa", "query-africa"), List.of(), List.of())
+                .metrics()).containsEntry("bundlesWithoutHandlers", 1);
         assertThat(Invariants.i7Catalog(null, List.of(), List.of(), List.of()).status())
                 .isEqualTo(InvariantResult.Status.ERROR);
     }
@@ -217,7 +224,7 @@ class InvariantsTest {
     @Test
     void expectedConsumerPrefixesCoverEveryRegionWithItsUnderscore() {
         assertThat(Invariants.expectedConsumerPrefixes())
-                .contains("query-sud_america_RegionOrderProjector_", "query-australia_nz_RegionOrderProjector_")
+                .contains("query-sud_america_SudAmericaOrderProjector_", "query-australia_nz_AustraliaNzOrderProjector_")
                 .hasSize(LabConfig.REGIONS.size() + 3);
     }
 

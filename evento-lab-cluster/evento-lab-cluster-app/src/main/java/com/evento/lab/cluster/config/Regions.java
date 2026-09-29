@@ -68,6 +68,23 @@ public final class Regions {
         return "query-" + lower(region);
     }
 
+    /**
+     * Simple class name of a region's projector: {@code SUD_AMERICA -> SudAmericaOrderProjector}.
+     * One class per region because the server keys components by simple name (N1).
+     */
+    public static String projectorName(String region) {
+        var sb = new StringBuilder();
+        for (var part : lower(region).split("_")) {
+            sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        }
+        return sb.append("OrderProjector").toString();
+    }
+
+    /** Package holding only that region's projector: {@code ...bundle.region.sud_america}. */
+    public static String projectorPackage(String region) {
+        return "com.evento.lab.cluster.bundle.region." + lower(region);
+    }
+
     /** Read-model table of a region: {@code order_view_sud_america}. */
     public static String regionalTable(String region) {
         return safeTable("order_view_" + lower(region));
