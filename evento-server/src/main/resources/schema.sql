@@ -89,7 +89,9 @@ create table if not exists core__bundle_instance
         primary key,
     bundle_id          varchar(255) not null,
     server_instance_id varchar(255) not null,
-    updated_at         timestamp    null
+    -- timestamptz and written from the database clock: servers in different regions
+    -- (JVM time zones, skewed clocks) compare these for liveness, see BundlePresence.
+    updated_at         timestamptz  not null default now()
 );
 
 create index if not exists core__bundle_instance_bundle_id_index
