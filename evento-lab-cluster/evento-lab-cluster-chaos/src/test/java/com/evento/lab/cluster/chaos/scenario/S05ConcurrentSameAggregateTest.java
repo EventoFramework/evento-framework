@@ -81,6 +81,7 @@ class S05ConcurrentSameAggregateTest extends AbstractScenario {
                     }
                 }
             });
+            var contentionStart = java.time.Instant.now();
             report.event("contention start: " + regions + " x " + workersPerRegion + " workers x " + perWorker);
             try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {
                 for (var region : regions) {
@@ -118,6 +119,18 @@ class S05ConcurrentSameAggregateTest extends AbstractScenario {
                     "p99 ~ 30 s stalls (one pinned lock connection per server, G3), possibly a cross-server deadlock",
                     all.toString(), all.p99() < 5000, all.p99() >= 25_000 || all.kinds().containsKey("timeout"),
                     null);
+
+            var serverMarkers = markers(List.of("evento-eu", "evento-apac"), contentionStart, MARKERS);
+            var deadlocks = total(serverMarkers, "deadlock detected");
+            report.observe("cross-server advisory-lock deadlock",
+                    "no deadlock: each lock waiter holds nothing else",
+                    "all threads of a server share one pinned lock session (G3), so two servers can form a "
+                            + "wait cycle on unrelated keys",
+                    deadlocks + " 'deadlock detected' on the servers; failed commands "
+                            + errorsByMessage(records),
+                    deadlocks == 0, deadlocks > 0,
+                    "Postgres breaks the cycle after deadlock_timeout (1 s) by failing one pg_advisory_lock: "
+                            + "the command fails fast instead of stalling.");
 
             var results = checkInvariants(records, envSeconds("S05_CONVERGENCE_S", 120));
             var i3 = find(results, "I3");
