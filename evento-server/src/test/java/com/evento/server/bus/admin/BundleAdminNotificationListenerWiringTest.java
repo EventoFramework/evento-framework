@@ -77,7 +77,7 @@ class BundleAdminNotificationListenerWiringTest {
         // a context-wiring assertion (nothing is invoked on them).
         @Bean
         PerformanceStoreService performanceStoreService() {
-            return new PerformanceStoreService(null, null, null, 1.0, null, null, null);
+            return new PerformanceStoreService(null, null, null, 1.0, null, null, null, null);
         }
 
         @Bean

@@ -60,7 +60,7 @@ public class PerformanceStoreService extends PerformanceService {
             HandlerRepository handlerRepository,
             @Value("${evento.performance.capture.rate:1}") double performanceCaptureRate,
             PayloadRepository payloadRepository, JdbcTemplate jdbcTemplate,
-            DataSource dataSource) {
+            DataSource dataSource, PgDistributedLock distributedLock) {
         super(performanceCaptureRate);
         this.handlerServiceTimePerformanceRepository = handlerServiceTimePerformanceRepository;
         this.handlerInvocationCountPerformanceRepository = handlerInvocationCountPerformanceRepository;
@@ -69,7 +69,9 @@ public class PerformanceStoreService extends PerformanceService {
         this.payloadRepository = payloadRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.dataSource = dataSource;
-        this.distributedLock = new PgDistributedLock(dataSource);
+        // The shared, pool-backed lock (DistributedLockConfiguration); null = JVM-local only
+        // (embedded brokers and unit tests).
+        this.distributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
     }
 
     @PreDestroy

@@ -58,7 +58,7 @@ class AutoDiscoveryServiceLifecycleTest {
         handlerService = mock(HandlerService.class);
         bundleService = mock(BundleService.class);
         consumerService = mock(ConsumerService.class);
-        // Null DataSource → PgDistributedLock stays JVM-local (embedded/test mode).
+        // Null lock → a JVM-local PgDistributedLock (embedded/test mode).
         new AutoDiscoveryService(busFacade, bundleRepository, handlerService,
                 mock(PayloadRepository.class), bundleService,
                 mock(ComponentRepository.class), consumerService, null);
