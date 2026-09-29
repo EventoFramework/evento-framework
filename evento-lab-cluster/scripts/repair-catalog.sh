@@ -32,23 +32,27 @@ set -euo pipefail
 check_only=false
 [ "${1:-}" = "--check" ] && check_only=true
 
-# container -> "<consumer rows its instances must own> <bundle ids that must own handler rows>"
+# container -> "<consumer rows its instance must own> [bundle ids that must own handler rows]".
+# One bundle per JVM, instance id = container name; one consumer row per consumer engine
+# (component x context of EVENTO_CONTEXTS). Gateways own no handler and no consumer.
 declare -A expected=(
-  [cell-core-eu]="1 cluster-command cluster-query-global"
-  [cell-core-am]="1 cluster-command cluster-query-global"
-  [cell-core-apac]="1 cluster-command cluster-query-global"
-  [saga-eu]="2 cluster-saga"
-  [saga-apac]="2 cluster-saga"
-  [region-europa]="1 query-europa"
-  [region-africa]="1 query-africa"
-  [region-america]="1 query-america"
-  [region-sud-america]="1 query-sud_america"
-  [region-cina]="1 query-cina"
-  [region-india]="1 query-india"
-  [region-australia-nz]="1 query-australia_nz"
+  [order-command-eu]="0 order-command"
+  [order-command-am]="0 order-command"
+  [order-command-apac]="0 order-command"
+  [order-query-eu]="2 order-query"
+  [order-query-am]="2 order-query"
+  [order-query-cina]="1 order-query"
+  [order-query-apac]="2 order-query"
+  [order-query-global-eu]="1 order-query"
+  [order-query-global-apac]="1 order-query"
+  [order-query-wildcard]="1 order-query"
+  [order-saga-eu]="2"
+  [order-saga-am]="2"
+  [order-saga-apac]="3"
+  [order-observer]="1"
 )
-if [ "$(docker inspect -f '{{.State.Status}}' cell-core-eu-b 2>/dev/null || true)" = "running" ]; then
-  expected[cell-core-eu-b]="1 cluster-command cluster-query-global"
+if [ "$(docker inspect -f '{{.State.Status}}' order-command-eu-b 2>/dev/null || true)" = "running" ]; then
+  expected[order-command-eu-b]="0 order-command"
 fi
 
 # The ES primary: es-pg-eu unless a scenario promoted another node.
@@ -68,12 +72,10 @@ sql() { docker exec "$pg" psql -U postgres -d evento -tAc "$1"; }
 missing_containers() {
   local c spec want bundles rows b h problems
   for c in "${!expected[@]}"; do
-    spec="${expected[$c]}"; want="${spec%% *}"; bundles="${spec#* }"
+    spec="${expected[$c]}"; want="${spec%% *}"; bundles=""
+    [ "$spec" != "$want" ] && bundles="${spec#* }"
     problems=""
-    # Instance ids are '<container>-<bundleId>' (LabSettings.bundleInstanceId); '-b-' keeps
-    # cell-core-eu from counting cell-core-eu-b's rows, '-helper-' a helper's.
-    rows="$(sql "select count(*) from core__consumer where instance_id like '${c}-%'
-                 and instance_id not like '${c}-b-%' and instance_id not like '${c}-helper-%'")"
+    rows="$(sql "select count(*) from core__consumer where instance_id = '${c}'")"
     [ "${rows:-0}" -lt "$want" ] && problems+="consumers=${rows:-0}/$want,"
     for b in $bundles; do
       h="$(sql "select count(*) from core__handler h join core__component c
@@ -99,7 +101,7 @@ repair() {
   local c="$1" helper="$1-helper"
   docker rm -f "$helper" >/dev/null 2>&1 || true
   log "event=lab_catalog_repair container=$c step=helper_start"
-  compose run -d --no-deps --name "$helper" -e "EVENTO_BUNDLE_INSTANCE_ID=$helper" "$c" >/dev/null
+  compose run -d --no-deps --name "$helper" -e "EVENTO_INSTANCE_ID=$helper" "$c" >/dev/null
   wait_healthy "$helper" || true
   sleep 3   # discovery runs asynchronously on the server after the handshake
   log "event=lab_catalog_repair container=$c step=restart"

@@ -2,7 +2,7 @@
 
 | Id | What | Severity | Lab status |
 |---|---|---|---|
-| N1 | `core__component` keyed by simple class name across bundles | High (catalog) | worked around in the app |
+| N1 | `core__component` keyed by simple class name across bundles | High (catalog) | workaround removed: regions are contexts of one class (lab/bundles) |
 | G8 | discovery / consumer-registration insert race | High (catalog) | worked around by `repair-catalog.sh` |
 | G9 (+G3) | about 14 sequential WAN round trips per command from a remote cell | High (throughput) | recorded |
 | N2 | connection liveness probes on the command path, each one a WAN round trip | Medium | recorded |
@@ -18,7 +18,7 @@
 - **Evidence, handler rows:** in `before-attempt1`, 6 of the 7 query bundles had no `core__handler` rows.
 - **Evidence, consumer rows:** restarting only `region-africa` logged `[BundleService] Unregister called for bundleId=query-africa`. `BundleService.unregister` (`:48-88`) deletes the bundle's components and `deleteAllByComponentIn` their consumers. That wiped the `core__consumer` rows of all 7 regional bundles, and the repair check afterwards listed all 7 regions as missing.
 - **Impact:** a wrong catalog, admin UI and consumer administration, and one JVM restart erases unrelated bundles' entries cluster-wide. Routing is not affected, because it is in-memory.
-- **Lab workaround:** one projector class per region.
+- **Lab workaround (removed):** one projector class per region. Since the bundle split the lab no longer works around it: every region is a context of the one `OrderProjector` of bundle `order-query`, and all order-query deployments are one bundle, so no two bundles share a component class. The per-region classes and `RegionOrderProjection` are deleted.
 - **Fix proposal:** key components by `(bundle_id, component_name)`, and have unregister delete only rows of that bundle.
 
 ## G8: discovery and consumer registration race inside one bundle's first registration
@@ -117,3 +117,24 @@
   | toxiproxy | about 27–33 of 256 MiB |
 
 - **Stability:** `RestartCount=0` for every container.
+
+## Bundle split (lab/bundles): local end-to-end smoke, framework at `e7b823fe`
+One evento-server jar, one Postgres, ten bundle JVMs on the host over real TCP (not the compose stack).
+- **Contexts:** `order-query-eu` with `EVENTO_CONTEXTS=EUROPA,AFRICA` ran two engines
+  (`order-query_OrderProjector_1_EUROPA` / `_AFRICA`); the `*` deployment filled `order_view_global` with
+  every region and ran no `CatalogProjector` engine; no row with context `ALL` in any `order_view`.
+- **Global lane:** two `ALL` replicas sharing the `consumers` database left one checkpoint
+  (`order-query_CatalogProjector_1_ALL`); every price reached both regional databases with
+  `applied_events = 1`. With one target database refusing connections the head event reached the healthy
+  target, the checkpoint stayed put, and after healing both converged with `applied_events = 1` (the healthy
+  target counted one refused replay in `stale_skips`).
+- **Lane hop:** after the first holder had processed a few events, the other replica took the next one
+  without any fault: the JDBC consumer lock is taken per fetch cycle, so the holder of the single lane is not
+  sticky (N4). One lane, one checkpoint, but no locality of the holder.
+- **G8 again:** on the first registration the server logged `core__component_pkey` / `core__payload_pkey`
+  duplicates and `Consumer registration failed for bundle: order-saga`, so the saga's `core__consumer` rows
+  were missing; routing and consumption were unaffected.
+- **Locality before G12:** with every bundle on one server and `RANDOM` pick, a `FindOrderQuery` from the EU
+  gateway was sometimes answered by the AM deployment (404: the order is in another cell's database). In the
+  compose topology each cell has its own server (islands), so queries stay in-cell; after G12 the
+  `locality-preferred` pick keeps them in-cell on a meshed cluster too.

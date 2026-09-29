@@ -21,8 +21,9 @@ import java.util.concurrent.Executors;
  *
  * <p>Each iteration: stop the servers, drop and recreate the {@code public}
  * schema of the ES primary, start all three in parallel (no health chain),
- * wait for healthy-or-dead. Afterwards the app-DB consumer state is reset
- * (the event store restarted from sequence 1) and the app JVMs restarted.
+ * wait for healthy-or-dead. Afterwards the consumer state and read models of
+ * every cell database and of the {@code consumers} database are reset (the
+ * event store restarted from sequence 1) and the bundle JVMs restarted.
  *
  * <p>Knobs: {@code S10_ITERATIONS} (3; the assessment suggests 10).
  */
@@ -32,10 +33,10 @@ class S10ColdStartTest extends AbstractScenario {
     private static final List<String> SCHEMA_RACE = List.of("pg_type_typname_nsp_index", "tuple concurrently updated",
             "duplicate key", "ScriptStatementFailedException", "APPLICATION FAILED TO START", "deadlock detected");
 
-    private static final List<String> APP_TABLES = List.of("evento_v2_consumer_state", "evento_v2_dedupe",
-            "evento_v2_saga_state", "evento_v2_dead_event", "observed_events", "payments", "order_view_global",
-            "order_view_europa", "order_view_africa", "order_view_america", "order_view_sud_america",
-            "order_view_cina", "order_view_india", "order_view_australia_nz");
+    private static final List<String> STATE_TABLES = List.of("evento_v2_consumer_state", "evento_v2_dedupe",
+            "evento_v2_saga_state", "evento_v2_dead_event");
+    private static final List<String> APP_TABLES = List.of("observed_events", "payments", "order_view",
+            "order_view_global", "catalog_price");
 
     @Override
     protected String id() {
@@ -119,16 +120,18 @@ class S10ColdStartTest extends AbstractScenario {
                 report.harnessError("stop " + s + ": " + e);
             }
         });
-        try (var c = db.app(); var st = c.createStatement()) {
-            for (var t : APP_TABLES) {
-                try {
-                    st.execute("TRUNCATE " + t);
-                } catch (Exception e) {
-                    report.note("truncate " + t + ": " + e.getMessage());
-                }
+        for (var cell : LabConfig.CELLS) {
+            try (var c = db.app(cell)) {
+                truncate(c, cell, STATE_TABLES);
+                truncate(c, cell, APP_TABLES);
+            } catch (Exception e) {
+                report.harnessError("app db " + cell + " reset: " + e);
             }
+        }
+        try (var c = db.consumers()) {
+            truncate(c, "consumers", STATE_TABLES);
         } catch (Exception e) {
-            report.harnessError("app db reset: " + e);
+            report.harnessError("consumers db reset: " + e);
         }
         parallel(LabConfig.appServices(), s -> {
             try {
@@ -137,6 +140,18 @@ class S10ColdStartTest extends AbstractScenario {
                 report.harnessError("start " + s + ": " + e);
             }
         });
+    }
+
+    private void truncate(java.sql.Connection c, String db, List<String> tables) throws java.sql.SQLException {
+        try (var st = c.createStatement()) {
+            for (var t : tables) {
+                try {
+                    st.execute("TRUNCATE " + t);
+                } catch (Exception e) {
+                    report.note("truncate " + db + "." + t + ": " + e.getMessage());
+                }
+            }
+        }
     }
 
     private static void parallel(List<String> services, java.util.function.Consumer<String> action) {

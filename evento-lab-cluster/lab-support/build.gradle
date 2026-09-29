@@ -1,0 +1,55 @@
+plugins {
+    id 'java-library'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.evento'
+version = "${eventoVersion}"
+
+java { toolchain { languageVersion = javaLanguageVersion } }
+
+repositories { mavenCentral(); mavenLocal() }
+
+dependencyManagement {
+    imports { mavenBom 'org.springframework.boot:spring-boot-dependencies:4.1.0' }
+    // Flyway (pulled in by the JDBC consumer state store) needs
+    // jackson-annotations >= 2.20; the Boot BOM would pin an older one.
+    // Same override as evento-lab.
+    dependencies {
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+    }
+}
+
+// What every lab bundle shares and nothing else: the deployment contract
+// (environment parsing), the JDBC consumer-engine wiring, the lab schema and
+// its stores, the reflective shim over framework features that only exist
+// after the cluster fixes, and the health / whoami endpoints. A bundle module
+// adds its components and one BundleDefinition bean.
+dependencies {
+    // Project dependencies on purpose: rebuilding the images picks up the
+    // framework fixes (or, with FRAMEWORK_REF, the framework of another ref).
+    api project(':evento-lab-cluster:lab-api')
+    api project(':evento-bundle')
+    api project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')
+
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-actuator'
+    api "com.zaxxer:HikariCP:${hikariVersion}"
+    runtimeOnly "org.postgresql:postgresql:${postgresJdbcVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+    testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+    testRuntimeOnly "org.postgresql:postgresql:${postgresJdbcVersion}"
+}
+
+test {
+    useJUnitPlatform()
+    // CatalogStoreIT runs on a real Postgres (Testcontainers; skipped without
+    // Docker). Docker Engine 29 rejects the API version Testcontainers 1.21's
+    // docker-java negotiates by default (HTTP 400 on /info); pin a supported one.
+    systemProperty 'api.version', System.getenv('DOCKER_API_VERSION') ?: '1.44'
+}

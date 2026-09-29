@@ -15,21 +15,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * S12: what the EUROPA-only projector pays for traffic it does not consume.
- * The other six regions write at a high rate; {@code region-europa} is run
- * once with the default checkpoint mode and once with
- * {@code CONSUMER_CHECKPOINT_MODE=WATERMARK}. Before G10 the watermark's
+ * The other six regions write at a high rate; {@code order-query-eu} is
+ * redeployed with {@code EVENTO_CONTEXTS=EUROPA} (configuration only: AFRICA
+ * becomes foreign traffic for it) once with the default checkpoint mode and
+ * once with {@code EVENTO_CHECKPOINT_MODE=WATERMARK}. Before G10 the watermark's
  * {@code recordAbsent} walks every sequence number between the cursor and
  * the top of each batch (6/7 of global volume for a one-region consumer), so
  * its CPU cost per global event grows with the other regions' traffic.
  *
- * <p>Measured per phase from the JVM itself ({@code /lab/stats} through the
- * LB): process CPU time and GC per 1000 events appended cluster-wide, and the
- * heap trend.
+ * <p>Measured per phase from the JVM itself ({@code /lab/stats}, read inside
+ * the container): process CPU time and GC per 1000 events appended
+ * cluster-wide, and the heap trend.
  *
  * <p>Knobs: {@code S12_RATE} (orders/min/region, 120), {@code S12_PHASE_S} (60).
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S12WatermarkCostTest extends AbstractScenario {
+
+    private static final String SERVICE = LabConfig.queryService("EUROPA");
 
     private static final List<String> OTHERS = List.of("AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA",
             "AUSTRALIA_NZ");
@@ -53,18 +56,18 @@ class S12WatermarkCostTest extends AbstractScenario {
     void watermarkCost() throws Exception {
         scenario(() -> {
             onCleanup(() -> {
-                cluster.recreateDefault("region-europa");
-                cluster.waitReady("region-europa", Duration.ofSeconds(300));
+                cluster.recreateDefault(SERVICE);
+                cluster.waitReady(SERVICE, Duration.ofSeconds(300));
             });
             var phases = new LinkedHashMap<String, Map<String, Object>>();
             for (var mode : List.of("DEFAULT", "WATERMARK")) {
-                cluster.recreateWithEnv("region-europa", Map.of("CONSUMER_CHECKPOINT_MODE", mode));
-                var ready = cluster.waitReady("region-europa", Duration.ofSeconds(300));
-                var who = gateway.getBody("EUROPA", "/whoami");
-                report.event("region-europa in " + mode + " ready=" + ready + " whoami=" + who);
+                cluster.recreateWithEnv(SERVICE, Map.of("EVENTO_CHECKPOINT_MODE", mode, "EVENTO_CONTEXTS", "EUROPA"));
+                var ready = cluster.waitReady(SERVICE, Duration.ofSeconds(300));
+                var who = cluster.httpGetInside(SERVICE, "/whoami");
+                report.event(SERVICE + " (EUROPA only) in " + mode + " ready=" + ready + " whoami=" + who);
                 if (who != null && !who.contains("\"checkpointMode\":\"" + mode + "\"")
                         && !who.contains("\"checkpointMode\" : \"" + mode + "\"")) {
-                    report.note("region-europa did not report checkpointMode=" + mode + ": " + who);
+                    report.note(SERVICE + " did not report checkpointMode=" + mode + ": " + who);
                 }
                 Cluster.sleep(Duration.ofSeconds(10));
                 phases.put(mode, measure(mode));
@@ -90,7 +93,7 @@ class S12WatermarkCostTest extends AbstractScenario {
         var stop = new AtomicBoolean(false);
         var sampler = Thread.ofVirtual().start(() -> {
             while (!stop.get()) {
-                var body = gateway.getBody("EUROPA", "/lab/stats");
+                var body = cluster.httpGetInside(SERVICE, "/lab/stats");
                 var row = new LinkedHashMap<String, Object>();
                 row.put("t", System.currentTimeMillis());
                 if (body != null) {
@@ -99,7 +102,7 @@ class S12WatermarkCostTest extends AbstractScenario {
                     row.put("heap", n.path("heapUsedBytes").asLong(-1));
                     row.put("gcMillis", n.path("gcMillis").asLong(-1));
                 }
-                row.put("dockerStats", cluster.stats("region-europa"));
+                row.put("dockerStats", cluster.stats(SERVICE));
                 samples.add(row);
                 try {
                     Thread.sleep(5000);
@@ -142,7 +145,7 @@ class S12WatermarkCostTest extends AbstractScenario {
             out.put("heapMax", withCpu.stream().mapToLong(s -> (Long) s.get("heap")).max().orElse(-1));
         } else {
             out.put("cpuMsPer1kEvents", null);
-            report.note(mode + ": /lab/stats not reachable through the LB, only docker stats recorded");
+            report.note(mode + ": /lab/stats not readable in " + SERVICE + ", only docker stats recorded");
         }
         report.attach("samples " + mode, samples.stream().map(Object::toString).toList());
         return out;

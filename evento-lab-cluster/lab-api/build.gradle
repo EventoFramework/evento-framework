@@ -1,0 +1,23 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.evento'
+version = "${eventoVersion}"
+
+java { toolchain { languageVersion = javaLanguageVersion } }
+
+repositories { mavenCentral(); mavenLocal() }
+
+// The lab's published language: commands, events, queries, views, and the
+// geography (Regions) and context vocabulary (Contexts) every bundle shares.
+// It depends on evento-common only, like any Evento API module.
+dependencies {
+    api project(':evento-common')
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+}
+
+test { useJUnitPlatform() }

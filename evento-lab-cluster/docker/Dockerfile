@@ -1,4 +1,4 @@
-# Generic runtime image for the lab JVMs (evento-server and evento-lab-cluster-app).
+# Generic runtime image for the lab JVMs (evento-server and every order-* bundle).
 #
 # The build context is a staging directory prepared by scripts/build-images.sh that holds
 # exactly two files: the boot jar (explicit name, never a glob -- see L1 in

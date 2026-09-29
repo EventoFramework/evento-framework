@@ -96,10 +96,21 @@ class HarnessSupportTest {
     }
 
     @Test
-    void labConfigMapsRegionsToServicesAndTables() {
-        assertThat(LabConfig.regionService("SUD_AMERICA")).isEqualTo("region-sud-america");
-        assertThat(LabConfig.regionTable("AUSTRALIA_NZ")).isEqualTo("order_view_australia_nz");
+    void labConfigMapsRegionsToDeployments() {
+        assertThat(LabConfig.regionService("SUD_AMERICA")).isEqualTo("gateway-sud-america");
+        assertThat(LabConfig.queryService("AUSTRALIA_NZ")).isEqualTo("order-query-apac");
+        assertThat(LabConfig.queryService("CINA")).isEqualTo("order-query-cina");
+        assertThat(LabConfig.appPg("APAC")).isEqualTo("app-pg-apac");
+        assertThat(LabConfig.cellOfContext("SUDXAMERICA")).isNull();
+        assertThat(LabConfig.cellOfContext("ALL")).isNull();
         assertThat(LabConfig.regionsOfCell("APAC")).containsExactly("CINA", "INDIA", "AUSTRALIA_NZ");
-        assertThat(LabConfig.appServices()).hasSize(12).contains("region-australia-nz", "saga-apac");
+        assertThat(LabConfig.cellJvms("APAC")).containsExactly("order-command-apac", "order-query-cina",
+                "order-query-apac", "order-query-global-apac", "order-saga-apac", "gateway-cina", "gateway-india",
+                "gateway-australia-nz");
+        assertThat(LabConfig.appServices()).hasSize(21).doesNotHaveDuplicates()
+                .contains("order-query-wildcard", "order-observer", "order-query-global-eu");
+        // every order-query deployment consuming a region runs in that region's cell
+        LabConfig.REGIONS.forEach(r -> assertThat(LabConfig.cellJvms(LabConfig.CELL_OF.get(r)))
+                .contains(LabConfig.queryService(r), LabConfig.regionService(r)));
     }
 }

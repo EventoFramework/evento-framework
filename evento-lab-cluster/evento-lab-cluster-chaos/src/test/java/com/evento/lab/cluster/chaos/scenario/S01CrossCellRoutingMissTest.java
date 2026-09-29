@@ -13,9 +13,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * S1: the AM cell keeps its gateways but loses its handlers
- * ({@code cell-core-am} stopped). Handlers for the same commands are live in
- * EU and APAC, yet evento-am has no route to them (G1: servers are islands).
+ * S1: the AM cell keeps its gateways and read side but loses its command
+ * handlers ({@code order-command-am} stopped). Handlers for the same commands
+ * are live in EU and APAC, yet evento-am has no route to them (G1: servers are
+ * islands).
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S01CrossCellRoutingMissTest extends AbstractScenario {
@@ -41,14 +42,14 @@ class S01CrossCellRoutingMissTest extends AbstractScenario {
             var probes = LabConfig.envInt("S01_PROBES", 5);
             var since = Instant.now();
             onCleanup(() -> {
-                cluster.ensureRunning("cell-core-am");
-                cluster.waitReady("cell-core-am", Duration.ofSeconds(300));
+                cluster.ensureRunning("order-command-am");
+                cluster.waitReady("order-command-am", Duration.ofSeconds(300));
                 var back = waitCommandsWork("AMERICA", Duration.ofSeconds(120));
                 report.metric("americaRecoveredAfterRestartSeconds", back == null ? null : back.toMillis() / 1000.0);
             });
 
-            cluster.stop("cell-core-am");
-            report.event("stopped cell-core-am");
+            cluster.stop("order-command-am");
+            report.event("stopped order-command-am");
             // give evento-am time to notice the bundle is gone
             Cluster.sleep(Duration.ofSeconds(LabConfig.envInt("S01_SETTLE_S", 10)));
 
@@ -78,7 +79,7 @@ class S01CrossCellRoutingMissTest extends AbstractScenario {
             report.observe("failure is immediate", "a routing miss fails fast (< 2 s), not after a timeout",
                     "max latency " + latency + " ms", latency < 2000);
 
-            markers(List.of("evento-am", "region-america"), since, MARKERS);
+            markers(List.of("evento-am", LabConfig.regionService("AMERICA")), since, MARKERS);
         });
     }
 }

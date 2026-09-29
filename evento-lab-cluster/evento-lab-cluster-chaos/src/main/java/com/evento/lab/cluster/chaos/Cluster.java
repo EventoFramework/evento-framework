@@ -352,6 +352,24 @@ public class Cluster {
         return must(psql(pgService, db, sql), "psql on " + pgService);
     }
 
+    /**
+     * GET {@code path} on port 8080 of a bundle JVM from inside its container
+     * (bash {@code /dev/tcp}: the JRE image has no curl), for JVMs that are not
+     * behind the lb (order-query, order-saga, ...). Returns the body, or null.
+     */
+    public String httpGetInside(String service, String path) {
+        var script = "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET " + path.replace("'", "")
+                + " HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3";
+        var e = docker(Duration.ofSeconds(20), "exec", service, "bash", "-c", script);
+        if (!e.ok()) return null;
+        var out = e.out();
+        var head = out.indexOf("\r\n\r\n");
+        if (!out.startsWith("HTTP/1.") || !out.substring(0, Math.max(0, out.indexOf('\n'))).contains(" 200")) {
+            return null;
+        }
+        return head < 0 ? out : out.substring(head + 4);
+    }
+
     /** {@code cpu%|mem usage} as reported by {@code docker stats}. */
     public String stats(String service) {
         var e = docker(Duration.ofSeconds(30), "stats", "--no-stream", "--format", "{{.CPUPerc}}|{{.MemUsage}}", service);

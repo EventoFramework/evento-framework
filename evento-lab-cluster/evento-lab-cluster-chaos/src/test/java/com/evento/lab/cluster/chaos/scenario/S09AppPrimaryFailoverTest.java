@@ -16,9 +16,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * S9: kill the app-data primary (consumer state, read models, side effects)
- * under load and promote {@code app-pg-am}. Consumer locks vanish, another
- * replica takes the lane. Checkpoints must never go backwards (G11); replays
+ * S9: kill the EU cell's app-data primary (consumer state, read models, side
+ * effects of every EU deployment) under load and promote its local replica
+ * {@code app-pg-eu-r} (asynchronous: the last commits may be lost, together
+ * with the checkpoints that covered them). Consumer locks vanish and the lanes
+ * resume on the promoted node; the other cells' databases are untouched. Checkpoints must never go backwards (G11); replays
  * are allowed and must be absorbed by the idempotent projections
  * ({@code stale_skips} counts them).
  *
@@ -46,7 +48,7 @@ class S09AppPrimaryFailoverTest extends AbstractScenario {
     @Test
     void appPrimaryFailover() throws Exception {
         scenario(() -> {
-            var target = System.getenv().getOrDefault("S09_PROMOTE", "app-pg-am");
+            var target = System.getenv().getOrDefault("S09_PROMOTE", "app-pg-eu-r");
             report.param("promoted", target);
             onCleanup(() -> cluster.recreateStack());
 
@@ -57,7 +59,7 @@ class S09AppPrimaryFailoverTest extends AbstractScenario {
             var sampler = Thread.ofVirtual().start(() -> {
                 while (!stop.get()) {
                     try {
-                        series.add(db.checkpoints());
+                        series.add(db.checkpointsBestEffort());
                         times.add(Instant.now());
                     } catch (Exception ignored) {
                         // primary down / not promoted yet
@@ -140,7 +142,7 @@ class S09AppPrimaryFailoverTest extends AbstractScenario {
             }
             var i2 = find(results, "I2");
             report.observe("replays absorbed idempotently (I2)", i2.expected(), i2.observed(), i2.passed());
-            try (var c = db.app(); var st = c.createStatement(); var rs = st.executeQuery(
+            try (var c = db.globalView(); var st = c.createStatement(); var rs = st.executeQuery(
                     "SELECT coalesce(sum(stale_skips),0) FROM order_view_global WHERE order_id LIKE '"
                             + prefix.replace("'", "") + "%'")) {
                 rs.next();
@@ -148,7 +150,7 @@ class S09AppPrimaryFailoverTest extends AbstractScenario {
             } catch (Exception e) {
                 report.harnessError("stale_skips read: " + e);
             }
-            markers(List.of("cell-core-eu", "cell-core-am", "cell-core-apac", "saga-eu", "saga-apac"), since,
+            markers(LabConfig.cellJvms("EU"), since,
                     List.of("event=lock_release_failed", "PSQLException", "Connection refused", "OptimisticLock",
                             "evento_v2_consumer_state"));
         });
