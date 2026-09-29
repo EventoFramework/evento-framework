@@ -195,6 +195,15 @@ public final class BusLifecycle {
         transportServer.onConnection(this::acceptConnection);
     }
 
+    /**
+     * The cluster name announced in every {@code Welcome} ({@code evento.cluster.name}).
+     * Bundles configured with {@code expectedClusterName} refuse a broker that
+     * announces another name, or none. Call before {@link #start(int)}.
+     */
+    public void setClusterName(String clusterName) {
+        handshakeHandler.setClusterName(clusterName);
+    }
+
     public int start(int port) {
         int bound = transportServer.start(port);
         var scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {

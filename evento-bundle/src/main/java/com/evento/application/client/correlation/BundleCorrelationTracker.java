@@ -1,5 +1,6 @@
 package com.evento.application.client.correlation;
 
+import com.evento.transport.BrokerChangedException;
 import com.evento.transport.RequestTimeoutException;
 import com.evento.transport.ShutdownInProgressException;
 import com.evento.transport.message.Response;
@@ -25,13 +26,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Requests don't leak forever. {@link #shutdown} fails every still-pending
  * future with {@link ShutdownInProgressException} after the configured
  * deadline.
+ *
+ * <p>Each entry also remembers the broker ({@code serverInstanceId}) of the
+ * session it was sent on. A reply owed to this bundle is buffered by that
+ * broker and replayed only if the bundle reconnects to it; when the bundle
+ * instead lands on another broker, {@link #failSentOnOtherBroker} ends those
+ * entries at once with {@link BrokerChangedException} rather than letting each
+ * run out its full timeout.
  */
 public final class BundleCorrelationTracker {
 
     private static final Logger log = LoggerFactory.getLogger(BundleCorrelationTracker.class);
 
     private record Pending(String payloadType, long submittedAtMs, long timeoutMs,
-                           CompletableFuture<Response> future) {
+                           String serverInstanceId, CompletableFuture<Response> future) {
         boolean isExpired(long nowMs) {
             return timeoutMs > 0 && (nowMs - submittedAtMs) > timeoutMs;
         }
@@ -61,13 +69,23 @@ public final class BundleCorrelationTracker {
      *                    expiry log reports a count and nothing actionable.
      */
     public CompletableFuture<Response> track(UUID correlationId, String payloadType, Duration timeout) {
+        return track(correlationId, payloadType, timeout, null);
+    }
+
+    /**
+     * @param serverInstanceId the broker of the session the request is sent on;
+     *                         null when unknown, which exempts the entry from
+     *                         {@link #failSentOnOtherBroker}.
+     */
+    public CompletableFuture<Response> track(UUID correlationId, String payloadType, Duration timeout,
+                                             String serverInstanceId) {
         if (shutdownInitiated.get()) {
             return CompletableFuture.failedFuture(
                     new ShutdownInProgressException("bundle correlation tracker shutting down"));
         }
         var future = new CompletableFuture<Response>();
         var entry = new Pending(payloadType == null ? "unknown" : payloadType, System.currentTimeMillis(),
-                timeout == null ? 0L : timeout.toMillis(), future);
+                timeout == null ? 0L : timeout.toMillis(), serverInstanceId, future);
         var existing = pending.putIfAbsent(correlationId, entry);
         if (existing != null) {
             return CompletableFuture.failedFuture(
@@ -102,6 +120,44 @@ public final class BundleCorrelationTracker {
             }
         }
         return count;
+    }
+
+    /**
+     * The bundle has attached to broker {@code currentServerInstanceId}: fail
+     * every pending request that was sent through a <em>different</em> broker,
+     * since its reply is buffered there and can never reach this session.
+     * Requests sent through the same broker are left alone — that broker
+     * replays their replies on reconnect.
+     *
+     * <p>The failure is delivered like a timeout (a failure {@link Response}
+     * naming {@link BrokerChangedException}), because it means the same thing:
+     * the outcome is unknown, not negative.
+     *
+     * @return how many requests were failed
+     */
+    public int failSentOnOtherBroker(String currentServerInstanceId) {
+        if (currentServerInstanceId == null || pending.isEmpty()) return 0;
+        int failed = 0;
+        var byBroker = new java.util.TreeMap<String, Integer>();
+        for (var key : java.util.List.copyOf(pending.keySet())) {
+            var entry = pending.get(key);
+            if (entry == null || entry.serverInstanceId() == null
+                    || entry.serverInstanceId().equals(currentServerInstanceId)) continue;
+            if (!pending.remove(key, entry)) continue;
+            var err = new ResponseError(BrokerChangedException.class.getName(),
+                    "outcome indeterminate: sent via broker '" + entry.serverInstanceId()
+                            + "', bundle is now attached to '" + currentServerInstanceId
+                            + "' and the reply cannot follow it (the request may or may not have been applied)",
+                    null);
+            entry.future.complete(Response.failure(key, err));
+            byBroker.merge(entry.serverInstanceId(), 1, Integer::sum);
+            failed++;
+        }
+        if (failed > 0) {
+            log.warn("event=bundle_requests_failed_broker_changed count={} new_broker={} byOldBroker={}",
+                    failed, currentServerInstanceId, byBroker);
+        }
+        return failed;
     }
 
     public int pendingCount() {

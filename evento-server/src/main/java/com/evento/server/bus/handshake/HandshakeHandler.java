@@ -35,6 +35,14 @@ public final class HandshakeHandler {
     private final String serverInstanceId;
     private final Set<String> serverCapabilities;
     private final BiFunction<Hello, BundleVersionInfo, HandshakeOutcome> validator;
+    /**
+     * Announced in every {@link Welcome} so a bundle holding a list of broker
+     * endpoints can refuse a broker from another cluster. Settable after
+     * construction because the lifecycle that owns this handler is built by
+     * several call sites that know nothing of cluster naming; null or blank
+     * means "not announced".
+     */
+    private volatile String clusterName;
 
     public HandshakeHandler(String serverInstanceId,
                             Set<String> serverCapabilities,
@@ -42,6 +50,14 @@ public final class HandshakeHandler {
         this.serverInstanceId = serverInstanceId;
         this.serverCapabilities = Set.copyOf(serverCapabilities);
         this.validator = validator;
+    }
+
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName == null || clusterName.isBlank() ? null : clusterName;
+    }
+
+    public String clusterName() {
+        return clusterName;
     }
 
     /**
@@ -64,7 +80,7 @@ public final class HandshakeHandler {
         var accepted = (HandshakeOutcome.Accepted) verdict;
         var acceptedCaps = intersection(hello.capabilities(), serverCapabilities);
         var welcome = new Welcome(hello.correlationId(), HandshakeProtocol.PROTOCOL_VERSION,
-                serverInstanceId, acceptedCaps, System.currentTimeMillis());
+                serverInstanceId, acceptedCaps, System.currentTimeMillis(), clusterName);
         return transport.send(welcome)
                 .thenApply(v -> {
                     log.info("event=handshake_accepted bundle={} instance={} version={} caps={}",
