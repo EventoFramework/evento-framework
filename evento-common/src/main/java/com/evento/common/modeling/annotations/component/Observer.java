@@ -19,7 +19,7 @@ import java.lang.annotation.Target;
  *
  * <pre>
  * {@code
- * @Observer(version = 2, context = {Context.ALL})
+ * @Observer(version = 2)
  * public class DemoObserver {
  *
  *     private final DemoService demoService;

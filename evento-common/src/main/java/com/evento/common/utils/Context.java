@@ -1,31 +1,43 @@
 package com.evento.common.utils;
 
 /**
- * The Context class represents the available context options for certain functionalities within a software system.
- * The context options are represented as constant fields in the class.
+ * Well-known event context values.
+ *
+ * <p>A context is a plain string carried by every event ({@code Event#getContext}). A
+ * consumer (projector, saga, observer) reads the contexts configured for it with
+ * {@code EventoBundle.Builder.setComponentContexts}; each configured value is either an
+ * exact context name or a pattern in which {@code *} stands for any run of characters.
+ *
+ * <p><b>{@code "*"} versus {@code "ALL"}.</b> {@link #WILDCARD} ({@code "*"}) is the
+ * pattern that matches every context. A context literally named {@code "ALL"} is just a
+ * context like {@code "EUROPA"}: a consumer configured with {@code "ALL"} reads only the
+ * events published with context {@code "ALL"}. Applications that want a context for
+ * cross-region events (a global price list, say) can name it {@code "ALL"}, but must
+ * declare that name as a constant of their own and never use {@link #ALL} for it, which
+ * despite its name is the wildcard.
  */
 public class Context {
     /**
-     * Represents the default value for a certain functionality within a software system.
-     * <p>
-     * The DEFAULT constant is of type String and its value is "default".
-     * It is a public static final variable, which means it can be accessed from anywhere in the code.
-     * <p>
-     * Example usage:
-     * String value = DEFAULT;
-     *
-     * @see Context
+     * The context of an event whose publisher did not set one ({@code "default"}).
      */
     public static final String DEFAULT = "default";
+
     /**
-     * The ALL constant represents a wildcard value used in certain functionalities within a software system.
-     * It is of type String and its value is "*".
-     * The constant is defined as public, static, and final, which means it can be accessed from anywhere in the code and its value cannot be changed.
-     * <p>
-     * Example usage:
-     * String value = ALL;
-     *
-     * @see Context
+     * The pattern that matches every context: {@code "*"}. A consumer configured with it
+     * reads all events regardless of their context, and is what a consumer with no
+     * configured contexts reads.
      */
-    public static final String ALL = "*";
+    public static final String WILDCARD = "*";
+
+    /**
+     * The wildcard {@code "*"}, under its historical name.
+     *
+     * @deprecated This is <b>not</b> a context named {@code "ALL"}: it is {@link #WILDCARD},
+     * the pattern that matches every context. Configuring a consumer with it reads all
+     * events; publishing an event with it gives the event the literal context {@code "*"}.
+     * Use {@link #WILDCARD} for the pattern, and a constant of your own (for example
+     * {@code GLOBAL = "ALL"}) for a context literally named {@code "ALL"}.
+     */
+    @Deprecated(since = "2.5.0")
+    public static final String ALL = WILDCARD;
 }

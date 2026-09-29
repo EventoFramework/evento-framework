@@ -1,5 +1,6 @@
 package com.evento.server.es;
 
+import com.evento.common.utils.Context;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +30,16 @@ class EventStoreContextPatternTest {
         // The queries escape with '!' (independent of standard_conforming_strings), so a
         // backslash is an ordinary character.
         assertThat(EventStore.contextLikePattern("a\\b")).isEqualTo("a\\b");
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void aContextNamedAllIsLiteralAndOnlyTheStarIsTheWildcard() {
+        assertThat(EventStore.contextLikePattern("ALL")).isEqualTo("ALL");
+        assertThat(Context.WILDCARD).isEqualTo("*");
+        // The trap: the deprecated constant named ALL is the wildcard, not "ALL".
+        assertThat(Context.ALL).isEqualTo(Context.WILDCARD);
+        assertThat(EventStore.contextLikePattern(Context.WILDCARD)).isEqualTo("%");
     }
 
     @Test
