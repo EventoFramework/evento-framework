@@ -28,10 +28,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   *every* address of `EventoServerMessageBusConfiguration` — before, addresses 2..n were
   silently ignored and a bundle whose broker died stayed stranded next to two healthy ones.
   `ConnectionSupervisor` moves to the next endpoint after a session that fails before READY,
-  and restarts from endpoint 0 after a READY session drops (fail-back happens at the next
-  disconnect; there is no background probe). Backoff counts passes over the list, so the
+  and restarts from endpoint 0 after a READY session drops (and, since N16 below, also moves
+  back on its own once endpoint 0 is healthy again). Backoff counts passes over the list, so the
   second broker is tried after one base delay; `start()` fails only once every endpoint was
   tried. `event=handshake_complete` now logs `endpoint=` and `cluster=`.
+- **Fail-back to the preferred broker (N16).** A bundle that failed over used to stay on the
+  fallback broker until that session dropped, so after a server restart a whole cell kept
+  crossing the WAN, and callers and handlers of one cell could end up on different servers
+  (`no handler for`, G1). While READY on any endpoint but 0, `ConnectionSupervisor` now probes
+  endpoint 0 every `failbackProbeInterval` (5 s) with a TCP connect and a transport `Ping`, which
+  the broker's heartbeat handler answers below the message router: no `Hello`, so a probe never
+  registers the bundle, publishes `NodeJoined`, replays buffered replies or supersedes a session.
+  Once endpoint 0 has answered every probe for `failbackStabilityWindow` (30 s) plus a random
+  per-instance `failbackJitter` (up to 10 s) the bundle switches: `evento:disable` on the current
+  broker, new outbound requests refused with `SendFailedException` (definitely not sent), a
+  bounded drain (`failbackDrainTimeout`, 10 s) of inbound and outbound requests in flight, then
+  the session is closed and endpoint 0 dialled without backoff. Requests still pending after the
+  drain fail with `BrokerChangedException` at the new `Welcome`, as after a failover. A failed
+  probe restarts the window, so a flapping broker never gets the bundle back; a switch whose
+  handshake fails (e.g. `expectedClusterName`) lands on the next endpoint and doubles the next
+  window (up to 16x). Bundles that handle no requests (gateways) wait one extra window so that a
+  cell's handlers are back before its callers. Logged as `event=failback_started` /
+  `failback_drained` / `failback_completed` / `failback_failed`; counted by
+  `BundleClient.failbacksCompleted()` / `failbacksFailed()`. Configurable on
+  `BundleClientConfig` / `BundleClient.Builder` and on `EventoBundle.Builder`
+  (`setFailbackEnabled`, `setFailbackProbeInterval`, `setFailbackStabilityWindow`,
+  `setFailbackJitter`, `setFailbackDrainTimeout`); on by default with two or more endpoints,
+  `failbackEnabled(false)` restores the previous behaviour. No wire change. `BundleClientFailbackIT`
+  (two real brokers over TCP): fail-back after the window with a clean leave on the fallback,
+  no registration from probes, no fail-back from a flapping broker, in-flight requests completed
+  or failed with `BrokerChangedException`, identity refusal with back-off.
 - **`BrokerChangedException` (G4).** Each pending request remembers the broker it was sent
   through. When a new session's `Welcome` names a different `serverInstanceId`, those
   requests fail at once (a failure `Response` naming `BrokerChangedException`, rethrown as

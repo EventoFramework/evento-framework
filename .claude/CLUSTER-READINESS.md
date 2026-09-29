@@ -64,12 +64,13 @@ table does not list) is in
 [`evento-lab-cluster/results/COMPARISON.md`](../evento-lab-cluster/results/COMPARISON.md), §"Per
 gap". Where that table and this one disagree, the measured one wins: G10 is fixed in code but not
 measurable by the lab (CPES), G5 is worse in practice after G4 (S14: 8 keys stored twice), and
-failback after a G2 failover is missing (N16).
+failback after a G2 failover was missing (N16; implemented afterwards on `cluster/failback`, see
+the N16 row, pending a lab re-run of S03/S13).
 
 | Gap | Severity | Status after fixes | Evidence / what is left |
 |---|---|---|---|
 | G1 inter-server routing | Blocker | **Open** (DOC) | Cell architecture remains the workaround; no peer mesh |
-| G2 first address only, no failover | Blocker | **Fixed** | Ordered endpoint list; next endpoint after a failed session, back to the first at the next disconnect (no background probe). `BundleClientFailoverIT` |
+| G2 first address only, no failover | Blocker | **Fixed** | Ordered endpoint list; next endpoint after a failed session, back to the first at the next disconnect, and by fail-back once the first is healthy again (N16). `BundleClientFailoverIT`, `BundleClientFailbackIT` |
 | G3 lock pins one connection | Blocker | **Fixed** | Each held lock owns a connection from a dedicated pool (`evento.lock.pool.*`); polling waits bounded by `evento.lock.acquire.timeout.ms` or the caller's deadline; `LockLostException`. `PgDistributedLockIT`, `DistributedLockPoolPostgresIT` |
 | G4 in-flight requests on broker change | High | **Fixed** | `BrokerChangedException` when a new `Welcome` names another broker. `BundleCorrelationTrackerBrokerChangeTest`, `BundleClientFailoverIT` |
 | G5 no exactly-once across servers | High | **Open**, narrowed | N3 stops executing commands whose caller has given up; an append that outlives its deadline is still indeterminate. Idempotency key not implemented |
@@ -101,6 +102,7 @@ failback after a G2 failover is missing (N16).
 | N3 commands executed after the caller timed out | High | **Fixed** (up to the append) | Deadline = arrival + `Request.timeoutMillis`; drops at `queued`, `lock_wait`, `before_forward`, `before_append`; `RequestExpiredException`; `evento.server.requests.expired{stage}`. `CommandDeadlineIT` |
 | N4 global lane placed without locality | Medium | **Open** | Place the single global consumer in the primary's cell, or add lane affinity |
 | N5 `es-lock` unfair to remote cells | Medium | **Partly fixed** | G9 cuts the hold to one statement; remote cells still pay their RTT per append |
+| N16 no fail-back after a G2 failover | High | **Fixed** (not yet re-measured in the lab) | Bundle-side probe of endpoint 0 (TCP + transport `Ping`, never `Hello`: nothing registered on the probed broker), stability window 30 s + jitter ≤ 10 s (+ one window for bundles without handlers), graceful switch: `evento:disable`, outbound gate, bounded drain, then endpoint 0; leftovers get `BrokerChangedException`; failed switch doubles the next window. No wire change. `BundleClientFailbackIT`; S03/S13 now observe it. Residual: per-bundle, not per-cell, so a cell is briefly split (G1 `no handler for`); no fail-back behind a single-address VIP |
 
 **Contexts, `"*"` versus `"ALL"`.** `com.evento.common.utils.Context.ALL` is the wildcard `"*"`,
 not a context named `"ALL"`. It is now deprecated in favour of `Context.WILDCARD`. Applications that

@@ -209,6 +209,7 @@ Total limits about 8.9 GiB (36 services); 21 bundle JVMs.
 | `DATA_TARGETS` | `name=jdbc:...;name=jdbc:...` (a comma also separates entries when followed by `name=jdbc:`, so multi-host URLs keep theirs) |
 | `COMMAND_TIMEOUT_MS` | gateway command/query timeout (30000) |
 | `EVENTO_HEARTBEAT_READ_IDLE_S` | silent-partition detection (framework feature, G22) |
+| `EVENTO_FAILBACK_WINDOW_S` | seconds the first address must stay healthy before a failed-over bundle moves back (framework feature, N16; default 30) |
 
 ### Before and after the framework fixes
 

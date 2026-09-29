@@ -45,6 +45,7 @@ public final class InboundDispatcher {
     private final Executor businessExecutor;
     private final Function<Message, java.util.concurrent.CompletableFuture<Void>> sender;
     private final java.util.Set<String> dedupExemptPayloadTypes;
+    private final java.util.concurrent.atomic.AtomicInteger inFlight = new java.util.concurrent.atomic.AtomicInteger();
 
     public InboundDispatcher(BundleCorrelationTracker correlationTracker,
                               ProcessedRequestCache dedupCache,
@@ -97,7 +98,7 @@ public final class InboundDispatcher {
         if (dedupExemptPayloadTypes.contains(req.payloadType())) {
             // Idempotent request (query): run it directly, never touch the dedup
             // cache — so its response is not retained in memory after sending.
-            businessExecutor.execute(() -> trySend(computeResponse(req)));
+            runCounted(() -> trySend(computeResponse(req)));
             return;
         }
         var outcome = dedupCache.resolveOrClaim(req.correlationId());
@@ -110,11 +111,38 @@ public final class InboundDispatcher {
             case ProcessedRequestCache.Outcome.InFlight ignored ->
                     log.info("event=request_inflight_duplicate_dropped correlationId={}",
                             req.correlationId());
-            case ProcessedRequestCache.Outcome.Claimed ignored -> businessExecutor.execute(() -> {
+            case ProcessedRequestCache.Outcome.Claimed ignored -> runCounted(() -> {
                 var response = computeResponse(req);
                 dedupCache.recordResponse(req.correlationId(), response);
                 trySend(response);
             });
+        }
+    }
+
+    /**
+     * Inbound requests accepted but not yet answered: from dispatch until the
+     * reply has been handed to the transport. The fail-back switch waits for
+     * this to reach zero before it closes the session, because a reply sent
+     * after the close would reach the other broker, which has no route back to
+     * the caller.
+     */
+    public int inFlightRequests() {
+        return inFlight.get();
+    }
+
+    private void runCounted(Runnable task) {
+        inFlight.incrementAndGet();
+        try {
+            businessExecutor.execute(() -> {
+                try {
+                    task.run();
+                } finally {
+                    inFlight.decrementAndGet();
+                }
+            });
+        } catch (RuntimeException rejected) {
+            inFlight.decrementAndGet();
+            throw rejected;
         }
     }
 

@@ -72,4 +72,21 @@ class FrameworkFeaturesTest {
         assertThat(features.expectedClusterName(config, null)).isSameAs(config);
         assertThat(features.outcomes()).hasSize(4);
     }
+
+    @Test
+    void failbackIsAlwaysRecordedAndTheWindowAppliedWhenTheFrameworkHasIt() {
+        var features = new FrameworkFeatures();
+        var builder = EventoBundle.Builder.builder();
+
+        features.failback(builder, null);
+        var withDefault = features.outcomes().getFirst();
+        assertThat(withDefault.feature()).isEqualTo("failback");
+        assertThat(withDefault.value()).isEqualTo("default window");
+
+        features.failback(builder, Duration.ofSeconds(20));
+        var withWindow = features.outcomes().getFirst();
+        assertThat(features.outcomes()).hasSize(1);
+        assertThat(withWindow.available()).isEqualTo(withDefault.available());
+        assertThat(withWindow.value()).isEqualTo("PT20S");
+    }
 }
