@@ -19,6 +19,8 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.stereotype.Service;
@@ -86,24 +88,73 @@ public class EventStore implements BrokerEventStore {
     private static final String IDEMPOTENCY_CONFLICT =
             " ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING";
 
-    /** {@link #CPES_APPEND_SQL} for a keyed command: the same single statement, one more column. */
+    /**
+     * {@link #CPES_APPEND_SQL} for a keyed command: the same single statement, two more columns
+     * (the key and the command's type, its identity together with the aggregate id).
+     */
     static final String CPES_KEYED_APPEND_SQL =
             "WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) " +
                     "INSERT INTO es__events " +
-                    "(event_sequence_number, aggregate_id, event_message, event_name, context, idempotency_key) " +
-                    "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ?, ? FROM es_lock" +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, idempotency_key, " +
+                    "idempotency_command) " +
+                    "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ?, ?, ? FROM es_lock" +
                     IDEMPOTENCY_CONFLICT +
                     " RETURNING event_sequence_number";
 
-    private static final String APES_KEYED_APPEND_SQL =
+    static final String APES_KEYED_APPEND_SQL =
             "INSERT INTO es__events " +
-                    "(event_sequence_number, aggregate_id, event_message, event_name, context, idempotency_key) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)" + IDEMPOTENCY_CONFLICT;
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, idempotency_key, " +
+                    "idempotency_command) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)" + IDEMPOTENCY_CONFLICT;
 
-    /** How long a "no idempotency index" answer is trusted before the catalog is asked again. */
+    /** Claims table of in-flight (and event-less completed) keyed service commands. */
+    public static final String IDEMPOTENCY_CLAIMS_TABLE =
+            com.evento.server.config.AdvisoryLockedSchemaInitializer.IDEMPOTENCY_CLAIMS_TABLE;
+
+    /**
+     * Everything recorded for a key in ONE statement, so the event and the claim are read from
+     * one snapshot: an owner stores its event before deleting its claim, so no reader can see
+     * neither. The two lookups use the partial unique index and the claims primary key.
+     */
+    private static final String IDEMPOTENCY_RECORD_SQL =
+            "SELECT e.event_sequence_number, e.event_message, e.idempotency_command, e.aggregate_id, " +
+                    "c.command_type, c.aggregate_id, c.completed_at IS NOT NULL, c.lease_until < now(), " +
+                    "c.idempotency_key IS NOT NULL " +
+                    "FROM (SELECT 1) q " +
+                    "LEFT JOIN es__events e ON e.idempotency_key = ? " +
+                    "LEFT JOIN " + IDEMPOTENCY_CLAIMS_TABLE + " c ON c.idempotency_key = ?";
+
+    /**
+     * Claim a key: insert, or take over a claim whose lease ran out (its owner died), provided it
+     * is not completed and names the same command. {@code ON CONFLICT DO UPDATE} locks the row,
+     * so of two concurrent take-overs the second re-evaluates the {@code WHERE} against the
+     * first's new lease and gets no row. A row back means "the claim is ours".
+     */
+    private static final String CLAIM_SQL =
+            "INSERT INTO " + IDEMPOTENCY_CLAIMS_TABLE +
+                    " (idempotency_key, command_type, aggregate_id, owner, lease_until) " +
+                    "VALUES (?, ?, ?, ?, now() + ? * interval '1 millisecond') " +
+                    "ON CONFLICT (idempotency_key) DO UPDATE SET owner = EXCLUDED.owner, " +
+                    "lease_until = EXCLUDED.lease_until, created_at = now() " +
+                    "WHERE " + IDEMPOTENCY_CLAIMS_TABLE + ".completed_at IS NULL " +
+                    "AND " + IDEMPOTENCY_CLAIMS_TABLE + ".lease_until < now() " +
+                    "AND " + IDEMPOTENCY_CLAIMS_TABLE + ".command_type = EXCLUDED.command_type " +
+                    "AND " + IDEMPOTENCY_CLAIMS_TABLE + ".aggregate_id IS NOT DISTINCT FROM EXCLUDED.aggregate_id " +
+                    "RETURNING owner";
+
+    /** SQLSTATEs meaning "the schema lacks what keys need" (dropped index, column or table). */
+    private static final java.util.Set<String> MISSING_SCHEMA_STATES = java.util.Set.of(
+            "42P10", // no unique index matching the ON CONFLICT arbiter
+            "42703", // undefined column
+            "42P01"  // undefined table
+    );
+
+    /** How long a "no idempotency support" answer is trusted before the catalog is asked again. */
     private static final long IDEMPOTENCY_PROBE_INTERVAL_MS = 60_000;
     private volatile boolean idempotencySupported;
     private volatile long idempotencyProbeAt;
+    /** {@code null} until known; {@code false} on a database other than PostgreSQL (for good). */
+    private volatile Boolean postgres;
 
     private final long DELAY;
     private final EventStoreMode MODE;
@@ -333,13 +384,16 @@ public class EventStore implements BrokerEventStore {
     }
 
     /**
-     * A keyed append (G5): the event and its command's idempotency key in one statement, under
-     * the partial unique index, so no two servers can both store one key. An unkeyed append, or
-     * a keyed one on a schema without the index (see {@link #idempotencySupported()}), is the
-     * plain {@link #publishEvent(EventMessage, String)}.
+     * A keyed append (G5): the event, its command's idempotency key and type in one statement,
+     * under the partial unique index, so no two servers can both store one key. An unkeyed
+     * append, or a keyed one without support for keys (see {@link #idempotencySupported()}), is
+     * the plain {@link #publishEvent(EventMessage, String)}. A schema that lost the index or the
+     * column since it was probed ({@code 42P10}, {@code 42703}) turns support off, with a
+     * warning, and the event is appended unkeyed rather than not at all.
      */
     @Override
-    public long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey) {
+    public long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                             String commandType) {
         if (idempotencyKey == null || !idempotencySupported()) {
             return publishEvent(eventMessage, aggregateId);
         }
@@ -349,64 +403,166 @@ public class EventStore implements BrokerEventStore {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
-        if (MODE == EventStoreMode.APES) {
-            long id = snowflake.nextId();
-            int inserted = jdbcTemplate.update(APES_KEYED_APPEND_SQL, id, aggregateId, json,
-                    eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey);
-            if (inserted == 0) throw new IdempotencyKeyConflictException(idempotencyKey);
-            return id;
+        try {
+            if (MODE == EventStoreMode.APES) {
+                long id = snowflake.nextId();
+                int inserted = jdbcTemplate.update(APES_KEYED_APPEND_SQL, id, aggregateId, json,
+                        eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType);
+                if (inserted == 0) throw new IdempotencyKeyConflictException(idempotencyKey);
+                return id;
+            }
+            List<Long> seq = jdbcTemplate.queryForList(CPES_KEYED_APPEND_SQL, Long.class, aggregateId, json,
+                    eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType);
+            if (seq.isEmpty()) throw new IdempotencyKeyConflictException(idempotencyKey);
+            return seq.getFirst();
+        } catch (DataAccessException e) {
+            if (!schemaLost(e, "keyed_append")) throw e;
+            return publishEvent(eventMessage, aggregateId);
         }
-        List<Long> seq = jdbcTemplate.queryForList(CPES_KEYED_APPEND_SQL, Long.class, aggregateId, json,
-                eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey);
-        if (seq.isEmpty()) throw new IdempotencyKeyConflictException(idempotencyKey);
-        return seq.getFirst();
     }
 
     /**
-     * The event stored under {@code idempotencyKey}. Also finds an event of a deleted aggregate:
-     * the command did run, and a retry must learn that rather than run it again.
+     * The event and the claim recorded for {@code idempotencyKey}. Also finds an event of a
+     * deleted aggregate: the command did run, and a retry must learn that rather than run it
+     * again.
      */
     @Override
-    public Optional<StoredEvent> findByIdempotencyKey(String idempotencyKey) {
+    public Optional<IdempotencyRecord> findIdempotencyRecord(String idempotencyKey) {
         if (idempotencyKey == null || !idempotencySupported()) return Optional.empty();
-        var rows = jdbcTemplate.query(
-                "SELECT event_sequence_number, event_message FROM es__events WHERE idempotency_key = ?",
-                (rs, i) -> {
+        try {
+            return jdbcTemplate.query(IDEMPOTENCY_RECORD_SQL, rs -> {
+                if (!rs.next()) return Optional.<IdempotencyRecord>empty();
+                StoredEvent event = null;
+                long seq = rs.getLong(1);
+                if (!rs.wasNull()) {
                     try {
-                        return new StoredEvent(rs.getLong(1),
-                                (EventMessage<?>) mapper.readValue(rs.getString(2), Serializable.class));
+                        event = new StoredEvent(seq, (EventMessage<?>) mapper.readValue(rs.getString(2), Serializable.class));
                     } catch (JsonProcessingException e) {
-                        throw new IllegalStateException("stored event " + rs.getLong(1) + " is unreadable", e);
+                        throw new IllegalStateException("stored event " + seq + " is unreadable", e);
                     }
-                },
-                idempotencyKey);
-        return rows.stream().findFirst();
+                }
+                boolean claimed = rs.getBoolean(9);
+                ClaimState claim = !claimed ? ClaimState.NONE
+                        : rs.getBoolean(7) ? ClaimState.COMPLETED
+                        : rs.getBoolean(8) ? ClaimState.EXPIRED
+                        : ClaimState.RUNNING;
+                if (event != null) {
+                    return Optional.of(new IdempotencyRecord(rs.getString(3), rs.getString(4), event, claim));
+                }
+                if (claimed) {
+                    return Optional.of(new IdempotencyRecord(rs.getString(5), rs.getString(6), null, claim));
+                }
+                return Optional.<IdempotencyRecord>empty();
+            }, idempotencyKey, idempotencyKey);
+        } catch (DataAccessException e) {
+            if (!schemaLost(e, "lookup")) throw e;
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public boolean claimIdempotencyKey(String idempotencyKey, String commandType, String aggregateId,
+                                       String owner, long leaseMs) {
+        try {
+            return !jdbcTemplate.queryForList(CLAIM_SQL, String.class,
+                    idempotencyKey, commandType, aggregateId, owner, Math.max(1L, leaseMs)).isEmpty();
+        } catch (DataAccessException e) {
+            // Claims table gone: run as an unkeyed command would (support is now off).
+            if (!schemaLost(e, "claim")) throw e;
+            return true;
+        }
+    }
+
+    @Override
+    public boolean renewIdempotencyClaim(String idempotencyKey, String owner, long leaseMs) {
+        return jdbcTemplate.update("UPDATE " + IDEMPOTENCY_CLAIMS_TABLE +
+                        " SET lease_until = now() + ? * interval '1 millisecond' " +
+                        "WHERE idempotency_key = ? AND owner = ? AND completed_at IS NULL",
+                Math.max(1L, leaseMs), idempotencyKey, owner) > 0;
+    }
+
+    @Override
+    public boolean completeIdempotencyClaim(String idempotencyKey, String owner) {
+        return jdbcTemplate.update("UPDATE " + IDEMPOTENCY_CLAIMS_TABLE + " SET completed_at = now() " +
+                "WHERE idempotency_key = ? AND owner = ? AND completed_at IS NULL", idempotencyKey, owner) > 0;
+    }
+
+    @Override
+    public void releaseIdempotencyClaim(String idempotencyKey, String owner) {
+        jdbcTemplate.update("DELETE FROM " + IDEMPOTENCY_CLAIMS_TABLE +
+                " WHERE idempotency_key = ? AND owner = ? AND completed_at IS NULL", idempotencyKey, owner);
     }
 
     /**
-     * Whether the database has a valid {@value #IDEMPOTENCY_KEY_INDEX}. Without it a key cannot
-     * be enforced across servers, so keyed commands run unkeyed (the pre-G5 behaviour) and this
-     * logs {@code event=idempotency_key_unsupported}: a schema managed outside the server
+     * Whether {@code e} says the schema no longer has what keys need; if so, support is turned
+     * off (re-probed after {@value #IDEMPOTENCY_PROBE_INTERVAL_MS} ms) with a warning.
+     */
+    private boolean schemaLost(DataAccessException e, String operation) {
+        var state = sqlState(e);
+        if (state == null || !MISSING_SCHEMA_STATES.contains(state)) return false;
+        synchronized (this) {
+            idempotencySupported = false;
+            idempotencyProbeAt = System.currentTimeMillis() + IDEMPOTENCY_PROBE_INTERVAL_MS;
+        }
+        logger.warn("event=idempotency_key_unsupported operation={} sqlState={} reason=\"the idempotency schema "
+                        + "(index {}, column idempotency_command, table {}) is gone; keyed commands run without "
+                        + "exactly-once until it is back\" error=\"{}\"",
+                operation, state, IDEMPOTENCY_KEY_INDEX, IDEMPOTENCY_CLAIMS_TABLE, e.getMostSpecificCause().getMessage());
+        return true;
+    }
+
+    private static String sqlState(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && sql.getSQLState() != null) return sql.getSQLState();
+        }
+        return null;
+    }
+
+    /**
+     * Whether keys can be enforced: a PostgreSQL database whose {@code es__events} (the table the
+     * append statements resolve through {@code search_path}) has a valid
+     * {@value #IDEMPOTENCY_KEY_INDEX} and an {@code idempotency_command} column, and whose
+     * {@code search_path} resolves {@value #IDEMPOTENCY_CLAIMS_TABLE}. Without them keyed
+     * commands run unkeyed (the pre-G5 behaviour) and this logs
+     * {@code event=idempotency_key_unsupported}: a schema managed outside the server
      * ({@code spring.sql.init.mode=never}) that has not applied
      * {@code db/upgrade/es-events-idempotency-key.sql} yet. A negative answer is re-checked
-     * every minute, so applying the script takes effect without a restart.
+     * every minute, so applying the script takes effect without a restart; a database other than
+     * PostgreSQL is never supported (the statements are PostgreSQL's).
      */
-    boolean idempotencySupported() {
+    @Override
+    public boolean idempotencySupported() {
         if (idempotencySupported) return true;
+        if (Boolean.FALSE.equals(postgres)) return false;
         long now = System.currentTimeMillis();
         if (now < idempotencyProbeAt) return false;
         synchronized (this) {
             if (idempotencySupported) return true;
             if (now < idempotencyProbeAt) return false;
-            Integer valid = jdbcTemplate.queryForObject(
-                    "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
-                            "WHERE c.relname = ? AND i.indisvalid", Integer.class, IDEMPOTENCY_KEY_INDEX);
-            idempotencySupported = valid != null && valid > 0;
+            if (postgres == null) {
+                String product = jdbcTemplate.execute((ConnectionCallback<String>) c -> c.getMetaData().getDatabaseProductName());
+                postgres = product != null && product.toLowerCase(java.util.Locale.ROOT).contains("postgresql");
+                if (!postgres) {
+                    logger.warn("event=idempotency_key_unsupported database=\"{}\" reason=\"idempotency keys need "
+                            + "PostgreSQL; keyed commands run without exactly-once\"", product);
+                    return false;
+                }
+            }
+            Boolean ready = jdbcTemplate.queryForObject(
+                    "SELECT coalesce((SELECT i.indisvalid AND i.indisunique FROM pg_index i " +
+                            "JOIN pg_class c ON c.oid = i.indexrelid " +
+                            "WHERE i.indrelid = to_regclass('es__events') AND c.relname = ?), false) " +
+                            "AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('es__events') " +
+                            "AND attname = 'idempotency_command' AND NOT attisdropped) " +
+                            "AND to_regclass(?) IS NOT NULL",
+                    Boolean.class, IDEMPOTENCY_KEY_INDEX, IDEMPOTENCY_CLAIMS_TABLE);
+            idempotencySupported = Boolean.TRUE.equals(ready);
             if (!idempotencySupported) {
                 idempotencyProbeAt = now + IDEMPOTENCY_PROBE_INTERVAL_MS;
-                logger.warn("event=idempotency_key_unsupported index={} reason=\"no valid index; keyed commands "
-                        + "run without exactly-once until it exists\" script=classpath:db/upgrade/es-events-idempotency-key.sql",
-                        IDEMPOTENCY_KEY_INDEX);
+                logger.warn("event=idempotency_key_unsupported index={} table={} reason=\"no valid index, "
+                        + "idempotency_command column or claims table; keyed commands run without exactly-once "
+                        + "until they exist\" script=classpath:db/upgrade/es-events-idempotency-key.sql",
+                        IDEMPOTENCY_KEY_INDEX, IDEMPOTENCY_CLAIMS_TABLE);
             }
             return idempotencySupported;
         }

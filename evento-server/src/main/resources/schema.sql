@@ -125,7 +125,25 @@ CREATE TABLE IF NOT EXISTS es__events
     -- Existing tables get the column, and every table its partial UNIQUE index
     -- es__events_idempotency_key_uidx, from AdvisoryLockedSchemaInitializer (built
     -- CONCURRENTLY, so a rolling upgrade keeps appending).
-    idempotency_key       varchar(255)          DEFAULT NULL
+    idempotency_key       varchar(255)          DEFAULT NULL,
+    -- The payload type of that command: with aggregate_id, the identity a retry must match
+    -- (a key presented by another command is refused, never answered with this event).
+    idempotency_command   varchar(255)          DEFAULT NULL
+);
+
+-- Idempotency claims (G5): one row per keyed service command while it executes (owner and a
+-- lease on the database clock, so a duplicate waits on a row instead of pinning a lock
+-- connection), deleted once the event carrying the key is stored, kept (completed_at) for a
+-- handler that produced no event so its retries are answered instead of re-run.
+CREATE TABLE IF NOT EXISTS es__idempotency_claims
+(
+    idempotency_key varchar(255) NOT NULL PRIMARY KEY,
+    command_type    varchar(255) NOT NULL,
+    aggregate_id    varchar(255)          DEFAULT NULL,
+    owner           varchar(255) NOT NULL,
+    lease_until     timestamptz  NOT NULL,
+    completed_at    timestamptz           DEFAULT NULL,
+    created_at      timestamptz  NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS es__snapshot
