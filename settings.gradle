@@ -23,3 +23,6 @@ include 'evento-lab-microservices:evento-lab-ms-query'
 include 'evento-lab-microservices:evento-lab-ms-saga'
 include 'evento-lab-microservices:evento-lab-ms-observer'
 include 'evento-lab-microservices:evento-lab-ms-it'
+
+include 'evento-lab-cluster:evento-lab-cluster-app'
+include 'evento-lab-cluster:evento-lab-cluster-chaos'

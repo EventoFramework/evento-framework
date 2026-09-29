@@ -1,0 +1,143 @@
+package com.evento.lab.cluster.chaos.scenario;
+
+import com.evento.lab.cluster.chaos.Cluster;
+import com.evento.lab.cluster.chaos.Json;
+import com.evento.lab.cluster.chaos.LabConfig;
+import com.evento.lab.cluster.chaos.RequestRecord;
+import com.evento.lab.cluster.chaos.Rows;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * S11: context isolation for the two region names with an underscore.
+ * Orders are created in SUD_AMERICA and AUSTRALIA_NZ, plus one synthetic order
+ * each whose events carry the context {@code SUDXAMERICA} / {@code AUSTRALIAXNZ}
+ * (lab hook: the gateway's {@code context} body field). The server matches
+ * contexts with an unescaped LIKE, where {@code _} is a one-character wildcard
+ * (G15), so the synthetic events leak into the regional projectors. The GUI's
+ * consumer list parses consumer ids by splitting on {@code _} (G16).
+ * This is also the real-server version of the missing isolation assert (L6).
+ */
+@EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
+class S11ContextIsolationTest extends AbstractScenario {
+
+    private static final Map<String, String> SYNTHETIC = Map.of(
+            "SUD_AMERICA", "SUDXAMERICA",
+            "AUSTRALIA_NZ", "AUSTRALIAXNZ");
+
+    @Override
+    protected String id() {
+        return "S11";
+    }
+
+    @Override
+    protected String title() {
+        return "Context isolation with underscore regions";
+    }
+
+    @Override
+    protected List<String> gaps() {
+        return List.of("G15", "G16", "L6");
+    }
+
+    @Test
+    void contextIsolation() throws Exception {
+        scenario(() -> {
+            var perRegion = LabConfig.envInt("S11_ORDERS", 5);
+            var records = new ArrayList<RequestRecord>();
+            var synthetic = new LinkedHashMap<String, String>();
+            for (var region : SYNTHETIC.keySet()) {
+                for (int i = 0; i < perRegion; i++) {
+                    var id = gateway.newOrderId(prefix, region);
+                    records.add(gateway.create(region, id, UUID.randomUUID().toString()));
+                    records.add(gateway.addItem(region, id, "sku-1", 1, UUID.randomUUID().toString()));
+                }
+                var fake = SYNTHETIC.get(region);
+                var id = gateway.newOrderId(prefix + "synthetic-", fake);
+                var r = gateway.create(region, id, UUID.randomUUID().toString(), fake);
+                records.add(r);
+                synthetic.put(fake, id);
+                report.event("synthetic order " + id + " with context " + fake + ": " + r.outcome());
+            }
+            report.param("syntheticOrders", synthetic);
+
+            var results = checkInvariants(records, envSeconds("S11_CONVERGENCE_S", 90));
+            // give the leaked events time to be projected too
+            Cluster.sleep(Duration.ofSeconds(5));
+            var snap = db.snapshot(prefix);
+            for (var region : SYNTHETIC.keySet()) {
+                var fake = SYNTHETIC.get(region);
+                var rows = snap.regional() == null ? List.<Rows.ViewRow>of() : snap.regional().get(region);
+                var leaked = rows.stream().filter(v -> fake.equals(v.context())).map(Rows.ViewRow::orderId).toList();
+                var own = rows.stream().filter(v -> region.equals(v.context())).count();
+                report.observe(LabConfig.regionTable(region) + " vs context " + fake,
+                        "only " + region + " events reach query-" + region.toLowerCase(),
+                        "LIKE '" + region + "' matches " + fake + ": the synthetic order leaks in (G15)",
+                        own + " own rows, leaked: " + (leaked.isEmpty() ? "none" : leaked),
+                        leaked.isEmpty(), !leaked.isEmpty(), null);
+            }
+            var i4 = find(results, "I4");
+            report.observe("I4 regional isolation", i4.expected(), i4.observed(), i4.passed());
+
+            guiContexts();
+        });
+    }
+
+    /** G16: what the admin UI says the context of each regional consumer is. */
+    private void guiContexts() {
+        try {
+            var auth = Base64.getEncoder().encodeToString("evento:secret".getBytes(StandardCharsets.UTF_8));
+            var req = HttpRequest.newBuilder(URI.create("http://localhost:" + config.serverHttpPorts().get("evento-am")
+                            + "/api/consumer/"))
+                    .header("Authorization", "Basic " + auth).timeout(Duration.ofSeconds(15)).GET().build();
+            var resp = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 300) {
+                report.observe("GUI consumer context (G16)", "full context names", "HTTP " + resp.statusCode(), null);
+                return;
+            }
+            var shown = new LinkedHashMap<String, String>();
+            for (var c : Json.read(resp.body())) {
+                var bundle = c.path("bundleId").asText();
+                if (bundle.startsWith("query-") || bundle.startsWith("cluster-")) {
+                    shown.put(c.path("consumerId").asText(), "bundle=" + bundle + " context=" + c.path("context").asText()
+                            + " version=" + c.path("componentVersion").asText());
+                }
+            }
+            report.attach("GUI /api/consumer/ on evento-am", shown.entrySet().stream()
+                    .map(e -> e.getKey() + " -> " + e.getValue()).toList());
+            var wrong = shown.entrySet().stream().filter(e -> {
+                var id = e.getKey();
+                var ctx = id.substring(id.lastIndexOf("_1_") + 3);
+                return id.contains("_1_") && !e.getValue().contains("context=" + ctx + " ");
+            }).map(Map.Entry::getKey).toList();
+            var regionalShown = shown.keySet().stream().filter(k -> k.startsWith("query-")).count();
+            report.observe("GUI consumer context (G16)",
+                    "every consumer shows its full context (SUD_AMERICA, AUSTRALIA_NZ)",
+                    "split('_') cuts names with '_' (e.g. SUD), and the bundle ids query-sud_america/"
+                            + "query-australia_nz shift every field",
+                    wrong.isEmpty() ? "all contexts shown correctly" : "wrong for " + wrong,
+                    wrong.isEmpty(), !wrong.isEmpty(), null);
+            report.observe("GUI lists one consumer per regional projector",
+                    "7 regional consumers (one per query-<region> bundle)",
+                    "one row: consumers are grouped by component simple name, shared by all 7 bundles",
+                    regionalShown + " regional consumer row(s)", regionalShown == LabConfig.REGIONS.size(),
+                    regionalShown < LabConfig.REGIONS.size(),
+                    "core__component is keyed by the component's simple class name across bundles.");
+        } catch (Exception e) {
+            report.observe("GUI consumer context (G16)", "full context names", "GUI unreachable: " + e, null);
+        }
+    }
+}

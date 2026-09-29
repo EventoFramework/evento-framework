@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.evento'
+version = "${eventoVersion}"
+
+java { toolchain { languageVersion = javaLanguageVersion } }
+
+repositories { mavenCentral(); mavenLocal() }
+
+// The chaos driver is deliberately framework-free: it talks to the running
+// lab only through its public surfaces (docker CLI, toxiproxy HTTP API, the
+// region gateways over HTTP, JDBC on the two Postgres clusters).
+dependencies {
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "org.postgresql:postgresql:${postgresJdbcVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+}
+
+def labDir = rootProject.file('evento-lab-cluster')
+
+test {
+    useJUnitPlatform()
+    systemProperty 'evento.lab.results.dir', new File(labDir, 'results').absolutePath
+    systemProperty 'evento.lab.compose.file', new File(labDir, 'docker/compose.yaml').absolutePath
+    testLogging {
+        events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
+        showStandardStreams = true
+    }
+    // Scenario runs talk to a live stack: never serve them from the cache.
+    if (System.getenv('EVENTO_LAB_CLUSTER') == 'true') {
+        outputs.upToDateWhen { false }
+        // One scenario at a time: they share one stack.
+        maxParallelForks = 1
+    }
+}
+
+// Standalone invariant check against the running stack:
+//   ./gradlew :evento-lab-cluster:evento-lab-cluster-chaos:checkInvariants [-Pprefix=S00-] [-Plabel=manual]
+tasks.register('checkInvariants', JavaExec) {
+    group = 'verification'
+    description = 'Runs I1..I8 against the running evento-lab-cluster stack and writes results/invariants/<label>/'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.evento.lab.cluster.chaos.InvariantCheckerMain'
+    systemProperty 'evento.lab.results.dir', new File(labDir, 'results').absolutePath
+    args = [
+            project.findProperty('prefix') ?: '',
+            project.findProperty('label') ?: (System.getenv('EVENTO_LAB_LABEL') ?: 'run')
+    ]
+}
