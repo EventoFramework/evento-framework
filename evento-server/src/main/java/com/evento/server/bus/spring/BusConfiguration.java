@@ -167,10 +167,17 @@ public class BusConfiguration {
                                      PayloadCodec payloadCodec,
                                      TokenValidator tokenValidator,
                                      BusProperties props,
-                                     @Value("${evento.cluster.name:}") String clusterName) {
+                                     @Value("${evento.cluster.name:}") String clusterName,
+                                     org.springframework.beans.factory.ObjectProvider<
+                                             org.springframework.boot.availability.ApplicationAvailability> availability) {
         var lifecycle = new BusLifecycle(transportServer, connections, cluster, correlations,
                 forwarding, eventBus, props.serverInstanceId(),
                 Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec, tokenValidator);
+        // The bus binds in a @PostConstruct, long before the rest of the context (JPA,
+        // event store, schema) is up. A bundle that failed over elsewhere probes this
+        // broker to decide when to move back (N16): it must not be told "healthy"
+        // until the application is ready to serve it, or it moves back only to fail.
+        lifecycle.setProbeReadiness(probeReadiness(availability.getIfAvailable()));
         // Announced in Welcome: a bundle holding several broker endpoints checks the
         // cluster it lands in, since no single expected instance id fits all of them.
         lifecycle.setClusterName(clusterName);
@@ -183,6 +190,21 @@ public class BusConfiguration {
                     clusterName);
         }
         return lifecycle;
+    }
+
+    /**
+     * Ready for fail-back probes once Spring Boot reports the application
+     * {@code ACCEPTING_TRAFFIC}: published after the context has refreshed and
+     * the runners have run (schema, event store and consumers included), and
+     * withdrawn again on shutdown or by anything that marks the application
+     * {@code REFUSING_TRAFFIC}. Without an availability bean (not a Boot
+     * application) the broker is always ready, as before.
+     */
+    static java.util.function.BooleanSupplier probeReadiness(
+            org.springframework.boot.availability.ApplicationAvailability availability) {
+        if (availability == null) return () -> true;
+        return () -> availability.getReadinessState()
+                == org.springframework.boot.availability.ReadinessState.ACCEPTING_TRAFFIC;
     }
 
     @Bean
