@@ -47,6 +47,9 @@ import java.sql.SQLException;
  *       query in flight makes it retry instead of queueing every later query behind it.</li>
  * </ol>
  *
+ * <p><b>Idempotency keys (G5).</b> {@code es__events.idempotency_key} and its partial unique
+ * index are added the same way, online and only when missing ({@link #applyIdempotencyKey}).
+ *
  * <p><b>Why the catalog migration is here.</b> Catalogs created before components were keyed per
  * bundle have {@code core__component.component_name} as primary key, referenced by
  * {@code core__handler.component_component_name} and {@code core__consumer.component_component_name}.
@@ -94,6 +97,11 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
     public static final String COMPONENT_ID_UPGRADE_SCRIPT = "db/upgrade/n1-component-id.sql";
     /** Classpath upgrade script for externally managed schemas: the es__events primary key. */
     public static final String ES_EVENTS_PK_UPGRADE_SCRIPT = "db/upgrade/es-events-primary-key.sql";
+    /** Classpath upgrade script for externally managed schemas: the idempotency key column + index (G5). */
+    public static final String ES_EVENTS_IDEMPOTENCY_UPGRADE_SCRIPT = "db/upgrade/es-events-idempotency-key.sql";
+
+    /** Partial unique index on {@code es__events.idempotency_key}; the name the event store probes for. */
+    public static final String ES_EVENTS_IDEMPOTENCY_INDEX = "es__events_idempotency_key_uidx";
 
     private final boolean enforcePrimaryKey;
 
@@ -120,6 +128,7 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                 if (applied) {
                     migrateComponentIdentity(lockConnection);
                     applyEventStoreConstraints(lockConnection);
+                    applyIdempotencyKey(lockConnection);
                 } else {
                     checkExternallyManagedSchema(lockConnection);
                 }
@@ -168,6 +177,82 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                 + "WHERE conrelid = 'es__events'::regclass AND contype = 'p'") == 0) {
             log.warn("event=es_events_primary_key_missing reason=\"spring.sql.init.mode is not 'always', "
                     + "so the server does not add it\" script=classpath:{}", ES_EVENTS_PK_UPGRADE_SCRIPT);
+        }
+        if (tableExists(connection, "es__events") && !validIndexExists(connection, ES_EVENTS_IDEMPOTENCY_INDEX)) {
+            log.warn("event=es_events_idempotency_key_missing reason=\"spring.sql.init.mode is not 'always', "
+                    + "so the server does not add it; keyed commands run without exactly-once\" script=classpath:{}",
+                    ES_EVENTS_IDEMPOTENCY_UPGRADE_SCRIPT);
+        }
+    }
+
+    /**
+     * Adds {@code es__events.idempotency_key} and its partial unique index (G5) when missing,
+     * the same way as the primary key: nothing that blocks appends for longer than an instant,
+     * because the first server of the new version usually does it while old servers append.
+     * <ol>
+     *   <li>The column is nullable without a default, so {@code ADD COLUMN} only touches the
+     *       catalog; it needs {@code ACCESS EXCLUSIVE} for an instant and runs under a short
+     *       {@code lock_timeout}, retried. It is skipped when present: {@code IF NOT EXISTS} alone
+     *       would still take the lock on every boot.</li>
+     *   <li>{@code CREATE UNIQUE INDEX CONCURRENTLY ... WHERE idempotency_key IS NOT NULL}: rows of
+     *       old servers and unkeyed commands (all {@code NULL}) are outside the index, so existing
+     *       data can never violate it and it stays as small as the number of keyed events. An
+     *       invalid leftover of an interrupted build is dropped first.</li>
+     * </ol>
+     * Keys have no expiry (they live as long as their events); a retention policy is future work.
+     */
+    private void applyIdempotencyKey(Connection connection) throws SQLException {
+        if (queryLong(connection, "SELECT count(*) FROM information_schema.columns "
+                + "WHERE table_schema = current_schema() AND table_name = 'es__events' "
+                + "AND column_name = 'idempotency_key'") == 0) {
+            runWithLockTimeout(connection, "ALTER TABLE es__events ADD COLUMN IF NOT EXISTS idempotency_key varchar(255)",
+                    "es_events_idempotency_key_column");
+            log.info("event=es_events_idempotency_key_column_added");
+        }
+        dropInvalidIndex(connection, ES_EVENTS_IDEMPOTENCY_INDEX);
+        if (validIndexExists(connection, ES_EVENTS_IDEMPOTENCY_INDEX)) return;
+        long started = System.nanoTime();
+        try {
+            execute(connection, "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS " + ES_EVENTS_IDEMPOTENCY_INDEX
+                    + " ON es__events (idempotency_key) WHERE idempotency_key IS NOT NULL");
+        } catch (SQLException e) {
+            dropInvalidIndex(connection, ES_EVENTS_IDEMPOTENCY_INDEX);
+            throw e;
+        }
+        log.info("event=es_events_idempotency_index_built index={} durationMs={}",
+                ES_EVENTS_IDEMPOTENCY_INDEX, (System.nanoTime() - started) / 1_000_000);
+    }
+
+    private static boolean validIndexExists(Connection connection, String index) throws SQLException {
+        return queryLong(connection, "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
+                "WHERE c.relname = '" + index + "' AND i.indisvalid") > 0;
+    }
+
+    private static void dropInvalidIndex(Connection connection, String index) throws SQLException {
+        long invalid = queryLong(connection, "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
+                "WHERE c.relname = '" + index + "' AND NOT i.indisvalid");
+        if (invalid > 0) {
+            log.warn("event=es_events_index_invalid action=drop index={}", index);
+            execute(connection, "DROP INDEX CONCURRENTLY IF EXISTS " + index);
+        }
+    }
+
+    /** One DDL statement that needs {@code ACCESS EXCLUSIVE} for an instant, retried under a short lock timeout. */
+    private static void runWithLockTimeout(Connection connection, String ddl, String what) throws SQLException {
+        execute(connection, "SET lock_timeout = '" + ATTACH_LOCK_TIMEOUT + "'");
+        try {
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    execute(connection, ddl);
+                    return;
+                } catch (SQLException e) {
+                    if (!LOCK_NOT_AVAILABLE.equals(e.getSQLState()) || attempt >= ATTACH_ATTEMPTS) throw e;
+                    log.warn("event={}_lock_busy attempt={} lockTimeout={}", what, attempt, ATTACH_LOCK_TIMEOUT);
+                    sleep(Math.min(250L * attempt, 2_000L));
+                }
+            }
+        } finally {
+            execute(connection, "RESET lock_timeout");
         }
     }
 
