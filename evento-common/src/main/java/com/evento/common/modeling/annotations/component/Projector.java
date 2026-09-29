@@ -19,7 +19,7 @@ import java.lang.annotation.Target;
  *
  * <pre>
  * {@code
- * @Projector(version = 1, context = {Context.ALL})
+ * @Projector(version = 1)
  * public class DemoProjector {
  *
  *     @EventHandler

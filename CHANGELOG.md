@@ -11,6 +11,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`Context.WILDCARD` (`"*"`).** The pattern that reads every context now has a name
+  that says so. `Context.ALL` stays as a deprecated alias whose javadoc warns that it is
+  the wildcard, not a context named `"ALL"`: a consumer configured with the literal
+  `"ALL"` reads only events whose context is `"ALL"` (a natural name for cross-region
+  events), and publishing an event with `Context.ALL` gives it the context `"*"`. The
+  framework uses `WILDCARD` internally. `EventoBundle.Builder.setComponentContexts` now
+  documents that it starts one consumer engine (own consumer id, checkpoint and lock) per
+  context, that a component with no contexts reads every context (the javadoc used to
+  claim `Context.DEFAULT`), and that `"ALL"` is an ordinary context. The
+  `@Projector`/`@Saga`/`@Observer` javadoc examples no longer show the removed `context`
+  attribute. A real-Postgres case pins that fetching `"ALL"` returns only `"ALL"` events.
 - **Broker endpoint failover for bundles (G2).** `BundleClientConfig` / `BundleClient.Builder`
 
   take an ordered endpoint list (`endpoint(host, port)` / `endpoints(...)`, most preferred

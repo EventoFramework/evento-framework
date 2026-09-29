@@ -402,7 +402,27 @@ public class EventoBundle {
 
         /**
          * The event contexts a consumer component (projector, saga, observer) reads.
-         * Default is {@code Context.DEFAULT}.
+         * A component with no contexts set reads every context
+         * ({@link com.evento.common.utils.Context#WILDCARD}, {@code "*"}).
+         *
+         * <p><b>One consumer engine per context.</b> The bundle starts one engine, with
+         * its own consumer id ({@code bundleId_Component_version_context}), checkpoint
+         * and lock, for each value given here, and each engine fetches only the events
+         * of its context. So one generic component class can serve several regions
+         * from configuration alone, e.g.
+         * {@code setComponentContexts(OrderProjector.class, System.getenv("EVENTO_CONTEXTS").split(","))}
+         * with {@code EVENTO_CONTEXTS=EUROPA,AFRICA} in one deployment and {@code CINA}
+         * in another. Replicas running the same bundle id and context compete for that
+         * one lane (one active at a time); a different context, or a different bundle
+         * id, is a separate lane. Contexts are keyed by the component's simple class
+         * name, so two classes with the same simple name in one bundle share them.
+         *
+         * <p><b>{@code "ALL"} is a context like any other.</b> Only {@code *} is a
+         * wildcard. A component configured with {@code "ALL"} reads the events whose
+         * context is literally {@code "ALL"} (for example cross-region catalogue or
+         * price-list events), not every event. Beware that the deprecated
+         * {@code Context.ALL} constant is the wildcard {@code "*"}, not {@code "ALL"}:
+         * declare your own constant for a literal {@code "ALL"} context.
          *
          * <p>Each value is either an exact context name ({@code "SUD_AMERICA"}) or a
          * pattern in which {@code *} stands for any run of characters ({@code "*"}
@@ -894,7 +914,7 @@ public class EventoBundle {
                             .getAnnotation(com.evento.common.modeling.annotations.component.Projector.class)
                             .waitForHeadReached())
                     .mapToInt(p -> contexts.getOrDefault(p.getComponentName(),
-                            Set.of(com.evento.common.utils.Context.ALL)).size())
+                            Set.of(com.evento.common.utils.Context.WILDCARD)).size())
                     .sum();
             var counter = new java.util.concurrent.atomic.AtomicInteger(total);
             logger.info("Checking for projector event consumers (v2)");
@@ -903,7 +923,7 @@ public class EventoBundle {
                         .getAnnotation(com.evento.common.modeling.annotations.component.Projector.class);
                 var projectorName = projector.getRef().getClass().getSimpleName();
                 var projectorVersion = annotation.version();
-                for (var context : contexts.getOrDefault(projectorName, Set.of(com.evento.common.utils.Context.ALL))) {
+                for (var context : contexts.getOrDefault(projectorName, Set.of(com.evento.common.utils.Context.WILDCARD))) {
                     logger.info("Starting v2 engine for Projector: {} - Version: {} - Context: {}",
                             projectorName, projectorVersion, context);
                     var engine = new ProjectorEngine(
@@ -951,7 +971,7 @@ public class EventoBundle {
                         .getAnnotation(com.evento.common.modeling.annotations.component.Saga.class);
                 var sagaName = saga.getRef().getClass().getSimpleName();
                 var sagaVersion = annotation.version();
-                for (var context : contexts.getOrDefault(sagaName, Set.of(com.evento.common.utils.Context.ALL))) {
+                for (var context : contexts.getOrDefault(sagaName, Set.of(com.evento.common.utils.Context.WILDCARD))) {
                     logger.info("Starting v2 engine for Saga: {} - Version: {} - Context: {}",
                             sagaName, sagaVersion, context);
                     var engine = new SagaEngine(
@@ -975,7 +995,7 @@ public class EventoBundle {
                         .getAnnotation(com.evento.common.modeling.annotations.component.Observer.class);
                 var observerName = observer.getRef().getClass().getSimpleName();
                 var observerVersion = annotation.version();
-                for (var context : contexts.getOrDefault(observerName, Set.of(com.evento.common.utils.Context.ALL))) {
+                for (var context : contexts.getOrDefault(observerName, Set.of(com.evento.common.utils.Context.WILDCARD))) {
                     logger.info("Starting v2 engine for Observer: {} - Version: {} - Context: {}",
                             observerName, observerVersion, context);
                     var engine = new ObserverEngine(

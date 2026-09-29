@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
  *
  * <pre>
  * {@code
- * @Saga(version = 1, context = {Context.DEFAULT})
+ * @Saga(version = 1)
  * public class OrderSaga {
  *
  *     private final OrderService orderService;
