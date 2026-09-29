@@ -147,16 +147,35 @@ class S11ContextIsolationTest extends AbstractScenario {
             }).map(Map.Entry::getKey).toList();
             var regionalShown = shown.keySet().stream().filter(k -> k.startsWith("order-query_OrderProjector_1_")
                     && LabConfig.REGIONS.stream().anyMatch(k::endsWith)).count();
+            // G16 is only testable if the page lists a consumer whose context contains '_'; the
+            // pre-fix page groups per component (N10) and may show none of them (L15).
+            var underscoreShown = shown.keySet().stream()
+                    .filter(k -> k.contains("_1_") && k.substring(k.lastIndexOf("_1_") + 3).contains("_")).toList();
             report.observe("GUI consumer context (G16)",
                     "every consumer shows its full context (SUD_AMERICA, AUSTRALIA_NZ)",
                     "split('_') cuts names with '_' (e.g. SUD_AMERICA is shown as SUD)",
-                    wrong.isEmpty() ? "all contexts shown correctly" : "wrong for " + wrong,
-                    wrong.isEmpty(), !wrong.isEmpty(), null);
+                    underscoreShown.isEmpty() ? "not testable: the page lists no consumer with '_' in its context"
+                            : wrong.isEmpty() ? "all contexts shown correctly (" + underscoreShown + ")" : "wrong for " + wrong,
+                    underscoreShown.isEmpty() ? null : wrong.isEmpty(), !wrong.isEmpty(), null);
+            // Tell the two pre-fix causes of a short list apart: rows missing in core__consumer
+            // (G8) or rows present but grouped per component by the page (N10).
+            long regionalInCatalog = -1;
+            try (var c = db.es()) {
+                regionalInCatalog = db.catalog(c).consumers().keySet().stream()
+                        .filter(k -> k.startsWith("order-query_OrderProjector_1_")
+                                && LabConfig.REGIONS.stream().anyMatch(k::endsWith)).count();
+            } catch (Exception e) {
+                report.note("core__consumer not readable: " + e.getMessage());
+            }
             report.observe("GUI lists one consumer per regional engine",
                     "7 regional consumers of order-query's OrderProjector (one per context)",
-                    "fewer rows: consumer registration lost to the discovery race (G8)",
-                    regionalShown + " regional consumer row(s)", regionalShown == LabConfig.REGIONS.size(),
-                    regionalShown < LabConfig.REGIONS.size(),
+                    "fewer rows: the page groups consumers per component (N10), or registrations lost to the "
+                            + "discovery race (G8)",
+                    regionalShown + " regional consumer row(s) on the page; " + regionalInCatalog
+                            + " regional consumer id(s) in core__consumer"
+                            + (regionalShown < LabConfig.REGIONS.size() && regionalInCatalog == LabConfig.REGIONS.size()
+                            ? " (N10: grouped by the page)" : ""),
+                    regionalShown == LabConfig.REGIONS.size(), regionalShown < LabConfig.REGIONS.size(),
                     "One OrderProjector class, one engine per context (setComponentContexts).");
         } catch (Exception e) {
             report.observe("GUI consumer context (G16)", "full context names", "GUI unreachable: " + e, null);
