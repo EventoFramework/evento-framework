@@ -102,6 +102,9 @@ impostazioni di Postgres.
 | Avvii a freddo che richiedono la riparazione del catalogo (G8) | 0 su 7 (`:before` 7 su 7) | [AFTER-SUMMARY](../results/AFTER-SUMMARY.md) |
 
 Il quadro completo è in [`../results/COMPARISON.md`](../results/COMPARISON.md).
+Le stesse cifre, in forma di presentazione, sono in [`slides/index.html`](slides/index.html)
+(istruzioni in [`slides/README.md`](slides/README.md)); le slide numerano i livelli per gruppo di
+scenari, la corrispondenza con questa guida è nel README delle slide.
 
 ## Convenzioni di questa guida
 
