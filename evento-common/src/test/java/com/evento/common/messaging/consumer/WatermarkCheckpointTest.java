@@ -337,6 +337,111 @@ class WatermarkCheckpointTest {
                 .isEqualTo(3L);
     }
 
+    // ── sparse sequences ────────────────────────────────────────────────────
+    //
+    // A consumer filtered to one context sees a fraction of a sequence shared by
+    // every context, and a Snowflake-numbered store (APES) hands out ids billions
+    // apart. Every number in between is proven absent by the batch that skips it;
+    // closing those gaps must cost nothing proportional to their width.
+
+    @Test
+    void aContextFilteredConsumerKeepsBoundedBookkeepingWhileOneHandlerHoldsTheWatermark() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 16);
+        // Seven regions share the sequence; this consumer's context owns every 7th number.
+        final int regions = 7;
+        final long firstSeq = 3;
+        var release = new CountDownLatch(1);
+
+        EventConsumer handler = e -> {
+            if (e.getEventSequenceNumber() == firstSeq) release.await();
+        };
+
+        long seq = firstSeq;
+        int maxIntervals = 0;
+        for (int cycle = 0; cycle < 1_000; cycle++) {
+            var batch = new PublishedEvent[10];
+            for (int i = 0; i < batch.length; i++) {
+                batch[i] = TestEvents.event(seq, "E" + seq);
+                seq += regions;
+            }
+            server.nextFetch(batch);
+            consume(processor, handler);
+            await(() -> processor.inFlightCount("c1") <= 1);
+            maxIntervals = Math.max(maxIntervals, processor.watermarkIntervals("c1"));
+        }
+        long lastSeq = seq - regions;
+
+        // ~70,000 numbers are resolved above the held event, yet they coalesce into a
+        // single interval: memory does not grow with the stream while one handler is stuck.
+        assertThat(maxIntervals).as("intervals held above the watermark").isLessThanOrEqualTo(2);
+        assertThat(checkpoint())
+                .as("the held first event still pins the watermark before it")
+                .isEqualTo(firstSeq - 1);
+
+        release.countDown();
+        assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        consume(processor, e -> { });
+        assertThat(checkpoint()).isEqualTo(lastSeq);
+        assertThat(processor.watermarkIntervals("c1")).isZero();
+    }
+
+    @Test
+    @Timeout(value = 5, unit = TimeUnit.SECONDS)
+    void snowflakeScaleGapsAreClosedWithoutWalkingThem() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 4);
+        // APES ids: ~2^62 in magnitude, about 4.2 billion apart per millisecond. The old
+        // per-number loop would have run for minutes and exhausted the heap on a single
+        // gap; each of these batches has nine.
+        long base = 7_300_000_000_000_000L;
+        long step = 4_200_000_000L;
+        long seq = base;
+        for (int cycle = 0; cycle < 50; cycle++) {
+            var batch = new PublishedEvent[10];
+            for (int i = 0; i < batch.length; i++) {
+                batch[i] = TestEvents.event(seq, "E" + i);
+                seq += step;
+            }
+            server.nextFetch(batch);
+            consume(processor, e -> { });
+            assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+            assertThat(processor.watermarkIntervals("c1")).isLessThanOrEqualTo(1);
+        }
+        consume(processor, e -> { });
+        assertThat(checkpoint()).isEqualTo(seq - step);
+        assertThat(processor.watermarkIntervals("c1")).isZero();
+    }
+
+    @Test
+    @Timeout(value = 5, unit = TimeUnit.SECONDS)
+    void aHugeGapStillNeverReleasesAnEventThatIsStillRunning() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 4);
+        long a = 1_000L;
+        long b = a + 5_000_000_000L;
+        long c = b + 5_000_000_000L;
+        server.nextFetch(TestEvents.event(a, "A"), TestEvents.event(b, "B"), TestEvents.event(c, "C"));
+        var release = new CountDownLatch(1);
+        var reached = new CountDownLatch(1);
+
+        consume(processor, e -> {
+            if (e.getEventSequenceNumber() == b) {
+                reached.countDown();
+                release.await();
+            }
+        });
+        assertThat(reached.await(5, TimeUnit.SECONDS)).isTrue();
+        await(() -> processor.inFlightCount("c1") == 1);
+        consume(processor, e -> { });
+
+        // The watermark may stand on the last absent number before b, never past b.
+        assertThat(checkpoint()).isEqualTo(b - 1);
+        assertThat(processor.watermarkIntervals("c1")).as("(b, c] is one interval").isEqualTo(1);
+
+        release.countDown();
+        assertThat(processor.awaitConsumerQuiescence("c1", Duration.ofSeconds(5))).isTrue();
+        consume(processor, e -> { });
+        assertThat(checkpoint()).isEqualTo(c);
+    }
+
     private static void await(java.util.function.BooleanSupplier condition) throws InterruptedException {
         long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
         while (!condition.getAsBoolean()) {
