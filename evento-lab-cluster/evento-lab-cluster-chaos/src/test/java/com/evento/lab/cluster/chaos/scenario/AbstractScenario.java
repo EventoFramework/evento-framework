@@ -123,6 +123,9 @@ abstract class AbstractScenario {
         if (!notReady.isEmpty()) {
             report.note("services not ready at start (scenario ran anyway): " + notReady);
         }
+        var misplaced = restorePlacement();
+        report.param("placementRestoredAtStart", misplaced);
+        report.param("lbRoutingAtStart", checkLbRouting());
         report.event("scenario start");
     }
 
@@ -162,6 +165,71 @@ abstract class AbstractScenario {
         new ResultWriter(config.resultsDir()).write(report);
         // leave the stack ready for the next scenario (not part of the result)
         cluster.waitAllReady(requiredServices(), Duration.ofSeconds(LabConfig.envInt("EVENTO_LAB_READY_TIMEOUT_S", 420)));
+    }
+
+    /**
+     * Put every bundle JVM of the default topology back on its own cell's server (L22). A bundle
+     * that failed over (G2 fix) stays on the remote server until its next disconnect: there is no
+     * failback (N16). A later scenario would then run with a cell's commands and consumers crossing
+     * the WAN, and with gateways and handlers on different servers (no_handler, G1). Restarting the
+     * misplaced JVMs makes them dial their first, local address again. Returns what was misplaced
+     * (service to server it was found on); empty when placement was nominal or not readable
+     * (2.4.6 images log no server id and never fail over). {@code EVENTO_LAB_RESTORE_PLACEMENT=false}
+     * turns it off.
+     */
+    protected Map<String, String> restorePlacement() {
+        var misplaced = new java.util.TreeMap<String, String>();
+        if (!LabConfig.envBool("EVENTO_LAB_RESTORE_PLACEMENT", true)) return misplaced;
+        for (var cell : LabConfig.CELLS) {
+            var own = LabConfig.cellServer(cell);
+            for (var jvm : LabConfig.cellJvms(cell)) {
+                var at = cluster.attachedServer(jvm);
+                if (at != null && !at.equals(own)) misplaced.put(jvm, at);
+            }
+        }
+        if (misplaced.isEmpty()) return misplaced;
+        report.event("placement: " + misplaced.size() + " JVM(s) on a remote server, restarting them: " + misplaced);
+        cluster.restart(new ArrayList<>(misplaced.keySet()));
+        var ready = cluster.waitAllReady(new ArrayList<>(misplaced.keySet()), Duration.ofSeconds(300));
+        // consumer registration lands up to ~25 s after health (N6)
+        Cluster.sleep(Duration.ofSeconds(LabConfig.envInt("EVENTO_LAB_PLACEMENT_SETTLE_S", 20)));
+        var still = new java.util.TreeMap<String, String>();
+        for (var jvm : misplaced.keySet()) {
+            var cell = LabConfig.CELLS.stream().filter(c -> LabConfig.cellJvms(c).contains(jvm)).findFirst().orElseThrow();
+            var at = cluster.attachedServer(jvm);
+            if (at != null && !at.equals(LabConfig.cellServer(cell))) still.put(jvm, at);
+        }
+        report.event("placement restored, ready=" + ready + (still.isEmpty() ? "" : ", still remote: " + still));
+        return misplaced;
+    }
+
+    /**
+     * Every region must be served by its own gateway (L23): a failed lb network re-attach once left
+     * the lb answering every X-Region from gateway-cina with 200s, so a whole series of scenarios
+     * ran on one cell without any visible error. Recreates the lb once when a region is misrouted
+     * and throws a harness error when that does not fix it. Returns "ok" or what was repaired.
+     */
+    protected String checkLbRouting() {
+        var wrong = misroutedRegions();
+        if (wrong.isEmpty()) return "ok";
+        report.event("lb misroutes " + wrong + "; recreating the lb");
+        cluster.recreateLb();
+        cluster.waitReady("lb", Duration.ofSeconds(120));
+        var still = Cluster.waitUntil(Duration.ofSeconds(60), Duration.ofSeconds(3), () -> misroutedRegions().isEmpty());
+        if (!still) throw harness("lb still misroutes after a recreate: " + misroutedRegions());
+        return "repaired: " + wrong;
+    }
+
+    /** region -> instance that answered /whoami (only the wrong ones). */
+    private Map<String, String> misroutedRegions() {
+        var out = new java.util.TreeMap<String, String>();
+        for (var region : LabConfig.REGIONS) {
+            var body = gateway.getBody(region, "/whoami");
+            var instance = body == null ? "unreachable"
+                    : com.evento.lab.cluster.chaos.Json.read(body).path("instance").asText("unknown");
+            if (!instance.equals(LabConfig.regionService(region))) out.put(region, instance);
+        }
+        return out;
     }
 
     /** Run the scenario body; anything thrown is a harness error (recorded, then rethrown to fail the test). */

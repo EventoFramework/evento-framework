@@ -12,13 +12,21 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * S13: {@code gateway-europa} behind the EU bus VIP ({@code bus-eu:3030})
- * with the 2.4.6 wrong-broker guard {@code expectedServerInstanceId=evento-eu}.
- * When evento-eu dies the VIP hands the bundle a healthy server of the same
- * cluster, which the single-id guard refuses ({@code event=server_instance_mismatch}
- * loop, G13). With an expected cluster name it would accept any
- * {@code evento-lab-cluster} server and still refuse a foreign one (that half
- * needs a fourth server with another cluster name and is not run here).
+ * S13: server identity and the wrong-broker guard, with {@code gateway-europa} behind the EU bus
+ * VIP ({@code bus-eu:3030}), in three variants:
+ * <ul>
+ *   <li>C, foreign cluster: the gateway expects {@code EVENTO_CLUSTER_NAME=foreign-cluster} while
+ *       every server announces {@code evento-lab-cluster}. The G13 fix refuses the session
+ *       ({@code event=cluster_name_mismatch}); 2.4.6 has no cluster identity and attaches.</li>
+ *   <li>A, legacy single-id guard {@code EVENTO_EXPECTED_SERVER_ID=evento-eu} (2.4.6's only
+ *       option): when evento-eu dies the VIP hands the bundle a healthy server of the same cluster,
+ *       which the single id refuses ({@code event=server_instance_mismatch} loop). This is the
+ *       guard's contract on both image sets; it is why G13 needed a cluster-level identity.</li>
+ *   <li>B, cluster-name guard only (the compose default {@code EVENTO_CLUSTER_NAME}, no expected
+ *       id): after the kill the bundle must accept any {@code evento-lab-cluster} server behind the
+ *       VIP and EUROPA must work again, with the guard still active.</li>
+ * </ul>
+ * Before L21 only variant A ran, so the G13 fix could never show on {@code :after}.
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S13WrongBrokerTest extends AbstractScenario {
@@ -50,6 +58,32 @@ class S13WrongBrokerTest extends AbstractScenario {
                 cluster.waitReady(SERVICE, Duration.ofSeconds(300));
             });
             var vip = System.getenv().getOrDefault("S13_BUS_ADDRESSES", "bus-eu:3030");
+            var window = envSeconds("S13_WAIT_S", 60);
+
+            // ---- C: a bundle that expects another cluster -----------------------------------------
+            var sinceC = Instant.now();
+            cluster.recreateWithEnv(SERVICE, Map.of(
+                    "EVENTO_SERVER_ADDRESSES", vip,
+                    "EVENTO_EXPECTED_SERVER_ID", "",
+                    "EVENTO_CLUSTER_NAME", "foreign-cluster"));
+            var readyC = cluster.waitReady(SERVICE, window);
+            var whoC = cluster.httpGetInside(SERVICE, "/whoami");
+            var featureC = feature(whoC, "expectedClusterName");
+            var logsC = cluster.logsSince(SERVICE, sinceC);
+            var clusterMismatches = Cluster.countMarkers(logsC, List.of("event=cluster_name_mismatch"))
+                    .get("event=cluster_name_mismatch");
+            var attached = whoC != null && whoC.replace(" ", "").contains("\"busState\":\"READY\"");
+            report.metric("C.clusterNameMismatches", clusterMismatches);
+            report.metric("C.expectedClusterNameFeature", featureC);
+            report.attach(SERVICE + " C cluster mismatch lines", Cluster.grep(logsC, "cluster_name_mismatch", 5));
+            report.observe("C: bundle expecting a foreign cluster",
+                    "the session is refused (cluster_name_mismatch) and the bundle never becomes READY",
+                    "no cluster identity in 2.4.6: the bundle attaches to whatever server answers (G13)",
+                    "healthy=" + readyC + ", busState READY=" + attached + ", " + clusterMismatches
+                            + " cluster_name_mismatch line(s), feature " + featureC,
+                    !attached && clusterMismatches > 0, attached, null);
+
+            // ---- A: legacy single-id guard ---------------------------------------------------------
             cluster.recreateWithEnv(SERVICE, Map.of(
                     "EVENTO_SERVER_ADDRESSES", vip,
                     "EVENTO_EXPECTED_SERVER_ID", "evento-eu"));
@@ -61,8 +95,7 @@ class S13WrongBrokerTest extends AbstractScenario {
 
             var since = Instant.now();
             cluster.kill("evento-eu");
-            report.event("killed evento-eu");
-            var window = envSeconds("S13_WAIT_S", 60);
+            report.event("A: killed evento-eu");
             Cluster.sleep(window);
             var after = probe(3);
             var logs = cluster.logsSince(SERVICE, since);
@@ -70,16 +103,63 @@ class S13WrongBrokerTest extends AbstractScenario {
                     .get("event=server_instance_mismatch");
             report.attach(SERVICE + " mismatch lines", Cluster.grep(logs, "server_instance_mismatch", 10));
             report.metric("serverInstanceMismatches", mismatches);
-            report.observe("failover to a healthy server of the same cluster",
-                    "the bundle accepts any evento-lab-cluster server behind the VIP and EUROPA works again",
+            report.observe("A: legacy single-id guard on failover",
+                    "by contract the single expected id refuses every other server, even a healthy one of the"
+                            + " same cluster (recorded on both image sets; the fix is variant B's cluster name)",
                     "the single expected id rejects every healthy failover target: server_instance_mismatch loop (G13)",
                     ack(after) + "/3 acknowledged " + kinds(after) + "; " + mismatches + " mismatch log lines in "
                             + window.toSeconds() + " s",
                     ack(after) == 3, mismatches > 0, null);
-            report.note("Foreign-cluster rejection (the other half of the G13 fix) needs a 4th server with "
-                    + "EVENTO_CLUSTER_NAME set to something else; not part of the default topology.");
             markers(List.of(SERVICE, "lb"), since, MARKERS);
+
+            // ---- B: cluster-name guard only --------------------------------------------------------
+            cluster.ensureRunning("evento-eu");
+            var euBack = cluster.waitReady("evento-eu", Duration.ofSeconds(420));
+            report.event("evento-eu back, ready=" + euBack);
+            // no failback (N16): the EU bundles that failed over during A are still remote; B needs
+            // them home, otherwise the gateway lands on evento-eu with no handler there (G1)
+            var leftRemote = restorePlacement();
+            report.metric("A.bundlesStillRemoteAfterEuReturned", leftRemote);
+            cluster.recreateWithEnv(SERVICE, Map.of(
+                    "EVENTO_SERVER_ADDRESSES", vip,
+                    "EVENTO_EXPECTED_SERVER_ID", ""));
+            var readyB = cluster.waitReady(SERVICE, Duration.ofSeconds(300));
+            var whoB = cluster.httpGetInside(SERVICE, "/whoami");
+            var featureB = feature(whoB, "expectedClusterName");
+            report.metric("B.expectedClusterNameFeature", featureB);
+            var beforeB = probe(3);
+            var sinceB = Instant.now();
+            cluster.kill("evento-eu");
+            report.event("B: killed evento-eu");
+            Cluster.sleep(window);
+            var afterB = probe(3);
+            var logsB = cluster.logsSince(SERVICE, sinceB);
+            report.attach(SERVICE + " B handshakes after the kill", Cluster.grep(logsB, "event=handshake_complete", 5));
+            var guardOn = featureB != null && featureB.startsWith("available");
+            report.metric("B.probesBeforeKill", ack(beforeB) + "/3");
+            report.metric("B.probesAfterKill", ack(afterB) + "/3 " + kinds(afterB));
+            report.observe("B: failover to a healthy server of the same cluster (cluster-name guard)",
+                    "the bundle accepts any evento-lab-cluster server behind the VIP, EUROPA works again,"
+                            + " and the cluster-name guard is active",
+                    "no cluster-name guard in 2.4.6: failover works only because nothing is checked (G13)",
+                    "ready=" + readyB + ", " + ack(beforeB) + "/3 before the kill " + kinds(beforeB) + ", "
+                            + ack(afterB) + "/3 after "
+                            + kinds(afterB) + "; guard " + featureB,
+                    ack(afterB) == 3 && guardOn, !guardOn, null);
+            markers(List.of(SERVICE), sinceB, MARKERS);
         });
+    }
+
+    /** "available: value" / "unavailable" for one entry of /whoami frameworkFeatures, or null. */
+    static String feature(String whoami, String name) {
+        if (whoami == null) return null;
+        var n = com.evento.lab.cluster.chaos.Json.read(whoami).path("frameworkFeatures");
+        for (var f : n) {
+            if (name.equals(f.path("feature").asText())) {
+                return f.path("available").asBoolean() ? "available: " + f.path("value").asText() : "unavailable";
+            }
+        }
+        return "unavailable (not listed)";
     }
 
     private List<RequestRecord> probe(int n) {

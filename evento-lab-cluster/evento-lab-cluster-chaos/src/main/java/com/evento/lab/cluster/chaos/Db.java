@@ -137,6 +137,19 @@ public class Db {
         }
     }
 
+    /** Highest sequence of the events stamped with {@code context} (0 when none). */
+    public long esHeadOfContext(String context) throws SQLException {
+        try (var c = es(); var ps = c.prepareStatement(
+                "SELECT max(event_sequence_number) FROM es__events WHERE context = ?")) {
+            ps.setString(1, context);
+            try (var rs = ps.executeQuery()) {
+                rs.next();
+                long v = rs.getLong(1);
+                return rs.wasNull() ? 0L : v;
+            }
+        }
+    }
+
     /** Sequence numbers present more than once anywhere in the store (I3; impossible once G6's PK lands). */
     public List<Long> duplicateSeqs(Connection c) throws SQLException {
         var out = new ArrayList<Long>();
