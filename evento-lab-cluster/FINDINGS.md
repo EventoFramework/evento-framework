@@ -394,8 +394,9 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   (`payments` keyed by order id here).
 - **Status:** implemented after this run (branch `cluster/idempotency`, CLUSTER-READINESS G5): the
   gateway passes `X-Idempotency-Key` to `CommandGateway.sendIdempotent`, the saga's commands get
-  `evento:<consumerId>:<seq>:<ordinal>` automatically, and the broker answers a stored key with the
-  stored event on any server. The S07 case where the payment ran but its event could not be stored
+  `evento:<consumerId>:<seq>:<CommandType>:<n>` automatically, and the broker answers a stored key
+  with the stored event on any server (only for the same command type and aggregate; another
+  command presenting the key is refused, never answered with the stored event). The S07 case where the payment ran but its event could not be stored
   stays open (no key is recorded without the event). Not yet re-measured.
 
 ## N15: commands commit after their caller's deadline under `es-lock` contention
