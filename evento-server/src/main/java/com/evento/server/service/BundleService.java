@@ -47,10 +47,25 @@ public class BundleService {
      */
     public void unregister(
             String bundleId) {
+        removeBundle(bundleId);
+        sweepOrphanPayloads();
+    }
+
+    /**
+     * Deletes the bundle's handlers, consumers, components and the bundle row itself.
+     * Touches only rows of {@code bundleId}, so it is safe to run inside a transaction
+     * while other bundles are being discovered or removed, on this server or another
+     * one sharing the catalog.
+     *
+     * @param bundleId the ID of the bundle to remove
+     */
+    public void removeBundle(String bundleId) {
         log.info("[BundleService] Unregister called for bundleId={}", bundleId);
         int removedHandlers = 0;
-        for (Handler handler : handlerService.findAll()) {
-            if (!handler.getComponent().getBundle().getId().equals(bundleId)) continue;
+        // Only this bundle's handlers: scanning every handler raced the concurrent removal
+        // of other bundles (a handler whose component had just been deleted by another
+        // transaction came back with a null component).
+        for (Handler handler : handlerService.findAllByBundleId(bundleId)) {
             log.info("[BundleService] Deleting handler id={} type={} component={} bundle={}", handler.getUuid(), handler.getHandlerType(), handler.getComponent().getComponentName(), bundleId);
             handlerService.delete(handler);
             removedHandlers++;
@@ -74,17 +89,32 @@ public class BundleService {
         } else {
             log.info("[BundleService] Bundle record not found for bundleId={}", bundleId);
         }
+        components.forEach(c -> handlerService.clearCache(c.getComponentName()));
+    }
+
+    /**
+     * Deletes payloads that no bundle registers and no handler references anymore.
+     * Payload names are shared across bundles, so while one bundle is being removed
+     * another may be discovered and start referencing an "orphan" payload; its delete
+     * then fails the foreign key. Each delete therefore stands alone (call this outside
+     * any transaction): a payload that became referenced again is simply kept.
+     */
+    public void sweepOrphanPayloads() {
         int removedOrphanPayloads = 0;
         for (Payload payload : payloadRepository.findAll()) {
-            if (!bundleRepository.existsById(payload.getRegisteredIn())
-                    && !handlerService.isPayloadReferenced(payload.getName())) {
-                log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
-                payloadRepository.delete(payload);
-                removedOrphanPayloads++;
+            try {
+                if ((payload.getRegisteredIn() == null || !bundleRepository.existsById(payload.getRegisteredIn()))
+                        && !handlerService.isPayloadReferenced(payload.getName())) {
+                    log.info("[BundleService] Deleting orphan payload name='{}' previously registeredIn={}", payload.getName(), payload.getRegisteredIn());
+                    payloadRepository.delete(payload);
+                    removedOrphanPayloads++;
+                }
+            } catch (RuntimeException e) {
+                log.info("[BundleService] Keeping payload name='{}': it became referenced while sweeping ({})",
+                        payload.getName(), e.getClass().getSimpleName());
             }
         }
-        components.forEach(c -> handlerService.clearCache(c.getComponentName()));
-        log.info("[BundleService] Removed {} orphan payloads after unregister of bundleId={}", removedOrphanPayloads, bundleId);
+        log.info("[BundleService] Removed {} orphan payloads", removedOrphanPayloads);
     }
 
     /**

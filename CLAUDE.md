@@ -28,6 +28,8 @@ load-bearing docs live in [`.claude/`](.claude/):
     :evento-lab:test \
     :evento-lab-microservices:evento-lab-ms-it:test
   ```
+  The Testcontainers/Postgres ITs (e.g. `MultiServerCatalogIT`) are skipped unless
+  `EVENTO_RUN_JDBC_IT=true` is set; prefix the command with it when touching the catalog.
 
 ## Working agreements
 

@@ -36,6 +36,8 @@ import java.util.concurrent.locks.Lock;
 public class PerformanceStoreService extends PerformanceService {
 
     public static final double ALPHA = 0.33;
+    /** Advisory-lock key that elects one server per hour to run {@link #cleanupTelemetry()}. */
+    static final String TELEMETRY_CLEANUP_LOCK = "TELEMETRY_CLEANUP";
     private final HandlerServiceTimePerformanceRepository handlerServiceTimePerformanceRepository;
     private final HandlerInvocationCountPerformanceRepository handlerInvocationCountPerformanceRepository;
 
@@ -356,12 +358,20 @@ public class PerformanceStoreService extends PerformanceService {
     }
 
 
+    /**
+     * Hourly TTL sweep of the telemetry time series. Every server sharing the database
+     * fires this cron at the same instant; the deletes are idempotent, but N servers
+     * running the same large range deletes at once only contend on the same rows. The
+     * advisory try-lock lets one server do the sweep and the others skip it.
+     */
     @Scheduled(cron = "0 0 * * * *")
     public void cleanupTelemetry() {
-        var delta = Instant.now().toEpochMilli() - (ttl * 24L * 60L * 60L * 1000L);
-        jdbcTemplate.update("delete from performance__handler_service_time_ts where timestamp < ?", delta);
-        jdbcTemplate.update("delete from performance__handler_invocation_count_ts where timestamp < ?", delta);
-        jdbcTemplate.update("delete from performance__aggregate_handler_invocation_count_ts where timestamp < ?", delta);
+        distributedLock.tryLockedArea(TELEMETRY_CLEANUP_LOCK, () -> {
+            var delta = Instant.now().toEpochMilli() - (ttl * 24L * 60L * 60L * 1000L);
+            jdbcTemplate.update("delete from performance__handler_service_time_ts where timestamp < ?", delta);
+            jdbcTemplate.update("delete from performance__handler_invocation_count_ts where timestamp < ?", delta);
+            jdbcTemplate.update("delete from performance__aggregate_handler_invocation_count_ts where timestamp < ?", delta);
+        });
     }
 
 }
