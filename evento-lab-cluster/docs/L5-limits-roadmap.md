@@ -114,23 +114,45 @@ sequenceDiagram
 - **Da dove viene la chiave.** Esplicita: `CommandGateway.sendIdempotent(comando, chiave)`; il
   gateway del laboratorio passa l'header `X-Idempotency-Key` (gli item di una create usano
   `<chiave>#<n>`). Derivata: un comando mandato da una saga, un projector o un observer senza chiave
-  riceve `evento:<consumerId>:<sequenza dell'evento>:<ordinale>`, quindi un evento riconsegnato (o il
-  retry dell'handler) rimanda **le stesse** chiavi. `PaymentSaga` non cambia una riga.
+  riceve `evento:<consumerId>:<sequenza dell'evento>:<TipoComando>:<n>` (`n` conta i comandi **di
+  quel tipo** nell'invocazione), quindi un evento riconsegnato (o il retry dell'handler) rimanda
+  **le stesse** chiavi. `PaymentSaga` non cambia una riga. Le chiavi derivate valgono solo per i
+  gateway che lo dichiarano (`supportsIdempotencyKeys()`); un decoratore scritto prima di G5 riceve
+  il `send` normale. Le chiavi esplicite che iniziano con `evento:` sono rifiutate.
 - **Dove è salvata.** `es__events.idempotency_key` (nullable) con indice `UNIQUE` parziale
   (`WHERE idempotency_key IS NOT NULL`), creato al boot online (`CONCURRENTLY`); le righe vecchie
-  restano fuori dall'indice. Nessuna scadenza: la chiave vive quanto l'evento.
+  restano fuori dall'indice. Con la chiave si salva l'**identità** del comando
+  (`idempotency_command` + `aggregate_id`): una chiave presentata da un altro comando (altro tipo,
+  altro aggregato) è rifiutata con `IdempotencyKeyMismatchException`, mai risposta con l'evento
+  dell'altro. Per questo una create senza id del client ricava l'id dell'ordine dalla chiave.
+  I comandi di servizio in esecuzione hanno una riga in `es__idempotency_claims` (proprietario,
+  lease sull'orologio del database); un handler che non restituisce nulla lascia la riga
+  "completata", così il retry non lo riesegue.
 - **Cosa fa il server.** Cerca la chiave **prima** del lock e dell'inoltro: se c'è, risponde con
   l'evento salvato (`event=idempotent_replay`, metrica `evento.server.commands.idempotent.replayed`),
   su qualunque server arrivi il retry. Duplicati concorrenti: un comando di aggregato ricontrolla la
-  chiave sotto il lock dell'aggregato (e l'indice unico fa da recinto); un comando di servizio prende
-  il lock di cluster `IDEMPOTENCY:<chiave>` prima dell'inoltro, così due duplicati in volo non
-  eseguono entrambi il pagamento. Un comando con chiave scartato per deadline (N3) la cui chiave
-  risulta salvata riceve l'evento salvato, mai "scaduto".
+  chiave sotto il lock dell'aggregato (e l'indice unico fa da recinto); un comando di servizio
+  **rivendica** la chiave con una riga di claim prima dell'inoltro, così due duplicati in volo non
+  eseguono entrambi il pagamento e chi aspetta non tiene nessuna connessione (il vecchio lock di
+  cluster `IDEMPOTENCY:<chiave>` teneva una connessione del pool dei lock per tutto l'handler, oltre
+  a quella del lock `RESOURCE:`: con il pool pieno i comandi si aspettavano a vicenda). Un comando
+  con chiave scartato per deadline (N3) la cui chiave risulta salvata riceve l'evento salvato; uno
+  che smette di aspettare un'altra esecuzione della stessa chiave riceve
+  `IdempotencyKeyInProgressException` (esito indeterminato), mai "scaduto".
 - **Finestra residua.** Un handler di servizio eseguito il cui evento **non** è stato salvato
   (append fallito, server morto tra risposta e append: il caso di S07, cella partizionata) non lascia
   la chiave, e il retry lo riesegue. Quell'handler deve deduplicare da sé sulla chiave che riceve
   (`ServiceCommandMessage.getIdempotencyKey()`); i `payments` del laboratorio non lo fanno apposta,
   per mostrare la finestra.
+- **Upgrade a rotazione (limite aperto).** Un server senza G5 ignora la chiave (salta il campo
+  sconosciuto e fa un append senza chiave): durante un upgrade, un retry con chiave che arriva a un
+  server vecchio viene eseguito come un comando senza chiave. L'exactly-once vale solo quando tutti i
+  server hanno G5: aggiornare prima i server, poi contare sulle chiavi.
+- **Le chiavi non scadono (limite aperto).** Una chiave vive quanto il suo evento (o la sua riga di
+  claim completata): l'indice e la tabella dei claim crescono soltanto, e riavvolgere un consumer
+  (rimettere indietro il checkpoint per rielaborare la storia) rimanda le stesse chiavi derivate,
+  quindi i comandi che manda diventano repliche invece di essere rieseguiti. Per rieseguirli,
+  riavvolgere con un nuovo consumer id. Retention/TTL delle chiavi: lavoro futuro.
 - Perché era urgente dopo G4: `:after` fallisce in fretta, quindi il retry parte mentre il primo
   tentativo sta ancora committando. In S14, 9 dei 13 primi tentativi falliti erano già salvati (su
   `:before` 1 su 24, perché il timeout di 30 s lasciava finire l'originale).
@@ -193,9 +215,10 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 
 - **Mesh**: una connessione per coppia di server e un salto WAN per ogni richiesta inoltrata.
 - **Idempotenza** (implementata): una colonna e un indice unico parziale su `es__events` (solo le
-  righe con chiave); per un comando con chiave una lettura sull'indice prima del lock e una sotto il
-  lock; per un comando di servizio con chiave un lock di cluster in più (`IDEMPOTENCY:<chiave>`, una
-  connessione del pool dei lock). I comandi senza chiave non cambiano.
+  righe con chiave) e una colonna per l'identità del comando; per un comando con chiave una lettura
+  (evento e claim in una sola istruzione) prima del lock e una sotto il lock; per un comando di
+  servizio con chiave una riga di claim (insert, rinnovo del lease, delete: nessuna connessione
+  tenuta mentre l'handler gira o mentre un duplicato aspetta). I comandi senza chiave non cambiano.
 - **Fence**: un indice unico in più; un round trip in meno per comando (niente lock per aggregato).
 - **Read datasource**: pool aggiuntivi verso le repliche, carico di fetch tolto al primario.
 
