@@ -39,6 +39,13 @@ class BundleDeploymentTest {
         assertThat(d.dataTargets()).isEmpty();
         assertThat(d.commandTimeoutMs()).isEqualTo(30_000);
         assertThat(d.heartbeatReadIdle()).isNull();
+        assertThat(d.failbackWindow()).isNull();
+    }
+
+    @Test
+    void theFailbackWindowIsReadInSeconds() {
+        var d = BundleDeployment.from(Map.of("EVENTO_FAILBACK_WINDOW_S", "20"), "order-command");
+        assertThat(d.failbackWindow()).isEqualTo(Duration.ofSeconds(20));
     }
 
     @Test
