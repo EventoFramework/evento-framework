@@ -1,0 +1,65 @@
+{
+  "scenario" : "S15",
+  "title" : "Clock skew on one region JVM (optional)",
+  "gaps" : [ "fetch staleness gate (Low)", "G20" ],
+  "label" : "before",
+  "startedAt" : "2026-09-29T14:00:26.209223200Z",
+  "finishedAt" : "2026-09-29T14:02:00.021102300Z",
+  "durationSeconds" : 93,
+  "parameters" : {
+    "orderIdPrefix" : "s15-before-1230ab-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "skewEnv" : {
+      "LD_PRELOAD" : "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1",
+      "FAKETIME" : "-40s",
+      "FAKETIME_DONT_FAKE_MONOTONIC" : "1"
+    },
+    "skewImage" : "evento-lab-cluster/order-query:before-faketime",
+    "skewedClockMinusHostSeconds" : "-40"
+  },
+  "verdictCounts" : {
+    "KNOWN_DEFECT_REPRODUCED" : 1
+  },
+  "observations" : [ {
+    "name" : "skewed region consumer",
+    "expected" : "the AFRICA projector (clock +skew) still projects its orders within 60 s",
+    "expectedBeforeFix" : "the staleness gate drops the skewed consumer's fetches: the orders never appear",
+    "observed" : "orders not projected within 60 s",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "logMarkers" : {
+      "evento-eu" : {
+        "stale" : 118,
+        "fetch" : 118
+      },
+      "order-query-eu" : {
+        "stale" : 236,
+        "fetch" : 357
+      }
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 1530,
+    "at" : "2026-09-29T14:00:27.740173100Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 84201,
+    "at" : "2026-09-29T14:01:50.410467900Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 93811,
+    "at" : "2026-09-29T14:02:00.021102300Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: evento-eu" : [ "java.lang.IllegalStateException: EventFetchRequest expired: age=40004ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40006ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40013ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40004ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40006ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.lang.IllegalStateException: EventFetchRequest expired: age=40013ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch" ],
+    "log excerpts: order-query-eu" : [ "java.util.concurrent.ExecutionException: java.lang.IllegalStateException: EventFetchRequest expired: age=40004ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "Caused by: java.lang.IllegalStateException: EventFetchRequest expired: age=40004ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.util.concurrent.ExecutionException: java.lang.IllegalStateException: EventFetchRequest expired: age=40006ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "java.util.concurrent.ExecutionException: java.lang.IllegalStateException: EventFetchRequest expired: age=40004ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch", "\tat com.evento.common.messaging.consumer.ConsumerProcessor.fetchEvents(ConsumerProcessor.java:1032) ~[evento-common-2.4.6.jar!/:na]", "Caused by: java.lang.IllegalStateException: EventFetchRequest expired: age=40004ms > max=30000ms; the requesting consumer has already timed out, dropping stale fetch" ],
+    "stack actions" : [ "2026-09-29T14:00:27.753870400Z compose up -d --no-deps --force-recreate order-query-eu with env {LD_PRELOAD=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1, FAKETIME=-40s, FAKETIME_DONT_FAKE_MONOTONIC=1} image evento-lab-cluster/order-query:before-faketime", "2026-09-29T14:01:50.411465800Z compose up -d --no-deps --force-recreate order-query-eu (restore default)" ]
+  }
+}
