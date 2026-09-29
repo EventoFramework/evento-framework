@@ -16,7 +16,7 @@ public record DispatchContext(
 
     /**
      * The gateway a consumer handler gets for one event: commands it sends without an explicit
-     * idempotency key get one derived from {@code (consumerId, event sequence number, ordinal)},
+     * idempotency key get one derived from {@code (consumerId, event sequence number, command type, ordinal)},
      * so a redelivered event re-issues the same keys and the broker replays the stored events
      * instead of executing the commands again (G5). {@code null} when the factory yields none
      * (engine unit tests).
