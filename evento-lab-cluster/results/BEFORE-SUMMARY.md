@@ -61,11 +61,11 @@ The full comparison is [`COMPARISON.md`](COMPARISON.md); `:after` per scenario i
 | Metric | `:before` | `:after` (where measured) |
 |---|---|---|
 | S00 commands acked, 7×20/min | 227/319 (71 %) | 492/492 (100 %; integration smoke 498/498) |
-| S00 p50 AM / APAC | 25–27 s / 30 s (timeout-bound) | 0.72 s / 1.12 s |
-| S00 appends/s | 5.2 (saturated) | 9.6 |
+| S00 p50 AM / APAC | 25–27 s / 30 s (timeout-bound) | 0.73–0.76 s / 1.16–1.18 s (integration smoke 0.72 s / 1.12 s) |
+| S00 appends/s | 5.2 (saturated) | 9.35 (integration smoke 9.6) |
 | Unacked commands stored anyway (S00) | 83 | 0 unacked |
 | Lane takeover (S16) | 7.7 s | 7.3 s (integration 5.2 s) |
-| ALL fan-out to 3 DBs (S16) | 2.1 s | < 1 s (integration probe) |
+| ALL fan-out to 3 DBs (S16) | 2.1 s | 10.2 s (N4; integration run 4.1 s; a single price < 1 s) |
 | Convergence I6 | 0.2–25.9 s (S00 13.1 s, S03 25.9 s, S06 19.4 s) | 0.2–3.7 s |
 | Fresh starts that need the catalog repair | 7/7 | 0/7 |
 | ES promotion → writes resume (S08, L24 fixed) | 7.6 s | 15.1 s |
