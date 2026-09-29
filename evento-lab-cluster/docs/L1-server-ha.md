@@ -186,7 +186,7 @@ default `random`), come misura S02.
 |---|---|---|
 | G1 | nessun inoltro tra server: chiamante e handler devono stare sullo stesso server, altrimenti `no handler for <Payload>` | [S01](../results/S01/after/report.md): 0/5 in ≤ 14 ms, identico su `:before` |
 | N16 | nessun failback: dopo il ritorno del server attivo i bundle restano sul backup fino alla prossima disconnessione. Se un bundle solo si riconnette (endpoint 0), il cluster si divide e G1 fa fallire le chiamate | [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md): `gateway-europa` sul server tornato, 0/3 `no handler` |
-| G5 / N14 | `BrokerChangedException` dice "esito indeterminato", ma nessuna chiave di idempotenza permette un retry sicuro | [S14](../results/S14/after/report.md): 9 dei 13 primi tentativi falliti erano già stati salvati, 8 chiavi salvate due volte; [S03 `after-run1`](../results/S03/after-run1/report.md): pagamento eseguito due volte |
+| G5 / N14 | `BrokerChangedException` dice "esito indeterminato". **Implementato dopo le misure**: un retry con la stessa chiave (`sendIdempotent`, o la chiave che una saga deriva da sola) riceve l'evento già salvato, su qualunque server ([L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)). Resta la finestra "handler di servizio eseguito, evento non salvato" | misure pre-fix, da ripetere: [S14](../results/S14/after/report.md): 9 dei 13 primi tentativi falliti erano già stati salvati, 8 chiavi salvate due volte; [S03 `after-run1`](../results/S03/after-run1/report.md): pagamento eseguito due volte |
 | G17 | dashboard e amministrazione dei consumer mostrano la vista **del server** a cui ti colleghi | [CLUSTER-READINESS G17](../../.claude/CLUSTER-READINESS.md) |
 | G22 | una partizione silenziosa (senza RST) si rileva solo dopo il read-idle (45 s di default) | `EVENTO_HEARTBEAT_READ_IDLE_S` / `setHeartbeatReadIdle` |
 
@@ -210,8 +210,9 @@ lo fa prima di ogni scenario (`placementRestoredAtStart`, L22).
       stesso `EVENTO_CLUSTER_NAME`.
 - [ ] Ogni bundle ha la **stessa** lista `EVENTO_SERVER_ADDRESSES`, nello stesso ordine (o lo stesso VIP).
 - [ ] `EVENTO_CLUSTER_NAME` impostato sui bundle; `EVENTO_EXPECTED_SERVER_ID` **non** impostato.
-- [ ] Il chiamante gestisce `BrokerChangedException` come esito indeterminato: non ripete un comando
-      non idempotente senza una verifica (G5).
+- [ ] Il chiamante gestisce `BrokerChangedException` come esito indeterminato: ripete il comando
+      **con la stessa chiave di idempotenza** (`CommandGateway.sendIdempotent`; il gateway del
+      laboratorio passa `X-Idempotency-Key`), mai senza (G5).
 - [ ] Runbook: dopo il ritorno di un server, riavviare i bundle rimasti sul backup (N16).
 - [ ] `max_connections` ≥ server × (Hikari + lock pool) + pool dei bundle.
 - [ ] Avvio dei server in catena, o almeno sulla versione con G14.
