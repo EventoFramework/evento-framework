@@ -1,0 +1,19 @@
+# S10 override: start the three evento-servers together, with no health chain between them,
+# so they run schema.sql concurrently on an empty event store (G14).
+#
+#   docker compose -f docker/compose.yaml -f docker/compose.cold-start.yaml up -d \
+#       es-pg-eu es-pg-am es-pg-apac toxiproxy evento-eu evento-am evento-apac
+#
+# (scripts/up.sh does the same when COLD_START=true.) Each server still waits for the
+# event-store primary and its sync standby, which is a precondition, not a race.
+services:
+  evento-am:
+    depends_on: !override
+      es-pg-eu: {condition: service_healthy}
+      es-pg-am: {condition: service_healthy}
+      toxiproxy-init: {condition: service_healthy}
+  evento-apac:
+    depends_on: !override
+      es-pg-eu: {condition: service_healthy}
+      es-pg-am: {condition: service_healthy}
+      toxiproxy-init: {condition: service_healthy}

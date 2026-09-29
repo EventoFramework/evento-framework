@@ -1,0 +1,628 @@
+# evento-lab-cluster: multi-region Evento chaos lab.
+# Design inputs: .claude/CLUSTER-READINESS.md (topology section, gaps G*, scenarios S*).
+#
+#   cells     EU   = EUROPA, AFRICA                  -> evento-eu,   es-pg-eu (primary),  app-pg-eu (primary)
+#             AM   = AMERICA, SUD_AMERICA            -> evento-am,   es-pg-am (sync),     app-pg-am (sync)
+#             APAC = CINA, INDIA, AUSTRALIA_NZ       -> evento-apac, es-pg-apac (async),  app-pg-apac (async)
+#
+# Networking: one bridge per cell (net-eu, net-am, net-apac). A container sees only its own
+# cell; everything cross-cell goes through toxiproxy, which sits on every cell network under
+# the alias toxi-<cell>. Proxy '<src>-to-<svc>-<dst>' listens on 20000 + src*100 + dst*10 + svc
+# (cells eu=1 am=2 apac=3; svc es-pg=1 app-pg=2 evento bus=3), e.g. am -> es-pg-eu = toxi-am:20211.
+# Partitioning a cell = 'docker network disconnect net-<cell> toxiproxy' (+ 'lb' to also cut
+# its bus VIP backups and HTTP ingress). 'wan' is the backbone the proxy and the lb share.
+#
+# Use scripts/up.sh / scripts/down.sh; plain 'docker compose -f docker/compose.yaml up -d'
+# also works. Knobs (env): LAB_TAG, BUS_VIA_LB (via up.sh) or BUS_ADDR_EU/AM/APAC,
+# CONSUMER_CHECKPOINT_MODE, LAB_JAVA_OPTS. Profile 'replica' adds cell-core-eu-b (S2).
+
+name: evento-lab-cluster
+
+# ------------------------------------------------------------------------------------------
+# Shared fragments
+# ------------------------------------------------------------------------------------------
+x-java-opts: &java-opts "${LAB_JAVA_OPTS:--XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k}"
+
+x-pg-command: &pg-command
+  - postgres
+  - -c
+  - listen_addresses=*
+  - -c
+  - max_connections=200
+  - -c
+  - shared_buffers=32MB
+  - -c
+  - work_mem=2MB
+  - -c
+  - maintenance_work_mem=32MB
+  - -c
+  - wal_level=replica
+  - -c
+  - max_wal_senders=10
+  - -c
+  - wal_keep_size=512MB
+  - -c
+  - hot_standby=on
+  - -c
+  - hot_standby_feedback=on
+  - -c
+  - synchronous_commit=on
+  - -c
+  - wal_sender_timeout=30s
+  - -c
+  - wal_receiver_timeout=30s
+  # G25: detect dead peers fast so orphaned advisory locks are released.
+  - -c
+  - tcp_keepalives_idle=10
+  - -c
+  - tcp_keepalives_interval=5
+  - -c
+  - tcp_keepalives_count=3
+  - -c
+  - client_connection_check_interval=5s
+
+x-pg-healthcheck: &pg-healthcheck
+  test: ["CMD", "sh", "/pg/healthcheck.sh"]
+  interval: 3s
+  timeout: 5s
+  retries: 40
+  start_period: 20s
+
+x-pg-primary: &pg-primary
+  image: postgres:17-alpine
+  command: *pg-command
+  healthcheck: *pg-healthcheck
+  stop_grace_period: 5s
+  shm_size: 128m
+
+x-pg-replica: &pg-replica
+  image: postgres:17-alpine
+  entrypoint: ["sh", "/pg/replica-entrypoint.sh"]
+  command: *pg-command
+  healthcheck: *pg-healthcheck
+  stop_grace_period: 5s
+  shm_size: 128m
+
+x-server: &server
+  image: evento-lab-cluster/server:${LAB_TAG:-dev}
+  mem_limit: 512m
+  stop_grace_period: 10s
+  healthcheck:
+    test: ["CMD", "/app/healthcheck.sh", "3000", "/actuator/health/readiness"]
+    interval: 5s
+    timeout: 6s
+    retries: 60
+    start_period: 240s
+
+x-server-env: &server-env
+  SPRING_DATASOURCE_USERNAME: postgres
+  SPRING_DATASOURCE_PASSWORD: secret
+  # >= 10 + the 5 connections pinned by PgDistributedLock instances (G3).
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "20"
+  EVENTO_CLUSTER_NAME: evento-lab-cluster
+  EVENTO_ES_MODE: CPES
+  JAVA_OPTS: *java-opts
+
+x-app: &app
+  image: evento-lab-cluster/app:${LAB_TAG:-dev}
+  stop_grace_period: 10s
+
+x-region-healthcheck: &region-healthcheck
+  test: ["CMD", "/app/healthcheck.sh", "8080", "/actuator/health"]
+  interval: 5s
+  timeout: 6s
+  retries: 60
+  start_period: 240s
+
+# Per-cell environment for the app JVMs. Bus address lists are "own server first, then the
+# other two through toxiproxy"; HEAD only dials the first (G2), the rest is for the fix.
+# App-DB URLs list the three app-pg nodes (local direct, remote via toxiproxy) with
+# targetServerType=primary so a promoted replica is found after S9.
+x-env-eu: &env-eu
+  CELL: EU
+  EVENTO_SERVER_ADDRESSES: ${BUS_ADDR_EU:-evento-eu:3030,toxi-eu:20123,toxi-eu:20133}
+  APP_DB_URL: jdbc:postgresql://app-pg-eu:5432,toxi-eu:20122,toxi-eu:20132/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10
+  APP_DB_USER: postgres
+  APP_DB_PASSWORD: secret
+  CONSUMER_CHECKPOINT_MODE: ${CONSUMER_CHECKPOINT_MODE:-DEFAULT}
+  JAVA_OPTS: *java-opts
+
+x-env-am: &env-am
+  CELL: AM
+  EVENTO_SERVER_ADDRESSES: ${BUS_ADDR_AM:-evento-am:3030,toxi-am:20213,toxi-am:20233}
+  APP_DB_URL: jdbc:postgresql://toxi-am:20212,app-pg-am:5432,toxi-am:20232/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10
+  APP_DB_USER: postgres
+  APP_DB_PASSWORD: secret
+  CONSUMER_CHECKPOINT_MODE: ${CONSUMER_CHECKPOINT_MODE:-DEFAULT}
+  JAVA_OPTS: *java-opts
+
+x-env-apac: &env-apac
+  CELL: APAC
+  EVENTO_SERVER_ADDRESSES: ${BUS_ADDR_APAC:-evento-apac:3030,toxi-apac:20313,toxi-apac:20323}
+  APP_DB_URL: jdbc:postgresql://toxi-apac:20312,toxi-apac:20322,app-pg-apac:5432/app?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10
+  APP_DB_USER: postgres
+  APP_DB_PASSWORD: secret
+  CONSUMER_CHECKPOINT_MODE: ${CONSUMER_CHECKPOINT_MODE:-DEFAULT}
+  JAVA_OPTS: *java-opts
+
+# Start-up gates shared by every app JVM of a cell: its server, the app-DB primary and the
+# app-DB sync standby (without it the primary blocks every commit), and the WAN proxy.
+x-deps-eu: &deps-eu
+  evento-eu: {condition: service_healthy}
+  app-pg-eu: {condition: service_healthy}
+  app-pg-am: {condition: service_healthy}
+  toxiproxy: {condition: service_healthy}
+x-deps-am: &deps-am
+  evento-am: {condition: service_healthy}
+  app-pg-eu: {condition: service_healthy}
+  app-pg-am: {condition: service_healthy}
+  toxiproxy: {condition: service_healthy}
+x-deps-apac: &deps-apac
+  evento-apac: {condition: service_healthy}
+  app-pg-eu: {condition: service_healthy}
+  app-pg-am: {condition: service_healthy}
+  toxiproxy: {condition: service_healthy}
+
+# ------------------------------------------------------------------------------------------
+networks:
+  net-eu:
+    name: net-eu
+    ipam:
+      config: [{subnet: 172.28.1.0/24}]
+  net-am:
+    name: net-am
+    ipam:
+      config: [{subnet: 172.28.2.0/24}]
+  net-apac:
+    name: net-apac
+    ipam:
+      config: [{subnet: 172.28.3.0/24}]
+  wan:
+    name: wan
+    ipam:
+      config: [{subnet: 172.28.9.0/24}]
+
+volumes:
+  es-pg-eu-data:
+  es-pg-am-data:
+  es-pg-apac-data:
+  app-pg-eu-data:
+  app-pg-am-data:
+  app-pg-apac-data:
+
+services:
+  # ========================================================================================
+  # WAN emulation
+  # ========================================================================================
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    container_name: toxiproxy
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "8474:8474"
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "-h", "localhost:8474", "list"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      net-eu: {aliases: [toxi-eu]}
+      net-am: {aliases: [toxi-am]}
+      net-apac: {aliases: [toxi-apac]}
+      wan: {aliases: [toxi-wan]}
+
+  # Installs the baseline RTT matrix (wan-latency-up/down toxics on all 18 proxies), then
+  # idles: it reports healthy once applied, which keeps 'up --wait' happy (a one-shot that
+  # exits makes --wait fail) and lets the servers start only after the WAN is in place.
+  toxiproxy-init:
+    image: nginx:alpine
+    container_name: toxiproxy-init
+    entrypoint:
+      - sh
+      - -c
+      - sh /toxiproxy/apply-wan.sh && touch /tmp/applied && trap 'exit 0' TERM && while :; do sleep 1; done
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/applied"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+    environment:
+      TOXIPROXY_URL: http://toxiproxy:8474
+      WAN_LATENCY_SCALE: ${WAN_LATENCY_SCALE:-100}
+      WAN_JITTER_MS: ${WAN_JITTER_MS:-5}
+    volumes:
+      - ./toxiproxy/apply-wan.sh:/toxiproxy/apply-wan.sh:ro
+    mem_limit: 32m
+    depends_on:
+      toxiproxy: {condition: service_healthy}
+    networks: [wan]
+
+  # ========================================================================================
+  # Event-store Postgres cluster (db 'evento'): primary EU, sync standby AM, async APAC
+  # ========================================================================================
+  es-pg-eu:
+    <<: *pg-primary
+    container_name: es-pg-eu
+    hostname: es-pg-eu
+    # 384m, not 256m: measured ~180 MiB with just the 3 idle servers (60 backends).
+    mem_limit: 384m
+    environment:
+      POSTGRES_DB: evento
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+      SYNC_STANDBY_NAMES: FIRST 1 (es_pg_am)
+    volumes:
+      - es-pg-eu-data:/var/lib/postgresql/data
+      - ./pg:/pg:ro
+      - ./pg/primary-init.sh:/docker-entrypoint-initdb.d/10-replication.sh:ro
+    ports: ["15432:5432"]
+    networks: [net-eu]
+
+  es-pg-am:
+    <<: *pg-replica
+    container_name: es-pg-am
+    hostname: es-pg-am
+    mem_limit: 384m
+    environment:
+      POSTGRES_DB: evento
+      POSTGRES_PASSWORD: secret
+      PRIMARY_HOST: toxi-am
+      PRIMARY_PORT: "20211"
+      STANDBY_NAME: es_pg_am
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+    volumes:
+      - es-pg-am-data:/var/lib/postgresql/data
+      - ./pg:/pg:ro
+    ports: ["15433:5432"]
+    networks: [net-am]
+    depends_on:
+      es-pg-eu: {condition: service_healthy}
+      toxiproxy: {condition: service_healthy}
+
+  es-pg-apac:
+    <<: *pg-replica
+    container_name: es-pg-apac
+    hostname: es-pg-apac
+    mem_limit: 384m
+    environment:
+      POSTGRES_DB: evento
+      POSTGRES_PASSWORD: secret
+      PRIMARY_HOST: toxi-apac
+      PRIMARY_PORT: "20311"
+      STANDBY_NAME: es_pg_apac
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+    volumes:
+      - es-pg-apac-data:/var/lib/postgresql/data
+      - ./pg:/pg:ro
+    ports: ["15434:5432"]
+    networks: [net-apac]
+    depends_on:
+      es-pg-eu: {condition: service_healthy}
+      toxiproxy: {condition: service_healthy}
+
+  # ========================================================================================
+  # App-data Postgres cluster (db 'app'): read models + JDBC consumer state (L5)
+  # ========================================================================================
+  app-pg-eu:
+    <<: *pg-primary
+    container_name: app-pg-eu
+    hostname: app-pg-eu
+    # 512m, not 256m: ~13 app JVMs keep Hikari pools plus pinned consumer-lock connections
+    # open against this node (100+ backends).
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+      SYNC_STANDBY_NAMES: FIRST 1 (app_pg_am)
+    volumes:
+      - app-pg-eu-data:/var/lib/postgresql/data
+      - ./pg:/pg:ro
+      - ./pg/primary-init.sh:/docker-entrypoint-initdb.d/10-replication.sh:ro
+    ports: ["25432:5432"]
+    networks: [net-eu]
+
+  app-pg-am:
+    <<: *pg-replica
+    container_name: app-pg-am
+    hostname: app-pg-am
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_PASSWORD: secret
+      PRIMARY_HOST: toxi-am
+      PRIMARY_PORT: "20212"
+      STANDBY_NAME: app_pg_am
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+    volumes:
+      - app-pg-am-data:/var/lib/postgresql/data
+      - ./pg:/pg:ro
+    ports: ["25433:5432"]
+    networks: [net-am]
+    depends_on:
+      app-pg-eu: {condition: service_healthy}
+      toxiproxy: {condition: service_healthy}
+
+  app-pg-apac:
+    <<: *pg-replica
+    container_name: app-pg-apac
+    hostname: app-pg-apac
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_PASSWORD: secret
+      PRIMARY_HOST: toxi-apac
+      PRIMARY_PORT: "20312"
+      STANDBY_NAME: app_pg_apac
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+    volumes:
+      - app-pg-apac-data:/var/lib/postgresql/data
+      - ./pg:/pg:ro
+    ports: ["25434:5432"]
+    networks: [net-apac]
+    depends_on:
+      app-pg-eu: {condition: service_healthy}
+      toxiproxy: {condition: service_healthy}
+
+  # ========================================================================================
+  # Evento servers: one per cell, CPES, unique identity (G13), health-chained start (G14)
+  # ========================================================================================
+  evento-eu:
+    <<: *server
+    container_name: evento-eu
+    hostname: evento-eu
+    environment:
+      <<: *server-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://es-pg-eu:5432,toxi-eu:20121,toxi-eu:20131/evento?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10
+      EVENTO_CLUSTER_NODE_SERVER_ID: evento-eu
+      EVENTO_SERVER_INSTANCE_ID: evento-eu
+    ports: ["13000:3000"]
+    networks: [net-eu]
+    depends_on:
+      es-pg-eu: {condition: service_healthy}
+      # The sync standby must be streaming or every commit on the primary blocks.
+      es-pg-am: {condition: service_healthy}
+      toxiproxy-init: {condition: service_healthy}
+
+  evento-am:
+    <<: *server
+    container_name: evento-am
+    hostname: evento-am
+    environment:
+      <<: *server-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://toxi-am:20211,es-pg-am:5432,toxi-am:20231/evento?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10
+      EVENTO_CLUSTER_NODE_SERVER_ID: evento-am
+      EVENTO_SERVER_INSTANCE_ID: evento-am
+    ports: ["13001:3000"]
+    networks: [net-am]
+    depends_on:
+      evento-eu: {condition: service_healthy}
+      toxiproxy-init: {condition: service_healthy}
+
+  evento-apac:
+    <<: *server
+    container_name: evento-apac
+    hostname: evento-apac
+    environment:
+      <<: *server-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://toxi-apac:20311,toxi-apac:20321,es-pg-apac:5432/evento?targetServerType=primary&tcpKeepAlive=true&connectTimeout=10
+      EVENTO_CLUSTER_NODE_SERVER_ID: evento-apac
+      EVENTO_SERVER_INSTANCE_ID: evento-apac
+    ports: ["13002:3000"]
+    networks: [net-apac]
+    depends_on:
+      evento-am: {condition: service_healthy}
+      toxiproxy-init: {condition: service_healthy}
+
+  # ========================================================================================
+  # Load balancer: HTTP geo ingress on :8080 + per-cell bus VIPs (bus-<cell>:3030)
+  # ========================================================================================
+  lb:
+    image: nginx:alpine
+    container_name: lb
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports: ["8080:8080"]
+    mem_limit: 32m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/lb/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      net-eu: {ipv4_address: 172.28.1.10, aliases: [bus-eu]}
+      net-am: {ipv4_address: 172.28.2.10, aliases: [bus-am]}
+      net-apac: {ipv4_address: 172.28.3.10, aliases: [bus-apac]}
+      wan: {}
+
+  # ========================================================================================
+  # Cell cores: full handler set per cell (bundles cluster-command + cluster-query-global)
+  # ========================================================================================
+  cell-core-eu:
+    <<: *app
+    container_name: cell-core-eu
+    hostname: cell-core-eu
+    mem_limit: 384m
+    environment:
+      <<: *env-eu
+      EVENTO_ROLE: cell-core
+      EVENTO_BUNDLE_INSTANCE_ID: cell-core-eu
+    networks: [net-eu]
+    depends_on: *deps-eu
+
+  # Second EU replica, only for S2 (handler failover inside one cell): --profile replica
+  cell-core-eu-b:
+    <<: *app
+    container_name: cell-core-eu-b
+    hostname: cell-core-eu-b
+    profiles: [replica]
+    mem_limit: 384m
+    environment:
+      <<: *env-eu
+      EVENTO_ROLE: cell-core
+      EVENTO_BUNDLE_INSTANCE_ID: cell-core-eu-b
+    networks: [net-eu]
+    depends_on: *deps-eu
+
+  cell-core-am:
+    <<: *app
+    container_name: cell-core-am
+    hostname: cell-core-am
+    mem_limit: 384m
+    environment:
+      <<: *env-am
+      EVENTO_ROLE: cell-core
+      EVENTO_BUNDLE_INSTANCE_ID: cell-core-am
+    networks: [net-am]
+    depends_on: *deps-am
+
+  cell-core-apac:
+    <<: *app
+    container_name: cell-core-apac
+    hostname: cell-core-apac
+    mem_limit: 384m
+    environment:
+      <<: *env-apac
+      EVENTO_ROLE: cell-core
+      EVENTO_BUNDLE_INSTANCE_ID: cell-core-apac
+    networks: [net-apac]
+    depends_on: *deps-apac
+
+  # ========================================================================================
+  # Region gateways: HTTP :8080 + bundle query-<region> (context-restricted projector)
+  # ========================================================================================
+  region-europa:
+    <<: *app
+    container_name: region-europa
+    hostname: region-europa
+    mem_limit: 320m
+    healthcheck: *region-healthcheck
+    environment:
+      <<: *env-eu
+      EVENTO_ROLE: region
+      REGION: EUROPA
+      EVENTO_BUNDLE_INSTANCE_ID: region-europa
+    networks: [net-eu]
+    depends_on: *deps-eu
+
+  region-africa:
+    <<: *app
+    container_name: region-africa
+    hostname: region-africa
+    mem_limit: 320m
+    healthcheck: *region-healthcheck
+    environment:
+      <<: *env-eu
+      EVENTO_ROLE: region
+      REGION: AFRICA
+      EVENTO_BUNDLE_INSTANCE_ID: region-africa
+    networks: [net-eu]
+    depends_on: *deps-eu
+
+  region-america:
+    <<: *app
+    container_name: region-america
+    hostname: region-america
+    mem_limit: 320m
+    healthcheck: *region-healthcheck
+    environment:
+      <<: *env-am
+      EVENTO_ROLE: region
+      REGION: AMERICA
+      EVENTO_BUNDLE_INSTANCE_ID: region-america
+    networks: [net-am]
+    depends_on: *deps-am
+
+  region-sud-america:
+    <<: *app
+    container_name: region-sud-america
+    hostname: region-sud-america
+    mem_limit: 320m
+    healthcheck: *region-healthcheck
+    environment:
+      <<: *env-am
+      EVENTO_ROLE: region
+      REGION: SUD_AMERICA
+      EVENTO_BUNDLE_INSTANCE_ID: region-sud-america
+    networks: [net-am]
+    depends_on: *deps-am
+
+  region-cina:
+    <<: *app
+    container_name: region-cina
+    hostname: region-cina
+    mem_limit: 320m
+    healthcheck: *region-healthcheck
+    environment:
+      <<: *env-apac
+      EVENTO_ROLE: region
+      REGION: CINA
+      EVENTO_BUNDLE_INSTANCE_ID: region-cina
+    networks: [net-apac]
+    depends_on: *deps-apac
+
+  region-india:
+    <<: *app
+    container_name: region-india
+    hostname: region-india
+    mem_limit: 320m
+    healthcheck: *region-healthcheck
+    environment:
+      <<: *env-apac
+      EVENTO_ROLE: region
+      REGION: INDIA
+      EVENTO_BUNDLE_INSTANCE_ID: region-india
+    networks: [net-apac]
+    depends_on: *deps-apac
+
+  region-australia-nz:
+    <<: *app
+    container_name: region-australia-nz
+    hostname: region-australia-nz
+    mem_limit: 320m
+    healthcheck: *region-healthcheck
+    environment:
+      <<: *env-apac
+      EVENTO_ROLE: region
+      REGION: AUSTRALIA_NZ
+      EVENTO_BUNDLE_INSTANCE_ID: region-australia-nz
+    networks: [net-apac]
+    depends_on: *deps-apac
+
+  # ========================================================================================
+  # Saga + observer: same bundleId 'cluster-saga' in EU and APAC -> competing consumers
+  # ========================================================================================
+  saga-eu:
+    <<: *app
+    container_name: saga-eu
+    hostname: saga-eu
+    mem_limit: 320m
+    environment:
+      <<: *env-eu
+      EVENTO_ROLE: saga-observer
+      EVENTO_BUNDLE_INSTANCE_ID: saga-eu
+    networks: [net-eu]
+    depends_on: *deps-eu
+
+  saga-apac:
+    <<: *app
+    container_name: saga-apac
+    hostname: saga-apac
+    mem_limit: 320m
+    environment:
+      <<: *env-apac
+      EVENTO_ROLE: saga-observer
+      EVENTO_BUNDLE_INSTANCE_ID: saga-apac
+    networks: [net-apac]
+    depends_on: *deps-apac
