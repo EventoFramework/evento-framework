@@ -1,17 +1,26 @@
-# evento-lab-cluster: findings (framework at HEAD, evento-server 2.4.6, images `:before`, 2026-09-29)
+# evento-lab-cluster: findings (images `:before` = evento 2.4.6 and `:after` = the cluster fixes, 2026-09-29)
 
 | Id | What | Severity | Lab status |
 |---|---|---|---|
 | N1 | `core__component` keyed by simple class name across bundles | High (catalog) | workaround removed: regions are contexts of one class (lab/bundles) |
-| G8 | discovery / consumer-registration insert race | High (catalog) | worked around by `repair-catalog.sh` |
-| G9 (+G3) | about 14 sequential WAN round trips per command from a remote cell | High (throughput) | recorded |
+| G8 | discovery / consumer-registration insert race | High (catalog) | fixed: `:after` starts complete with `REPAIR_CATALOG=false`; `:before` still needs `repair-catalog.sh` (integration run) |
+| G9 (+G3) | about 14 sequential WAN round trips per command from a remote cell | High (throughput) | `:after` S00: 498/498 acked, p50 AM 0.72 s, APAC 1.12 s; residual in N9 |
 | N2 | connection liveness probes on the command path, each one a WAN round trip | Medium | recorded |
 | N3 (+G4/G5) | commands still executed after the caller timed out; saga retries duplicate the payment | High (correctness) | recorded |
-| N4 (+G24/G12) | the single global consumer lane hops between cells and projects over the WAN | Medium | recorded |
+| N4 (+G24/G12) | the single global consumer lane hops between cells and projects over the WAN | Medium | recorded; still hops on `:after` (lock holder EU/APAC alternates) |
 | N5 | the CPES `es-lock` favours the cell nearest the ES primary | Medium | recorded |
 | L7 | toxiproxy OOM-killed at 64m during base backups | Blocker | fixed (256m) |
 | L8 | no restart policy; no healthcheck on cell-core and saga | Medium | fixed |
 | L9 | `LAB_TAG` defaulted to `dev` while the stack ran `before` | Medium | fixed |
+| N6 | consumer registration lands up to ~25 s after the bundle is healthy | Low (ops) | recorded; lab tooling waits for it |
+| N7 | `evento_v2_consumer_state.updated_at` never moves after the first commit | Low (observability) | recorded |
+| N8 | a bundle without handlers gets no `core__bundle` row | Low (catalog) | recorded; harness adjusted |
+| N9 | a remote-cell command still costs about 7-9 WAN round trips after G9 | Medium (throughput) | recorded |
+| N10 | pre-fix dashboard lists one consumer per component, hiding the per-context lanes | Medium (admin) | fixed in the working tree; seen on `:before` |
+| L10 | `repair-catalog.sh --check` said "complete" when its query failed | High (lab) | fixed |
+| L11 | harness catalog read (I7) used the pre-N1 column | Medium (lab) | fixed |
+| L12 | I7 expected a catalog row for the send-only gateway | Low (lab) | fixed |
+| L13 | lab-api did not compile against the pre-fix framework | High (lab) | fixed |
 
 ## N1: components keyed by simple class name across bundles
 - **Cause:** `core__component.component_name` is the primary key. The seven `query-<r>` bundles all ran `RegionOrderProjector`.
@@ -138,3 +147,96 @@ One evento-server jar, one Postgres, ten bundle JVMs on the host over real TCP (
   gateway was sometimes answered by the AM deployment (404: the order is in another cell's database). In the
   compose topology each cell has its own server (islands), so queries stay in-cell; after G12 the
   `locality-preferred` pick keeps them in-cell on a meshed cluster too.
+
+## Integration on the per-bundle topology (images `:after` and `:before`, 2026-09-29)
+Evidence: [`results/_integration/after/checks.md`](results/_integration/after/checks.md),
+[`results/_integration/before/checks.md`](results/_integration/before/checks.md), and the scenario
+results `results/S00/after-smoke`, `results/S16/after` and `results/S17/after`.
+
+- **Topology:** both image sets start healthy at the first `up`. Every deployment registers on
+  its cell server. Consumer ids are one per (component, context): `order-query_OrderProjector_1_EUROPA`
+  and `_AFRICA` come from the single JVM `order-query-eu`. There is exactly one
+  `order-query_CatalogProjector_1_ALL`, and the wildcard lanes are `order-query_OrderProjector_1_*`
+  and `order-observer_NotificationObserver_1_*`. There is at most one holder of the ALL lane lock
+  at any sample, a price reaches the three regional databases once, and reads stay in-cell.
+- **G8 closed end to end:** with `REPAIR_CATALOG=false`, `:after` had a complete catalog (checked
+  again after S16 killed and restarted a lane holder). `:before` lost the consumer rows of
+  `order-query-wildcard` and `order-saga-eu`, and `repair-catalog.sh` fixed them in one pass.
+- **S00 at the offered load that saturated `:before`** (7 x 20 orders/min):
+  - 498 of 498 commands were acknowledged, against 217 of 309 before.
+  - Appends ran at 9.6/s; the payment saga completed 78 of 78 orders; I1..I6 passed.
+  - S16 and S17 pass with every observation as expected.
+
+## N6: consumer registration lands after the bundle reports healthy
+- **Evidence (`:after`):** the bundle health turns UP at the handshake. `ConsumerService` logged
+  `Discovering consumers ... order-query-global-apac` 25 s after that instance's
+  `handshake_accepted` (11:29:36.8 to 11:30:01.7). The CINA row appeared about 19 s after its
+  handshake. A catalog check right after `up --wait` therefore saw rows missing that were not lost.
+- **Cause:** consumer discovery is queued on the bus business executor behind the discovery passes
+  of every bundle that joined at the same time (G18: discovery on the bus threads).
+- **Impact:** tooling or operators that read the catalog right after a rollout see a transient
+  gap that looks like G8.
+- **Lab:** `repair-catalog.sh` waits `REPAIR_SETTLE_S` (90 s) for the rows before calling anything
+  missing.
+- **Proposal:** expose registration completion (for example a readiness detail, or a
+  `consumers_registered` event on the bundle) so health can mean "in the catalog".
+
+## N7: consumer checkpoints carry no update time
+- **Evidence:** `order-query_CatalogProjector_1_ALL` moved from `last_sequence` 1 to 116 while
+  `updated_at` stayed at the row's creation time (11:31:32).
+- **Cause:** `JdbcConsumerStateStore.updateExisting` sets `last_sequence` and `version` but not
+  `updated_at`.
+- **Impact:** the table cannot show a stalled lane (for example S16's APAC outage), which is the
+  first thing an operator of the single ALL lane needs.
+- **Proposal:** `updated_at = now()` in both update statements (MySQL too).
+
+## N8: a send-only bundle is absent from the catalog
+- **Evidence:** `order-gateway` (7 live instances) has presence rows in `core__bundle_instance`
+  but no `core__bundle` row, on `:before` and `:after` alike.
+- **Cause:** `AutoDiscoveryService` writes the bundle only when its registration carries handlers.
+  This has been unchanged since 2.x.
+- **Impact:** the GUI bundle list and I7 do not show a bundle that sends commands and queries.
+- **Proposal:** register the bundle row whatever its handlers are.
+- **Lab:** I7 skips `BUNDLES_WITHOUT_HANDLERS` in the bundle check.
+
+## N9: remote-cell commands after G9
+- **Evidence:** in `:after` S00, p50 per command is:
+
+  | Cell | p50 | RTT to the ES primary | Round trips |
+  |---|---|---|---|
+  | EU | 116-267 ms | local | - |
+  | AM | 718-729 ms | 80 ms | about 9 |
+  | APAC | 1109-1122 ms | 150 ms | about 7.5 |
+
+  A single create + item, unloaded, took 1.3-1.5 s (AM) and 2.3-2.5 s (APAC), against 2.4-2.5 s
+  and 4.2-4.4 s on `:before`.
+- **Assessment:** G9 roughly halved the WAN cost of a command, which is what took S00 below
+  saturation. The append itself is about one round trip now, so most of the remaining 7-9 are
+  elsewhere on the path: the `RESOURCE` lock, the aggregate event load, the `verifyHeld` query
+  (N2), Hikari's borrow validation, and the separate lock-pool connection.
+- **Proposal:** repeat the G9 SQL trace on `:after` to attribute them, then fold the lock and the
+  load into one statement where possible.
+
+## N10: the pre-fix dashboard hides the per-context lanes
+- **Evidence (`:before`):** `/api/consumer` lists 4 entries per server, one per component, instead
+  of 17 consumer ids. The `OrderProjector` entry shows the first context found
+  (`order-query_OrderProjector_1_AFRICA`) with the instances of every context on that server.
+- **Fix:** the working tree keys the list by consumer id, and `:after` shows all 17. The instance
+  lists are still per server (G17).
+
+## Lab defects fixed during the integration
+- **L10:** the `repair-catalog.sh` check joined `core__handler.component_component_name`, a column
+  N1 removed. The psql error ended the listing subshell (errexit), which read as "nothing missing",
+  so the check reported "complete". Three fixes:
+  - the join now follows the schema;
+  - a failed listing exits 2;
+  - the check waits `REPAIR_SETTLE_S` for N6 before declaring anything missing.
+- **L11:** `Db.catalog` (I7) used the same column, so I7 was ERROR on `:after`. It is schema-aware now.
+- **L12:** I7 expected `core__bundle` for `order-gateway` (see N8).
+- **L13:** `Contexts.WILDCARD = Context.WILDCARD` broke the `FRAMEWORK_REF=e7b823fe` build, since
+  that constant exists only after the fixes. It is the literal `"*"` again, pinned by
+  `ContextsTest`. The build's temporary worktree was also named with a trailing `_` (the `echo`
+  newline went through `tr -c`), and a stale unregistered copy was left in `.claude/worktrees/`.
+  The copy is removed and the name is fixed.
+- **New tool:** `scripts/integration-checks.sh` prints the whole evidence report
+  (`results/_integration/<tag>/checks-raw.md`) for either image set.

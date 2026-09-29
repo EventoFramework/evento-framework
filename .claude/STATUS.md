@@ -2,7 +2,31 @@
 
 Last updated: 2026-09-29.
 
-## Review fixes on the cluster framework work (2026-09-29, latest)
+## Per-bundle lab integrated on Docker (2026-09-29, latest)
+
+- **Images:** `:after` (working tree) and `:before` (`FRAMEWORK_REF=e7b823fe`, 2.4.6) built from the
+  same lab sources; `Contexts.WILDCARD` is the literal `"*"` again so the lab compiles against both.
+- **`:after` stack:** all 36 containers healthy at the first `up`, **no catalog repair needed**
+  (`REPAIR_CATALOG=false`, G8 closed end to end); 17 consumer ids per context, `EUROPA`/`AFRICA`
+  from one JVM, one `order-query_CatalogProjector_1_ALL` lane (at most one lock holder per sample),
+  fan-out once to all 3 regional DBs, lb routing for 7 regions, in-cell reads, WAN toxics,
+  replication and the connection budget (120 peak vs 200) verified:
+  `evento-lab-cluster/results/_integration/after/checks.md`.
+- **Scenarios on `:after`:** S00 (`after-smoke`) 498/498 acked at the load that saturated `:before`
+  (p50 AM 0.72 s, APAC 1.12 s), I1..I6 pass; S16 and S17 pass with every observation as expected.
+- **`:before` stack:** starts; `endpointFailover`, `expectedClusterName`, `zone` unavailable; G8
+  lost 2 JVMs' consumer rows and `repair-catalog.sh` was still needed:
+  `results/_integration/before/checks.md`.
+- **Harness fixes:** `repair-catalog.sh --check` silently passed on a pre-N1 query (L10), I7's
+  catalog read (L11) and its gateway expectation (L12). New `scripts/integration-checks.sh`.
+- **New findings** (`evento-lab-cluster/FINDINGS.md`): N6 consumer registration lags health by up
+  to ~25 s; N7 `evento_v2_consumer_state.updated_at` never updated on commit; N8 send-only bundles
+  have no `core__bundle` row; N9 remote-cell commands still cost ~7-9 RTT after G9; N10 pre-fix
+  dashboard collapses consumers per component.
+- **Next:** remaining scenarios on `:after` and `:before` (S01..S15), SQL trace for N9, the small
+  framework fixes N7/N8.
+
+## Review fixes on the cluster framework work (2026-09-29)
 
 - **Handshake:** a Hello is validated before any registration (`HandshakeHandler.validate` /
   `reply`); a rejected one no longer publishes NodeJoined/NodeLeft for a live instanceId (that
@@ -23,7 +47,7 @@ Last updated: 2026-09-29.
   shipped `evento.cluster.name`. GUI component page handles the 409 candidate list. Lab compose
   pins the lock pool to 16 to stay comparable with archived runs.
 
-## Lab bundles merged; completeness check (2026-09-29, latest)
+## Lab bundles merged; completeness check (2026-09-29)
 
 - **`lab/bundles` merged** into `feat/evento-lab-cluster` (it had been finished in its worktree
   but never merged, which is why `AfricaOrderProjector` & co. were still on the lab branch). The
