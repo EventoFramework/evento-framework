@@ -13,8 +13,12 @@ import io.netty.channel.nio.NioEventLoopGroup;
  * {@link NioEventLoopGroup} is deprecated in 4.2 but present and functional in
  * both lines; the suppression is deliberate and must stay until the framework
  * can require a Netty 4.2 baseline from user applications.
+ *
+ * <p>Public so that code outside this module that needs an event loop of its own
+ * (the bundle's fail-back probe) goes through the same 4.1-safe construction
+ * instead of repeating it.
  */
-final class NettyEventLoops {
+public final class NettyEventLoops {
 
     private NettyEventLoops() {
     }
@@ -22,5 +26,15 @@ final class NettyEventLoops {
     @SuppressWarnings("deprecation")
     static NioEventLoopGroup newNioEventLoopGroup(int threads) {
         return new NioEventLoopGroup(threads);
+    }
+
+    /**
+     * A NIO event loop group whose threads come from {@code threadFactory}, built
+     * with the constructor that exists in Netty 4.1 and 4.2 alike.
+     */
+    @SuppressWarnings("deprecation")
+    public static io.netty.channel.EventLoopGroup newNioEventLoopGroup(int threads,
+                                                                     java.util.concurrent.ThreadFactory threadFactory) {
+        return new NioEventLoopGroup(threads, threadFactory);
     }
 }

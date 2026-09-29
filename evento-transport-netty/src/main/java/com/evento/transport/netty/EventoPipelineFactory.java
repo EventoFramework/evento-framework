@@ -47,6 +47,19 @@ final class EventoPipelineFactory {
                    ConnectionStateMachine state,
                    AtomicLong lastInboundMs,
                    Consumer<Frame> frameListener) {
+        configure(ch, state, lastInboundMs, frameListener, null);
+    }
+
+    /**
+     * @param preSessionReady server side: whether a Ping that precedes any other
+     *        frame (a health probe) is answered, see {@link HeartbeatHandler};
+     *        null answers every Ping
+     */
+    void configure(Channel ch,
+                   ConnectionStateMachine state,
+                   AtomicLong lastInboundMs,
+                   Consumer<Frame> frameListener,
+                   java.util.function.BooleanSupplier preSessionReady) {
         ChannelPipeline p = ch.pipeline();
         // TLS, if configured, must run before any framing/decoder so it operates on raw socket bytes.
         if (config.sslContext() != null) {
@@ -67,7 +80,7 @@ final class EventoPipelineFactory {
                 config.heartbeatWriteIdle().toMillis(),
                 0L,
                 TimeUnit.MILLISECONDS));
-        p.addLast("heartbeat", new HeartbeatHandler());
+        p.addLast("heartbeat", new HeartbeatHandler(preSessionReady));
         p.addLast("backpressure", new BackpressureHandler(state));
         p.addLast("inbound", new MessageInboundHandler(
                 frameListener, config.businessExecutor(), lastInboundMs, state));
