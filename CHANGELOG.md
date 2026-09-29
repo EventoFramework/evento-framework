@@ -14,21 +14,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Idempotency keys: exactly-once commands across retries and servers (G5).** A command can
   carry an idempotency key (`CommandMessage.getIdempotencyKey`, an additive wire field: older
   peers send none and skip it). `CommandGateway.sendIdempotent(command, key[, metadata,
-  timeout, unit])` sends with an explicit key; existing `send` signatures are unchanged. Commands
-  a saga, projector or observer handler sends without a key get one derived from
-  `(consumerId, event sequence number, ordinal within the handler invocation)`, so a redelivered
-  event or a handler retry re-issues the same keys with no code change. The broker stores the key
-  with the event (`es__events.idempotency_key`, partial `UNIQUE` index, added online at boot by
-  `AdvisoryLockedSchemaInitializer`; `db/upgrade/es-events-idempotency-key.sql` for schemas
-  managed outside the server) and answers a command whose key is already stored with that event,
-  before any lock or forward, on whichever server the retry lands (`event=idempotent_replay`,
-  metric `evento.server.commands.idempotent.replayed`). Concurrent duplicates run the handler
-  once: aggregate commands re-check the key under the aggregate lock (the unique index backs it
-  up), service commands take a cluster-wide `IDEMPOTENCY:<key>` lock before the forward. A
-  keyed command dropped at a deadline stage whose key is found stored is answered with the stored
-  event, never "expired". Only successes are recorded (a refused command can be retried with the
-  same key); keys never expire. Not covered: a service handler that ran while its event could not
-  be stored is run again by the retry; such a handler must be idempotent on the key it receives.
+  timeout, unit])` sends with an explicit key (keys starting with `evento:` are reserved and
+  refused); existing `send` signatures are unchanged. Commands a saga, projector or observer
+  handler sends without a key get `evento:<consumerId>:<event seq>:<CommandSimpleName>:<n>`, `n`
+  counting the commands of that type in the handler invocation, so a redelivered event or a
+  handler retry re-issues the same keys with no code change. Keys are derived only for gateways
+  that declare `CommandGateway.supportsIdempotencyKeys()` (`CommandGatewayImpl`, unless a subclass
+  overrides only the five-argument `send`); a pre-G5 decorator keeps receiving plain sends. The
+  broker stores the key with the event, together with the command's identity
+  (`es__events.idempotency_key` / `idempotency_command`, partial `UNIQUE` index, added online at
+  boot by `AdvisoryLockedSchemaInitializer`; `db/upgrade/es-events-idempotency-key.sql` for
+  schemas managed outside the server) and answers a command whose key is already stored for the
+  same command type and aggregate with that event, before any lock or forward, on whichever
+  server the retry lands (`event=idempotent_replay`, `evento.server.commands.idempotent.replayed`).
+  A key recorded for a different command is refused with `IdempotencyKeyMismatchException`
+  (`evento.server.commands.idempotent.mismatched`), never answered with the other command's
+  event. Concurrent duplicates run the handler once: aggregate commands re-check the key under
+  the aggregate lock (the unique index backs it up); service commands claim the key in
+  `es__idempotency_claims` (a row with a lease, no connection held while executing or waiting,
+  so a keyed command never needs a second lock-pool connection). A service handler that returns
+  nothing records its key too, so its retries are answered instead of re-run. A keyed command
+  that stops waiting on another execution of its key gets `IdempotencyKeyInProgressException`
+  (indeterminate), never "expired"; one dropped at a deadline stage whose key is found stored is
+  answered with the stored event. Keys are enforced only on PostgreSQL with the full schema in
+  the `search_path` schema; otherwise (or if the index disappears later) keyed commands run
+  unkeyed with a warning. Only successes are recorded (a refused command can be retried with the
+  same key). Not covered: a service handler that ran while its event could not be stored is run
+  again by the retry (it must be idempotent on the key it receives); during a rolling upgrade a
+  keyed retry that lands on a pre-G5 server runs unkeyed (upgrade all servers first); keys never
+  expire, so rewinding a consumer answers the commands it re-sends as replays (rewind under a new
+  consumer id to run them again).
 
 - **`Context.WILDCARD` (`"*"`).** The pattern that reads every context now has a name
   that says so. `Context.ALL` stays as a deprecated alias whose javadoc warns that it is
