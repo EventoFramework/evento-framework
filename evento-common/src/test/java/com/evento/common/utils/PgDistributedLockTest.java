@@ -118,4 +118,31 @@ class PgDistributedLockTest {
         lock.tryLockedArea("busy-key", () -> ran[0] = true);
         assertThat(ran[0]).as("tryLockedArea must run once the key is free").isTrue();
     }
+
+    /**
+     * A caller with a deadline of its own (a command whose sender stops waiting) bounds the
+     * wait by what is left of it rather than by the lock's 60 s default, and the timeout
+     * reports the wait it actually used.
+     */
+    @Test
+    @Timeout(10)
+    void aCallerBoundedWaitEndsAtItsOwnDeadline() throws Exception {
+        var lock = new PgDistributedLock(null);
+        var key = "bounded-wait-" + System.nanoTime();
+        lock.acquire(key);
+        try {
+            long started = System.nanoTime();
+            var thrown = catchThrowable(() -> CompletableFuture.runAsync(() ->
+                    lock.acquire(key, java.time.Duration.ofMillis(200))).join());
+            long waitedMs = (System.nanoTime() - started) / 1_000_000;
+            assertThat(thrown).hasCauseInstanceOf(LockAcquisitionTimeoutException.class)
+                    .hasMessageContaining("within 200 ms");
+            assertThat(waitedMs).isBetween(150L, 5_000L);
+        } finally {
+            lock.release(key);
+        }
+        // A free key is taken at once whatever the bound.
+        lock.acquire(key, java.time.Duration.ofMillis(1));
+        lock.release(key);
+    }
 }

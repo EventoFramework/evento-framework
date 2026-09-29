@@ -138,14 +138,27 @@ public class PgDistributedLock {
      * @throws LockAcquisitionTimeoutException if the key is still held elsewhere at the deadline
      */
     public void acquire(String key) {
+        acquire(key, acquireTimeout);
+    }
+
+    /**
+     * Acquires {@code key}, waiting at most {@code maxWait} or the acquire timeout,
+     * whichever is shorter. A caller with a deadline of its own (a command whose sender
+     * stops waiting at some point) passes what is left of it, so it never queues for a
+     * lock longer than anyone waits for the result.
+     *
+     * @throws LockAcquisitionTimeoutException if the key is still held elsewhere when the wait ends
+     */
+    public void acquire(String key, Duration maxWait) {
         if (key == null) return;
-        long deadline = System.nanoTime() + acquireTimeout.toNanos();
+        long waitNanos = Math.min(acquireTimeout.toNanos(), Math.max(0L, maxWait.toNanos()));
+        long deadline = System.nanoTime() + waitNanos;
 
         // Acquire local (JVM-level) lock, bounded by the same deadline.
         LockWrapper lockWrapper = locks.compute(key, (k, v) -> v == null ? new LockWrapper() : v.addThreadInQueue());
         boolean localAcquired;
         try {
-            localAcquired = lockWrapper.lock.tryAcquire(acquireTimeout.toNanos(), TimeUnit.NANOSECONDS);
+            localAcquired = lockWrapper.lock.tryAcquire(waitNanos, TimeUnit.NANOSECONDS);
         } catch (InterruptedException e) {
             exitQueue(key);
             Thread.currentThread().interrupt();
@@ -153,7 +166,7 @@ public class PgDistributedLock {
         }
         if (!localAcquired) {
             exitQueue(key);
-            throw timeout(key);
+            throw timeout(key, TimeUnit.NANOSECONDS.toMillis(waitNanos));
         }
 
         // Skip distributed lock when no DataSource is configured (embedded/test mode)
@@ -169,7 +182,7 @@ public class PgDistributedLock {
                 }
                 long remainingNanos = deadline - System.nanoTime();
                 if (remainingNanos <= 0) {
-                    throw timeout(key);
+                    throw timeout(key, TimeUnit.NANOSECONDS.toMillis(waitNanos));
                 }
                 long sleepMs = Math.min(ThreadLocalRandom.current().nextLong(backoff / 2, backoff + 1),
                         TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1);
@@ -368,10 +381,10 @@ public class PgDistributedLock {
         return new LockLostException(key, "Distributed lock lost for key '" + key + "': " + reason, cause);
     }
 
-    private LockAcquisitionTimeoutException timeout(String key) {
-        logger.warn("event=lock_acquire_timeout key={} timeoutMs={}", key, acquireTimeout.toMillis());
+    private LockAcquisitionTimeoutException timeout(String key, long waitedMs) {
+        logger.warn("event=lock_acquire_timeout key={} timeoutMs={}", key, waitedMs);
         return new LockAcquisitionTimeoutException(key,
-                "Could not acquire lock '" + key + "' within " + acquireTimeout.toMillis() + " ms");
+                "Could not acquire lock '" + key + "' within " + waitedMs + " ms");
     }
 
     private static boolean isValidQuietly(Connection con) {

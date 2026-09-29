@@ -144,6 +144,10 @@ public final class EventoServerAdapter implements EventoServer {
         if (com.evento.transport.RequestTimeoutException.class.getName().equals(error.exceptionClassName())) {
             return new com.evento.transport.RequestTimeoutException(payloadType + ": " + message);
         }
+        // Determinate, unlike a timeout: the broker refused it before executing anything.
+        if (com.evento.transport.RequestExpiredException.class.getName().equals(error.exceptionClassName())) {
+            return new com.evento.transport.RequestExpiredException(payloadType + ": " + message);
+        }
         if (com.evento.transport.TooManyPendingRequestsException.class.getName()
                 .equals(error.exceptionClassName())) {
             return new com.evento.transport.TooManyPendingRequestsException(payloadType + ": " + message);

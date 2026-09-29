@@ -18,11 +18,22 @@ import com.evento.transport.message.Message;
  *
  * <p>The buffer is not retained beyond the dispatcher call. If a handler needs
  * to hold onto the raw bytes past that point, it should copy them itself.
+ *
+ * <p>{@code receivedAtMs} is the local wall-clock time at which the frame was
+ * decoded, on the I/O thread, before it waited in any dispatch queue. A broker
+ * measures a request's deadline from it ({@link com.evento.transport.message.Request#deadlineFrom}),
+ * so time spent queued behind a saturated executor counts against the caller's
+ * budget, and no clock of another machine is involved.
  */
-public record Frame(Message message, byte[] rawBytes) {
+public record Frame(Message message, byte[] rawBytes, long receivedAtMs) {
 
     public Frame {
         if (message == null) throw new IllegalArgumentException("message");
         if (rawBytes == null) throw new IllegalArgumentException("rawBytes");
+    }
+
+    /** A frame received now. */
+    public Frame(Message message, byte[] rawBytes) {
+        this(message, rawBytes, System.currentTimeMillis());
     }
 }
