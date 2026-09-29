@@ -2,6 +2,18 @@
 
 Last updated: 2026-09-29.
 
+## N16 fail-back review fixes (branch `cluster/failback-fixes`, 2026-09-29)
+
+- Adversarial review of N16 addressed: startup gate opening mid-drain no longer kills sagas /
+  observers (enable latched + deferred, notifications pass the drain); reactive switch on a
+  "no handler" reply (callers wait only the jitter range extra, not a window); `CLOSING`/`CLOSED`
+  final (no zombie supervisor after `stop()`); probe connect cannot leak a channel; 3 refused
+  switches suspend fail-back until a READY on endpoint 0; server answers probes only when ready
+  (Spring readiness); drain counts replies until written; `RequestNotSentException`; probe logs
+  at DEBUG; probe event loop released on give-up.
+- Tests: `BundleClientFailbackIT` (14 cases), `ProbeConnectionIT` (3), `BusProbeReadinessTest`
+  (2), `StartupDuringFailbackIT` (evento-lab, 1). Docker lab still not re-run.
+
 ## N16 fail-back (branch `cluster/failback`, 2026-09-29)
 
 - `ConnectionSupervisor` probes endpoint 0 while READY elsewhere (TCP + transport `Ping`, never
