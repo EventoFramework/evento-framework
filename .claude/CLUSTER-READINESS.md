@@ -55,9 +55,16 @@ The honest target for the lab is **3 active cells (EU, AM, APAC)**. Each cell ha
 State of branch `feat/evento-lab-cluster` after the batch-1 merges (`cluster/consumer`,
 `cluster/es-locks`, `cluster/discovery`, `cluster/client-failover`, `cluster/locality`) and
 the batch-2 commits (N1, context wildcard, N3). "Fixed" means the IMPL item described below is
-in the code with a real-TCP or real-Postgres test; the lab scenarios still have to be re-run
-against the new images to confirm it end to end. The gap descriptions below are the original
+in the code with a real-TCP or real-Postgres test. The gap descriptions below are the original
 assessment and are kept as written.
+
+**End-to-end confirmation (2026-09-29).** All 18 scenarios S00..S17 ran on both `:before` (2.4.6)
+and `:after`; the measured status per gap (including the lab findings N4 and N11..N17, which this
+table does not list) is in
+[`evento-lab-cluster/results/COMPARISON.md`](../evento-lab-cluster/results/COMPARISON.md), §"Per
+gap". Where that table and this one disagree, the measured one wins: G10 is fixed in code but not
+measurable by the lab (CPES), G5 is worse in practice after G4 (S14: 8 keys stored twice), and
+failback after a G2 failover is missing (N16).
 
 | Gap | Severity | Status after fixes | Evidence / what is left |
 |---|---|---|---|

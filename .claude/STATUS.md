@@ -2,7 +2,35 @@
 
 Last updated: 2026-09-29.
 
-## Cluster-mode guide (2026-09-29, latest)
+## Completeness review of the lab (2026-09-29, latest)
+
+- **Checked and passing:**
+  - One generic consumer class per role (`OrderProjector`, `CatalogProjector`, `PaymentSaga`,
+    `NotificationObserver`), split only by `setComponentContexts`. No per-region class is left
+    outside `results/_archive-role-based/`.
+  - `ALL` is a single global lane: two competing replicas, fan-out to 3 regional DBs.
+  - S00..S17 each have `before/` and `after/` `report.md` + `summary.json`.
+  - Slide numbers match `summary.json` (S00 acks 227/319 → 492/492; S06 curve; verdicts 58/16/4/2
+    → 73/5/0/2).
+  - All 16 Mermaid blocks parse with mermaid 11 (a negative control was rejected).
+  - 259 relative links in `evento-lab-cluster/**.md` and `.claude/*.md` resolve.
+  - The standard test suite (CLAUDE.md) plus the `lab-*`/`order-*` module tests: BUILD SUCCESSFUL;
+    301 tests re-executed, 0 failed, 10 skipped (the rest were up to date).
+- **Fixed:**
+  - The slides and the guide number L0..L5 differently: the slides group by scenario, the guide by
+    topology. The mapping is now in the levels slide and in `docs/slides/README.md`.
+  - The slides were not linked from `evento-lab-cluster/README.md` or `docs/README.md`.
+  - The "Status after fixes" section of `CLUSTER-READINESS.md` still said "to be re-run". It now
+    points to `results/COMPARISON.md`.
+- **Open (bigger):**
+  - Per-region replicas. Only `order-command-eu-b` (profile `replica`, S02) and the two `ALL`
+    lane replicas run more than one JVM for the same lane. Regional query and saga lanes have one
+    JVM each, and no scenario kills one and checks lane takeover inside a cell. A
+    `replicas`-profile set (`order-query-*-b`, `order-saga-*-b`) and an S02-style run would close
+    this.
+  - The functional gaps listed below (G1, G5/N14, N4, N15, N16, N17, S15).
+
+## Cluster-mode guide (2026-09-29)
 
 - `evento-lab-cluster/docs/` (Italian): `README.md` (index, reading path, bundle × level matrix),
   `L0-single-server.md`, `L1-server-ha.md`, `L2-cells.md`, `L3-multi-region-contexts.md`,

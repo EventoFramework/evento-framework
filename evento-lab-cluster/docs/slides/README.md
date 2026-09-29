@@ -70,3 +70,8 @@ Due avvertenze sui numeri:
   N4) vengono da una sola run per immagine.
 - I livelli L0–L5 sono livelli di complessità del deployment introdotti per la presentazione. Non
   vanno confusi con gli id L1–L24 dei difetti del laboratorio in `FINDINGS.md`.
+- Le slide raggruppano gli scenari per livello, la [guida](../README.md) numera i livelli per
+  topologia. Corrispondenza: slide L0 = guida L0; slide L1 (repliche nello stesso server) → guida
+  L1; slide L2 (contesti e dati regionali) → guida [L3](../L3-multi-region-contexts.md); slide L3
+  (tre celle) → guida [L2](../L2-cells.md); slide L4 (HA di server e database) → guida
+  [L1](../L1-server-ha.md) + [L4](../L4-db-failover.md); slide L5 → guida [L5](../L5-limits-roadmap.md).

@@ -33,6 +33,9 @@ scenario results), sizing and a checklist:
 [L5 limits and roadmap](docs/L5-limits-roadmap.md).
 References: [configuration](docs/config-reference.md), [contexts and the `ALL` lane](docs/contexts.md),
 [chaos scenarios before/after](docs/chaos-scenarios.md).
+**Slides (IT, offline HTML):** [`docs/slides/index.html`](docs/slides/index.html), numbers from
+[`results/COMPARISON.md`](results/COMPARISON.md); how to open and export them in
+[`docs/slides/README.md`](docs/slides/README.md).
 
 ## Bundles
 
