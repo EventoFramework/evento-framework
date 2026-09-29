@@ -290,7 +290,8 @@ and tell a retrying caller "not executed". A service forward that fails after th
 an indeterminate error.
 
 What stays open: an append that starts before the deadline and ends after it is indeterminate
-for the caller; only an idempotency key (G5) closes that.
+for the caller; a retry with an idempotency key (G5, §8) resolves it: the retry is answered with
+the stored event.
 
 `PgDistributedLock`: when `DataSource` is null, falls back to JVM-only semaphore (safe for
 single-JVM/embedded scenarios like integration tests). With a `DataSource` (production) it is
@@ -481,6 +482,38 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
 A caller bundle can retry with the same `correlationId` and receive exactly one side-effect plus
 the same response back.
 
+Those three layers are in-memory and per server: a retry after a timeout, a
+`BrokerChangedException` or a caller restart has a new `correlationId`, and after a failover it
+reaches another server. **Idempotency keys (G5)** carry exactly-once across both.
+
+| Piece | Where | Role |
+|---|---|---|
+| `CommandMessage.idempotencyKey` | common | Optional key on domain and service command messages. Additive field: an older peer sends none (null = the old behaviour) and skips it as unknown. Blank = none; max 255 chars |
+| `CommandGateway.sendIdempotent(cmd, key[, metadata, timeout, unit])` | common | Explicit key. The six-argument `send(..., key)` is the new base; a gateway that does not implement keys refuses a non-null key rather than dropping it |
+| Derived keys | bundle, `GatewayTelemetryProxy` | A consumer engine scopes the per-event gateway with `(consumerId, eventSequenceNumber)` (`DispatchContext.consumerGateway`); commands sent without a key get `evento:<consumerId>:<seq>:<ordinal>`. The ordinal counts every command of the invocation and restarts on each attempt of the handler's retry loop, so a redelivered event re-issues identical keys (> 255 chars: `evento:sha256:<hex>`) |
+| `es__events.idempotency_key` + `es__events_idempotency_key_uidx` | server | Nullable column, partial `UNIQUE ... WHERE idempotency_key IS NOT NULL`. Added online by `AdvisoryLockedSchemaInitializer` (column only if missing, under a short retried `lock_timeout`; index `CONCURRENTLY`, invalid leftover dropped); `db/upgrade/es-events-idempotency-key.sql` for external schemas. No TTL: a key lives as long as its event |
+| Keyed append | server, `EventStore` | The CPES single statement plus `ON CONFLICT (idempotency_key) WHERE ... DO NOTHING`; no row = a committed event holds the key (`IdempotencyKeyConflictException`). Without a valid index the store runs keyed commands unkeyed (`event=idempotency_key_unsupported`, re-probed every minute) |
+| Replay | server, `CommandBrokerHandler` | Key looked up **before** lock and forward; a hit is answered with the stored event, no handler runs (`event=idempotent_replay stage=...`, `evento.server.commands.idempotent.replayed`) |
+
+Concurrent duplicates: an aggregate command re-checks the key under the aggregate lock, before
+the story is fetched (otherwise the duplicate's handler sees the original's event and refuses,
+"already created"); without a lock, or with a lost one, the unique index lets one append through
+and the others (append conflict or domain refusal) replay — the handler is pure. A service
+command takes the cluster-wide lock `IDEMPOTENCY:<key>` before the forward, always before its
+`RESOURCE:` lock, and re-checks under it, so two in-flight duplicates never both run a handler
+with side effects. N3 interplay: a keyed command dropped at `lock_wait`/`before_forward`/
+`before_append` whose key is then found stored is answered with the stored event; a replay is
+never reported as expired once the original committed. A `queued` drop (in `BusLifecycle`,
+before the broker sees the key) executed nothing and the next retry replays.
+
+Only successes are recorded: a command refused by its handler can be retried with the same key.
+A key names one command: reusing it for another command replays the first one's event.
+
+**Open window:** a service handler that ran while its event was not stored (the append failed,
+the server died between the answer and the append) leaves no key behind, and the retry runs it
+again. Such handlers must be idempotent themselves, on the same key (`ServiceCommandMessage` is
+injectable into a `@CommandHandler`). Key retention (TTL / archival of old keys) is future work.
+
 ---
 
 ## 9. Public API Surface (preserve across refactors)
@@ -493,7 +526,7 @@ These are the user-facing APIs — changing signatures requires a major version 
 - **Bundle bootstrap**: `EventoBundle.Builder` (fluent builder returned by `EventoBundle.builder()`)
 - **Modeling types**: `AggregateState`, `Event`, `Command`, `Query`, `DomainCommandMessage`,
   `DomainEventMessage`, `ServiceCommandMessage`, `ServiceEventMessage`, `DecoratedDomainCommandMessage`
-- **Gateway API**: `CommandGateway`, `QueryGateway` (injected into components)
+- **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5), `QueryGateway` (injected into components)
 - **Consumer SPIs**: `ConsumerStateStore`, `ConsumerLock`, `SagaStateStore`, `DeadEventQueue`,
   `DedupeStore`, `ConsumerEngineConfig`, `ConsumerExecutor` + `ConsumerExecutors`
 - **Server Spring starter**: `evento.server.bus.*` properties + `BusFacade` autowiring
@@ -668,6 +701,8 @@ explorative read-only pivot.)
   - `evento.server.forwarded{path=raw|reencoded}` — zero-copy vs re-encoded forward counts
   - `evento.server.requests.expired{stage=queued|lock_wait|before_forward|before_append}` —
     requests dropped unexecuted because the caller's deadline had passed (§4.6)
+  - `evento.server.commands.idempotent.replayed` — keyed commands answered with the event stored
+    under their idempotency key instead of being executed (§8; bound by `CommandBrokerHandler`)
   - *Not yet covered:* heartbeat lag, per-type processing-duration timers, consumer lag (future work).
 - **Parallel-consumption metrics** — wired via `ConsumerMetricsRegistry`
   (`com.evento.server.bus.spring`), fed by a periodic `ConsumerStatsMessage` bundles push on

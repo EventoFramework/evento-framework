@@ -392,6 +392,11 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   sequence), carried in the envelope, checked by the server under the aggregate lock before the
   append, and recorded with the events. The handler's side effect must be keyed on it too
   (`payments` keyed by order id here).
+- **Status:** implemented after this run (branch `cluster/idempotency`, CLUSTER-READINESS G5): the
+  gateway passes `X-Idempotency-Key` to `CommandGateway.sendIdempotent`, the saga's commands get
+  `evento:<consumerId>:<seq>:<ordinal>` automatically, and the broker answers a stored key with the
+  stored event on any server. The S07 case where the payment ran but its event could not be stored
+  stays open (no key is recorded without the event). Not yet re-measured.
 
 ## N15: commands commit after their caller's deadline under `es-lock` contention
 - **Evidence (`:after` S06, 300 ms RTT to the ES primary):** 31 commands timed out at the caller

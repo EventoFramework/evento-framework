@@ -7,10 +7,14 @@ Questo non è un livello da deployare: è l'elenco di ciò che, dopo le correzio
 dimostra e il lavoro che lo chiuderebbe. Tutti i nomi di proprietà o API marcati *(proposta)* **non
 esistono** nel codice: sono progetti.
 
+**Aggiornamento G5.** La chiave di idempotenza end-to-end è stata implementata dopo le misure
+(branch `cluster/idempotency`, sezione [G5](#g5--n14-chiave-di-idempotenza-end-to-end)); le prove
+S14, S03 e S07 citate sotto sono ancora quelle **senza** la chiave e vanno ripetute.
+
 ## Quando leggerlo
 
-- Prima di scegliere L2 o L3 per un sistema reale: i limiti G1, G5 e N16 decidono quali guasti
-  richiedono un intervento umano.
+- Prima di scegliere L2 o L3 per un sistema reale: i limiti G1 e N16 decidono quali guasti
+  richiedono un intervento umano; di G5 resta la finestra residua descritta sotto.
 - Quando pianifichi il lavoro sul framework: la tabella di priorità in fondo ordina gli interventi
   per impatto misurato.
 
@@ -20,7 +24,7 @@ esistono** nel codice: sono progetti.
 |---|---|---|---|---|---|
 | G1 | nessun inoltro server-server | Blocker (per la topologia) | [S01](../results/S01/after/report.md): 0/5 `no handler` in ≤ 14 ms | architettura a celle con handler completi (L2) | mesh di server (sotto) |
 | N16 | nessun failback dopo il failover degli endpoint | High | [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md) | riavviare i bundle rimasti fuori cella (il laboratorio lo fa, L22) | sonda di failback o hint "torna a casa" |
-| G5 / N14 | nessuna idempotenza tra retry | High | [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi | handler idempotenti a livello applicativo (`payments` per ordine) | chiave di idempotenza end-to-end (sotto) |
+| G5 / N14 | ~~nessuna idempotenza tra retry~~ **implementato** (da rimisurare); resta la finestra "handler di servizio eseguito, evento non salvato" | High → Low | misure pre-fix: [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi. Codice: `IdempotentCommandPostgresIT` | `X-Idempotency-Key` → `sendIdempotent`; saghe: chiave derivata automatica | handler di servizio idempotenti sulla chiave ricevuta (finestra residua); retention delle chiavi |
 | G6 | nessuna fence `aggregate_seq` sugli append | High (latente) | nessun fork osservato (S05, S08); PK su `es__events` aggiunta | lock per aggregato + `verifyHeld` | colonna `aggregate_seq` con `UNIQUE(aggregate_id, aggregate_seq)` (sotto) |
 | N5 / N9 / N15 | ogni append serializza sul `es-lock` globale raggiunto via WAN; commit dopo la deadline | Medium | [S06](../results/S06/after/report.md): p50 APAC 22.8 s a 300 ms; 31 commit dopo il timeout | primario ES nella cella più scrivente | `SET LOCAL lock_timeout` = deadline residua; append per aggregato con la fence G6 |
 | N4 | la lane `ALL` salta tra repliche, senza località | Medium | [S16](../results/S16/after/report.md): scrittori EU 9 / APAC 6, fan-out 10.2 s | una sola replica attiva nella cella del primario | affinità della lane (sotto) |
@@ -66,6 +70,9 @@ della sua cella rimasti altrove, insieme (riavviarne solo una parte divide la ce
 
 ## G5 / N14: chiave di idempotenza end-to-end
 
+**Stato: implementata** (branch `cluster/idempotency`). Nessuna configurazione: basta mandare la
+chiave, oppure lasciarla derivare.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -73,22 +80,37 @@ sequenceDiagram
     participant S1 as evento-apac
     participant S2 as evento-eu
     participant ES as event store
-    C->>S1: comando, idemKey = K (proposta)
-    S1->>ES: append eventi con idempotency_key = K
+    C->>S1: comando, idempotencyKey = K
+    S1->>ES: append dell'evento con idempotency_key = K (una sola istruzione)
     Note over S1: il server muore dopo il commit, prima della risposta
     S1--xC: BrokerChangedException (esito indeterminato)
-    C->>S2: retry, stessa idemKey = K
-    S2->>ES: lock per aggregato, cerca K
-    ES-->>S2: K già presente (UNIQUE)
-    S2-->>C: risposta con gli eventi già salvati, nessun nuovo append
+    C->>S2: retry, stessa chiave K
+    S2->>ES: cerca K, prima di lock e inoltro
+    ES-->>S2: evento già salvato con K
+    S2-->>C: risposta con l'evento salvato, nessun handler, nessun nuovo append
 ```
 
-- La chiave nasce **una volta** dal chiamante: la richiesta HTTP per il gateway, `(sagaId, sequenza
-  dell'evento)` per una saga.
-- Viaggia nell'envelope, il server la controlla sotto il lock dell'aggregato prima dell'append e la
-  salva con gli eventi (`es__events.idempotency_key` nullable con indice `UNIQUE`, *proposta*).
-- Il side effect dell'handler va chiavato allo stesso modo (qui: `payments` per ordine).
-- Perché è urgente dopo G4: `:after` fallisce in fretta, quindi il retry parte mentre il primo
+- **Da dove viene la chiave.** Esplicita: `CommandGateway.sendIdempotent(comando, chiave)`; il
+  gateway del laboratorio passa l'header `X-Idempotency-Key` (gli item di una create usano
+  `<chiave>#<n>`). Derivata: un comando mandato da una saga, un projector o un observer senza chiave
+  riceve `evento:<consumerId>:<sequenza dell'evento>:<ordinale>`, quindi un evento riconsegnato (o il
+  retry dell'handler) rimanda **le stesse** chiavi. `PaymentSaga` non cambia una riga.
+- **Dove è salvata.** `es__events.idempotency_key` (nullable) con indice `UNIQUE` parziale
+  (`WHERE idempotency_key IS NOT NULL`), creato al boot online (`CONCURRENTLY`); le righe vecchie
+  restano fuori dall'indice. Nessuna scadenza: la chiave vive quanto l'evento.
+- **Cosa fa il server.** Cerca la chiave **prima** del lock e dell'inoltro: se c'è, risponde con
+  l'evento salvato (`event=idempotent_replay`, metrica `evento.server.commands.idempotent.replayed`),
+  su qualunque server arrivi il retry. Duplicati concorrenti: un comando di aggregato ricontrolla la
+  chiave sotto il lock dell'aggregato (e l'indice unico fa da recinto); un comando di servizio prende
+  il lock di cluster `IDEMPOTENCY:<chiave>` prima dell'inoltro, così due duplicati in volo non
+  eseguono entrambi il pagamento. Un comando con chiave scartato per deadline (N3) la cui chiave
+  risulta salvata riceve l'evento salvato, mai "scaduto".
+- **Finestra residua.** Un handler di servizio eseguito il cui evento **non** è stato salvato
+  (append fallito, server morto tra risposta e append: il caso di S07, cella partizionata) non lascia
+  la chiave, e il retry lo riesegue. Quell'handler deve deduplicare da sé sulla chiave che riceve
+  (`ServiceCommandMessage.getIdempotencyKey()`); i `payments` del laboratorio non lo fanno apposta,
+  per mostrare la finestra.
+- Perché era urgente dopo G4: `:after` fallisce in fretta, quindi il retry parte mentre il primo
   tentativo sta ancora committando. In S14, 9 dei 13 primi tentativi falliti erano già salvati (su
   `:before` 1 su 24, perché il timeout di 30 s lasciava finire l'originale).
 
@@ -126,11 +148,11 @@ Nessuna delle voci sopra ha oggi una configurazione. Le leve disponibili che **m
 
 | Bundle | G1 mesh | G5 idempotenza | G6 fence | N4 affinità | G21 read datasource |
 |---|---|---|---|---|---|
-| `order-command` | non serve più in ogni cella | deve chiavare i side effect (`payments`) | nessuna modifica | – | – |
+| `order-command` | non serve più in ogni cella | fatto dal broker; resta da chiavare `payments` sulla chiave ricevuta per la finestra residua | nessuna modifica | – | – |
 | `order-query` | query servite da qualunque cella (ma i dati restano regionali: L3 invariato) | – | – | la lane `ALL` resta nella cella scelta | fetch da una replica vicina |
-| `order-saga` | – | deriva la chiave da (saga, evento) | – | – | fetch da una replica vicina |
+| `order-saga` | – | fatto: chiave derivata da (consumer, sequenza, ordinale), nessuna modifica | – | – | fetch da una replica vicina |
 | `order-observer` | – | – | – | – | fetch da una replica vicina |
-| `order-gateway` | un gateway può stare su qualunque server | genera la chiave per richiesta | – | – | – |
+| `order-gateway` | un gateway può stare su qualunque server | fatto: `X-Idempotency-Key` → `sendIdempotent` | – | – | – |
 
 ## Garanzie che resterebbero da dimostrare
 
@@ -140,7 +162,7 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 |---|---|---|
 | G1 mesh | S01 | AMERICA 5/5 anche senza `order-command-am` |
 | N16 failback | S03, S13 | dopo il ritorno del server, 0 bundle fuori cella senza riavvii (`placementRestoredAtStart` vuoto) |
-| G5 | S14, S03, S07 | 0 chiavi doppie, 0 pagamenti doppi |
+| G5 (implementato, da misurare) | S14, S03, S07 | 0 chiavi doppie; ogni retry di un comando già salvato risponde 2xx; 0 pagamenti doppi salvo la finestra residua (S07) |
 | N4 | S16 | un solo scrittore, fan-out vicino ai 2.1 s di `:before` |
 | N15 | S06 | 0 comandi salvati dopo il timeout a 300 ms |
 | staleness | S15 | ordini proiettati con orologio a −40 s |
@@ -148,14 +170,18 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 ## Dimensionamento (impatto previsto)
 
 - **Mesh**: una connessione per coppia di server e un salto WAN per ogni richiesta inoltrata.
-- **Idempotenza**: una colonna e un indice unico su `es__events`; una lettura sull'indice per
-  comando, sotto il lock già preso.
+- **Idempotenza** (implementata): una colonna e un indice unico parziale su `es__events` (solo le
+  righe con chiave); per un comando con chiave una lettura sull'indice prima del lock e una sotto il
+  lock; per un comando di servizio con chiave un lock di cluster in più (`IDEMPOTENCY:<chiave>`, una
+  connessione del pool dei lock). I comandi senza chiave non cambiano.
 - **Fence**: un indice unico in più; un round trip in meno per comando (niente lock per aggregato).
 - **Read datasource**: pool aggiuntivi verso le repliche, carico di fetch tolto al primario.
 
 ## Checklist decisionale
 
-- [ ] I miei comandi sono idempotenti a livello applicativo? Se no, L1+ duplica sotto guasto (G5).
+- [ ] I miei chiamanti mandano una chiave di idempotenza quando ritentano (`sendIdempotent`)? Le
+      saghe la derivano da sole; un client HTTP deve passarla (G5).
+- [ ] I miei handler di servizio con side effect deduplicano sulla chiave ricevuta (finestra residua G5)?
 - [ ] Posso riavviare una cella intera dopo il ritorno del suo server (N16)?
 - [ ] Ogni cella avrà sempre tutti gli handler (G1)?
 - [ ] Il RTT verso il primario ES delle celle remote è compatibile con la latenza richiesta

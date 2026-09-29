@@ -64,7 +64,8 @@ table does not list) is in
 [`evento-lab-cluster/results/COMPARISON.md`](../evento-lab-cluster/results/COMPARISON.md), §"Per
 gap". Where that table and this one disagree, the measured one wins: G10 is fixed in code but not
 measurable by the lab (CPES), G5 is worse in practice after G4 (S14: 8 keys stored twice), and
-failback after a G2 failover is missing (N16).
+failback after a G2 failover is missing (N16). G5 has since been implemented (idempotency keys,
+branch `cluster/idempotency`); the S14/S03/S07 measurements above predate it and need a re-run.
 
 | Gap | Severity | Status after fixes | Evidence / what is left |
 |---|---|---|---|
@@ -72,7 +73,7 @@ failback after a G2 failover is missing (N16).
 | G2 first address only, no failover | Blocker | **Fixed** | Ordered endpoint list; next endpoint after a failed session, back to the first at the next disconnect (no background probe). `BundleClientFailoverIT` |
 | G3 lock pins one connection | Blocker | **Fixed** | Each held lock owns a connection from a dedicated pool (`evento.lock.pool.*`); polling waits bounded by `evento.lock.acquire.timeout.ms` or the caller's deadline; `LockLostException`. `PgDistributedLockIT`, `DistributedLockPoolPostgresIT` |
 | G4 in-flight requests on broker change | High | **Fixed** | `BrokerChangedException` when a new `Welcome` names another broker. `BundleCorrelationTrackerBrokerChangeTest`, `BundleClientFailoverIT` |
-| G5 no exactly-once across servers | High | **Open**, narrowed | N3 stops executing commands whose caller has given up; an append that outlives its deadline is still indeterminate. Idempotency key not implemented |
+| G5 no exactly-once across servers | High | **Fixed** (branch `cluster/idempotency`; lab re-run pending) | Idempotency key on commands (`sendIdempotent`, derived `(consumerId, seq, ordinal)` in consumer handlers), stored with the event under a partial unique index; the broker replays the stored event before lock/forward on any server; duplicates serialised (aggregate lock + index, `IDEMPOTENCY:<key>` lock for service commands). `IdempotentCommandPostgresIT` (two servers, one PG). Open: a service handler that ran while its event was not stored is re-run by the retry; keys never expire |
 | G6 no `es__events` PK / no append fence | High | **Partly fixed** | PK added online on boot (`SchemaInitializationPostgresIT`); `verifyHeld` before append narrows the fork window; the `aggregate_seq` fence is open |
 | G7 stale `NodeLeft` wipes a failed-over bundle | High | **Fixed** | Presence table `core__bundle_instance` (`BundlePresence`). `MultiServerCatalogIT` |
 | G8 discovery / registration insert race | High | **Fixed** | One `DISCOVERY:<bundle>` key, `ON CONFLICT` inserts, one transaction per pass, retried on 40P01/40001/23503. `MultiServerCatalogIT` |
@@ -151,6 +152,7 @@ publish cross-region events under the literal context `"ALL"` must declare their
   - The code itself acknowledges the problem at `EventoServerAdapter.java:121-131`.
 - Impact: a retry after a timeout or failover appends duplicate events.
 - Fix proposal: a caller-supplied idempotency key persisted in the same statement as the event (a nullable `es__events.idempotency_key` with a UNIQUE index). On conflict, return the stored event.
+- **Status (branch `cluster/idempotency`): implemented** as proposed, plus automatic keys for consumer handlers. `CommandMessage.idempotencyKey` (additive), `CommandGateway.sendIdempotent`, derived keys `evento:<consumerId>:<seq>:<ordinal>` for commands sent by sagas/projectors/observers (stable across redeliveries and the handler's retry loop). `es__events.idempotency_key` + partial unique index built online. `CommandBrokerHandler` looks the key up before the lock and the forward and replays the stored event (`event=idempotent_replay`, `evento.server.commands.idempotent.replayed`); an aggregate duplicate re-checks under the aggregate lock (the index is the fence without one), a service duplicate waits on the cluster-wide `IDEMPOTENCY:<key>` lock taken before the forward. A deadline drop of a keyed command whose key is found stored becomes the replay. Evidence: `IdempotentCommandPostgresIT` (8 tests over real TCP, two servers on one PG), `SchemaInitializationPostgresIT`, `DerivedIdempotencyKeyTest`, `IdempotencyKeyCodecToleranceTest`. Remaining: (1) a service handler that ran while its event could not be stored (append failure, server death between answer and append) runs again on retry — the handler must dedupe on the key it receives; (2) no key retention/TTL (index grows with keyed events); (3) a `queued`-stage drop happens before the broker reads the key (harmless: nothing executed, the next retry replays); (4) the lab re-run (S14, S03, S07 on `:after`) is pending.
 
 **G6: No DB-level fencing of aggregate appends; `es__events` has no PK.** IMPL (the PK part).
 - Evidence: `schema.sql:92-101` has no PK, and the indexes at `:196-200` are non-unique. The `@Id` exists only in JPA (`EventStoreEntry.java:26-27`). The INSERT at `EventStore.java:217-256` has no version check.
@@ -503,7 +505,7 @@ Each scenario gives the setup, the fault injected, the expected invariant (what 
 **S14: Retry storm with idempotency.**
 - Setup: the gateway retries a timed-out CreateOrder once, through another cell.
 - Fault: kill the server mid-request.
-- Expected: without G5, duplicate `OrderCreated` (I2 fails); this documents the gap. With an idempotency key, exactly one.
+- Expected: without G5, duplicate `OrderCreated` (I2 fails); this documents the gap. With an idempotency key, exactly one, and every retry of a stored command answers 2xx with the stored event (the gateway passes `X-Idempotency-Key` to `sendIdempotent`).
 - Exercises: G5.
 
 **S15: Clock skew (optional).**

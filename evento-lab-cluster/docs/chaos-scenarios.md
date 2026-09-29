@@ -75,7 +75,7 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 | S11 contesti con `_` | L3 | G15, G16, N10 | 2 righe trapelate | 0 |
 | S12 costo WATERMARK | L3 | G10 | INCONCLUSIVE | INCONCLUSIVE |
 | S13 identità del broker | L1 | G13, N16 | cluster estraneo accettato | rifiutato |
-| S14 retry storm | L1 | G4, G5 | 24/24 dopo ≥ 25 s | 0 dopo ≥ 25 s; 8 chiavi doppie |
+| S14 retry storm | L1 | G4, G5 | 24/24 dopo ≥ 25 s | 0 dopo ≥ 25 s; 8 chiavi doppie (prima di G5; atteso 0 con le chiavi) |
 | S15 orologio −40 s | L0+ | staleness | 0 proiettati | 0 proiettati (aperto) |
 | S16 lane `ALL` | L3 | G24, N4 | fan-out 2.1 s | 10.2 s (N4) |
 | S17 routing per contesto | L3 | setComponentContexts | 8/8 | 8/8 |
@@ -120,6 +120,9 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
   p50/p99 448/570 ms; EU+AM 62/62 (p50 192 ms); 0 chiamate appese; I6 in 0.36 s.
   [`after-run1`](../results/S03/after-run1/report.md): una `ProcessPaymentCommand` riceve
   `BrokerChangedException`, la saga la ripete e il pagamento avviene due volte (**N14**).
+- **Atteso con G5** (idempotenza, da misurare): lo scenario osserva a parte "nessun comando applicato
+  due volte" e "nessun pagamento eseguito due volte" (`observeExactlyOnce` su I2): entrambi 0, perché il
+  retry della saga porta la chiave derivata del primo tentativo e il broker risponde con l'evento salvato.
 
 ### S04: il server torna dopo il failover
 - **Obiettivo**: il `NodeLeft` tardivo del vecchio server non deve cancellare un bundle vivo altrove (G7).
@@ -157,6 +160,10 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
 - **`:after`** ([report](../results/S07/after/report.md)): EU+AM **41/41** (p50 585 ms); lane `*` ferme
   ≤ 5 s; I6 0.2 s dopo la guarigione; APAC 0/12 (504 dal lb, atteso). 2 pagamenti doppi e un
   `PaymentProcessedEvent` salvato due volte (**N14**).
+- **Atteso con G5** (da misurare): 0 eventi salvati due volte. Un pagamento eseguito da
+  `order-command-apac` mentre `evento-apac` non poteva salvarne l'evento resta la **finestra residua**
+  documentata: non lascia la chiave, e il retry della saga dopo la guarigione lo riesegue
+  (`payments.attempts = 2` possibile, con un solo `PaymentProcessedEvent`).
 
 ### S08: failover del primario ES
 - **Obiettivo**: i server seguono la promozione via URL multi-host; lock persi senza fork (G3, G6).
@@ -218,6 +225,11 @@ Mai due driver insieme (L23). Le variabili di ogni scenario sono in [config-refe
   retry parte mentre il primo tentativo committa).
 - Varianti a 150 ms: [`before-kill150`](../results/S14/before-kill150/report.md),
   [`after-kill150`](../results/S14/after-kill150/report.md): INCONCLUSIVE per G5 (L17).
+- **Atteso con G5** (da misurare): il gateway passa `X-Idempotency-Key` a `sendIdempotent`, quindi il
+  retry attraverso un'altra cella riceve l'evento salvato dal primo tentativo: **0 chiavi salvate due
+  volte**, e ogni retry di un comando già salvato risponde 2xx (osservazione "the retry of a stored
+  command is acknowledged"): la create con id del client non riceve più 409, la create con id generato
+  restituisce l'`orderId` del primo tentativo (`replayed: true`).
 
 ### S15: orologio sfasato
 - **Obiettivo**: il gate di staleness del fetch confronta orologi diversi.
