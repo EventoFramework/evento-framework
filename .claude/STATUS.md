@@ -2,7 +2,33 @@
 
 Last updated: 2026-09-29.
 
-## Per-bundle lab integrated on Docker (2026-09-29, latest)
+## Full chaos run on `:before` (2026-09-29, latest)
+
+- **All 18 scenarios S00..S17 (S15 included)** ran on `LAB_TAG=before`; each has
+  `evento-lab-cluster/results/<S>/before/`. The summary is in
+  `evento-lab-cluster/results/BEFORE-SUMMARY.md`.
+- **Confirmed on 2.4.6:** G1, G2, G3, G4, G5, G7, G8 (every one of 5 fresh starts, 2–3 JVMs each),
+  G9, G13, G14, G15, G25, N3, N10, and the fetch staleness gate.
+- **Not observed:** G10 (the global volume is capped by G9), G11, G6 forks.
+- **S00:** 227/319 acked (71 %), p50 AM ~26 s, APAC ~30 s, 5.2 appends/s. `:after`: 498/498.
+- **S16:** lane takeover 7.7 s (`:after` 5.2 s).
+- **New findings:**
+  - N11 (High): a silent APAC partition stopped appends cluster-wide for 90 s (S07).
+  - N12 (High): a stale NodeLeft wiped a shared bundle id's consumers in every cell (S04 B), and
+    the repair cannot converge.
+  - N13 (Medium): handshake supersede loop after the pause.
+- **Harness fixes (L14..L18):**
+  - L14: saga and observer handler rows are now in the repair check.
+  - L15: S11 GUI attribution.
+  - L16: the driver's repair ran WSL bash.
+  - L17: S14's G5 verdict needs an ambiguous command.
+  - L18: S15 skews the clock behind, with a libfaketime image (`docker/faketime/Dockerfile`,
+    `S15_IMAGE`).
+- **Next:**
+  - the same S01..S15 on `:after`, with priority on S07 (N11), S04 (N12, N13), S08 and S14;
+  - the SQL trace for N9.
+
+## Per-bundle lab integrated on Docker (2026-09-29)
 
 - **Images:** `:after` (working tree) and `:before` (`FRAMEWORK_REF=e7b823fe`, 2.4.6) built from the
   same lab sources; `Contexts.WILDCARD` is the literal `"*"` again so the lab compiles against both.

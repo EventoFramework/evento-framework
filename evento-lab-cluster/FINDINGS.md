@@ -21,6 +21,14 @@
 | L11 | harness catalog read (I7) used the pre-N1 column | Medium (lab) | fixed |
 | L12 | I7 expected a catalog row for the send-only gateway | Low (lab) | fixed |
 | L13 | lab-api did not compile against the pre-fix framework | High (lab) | fixed |
+| N11 | a silent partition of one remote cell stops appends cluster-wide | High (availability) | recorded (`:before` S07) |
+| N12 | a stale NodeLeft on 2.4.6 wipes a shared bundle id's consumers in every cell; the repair cannot converge | High (catalog) | recorded (`:before` S04 B) |
+| N13 | handshake supersede loop after a paused server returns | Medium (availability) | recorded (`:before` after S04) |
+| L14 | `repair-catalog.sh` ignored lost handler rows of sagas and the observer | Medium (lab) | fixed |
+| L15 | S11 marked G16 AS_EXPECTED on a page that shows no `_` context, and blamed G8 for N10 | Medium (lab) | fixed |
+| L16 | the chaos driver ran the catalog repair with WSL `bash` on Windows | High (lab) | fixed |
+| L17 | S14 marked G5 AS_EXPECTED with no command in the ambiguous window | Medium (lab) | fixed |
+| L18 | S15 skewed the clock ahead, which can never trip the staleness gate | Medium (lab) | fixed |
 
 ## N1: components keyed by simple class name across bundles
 - **Cause:** `core__component.component_name` is the primary key. The seven `query-<r>` bundles all ran `RegionOrderProjector`.
@@ -240,3 +248,99 @@ results `results/S00/after-smoke`, `results/S16/after` and `results/S17/after`.
   The copy is removed and the name is fixed.
 - **New tool:** `scripts/integration-checks.sh` prints the whole evidence report
   (`results/_integration/<tag>/checks-raw.md`) for either image set.
+
+## Full scenario run on `:before` (S00..S17, 2026-09-29)
+Summary table and key numbers: [`results/BEFORE-SUMMARY.md`](results/BEFORE-SUMMARY.md). Each scenario is
+in `results/<S>/before/`.
+
+- **Gaps confirmed on 2.4.6:** G1 (S01), G2 and G4 (S03), G3 (S05 cross-server deadlocks, S08),
+  G5 (S14), G7 (S04 B), G8 (every fresh start), G9 (S00, S06), G13 (S13), G14 (S10), G15 (S11),
+  G25 (S07), N3 (S00), N10 (S11), and the fetch staleness gate (S15).
+- **Not observed:** G10 in S12 (WATERMARK ×0.86 of DEFAULT, but at a global volume capped by G9),
+  G11 in S07 and S09, G6 forks in S05 and S08, G16 (the pre-fix page gives it no chance, L15).
+
+## N11: one partitioned cell stops the whole cluster's appends
+- **Evidence (`:before` S07):**
+  - APAC was cut off for 72 s (`net-apac` detached from toxiproxy and the lb).
+  - EU and AM acknowledged **0 of 16** commands in that window: 10 timeouts, 5 client timeouts,
+    1 `Failed to acquire advisory lock for key: es-lock`.
+  - `es__events` shows no append at all from 13:24:30 to 13:25:59, which is the partition, and
+    13 appends in the first 10 s after healing.
+  - The `*` lanes (`OrderProjector_1_*`, `NotificationObserver_1_*`) stood still for ≥ 50 s,
+    for lack of events rather than because of a lock.
+- **Likely mechanism:**
+  - `evento-apac` holds the CPES `es-lock` (and `RESOURCE:` locks) on its pinned lock session to
+    `es-pg-eu`, reached through the WAN proxy (G3).
+  - The partition drops packets silently, so Postgres keeps that backend and its advisory locks
+    until TCP keepalive or healing ends the session.
+  - Every other server queues behind the orphaned `es-lock`. This is G25 applied to the append
+    lock instead of a consumer lock.
+- **Impact:** a failure in one remote region takes writes down for every region, including the
+  cell that hosts the ES primary. It is the opposite of the cell isolation the topology is meant
+  to give.
+- **Proposals:**
+  - aggressive TCP keepalive / `tcp_user_timeout` on the lock connections and on the server
+    side (`tcp_keepalives_*`);
+  - hold the append lock only inside one short transaction (G9's single statement), so a
+    partition can orphan at most one in-flight append;
+  - repeat S07 on `:after` to measure how much of this G3 + G9 already remove.
+
+## N12: on 2.4.6 a stale NodeLeft wipes a bundle id's consumers in every cell
+- **Evidence (`:before` S04 variant B, `evento-apac` paused 60 s):**
+  - Afterwards `core__consumer` had lost 10 consumer ids: `order-saga_PaymentSaga_1_<R>` for all
+    7 regions, and `order-query_OrderProjector_1_{CINA,INDIA,AUSTRALIA_NZ}`. EU and AM instances
+    of `order-saga` were among them, although they never touched `evento-apac`.
+  - `evento-apac` logged `[BundleService] Unregister called for bundleId=order-saga`.
+  - `repair-catalog.sh` could not converge in 3 passes. Pass 2 was down to 2 JVMs, but pass 3
+    was back to 5, because each helper removal or restart of an instance of a shared bundle id
+    raised another bundle-wide unregister. The stack had to be recreated.
+- **Cause:** `BundleService.unregister` deletes by bundle id. In the per-bundle layout every
+  order-query (or order-saga) deployment of every cell shares one bundle id, so a NodeLeft that
+  decides "no live instance here" erases the rows of the others as well. This is G7 amplified by
+  N1's bundle-wide delete.
+- **Status:** fixed by the presence table (G7) and the N1 catalog key on `:after`; S04 on
+  `:after` has to confirm it.
+
+## N13: handshake supersede loop after a paused server returns
+- **Evidence (`:before`, after S04 and the attempted repair):**
+  - `order-saga-apac` logged `supervisor_session_failed cause=TimeoutException` 46 times in
+    40 min, and `order-query-apac` 29 times.
+  - On the server, `evento-apac` logged `event=child_close_timeout timeout_ms=5000` before
+    `hello_will_supersede`, then `listener_error type=Hello ... SendFailedException: not in
+    CONNECTED state: CLOSED` (7 in 5 min).
+  - The server was idle (1–2 % CPU), yet the Docker health of both JVMs stayed `healthy`.
+  - The saga's engines kept logging `bundle not ready: state=RECONNECTING/HANDSHAKING`.
+- **Mechanism:**
+  - A new Hello supersedes the previous session, and the server first waits up to 5 s for the
+    old channel to close.
+  - The client's handshake times out within that window and reconnects, so the next Hello
+    supersedes the session that was just abandoned. The loop sustains itself.
+- **Impact:** a bundle can stay "healthy" while it hardly ever holds a session, so its
+  consumers make almost no progress.
+- **Proposals:** close the superseded channel asynchronously without blocking the new Hello,
+  make the client's handshake timeout larger than the server's close timeout, and report the
+  session state in health. Repeat on `:after`.
+
+## Lab defects fixed during the `:before` run
+- **L14:** `repair-catalog.sh` listed handler-owning bundles only for `order-command` and
+  `order-query`. The first S00 then failed I7 with `bundle order-observer has no core__handler
+  rows`, right after the repair had reported the catalog complete. G8 can drop the handler rows
+  of the saga and the observer too (with no error line: the `ConsumerService` created an
+  "ephemeral" component first). Sagas and the observer now name their bundle; the repair fixed
+  the observer in one pass. `results/S00/before-catalog-gap` keeps that first run.
+- **L15:** S11 attributed a short GUI consumer list to G8, and marked G16 AS_EXPECTED on a page
+  that listed no context containing `_`. The pre-fix page groups per component (N10). G16 is now
+  INCONCLUSIVE when untestable, and the list check compares the page with `core__consumer`.
+- **L16:** `Cluster.recreateStack()` ran `repair-catalog.sh` with a bare `bash`, which on Windows
+  is WSL's `System32\bash.exe`. It exited 1 in 0.3 s (`catalog repair exit 1: []`), so every
+  recreate on this host skipped the G8 workaround. The driver now uses `LAB_BASH`, then Git Bash,
+  and prints the output tail when no repair line comes back.
+- **L17:** S14 called G5 AS_EXPECTED whenever no key was stored twice, even when none of the
+  failed first attempts had been stored. At the default 150 ms kill, none were: the command had
+  not reached the append. S14 now counts `failedButStoredBeforeRetry` and is INCONCLUSIVE at 0.
+  On `:before` use `S14_KILL_DELAY_MS=2000`.
+- **L18:** S15 suggested `FAKETIME=+40s`. The gate compares `now - requestTimestamp`, so a clock
+  ahead never looks stale (`results/S15/before-ahead40`: AS_EXPECTED); only a clock behind by more
+  than 30 s trips it. The lab also had no libfaketime. `docker/faketime/Dockerfile` derives an
+  image, and `S15_IMAGE` makes S15 recreate the JVM with it (`Cluster.recreateWithEnv(service,
+  env, image)`). The report records the measured offset (`skewedClockMinusHostSeconds`).

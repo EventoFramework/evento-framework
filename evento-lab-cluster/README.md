@@ -371,6 +371,26 @@ over the three cell databases.
 
 Suggested order: S0, S17, S16, S10, S11, S1, S2, S3, S4, S5, S6, S12, S7, S8, S9, S13, S14.
 
+Recreate the stack (`scripts/down.sh && scripts/up.sh`) after S10 and after S04. S10 drops the
+event store, and S04's variant B leaves the `:before` catalog beyond repair (N12). S08 and S09
+recreate it themselves.
+
+Scenario knobs worth knowing:
+- `S14_KILL_DELAY_MS=2000` on `:before`: at the default 150 ms no command reaches the append
+  before the kill, and G5 is then INCONCLUSIVE (L17).
+- S15 needs a clock **behind** the server's by more than 30 s, and libfaketime:
+  ```bash
+  docker build -f docker/faketime/Dockerfile --build-arg BASE=evento-lab-cluster/order-query:before \
+    -t evento-lab-cluster/order-query:before-faketime docker/faketime
+  MSYS2_ENV_CONV_EXCL='*' S15_IMAGE=evento-lab-cluster/order-query:before-faketime \
+  S15_FAKETIME_ENV='LD_PRELOAD=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1,FAKETIME=-40s,FAKETIME_DONT_FAKE_MONOTONIC=1' \
+    scripts/run-scenario.sh S15ClockSkewTest before
+  ```
+- `LAB_BASH`: the bash the chaos driver uses for `repair-catalog.sh` (default Git Bash on
+  Windows, L16).
+
+Results of the full `:before` run: [`results/BEFORE-SUMMARY.md`](results/BEFORE-SUMMARY.md).
+
 ## Files
 
 ```

@@ -1,0 +1,57 @@
+{
+  "scenario" : "S15",
+  "title" : "Clock skew on one region JVM (optional)",
+  "gaps" : [ "fetch staleness gate (Low)", "G20" ],
+  "label" : "before",
+  "startedAt" : "2026-09-29T13:59:25.163774800Z",
+  "finishedAt" : "2026-09-29T14:00:06.691248100Z",
+  "durationSeconds" : 41,
+  "parameters" : {
+    "orderIdPrefix" : "s15-before-ae3944-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "skewEnv" : {
+      "LD_PRELOAD" : "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1",
+      "FAKETIME" : "+40s",
+      "FAKETIME_DONT_FAKE_MONOTONIC" : "1"
+    },
+    "skewImage" : "evento-lab-cluster/order-query:before-faketime",
+    "skewedClockMinusHostSeconds" : "40"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 1
+  },
+  "observations" : [ {
+    "name" : "skewed region consumer",
+    "expected" : "the AFRICA projector (clock +skew) still projects its orders within 60 s",
+    "expectedBeforeFix" : "the staleness gate drops the skewed consumer's fetches: the orders never appear",
+    "observed" : "all 5 orders projected",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "logMarkers" : {
+      "evento-eu" : { },
+      "order-query-eu" : { }
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 1417,
+    "at" : "2026-09-29T13:59:26.581030800Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 26475,
+    "at" : "2026-09-29T13:59:51.638860700Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 41527,
+    "at" : "2026-09-29T14:00:06.691248100Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ "2026-09-29T13:59:26.587118400Z compose up -d --no-deps --force-recreate order-query-eu with env {FAKETIME=+40s, FAKETIME_DONT_FAKE_MONOTONIC=1, LD_PRELOAD=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1} image evento-lab-cluster/order-query:before-faketime", "2026-09-29T13:59:51.640860600Z compose up -d --no-deps --force-recreate order-query-eu (restore default)" ]
+  }
+}
