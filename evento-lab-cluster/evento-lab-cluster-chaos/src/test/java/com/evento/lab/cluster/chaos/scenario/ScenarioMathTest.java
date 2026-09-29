@@ -26,6 +26,19 @@ class ScenarioMathTest {
     }
 
     @Test
+    void aLaneWithNothingToConsumeIsIdleNotStalled() {
+        var t0 = Instant.parse("2026-09-29T10:00:00Z");
+        var all = "consumers/order-query_CatalogProjector_1_ALL";
+        var star = "EU/order-query_OrderProjector_1_*";
+        List<Map<String, Object>> samples = List.of(
+                Map.of("t", t0.toString(), "head", 100L, "head:ALL", 40L, all, 40L, star, 90L),
+                Map.of("t", t0.plusSeconds(20).toString(), "head", 110L, "head:ALL", 40L, all, 40L, star, 90L),
+                Map.of("t", t0.plusSeconds(40).toString(), "head", 120L, "head:ALL", 40L, all, 40L, star, 90L));
+        var stall = S07RegionPartitionTest.longestStallSeconds(samples, t0, t0.plusSeconds(60));
+        assertThat(stall).containsEntry(all, 0L).containsEntry(star, 40L);
+    }
+
+    @Test
     void s16CountsOnlySequencesBothReplicasFannedOut() {
         var twice = S16GlobalFanOutTest.processedTwice(java.util.Map.of(
                 "order-query-global-eu", java.util.List.of(10L, 11L, 11L, 12L),

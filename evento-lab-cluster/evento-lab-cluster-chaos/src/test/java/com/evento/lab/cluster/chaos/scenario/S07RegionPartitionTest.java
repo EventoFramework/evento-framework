@@ -37,6 +37,9 @@ class S07RegionPartitionTest extends AbstractScenario {
      * ALL lane (replicas in EU and APAC compete for it), the wildcard order projector and the
      * wildcard observer. Regional lanes of APAC are expected to stop; these must not.
      */
+    static final String HEAD = "head";
+    static final String HEAD_ALL = "head:ALL";
+
     private static final List<String> GLOBAL_LANES = List.of(
             "consumers/order-query_CatalogProjector_1_ALL",
             "EU/order-query_OrderProjector_1_*",
@@ -74,6 +77,13 @@ class S07RegionPartitionTest extends AbstractScenario {
                 while (!stop.get()) {
                     var row = new LinkedHashMap<String, Object>();
                     row.put("t", Instant.now().toString());
+                    try {
+                        // heads first: a lane at or above the head of what it consumes is idle, not stalled (L20)
+                        row.put(HEAD, db.esHead());
+                        row.put(HEAD_ALL, db.esHeadOfContext(LabConfig.GLOBAL_CONTEXT));
+                    } catch (Exception e) {
+                        row.put("error", e.getMessage());
+                    }
                     try {
                         db.checkpointsBestEffort().forEach((k, v) -> {
                             if (GLOBAL_LANES.stream().anyMatch(k::startsWith)) row.put(k, v);
@@ -156,19 +166,32 @@ class S07RegionPartitionTest extends AbstractScenario {
     /** Re-attach everything; the lb must be restarted to bind its VIP address on the network again. */
     private void heal(List<Cluster.Detachment> detached) {
         boolean lb = false;
+        boolean lbBroken = false;
         for (var d : List.copyOf(detached)) {
             try {
                 cluster.reconnect(d);
                 lb |= d.container().equals("lb");
             } catch (Exception e) {
-                report.harnessError("reconnect " + d + ": " + e);
+                if (d.container().equals("lb")) {
+                    // an lb endpoint without its VIP address misroutes silently (L23): rebuild it
+                    lbBroken = true;
+                    report.note("lb re-attach failed (" + e.getMessage() + "); recreating the lb");
+                } else {
+                    report.harnessError("reconnect " + d + ": " + e);
+                }
             }
         }
         detached.clear();
-        if (lb) cluster.restart("lb");
+        if (lbBroken) cluster.recreateLb();
+        else if (lb) cluster.restart("lb");
     }
 
-    /** For each lane: the longest run of identical checkpoint values within [cut, heal], in seconds. */
+    /**
+     * For each lane: the longest run of identical checkpoint values within [cut, heal], in seconds,
+     * counted only while the lane is behind the head of the events it consumes ({@link #HEAD_ALL}
+     * for the ALL lane, {@link #HEAD} for the others, when the sample carries them). A lane with
+     * nothing to consume (the ALL lane while no price is set) is idle, not stalled (L20).
+     */
     static Map<String, Long> longestStallSeconds(List<Map<String, Object>> samples, Instant cut, Instant heal) {
         var out = new LinkedHashMap<String, Long>();
         var lastValue = new LinkedHashMap<String, Object>();
@@ -177,14 +200,18 @@ class S07RegionPartitionTest extends AbstractScenario {
             var t = Instant.parse((String) s.get("t"));
             if (t.isBefore(cut) || t.isAfter(heal)) continue;
             for (var e : s.entrySet()) {
-                if (e.getKey().equals("t") || e.getKey().equals("error")) continue;
-                var prev = lastValue.get(e.getKey());
-                if (prev == null || !prev.equals(e.getValue())) {
-                    lastValue.put(e.getKey(), e.getValue());
-                    since.put(e.getKey(), t);
+                var key = e.getKey();
+                if (key.equals("t") || key.equals("error") || key.equals(HEAD) || key.equals(HEAD_ALL)) continue;
+                var target = s.get(key.endsWith("_ALL") ? HEAD_ALL : HEAD);
+                boolean idle = target instanceof Number h && e.getValue() instanceof Number v
+                        && v.longValue() >= h.longValue();
+                var prev = lastValue.get(key);
+                if (idle || prev == null || !prev.equals(e.getValue())) {
+                    lastValue.put(key, e.getValue());
+                    since.put(key, t);
                 }
-                var d = Duration.between(since.get(e.getKey()), t).toSeconds();
-                out.merge(e.getKey(), d, Math::max);
+                var d = Duration.between(since.get(key), t).toSeconds();
+                out.merge(key, d, Math::max);
             }
         }
         return out;

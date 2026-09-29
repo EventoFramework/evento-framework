@@ -251,6 +251,34 @@ public class Cluster {
         }
     }
 
+    // ---- broker placement -------------------------------------------------------------------
+
+    private static final java.util.regex.Pattern HANDSHAKE =
+            java.util.regex.Pattern.compile("event=handshake_complete server_instance=([A-Za-z0-9_.-]+)");
+
+    /**
+     * The server a bundle JVM is attached to now: the {@code server_instance} of its last
+     * {@code event=handshake_complete} log line, or null when the line is absent (a 2.4.6 image
+     * logs no server id there) or the container is missing.
+     */
+    public String attachedServer(String service) {
+        var e = docker(Duration.ofSeconds(60), "logs", service);
+        if (!e.ok()) return null;
+        String last = null;
+        var m = HANDSHAKE.matcher(e.out() + e.err());
+        while (m.find()) last = m.group(1);
+        return last;
+    }
+
+    /** {@code docker restart} several services in one call. */
+    public void restart(List<String> services) {
+        if (services.isEmpty()) return;
+        action("docker restart " + String.join(" ", services));
+        var cmd = new ArrayList<String>(List.of("restart"));
+        cmd.addAll(services);
+        must(docker(Duration.ofSeconds(300), cmd.toArray(String[]::new)), "restart " + services);
+    }
+
     // ---- logs ---------------------------------------------------------------------------------
 
     public String logsSince(String service, Instant since) {
@@ -409,6 +437,16 @@ public class Cluster {
         } catch (IOException e) {
             throw new HarnessException("override file", e);
         }
+    }
+
+    /**
+     * Recreate the lb from compose.yaml: fresh network endpoints (static VIP addresses) and a fresh
+     * resolver cache. The repair for an lb whose network re-attach failed (L23).
+     */
+    public void recreateLb() {
+        action("compose up -d --no-deps --force-recreate lb (repair routing)");
+        must(compose(Duration.ofSeconds(300), List.of(), List.of(),
+                "up", "-d", "--no-deps", "--force-recreate", "lb"), "recreate lb");
     }
 
     /** Put a service back to exactly what compose.yaml says. */

@@ -93,12 +93,6 @@ class S03KillServerTest extends AbstractScenario {
             var hung = filter(inFlight, r -> r.outcome() != RequestRecord.Outcome.ACK && r.latencyMs() >= 25_000);
             var failedFast = filter(inFlight, r -> r.outcome() != RequestRecord.Outcome.ACK && r.latencyMs() < 25_000);
             report.metric("apacInFlightAtKill", inFlight.size());
-            report.observe("in-flight APAC calls at the kill",
-                    "fail immediately with a typed broker-changed/disconnect error (G4 fix)",
-                    "hang until the 30 s request timeout, outcome indeterminate (G4)",
-                    inFlight.size() + " in flight: " + hung.size() + " failed after >= 25 s, " + failedFast.size()
-                            + " failed fast, kinds " + kinds(inFlight),
-                    inFlight.isEmpty() ? null : hung.isEmpty(), !hung.isEmpty(), null);
 
             report.event("restarting evento-apac");
             cluster.start("evento-apac");
@@ -115,6 +109,37 @@ class S03KillServerTest extends AbstractScenario {
                     dupKeys + " duplicate-key log lines on the servers", dupKeys == 0, dupKeys > 0, null);
             report.metric("apacHandshakes", total(appMarkers, "event=handshake_complete"));
             report.metric("apacCorrelationExpired", total(appMarkers, "event=bundle_correlation_expired"));
+
+            // At the fault rate a gateway command is rarely in flight at the kill instant, but the
+            // APAC bundles' own calls (saga ProcessPaymentCommand, event fetches) always are. Their
+            // fate is in the bundle logs: a typed BrokerChangedException right after the
+            // re-handshake (G4 fix) or a request that sits until the 30 s timeout (G4).
+            int brokerChanged = 0, bundleTimeouts = 0;
+            for (var s : APAC_JVMS) {
+                var logs = cluster.logsSince(s, kill);
+                for (var line : logs.split("\\R")) {
+                    if (!line.startsWith("Caused by")) continue;
+                    if (line.contains("BrokerChangedException")) brokerChanged++;
+                    if (line.contains("RequestTimeoutException")) bundleTimeouts++;
+                }
+            }
+            report.metric("apacBundleBrokerChanged", brokerChanged);
+            report.metric("apacBundleRequestTimeouts", bundleTimeouts);
+            report.note("bundle-side in-flight evidence counts 'Caused by' lines in the APAC JVM logs from the kill"
+                    + " until the invariant check (" + kill + " onwards)");
+            Boolean inFlightOk;
+            String inFlightObserved = inFlight.size() + " gateway command(s) in flight: " + hung.size()
+                    + " failed after >= 25 s, " + failedFast.size() + " failed fast, kinds " + kinds(inFlight)
+                    + "; bundle side: " + brokerChanged + " BrokerChangedException, " + bundleTimeouts
+                    + " RequestTimeoutException";
+            if (!inFlight.isEmpty()) inFlightOk = hung.isEmpty();
+            else if (brokerChanged > 0) inFlightOk = true;
+            else if (bundleTimeouts > 0) inFlightOk = false;
+            else inFlightOk = null;
+            report.observe("in-flight APAC calls at the kill",
+                    "fail immediately with a typed broker-changed/disconnect error (G4 fix)",
+                    "hang until the 30 s request timeout, outcome indeterminate (G4)",
+                    inFlightObserved, inFlightOk, Boolean.FALSE.equals(inFlightOk), null);
 
             var results = checkInvariants(records, envSeconds("S03_CONVERGENCE_S", 180));
             for (var id : List.of("I1", "I2", "I4", "I5", "I6", "I7")) {
