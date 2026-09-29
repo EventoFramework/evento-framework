@@ -379,6 +379,36 @@ public class EventoBundle {
         /** Cap on outstanding requests from this bundle; 0 disables the bound. */
         private int maxInFlightRequests = 2048;
 
+        /**
+         * Fail-back to the first address of {@link #eventoServerMessageBusConfiguration}
+         * after a failover (N16). Null keeps the default: on whenever there is more
+         * than one address. While attached to another address the bundle probes the
+         * first one without registering there, and moves back once it has answered
+         * every probe for {@link #failbackStabilityWindow}, after draining what is in
+         * flight. {@code false} keeps the pre-2.5 behaviour: back only at the next
+         * disconnect.
+         */
+        private Boolean failbackEnabled;
+
+        /** How often the preferred address is probed while attached elsewhere; null keeps 5 s. */
+        private Duration failbackProbeInterval;
+
+        /**
+         * How long the preferred address must answer every probe before the bundle
+         * moves back; null keeps 30 s. A failed probe restarts it, so a flapping
+         * server never gets the bundle back.
+         */
+        private Duration failbackStabilityWindow;
+
+        /** Upper bound of the random per-instance delay added to the window; null keeps 10 s. */
+        private Duration failbackJitter;
+
+        /**
+         * Bound on the wait for requests in flight before the switch; null keeps 10 s.
+         * Outbound requests still pending then fail with {@code BrokerChangedException}.
+         */
+        private Duration failbackDrainTimeout;
+
         private com.fasterxml.jackson.databind.ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
         private Map<String, Set<String>> contexts = new HashMap<>();
         private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
@@ -720,8 +750,14 @@ public class EventoBundle {
             // convention v1 declared in RegisteredHandler.handledPayload.
             var handlerPayloadTypes = new ArrayList<>(payloadInfo.keySet());
 
-            var bundleClient = BundleClient.builder(bundleId, instanceId)
+            var bundleClientBuilder = BundleClient.builder(bundleId, instanceId)
                     .endpoints(endpoints)
+                    .failbackProbeInterval(failbackProbeInterval)
+                    .failbackStabilityWindow(failbackStabilityWindow)
+                    .failbackJitter(failbackJitter)
+                    .failbackDrainTimeout(failbackDrainTimeout);
+            if (failbackEnabled != null) bundleClientBuilder.failbackEnabled(failbackEnabled);
+            var bundleClient = bundleClientBuilder
                     .expectedServerInstanceId(eventoServerMessageBusConfiguration.getExpectedServerInstanceId())
                     .expectedClusterName(eventoServerMessageBusConfiguration.getExpectedClusterName())
                     .transportConfig(effectiveTransportConfig())
