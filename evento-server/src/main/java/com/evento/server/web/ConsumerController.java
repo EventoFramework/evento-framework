@@ -8,8 +8,8 @@ import com.evento.server.web.dto.ConsumerDTO;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -36,9 +36,12 @@ public class ConsumerController {
         var availableInstances = busFacade.currentAvailableView().stream()
                 .map(e -> e.instanceId())
                 .collect(java.util.stream.Collectors.toSet());
-        var map = new HashMap<String, ConsumerDTO>();
+        // One entry per consumer id, not per component: a component consuming several
+        // contexts (one lane each, e.g. a projector per region) has one consumer id per
+        // context, and keying by component showed only whichever context came first.
+        var map = new LinkedHashMap<String, ConsumerDTO>();
         for(var c : consumers){
-            if(!map.containsKey(c.getComponent().getComponentName())){
+            if(!map.containsKey(c.getConsumerId())){
                 var consumer = new ConsumerDTO();
                 consumer.setConsumerId(c.getConsumerId());
                 consumer.setBundleId(c.getComponent().getBundle().getId());
@@ -46,12 +49,15 @@ public class ConsumerController {
                 consumer.setBundleVersion(c.getComponent().getBundle().getVersion());
                 consumer.setComponentName(c.getComponent().getComponentName());
                 consumer.setComponentType(c.getComponent().getComponentType());
-                consumer.setContext((c.getConsumerId().split("_"))[3]);
-                consumer.setComponentVersion((c.getConsumerId().split("_"))[2]);
-                map.put(c.getComponent().getComponentName(), consumer);
+                ConsumerIds.parse(c.getConsumerId(), c.getComponent().getBundle().getId(),
+                        c.getComponent().getComponentName()).ifPresent(parts -> {
+                    consumer.setContext(parts.context());
+                    consumer.setComponentVersion(parts.version());
+                });
+                map.put(c.getConsumerId(), consumer);
             }
             if(availableInstances.contains(c.getInstanceId())){
-                map.get(c.getComponent().getComponentName()).getInstances().add(c.getInstanceId());
+                map.get(c.getConsumerId()).getInstances().add(c.getInstanceId());
             }
         }
         return map.values().stream().toList();

@@ -9,7 +9,38 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **A stale `NodeLeft` on one server wiped a bundle instance that had failed over to
+  another (G7).** Servers that share a catalog each see only their own connections. When
+  instance I moved from server A to server B, A noticed the dead socket up to 45 s later,
+  cleared I's `core__consumer` rows and unregistered the whole bundle cluster-wide,
+  undoing B's fresh registration. A new `core__bundle_instance` table (created
+  idempotently by `schema.sql`) records which server holds each instance's session: the
+  server claims the row on `NodeJoined`, and a leave cleans up only when this server
+  still owns it. The "another instance is still live" check now also counts instances
+  held by other servers. The last instance out reclaims an ephemeral bundle whichever
+  instance the row names, so a bundle no longer leaks when the recorded instance leaves
+  first. A restarted server purges the rows it held before. Ownership needs a unique
+  `evento.server.bus.server-instance-id` per server.
+- **Concurrent discovery on several servers failed on `duplicate key` (G8).** Discovery
+  and consumer registration created bundle, component and payload rows find-then-insert,
+  under different lock keys. Payload and component names are shared across bundles, so no
+  per-bundle lock covered them, and a mass reconnect aborted passes half-written on
+  `core__*_pkey`. Those rows are now created with `INSERT ... ON CONFLICT DO NOTHING`, and
+  consumer rows are upserted. Consumer registration takes the same `DISCOVERY:<bundleId>`
+  lock as discovery and leave. Each discovery pass, leave cleanup and consumer
+  registration runs in one transaction. `BundleService.unregister` scans only the leaving
+  bundle's handlers; before, it raced the removal of other bundles and hit handlers whose
+  component was already gone. The orphan-payload sweep runs after the commit, one
+  best-effort delete at a time.
+- **The consumers page cut contexts that contain `_` (G16).** `ConsumerController` split
+  the consumer id on `_`, so `SUD_AMERICA` showed as `SUD`, and a bundle id containing
+  `_` shifted every field. `ConsumerIds` strips the known `bundleId_component_` prefix
+  and reads `version_context` from the rest. The page now lists one entry per consumer id
+  rather than per component, so each context lane of a multi-context component shows up.
+- **Every server ran the hourly telemetry TTL sweep.** It is now guarded by an advisory
+  try-lock, so one server per hour runs it.
 
 ---
 
