@@ -1,0 +1,110 @@
+{
+  "scenario" : "S14",
+  "title" : "Retry storm with idempotency keys",
+  "gaps" : [ "G5", "G4" ],
+  "label" : "before-g5n16-kill3000",
+  "startedAt" : "2026-09-29T22:16:25.973921Z",
+  "finishedAt" : "2026-09-29T22:17:58.136895Z",
+  "durationSeconds" : 92,
+  "parameters" : {
+    "orderIdPrefix" : "s14-before-g5n16-kill3000-9e867f-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "probesPerKind" : 8,
+    "killDelayMs" : 3000,
+    "retryVia" : "EUROPA"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 2,
+    "KNOWN_DEFECT_REPRODUCED" : 2
+  },
+  "observations" : [ {
+    "name" : "a retried command is stored once",
+    "expected" : "exactly one stored event per idempotency key (key persisted with the event, G5 fix)",
+    "expectedBeforeFix" : "a command stored before its reply was lost is stored again by the retry (G5)",
+    "observed" : "0 key(s) stored twice; 2 of 24 failed first attempts were stored before the retry; per kind {create-auto-id={stored1=8, retryRejected409=1}, create-client-id={stored1=8, retryRejected409=1}, add-item={stored1=8}}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "the retry of a stored command is acknowledged with the stored event",
+    "expected" : "every retry of a command stored before the retry answers 2xx and stores nothing (G5 replay)",
+    "expectedBeforeFix" : "the retry is stored again, or refused with 409 by the aggregate (create with a client id)",
+    "observed" : "0 of 2 stored-then-retried commands acknowledged",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  }, {
+    "name" : "acknowledged commands are stored",
+    "expected" : "every 2xx has its event",
+    "expectedBeforeFix" : null,
+    "observed" : "0 missing",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "in-flight commands fail fast when their server dies",
+    "expected" : "typed failure right away (G4 fix)",
+    "expectedBeforeFix" : "fail only after the 30 s request timeout (G4)",
+    "observed" : "24 of 24 failures took >= 25 s",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "firstAttempt" : {
+      "failed" : 24,
+      "kinds" : {
+        "timeout" : 24
+      },
+      "sent" : 24,
+      "failedAfter25s" : 24
+    },
+    "failedButStoredBeforeRetry" : 2,
+    "storedCopiesPerKind" : {
+      "create-auto-id" : {
+        "stored1" : 8,
+        "retryRejected409" : 1
+      },
+      "create-client-id" : {
+        "stored1" : 8,
+        "retryRejected409" : 1
+      },
+      "add-item" : {
+        "stored1" : 8
+      }
+    },
+    "acknowledgedButNotStored" : 0,
+    "storedThenRetriedAcked" : 0
+  },
+  "timeline" : [ {
+    "tMs" : 7669,
+    "at" : "2026-09-29T22:16:33.643476900Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 26270,
+    "at" : "2026-09-29T22:16:52.244867500Z",
+    "event" : "pre-created 8 CINA orders for the add-item probes"
+  }, {
+    "tMs" : 29743,
+    "at" : "2026-09-29T22:16:55.717749600Z",
+    "event" : "killed evento-apac 3000 ms after firing 24 commands at CINA"
+  }, {
+    "tMs" : 62757,
+    "at" : "2026-09-29T22:17:28.730923400Z",
+    "event" : "retried 24 failed commands via EUROPA: {rejected=2}"
+  }, {
+    "tMs" : 68166,
+    "at" : "2026-09-29T22:17:34.140821700Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 92162,
+    "at" : "2026-09-29T22:17:58.136895Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "storedThenRetriedNotAcked" : [ "create-client-id f07e7976-c831-4333-a730-d131df309a8b: REJECTED rejected", "create-auto-id f716dbc1-b403-4179-adb0-56c047af1fc6: REJECTED rejected" ],
+    "stack actions" : [ "2026-09-29T22:16:55.249353300Z docker kill evento-apac", "2026-09-29T22:17:34.209930100Z docker start evento-apac (restore)" ]
+  }
+}

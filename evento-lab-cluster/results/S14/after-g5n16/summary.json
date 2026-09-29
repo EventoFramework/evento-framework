@@ -1,0 +1,106 @@
+{
+  "scenario" : "S14",
+  "title" : "Retry storm with idempotency keys",
+  "gaps" : [ "G5", "G4" ],
+  "label" : "after-g5n16",
+  "startedAt" : "2026-09-29T20:57:16.967422900Z",
+  "finishedAt" : "2026-09-29T20:58:26.928772600Z",
+  "durationSeconds" : 69,
+  "parameters" : {
+    "orderIdPrefix" : "s14-after-g5n16-7f085b-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "probesPerKind" : 8,
+    "killDelayMs" : 3000,
+    "retryVia" : "EUROPA"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 4
+  },
+  "observations" : [ {
+    "name" : "a retried command is stored once",
+    "expected" : "exactly one stored event per idempotency key (key persisted with the event, G5 fix)",
+    "expectedBeforeFix" : "a command stored before its reply was lost is stored again by the retry (G5)",
+    "observed" : "0 key(s) stored twice; 4 of 18 failed first attempts were stored before the retry; per kind {create-auto-id={stored1=8}, create-client-id={stored1=8}, add-item={stored1=8}}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "the retry of a stored command is acknowledged with the stored event",
+    "expected" : "every retry of a command stored before the retry answers 2xx and stores nothing (G5 replay)",
+    "expectedBeforeFix" : "the retry is stored again, or refused with 409 by the aggregate (create with a client id)",
+    "observed" : "4 of 4 stored-then-retried commands acknowledged",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "acknowledged commands are stored",
+    "expected" : "every 2xx has its event",
+    "expectedBeforeFix" : null,
+    "observed" : "0 missing",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "in-flight commands fail fast when their server dies",
+    "expected" : "typed failure right away (G4 fix)",
+    "expectedBeforeFix" : "fail only after the 30 s request timeout (G4)",
+    "observed" : "0 of 18 failures took >= 25 s",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "firstAttempt" : {
+      "failedAfter25s" : 0,
+      "failed" : 18,
+      "kinds" : {
+        "broker_changed" : 18
+      },
+      "sent" : 24
+    },
+    "failedButStoredBeforeRetry" : 4,
+    "storedCopiesPerKind" : {
+      "create-auto-id" : {
+        "stored1" : 8
+      },
+      "create-client-id" : {
+        "stored1" : 8
+      },
+      "add-item" : {
+        "stored1" : 8
+      }
+    },
+    "acknowledgedButNotStored" : 0,
+    "storedThenRetriedAcked" : 4
+  },
+  "timeline" : [ {
+    "tMs" : 7857,
+    "at" : "2026-09-29T20:57:24.825337800Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 22363,
+    "at" : "2026-09-29T20:57:39.330615700Z",
+    "event" : "pre-created 8 CINA orders for the add-item probes"
+  }, {
+    "tMs" : 25837,
+    "at" : "2026-09-29T20:57:42.805315300Z",
+    "event" : "killed evento-apac 3000 ms after firing 24 commands at CINA"
+  }, {
+    "tMs" : 35610,
+    "at" : "2026-09-29T20:57:52.577868Z",
+    "event" : "retried 18 failed commands via EUROPA: {}"
+  }, {
+    "tMs" : 41092,
+    "at" : "2026-09-29T20:57:58.059543Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 69961,
+    "at" : "2026-09-29T20:58:26.928772600Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ "2026-09-29T20:57:42.333473900Z docker kill evento-apac", "2026-09-29T20:57:58.132144500Z docker start evento-apac (restore)" ]
+  }
+}

@@ -1,0 +1,449 @@
+{
+  "scenario" : "S07",
+  "title" : "Region partition (APAC off the WAN)",
+  "gaps" : [ "G22", "G25", "G11" ],
+  "label" : "before-g5n16",
+  "startedAt" : "2026-09-29T21:43:45.278170100Z",
+  "finishedAt" : "2026-09-29T21:46:07.446793800Z",
+  "durationSeconds" : 142,
+  "parameters" : {
+    "orderIdPrefix" : "s07-before-g5n16-4f276f-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "load" : {
+      "durationSeconds" : 120,
+      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ],
+      "ratePerMinutePerRegion" : 4.0,
+      "completeRatio" : 0.6,
+      "itemsPerOrder" : 1
+    }
+  },
+  "verdictCounts" : {
+    "UNEXPECTED" : 1,
+    "AS_EXPECTED" : 5
+  },
+  "observations" : [ {
+    "name" : "EU and AM keep working during the APAC partition",
+    "expected" : ">= 95% of EU/AM commands acknowledged while APAC is cut off",
+    "expectedBeforeFix" : null,
+    "observed" : "0,0% of 16; failures {client_error=7, error=1, timeout=8}",
+    "verdict" : "UNEXPECTED",
+    "note" : null
+  }, {
+    "name" : "global consumer lanes during the partition",
+    "expected" : "a lane held by a cut-off JVM is released within ~30 s (keepalive) and taken over",
+    "expectedBeforeFix" : "the lane stays stuck on an orphaned advisory lock until Postgres kills the backend (G25)",
+    "observed" : "longest checkpoint stall per lane (s): {EU/order-observer_NotificationObserver_1_*=0, EU/order-query_OrderProjector_1_*=0}",
+    "verdict" : "AS_EXPECTED",
+    "note" : "A stall also happens legitimately when no new event arrives; load keeps producing EU/AM events."
+  }, {
+    "name" : "I6 convergence after healing",
+    "expected" : "read models reach the event store's state within 240 s",
+    "expectedBeforeFix" : null,
+    "observed" : "converged in 183 ms",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "no duplicate projection/saga side effects (I2)",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "expectedBeforeFix" : "two replicas process one lane after the partition; the stale one re-applies (G11)",
+    "observed" : "no duplicates",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "no command applied twice (events)",
+    "expected" : "0 events stored twice: retries carry an idempotency key and are replayed (G5)",
+    "expectedBeforeFix" : "a retry after an indeterminate failure stores the command again (G5, N14)",
+    "observed" : "0 duplicate event(s): {duplicateOrderCreated=0, duplicateItemsBeyondSent=0, duplicateOrderCompleted=0, duplicatePaymentProcessed=0, idempotencyKeysStoredTwice=0, duplicateObserverDeliveries=0, duplicatePaymentExecutions=0}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "no payment executed twice (side effects)",
+    "expected" : "0: the saga's retry carries the derived key of its first attempt and is replayed (G5)",
+    "expectedBeforeFix" : "the saga's retry of an indeterminate ProcessPayment charges again (N14)",
+    "observed" : "0 extra payment execution(s)",
+    "verdict" : "AS_EXPECTED",
+    "note" : "Residual window, documented: a payment whose event could not be stored (append failed or the server died first) leaves no key behind, so its retry runs the handler again."
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 50 acknowledged ops missing; 16 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 56,
+      "acknowledgedOps" : 50,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 16
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 34 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 34,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "observed" : "0 foreign row(s) in 34",
+    "metrics" : {
+      "EU.rows" : 12,
+      "EU.byContext" : {
+        "AFRICA" : 6,
+        "EUROPA" : 6
+      },
+      "AM.rows" : 13,
+      "AM.byContext" : {
+        "AMERICA" : 7,
+        "SUD_AMERICA" : 6
+      },
+      "APAC.rows" : 9,
+      "APAC.byContext" : {
+        "AUSTRALIA_NZ" : 3,
+        "CINA" : 3,
+        "INDIA" : 3
+      },
+      "rows" : 34
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 34,
+      "regionalRows" : 34,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 240 s",
+    "observed" : "converged in 183 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.183,
+      "timeoutSeconds" : 240,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 79,
+      "checkpoints" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 79,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 78,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 79,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 78,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 76,
+        "APAC/order-query_OrderProjector_1_CINA" : 63,
+        "APAC/order-query_OrderProjector_1_INDIA" : 74,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 76,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 63,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 74,
+        "EU/order-observer_NotificationObserver_1_*" : 79,
+        "EU/order-query_OrderProjector_1_*" : 79,
+        "EU/order-query_OrderProjector_1_AFRICA" : 58,
+        "EU/order-query_OrderProjector_1_EUROPA" : 65,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 58,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 65
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-eu"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=89 ack=50 failed=39 p50=3900ms p95=30408ms p99=45001ms max=45001ms failures={client_error=14, client_timeout=3, error=1, http_504=12, timeout=9}",
+    "metrics" : {
+      "AFRICA" : {
+        "count" : 12,
+        "acked" : 7,
+        "failed" : 5,
+        "p50" : 682,
+        "p95" : 30168,
+        "p99" : 30168,
+        "max" : 30168,
+        "kinds" : {
+          "client_error" : 2,
+          "error" : 1,
+          "timeout" : 2
+        }
+      },
+      "AMERICA" : {
+        "count" : 13,
+        "acked" : 8,
+        "failed" : 5,
+        "p50" : 2697,
+        "p95" : 30402,
+        "p99" : 30402,
+        "max" : 30402,
+        "kinds" : {
+          "client_error" : 3,
+          "timeout" : 2
+        }
+      },
+      "AUSTRALIA_NZ" : {
+        "count" : 12,
+        "acked" : 6,
+        "failed" : 6,
+        "p50" : 4002,
+        "p95" : 45001,
+        "p99" : 45001,
+        "max" : 45001,
+        "kinds" : {
+          "client_error" : 1,
+          "client_timeout" : 1,
+          "http_504" : 4
+        }
+      },
+      "CINA" : {
+        "count" : 12,
+        "acked" : 6,
+        "failed" : 6,
+        "p50" : 4001,
+        "p95" : 45000,
+        "p99" : 45000,
+        "max" : 45000,
+        "kinds" : {
+          "client_error" : 1,
+          "client_timeout" : 1,
+          "http_504" : 4
+        }
+      },
+      "EUROPA" : {
+        "count" : 14,
+        "acked" : 9,
+        "failed" : 5,
+        "p50" : 852,
+        "p95" : 30188,
+        "p99" : 30188,
+        "max" : 30188,
+        "kinds" : {
+          "client_error" : 3,
+          "timeout" : 2
+        }
+      },
+      "INDIA" : {
+        "count" : 13,
+        "acked" : 7,
+        "failed" : 6,
+        "p50" : 4002,
+        "p95" : 45000,
+        "p99" : 45000,
+        "max" : 45000,
+        "kinds" : {
+          "client_error" : 1,
+          "client_timeout" : 1,
+          "http_504" : 4
+        }
+      },
+      "SUD_AMERICA" : {
+        "count" : 13,
+        "acked" : 7,
+        "failed" : 6,
+        "p50" : 3394,
+        "p95" : 30411,
+        "p99" : 30411,
+        "max" : 30411,
+        "kinds" : {
+          "client_error" : 3,
+          "timeout" : 3
+        }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "nonApacDuringPartition" : {
+      "count" : 16,
+      "acked" : 0,
+      "failed" : 16,
+      "p50" : 30168,
+      "p95" : 30411,
+      "p99" : 30411,
+      "max" : 30411,
+      "kinds" : {
+        "client_error" : 7,
+        "error" : 1,
+        "timeout" : 8
+      }
+    },
+    "apacDuringPartition" : {
+      "count" : 12,
+      "acked" : 0,
+      "failed" : 12,
+      "p50" : 4002,
+      "p95" : 4003,
+      "p99" : 4003,
+      "max" : 4003,
+      "kinds" : {
+        "http_504" : 12
+      }
+    },
+    "globalLaneLongestStallDuringPartitionSeconds" : {
+      "EU/order-observer_NotificationObserver_1_*" : 0,
+      "EU/order-query_OrderProjector_1_*" : 0
+    },
+    "logMarkers" : {
+      "order-command-apac" : { },
+      "order-query-cina" : { },
+      "order-query-apac" : {
+        "event=bundle_correlation_expired" : 2,
+        "RequestTimeoutException" : 8
+      },
+      "order-query-global-apac" : { },
+      "order-saga-apac" : {
+        "event=bundle_correlation_expired" : 1,
+        "RequestTimeoutException" : 4
+      },
+      "gateway-cina" : {
+        "event=bundle_correlation_expired" : 1,
+        "event=gateway_command_failed" : 1
+      },
+      "gateway-india" : {
+        "event=bundle_correlation_expired" : 1,
+        "event=gateway_command_failed" : 1
+      },
+      "gateway-australia-nz" : {
+        "event=bundle_correlation_expired" : 1,
+        "event=gateway_command_failed" : 1
+      }
+    },
+    "apacSupervisorSessionFailures" : 0,
+    "failedRequestsByError" : {
+      "client_error: java.io.IOException: HTTP/1.1 header parser received no bytes" : 14,
+      "client_timeout: java.net.http.HttpTimeoutException: request timed out" : 3,
+      "error: Failed to acquire advisory lock for key: es-lock" : 1,
+      "http_504: <html>\r\n<head><title>504 Gateway Time-out</title></head>\r\n<body>\r\n<center><h1>504 Gateway Time-out</h1></center>\r\n<hr><center>nginx/1.31.3</center>\r\n</body>\r\n</html>\r\n" : 12,
+      "timeout: AddOrderItemCommand: request expired after <n>ms (timeout=30000)" : 1,
+      "timeout: CreateOrderCommand: request expired after <n>ms (timeout=30000)" : 8
+    },
+    "consumerLagAfterConvergenceWait" : {
+      "esHead" : 79,
+      "lag" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 0,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 1,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 0,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 1,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 3,
+        "APAC/order-query_OrderProjector_1_CINA" : 16,
+        "APAC/order-query_OrderProjector_1_INDIA" : 5,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 3,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 16,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 5,
+        "EU/order-observer_NotificationObserver_1_*" : 0,
+        "EU/order-query_OrderProjector_1_*" : 0,
+        "EU/order-query_OrderProjector_1_AFRICA" : 21,
+        "EU/order-query_OrderProjector_1_EUROPA" : 14,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 21,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 14
+      }
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 7830,
+    "at" : "2026-09-29T21:43:53.108287700Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 7839,
+    "at" : "2026-09-29T21:43:53.117814800Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @4.0/min for 120 s"
+  }, {
+    "tMs" : 28381,
+    "at" : "2026-09-29T21:44:13.659272800Z",
+    "event" : "APAC partitioned (net-apac detached from toxiproxy and lb)"
+  }, {
+    "tMs" : 99802,
+    "at" : "2026-09-29T21:45:25.080312200Z",
+    "event" : "partition healed"
+  }, {
+    "tMs" : 129266,
+    "at" : "2026-09-29T21:45:54.544519Z",
+    "event" : "load done: 89 requests"
+  }, {
+    "tMs" : 139879,
+    "at" : "2026-09-29T21:46:05.157481600Z",
+    "event" : "invariants: converging up to 240 s"
+  }, {
+    "tMs" : 140345,
+    "at" : "2026-09-29T21:46:05.623495700Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 142168,
+    "at" : "2026-09-29T21:46:07.446793800Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "global lane checkpoints (every 5 s)" : [ "{t=2026-09-29T21:43:53.114294600Z, head=0, head:ALL=0, EU/order-observer_NotificationObserver_1_*=0}", "{t=2026-09-29T21:43:58.765572Z, head=12, head:ALL=0, EU/order-observer_NotificationObserver_1_*=11, EU/order-query_OrderProjector_1_*=12}", "{t=2026-09-29T21:44:03.899821800Z, head=20, head:ALL=0, EU/order-observer_NotificationObserver_1_*=19, EU/order-query_OrderProjector_1_*=20}", "{t=2026-09-29T21:44:09.040808500Z, head=28, head:ALL=0, EU/order-observer_NotificationObserver_1_*=26, EU/order-query_OrderProjector_1_*=28}", "{t=2026-09-29T21:44:14.188020100Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=39}", "{t=2026-09-29T21:44:19.312503Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:44:24.419844300Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:44:29.557130Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:44:34.663832600Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:44:39.794952700Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:44:44.915829600Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:44:50.024850300Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:44:55.154543200Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:00.267792600Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:05.373868200Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:10.494640500Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:15.614432500Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:20.726230400Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:25.841327300Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:31.020954Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:36.126313600Z, head=40, head:ALL=0, EU/order-observer_NotificationObserver_1_*=40, EU/order-query_OrderProjector_1_*=40}", "{t=2026-09-29T21:45:41.253336100Z, head=50, head:ALL=0, EU/order-observer_NotificationObserver_1_*=50, EU/order-query_OrderProjector_1_*=48}", "{t=2026-09-29T21:45:46.368283100Z, head=64, head:ALL=0, EU/order-observer_NotificationObserver_1_*=62, EU/order-query_OrderProjector_1_*=63}", "{t=2026-09-29T21:45:51.485153Z, head=72, head:ALL=0, EU/order-observer_NotificationObserver_1_*=71, EU/order-query_OrderProjector_1_*=71}", "{t=2026-09-29T21:45:56.596640700Z, head=79, head:ALL=0, EU/order-observer_NotificationObserver_1_*=79, EU/order-query_OrderProjector_1_*=79}", "{t=2026-09-29T21:46:01.699058900Z, head=79, head:ALL=0, EU/order-observer_NotificationObserver_1_*=79, EU/order-query_OrderProjector_1_*=79}" ],
+    "log excerpts: order-query-apac" : [ "2026-09-29T21:44:44.005Z  WARN 1 --- [order-query] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=2 pending=0 byType={EventFetchRequest=2}", "2026-09-29T21:45:15.513Z  WARN 1 --- [order-query] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=2 pending=0 byType={EventFetchRequest=2}", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30230ms (timeout=30000)", "Caused by: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30230ms (timeout=30000)", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30039ms (timeout=30000)" ],
+    "log excerpts: order-saga-apac" : [ "2026-09-29T21:45:14.556Z  WARN 1 --- [order-saga] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=2 pending=0 byType={EventFetchRequest=2}", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30142ms (timeout=30000)", "Caused by: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30142ms (timeout=30000)", "java.util.concurrent.ExecutionException: com.evento.transport.RequestTimeoutException: EventFetchRequest: request expired after 30226ms (timeout=30000)" ],
+    "log excerpts: gateway-cina" : [ "2026-09-29T21:44:43.103Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={AddOrderItemCommand=1}", "2026-09-29T21:44:43.104Z  WARN 1 --- [order-gateway] [mcat-handler-72] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=add_item orderId=s07-before-g5n16-4f276f-cina-9 region=CINA kind=timeout latencyMs=30434 idempotencyKey=2bf29ee5-8f2f-484a-bc63-b0405beae22c error=AddOrderItemCommand: request expired after 30429ms (timeout=30000)" ],
+    "log excerpts: gateway-india" : [ "2026-09-29T21:44:41.336Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={AddOrderItemCommand=1}", "2026-09-29T21:44:41.337Z  WARN 1 --- [order-gateway] [mcat-handler-71] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=add_item orderId=s07-before-g5n16-4f276f-india-10 region=INDIA kind=timeout latencyMs=30278 idempotencyKey=f9e82676-25b2-4819-afcd-ded25afca8c5 error=AddOrderItemCommand: request expired after 30274ms (timeout=30000)" ],
+    "log excerpts: gateway-australia-nz" : [ "2026-09-29T21:44:38.637Z  WARN 1 --- [order-gateway] [elation-cleaner] c.e.a.c.c.BundleCorrelationTracker       : event=bundle_correlation_expired count=1 pending=0 byType={CreateOrderCommand=1}", "2026-09-29T21:44:38.637Z  WARN 1 --- [order-gateway] [mcat-handler-68] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s07-before-g5n16-4f276f-australia-nz-11 region=AUSTRALIA_NZ kind=timeout latencyMs=30151 idempotencyKey=a23df217-ca98-438d-81d7-e524e3dd1526 error=CreateOrderCommand: request expired after 30146ms (timeout=30000)" ],
+    "stack actions" : [ "2026-09-29T21:44:13.209921200Z docker network disconnect net-apac toxiproxy (aliases=[toxi-apac])", "2026-09-29T21:44:13.471431200Z docker network disconnect net-apac lb (aliases=[bus-apac] ip=172.28.3.10)", "2026-09-29T21:45:13.714744100Z docker network connect --alias toxi-apac net-apac toxiproxy", "2026-09-29T21:45:13.834694400Z docker network connect --alias bus-apac --ip 172.28.3.10 net-apac lb", "2026-09-29T21:45:13.951651300Z docker restart lb" ]
+  }
+}
