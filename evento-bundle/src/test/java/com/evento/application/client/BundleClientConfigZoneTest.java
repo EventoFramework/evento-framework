@@ -1,0 +1,51 @@
+package com.evento.application.client;
+
+import com.evento.application.client.handshake.HelloFactory;
+import org.junit.jupiter.api.Test;
+
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * The zone a bundle declares travels as one {@code zone:<ZONE>} capability in
+ * its Hello — no new wire field — and leaves every other capability alone.
+ */
+class BundleClientConfigZoneTest {
+
+    private BundleClientConfig.Builder base() {
+        return BundleClientConfig.builder()
+                .host("127.0.0.1").port(1)
+                .bundleId("b").instanceId("b-1");
+    }
+
+    @Test
+    void noZoneAdvertisesNothing() {
+        var cfg = base().capabilities(Set.of("lz4")).build();
+        assertThat(cfg.zone()).isNull();
+        assertThat(HelloFactory.build(cfg).capabilities()).containsExactly("lz4");
+    }
+
+    @Test
+    void theZoneIsAddedToTheHelloCapabilities() {
+        var cfg = base().capabilities(Set.of("lz4")).zone("AM").build();
+        assertThat(cfg.zone()).isEqualTo("AM");
+        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "zone:AM");
+    }
+
+    @Test
+    void anExplicitZoneReplacesOnePassedAsARawCapabilityWhateverTheCallOrder() {
+        var zoneFirst = base().zone(" EU ").capabilities(Set.of("zone:AM", "ping-pong")).build();
+        assertThat(zoneFirst.capabilities()).containsExactlyInAnyOrder("zone:EU", "ping-pong");
+
+        var rawOnly = base().capabilities(Set.of("zone:APAC")).build();
+        assertThat(rawOnly.zone()).isEqualTo("APAC");
+    }
+
+    @Test
+    void aBlankZoneIsNone() {
+        var cfg = base().zone("  ").build();
+        assertThat(cfg.zone()).isNull();
+        assertThat(cfg.capabilities()).isEmpty();
+    }
+}

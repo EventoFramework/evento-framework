@@ -335,6 +335,15 @@ public class EventoBundle {
         /** Bundle long-form markdown description. */
         private String detail = "";
 
+        /**
+         * Where this bundle instance runs (e.g. {@code "EU"}), advertised to the
+         * broker as the {@code zone:<ZONE>} Hello capability. A broker running the
+         * {@code LOCALITY_PREFERRED} pick strategy routes this bundle's commands and
+         * queries to handlers in the same zone when any is available, and to any
+         * handler otherwise. Null (the default) advertises no zone.
+         */
+        private String zone;
+
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
@@ -624,6 +633,7 @@ public class EventoBundle {
                     .host(clusterAddress.serverAddress())
                     .port(clusterAddress.serverPort())
                     .expectedServerInstanceId(eventoServerMessageBusConfiguration.getExpectedServerInstanceId())
+                    .zone(zone)
                     .bundleVersion(String.valueOf(bundleVersion))
                     .description(description.isEmpty() ? bundleId : description)
                     .detail(detail)

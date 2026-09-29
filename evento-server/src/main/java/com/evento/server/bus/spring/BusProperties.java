@@ -1,5 +1,6 @@
 package com.evento.server.bus.spring;
 
+import com.evento.server.bus.registry.ClusterRegistry;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -30,7 +31,15 @@ public record BusProperties(
         int businessExecutorMaxSize,
         int businessExecutorQueueCapacity,
         Duration businessExecutorKeepAlive,
-        Duration businessExecutorSaturationWarnInterval
+        Duration businessExecutorSaturationWarnInterval,
+        /**
+         * How the broker chooses among the bundles that handle a request:
+         * {@code random} (default), {@code first}, or {@code locality-preferred}
+         * (prefer handlers in the same zone as the requesting bundle, as advertised
+         * by the bundle's {@code zone:<ZONE>} Hello capability; fall back to any).
+         * Bound from {@code evento.server.bus.pick-strategy}.
+         */
+        ClusterRegistry.PickStrategy pickStrategy
 ) {
 
     public BusProperties {
@@ -74,5 +83,9 @@ public record BusProperties(
         if (businessExecutorSaturationWarnInterval == null) {
             businessExecutorSaturationWarnInterval = Duration.ofSeconds(10);
         }
+        // RANDOM keeps the pre-zone behaviour. LOCALITY_PREFERRED is equivalent to
+        // RANDOM for any deployment where no bundle advertises a zone, but routing
+        // policy stays an explicit operator decision.
+        if (pickStrategy == null) pickStrategy = ClusterRegistry.PickStrategy.RANDOM;
     }
 }

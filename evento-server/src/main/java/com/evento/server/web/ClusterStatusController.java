@@ -43,6 +43,16 @@ public class ClusterStatusController {
 	}
 
 	/**
+	 * instanceId → zone of every connected bundle instance that advertised one
+	 * ({@code zone:<ZONE>} Hello capability). Local to this server, like the views.
+	 */
+	@GetMapping(value = "/zones")
+	@Secured("ROLE_WEB")
+	public ResponseEntity<Map<String, String>> zones() {
+		return ResponseEntity.ok(busFacade.currentZones());
+	}
+
+	/**
 	 * SSE stream that emits the current full + available views, then a fresh
 	 * snapshot on every cluster change. Migrated from v1's two
 	 * {@code addViewListener} / {@code addAvailableViewListener} hooks to a

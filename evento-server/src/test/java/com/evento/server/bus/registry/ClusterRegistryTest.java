@@ -114,4 +114,75 @@ class ClusterRegistryTest {
         assertThat(cluster.handlerCount("com.Y")).isEqualTo(1);
         assertThat(cluster.handlerCount("com.Z")).isZero();
     }
+
+    // ---- LOCALITY_PREFERRED (G12) ----
+
+    private ClusterRegistry localityRegistry() {
+        var reg = new ClusterRegistry(connections, ClusterRegistry.PickStrategy.LOCALITY_PREFERRED);
+        for (var z : List.of("EU", "AM", "APAC")) {
+            var handler = addr("h-" + z);
+            registerAndEnable(handler);
+            reg.registerHandler(handler, "com.X");
+            reg.setZone(handler, z);
+        }
+        return reg;
+    }
+
+    @Test
+    void localityPreferredPicksTheOriginatorsZone() {
+        var reg = localityRegistry();
+        var caller = addr("caller");
+        reg.setZone(caller, "AM");
+        for (int i = 0; i < 200; i++) {
+            assertThat(reg.pickFor("com.X", caller)).contains(addr("h-AM"));
+        }
+    }
+
+    @Test
+    void localityPreferredFallsBackToAnyWhenTheZoneHasNoAvailableHandler() {
+        var reg = localityRegistry();
+        var caller = addr("caller");
+        reg.setZone(caller, "AM");
+        connections.disable(addr("h-AM"));
+
+        var seen = new java.util.HashSet<NodeAddress>();
+        for (int i = 0; i < 300; i++) seen.add(reg.pickFor("com.X", caller).orElseThrow());
+        assertThat(seen).containsExactlyInAnyOrder(addr("h-EU"), addr("h-APAC"));
+    }
+
+    @Test
+    void localityPreferredWithoutAnOriginatorZoneIsRandomOverAll() {
+        var reg = localityRegistry();
+        var seen = new java.util.HashSet<NodeAddress>();
+        for (int i = 0; i < 300; i++) {
+            seen.add(reg.pickFor("com.X", addr("zoneless-caller")).orElseThrow());
+            seen.add(reg.pickFor("com.X", null).orElseThrow());
+        }
+        assertThat(seen).containsExactlyInAnyOrder(addr("h-EU"), addr("h-AM"), addr("h-APAC"));
+    }
+
+    @Test
+    void randomStrategyIgnoresZonesAndIsStillTheDefault() {
+        assertThat(cluster.defaultStrategy()).isEqualTo(ClusterRegistry.PickStrategy.RANDOM);
+        for (var z : List.of("EU", "AM")) {
+            var handler = addr("h-" + z);
+            registerAndEnable(handler);
+            cluster.registerHandler(handler, "com.X");
+            cluster.setZone(handler, z);
+        }
+        cluster.setZone(addr("caller"), "AM");
+        var seen = new java.util.HashSet<NodeAddress>();
+        for (int i = 0; i < 300; i++) seen.add(cluster.pickFor("com.X", addr("caller")).orElseThrow());
+        assertThat(seen).containsExactlyInAnyOrder(addr("h-EU"), addr("h-AM"));
+    }
+
+    @Test
+    void zonesAreForgottenAndBlankMeansNone() {
+        cluster.setZone(addr("i1"), " EU ");
+        cluster.setZone(addr("i2"), "AM");
+        assertThat(cluster.zoneOf(addr("i1"))).contains("EU");
+        cluster.setZone(addr("i2"), " ");
+        cluster.forgetZone(addr("i1"));
+        assertThat(cluster.zones()).isEmpty();
+    }
 }
