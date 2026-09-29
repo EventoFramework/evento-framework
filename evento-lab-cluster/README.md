@@ -293,7 +293,7 @@ and removes the worktree (`KEEP_FRAMEWORK_WORKTREE=true` keeps it). Images carry
 |---|---|
 | `LAB_TAG` (dev) | image tag used by build and compose; when unset, the scripts use the tag of the running `evento-eu` |
 | `FRAMEWORK_REF` | build-images.sh: framework git ref to build against (default: working tree) |
-| `REPAIR_CATALOG=false` | `up.sh` skips `repair-catalog.sh` (`REPAIR_PASSES`, `REPAIR_PARALLEL` tune it) |
+| `REPAIR_CATALOG=false` | `up.sh` skips `repair-catalog.sh` (`REPAIR_PASSES`, `REPAIR_PARALLEL`, `REPAIR_SETTLE_S` tune it) |
 | `GRADLE_ARGS` (`--offline`) | extra Gradle flags; `SKIP_GRADLE=true` reuses existing jars |
 | `BUS_VIA_LB=true` | `up.sh` points the JVMs at their cell VIP instead of the direct list (`BUS_ADDR_EU/AM/APAC` can also be set directly) |
 | `REPLICA=true` | `up.sh` adds `order-command-eu-b` (profile `replica`, S2) |
@@ -305,11 +305,20 @@ and removes the worktree (`KEEP_FRAMEWORK_WORKTREE=true` keeps it). Images carry
 
 `scripts/up.sh <service...>` starts a subset (with dependencies).
 
-**Catalog repair (G8 workaround).** On an empty event store the server's discovery and consumer
-registration race on inserts, so some JVMs end up without `core__consumer` or `core__handler` rows.
-`scripts/repair-catalog.sh` starts a helper twin of each affected JVM (`compose run`, instance id
-`<c>-helper`), restarts the JVM while the twin keeps the bundle live, then removes the twin.
-`--check` only reports. The chaos driver's `Cluster.recreateStack()` runs it too.
+**Catalog repair (G8 workaround, `:before` only).** On an empty event store the pre-fix server's
+discovery and consumer registration race on inserts, so some JVMs end up without `core__consumer` or
+`core__handler` rows. `scripts/repair-catalog.sh` starts a helper twin of each affected JVM
+(`compose run`, instance id `<c>-helper`), restarts the JVM while the twin keeps the bundle live, then
+removes the twin. `--check` only reports. It first waits up to `REPAIR_SETTLE_S` (90 s) for the rows,
+because consumer registration lands up to ~25 s after a JVM turns healthy (N6). With the `:after`
+images the catalog is complete without it (integration run, `results/_integration/`); `up.sh` still
+calls it, and then it only checks. The chaos driver's `Cluster.recreateStack()` runs it too.
+
+**Integration evidence.** `scripts/integration-checks.sh > results/_integration/<tag>/checks-raw.md`
+prints, for the running stack: framework features per JVM, presence per server, consumer ids per
+context on each server GUI, the ALL lane (checkpoint, lock holders sampled during a burst), lb routing
+for the 7 regions, in-cell reads, the price fan-out, WAN toxics, ES/app replication, the connection
+budget, the catalog check and restart counts. It writes only its own probe rows (`it-<tag>-<epoch>-*`).
 
 **No per-region classes.** The earlier N1 workaround (one projector class per region, because the
 server keyed `core__component` by simple class name across bundles) is gone: regions are contexts of
@@ -332,8 +341,8 @@ name or a pattern: `scripts/run-scenario.sh 'S03*' before`.
 Invariants over the regional layout: I4 = each cell database's `order_view` holds only that cell's
 contexts; I5 = `order_view_global` equals the union of the three `order_view`; I6 = every order in
 its cell's `order_view` and in the global view with the event store's state; I7 = bundles
-`order-command`, `order-query`, `order-saga`, `order-observer`, `order-gateway` (the gateway has no
-handler rows by design), a handler for every command/query, and the consumer ids
+`order-command`, `order-query`, `order-saga`, `order-observer` in `core__bundle` (the send-only
+`order-gateway` has no catalog rows at all, N8), a handler for every command/query, and the consumer ids
 `order-query_OrderProjector_1_<R>` (x7), `order-query_OrderProjector_1_*`,
 `order-query_CatalogProjector_1_ALL`, `order-saga_PaymentSaga_1_<R>` (x7),
 `order-observer_NotificationObserver_1_*`. Side effects (`payments`, `observed_events`) are summed
@@ -381,5 +390,6 @@ docker/
   nginx/nginx.conf            HTTP geo routing + stream VIPs
   toxiproxy/toxiproxy.json    the 18 cross-cell proxies
   toxiproxy/apply-wan.sh      baseline RTT toxics (container and host)
-scripts/                      build-images, up, down, run-scenario, wan, partition, repair-catalog (.sh + .ps1)
+scripts/                      build-images, up, down, run-scenario, wan, partition, repair-catalog (.sh + .ps1),
+                              integration-checks.sh (evidence report of a running stack)
 ```
