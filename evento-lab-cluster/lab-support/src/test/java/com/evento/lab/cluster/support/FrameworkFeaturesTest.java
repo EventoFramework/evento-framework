@@ -72,4 +72,49 @@ class FrameworkFeaturesTest {
         assertThat(features.expectedClusterName(config, null)).isSameAs(config);
         assertThat(features.outcomes()).hasSize(4);
     }
+
+    /** Records every send and its key, as the framework's gateway would pass them on. */
+    static final class KeyRecordingGateway implements com.evento.common.messaging.gateway.CommandGateway {
+        final java.util.List<String> sent = new java.util.ArrayList<>();
+
+        @Override
+        public <R> java.util.concurrent.CompletableFuture<R> send(
+                com.evento.common.modeling.messaging.payload.Command command,
+                com.evento.common.modeling.messaging.message.application.Metadata metadata,
+                com.evento.common.modeling.messaging.message.application.Message<?> handledMessage,
+                long timeout, java.util.concurrent.TimeUnit unit) {
+            sent.add("plain");
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
+        }
+
+        // No @Override: the lab also compiles against the framework before G5, which lacks it.
+        public <R> java.util.concurrent.CompletableFuture<R> send(
+                com.evento.common.modeling.messaging.payload.Command command,
+                com.evento.common.modeling.messaging.message.application.Metadata metadata,
+                com.evento.common.modeling.messaging.message.application.Message<?> handledMessage,
+                long timeout, java.util.concurrent.TimeUnit unit, String idempotencyKey) {
+            if (idempotencyKey == null) return send(command, metadata, handledMessage, timeout, unit);
+            sent.add("key=" + idempotencyKey);
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
+        }
+    }
+
+    public static class Cmd extends com.evento.common.modeling.messaging.payload.ServiceCommand {
+    }
+
+    @Test
+    void theGatewayHeaderBecomesTheEventoIdempotencyKey() throws Exception {
+        var features = new FrameworkFeatures();
+        boolean keys = features.idempotencyKeys();
+        features.idempotencyKeys();
+        assertThat(features.outcomes()).extracting(FrameworkFeatures.Outcome::feature)
+                .containsExactly("idempotencyKeys");
+
+        var gateway = new KeyRecordingGateway();
+        features.send(gateway, new Cmd(), "k-1", 1_000).get();
+        features.send(gateway, new Cmd(), null, 1_000).get();
+        features.send(gateway, new Cmd(), " ", 1_000).get();
+        // Before G5 (images :before) the key cannot reach Evento: a plain send, as measured there.
+        assertThat(gateway.sent).containsExactly(keys ? "key=k-1" : "plain", "plain", "plain");
+    }
 }

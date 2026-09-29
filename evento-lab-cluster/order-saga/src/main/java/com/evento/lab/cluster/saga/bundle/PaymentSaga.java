@@ -18,6 +18,15 @@ import com.evento.lab.cluster.api.event.PaymentProcessedEvent;
  * and the same consumer-state database would compete for the lanes; a lock
  * handover can then replay an event, and a second payment shows up as
  * {@code payments.attempts > 1}.
+ *
+ * <p>No idempotency code here on purpose: on a framework with G5 the saga's
+ * gateway derives the key of {@code ProcessPaymentCommand} from (consumer id,
+ * sequence number of the {@code OrderCompletedEvent}, 0). When the event is
+ * redelivered (a {@code BrokerChangedException} or timeout failed the handler,
+ * a lane changed owner before the checkpoint) the retry carries the same key
+ * and the broker answers with the stored {@code PaymentProcessedEvent} instead
+ * of charging again (N14). What it cannot cover is a payment that ran while its
+ * event was not stored (S07's partition): that retry runs the handler again.
  */
 @Saga(version = 1)
 public class PaymentSaga {

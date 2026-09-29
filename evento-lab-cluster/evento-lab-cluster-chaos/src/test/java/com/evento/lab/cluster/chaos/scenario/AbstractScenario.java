@@ -298,6 +298,36 @@ abstract class AbstractScenario {
                 .orElse(InvariantResult.skipped(id, id, "not evaluated"));
     }
 
+    /**
+     * The two G5 questions in I2, observed separately (S03, S07): was any command's event stored
+     * twice, and did any payment execute twice. After G5 both must be 0: gateway retries carry the
+     * {@code X-Idempotency-Key}, the saga's retries the key derived from (consumer, event, ordinal),
+     * and the broker replays instead of re-executing. The one documented exception is a payment
+     * that ran while its event could not be stored (a partitioned cell, S07): its retry finds no
+     * stored key and runs the handler again.
+     */
+    protected void observeExactlyOnce(InvariantResult i2) {
+        if (i2.metrics() == null || i2.metrics().isEmpty()) return;
+        int dupEvents = metric(i2, "duplicateOrderCreated") + metric(i2, "duplicateItemsBeyondSent")
+                + metric(i2, "duplicateOrderCompleted") + metric(i2, "duplicatePaymentProcessed")
+                + metric(i2, "idempotencyKeysStoredTwice");
+        report.observe("no command applied twice (events)",
+                "0 events stored twice: retries carry an idempotency key and are replayed (G5)",
+                "a retry after an indeterminate failure stores the command again (G5, N14)",
+                dupEvents + " duplicate event(s): " + i2.metrics(), dupEvents == 0, dupEvents > 0, null);
+        int dupPayments = metric(i2, "duplicatePaymentExecutions");
+        report.observe("no payment executed twice (side effects)",
+                "0: the saga's retry carries the derived key of its first attempt and is replayed (G5)",
+                "the saga's retry of an indeterminate ProcessPayment charges again (N14)",
+                dupPayments + " extra payment execution(s)", dupPayments == 0, dupPayments > 0,
+                "Residual window, documented: a payment whose event could not be stored (append failed or "
+                        + "the server died first) leaves no key behind, so its retry runs the handler again.");
+    }
+
+    private static int metric(InvariantResult r, String name) {
+        return r.metrics().get(name) instanceof Number n ? n.intValue() : 0;
+    }
+
     /** Marker counts per service since {@code since}; also attaches the first matching lines. */
     protected Map<String, Map<String, Integer>> markers(List<String> services, Instant since, List<String> markers) {
         var out = new LinkedHashMap<String, Map<String, Integer>>();

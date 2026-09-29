@@ -19,15 +19,21 @@ import java.util.concurrent.Future;
 
 /**
  * S14: the client retries, once and through another cell, every command that
- * failed because its server was killed mid-request. There is no end-to-end
- * idempotency (G5): a command that was stored before the reply got lost is
- * stored again. Three probe kinds, each carrying an {@code X-Idempotency-Key}
- * that the lab app copies into the event, so every stored copy can be counted:
+ * failed because its server was killed mid-request, with the same
+ * {@code X-Idempotency-Key}. Three probe kinds; the lab app also copies the key
+ * into the event, so every stored copy can be counted:
  * <ul>
- *   <li>create with a gateway-generated id: the retry creates a second order;</li>
- *   <li>create with a client-chosen id: the aggregate refuses the retry (409), a domain-level dedupe;</li>
- *   <li>add item: the retry adds the item twice.</li>
+ *   <li>create with a gateway-generated id;</li>
+ *   <li>create with a client-chosen id;</li>
+ *   <li>add item.</li>
  * </ul>
+ *
+ * <p>Before G5 the key stops at the payload: a command stored before its reply
+ * got lost is stored again (a second order, the item twice), or, for the
+ * client-chosen id, refused by the aggregate (409, a domain-level dedupe that
+ * tells the client "failed" about an order that exists). With G5 the gateway
+ * passes the header as the Evento idempotency key: the retry, on whichever
+ * server it lands, is answered with the stored event (2xx, no second copy).
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S14RetryStormTest extends AbstractScenario {
@@ -144,6 +150,24 @@ class S14RetryStormTest extends AbstractScenario {
                             + " failed first attempts were stored before the retry; per kind " + perKind,
                     correct, !duplicates.isEmpty(),
                     correct == null ? "No command was caught in the ambiguous window; tune S14_KILL_DELAY_MS." : null);
+
+            // The other half of exactly-once: the retry of a command that was stored must tell the
+            // client "done" (the replayed event), not "refused" (409) nor a second copy.
+            int replayAcked = 0;
+            var notAcked = new ArrayList<String>();
+            for (var p : ambiguous) {
+                var r = retries.get(p);
+                if (r != null && r.outcome() == RequestRecord.Outcome.ACK) replayAcked++;
+                else notAcked.add(p.kind() + " " + p.key() + ": " + (r == null ? "not retried" : r.outcome() + " " + r.kind()));
+            }
+            report.metric("storedThenRetriedAcked", replayAcked);
+            if (!notAcked.isEmpty()) report.attach("storedThenRetriedNotAcked", notAcked);
+            Boolean replayOk = ambiguous.isEmpty() ? null : replayAcked == ambiguous.size();
+            report.observe("the retry of a stored command is acknowledged with the stored event",
+                    "every retry of a command stored before the retry answers 2xx and stores nothing (G5 replay)",
+                    "the retry is stored again, or refused with 409 by the aggregate (create with a client id)",
+                    replayAcked + " of " + ambiguous.size() + " stored-then-retried commands acknowledged",
+                    replayOk, Boolean.FALSE.equals(replayOk), null);
             report.observe("acknowledged commands are stored", "every 2xx has its event", lost + " missing",
                     lost == 0);
             report.observe("in-flight commands fail fast when their server dies",
