@@ -47,6 +47,11 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
   # application_name (what synchronous_standby_names matches) never depends on libpq's
   # choice of which conninfo keys to persist.
   echo "primary_conninfo = '$conninfo'" >> "$PGDATA/postgresql.auto.conf"
+  # The clone copies the primary's postgresql.auto.conf, including its ALTER SYSTEM
+  # synchronous_standby_names (FIRST 1 (es_pg_am)). A standby ignores it, but once promoted
+  # (S8) it would wait on every commit for a sync standby that never comes, and all writes
+  # hang (L24). A promoted replica starts without sync replicas; the last setting wins.
+  echo "synchronous_standby_names = ''" >> "$PGDATA/postgresql.auto.conf"
   echo "replica[$STANDBY_NAME]: base backup complete"
 fi
 
