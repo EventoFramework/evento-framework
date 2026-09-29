@@ -297,7 +297,7 @@ un'altra cella restituisce 404.
 | saga state | lo stato delle saghe non ha la dimensione del context (Low) | [CLUSTER-READINESS](../../.claude/CLUSTER-READINESS.md) |
 | gate di staleness | un consumer con orologio indietro > 30 s non riceve eventi | [S15](../results/S15/after/report.md) |
 | G1, N16 | come in L1 e L2 | [S01](../results/S01/after/report.md), [S13](../results/S13/after/report.md) |
-| G5/N14 | implementato dopo le misure (chiavi di idempotenza, vedi [L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)); in una cella partizionata resta la finestra residua: un pagamento eseguito il cui evento non si è potuto salvare viene rieseguito dal retry della saga dopo la guarigione | [S07](../results/S07/after/report.md) (misura pre-fix, da ripetere) |
+| G5/N14 | implementato dopo le misure (chiavi di idempotenza, vedi [L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)); in una cella partizionata resta la finestra residua: un pagamento eseguito il cui evento non si è potuto salvare viene rieseguito dal retry della saga dopo la guarigione | [S07](../results/S07/after/report.md) (pre-fix: 2 pagamenti doppi); [S07 `after-g5n16`](../results/S07/after-g5n16/report.md): 0 pagamenti doppi, finestra residua non colpita |
 
 Le alternative al fan-out (una lane per regione) e i loro costi sono in [contexts.md](contexts.md).
 
