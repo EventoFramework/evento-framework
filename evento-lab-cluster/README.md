@@ -21,6 +21,19 @@ Design inputs, gap ids (G1..G25), invariants (I1..I8) and the scenario catalogue
 [`.claude/CLUSTER-READINESS.md`](../.claude/CLUSTER-READINESS.md); what the runs found is in
 [`FINDINGS.md`](FINDINGS.md).
 
+**Cluster-mode guide (IT):** [`docs/README.md`](docs/README.md) walks from one server to three
+multi-region cells by complexity, each level with topology and sequence diagrams, the exact
+configuration of the same images, a bundle × level matrix, guarantees, limits (with links to the
+scenario results), sizing and a checklist:
+[L0 single server](docs/L0-single-server.md) ·
+[L1 server HA](docs/L1-server-ha.md) ·
+[L2 cells](docs/L2-cells.md) ·
+[L3 multi-region contexts](docs/L3-multi-region-contexts.md) ·
+[L4 DB failover](docs/L4-db-failover.md) ·
+[L5 limits and roadmap](docs/L5-limits-roadmap.md).
+References: [configuration](docs/config-reference.md), [contexts and the `ALL` lane](docs/contexts.md),
+[chaos scenarios before/after](docs/chaos-scenarios.md).
+
 ## Bundles
 
 | Module | Bundle id | Components | Consumes |
@@ -403,6 +416,7 @@ Scenario knobs worth knowing:
 - ES replicas start without `synchronous_standby_names` (L24), so a promoted replica (S08) takes
   writes; the primary still has its sync standby.
 
+Per-scenario goal, fault, invariants and numbers in Italian: [`docs/chaos-scenarios.md`](docs/chaos-scenarios.md).
 Results: `:before` [`results/BEFORE-SUMMARY.md`](results/BEFORE-SUMMARY.md), `:after`
 [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md), side by side with the list of what is still
 broken in [`results/COMPARISON.md`](results/COMPARISON.md).
@@ -415,6 +429,7 @@ lab-support/                  BundleDeployment, ContextSelection, DataTargets, F
                               BundleRunner, LabDatabases, stores (order_view, catalog_price, side effects)
 order-command/ order-query/ order-saga/ order-observer/ order-gateway/   one boot jar each
 evento-lab-cluster-chaos/     scenarios S00..S17, invariants I1..I8
+docs/                         cluster-mode guide (IT): L0..L5, config reference, contexts, scenarios
 docker/
   Dockerfile                  generic JVM image (explicit jar via ARG JAR, L1)
   healthcheck.sh              HTTP probe over bash /dev/tcp (the JRE image has no curl)
