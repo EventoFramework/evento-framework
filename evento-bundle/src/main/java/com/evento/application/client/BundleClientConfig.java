@@ -78,7 +78,36 @@ public record BundleClientConfig(
          */
         String expectedClusterName,
         /** Brokers to dial, most preferred first. Never empty; the first is {@code host:port}. */
-        List<Endpoint> endpoints
+        List<Endpoint> endpoints,
+        /**
+         * Whether a bundle attached to a fallback broker moves back to the
+         * preferred one (endpoint 0) once that one has been healthy for
+         * {@link #failbackStabilityWindow()} (N16). Default true; it acts only
+         * with more than one endpoint, see {@link #failbackActive()}.
+         */
+        boolean failbackEnabled,
+        /** How often endpoint 0 is probed while attached elsewhere (default 5 s). */
+        Duration failbackProbeInterval,
+        /**
+         * How long endpoint 0 must answer every probe before the bundle moves
+         * back (default 30 s). A failed probe restarts the window, so a
+         * flapping broker never gets the bundle back.
+         */
+        Duration failbackStabilityWindow,
+        /**
+         * Upper bound of a random delay added to the window, drawn afresh per
+         * instance and per healthy streak (default 10 s), so the bundles of a
+         * cell do not all land on a restarted broker in the same second.
+         */
+        Duration failbackJitter,
+        /**
+         * How long the switch waits for the requests in flight on the current
+         * broker, in both directions, before closing the session anyway
+         * (default 10 s). Outbound requests still pending then fail with
+         * {@code BrokerChangedException} when the preferred broker's Welcome
+         * arrives, exactly as after a failover.
+         */
+        Duration failbackDrainTimeout
 ) {
 
     /** One broker the bundle may dial. */
@@ -128,6 +157,26 @@ public record BundleClientConfig(
         if (maxInFlightRequests < 0) maxInFlightRequests = 0;
         expectedServerInstanceId = blankToNull(expectedServerInstanceId);
         expectedClusterName = blankToNull(expectedClusterName);
+        failbackProbeInterval   = positiveOr(failbackProbeInterval, Duration.ofSeconds(5));
+        failbackStabilityWindow = nonNegativeOr(failbackStabilityWindow, Duration.ofSeconds(30));
+        failbackJitter          = nonNegativeOr(failbackJitter, Duration.ofSeconds(10));
+        failbackDrainTimeout    = nonNegativeOr(failbackDrainTimeout, Duration.ofSeconds(10));
+    }
+
+    /**
+     * Whether the supervisor runs the fail-back probe: enabled, and more than
+     * one endpoint (with one there is nowhere else to have failed over to).
+     */
+    public boolean failbackActive() {
+        return failbackEnabled && endpoints.size() > 1;
+    }
+
+    private static Duration positiveOr(Duration d, Duration dflt) {
+        return d == null || d.isNegative() || d.isZero() ? dflt : d;
+    }
+
+    private static Duration nonNegativeOr(Duration d, Duration dflt) {
+        return d == null || d.isNegative() ? dflt : d;
     }
 
     private static String blankToNull(String s) {
@@ -169,6 +218,11 @@ public record BundleClientConfig(
         private String expectedServerInstanceId;
         private String expectedClusterName;
         private final List<Endpoint> endpoints = new ArrayList<>();
+        private boolean failbackEnabled = true;
+        private Duration failbackProbeInterval;
+        private Duration failbackStabilityWindow;
+        private Duration failbackJitter;
+        private Duration failbackDrainTimeout;
 
         /** Single-broker shorthand; ignored once {@link #endpoint}/{@link #endpoints} is used. */
         public Builder host(String host) { this.host = host; return this; }
@@ -213,6 +267,16 @@ public record BundleClientConfig(
         public Builder expectedServerInstanceId(String id) { this.expectedServerInstanceId = id; return this; }
         /** Refuse any broker that does not announce this cluster name; null (default) accepts all. */
         public Builder expectedClusterName(String name) { this.expectedClusterName = name; return this; }
+        /** Move back to endpoint 0 once it is healthy again (default true; needs more than one endpoint). */
+        public Builder failbackEnabled(boolean v) { this.failbackEnabled = v; return this; }
+        /** How often endpoint 0 is probed while attached elsewhere; null keeps 5 s. */
+        public Builder failbackProbeInterval(Duration d) { this.failbackProbeInterval = d; return this; }
+        /** How long endpoint 0 must stay healthy before the bundle moves back; null keeps 30 s. */
+        public Builder failbackStabilityWindow(Duration d) { this.failbackStabilityWindow = d; return this; }
+        /** Upper bound of the random per-instance delay added to the window; null keeps 10 s. */
+        public Builder failbackJitter(Duration d) { this.failbackJitter = d; return this; }
+        /** Bound on waiting for in-flight requests before the switch; null keeps 10 s. */
+        public Builder failbackDrainTimeout(Duration d) { this.failbackDrainTimeout = d; return this; }
 
         public BundleClientConfig build() {
             Set<String> caps = capabilities == null ? Set.of() : capabilities;
@@ -229,7 +293,8 @@ public record BundleClientConfig(
                     handlerPayloadTypes, registeredHandlers, payloadInfo, caps,
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
                     maxInFlightRequests, transportConfig, autoEnable, expectedServerInstanceId,
-                    expectedClusterName, endpoints);
+                    expectedClusterName, endpoints, failbackEnabled, failbackProbeInterval,
+                    failbackStabilityWindow, failbackJitter, failbackDrainTimeout);
         }
     }
 }

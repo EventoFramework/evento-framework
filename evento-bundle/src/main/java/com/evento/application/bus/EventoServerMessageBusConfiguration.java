@@ -10,8 +10,10 @@ import java.util.List;
  * <p>{@code addresses} is an ordered failover list: the bundle attaches to the
  * first broker that answers (and passes the identity checks), most preferred
  * first — normally the broker of the bundle's own region/cell, then the others.
- * After a session that was up drops, dialing restarts from the first address,
- * so the bundle falls back to its preferred broker at the next disconnect.
+ * After a session that was up drops, dialing restarts from the first address.
+ * While attached to another address the bundle probes the first one and moves
+ * back once it has been healthy for a stability window (fail-back, see
+ * {@code EventoBundle.Builder#setFailbackStabilityWindow}).
  *
  * <p>Reconnect / retry / disable backoff knobs live on the v2
  * {@code NettyTransportConfig} / {@code ReconnectStrategy} instead.
