@@ -48,8 +48,11 @@ import java.util.concurrent.TimeUnit;
  * key when the framework has them ({@code CommandGateway.sendIdempotent}, G5):
  * a retry with the same key, through any cell, is then answered with the event
  * of the first attempt that was stored. Items of a create carry
- * {@code <key>#<n>}. On a replayed create the order id is the stored one, not
- * the id this request generated. On {@code :before} images the header only
+ * {@code <key>#<n>}. A create without a client order id mints it from the key
+ * ({@code UUID.nameUUIDFromBytes("order:" + key)}), so its retries address the
+ * same aggregate: the broker records the aggregate id with the key and refuses a
+ * key presented for another aggregate. On a replayed create the order id is the
+ * stored one. On {@code :before} images the header only
  * travels on the payload, as evidence for the invariant checker.
  *
  * <p>The gateway runs no consumer and owns no database; the only exception is
@@ -95,8 +98,13 @@ public class OrderGatewayController {
     public ResponseEntity<Map<String, Object>> create(
             @RequestBody(required = false) CreateBody body,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey) {
+        // With a key, the order id is minted from it: a retry must address the same aggregate,
+        // or the broker refuses the reused key as belonging to a different command (G5).
         var orderId = body != null && body.orderId() != null && !body.orderId().isBlank()
-                ? body.orderId() : UUID.randomUUID().toString();
+                ? body.orderId()
+                : idempotencyKey != null && !idempotencyKey.isBlank()
+                ? UUID.nameUUIDFromBytes(("order:" + idempotencyKey).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString()
+                : UUID.randomUUID().toString();
         var context = body != null && body.context() != null && !body.context().isBlank()
                 ? body.context() : region;
         log.info("event=gateway_request op=create orderId={} region={} context={} idempotencyKey={}",
