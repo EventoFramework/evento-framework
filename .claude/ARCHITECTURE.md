@@ -165,7 +165,7 @@ reconnected bundle.
 | `BundleClient` | Public façade: Builder, `start/stop`, `request(payloadType, byte[], Duration)`, `notify(...)`, `enable/disable`, `registerRequestHandler/NotificationHandler` |
 | `BundleClientConfig` | Record + Builder: host/port list, identity, authToken, capabilities, timeouts, transport config, autoEnable |
 | `BundleClientState` | `INITIAL → CONNECTING → HANDSHAKING → REGISTERING → READY → RECONNECTING → CLOSING → CLOSED` |
-| `ConnectionSupervisor` | Owns Netty transport + reconnect loop. `start()` future resolves at first `READY` |
+| `ConnectionSupervisor` | Owns Netty transport + reconnect loop over the ordered endpoint list (next endpoint after a session that fails before READY, endpoint 0 after a READY session drops). `start()` future resolves at first `READY`. Runs the fail-back thread (below) |
 | `BundleCorrelationTracker` | `UUID → CompletableFuture<Response>`. Scheduler-driven expiry. `failAll()` on shutdown only (not on disconnect — futures survive reconnect) |
 | `ProcessedRequestCache` | Inbound dedup: `resolveOrClaim` → `Claimed / InFlight / Replay`. LRU + TTL |
 | `HandlerRegistry` | `payloadType → RequestHandler / NotificationHandler` (pure byte arrays) |
@@ -174,6 +174,32 @@ reconnected bundle.
 | `EventoServerAdapter` | Implements `EventoServer` (the gateway SPI) over `BundleClient` |
 | `BundleInboundDispatcher` | Bridges `HandlerRegistry.RequestHandler` ↔ v2 CBOR byte-array contract for `@CommandHandler` / `@QueryHandler` annotated classes |
 | `BundleAdminRequestHandler` | Handles `evento:server-admin-request` — decodes `EventoRequest`, dispatches consumer ops, encodes `EventoResponse` |
+
+**Fail-back to the preferred endpoint (N16).** While a session is READY on any endpoint but 0
+and `BundleClientConfig.failbackActive()` (enabled, default true, and 2+ endpoints), a virtual
+thread probes endpoint 0 every `failbackProbeInterval` (5 s): TCP connect + transport `Ping`,
+answered by the broker's `HeartbeatHandler` below the `MessageRouter`, on a separate connection
+that never sends `Hello`. That is the safety argument: `BusLifecycle.onHello` is the only path
+that touches shared state (`ConnectionRegistry.register` → `NodeJoined`, zone, reconnect-buffer
+replay, supersede), so a probe shows up on the broker only as `session_accepted` /
+`preregistered_disconnect`. A plain socket pre-check runs first while endpoint 0 is down, so a
+dead broker produces no transport WARN per probe. After every probe has answered for
+`failbackStabilityWindow` (30 s) + random `failbackJitter` (≤ 10 s) + one more window for bundles
+with no `handlerPayloadTypes` (callers last: a cell's handlers should be home before its
+callers, G1), `performFailback`: `evento:disable` on the current broker → `draining` gate
+(`send` refuses everything but `Response` with `SendFailedException`, i.e. definitely not sent) →
+wait (≥ 250 ms grace, ≤ `failbackDrainTimeout`, 10 s) for `InboundDispatcher.inFlightRequests()`
+and `BundleCorrelationTracker.pendingCount()` to reach 0 → set `failbackRequested`, close. The run
+loop dials endpoint 0 without backoff; identity checks run on that handshake as usual. Leftover
+outbound requests get `BrokerChangedException` from the new `Welcome` (G4 semantics); a leftover
+inbound reply is lost (the old broker already failed that call with "peer disconnected"). A switch
+that does not end READY on endpoint 0 counts as `failbacksFailed` and doubles the next window
+(≤ 16×); a failed probe restarts the window (no ping-pong with a flapping broker). Logs:
+`event=failback_probe_healthy` / `failback_started` / `failback_drained` / `failback_drain_timeout`
+/ `failback_completed` / `failback_failed`. Counters: `BundleClient.failbacksCompleted()`,
+`failbacksFailed()`, `failbackProbesAnswered()`. Residual: fail-back is per bundle, not per cell,
+so for a few seconds callers and handlers of one cell may sit on different brokers (G1); a
+single-address VIP has no endpoint 0 to probe. Test: `BundleClientFailbackIT`.
 
 ### 4.4 Consumer Engines (`evento-bundle`, `com.evento.application.consumer.*`)
 
@@ -355,7 +381,10 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `evento.es.mode` | `APES` in code, `CPES` shipped | Use CPES with several servers |
 
 Bundle side (`EventoBundle.Builder`): `EventoServerMessageBusConfiguration` with several
-`ClusterNodeAddress`es (ordered failover; back to the first endpoint at the next disconnect, G2),
+`ClusterNodeAddress`es (ordered failover, G2; fail-back to the first once it has been healthy for
+the stability window, N16: `setFailbackEnabled` / `setFailbackProbeInterval` /
+`setFailbackStabilityWindow` / `setFailbackJitter` / `setFailbackDrainTimeout`, defaults on / 5 s /
+30 s / 10 s / 10 s),
 `withExpectedServerInstanceId` / `withExpectedClusterName`; `setZone` (the `zone:<Z>` Hello
 capability); `setTransportConfig`, `setDefaultRequestTimeout` (also the caller deadline the broker
 enforces), `setMaxInFlightRequests`; `setComponentContexts(Component.class, ctx...)` starts **one

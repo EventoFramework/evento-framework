@@ -2,6 +2,18 @@
 
 Last updated: 2026-09-29.
 
+## N16 fail-back (branch `cluster/failback`, 2026-09-29)
+
+- `ConnectionSupervisor` probes endpoint 0 while READY elsewhere (TCP + transport `Ping`, never
+  `Hello`), fails back after a 30 s stability window + jitter (+ one window for handler-less
+  bundles), draining in-flight work first. Config on `BundleClientConfig` / `BundleClient.Builder`
+  / `EventoBundle.Builder.setFailback*`; lab env `EVENTO_FAILBACK_WINDOW_S`. Details: ARCHITECTURE
+  §4.3, CHANGELOG [Unreleased].
+- Tests: `BundleClientFailbackIT` (7 real-TCP cases), `BundleClientConfigFailbackTest`.
+- S03 and S13 now wait for and observe the fail-back; **not yet run on the Docker lab**.
+- Residual: per-bundle (not per-cell) return, so a cell is briefly split (G1); no fail-back
+  behind a single-address VIP.
+
 ## Completeness review of the lab (2026-09-29, latest)
 
 - **Checked and passing:**

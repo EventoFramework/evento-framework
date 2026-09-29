@@ -31,7 +31,7 @@
 | L18 | S15 skewed the clock ahead, which can never trip the staleness gate | Medium (lab) | fixed |
 | N14 (+G5) | a saga retries an indeterminate command (broker change, partition) and the payment runs twice | High (correctness) | **open** (`:after` S03 run 1, S07) |
 | N15 (+N3/N5) | under `es-lock` contention commands commit after their caller's deadline; N3 drops none | Medium (correctness) | **open** (`:after` S06: 31 at 300 ms) |
-| N16 (+G2/G1) | no failback: bundles stay on the remote server after their own server returns | High (availability, cost) | **open** (`:after` S03, S13) |
+| N16 (+G2/G1) | no failback: bundles stay on the remote server after their own server returns | High (availability, cost) | fixed in code (`cluster/failback`, `BundleClientFailbackIT`); seen open on `:after` S03, S13; lab re-run pending |
 | N17 | ES promotion outage 15.1 s on `:after` vs 7.6 s on `:before` | Low (availability) | recorded, one run each |
 | L19 | S12's per-event CPU ratio was idle-cost noise | Medium (lab) | fixed |
 | L20 | S07 read a lane with nothing to consume as stalled | Medium (lab) | fixed |
@@ -431,6 +431,14 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   calls; or have the server shed bundles whose preferred server is back (a "go home" hint in
   `Welcome`/presence). Until then: restart the cell's JVMs after a server returns. The lab does
   this before every scenario (L22).
+- **Fix (`cluster/failback`, not yet run on the lab):** the bundle-side probe. While READY away
+  from endpoint 0, `ConnectionSupervisor` probes it with TCP + a transport `Ping` (no `Hello`, so
+  nothing is registered there), and after 30 s of healthy probes + jitter (+ 30 s for bundles
+  without handlers, so handlers are home first) disables itself on the current server, drains
+  in-flight requests (≤ 10 s) and reconnects to endpoint 0. S03 and S13 now wait for it
+  (`S03_FAILBACK_WAIT_S`, `S13_FAILBACK_WAIT_S`) and observe "fail back ... (N16)"; the L22
+  placement restore stays as a safety net. The G1 split during the per-bundle return is the
+  residual (L1/L2 docs).
 
 ## N17: the ES promotion outage is longer on `:after`
 - **Evidence (S08, with L24 fixed, one run each):** the first ack after `es-pg-eu` was killed and
