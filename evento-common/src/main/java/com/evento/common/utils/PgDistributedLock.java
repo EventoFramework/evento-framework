@@ -6,6 +6,7 @@ import org.apache.logging.log4j.Logger;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
@@ -26,21 +27,31 @@ import java.util.concurrent.atomic.AtomicInteger;
  * could deadlock each other until the socket timeout killed the connection. It also meant one
  * dead session silently dropped every lock of that instance at once.
  *
+ * <h2>Give it its own pool</h2>
+ * Because a held lock pins a connection for as long as it is held, the DataSource passed here
+ * should be <em>dedicated to locks</em>, not the pool the lock holders do their work on. With a
+ * shared pool, N concurrent holders pin N connections; once N reaches the pool size every holder
+ * blocks in {@code getConnection()} for the work it took the lock for (fetching an aggregate
+ * story, appending an event), none of them can finish and release, and all of them fail at the
+ * pool's connection timeout. With a dedicated pool, exhausting it only makes further
+ * <em>acquirers</em> wait: a {@code getConnection()} that times out counts as a failed attempt
+ * and is retried within the acquire timeout, while the holders keep working on the other pool
+ * and release. The server builds such a pool ({@code evento.lock.pool.*}).
+ *
  * <h2>Bounded wait</h2>
  * Waiting never blocks a connection inside PostgreSQL: {@link #acquire(String)} polls
  * {@code pg_try_advisory_lock} with jittered exponential backoff, borrowing a connection only
  * for the duration of each attempt, and gives up with {@link LockAcquisitionTimeoutException}
  * after the acquire timeout (default {@value #DEFAULT_ACQUIRE_TIMEOUT_MS} ms, overridable with the
  * {@code evento.lock.acquire.timeout.ms} system property or the constructor). A waiter therefore
- * never delays unrelated keys or releases. The pool must be sized for the number of locks held
- * concurrently plus the work those holders do (see the server's
- * {@code spring.datasource.hikari.maximum-pool-size}).
+ * never delays unrelated keys or releases.
  *
  * <h2>Lost locks</h2>
  * PostgreSQL releases a session lock when the session ends (connection reset, socket timeout,
  * primary failover, {@code pg_terminate_backend}) while the JVM still believes it holds it.
- * {@link #verifyHeld(String)} lets a holder check, right before it commits, that the owning
- * session is still alive; {@link #release(String)} detects the loss when unlocking. Both log
+ * {@link #verifyHeld(String)} lets a holder check, right before it commits, that its session
+ * still holds the advisory lock ({@code pg_locks}); {@link #release(String)} detects the loss
+ * when unlocking. Both log
  * {@code event=lock_lost} and throw {@link LockLostException}.
  *
  * <p>With a {@code null} DataSource (embedded/test mode) only the JVM-local semaphore is used.
@@ -55,6 +66,18 @@ public class PgDistributedLock {
     private static final long INITIAL_BACKOFF_MS = 5;
     private static final long MAX_BACKOFF_MS = 200;
     private static final int VALIDATION_TIMEOUT_SECONDS = 3;
+
+    /**
+     * Whether the current session holds the {@code bigint} advisory lock {@code hashtext(key)}.
+     * pg_locks splits a bigint key into {@code classid} (high 32 bits) and {@code objid} (low 32
+     * bits) with {@code objsubid = 1}; hashtext is a signed int4, so a negative hash sign-extends
+     * into {@code classid = 0xFFFFFFFF}. Reassembling the halves gives back the signed key for
+     * either sign.
+     */
+    private static final String HOLDS_ADVISORY_LOCK_SQL =
+            "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND granted " +
+            "AND pid = pg_backend_pid() AND objsubid = 1 " +
+            "AND ((classid::bigint << 32) | objid::bigint) = hashtext(?)::bigint)";
 
     private final DataSource lockDatasource;
     private final Duration acquireTimeout;
@@ -198,11 +221,20 @@ public class PgDistributedLock {
     /**
      * One non-blocking attempt on a freshly borrowed connection. Returns the connection (whose
      * session now owns the lock) on success; on failure the connection goes straight back to
-     * the pool so a waiter never occupies one between attempts.
+     * the pool so a waiter never occupies one between attempts. A pool that cannot hand out a
+     * connection in time ({@link SQLTransientConnectionException}: every lock connection pinned
+     * by a holder, or the database briefly unreachable) is a failed attempt, not an error; the
+     * caller retries within its own deadline.
      */
     private Connection tryAdvisoryLock(String key) throws SQLException {
-        Connection con = lockDatasource.getConnection();
-        boolean keep = false;
+        Connection con;
+        try {
+            con = lockDatasource.getConnection();
+        } catch (SQLTransientConnectionException e) {
+            logger.debug("event=lock_connection_unavailable key={} error=\"{}\"", key, e.getMessage());
+            return null;
+        }
+        boolean locked = false;
         try {
             // Session advisory locks are independent of transactions, but a connection handed out
             // with autocommit off would sit "idle in transaction" for as long as the lock is held.
@@ -215,21 +247,33 @@ public class PgDistributedLock {
                     if (!resultSet.next()) {
                         throw new IllegalMonitorStateException("Failed to acquire advisory lock for key: " + key);
                     }
-                    keep = resultSet.getBoolean(1);
-                    return keep ? con : null;
+                    locked = resultSet.getBoolean(1);
                 }
             }
-        } finally {
-            if (!keep) closeQuietly(con);
+        } catch (Throwable t) {
+            // Anything failing after the lock was granted (closing the statement, say) must not
+            // hand a lock-owning session back to the pool, where it would keep the key locked for
+            // good: abort the connection instead, which ends the session and drops the lock.
+            if (locked) abortQuietly(con);
+            else closeQuietly(con);
+            throw t;
         }
+        if (!locked) {
+            closeQuietly(con);
+            return null;
+        }
+        return con;
     }
 
     /**
-     * Checks that the session owning {@code key}'s advisory lock is still alive, i.e. that the
-     * lock is still held in PostgreSQL. Call it right before committing work that relies on the
-     * lock. Costs one round trip. A no-op in embedded mode.
+     * Checks, on the owning session, that PostgreSQL still lists {@code key}'s advisory lock as
+     * granted to it ({@code pg_locks}). That is stronger than a liveness check: a connection
+     * transparently re-established by a proxy would pass {@code isValid()} without holding the
+     * lock. Call it right before committing work that relies on the lock. Costs one round trip; a
+     * no-op in embedded mode. It narrows, but cannot close, the window in which the lock is lost
+     * between this check and the commit: only a database-level fence can.
      *
-     * @throws LockLostException if the owning session is gone
+     * @throws LockLostException if the lock is no longer held, or holding it cannot be confirmed
      * @throws IllegalMonitorStateException if the key is not held by this JVM
      */
     public void verifyHeld(String key) {
@@ -239,8 +283,18 @@ public class PgDistributedLock {
         if (owner == null) {
             throw new IllegalMonitorStateException("No lock held for key: " + key);
         }
-        if (!isValidQuietly(owner)) {
-            throw lockLost(key, "the session owning the advisory lock is gone", null);
+        boolean held;
+        try (var stmt = owner.prepareStatement(HOLDS_ADVISORY_LOCK_SQL)) {
+            stmt.setQueryTimeout(VALIDATION_TIMEOUT_SECONDS);
+            stmt.setString(1, key);
+            try (var resultSet = stmt.executeQuery()) {
+                held = resultSet.next() && resultSet.getBoolean(1);
+            }
+        } catch (SQLException e) {
+            throw lockLost(key, "the session owning the advisory lock is gone or unresponsive", e);
+        }
+        if (!held) {
+            throw lockLost(key, "the advisory lock is no longer held by its session", null);
         }
     }
 

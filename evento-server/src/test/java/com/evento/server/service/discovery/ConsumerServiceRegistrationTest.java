@@ -47,7 +47,7 @@ class ConsumerServiceRegistrationTest {
         componentRepository = mock(ComponentRepository.class);
         consumerRepository = mock(ConsumerRepository.class);
         bundleRepository = mock(BundleRepository.class);
-        // Null DataSource → PgDistributedLock stays JVM-local (embedded/test mode).
+        // Null lock → a JVM-local PgDistributedLock (embedded/test mode).
         service = new ConsumerService(componentRepository, consumerRepository,
                 bundleRepository, "test-server", null);
     }

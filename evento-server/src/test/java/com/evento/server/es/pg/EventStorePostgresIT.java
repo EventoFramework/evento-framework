@@ -232,7 +232,7 @@ class EventStorePostgresIT {
             var store = eventStore(serverA, ctx.getBean(EventStoreRepository.class), ctx.getBean(SnapshotRepository.class));
 
             for (String c : List.of("SUD_AMERICA", "SUDXAMERICA", "AUSTRALIA_NZ", "AUSTRALIAxNZ", "EUROPA",
-                    "50%OFF", "50XOFF", "a\\b")) {
+                    "50%OFF", "50XOFF", "a\\b", "HEY!", "HEY!X")) {
                 store.publishEvent(event(c), "agg-" + c);
             }
 
@@ -242,7 +242,8 @@ class EventStorePostgresIT {
             assertThat(contexts(store.fetchEvents("a\\b", -1L, 100))).containsExactly("a\\b");
             assertThat(contexts(store.fetchEvents("SUD_*", -1L, 100))).containsExactly("SUD_AMERICA");
             assertThat(contexts(store.fetchEvents("SUD*", -1L, 100))).containsExactly("SUD_AMERICA", "SUDXAMERICA");
-            assertThat(contexts(store.fetchEvents("*", -1L, 100))).hasSize(8);
+            assertThat(contexts(store.fetchEvents("HEY!", -1L, 100))).containsExactly("HEY!");
+            assertThat(contexts(store.fetchEvents("*", -1L, 100))).hasSize(10);
             assertThat(contexts(store.fetchEvents("SUD_AMERICA", -1L, 100,
                     List.of(event("SUD_AMERICA").getEventName())))).containsExactly("SUD_AMERICA");
         }

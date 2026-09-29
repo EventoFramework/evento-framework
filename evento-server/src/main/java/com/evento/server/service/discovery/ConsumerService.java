@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,12 +54,14 @@ public class ConsumerService {
                            ConsumerRepository consumerRepository,
                            BundleRepository bundleRepository,
                            @Value("${evento.server.instance.id}") String eventoServerInstanceId,
-                           DataSource dataSource) {
+                           PgDistributedLock distributedLock) {
         this.componentRepository = componentRepository;
         this.consumerRepository = consumerRepository;
         this.bundleRepository = bundleRepository;
         this.eventoServerInstanceId = eventoServerInstanceId;
-        this.distributedLock = new PgDistributedLock(dataSource);
+        // The shared, pool-backed lock (DistributedLockConfiguration); null = JVM-local only
+        // (embedded brokers and unit tests).
+        this.distributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
     }
 
     /**

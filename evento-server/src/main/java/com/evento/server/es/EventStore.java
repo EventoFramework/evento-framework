@@ -197,7 +197,7 @@ public class EventStore implements BrokerEventStore {
 
     /**
      * Turns a consumer's context filter into the LIKE pattern the fetch queries match with
-     * {@code ESCAPE '\'}: {@code *} is the only wildcard. LIKE's own metacharacters are escaped
+     * {@code ESCAPE '!'}: {@code *} is the only wildcard. LIKE's own metacharacters are escaped
      * first, because context names legitimately contain {@code _} ({@code SUD_AMERICA},
      * {@code AUSTRALIA_NZ}) and an unescaped {@code _} matches any character, so a
      * {@code SUD_AMERICA} consumer would also receive {@code SUDXAMERICA}'s events.
@@ -207,7 +207,7 @@ public class EventStore implements BrokerEventStore {
         for (int i = 0; i < context.length(); i++) {
             char c = context.charAt(i);
             switch (c) {
-                case '\\', '%', '_' -> sb.append('\\').append(c);
+                case '!', '%', '_' -> sb.append('!').append(c);
                 case '*' -> sb.append('%');
                 default -> sb.append(c);
             }
