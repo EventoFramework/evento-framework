@@ -178,6 +178,114 @@ abstract class AbstractJdbcConsumerStateStoreIT {
         }
     }
 
+    // --- ConsumerStateStore: monotonic position (G11) ----------------------
+
+    @Test
+    void aLowerCommitBumpsTheVersionButNeverRewindsThePosition() throws Exception {
+        store.commit("c1", new ProjectorCheckpoint(100), 0L);
+        store.commit("c1", new ProjectorCheckpoint(200), 1L);
+
+        long v = store.commit("c1", new ProjectorCheckpoint(150), 2L);
+
+        assertThat(v).isEqualTo(3L);
+        var read = store.read("c1").orElseThrow();
+        assertThat(read.version()).isEqualTo(3L);
+        assertThat(read.checkpoint()).isEqualTo(new ProjectorCheckpoint(200));
+    }
+
+    @Test
+    void aStaleReplicaCannotRewindTheCheckpointAfterALostLock() throws Exception {
+        // Two replicas, each with its own store and its own connection: the shape of two
+        // bundle instances that both believe they own the lane after a partition.
+        var replicaA = new JdbcConsumerStateStore(dataSource, dialect(), false);
+        var replicaB = new JdbcConsumerStateStore(dataSource, dialect(), false);
+        try {
+            replicaA.commit("lane", new ProjectorCheckpoint(1_000), 0L);
+            long aVersion = replicaA.read("lane").orElseThrow().version();
+
+            // A stalls (GC pause, partition). B takes the lane and moves well ahead.
+            long bVersion = replicaB.read("lane").orElseThrow().version();
+            bVersion = replicaB.commit("lane", new ProjectorCheckpoint(5_000), bVersion);
+            replicaB.commit("lane", new ProjectorCheckpoint(9_000), bVersion);
+
+            // A wakes up and commits the batch it was working on. Its version is stale...
+            assertThatThrownBy(() -> replicaA.commit("lane", new ProjectorCheckpoint(1_010), aVersion))
+                    .isInstanceOf(OptimisticLockException.class);
+            // ...and the drift path of any caller re-reads the version and retries.
+            long reread = replicaA.read("lane").orElseThrow().version();
+            replicaA.commit("lane", new ProjectorCheckpoint(1_010), reread);
+
+            assertThat(store.read("lane").orElseThrow().checkpoint().lastSequenceNumber())
+                    .as("the stale replica must not rewind the new owner's position")
+                    .isEqualTo(9_000L);
+            assertThat(lastSequenceColumn("lane")).isEqualTo(9_000L);
+        } finally {
+            replicaA.close();
+            replicaB.close();
+        }
+    }
+
+    @Test
+    void aRowCreatedBeforeTheFirstCommitIsPromotedMonotonically() throws Exception {
+        // setEnabled creates the row at version 0 / position 0; the first commit promotes it.
+        store.setEnabled("c1", false);
+        store.commit("c1", new EventCheckpoint(42), 0L);
+        assertThat(store.read("c1").orElseThrow().checkpoint()).isEqualTo(new EventCheckpoint(42));
+        assertThat(store.isEnabled("c1")).isFalse();
+    }
+
+    @Test
+    void concurrentReplicasRetryingOnDriftConvergeOnTheHighestPosition() throws Exception {
+        store.commit("lane", new EventCheckpoint(0), 0L);
+        int replicas = 8;
+        int commitsEach = 25;
+        var stores = new java.util.ArrayList<JdbcConsumerStateStore>();
+        for (int i = 0; i < replicas; i++) stores.add(new JdbcConsumerStateStore(dataSource, dialect(), false));
+        var highest = new java.util.concurrent.atomic.AtomicLong();
+        try (ExecutorService pool = Executors.newFixedThreadPool(replicas)) {
+            List<Future<?>> futures = new java.util.ArrayList<>();
+            for (int r = 0; r < replicas; r++) {
+                final var s = stores.get(r);
+                final var rnd = new java.util.Random(r);
+                futures.add(pool.submit(() -> {
+                    for (int i = 0; i < commitsEach; i++) {
+                        long pos = rnd.nextInt(1_000_000);
+                        highest.accumulateAndGet(pos, Math::max);
+                        while (true) {
+                            long v = s.read("lane").orElseThrow().version();
+                            try {
+                                s.commit("lane", new EventCheckpoint(pos), v);
+                                break;
+                            } catch (OptimisticLockException retry) {
+                                // someone else committed in between — re-read and retry
+                            }
+                        }
+                        long seen = s.read("lane").orElseThrow().checkpoint().lastSequenceNumber();
+                        if (seen < pos) throw new AssertionError("position went below a committed " + pos + ": " + seen);
+                    }
+                    return null;
+                }));
+            }
+            for (Future<?> f : futures) f.get(60, TimeUnit.SECONDS);
+        } finally {
+            stores.forEach(JdbcConsumerStateStore::close);
+        }
+        var read = store.read("lane").orElseThrow();
+        assertThat(read.checkpoint().lastSequenceNumber()).isEqualTo(highest.get());
+        assertThat(read.version()).isEqualTo(1L + (long) replicas * commitsEach);
+    }
+
+    private long lastSequenceColumn(String consumerId) throws SQLException {
+        try (Connection c = dataSource.getConnection();
+             var ps = c.prepareStatement("SELECT last_sequence FROM evento_v2_consumer_state WHERE consumer_id = ?")) {
+            ps.setString(1, consumerId);
+            try (var rs = ps.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                return rs.getLong(1);
+            }
+        }
+    }
+
     // --- ConsumerStateStore: enabled + errors ------------------------------
 
     @Test

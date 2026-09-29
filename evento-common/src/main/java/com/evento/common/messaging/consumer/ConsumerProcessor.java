@@ -1011,11 +1011,23 @@ public final class ConsumerProcessor {
         try {
             return stateStore.commit(consumerId, next, currentVersion);
         } catch (OptimisticLockException e) {
-            // We hold the consumer lock — a version mismatch means a previous
-            // run leaked checkpoint state. Re-read and continue from there.
+            // We believed we held the consumer lock, yet someone else wrote the row: a
+            // previous run leaked checkpoint state, or — after a partition or a database
+            // failover — another replica holds this lane too. Re-read and reconcile,
+            // but never by rewinding: if the other writer is already at or past `next`,
+            // our commit carries no information and would only move the stored
+            // position backwards (replaying everything in between on the next takeover).
+            var current = stateStore.read(consumerId);
+            long actual = current.map(VersionedCheckpoint::version).orElse(0L);
+            long stored = current.map(v -> v.checkpoint().lastSequenceNumber()).orElse(Long.MIN_VALUE);
+            if (stored >= next.lastSequenceNumber()) {
+                logger.warn("Checkpoint version drift on '{}': {}; stored position {} is already at or "
+                                + "past {} — keeping it (another instance is consuming this lane).",
+                        consumerId, e.getMessage(), stored, next.lastSequenceNumber());
+                return actual;
+            }
             logger.warn("Checkpoint version drift on '{}': {}; reconciling and continuing.",
                     consumerId, e.getMessage());
-            long actual = stateStore.read(consumerId).map(VersionedCheckpoint::version).orElse(0L);
             try {
                 return stateStore.commit(consumerId, next, actual);
             } catch (OptimisticLockException ee) {
