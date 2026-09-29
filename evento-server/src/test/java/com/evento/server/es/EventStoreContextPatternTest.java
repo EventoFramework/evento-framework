@@ -12,20 +12,23 @@ class EventStoreContextPatternTest {
 
     @Test
     void underscoreInAContextNameIsLiteral() {
-        assertThat(EventStore.contextLikePattern("SUD_AMERICA")).isEqualTo("SUD\\_AMERICA");
-        assertThat(EventStore.contextLikePattern("AUSTRALIA_NZ")).isEqualTo("AUSTRALIA\\_NZ");
+        assertThat(EventStore.contextLikePattern("SUD_AMERICA")).isEqualTo("SUD!_AMERICA");
+        assertThat(EventStore.contextLikePattern("AUSTRALIA_NZ")).isEqualTo("AUSTRALIA!_NZ");
     }
 
     @Test
     void starIsTheOnlyWildcard() {
         assertThat(EventStore.contextLikePattern("*")).isEqualTo("%");
-        assertThat(EventStore.contextLikePattern("SUD_*")).isEqualTo("SUD\\_%");
+        assertThat(EventStore.contextLikePattern("SUD_*")).isEqualTo("SUD!_%");
     }
 
     @Test
-    void percentAndBackslashAreEscaped() {
-        assertThat(EventStore.contextLikePattern("50%OFF")).isEqualTo("50\\%OFF");
-        assertThat(EventStore.contextLikePattern("a\\b")).isEqualTo("a\\\\b");
+    void percentAndTheEscapeCharacterAreEscaped() {
+        assertThat(EventStore.contextLikePattern("50%OFF")).isEqualTo("50!%OFF");
+        assertThat(EventStore.contextLikePattern("HEY!")).isEqualTo("HEY!!");
+        // The queries escape with '!' (independent of standard_conforming_strings), so a
+        // backslash is an ordinary character.
+        assertThat(EventStore.contextLikePattern("a\\b")).isEqualTo("a\\b");
     }
 
     @Test

@@ -221,6 +221,80 @@ class PgDistributedLockIT {
         }
     }
 
+    private HikariDataSource pool(String name, int size, long connectionTimeoutMs) {
+        var cfg = new HikariConfig();
+        cfg.setPoolName(name);
+        cfg.setJdbcUrl(POSTGRES.getJdbcUrl());
+        cfg.setUsername(POSTGRES.getUsername());
+        cfg.setPassword(POSTGRES.getPassword());
+        cfg.setDriverClassName(POSTGRES.getDriverClassName());
+        cfg.setMaximumPoolSize(size);
+        cfg.setConnectionTimeout(connectionTimeoutMs);
+        return new HikariDataSource(cfg);
+    }
+
+    @Test
+    @Timeout(120)
+    void moreHoldersThanConnectionsNeitherStarveTheirWorkNorFail() throws Exception {
+        // The server's locked command: hold the lock, and meanwhile take *other* connections for
+        // the work (story fetch, append). With locks on their own pool, holders can never pin the
+        // connections their work needs; and more concurrent keys than lock connections only
+        // makes the extra acquirers wait (a pool timeout is a failed attempt, retried), not fail.
+        int lockConnections = 3;
+        int holders = 12;
+        try (var lockPool = pool("it-locks", lockConnections, 250);
+             var workPool = pool("it-work", 2, 5_000);
+             var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var lock = new PgDistributedLock(lockPool);
+            var work = new java.util.ArrayList<CompletableFuture<Void>>();
+            var peakLockConnections = new java.util.concurrent.atomic.AtomicInteger();
+            for (int i = 0; i < holders; i++) {
+                String key = "holder-" + i;
+                work.add(CompletableFuture.runAsync(() -> lock.lockedArea(key, () -> {
+                    peakLockConnections.accumulateAndGet(
+                            lockPool.getHikariPoolMXBean().getActiveConnections(), Math::max);
+                    for (int q = 0; q < 2; q++) {
+                        try (var c = workPool.getConnection(); var st = c.createStatement()) {
+                            st.execute("SELECT pg_sleep(0.05)");
+                        }
+                    }
+                    lock.verifyHeld(key);
+                }), executor));
+            }
+            CompletableFuture.allOf(work.toArray(CompletableFuture[]::new)).get(90, TimeUnit.SECONDS);
+            assertThat(peakLockConnections.get()).as("the lock pool was exhausted at some point")
+                    .isEqualTo(lockConnections);
+            assertThat(lockPool.getHikariPoolMXBean().getActiveConnections()).isZero();
+        }
+    }
+
+    @Test
+    void verifyHeldRecognisesTheLockForPositiveAndNegativeHashes() throws Exception {
+        // pg_locks splits the bigint key into classid/objid; hashtext() is signed, so both signs
+        // must map back to the key or verifyHeld would report held locks as lost.
+        var lock = new PgDistributedLock(dataSource);
+        int negative = 0;
+        try (var other = otherServer()) {
+            for (int i = 0; i < 64; i++) {
+                String key = "verify-" + i;
+                try (var ps = other.prepareStatement("SELECT hashtext(?) < 0")) {
+                    ps.setString(1, key);
+                    try (var rs = ps.executeQuery()) {
+                        rs.next();
+                        if (rs.getBoolean(1)) negative++;
+                    }
+                }
+                lock.acquire(key);
+                try {
+                    lock.verifyHeld(key);
+                } finally {
+                    lock.release(key);
+                }
+            }
+        }
+        assertThat(negative).as("both hash signs exercised").isBetween(1, 63);
+    }
+
     @Test
     @Timeout(60)
     void lockedAreaSurfacesALockLostDuringTheCriticalSection() throws Exception {

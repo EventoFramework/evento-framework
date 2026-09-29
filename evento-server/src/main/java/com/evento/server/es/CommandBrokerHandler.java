@@ -21,7 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
@@ -75,11 +74,13 @@ public class CommandBrokerHandler {
     public CommandBrokerHandler(BusLifecycle lifecycle,
                                 ClusterRegistry clusterRegistry,
                                 BrokerEventStore eventStore,
-                                DataSource dataSource) throws SQLException {
+                                PgDistributedLock distributedLock) throws SQLException {
         this.lifecycle = lifecycle;
         this.clusterRegistry = clusterRegistry;
         this.eventStore = eventStore;
-        this.distributedLock = new PgDistributedLock(dataSource);
+        // The shared, pool-backed lock (DistributedLockConfiguration); null = JVM-local only
+        // (embedded brokers and unit tests).
+        this.distributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
 
         lifecycle.subscribe(busEvent -> {
             if (!(busEvent instanceof BusEvent.BundleDiscovered discovered)) return;

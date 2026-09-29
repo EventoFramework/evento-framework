@@ -9,6 +9,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`PgDistributedLock` waits are bounded and a lost lock is an error.** `acquire` used to
+  wait forever; it now throws `LockAcquisitionTimeoutException` after 60 s
+  (`-Devento.lock.acquire.timeout.ms`). `lockedArea`/`tryLockedArea` throw
+  `LockLostException` when the lock turns out to have been lost, even if the section
+  succeeded (its effects are applied but may have overlapped another holder). The
+  server's callers (bundle discovery, consumer registration) catch and log both, as they
+  did any database error; a discovery that times out is logged instead of hanging a
+  thread, and is redone on the bundle's next reconnect. `tryAcquire` returns `false`
+  when no lock connection is available in time.
+- **Distributed locks use a connection pool of their own** (`evento.lock.pool.maximum-size`,
+  default 16; `evento.lock.pool.connection-timeout-ms`, default 1000). It copies the
+  application pool's settings. The application pool default is 20. Budget
+  `servers x (20 + 16)` under PostgreSQL's `max_connections`.
+- **Upgrade note, `es__events` primary key:** the first server of this version to boot
+  builds a unique index on `es__events(event_sequence_number)` with
+  `CREATE INDEX CONCURRENTLY` (reads and appends continue; it takes as long as a scan of
+  the table), then attaches it as the primary key, which needs `ACCESS EXCLUSIVE` only
+  for an instant (`lock_timeout` 3 s, retried). Other booting servers wait for it on the
+  schema lock.
+
 ### Fixed
 
 - **`PgDistributedLock`: one waiter could stall every lock of a server, and a lost lock
@@ -17,17 +39,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every other acquire *and release* of that instance behind it (two servers could
   deadlock each other until `socketTimeout`), and when that session died PostgreSQL
   dropped all its locks while the JVM still believed it held them. Each held lock now
-  owns its own pooled connection (borrowed on acquire, unlocked and returned on
-  release); waiting polls `pg_try_advisory_lock` with jittered backoff, holds no
+  owns its own connection (borrowed on acquire, unlocked and returned on release) from
+  a pool dedicated to locks, so holders can never pin the connections their own work
+  needs (with a shared pool, as many locked commands as connections all timed out in
+  `getConnection()` together); waiting polls `pg_try_advisory_lock` with jittered backoff, holds no
   connection between attempts, and is bounded (60 s default,
   `-Devento.lock.acquire.timeout.ms` or the new constructor) with
-  `LockAcquisitionTimeoutException`. `verifyHeld(key)` and `release(key)` detect a dead
-  owning session, log `event=lock_lost` and throw `LockLostException`;
+  `LockAcquisitionTimeoutException`, and a pool timeout counts as a failed attempt.
+  `verifyHeld(key)` checks `pg_locks` on the owning session (not just that the connection
+  is alive) and `release(key)` detects a lost lock; both log `event=lock_lost` and throw `LockLostException`;
   `CommandBrokerHandler` calls `verifyHeld` right before appending, so a command whose
   lock died while the bundle computed it is refused instead of forking the aggregate,
-  and a release failure after a successful append no longer replaces the reply.
-  **Pool sizing:** a locked command now holds one connection for its whole round trip;
-  the server's default `spring.datasource.hikari.maximum-pool-size` is raised to 30.
+  and a release failure after a successful append no longer replaces the reply. The
+  check narrows the fork window but cannot close it; that needs the G6 `aggregate_seq`
+  fence. A failure right after the lock was granted no longer returns the lock-owning
+  connection to the pool (which would have kept the key locked for good).
 - **CPES appends cost one round trip instead of four (G9).** The global `es-lock`,
   `nextval` and the `INSERT` ran as separate autocommit statements on two connections.
   They are now a single statement (`pg_advisory_xact_lock` in a materialised CTE +
@@ -36,19 +62,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   order and the lock cannot outlive a dead session. Same lock key as before, so old and
   new servers exclude each other during a rolling upgrade. Measured through a 100 ms
   delay proxy: ~4.2 round trips before, ~1.1 after (`EventStorePostgresIT`).
-- **`es__events` has a primary key (G6, PK part).** Added idempotently on boot
-  (`DO` block guarded by `pg_constraint`). Existing duplicate sequence numbers fail the
-  boot with their count and the query to find them, rather than being skipped silently;
-  `evento.es.schema.enforce-primary-key=false` is the explicit escape hatch. Adding the
-  key scans the table under an exclusive lock once.
+- **`es__events` has a primary key (G6, PK part).** Added idempotently on boot, without
+  blocking the event store: `CREATE UNIQUE INDEX CONCURRENTLY`, then
+  `ADD PRIMARY KEY USING INDEX` under a short `lock_timeout` (see the upgrade note under
+  Changed). Existing duplicate sequence numbers fail the boot with their count and the
+  query to find them, rather than being skipped silently;
+  `evento.es.schema.enforce-primary-key=false` is the explicit escape hatch.
 - **Servers starting together no longer abort on `schema.sql` (G14).** Concurrent runs
   raced on the catalog (`pg_type_typname_nsp_index`, `tuple concurrently updated`);
   unlocked, 3 servers on a fresh database failed 10 rounds out of 10 in a probe. The SQL
-  initializer now runs under a session advisory lock (`AdvisoryLockedSchemaInitializer`,
+  initializer now runs under a session advisory lock, taken by polling so a waiting
+  server holds no snapshot the index build would wait for (`AdvisoryLockedSchemaInitializer`,
   replacing Boot's `DataSourceScriptDatabaseInitializer`; `spring.sql.init.*` unchanged).
 - **Context filters no longer treat `_` and `%` as wildcards (G15).** `SUD_AMERICA`
   also matched `SUDXAMERICA`. LIKE metacharacters are escaped before `*` becomes `%`,
-  and the fetch queries declare `ESCAPE '\'`.
+  and the fetch queries declare `ESCAPE '!'` (a backslash escape would depend on
+  `standard_conforming_strings`).
 - **Aggregate caches are thread-safe and honour their TTL (G19).** `ExpiringLruCache`
   was an unsynchronised access-ordered `LinkedHashMap` read through the TTL-bypassing
   `containsKey`/`getOrDefault`; it now wraps the map, synchronises every operation and

@@ -117,6 +117,60 @@ class SchemaInitializationPostgresIT {
         }
     }
 
+    @Test
+    @Timeout(120)
+    void addingThePrimaryKeyNeverParksAppendsBehindALongRunningReader() throws Exception {
+        // Rolling upgrade: the first new server adds the PK while an old server holds a long
+        // transaction on es__events and others keep appending. A plain ALTER ... ADD PRIMARY KEY
+        // would queue for ACCESS EXCLUSIVE behind the reader, and every append behind the ALTER,
+        // for as long as the reader runs.
+        PostgresItSupport.createDatabase(POSTGRES, "schema_rolling");
+        String url = PostgresItSupport.jdbcUrl(POSTGRES, "schema_rolling");
+        try (var ds = PostgresItSupport.dataSource(POSTGRES, url, 3);
+             var oldServer = PostgresItSupport.dataSource(POSTGRES, url, 3)) {
+            PostgresItSupport.initializer(ds, false).initializeDatabase();
+            var jdbc = new JdbcTemplate(ds);
+            for (int i = 1; i <= 1_000; i++) {
+                jdbc.update("insert into es__events (event_sequence_number, event_name, event_message) values (?, 'E', '{}')", i);
+            }
+            assertThat(primaryKeyColumns(jdbc)).isEmpty();
+
+            long readerHoldMs = 8_000;
+            try (var reader = oldServer.getConnection()) {
+                reader.setAutoCommit(false);
+                try (var st = reader.createStatement()) {
+                    st.executeQuery("select count(*) from es__events").close();
+                }
+                var init = Thread.ofPlatform().start(() -> PostgresItSupport.initializer(ds, true).initializeDatabase());
+                Thread.sleep(1_000);
+
+                // Appends go through while the key waits for its instant of ACCESS EXCLUSIVE:
+                // at worst one lock_timeout behind the swap attempt, never the reader's duration.
+                var appender = new JdbcTemplate(oldServer);
+                long worstMs = 0;
+                long until = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(readerHoldMs - 2_000);
+                long seq = 10_000;
+                while (System.nanoTime() < until) {
+                    long t0 = System.nanoTime();
+                    appender.update("insert into es__events (event_sequence_number, event_name, event_message) values (?, 'E', '{}')", seq++);
+                    worstMs = Math.max(worstMs, (System.nanoTime() - t0) / 1_000_000);
+                    Thread.sleep(50);
+                }
+                assertThat(worstMs).as("worst append latency while the PK waits").isLessThan(readerHoldMs - 3_000);
+                assertThat(primaryKeyColumns(jdbc)).as("the swap waits for the reader").isEmpty();
+
+                reader.commit();
+                init.join(60_000);
+                assertThat(init.isAlive()).isFalse();
+            }
+            assertThat(primaryKeyColumns(jdbc)).containsExactly("event_sequence_number");
+            assertThat(jdbc.queryForObject(
+                    "select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid " +
+                    "where i.indrelid = 'es__events'::regclass and not i.indisvalid", Integer.class))
+                    .as("no invalid index left behind").isZero();
+        }
+    }
+
     private static List<String> primaryKeyColumns(JdbcTemplate jdbc) {
         return jdbc.queryForList("""
                 select a.attname from pg_constraint c
