@@ -24,5 +24,12 @@ include 'evento-lab-microservices:evento-lab-ms-saga'
 include 'evento-lab-microservices:evento-lab-ms-observer'
 include 'evento-lab-microservices:evento-lab-ms-it'
 
-include 'evento-lab-cluster:evento-lab-cluster-app'
+// evento-lab-cluster: one module per bundle, each deployed by configuration only
+include 'evento-lab-cluster:lab-api'
+include 'evento-lab-cluster:lab-support'
+include 'evento-lab-cluster:order-command'
+include 'evento-lab-cluster:order-query'
+include 'evento-lab-cluster:order-saga'
+include 'evento-lab-cluster:order-observer'
+include 'evento-lab-cluster:order-gateway'
 include 'evento-lab-cluster:evento-lab-cluster-chaos'
