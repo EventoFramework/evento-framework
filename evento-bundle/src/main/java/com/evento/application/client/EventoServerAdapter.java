@@ -135,6 +135,12 @@ public final class EventoServerAdapter implements EventoServer {
             return new IllegalStateException("request failed: " + payloadType);
         }
         String message = error.message() == null ? "request failed" : error.message();
+        // Checked before its parent type: a caller that cares can tell "the broker
+        // changed under me" from a plain timeout, one that does not still catches
+        // it as a RequestTimeoutException.
+        if (com.evento.transport.BrokerChangedException.class.getName().equals(error.exceptionClassName())) {
+            return new com.evento.transport.BrokerChangedException(payloadType + ": " + message);
+        }
         if (com.evento.transport.RequestTimeoutException.class.getName().equals(error.exceptionClassName())) {
             return new com.evento.transport.RequestTimeoutException(payloadType + ": " + message);
         }

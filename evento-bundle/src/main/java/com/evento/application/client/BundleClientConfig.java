@@ -5,6 +5,7 @@ import com.evento.transport.netty.NettyTransportConfig;
 import com.evento.transport.protocol.PayloadDiscoveryInfo;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,7 +15,11 @@ import java.util.Set;
  * Settings for one {@link BundleClient} instance. Built by a {@link Builder}
  * to keep callers from juggling 10+ constructor arguments.
  *
- * <p>{@code host} / {@code port} identify the server. {@code bundleId} +
+ * <p>{@code endpoints} is the ordered list of brokers the bundle may attach to,
+ * most preferred first (normally the broker of the bundle's own cell/region,
+ * then the others). The bundle is attached to one broker at a time; the list is
+ * for failover, not load spreading. {@code host} / {@code port} are the first
+ * endpoint, kept for callers that predate the list. {@code bundleId} +
  * {@code instanceId} identify this bundle (the server's
  * {@code ConnectionRegistry} keys on {@code instanceId}).
  *
@@ -60,11 +65,45 @@ public record BundleClientConfig(
          * shop's events into a demo's event store that way. The name a broker
          * calls itself is the one fact the transport does carry.</p>
          */
-        String expectedServerInstanceId
+        String expectedServerInstanceId,
+        /**
+         * The {@code clusterName} the broker must announce in its {@code Welcome};
+         * null accepts any. This is the identity check to use with more than one
+         * endpoint: every broker of the cluster announces its own
+         * {@code serverInstanceId}, so a single expected instance id would refuse
+         * every failover target, while all of them share the cluster name. A
+         * broker that announces no cluster name (older than 2.5, or with
+         * {@code evento.cluster.name} unset) is refused when this is set.
+         */
+        String expectedClusterName,
+        /** Brokers to dial, most preferred first. Never empty; the first is {@code host:port}. */
+        List<Endpoint> endpoints
 ) {
 
+    /** One broker the bundle may dial. */
+    public record Endpoint(String host, int port) {
+        public Endpoint {
+            Objects.requireNonNull(host, "host");
+            if (port < 0 || port > 65535) {
+                throw new IllegalArgumentException("port out of range: " + port);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return host + ":" + port;
+        }
+    }
+
     public BundleClientConfig {
-        Objects.requireNonNull(host, "host");
+        if (endpoints == null || endpoints.isEmpty()) {
+            Objects.requireNonNull(host, "host");
+            endpoints = List.of(new Endpoint(host, port));
+        } else {
+            endpoints = List.copyOf(endpoints);
+            host = endpoints.getFirst().host();
+            port = endpoints.getFirst().port();
+        }
         Objects.requireNonNull(bundleId, "bundleId");
         Objects.requireNonNull(instanceId, "instanceId");
         Objects.requireNonNull(bundleVersion, "bundleVersion");
@@ -86,6 +125,12 @@ public record BundleClientConfig(
         // that floods the server into fast, explicit rejections instead of a wall
         // of requests that all sit in a queue until their deadline passes.
         if (maxInFlightRequests < 0) maxInFlightRequests = 0;
+        expectedServerInstanceId = blankToNull(expectedServerInstanceId);
+        expectedClusterName = blankToNull(expectedClusterName);
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s;
     }
 
     public static Builder builder() {
@@ -115,9 +160,20 @@ public record BundleClientConfig(
         private NettyTransportConfig transportConfig = NettyTransportConfig.defaults();
         private boolean autoEnable = true;
         private String expectedServerInstanceId;
+        private String expectedClusterName;
+        private final List<Endpoint> endpoints = new ArrayList<>();
 
+        /** Single-broker shorthand; ignored once {@link #endpoint}/{@link #endpoints} is used. */
         public Builder host(String host) { this.host = host; return this; }
         public Builder port(int port) { this.port = port; return this; }
+        /** Append a broker to the failover list; the first one added is the preferred one. */
+        public Builder endpoint(String host, int port) { this.endpoints.add(new Endpoint(host, port)); return this; }
+        /** Replace the failover list; order is preference, first = preferred (local) broker. */
+        public Builder endpoints(List<Endpoint> endpoints) {
+            this.endpoints.clear();
+            if (endpoints != null) this.endpoints.addAll(endpoints);
+            return this;
+        }
         public Builder bundleId(String id) { this.bundleId = id; return this; }
         public Builder instanceId(String id) { this.instanceId = id; return this; }
         public Builder bundleVersion(String v) { this.bundleVersion = v; return this; }
@@ -140,13 +196,16 @@ public record BundleClientConfig(
         public Builder autoEnable(boolean v) { this.autoEnable = v; return this; }
         /** Refuse any broker whose announced instance id is not this one; null (default) accepts all. */
         public Builder expectedServerInstanceId(String id) { this.expectedServerInstanceId = id; return this; }
+        /** Refuse any broker that does not announce this cluster name; null (default) accepts all. */
+        public Builder expectedClusterName(String name) { this.expectedClusterName = name; return this; }
 
         public BundleClientConfig build() {
             return new BundleClientConfig(host, port, bundleId, instanceId, bundleVersion,
                     authToken, description, detail, repositoryUrl, linePrefix,
                     handlerPayloadTypes, registeredHandlers, payloadInfo, capabilities,
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
-                    maxInFlightRequests, transportConfig, autoEnable, expectedServerInstanceId);
+                    maxInFlightRequests, transportConfig, autoEnable, expectedServerInstanceId,
+                    expectedClusterName, endpoints);
         }
     }
 }

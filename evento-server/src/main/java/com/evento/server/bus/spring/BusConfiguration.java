@@ -162,10 +162,15 @@ public class BusConfiguration {
                                      BusEventBus eventBus,
                                      PayloadCodec payloadCodec,
                                      TokenValidator tokenValidator,
-                                     BusProperties props) {
-        return new BusLifecycle(transportServer, connections, cluster, correlations,
+                                     BusProperties props,
+                                     @Value("${evento.cluster.name:}") String clusterName) {
+        var lifecycle = new BusLifecycle(transportServer, connections, cluster, correlations,
                 forwarding, eventBus, props.serverInstanceId(),
                 Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec, tokenValidator);
+        // Announced in Welcome: a bundle holding several broker endpoints checks the
+        // cluster it lands in, since no single expected instance id fits all of them.
+        lifecycle.setClusterName(clusterName);
+        return lifecycle;
     }
 
     @Bean

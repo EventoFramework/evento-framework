@@ -1,6 +1,7 @@
 package com.evento.application;
 
 import com.evento.application.client.BundleClient;
+import com.evento.application.client.BundleClientConfig;
 import com.evento.application.client.BundleClientState;
 import com.evento.application.client.BundleInboundDispatcher;
 import com.evento.application.client.EventoServerAdapter;
@@ -340,6 +341,35 @@ public class EventoBundle {
 
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
 
+        /**
+         * Transport settings for the link to the broker (event loops, codec,
+         * heartbeat, TLS, reconnect strategy). Null uses
+         * {@link com.evento.transport.netty.NettyTransportConfig#defaults()}.
+         * {@link #heartbeatReadIdle} and {@link #reconnectStrategy}, when set,
+         * are applied on top of it.
+         */
+        private com.evento.transport.netty.NettyTransportConfig transportConfig;
+
+        /**
+         * How long the broker may stay silent before the link is declared dead
+         * and the bundle fails over (default 45 s). It bounds how long a silent
+         * partition — no RST, packets just vanish — goes unnoticed. The Ping
+         * cadence is lowered to a third of it when it would not otherwise fit.
+         */
+        private Duration heartbeatReadIdle;
+
+        /** Backoff between reconnect attempts; null keeps the transport config's (exponential, 0.5–30 s). */
+        private com.evento.transport.reconnect.ReconnectStrategy reconnectStrategy;
+
+        /**
+         * Deadline for a request issued without an explicit timeout. Commands and
+         * queries sent through the gateways carry their own; this covers the rest.
+         */
+        private Duration defaultRequestTimeout = Duration.ofSeconds(30);
+
+        /** Cap on outstanding requests from this bundle; 0 disables the bound. */
+        private int maxInFlightRequests = 2048;
+
         private com.fasterxml.jackson.databind.ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
         private Map<String, Set<String>> contexts = new HashMap<>();
         private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
@@ -438,6 +468,24 @@ public class EventoBundle {
          * The Builder class represents a builder for constructing objects.
          */
         private Builder() {
+        }
+
+        /** {@link #transportConfig} (or the defaults) with the heartbeat / reconnect overrides applied. */
+        com.evento.transport.netty.NettyTransportConfig effectiveTransportConfig() {
+            var cfg = transportConfig == null
+                    ? com.evento.transport.netty.NettyTransportConfig.defaults()
+                    : transportConfig;
+            if (heartbeatReadIdle != null) {
+                var writeIdle = cfg.heartbeatWriteIdle();
+                if (writeIdle.compareTo(heartbeatReadIdle) >= 0) {
+                    writeIdle = heartbeatReadIdle.dividedBy(3);
+                }
+                cfg = cfg.withHeartbeat(writeIdle, heartbeatReadIdle);
+            }
+            if (reconnectStrategy != null) {
+                cfg = cfg.withReconnectStrategy(reconnectStrategy);
+            }
+            return cfg;
         }
 
         /**
@@ -604,7 +652,11 @@ public class EventoBundle {
 
             logger.info("Starting EventoApplication %s".formatted(bundleId));
             logger.info("Connecting to Evento Server (v2 wire)...");
-            var clusterAddress = eventoServerMessageBusConfiguration.getAddresses().getFirst();
+            // Every configured address, in order: the first is the preferred broker,
+            // the rest are failover targets.
+            var endpoints = eventoServerMessageBusConfiguration.getAddresses().stream()
+                    .map(a -> new BundleClientConfig.Endpoint(a.serverAddress(), a.serverPort()))
+                    .toList();
             var adminCodec = new AdminPayloadCodec();
             var dispatcher = new BundleInboundDispatcher(adminCodec,
                     aggregateManager, serviceManager, projectionManager);
@@ -621,9 +673,12 @@ public class EventoBundle {
             var handlerPayloadTypes = new ArrayList<>(payloadInfo.keySet());
 
             var bundleClient = BundleClient.builder(bundleId, instanceId)
-                    .host(clusterAddress.serverAddress())
-                    .port(clusterAddress.serverPort())
+                    .endpoints(endpoints)
                     .expectedServerInstanceId(eventoServerMessageBusConfiguration.getExpectedServerInstanceId())
+                    .expectedClusterName(eventoServerMessageBusConfiguration.getExpectedClusterName())
+                    .transportConfig(effectiveTransportConfig())
+                    .defaultRequestTimeout(defaultRequestTimeout)
+                    .maxInFlightRequests(maxInFlightRequests)
                     .bundleVersion(String.valueOf(bundleVersion))
                     .description(description.isEmpty() ? bundleId : description)
                     .detail(detail)
