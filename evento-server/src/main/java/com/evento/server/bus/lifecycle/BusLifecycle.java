@@ -644,11 +644,13 @@ public final class BusLifecycle {
             forwardedReencodedCount.incrementAndGet();
             return dest.send(fallback);
         }
+        // Counted before the write: once the bytes are out the peer can answer, and a
+        // reader of the counter (the zero-copy IT) could see the reply before the count.
+        forwardedRawCount.incrementAndGet();
         try {
-            var fut = dest.sendRaw(raw);
-            forwardedRawCount.incrementAndGet();
-            return fut;
+            return dest.sendRaw(raw);
         } catch (UnsupportedOperationException uoe) {
+            forwardedRawCount.decrementAndGet();
             forwardedReencodedCount.incrementAndGet();
             return dest.send(fallback);
         }
