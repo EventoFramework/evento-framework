@@ -156,6 +156,33 @@ class AutoDiscoveryServiceLifecycleTest {
     }
 
     @Test
+    void lateLeaveOfAnOldSessionReclaimsTheRowOfTheNewSessionOfTheSameInstance() {
+        // The replacement session registered (and claimed) on another event loop before
+        // the old channel's NodeLeft was published: the release deleted the live row.
+        when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("inst-1")));
+        when(busFacade.currentView()).thenReturn(Set.of(node("inst-1")));
+
+        subscriber.accept(new BusEvent.NodeLeft(node("inst-1"), "socket_closed", Instant.now()));
+
+        verify(presence).claim(node("inst-1"));
+        verify(consumerService, never()).clearInstance(any());
+        verify(bundleService, never()).removeBundle(any());
+    }
+
+    @Test
+    void transientCatalogConflictsAreRecognisedThroughTheCauseChain() {
+        var deadlock = new java.sql.SQLException("deadlock detected", "40P01");
+        assertThat(AutoDiscoveryService.isTransientCatalogConflict(
+                new RuntimeException("flush failed", new RuntimeException(deadlock)))).isTrue();
+        assertThat(AutoDiscoveryService.isTransientCatalogConflict(
+                new java.sql.SQLException("fk", "23503"))).isTrue();
+        assertThat(AutoDiscoveryService.isTransientCatalogConflict(
+                new AutoDiscoveryService.CatalogRaceException("gone"))).isTrue();
+        assertThat(AutoDiscoveryService.isTransientCatalogConflict(
+                new java.sql.SQLException("syntax", "42601"))).isFalse();
+    }
+
+    @Test
     void leaveKeepsTheBundleWhileAnotherInstanceIsLiveOnAnotherServer() {
         when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("old-instance")));
         when(busFacade.currentView()).thenReturn(Set.of());

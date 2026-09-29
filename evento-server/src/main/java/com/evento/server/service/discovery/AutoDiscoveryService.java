@@ -13,15 +13,19 @@ import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.event.BusEvent;
 import com.evento.server.service.BundleService;
 import com.evento.transport.protocol.BundleDiscoveryInfo;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
-import java.time.Instant;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -30,6 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 public class AutoDiscoveryService {
     private static final Logger logger = LogManager.getLogger(AutoDiscoveryService.class);
+    /** Total attempts of a discovery pass that loses a race with another server's catalog writes. */
+    static final int MAX_DISCOVERY_ATTEMPTS = 3;
     private final BundleRepository bundleRepository;
     private final HandlerService handlerService;
     private final PayloadRepository payloadRepository;
@@ -78,9 +84,13 @@ public class AutoDiscoveryService {
      * Claims the instance's session for this server before anything else about the
      * instance is written: the claim is what tells a server that still holds a stale
      * session of the same instance to keep its hands off on the eventual NodeLeft.
-     * Joins and leaves of one server are published in order on its bus (a superseded
-     * session's NodeLeft precedes the replacement's NodeJoined), so the claim never
-     * races a leave on the same server.
+     *
+     * <p>A leave of the same instance on this server can still race the claim: a
+     * superseded session's NodeLeft precedes the replacement's NodeJoined, but a
+     * session closed by its channel publishes NodeLeft on that channel's event loop,
+     * possibly after the replacement (on another event loop) has already claimed.
+     * {@link #onNodeLeave} therefore re-checks the local view after releasing and
+     * re-claims an instance that is still connected here.
      */
     private void onSessionOpened(NodeAddress node) {
         try {
@@ -91,23 +101,117 @@ public class AutoDiscoveryService {
         }
     }
 
-    private void onNodeJoin(NodeAddress node, BundleDiscoveryInfo registration) {
+    /**
+     * Refreshes this server's presence rows. A server that crashed and never came back
+     * under the same id stops refreshing, so other servers stop counting its instances
+     * as live once the rows go stale (see {@link BundlePresence#liveElsewhere}).
+     */
+    @Scheduled(fixedDelayString = "${evento.server.presence.heartbeat-interval-ms:30000}",
+            initialDelayString = "${evento.server.presence.heartbeat-interval-ms:30000}")
+    public void heartbeatPresence() {
         try {
-            var key = ConsumerService.catalogLockKey(node.bundleId());
-            pgDistributedLock.lockedArea(key, () -> {
-                // One transaction per discovery pass: a failure part-way used to leave
-                // the catalog half-written (some handlers without their payloads).
-                ConsumerService.inTransaction(tx, () -> discover(node, registration));
-                registration.handlers().stream().map(RegisteredHandler::getComponentName)
-                        .distinct().forEach(handlerService::clearCache);
-            });
-
+            presence.heartbeat(busFacade.currentView());
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            logger.warn("Failed to refresh this server's bundle presence rows", e);
         }
     }
 
-    private void discover(NodeAddress node, BundleDiscoveryInfo registration) {
+    private void onNodeJoin(NodeAddress node, BundleDiscoveryInfo registration) {
+        var key = ConsumerService.catalogLockKey(node.bundleId());
+        for (int attempt = 1; ; attempt++) {
+            try {
+                pgDistributedLock.lockedArea(key, () -> {
+                    // Shared payload rows are created up front, in name order and each in
+                    // its own statement, so the discovery transaction below never inserts
+                    // or updates a row that another bundle's discovery also writes. Two
+                    // bundles declaring overlapping payloads in different orders used to
+                    // lock them in different orders and deadlock (40P01).
+                    referencedPayloads(registration).forEach((name, type) ->
+                            catalogWriter.insertPayloadIfAbsent(name, type, node.bundleId()));
+                    // One transaction per discovery pass: a failure part-way used to leave
+                    // the catalog half-written (some handlers without their payloads).
+                    var typeAlignments = new TreeMap<String, PayloadType>();
+                    ConsumerService.inTransaction(tx, () -> discover(node, registration, typeAlignments));
+                    // Shared-row corrections run after the commit, name-ordered, one
+                    // statement each, and write only when something actually changes.
+                    typeAlignments.forEach(catalogWriter::alignPayloadType);
+                    if (registration.payloadInfo() != null)
+                        new TreeMap<>(registration.payloadInfo()).forEach(catalogWriter::backfillPayloadInfo);
+                    registration.handlers().stream().map(RegisteredHandler::getComponentName)
+                            .distinct().forEach(handlerService::clearCache);
+                });
+                return;
+            } catch (Exception e) {
+                if (attempt < MAX_DISCOVERY_ATTEMPTS && isTransientCatalogConflict(e)) {
+                    logger.warn("Discovery of bundle %s (instance %s) hit a concurrent catalog change, retrying (attempt %d): %s"
+                            .formatted(node.bundleId(), node.instanceId(), attempt, rootMessage(e)));
+                    try {
+                        Thread.sleep(ThreadLocalRandom.current().nextLong(50, 250) * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        logger.error("Discovery of bundle %s interrupted while retrying".formatted(node.bundleId()), e);
+                        return;
+                    }
+                    continue;
+                }
+                logger.error(e.getMessage(), e);
+                return;
+            }
+        }
+    }
+
+    /**
+     * A discovery pass that lost a race with another server's catalog writes: a
+     * deadlock or serialization failure, a payload the orphan sweep deleted between
+     * the up-front insert and the handler insert (foreign key violation), or a row
+     * that vanished between insert and read. Re-running the whole pass is safe: it is
+     * idempotent, and the failed attempt rolled back.
+     */
+    static boolean isTransientCatalogConflict(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof CatalogRaceException) return true;
+            if (t instanceof SQLException sql) {
+                var state = sql.getSQLState();
+                if ("40P01".equals(state) || "40001".equals(state) || "23503".equals(state)) return true;
+            }
+        }
+        return false;
+    }
+
+    private static String rootMessage(Throwable e) {
+        Throwable t = e;
+        while (t.getCause() != null && t.getCause() != t) t = t.getCause();
+        return t.getMessage();
+    }
+
+    /** Every payload name a registration references, with the type its placeholder row gets. */
+    static SortedMap<String, PayloadType> referencedPayloads(BundleDiscoveryInfo registration) {
+        var declared = new TreeMap<String, PayloadType>();
+        var invoked = new TreeMap<String, PayloadType>();
+        for (RegisteredHandler rh : registration.handlers()) {
+            if (rh.getHandledPayload() != null) declared.put(rh.getHandledPayload(), rh.getHandledPayloadType());
+            if (rh.getReturnType() != null) declared.putIfAbsent(rh.getReturnType(), returnPayloadType(rh));
+            if (rh.getInvokedCommands() != null)
+                rh.getInvokedCommands().values().forEach(n -> invoked.putIfAbsent(n, PayloadType.Command));
+            if (rh.getInvokedQueries() != null)
+                rh.getInvokedQueries().values().forEach(n -> invoked.putIfAbsent(n, PayloadType.Query));
+        }
+        invoked.forEach(declared::putIfAbsent);
+        return declared;
+    }
+
+    private static PayloadType returnPayloadType(RegisteredHandler rh) {
+        if (rh.getComponentType() == null) return null;
+        return switch (rh.getComponentType()) {
+            case Aggregate -> PayloadType.DomainEvent;
+            case Service -> PayloadType.ServiceEvent;
+            case Projection -> PayloadType.View;
+            default -> null;
+        };
+    }
+
+    private void discover(NodeAddress node, BundleDiscoveryInfo registration,
+                          Map<String, PayloadType> typeAlignments) {
                 logger.info("Discovering bundle: %s".formatted(node.bundleId()));
                 if (!registration.handlers().isEmpty()) {
                     var bundle = bundleRepository.findById(node.bundleId()).orElseGet(() -> {
@@ -123,7 +227,7 @@ public class AutoDiscoveryService {
                                     logger.info("Bundle %s not found, created one from discovery".formatted(node.bundleId()));
                                 }
                                 return bundleRepository.findById(node.bundleId()).orElseThrow(() ->
-                                        new IllegalStateException("Bundle %s vanished during discovery"
+                                        new CatalogRaceException("Bundle %s vanished during discovery"
                                                 .formatted(node.bundleId())));
                             }
                     );
@@ -189,20 +293,15 @@ public class AutoDiscoveryService {
                                         registeredHandler.getComponentLine() > 0
                                                 ? registeredHandler.getComponentLine() : null);
                                 return componentRepository.findById(registeredHandler.getComponentName())
-                                        .orElseThrow(() -> new IllegalStateException(
+                                        .orElseThrow(() -> new CatalogRaceException(
                                                 "Component %s vanished during discovery"
                                                         .formatted(registeredHandler.getComponentName())));
                             }));
                             handler.setHandledPayload(ensurePayload(registeredHandler.getHandledPayload(),
-                                    registeredHandler.getHandledPayloadType(), bundle.getId(), true));
-                            var type = switch (registeredHandler.getComponentType()) {
-                                case Aggregate -> PayloadType.DomainEvent;
-                                case Service -> PayloadType.ServiceEvent;
-                                case Projection -> PayloadType.View;
-                                default -> null;
-                            };
+                                    registeredHandler.getHandledPayloadType(), bundle.getId(), typeAlignments));
                             handler.setReturnType(registeredHandler.getReturnType() == null ? null :
-                                    ensurePayload(registeredHandler.getReturnType(), type, bundle.getId(), true));
+                                    ensurePayload(registeredHandler.getReturnType(),
+                                            returnPayloadType(registeredHandler), bundle.getId(), typeAlignments));
                             handler.setHandlerType(registeredHandler.getHandlerType());
                             handler.setReturnIsMultiple(registeredHandler.isReturnIsMultiple());
                             handler.setAssociationProperty(registeredHandler.getAssociationProperty());
@@ -263,51 +362,48 @@ public class AutoDiscoveryService {
                     }
                     handlerService.deleteAll(handlers);
                 }
-                if (registration.payloadInfo() != null)
-                    registration.payloadInfo().forEach((k, v) -> payloadRepository.findById(k).ifPresent(p -> {
-                        if (v.schema() != null) p.setJsonSchema(v.schema());
-                        if (v.domain() != null) p.setDomain(v.domain());
-                        if (v.description() != null && !v.description().isEmpty()) p.setDescription(v.description());
-                        if (v.detail() != null && !v.detail().isEmpty()) p.setDetail(v.detail());
-                        if (v.path() != null && !v.path().isEmpty()) p.setPath(v.path());
-                        if (v.line() > 0) p.setLine(v.line());
-                        p.setValidJsonSchema(true);
-                        p.setUpdatedAt(Instant.now());
-                        payloadRepository.save(p);
-                    }));
+                // Payload metadata (payloadInfo) is backfilled after the commit: see onNodeJoin.
     }
 
     private Map<Integer, Payload> buildInvocations(RegisteredHandler rh, String bundleId) {
         var invocations = new HashMap<Integer, Payload>();
         rh.getInvokedCommands().forEach((line, name) ->
-                invocations.put(line, ensurePayload(name, PayloadType.Command, bundleId, false)));
+                invocations.put(line, ensurePayload(name, PayloadType.Command, bundleId, null)));
         rh.getInvokedQueries().forEach((line, name) ->
-                invocations.put(line, ensurePayload(name, PayloadType.Query, bundleId, false)));
+                invocations.put(line, ensurePayload(name, PayloadType.Query, bundleId, null)));
         return invocations;
     }
 
     /**
-     * Returns the payload row, creating a placeholder when it is missing. Payload names
-     * are shared across bundles, so two bundles discovered at once (under different
-     * per-bundle lock keys, possibly on different servers) can both miss the row; the
-     * ON CONFLICT insert lets the second one read what the first wrote instead of
-     * failing on {@code core__payload_pkey}.
+     * Returns the payload row a new handler references, pinned for the rest of the
+     * discovery transaction ({@link CatalogWriter#lockPayload}) so the orphan sweep of a
+     * concurrent bundle removal cannot delete it before the handler rows are flushed.
+     * The row normally exists already (onNodeJoin creates every referenced payload up
+     * front); the insert here only covers a sweep that got in between. Payload names
+     * are shared across bundles, so the insert is ON CONFLICT DO NOTHING.
      *
-     * @param alignType when true, an existing row whose type differs is corrected to {@code type}
+     * <p>The row itself is never modified here: an update inside this transaction
+     * would hold the shared row's lock until commit, in whatever order the handlers
+     * came, and two discoveries would deadlock. A needed type correction is recorded in
+     * {@code typeAlignments} (null: none wanted) and applied after the commit.
      */
-    private Payload ensurePayload(String name, PayloadType type, String bundleId, boolean alignType) {
-        var p = payloadRepository.findById(name).orElseGet(() -> {
-            if (catalogWriter.insertPayloadIfAbsent(name, type, bundleId)) {
-                logger.info("Payload %s not found, created an ephemeral one".formatted(name));
-            }
-            return payloadRepository.findById(name).orElseThrow(() ->
-                    new IllegalStateException("Payload %s vanished during discovery".formatted(name)));
-        });
-        if (alignType && p.getType() != type) {
-            p.setType(type);
-            return payloadRepository.save(p);
+    private Payload ensurePayload(String name, PayloadType type, String bundleId,
+                                  Map<String, PayloadType> typeAlignments) {
+        if (!catalogWriter.lockPayload(name)
+                && catalogWriter.insertPayloadIfAbsent(name, type, bundleId)) {
+            logger.info("Payload %s not found, created an ephemeral one".formatted(name));
         }
+        var p = payloadRepository.findById(name).orElseThrow(() ->
+                new CatalogRaceException("Payload %s vanished during discovery".formatted(name)));
+        if (typeAlignments != null && p.getType() != type) typeAlignments.put(name, type);
         return p;
+    }
+
+    /** A catalog row removed by another server mid-pass; the pass is retried. */
+    static final class CatalogRaceException extends IllegalStateException {
+        CatalogRaceException(String message) {
+            super(message);
+        }
     }
 
     /**
@@ -335,6 +431,21 @@ public class AutoDiscoveryService {
                     logger.info("Skipping leave cleanup of instance %s (bundle %s): its session is now held by server %s"
                             .formatted(node.instanceId(), node.bundleId(),
                                     presence.ownerOf(node.instanceId()).orElse("?")));
+                    return;
+                }
+                // A newer session of the same instance may already be registered here: a
+                // superseded session's NodeLeft is published after the replacement is in
+                // the view, and a channel-close NodeLeft (published on the old channel's
+                // event loop) can land after the replacement's NodeJoined claim, in which
+                // case the release above just deleted the live session's row. Checking
+                // the view after the release covers both orders: a replacement that
+                // enters the view later claims again when its NodeJoined is published
+                // (waiting on this transaction's row lock). Its consumer rows are left
+                // alone too: its own registration, serialized with us by the lock, owns them.
+                if (busFacade.currentView().contains(node)) {
+                    presence.claim(node);
+                    logger.info("Skipping leave cleanup of instance %s (bundle %s): a newer session of it is connected here"
+                            .formatted(node.instanceId(), node.bundleId()));
                     return;
                 }
                 // Consumer rows are per-instance; the instance is gone, so its

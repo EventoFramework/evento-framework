@@ -6,11 +6,13 @@ import jakarta.annotation.PostConstruct;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.sql.Timestamp;
-import java.time.Instant;
+import java.time.Duration;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +28,13 @@ import java.util.Optional;
  * liveness signal it had. This row is the missing signal: B claims it on join, and A
  * acts on the leave only if it still owns the row.
  *
+ * <p>Rows carry a liveness timestamp that each server refreshes for its connected
+ * instances ({@link #heartbeat}). A server that crashes and never comes back under the
+ * same id stops refreshing; once its rows are older than {@code stale-after} they no
+ * longer count as live sessions anywhere, so the bundles they kept alive can be
+ * reclaimed. Timestamps come from the database clock, never a server's, so clock skew
+ * between regions cannot age a row early.
+ *
  * <p>Ownership requires a unique server instance id per server
  * ({@code evento.server.bus.server-instance-id}); with a shared id every server
  * believes it owns every row and the behaviour degrades to the single-server one.
@@ -35,27 +44,33 @@ public class BundlePresence {
 
     private static final Logger logger = LogManager.getLogger(BundlePresence.class);
 
+    /** The id every server gets from the shipped application.properties (G13). */
+    static final String SHIPPED_DEFAULT_SERVER_ID = "iris-evento-server";
+
     /** Outcome of {@link #release}: whether the leaving server may clean up after the instance. */
     public enum Release {
         /** This server owned the session; the row is gone and the cleanup is ours. */
         OWNED,
         /** No row: an instance that joined before this table existed. Legacy behaviour applies. */
         UNTRACKED,
-        /** Another server claimed the instance since; its registration must not be touched. */
+        /** Another live server claimed the instance since; its registration must not be touched. */
         OWNED_ELSEWHERE
     }
 
     private final JdbcTemplate jdbc;
     private final String serverInstanceId;
+    private final long staleAfterSeconds;
 
     @Autowired
-    public BundlePresence(JdbcTemplate jdbc, BusProperties busProperties) {
-        this(jdbc, busProperties.serverInstanceId());
+    public BundlePresence(JdbcTemplate jdbc, BusProperties busProperties,
+                          @Value("${evento.server.presence.stale-after-ms:180000}") long staleAfterMs) {
+        this(jdbc, busProperties.serverInstanceId(), Duration.ofMillis(staleAfterMs));
     }
 
-    BundlePresence(JdbcTemplate jdbc, String serverInstanceId) {
+    BundlePresence(JdbcTemplate jdbc, String serverInstanceId, Duration staleAfter) {
         this.jdbc = jdbc;
         this.serverInstanceId = serverInstanceId;
+        this.staleAfterSeconds = Math.max(1, staleAfter.toSeconds());
     }
 
     public String serverInstanceId() {
@@ -65,11 +80,18 @@ public class BundlePresence {
     /**
      * A freshly started server holds no session at all, so any row still naming it is a
      * leftover from its previous life (a crash never ran the NodeLeft cleanup). Without
-     * this purge those rows would count as live instances forever and keep dead bundles
-     * in the catalog.
+     * this purge those rows would count as live instances until they go stale.
      */
     @PostConstruct
     public void purgeOwnStaleRows() {
+        if (SHIPPED_DEFAULT_SERVER_ID.equals(serverInstanceId)) {
+            // Every server started from the shipped configuration shares this id: this
+            // purge then deletes the live rows of all the others, and none of them can
+            // tell its own sessions from another server's.
+            logger.warn("event=bundle_presence_shared_server_id server_instance={} "
+                    + "hint=\"set a unique evento.cluster.node.server.id per server when several servers share a catalog\"",
+                    serverInstanceId);
+        }
         try {
             int purged = jdbc.update(
                     "delete from core__bundle_instance where server_instance_id = ?", serverInstanceId);
@@ -85,24 +107,54 @@ public class BundlePresence {
     public void claim(NodeAddress node) {
         jdbc.update("""
                 insert into core__bundle_instance (instance_id, bundle_id, server_instance_id, updated_at)
-                values (?, ?, ?, ?)
+                values (?, ?, ?, now())
                 on conflict (instance_id) do update
                     set bundle_id = excluded.bundle_id,
                         server_instance_id = excluded.server_instance_id,
                         updated_at = excluded.updated_at
-                """, node.instanceId(), node.bundleId(), serverInstanceId, Timestamp.from(Instant.now()));
+                """, node.instanceId(), node.bundleId(), serverInstanceId);
+    }
+
+    /**
+     * Refreshes the rows of the instances connected to this server, re-creating any that
+     * went missing, and drops this server's own rows that no connected instance refreshes
+     * anymore. A row another server holds is never taken over here: only a join
+     * ({@link #claim}) moves ownership. Rows are written in instance-id order.
+     */
+    public void heartbeat(Collection<NodeAddress> connected) {
+        var nodes = connected.stream().sorted(Comparator.comparing(NodeAddress::instanceId)).toList();
+        if (!nodes.isEmpty()) {
+            jdbc.batchUpdate("""
+                    insert into core__bundle_instance (instance_id, bundle_id, server_instance_id, updated_at)
+                    values (?, ?, ?, now())
+                    on conflict (instance_id) do update
+                        set updated_at = excluded.updated_at
+                        where core__bundle_instance.server_instance_id = excluded.server_instance_id
+                    """, nodes, nodes.size(), (ps, n) -> {
+                ps.setString(1, n.instanceId());
+                ps.setString(2, n.bundleId());
+                ps.setString(3, serverInstanceId);
+            });
+        }
+        jdbc.update("""
+                delete from core__bundle_instance
+                where server_instance_id = ? and updated_at < now() - make_interval(secs => ?)
+                """, serverInstanceId, staleAfterSeconds);
     }
 
     /**
      * Drops this server's claim on {@code node}'s session. The delete is conditional on
      * ownership, so a concurrent claim by another server either lands first (and we see
      * {@link Release#OWNED_ELSEWHERE}) or waits on the row lock until the caller's
-     * transaction commits the cleanup.
+     * transaction commits the cleanup. A row held by a server that stopped heartbeating
+     * is not a live session anywhere: the leaving server takes over its cleanup.
      */
     public Release release(NodeAddress node) {
-        int deleted = jdbc.update(
-                "delete from core__bundle_instance where instance_id = ? and server_instance_id = ?",
-                node.instanceId(), serverInstanceId);
+        int deleted = jdbc.update("""
+                delete from core__bundle_instance
+                where instance_id = ?
+                  and (server_instance_id = ? or updated_at < now() - make_interval(secs => ?))
+                """, node.instanceId(), serverInstanceId, staleAfterSeconds);
         if (deleted > 0) return Release.OWNED;
         return ownerOf(node.instanceId()).isPresent() ? Release.OWNED_ELSEWHERE : Release.UNTRACKED;
     }
@@ -115,15 +167,17 @@ public class BundlePresence {
     }
 
     /**
-     * True when another server holds a session of some instance of {@code bundleId}.
+     * True when another live server holds a session of some instance of {@code bundleId}.
      * This server's own sessions are not consulted here: the local connection view is
-     * authoritative for them, and a stale row of ours must not keep a bundle alive.
+     * authoritative for them, and a stale row of ours must not keep a bundle alive. Rows
+     * of a server that stopped heartbeating do not count either.
      */
     public boolean liveElsewhere(String bundleId, String exceptInstanceId) {
         Integer n = jdbc.queryForObject("""
                 select count(*) from core__bundle_instance
                 where bundle_id = ? and instance_id <> ? and server_instance_id <> ?
-                """, Integer.class, bundleId, exceptInstanceId, serverInstanceId);
+                  and updated_at >= now() - make_interval(secs => ?)
+                """, Integer.class, bundleId, exceptInstanceId, serverInstanceId, staleAfterSeconds);
         return n != null && n > 0;
     }
 }

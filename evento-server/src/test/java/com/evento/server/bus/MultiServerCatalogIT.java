@@ -13,8 +13,10 @@ import com.evento.common.modeling.messaging.message.internal.discovery.BundleCon
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.server.EventoServerApplication;
 import com.evento.server.bus.lifecycle.BusLifecycle;
+import com.evento.server.service.discovery.BundlePresence;
 import com.evento.transport.codec.JacksonCborCodec;
 import com.evento.transport.netty.NettyTransportConfig;
+import com.evento.transport.protocol.PayloadDiscoveryInfo;
 import com.evento.transport.protocol.ProtocolPayloadTypes;
 import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
 import org.junit.jupiter.api.AfterAll;
@@ -32,9 +34,13 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -203,6 +209,42 @@ class MultiServerCatalogIT {
         assertNoDiscoveryErrors();
     }
 
+    @Test
+    void rowsOfAServerThatStoppedHeartbeatingNoLongerKeepABundleAlive() {
+        var presence = serverA.getBean(BundlePresence.class);
+        var bundle = "g7-crashed-server-bundle";
+        // A server that crashed and never came back left a row behind, long unrefreshed.
+        jdbc.update("""
+                insert into core__bundle_instance (instance_id, bundle_id, server_instance_id, updated_at)
+                values ('ghost-instance', ?, 'server-gone', now() - interval '1 hour')
+                """, bundle);
+        try {
+            assertThat(presence.liveElsewhere(bundle, "local-instance")).isFalse();
+            jdbc.update("update core__bundle_instance set updated_at = now() where instance_id = 'ghost-instance'");
+            assertThat(presence.liveElsewhere(bundle, "local-instance")).isTrue();
+
+            // A leave of an instance whose only row belongs to a dead server takes over the cleanup.
+            jdbc.update("update core__bundle_instance set updated_at = now() - interval '1 hour'"
+                    + " where instance_id = 'ghost-instance'");
+            assertThat(presence.release(new NodeAddress(bundle, 1, "ghost-instance")))
+                    .isEqualTo(BundlePresence.Release.OWNED);
+
+            // The heartbeat re-creates a connected instance's missing row, refreshes its own
+            // rows, never steals another server's live row, and reaps its unrefreshed ones.
+            jdbc.update("""
+                    insert into core__bundle_instance (instance_id, bundle_id, server_instance_id, updated_at)
+                    values ('held-by-b', ?, ?, now()), ('stale-of-a', ?, ?, now() - interval '1 hour')
+                    """, bundle, SERVER_B, bundle, SERVER_A);
+            presence.heartbeat(List.of(new NodeAddress(bundle, 1, "held-by-b"),
+                    new NodeAddress(bundle, 1, "connected-to-a")));
+            assertThat(owner("held-by-b")).isEqualTo(SERVER_B);
+            assertThat(owner("connected-to-a")).isEqualTo(SERVER_A);
+            assertThat(owner("stale-of-a")).isNull();
+        } finally {
+            jdbc.update("delete from core__bundle_instance where bundle_id = ?", bundle);
+        }
+    }
+
     // ---------------------------------------------------------------- G8
 
     @Test
@@ -262,13 +304,90 @@ class MultiServerCatalogIT {
         assertNoDiscoveryErrors();
     }
 
+    /**
+     * The shape that deadlocked the one-transaction discovery pass: every bundle declares
+     * handlers on the same shared payloads, each in its own order, and reports metadata
+     * for all of them. The rows start with the wrong type and stale metadata, so every
+     * pass wants to correct them. Updating shared rows inside the discovery transaction
+     * locked them in handler order until commit; two bundles with different orders then
+     * formed a lock cycle and Postgres aborted one pass with 40P01.
+     */
+    @Test
+    void bundlesDeclaringSharedPayloadsInDifferentOrdersDoNotDeadlock() throws Exception {
+        int bundles = 6;
+        int shared = 10;
+        var names = new ArrayList<String>();
+        for (int i = 0; i < shared; i++) {
+            var name = "G8OrderedEvent" + i;
+            names.add(name);
+            jdbc.update("""
+                    insert into core__payload (name, type, registered_in, json_schema, is_valid_json_schema, updated_at)
+                    values (?, 'Command', null, 'null', false, now())
+                    """, name);
+        }
+        var go = new CountDownLatch(1);
+        var starts = new ArrayList<CompletableFuture<Void>>();
+        try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (int b = 0; b < bundles; b++) {
+                var bundle = "g8-ordered-" + b;
+                var projector = "G8OrderedProjector" + b;
+                var order = new ArrayList<>(names);
+                Collections.shuffle(order, new Random(b));
+                var handlers = order.stream().map(n -> eventHandler(projector, n)).toList();
+                var info = new LinkedHashMap<String, PayloadDiscoveryInfo>();
+                for (var n : order) {
+                    info.put(n, new PayloadDiscoveryInfo("{\"title\":\"" + n + "\"}", "orders",
+                            "reported by " + bundle, "", "com/example/" + n + ".java", 7));
+                }
+                for (var port : List.of(busPortA, busPortB)) {
+                    var instance = bundle + "@" + (port == busPortA ? SERVER_A : SERVER_B);
+                    starts.add(CompletableFuture.runAsync(() -> {
+                        try {
+                            go.await();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(e);
+                        }
+                        startClient(bundle, instance, port, handlers, info);
+                    }, pool));
+                }
+            }
+            go.countDown();
+            CompletableFuture.allOf(starts.toArray(CompletableFuture[]::new)).get(60, TimeUnit.SECONDS);
+        }
+
+        await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(jdbc.queryForObject(
+                    "select count(*) from core__handler h join core__component c"
+                            + " on h.component_component_name = c.component_name"
+                            + " where c.bundle_id like 'g8-ordered-%'", Integer.class))
+                    .isEqualTo(bundles * shared);
+            assertThat(jdbc.queryForObject("""
+                    select count(*) from core__payload
+                    where name like 'G8OrderedEvent%' and type = 'DomainEvent'
+                      and is_valid_json_schema and domain = 'orders' and line = 7
+                    """, Integer.class)).isEqualTo(shared);
+        });
+        assertNoDiscoveryErrors();
+        assertThat(logs.list).noneMatch(e -> String.valueOf(e.getFormattedMessage()).contains("deadlock")
+                || (e.getThrowableProxy() != null
+                && String.valueOf(e.getThrowableProxy().getMessage()).contains("deadlock")));
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private BundleClient startClient(String bundleId, String instanceId, int port,
                                      List<RegisteredHandler> handlers) {
+        return startClient(bundleId, instanceId, port, handlers, Map.of());
+    }
+
+    private BundleClient startClient(String bundleId, String instanceId, int port,
+                                     List<RegisteredHandler> handlers,
+                                     Map<String, PayloadDiscoveryInfo> payloadInfo) {
         var client = BundleClient.builder(bundleId, instanceId)
                 .host("127.0.0.1").port(port).bundleVersion("1")
                 .transportConfig(clientTransport)
+                .payloadInfo(payloadInfo)
                 .registeredHandlers(handlers)
                 .handlerPayloadTypes(handlers.stream()
                         .filter(h -> h.getHandlerType() != HandlerType.EventHandler)
