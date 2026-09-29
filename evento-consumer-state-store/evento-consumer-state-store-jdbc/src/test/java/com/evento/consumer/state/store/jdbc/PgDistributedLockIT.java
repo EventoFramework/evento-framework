@@ -269,6 +269,52 @@ class PgDistributedLockIT {
     }
 
     @Test
+    @Timeout(60)
+    void anExhaustedDedicatedPoolNeverStallsTryAcquireOrOutlastsTheCallersWait() throws Exception {
+        // The pool's own connection timeout (2 s here, 1 s in the server) used to apply to every
+        // attempt: tryAcquire (telemetry, on a bus dispatch thread) stalled for it, and an acquire
+        // bounded by a 50 ms caller deadline waited over a second before giving up.
+        int size = 2;
+        try (var lockPool = pool("it-exhausted", size, 2_000)) {
+            var lock = new PgDistributedLock(lockPool, Duration.ofSeconds(30), size);
+            lock.acquire("held-1");
+            lock.acquire("held-2");
+            try {
+                long started = System.nanoTime();
+                assertThat(lock.tryAcquire("free-key")).as("no lock connection is free").isFalse();
+                assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)).isLessThan(200L);
+
+                started = System.nanoTime();
+                assertThatThrownBy(() -> lock.acquire("free-key", Duration.ofMillis(50)))
+                        .isInstanceOf(LockAcquisitionTimeoutException.class);
+                assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)).isLessThan(500L);
+            } finally {
+                lock.release("held-1");
+                lock.release("held-2");
+            }
+            // Every permit came back: the pool can serve a full set of holders again.
+            assertThat(lock.tryAcquire("free-key")).isTrue();
+            lock.release("free-key");
+            assertThat(lockPool.getHikariPoolMXBean().getActiveConnections()).isZero();
+        }
+    }
+
+    @Test
+    void theEventStoreKeyItselfStillMapsToTheAppendLock() throws Exception {
+        // Servers older than the single-statement append took the event store lock through this
+        // class under the key "es-lock"; the collision remap must leave that key alone.
+        var lock = new PgDistributedLock(dataSource);
+        try (var other = otherServer()) {
+            lock.acquire(PgDistributedLock.EVENT_STORE_LOCK_KEY);
+            try {
+                assertThat(pgTryLock(other, "es-lock")).isFalse();
+            } finally {
+                lock.release(PgDistributedLock.EVENT_STORE_LOCK_KEY);
+            }
+        }
+    }
+
+    @Test
     void verifyHeldRecognisesTheLockForPositiveAndNegativeHashes() throws Exception {
         // pg_locks splits the bigint key into classid/objid; hashtext() is signed, so both signs
         // must map back to the key or verifyHeld would report held locks as lost.

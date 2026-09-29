@@ -185,4 +185,17 @@ class ClusterRegistryTest {
         cluster.forgetZone(addr("i1"));
         assertThat(cluster.zones()).isEmpty();
     }
+
+    @Test
+    void aZoneIsForgottenOnlyByTheSessionThatRecordedIt() {
+        var cluster = new ClusterRegistry(new ConnectionRegistry(new com.evento.server.bus.event.BusEventBus()));
+        var node = addr("i1");
+        cluster.setZone(node, "old-token", "EU");
+        // A reconnect: the new session records its zone, then the old session's teardown runs.
+        cluster.setZone(node, "new-token", "AM");
+        assertThat(cluster.forgetZone(node, "old-token")).isFalse();
+        assertThat(cluster.zoneOf(node)).contains("AM");
+        assertThat(cluster.forgetZone(node, "new-token")).isTrue();
+        assertThat(cluster.zoneOf(node)).isEmpty();
+    }
 }

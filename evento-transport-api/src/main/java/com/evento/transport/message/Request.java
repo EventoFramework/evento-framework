@@ -64,7 +64,10 @@ public record Request(
     /**
      * The local deadline of a request that arrived at {@code receivedAtMs}:
      * {@code receivedAtMs + timeoutMillis}, or {@link Long#MAX_VALUE} when the sender set
-     * no timeout (which keeps pre-deadline behaviour: nothing is ever dropped).
+     * no timeout (which keeps pre-deadline behaviour: nothing is ever dropped). The result
+     * is on the clock {@code receivedAtMs} was read from; the broker uses a monotonic one
+     * ({@link com.evento.transport.Frame#receivedAtMonotonicMs()}), so a wall-clock step
+     * neither expires nor stretches deadlines.
      */
     public long deadlineFrom(long receivedAtMs) {
         if (timeoutMillis <= 0) return Long.MAX_VALUE;

@@ -38,9 +38,12 @@ class RequestDeadlineTest {
 
     @Test
     void aFrameRecordsWhenItWasReceived() {
-        long before = System.currentTimeMillis();
+        // Monotonic, not wall-clock: a deadline is a local interval and must not move with NTP.
+        long before = System.nanoTime();
         var frame = new Frame(request(1, 0), new byte[0]);
-        assertThat(frame.receivedAtMs()).isBetween(before, System.currentTimeMillis());
-        assertThat(new Frame(request(1, 0), new byte[0], 42L).receivedAtMs()).isEqualTo(42L);
+        assertThat(frame.receivedAtNanos()).isBetween(before, System.nanoTime());
+        var stamped = new Frame(request(1, 0), new byte[0], 42_000_000L);
+        assertThat(stamped.receivedAtNanos()).isEqualTo(42_000_000L);
+        assertThat(stamped.receivedAtMonotonicMs()).isEqualTo(42L);
     }
 }

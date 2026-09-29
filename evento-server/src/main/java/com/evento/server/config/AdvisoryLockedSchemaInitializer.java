@@ -54,6 +54,17 @@ import java.sql.SQLException;
  * conditional on the old shape and needs {@code DO}-free, ordered DDL, so it runs here, once, in
  * one transaction ({@link #migrateComponentIdentity}).
  *
+ * <p><b>When Boot does not run {@code schema.sql}</b> ({@code spring.sql.init.mode=never}, a
+ * schema managed outside the server) neither migration runs, since the server is then not
+ * expected to change the schema. A catalog still in the old shape would make every catalog read
+ * and write fail, so the boot fails instead, naming the upgrade script shipped for this case
+ * ({@value #COMPONENT_ID_UPGRADE_SCRIPT}); a missing {@code es__events} primary key is only
+ * warned about ({@value #ES_EVENTS_PK_UPGRADE_SCRIPT}), since the event store works without it.
+ *
+ * <p><b>Minimum PostgreSQL version.</b> The server needs PostgreSQL {@value #MIN_SERVER_VERSION_NUM}
+ * ({@code server_version_num}) or later and refuses to boot on an older one, instead of failing
+ * later on a statement the old server cannot parse.
+ *
  * <p>On a non-PostgreSQL database it defers to the plain initializer.
  */
 public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScriptDatabaseInitializer {
@@ -76,6 +87,14 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
     private static final String ATTACH_LOCK_TIMEOUT = "3s";
     private static final int ATTACH_ATTEMPTS = 20;
 
+    /** {@code server_version_num} of the oldest supported PostgreSQL (12.0). */
+    static final int MIN_SERVER_VERSION_NUM = 120000;
+
+    /** Classpath upgrade script for externally managed schemas: the N1 catalog re-key. */
+    public static final String COMPONENT_ID_UPGRADE_SCRIPT = "db/upgrade/n1-component-id.sql";
+    /** Classpath upgrade script for externally managed schemas: the es__events primary key. */
+    public static final String ES_EVENTS_PK_UPGRADE_SCRIPT = "db/upgrade/es-events-primary-key.sql";
+
     private final boolean enforcePrimaryKey;
 
     public AdvisoryLockedSchemaInitializer(DataSource dataSource,
@@ -92,6 +111,7 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                 return super.initializeDatabase();
             }
             if (!lockConnection.getAutoCommit()) lockConnection.setAutoCommit(true);
+            checkServerVersion(lockConnection);
             long started = System.nanoTime();
             awaitSchemaLock(lockConnection);
             log.info("event=schema_init_lock_acquired waitMs={}", (System.nanoTime() - started) / 1_000_000);
@@ -100,6 +120,8 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                 if (applied) {
                     migrateComponentIdentity(lockConnection);
                     applyEventStoreConstraints(lockConnection);
+                } else {
+                    checkExternallyManagedSchema(lockConnection);
                 }
                 return applied;
             } finally {
@@ -113,6 +135,52 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
         } catch (SQLException e) {
             throw new DataAccessResourceFailureException("Schema initialisation failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Refuses PostgreSQL older than {@link #MIN_SERVER_VERSION_NUM}. Nothing in the server has
+     * been tested on one, and failing here names the problem instead of failing on the first
+     * statement that uses newer syntax.
+     */
+    static void checkServerVersion(Connection connection) throws SQLException {
+        long version = queryLong(connection, "SELECT current_setting('server_version_num')::int");
+        if (version < MIN_SERVER_VERSION_NUM) {
+            throw new SQLException("evento: PostgreSQL " + version / 10000 + " is not supported; "
+                    + "the server needs PostgreSQL 12 or later (server_version_num >= " + MIN_SERVER_VERSION_NUM
+                    + ", found " + version + ")", "0A000");
+        }
+    }
+
+    /**
+     * With {@code schema.sql} not run by Boot, the schema is the operator's: nothing is changed,
+     * but a catalog in the pre-N1 shape fails the boot with the script to apply, and a missing
+     * {@code es__events} primary key is logged.
+     */
+    private void checkExternallyManagedSchema(Connection connection) throws SQLException {
+        if (hasOldComponentShape(connection)) {
+            throw new SQLException("evento: core__component is still keyed by component_name (pre-N1 catalog) "
+                    + "and spring.sql.init.mode does not let this server migrate it. Apply the upgrade script "
+                    + "classpath:" + COMPONENT_ID_UPGRADE_SCRIPT + " (in evento-server.jar), or boot one server "
+                    + "once with spring.sql.init.mode=always", "55000");
+        }
+        if (enforcePrimaryKey && tableExists(connection, "es__events")
+                && queryLong(connection, "SELECT count(*) FROM pg_constraint "
+                + "WHERE conrelid = 'es__events'::regclass AND contype = 'p'") == 0) {
+            log.warn("event=es_events_primary_key_missing reason=\"spring.sql.init.mode is not 'always', "
+                    + "so the server does not add it\" script=classpath:{}", ES_EVENTS_PK_UPGRADE_SCRIPT);
+        }
+    }
+
+    private static boolean hasOldComponentShape(Connection connection) throws SQLException {
+        return tableExists(connection, "core__component")
+                && queryLong(connection, "SELECT count(*) FROM information_schema.columns "
+                + "WHERE table_schema = current_schema() AND table_name = 'core__component' "
+                + "AND column_name = 'id'") == 0;
+    }
+
+    private static boolean tableExists(Connection connection, String table) throws SQLException {
+        return queryLong(connection, "SELECT count(*) FROM information_schema.tables "
+                + "WHERE table_schema = current_schema() AND table_name = '" + table + "'") > 0;
     }
 
     /**
@@ -133,9 +201,7 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
      * in memory and unaffected); upgrade all servers together.
      */
     private void migrateComponentIdentity(Connection connection) throws SQLException {
-        if (queryLong(connection, "SELECT count(*) FROM information_schema.columns " +
-                "WHERE table_schema = current_schema() AND table_name = 'core__component' " +
-                "AND column_name = 'id'") == 0) {
+        if (hasOldComponentShape(connection)) {
             long started = System.nanoTime();
             for (int attempt = 1; ; attempt++) {
                 try {

@@ -50,8 +50,11 @@ public class EventStore implements BrokerEventStore {
      * consumers read without a fetch delay. It cannot outlive a dead session (G3).
      *
      * <p>Evaluation order is data-driven: the INSERT projects {@code nextval} from the single
-     * row of the materialised {@code es_lock} CTE, so the lock is taken before the number is
-     * drawn. The key {@code hashtext('es-lock')} is the one the previous session-lock
+     * row of the {@code es_lock} CTE, so the lock is taken before the number is drawn. The CTE
+     * is materialised on every supported PostgreSQL without the {@code MATERIALIZED} keyword
+     * (which only exists from 12): before 12 every CTE is, and from 12 on a CTE is inlined only
+     * when it has no volatile function, while {@code pg_advisory_xact_lock} is volatile.
+     * {@code EventStorePostgresIT} pins the order (lock before {@code nextval}). The key {@code hashtext('es-lock')} is the one the previous session-lock
      * implementation used, so during a rolling upgrade old and new servers still exclude each
      * other (session and transaction advisory locks share one lock space).
      *
@@ -61,7 +64,7 @@ public class EventStore implements BrokerEventStore {
      * now 1.
      */
     static final String CPES_APPEND_SQL =
-            "WITH es_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) " +
+            "WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) " +
                     "INSERT INTO es__events " +
                     "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
                     "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ? FROM es_lock " +

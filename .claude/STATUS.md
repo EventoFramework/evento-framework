@@ -2,6 +2,27 @@
 
 Last updated: 2026-09-29.
 
+## Review fixes on the cluster framework work (2026-09-29, latest)
+
+- **Handshake:** a Hello is validated before any registration (`HandshakeHandler.validate` /
+  `reply`); a rejected one no longer publishes NodeJoined/NodeLeft for a live instanceId (that
+  wiped its catalog via the presence release, G7). Zones are token-tagged, recorded after
+  registration and forgotten only by the session that set them.
+- **`PgDistributedLock`:** one permit per lock-pool connection (`maxConnections` ctor arg), so
+  `tryAcquire` never waits and `acquire(key, maxWait)` keeps to `maxWait`; abort+close on a
+  failed post-grant attempt (no more lost pool slots); keys colliding with `hashtext('es-lock')`
+  are remapped; `lock_acquire_timeout` WARN only when the lock's own bound ran out.
+  `evento.lock.acquire.timeout.ms` is a Spring property now.
+- **N3:** `before_append` drop only for aggregate commands; service events are always stored once
+  the handler ran (forward waits the command's own timeout). Deadlines on the monotonic clock
+  (`Frame.receivedAtNanos`, `BusLifecycle.monotonicMillis()`). Docs say callers normally see
+  `RequestTimeoutException`, not `RequestExpiredException`.
+- **Ops:** pools 20 (min-idle 5) + lock 10; PG >= 12 checked at boot; CPES append without
+  `MATERIALIZED`; `spring.sql.init.mode=never` fails fast on a pre-N1 catalog, with shipped
+  `db/upgrade/*.sql`; presence stale-after vs heartbeat checked, 2 scheduler threads; WARN on the
+  shipped `evento.cluster.name`. GUI component page handles the 409 candidate list. Lab compose
+  pins the lock pool to 16 to stay comparable with archived runs.
+
 ## Lab bundles merged; completeness check (2026-09-29, latest)
 
 - **`lab/bundles` merged** into `feat/evento-lab-cluster` (it had been finished in its worktree
