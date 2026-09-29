@@ -108,8 +108,13 @@ x-server: &server
 x-server-env: &server-env
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_DATASOURCE_PASSWORD: secret
-  # >= 10 + the 5 connections pinned by PgDistributedLock instances (G3).
+  # Application pool for the work (story fetch, append, catalog). Held locks never take from it:
+  # each server also opens a dedicated lock pool (EVENTO_LOCK_POOL_MAXIMUM_SIZE; the framework
+  # default is 10, pinned to 16 here so runs stay comparable with the archived results). Budget
+  # on the shared ES primary, which all three servers use (targetServerType=primary):
+  # 3 x (20 + 16) = 108 plus the consumer-state pools, under max_connections=200 above.
   SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "20"
+  EVENTO_LOCK_POOL_MAXIMUM_SIZE: "16"
   EVENTO_CLUSTER_NAME: evento-lab-cluster
   EVENTO_ES_MODE: CPES
   # G12: prefer handlers in the caller's zone (EVENTO_ZONE of the bundles). A server without
