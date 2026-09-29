@@ -10,6 +10,8 @@ public class ConsumerDTO {
 
     private String bundleId;
     private long bundleVersion;
+    /** Catalog key of the component, {@code bundleId:componentName}. */
+    private String componentId;
     private String componentName;
     private String componentVersion;
     private ComponentType componentType;

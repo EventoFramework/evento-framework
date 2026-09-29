@@ -139,7 +139,7 @@ public class AutoDiscoveryService {
                     if (registration.payloadInfo() != null)
                         new TreeMap<>(registration.payloadInfo()).forEach(catalogWriter::backfillPayloadInfo);
                     registration.handlers().stream().map(RegisteredHandler::getComponentName)
-                            .distinct().forEach(handlerService::clearCache);
+                            .distinct().forEach(name -> handlerService.clearCache(node.bundleId(), name));
                 });
                 return;
             } catch (Exception e) {
@@ -283,7 +283,8 @@ public class AutoDiscoveryService {
                             logger.info("Handler not found, creating an ephemeral one:");
                             logger.info(registeredHandler.toString());
                             var handler = new Handler();
-                            handler.setComponent(componentRepository.findById(registeredHandler.getComponentName()).orElseGet(() -> {
+                            var componentId = Component.idOf(bundle.getId(), registeredHandler.getComponentName());
+                            handler.setComponent(componentRepository.findById(componentId).orElseGet(() -> {
                                 catalogWriter.insertComponentIfAbsent(
                                         registeredHandler.getComponentName(),
                                         registeredHandler.getComponentType(),
@@ -293,7 +294,7 @@ public class AutoDiscoveryService {
                                         registeredHandler.getComponentPath(),
                                         registeredHandler.getComponentLine() > 0
                                                 ? registeredHandler.getComponentLine() : null);
-                                return componentRepository.findById(registeredHandler.getComponentName())
+                                return componentRepository.findById(componentId)
                                         .orElseThrow(() -> new CatalogRaceException(
                                                 "Component %s vanished during discovery"
                                                         .formatted(registeredHandler.getComponentName())));

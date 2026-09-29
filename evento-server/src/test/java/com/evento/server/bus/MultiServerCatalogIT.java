@@ -14,6 +14,8 @@ import com.evento.common.modeling.messaging.message.internal.discovery.Registere
 import com.evento.server.EventoServerApplication;
 import com.evento.server.bus.lifecycle.BusLifecycle;
 import com.evento.server.service.discovery.BundlePresence;
+import com.evento.server.web.ConsumerController;
+import com.evento.server.web.dto.ConsumerDTO;
 import com.evento.transport.codec.JacksonCborCodec;
 import com.evento.transport.netty.NettyTransportConfig;
 import com.evento.transport.protocol.PayloadDiscoveryInfo;
@@ -30,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Duration;
@@ -63,6 +67,9 @@ import static org.awaitility.Awaitility.await;
  *   <li><b>G8</b>: a mass reconnect, with every bundle joining both servers at once and
  *       all of them sharing payload names, must converge on a complete catalog without a
  *       single {@code duplicate key} failure in discovery or consumer registration.</li>
+ *   <li><b>N1</b>: the same component class in several bundles keeps one catalog row per
+ *       bundle, and one bundle id run as several instances with different contexts keeps
+ *       every instance's consumer rows; a departure removes only the leaver's rows.</li>
  * </ul>
  *
  * <p>Both servers live in one JVM, so {@code PgDistributedLock}'s JVM-local semaphore
@@ -288,7 +295,7 @@ class MultiServerCatalogIT {
                     .isEqualTo(bundles);
             assertThat(jdbc.queryForObject(
                     "select count(*) from core__handler h join core__component c"
-                            + " on h.component_component_name = c.component_name"
+                            + " on h.component_id = c.id"
                             + " where c.bundle_id like 'g8-bundle-%'", Integer.class))
                     .isEqualTo(bundles * 2);
             assertThat(jdbc.queryForObject(
@@ -359,7 +366,7 @@ class MultiServerCatalogIT {
         await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
             assertThat(jdbc.queryForObject(
                     "select count(*) from core__handler h join core__component c"
-                            + " on h.component_component_name = c.component_name"
+                            + " on h.component_id = c.id"
                             + " where c.bundle_id like 'g8-ordered-%'", Integer.class))
                     .isEqualTo(bundles * shared);
             assertThat(jdbc.queryForObject("""
@@ -372,6 +379,103 @@ class MultiServerCatalogIT {
         assertThat(logs.list).noneMatch(e -> String.valueOf(e.getFormattedMessage()).contains("deadlock")
                 || (e.getThrowableProxy() != null
                 && String.valueOf(e.getThrowableProxy().getMessage()).contains("deadlock")));
+    }
+
+    // ---------------------------------------------------------------- N1
+
+    /**
+     * The same projector class deployed by one bundle per region, spread over both
+     * servers. Keyed by class name, the bundles shared one component row: all but one
+     * lost their handler rows, and the departure of one bundle deleted every other
+     * bundle's consumer rows with it.
+     */
+    @Test
+    void theSameComponentClassInSeveralBundlesKeepsOneRowPerBundle() {
+        var projector = "N1OrderProjector";
+        var regions = List.of("CINA", "EUROPA", "AFRICA");
+        var handlers = List.of(eventHandler(projector, "N1OrderCreated"));
+        var clientsByRegion = new LinkedHashMap<String, BundleClient>();
+        for (int i = 0; i < regions.size(); i++) {
+            var region = regions.get(i);
+            var bundle = "n1-query-" + region.toLowerCase();
+            var instance = bundle + "-1";
+            var client = startClient(bundle, instance, i % 2 == 0 ? busPortA : busPortB, handlers);
+            registerConsumers(client, bundle, instance, projector, bundle + "_" + projector + "_1_" + region);
+            clientsByRegion.put(region, client);
+        }
+
+        await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(jdbc.queryForList("select id from core__component where component_name = ? order by id",
+                    String.class, projector)).containsExactly(
+                    "n1-query-africa:" + projector, "n1-query-cina:" + projector, "n1-query-europa:" + projector);
+            assertThat(handlerRows(projector)).as("one handler row per bundle").isEqualTo(3);
+            for (var region : regions) {
+                var bundle = "n1-query-" + region.toLowerCase();
+                assertThat(consumerRowsOfComponent(bundle + ":" + projector)).as(region).isEqualTo(1);
+            }
+        });
+
+        // One regional JVM leaves: only its own rows go.
+        clientsByRegion.get("AFRICA").close();
+        await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(bundleRows("n1-query-africa")).isZero();
+            assertThat(consumerRowsOfComponent("n1-query-africa:" + projector)).isZero();
+        });
+        await().during(2, TimeUnit.SECONDS).atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(jdbc.queryForList("select bundle_id from core__component where component_name = ? order by 1",
+                    String.class, projector)).containsExactly("n1-query-cina", "n1-query-europa");
+            assertThat(handlerRows(projector)).isEqualTo(2);
+            assertThat(consumerRowsOfComponent("n1-query-cina:" + projector)).isEqualTo(1);
+            assertThat(consumerRowsOfComponent("n1-query-europa:" + projector)).isEqualTo(1);
+        });
+        assertNoDiscoveryErrors();
+    }
+
+    /**
+     * One bundle id deployed as two instances with different contexts, one per server
+     * (the {@code order-query} bundle run with {@code CINA} in one JVM and
+     * {@code EUROPA,AFRICA} in another). Every consumer lane is listed, and the instance
+     * that leaves takes only its own lanes with it.
+     */
+    @Test
+    void instancesOfOneBundleWithDifferentContextsEachKeepTheirOwnConsumers() {
+        var bundle = "n1-order-query";
+        var projector = "N1ContextProjector";
+        var handlers = List.of(eventHandler(projector, "N1ContextOrderCreated"));
+        var prefix = bundle + "_" + projector + "_1_";
+
+        var asia = startClient(bundle, bundle + "-asia", busPortA, handlers);
+        registerConsumers(asia, bundle, bundle + "-asia", projector, prefix + "CINA");
+        var emea = startClient(bundle, bundle + "-emea", busPortB, handlers);
+        registerConsumers(emea, bundle, bundle + "-emea", projector, prefix + "EUROPA", prefix + "AFRICA");
+
+        await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(consumerIds(bundle)).containsExactlyInAnyOrder(
+                    prefix + "CINA", prefix + "EUROPA", prefix + "AFRICA");
+            assertThat(consumerRows(bundle + "-asia")).isEqualTo(1);
+            assertThat(consumerRows(bundle + "-emea")).isEqualTo(2);
+        });
+        // The admin listing has one entry per lane, whichever server is asked.
+        SecurityContextHolder.getContext().setAuthentication(
+                new TestingAuthenticationToken("it", "", "ROLE_WEB"));
+        try {
+            for (var server : List.of(serverA, serverB)) {
+                assertThat(server.getBean(ConsumerController.class).findAllConsumers())
+                        .filteredOn(c -> bundle.equals(c.getBundleId()))
+                        .extracting(ConsumerDTO::getContext)
+                        .containsExactlyInAnyOrder("CINA", "EUROPA", "AFRICA");
+            }
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        asia.close();
+        await().during(2, TimeUnit.SECONDS).atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(consumerIds(bundle)).containsExactlyInAnyOrder(prefix + "EUROPA", prefix + "AFRICA");
+            assertThat(bundleRows(bundle)).as("the bundle is still live on the other server").isEqualTo(1);
+            assertThat(handlerRows(projector)).isEqualTo(1);
+        });
+        assertNoDiscoveryErrors();
     }
 
     // ---------------------------------------------------------------- helpers
@@ -399,10 +503,10 @@ class MultiServerCatalogIT {
     }
 
     private void registerConsumers(BundleClient client, String bundleId, String instanceId,
-                                   String componentName, String consumerId) {
+                                   String componentName, String... consumerIds) {
         var cr = new BundleConsumerRegistrationMessage();
         var projectors = new HashMap<String, HashSet<String>>();
-        projectors.put(componentName, new HashSet<>(Set.of(consumerId)));
+        projectors.put(componentName, new HashSet<>(Set.of(consumerIds)));
         cr.setProjectorConsumers(projectors);
         cr.setSagaConsumers(new HashMap<>());
         cr.setObserverConsumers(new HashMap<>());
@@ -435,6 +539,16 @@ class MultiServerCatalogIT {
                 Integer.class, instanceId);
     }
 
+    private int consumerRowsOfComponent(String componentId) {
+        return jdbc.queryForObject("select count(*) from core__consumer where component_id = ?",
+                Integer.class, componentId);
+    }
+
+    private List<String> consumerIds(String bundleId) {
+        return jdbc.queryForList("select c.consumer_id from core__consumer c join core__component k"
+                + " on c.component_id = k.id where k.bundle_id = ?", String.class, bundleId);
+    }
+
     private int bundleRows(String bundleId) {
         return jdbc.queryForObject("select count(*) from core__bundle where id = ?", Integer.class, bundleId);
     }
@@ -445,7 +559,8 @@ class MultiServerCatalogIT {
     }
 
     private int handlerRows(String componentName) {
-        return jdbc.queryForObject("select count(*) from core__handler where component_component_name = ?",
+        return jdbc.queryForObject("select count(*) from core__handler h join core__component c"
+                        + " on h.component_id = c.id where c.component_name = ?",
                 Integer.class, componentName);
     }
 

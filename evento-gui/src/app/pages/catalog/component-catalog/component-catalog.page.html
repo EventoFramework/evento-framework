@@ -79,7 +79,7 @@
           <ion-row>
             @for (component of components; track component) {
               <ion-col size="6">
-                <ion-card [class]="'component-type component-type-' + component.componentType" routerLink="/component-info/{{component.componentName}}">
+                <ion-card [class]="'component-type component-type-' + component.componentType" [routerLink]="['/component-info', component.componentId || component.componentName]">
                   <ion-card-content>
                     <ion-text class="title">{{component.componentName}}</ion-text>
                     <ion-text color="dark"><p>{{component.description}}</p></ion-text>

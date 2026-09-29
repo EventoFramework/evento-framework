@@ -1,5 +1,6 @@
 package com.evento.server.web;
 
+import com.evento.server.domain.model.core.Component;
 import com.evento.server.domain.repository.core.ComponentRepository;
 import com.evento.server.domain.repository.core.HandlerRepository;
 import com.evento.server.domain.repository.core.PayloadRepository;
@@ -76,17 +77,33 @@ public class CatalogController {
 	}
 
 	/**
-	 * Retrieves a component by its name.
+	 * Retrieves a component by its catalog id ({@code bundleId:componentName}) or, for links
+	 * that predate per-bundle component keys, by its bare name.
 	 *
-	 * @param componentName The name of the component to retrieve.
+	 * <p>A bare name resolves only when exactly one bundle has a component of that name; when
+	 * several do (the same class deployed in several bundles) the answer is {@code 409 Conflict}
+	 * listing the candidate ids, rather than an arbitrary one of them.
+	 *
+	 * @param identifier The component id, or the bare name of the component to retrieve.
 	 * @return ResponseEntity - The response entity containing the component.
-	 * @throws java.util.NoSuchElementException if the component with the given name does not exist.
+	 * @throws java.util.NoSuchElementException if no such component exists.
 	 */
-	@GetMapping(value = "/component/{componentName}", produces = "application/json")
-	public ResponseEntity<ComponentDTO> findComponentByName(@PathVariable String componentName) {
-		return componentRepository.findById(componentName)
-				.map(c -> ResponseEntity.ok(new ComponentDTO(c, handlerRepository.findAllByComponent(c))))
-				.orElseThrow();
+	@GetMapping(value = "/component/{identifier}", produces = "application/json")
+	public ResponseEntity<?> findComponentByName(@PathVariable String identifier) {
+		var byId = componentRepository.findById(identifier);
+		if (byId.isPresent()) {
+			var c = byId.get();
+			return ResponseEntity.ok(new ComponentDTO(c, handlerRepository.findAllByComponent(c)));
+		}
+		var byName = componentRepository.findAllByComponentNameOrderByBundle_Id(identifier);
+		if (byName.isEmpty()) throw new java.util.NoSuchElementException("No component " + identifier);
+		if (byName.size() > 1) {
+			return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).body(java.util.Map.of(
+					"error", "component name '" + identifier + "' exists in several bundles; use its id",
+					"candidates", byName.stream().map(Component::getId).toList()));
+		}
+		var c = byName.getFirst();
+		return ResponseEntity.ok(new ComponentDTO(c, handlerRepository.findAllByComponent(c)));
 	}
 
 }

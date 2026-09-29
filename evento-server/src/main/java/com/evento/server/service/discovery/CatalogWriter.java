@@ -49,22 +49,28 @@ public class CatalogWriter {
                 containsHandlers, now()) > 0;
     }
 
+    /**
+     * Creates the component row of {@code bundleId}. Components are keyed per bundle
+     * ({@link com.evento.server.domain.model.core.Component#idOf}), so the same class
+     * deployed in another bundle gets a row of its own instead of colliding with this one.
+     */
     public boolean insertComponentIfAbsent(String componentName, ComponentType componentType, String bundleId,
                                            String description, String detail, String path, Integer line) {
         return jdbc.update("""
-                insert into core__component (component_name, component_type, bundle_id, description, detail,
+                insert into core__component (id, component_name, component_type, bundle_id, description, detail,
                                              path, line, updated_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?)
-                on conflict (component_name) do nothing
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict (id) do nothing
                 """, ps -> {
-            ps.setString(1, componentName);
-            ps.setString(2, componentType == null ? null : componentType.name());
-            ps.setString(3, bundleId);
-            ps.setString(4, description);
-            ps.setString(5, detail);
-            ps.setString(6, path);
-            if (line == null) ps.setNull(7, Types.INTEGER); else ps.setInt(7, line);
-            ps.setTimestamp(8, now());
+            ps.setString(1, com.evento.server.domain.model.core.Component.idOf(bundleId, componentName));
+            ps.setString(2, componentName);
+            ps.setString(3, componentType == null ? null : componentType.name());
+            ps.setString(4, bundleId);
+            ps.setString(5, description);
+            ps.setString(6, detail);
+            ps.setString(7, path);
+            if (line == null) ps.setNull(8, Types.INTEGER); else ps.setInt(8, line);
+            ps.setTimestamp(9, now());
         }) > 0;
     }
 
@@ -163,21 +169,23 @@ public class CatalogWriter {
     }
 
     /**
-     * Upserts consumer rows. A row is keyed by {@code instanceId_consumerId}; a
+     * Upserts consumer rows. A row is keyed by {@code instanceId_consumerId}, and the
+     * consumer id carries the bundle, component, version and context, so instances of
+     * one bundle running different contexts each keep their own rows. A
      * re-registration (every reconnect re-sends it) refreshes the component link.
      */
     public void upsertConsumers(List<Consumer> consumers) {
         if (consumers.isEmpty()) return;
         jdbc.batchUpdate("""
-                insert into core__consumer (identifier, component_component_name, instance_id, consumer_id)
+                insert into core__consumer (identifier, component_id, instance_id, consumer_id)
                 values (?, ?, ?, ?)
                 on conflict (identifier) do update
-                    set component_component_name = excluded.component_component_name,
+                    set component_id = excluded.component_id,
                         instance_id = excluded.instance_id,
                         consumer_id = excluded.consumer_id
                 """, consumers, consumers.size(), (ps, c) -> {
             ps.setString(1, c.getIdentifier());
-            ps.setString(2, c.getComponent() == null ? null : c.getComponent().getComponentName());
+            ps.setString(2, c.getComponent() == null ? null : c.getComponent().getId());
             ps.setString(3, c.getInstanceId());
             ps.setString(4, c.getConsumerId());
         });

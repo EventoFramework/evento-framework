@@ -6,6 +6,14 @@ package com.evento.server.domain.repository.core.projection;
 public interface ComponentListProjection {
 
     /**
+     * Returns the catalog key of the Component ({@code bundleId:componentName}); the
+     * name alone is not unique across bundles.
+     *
+     * @return The component id.
+     */
+    String getComponentId();
+
+    /**
      * Returns the Component name.
      *
      * @return The component name.

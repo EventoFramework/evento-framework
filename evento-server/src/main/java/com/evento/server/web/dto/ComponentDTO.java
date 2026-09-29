@@ -19,6 +19,9 @@ public class ComponentDTO {
     /**
      * Name of the component
      */
+	/** Catalog key, {@code bundleId:componentName}: the name alone is not unique across bundles. */
+	private String componentId;
+
 	private String componentName;
 
     /**
@@ -78,6 +81,7 @@ public class ComponentDTO {
      * @param handlers List of associated handlers
      */
 	public ComponentDTO(Component c, List<Handler> handlers) {
+		this.componentId = c.getId();
 		this.componentName = c.getComponentName();
 		this.componentType = c.getComponentType();
 		this.bundleId = c.getBundle().getId();

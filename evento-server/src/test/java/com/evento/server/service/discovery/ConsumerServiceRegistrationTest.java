@@ -79,7 +79,7 @@ class ConsumerServiceRegistrationTest {
         var recreated = new Component();
         recreated.setComponentName("OrderObserver");
         recreated.setComponentType(ComponentType.Observer);
-        when(componentRepository.findById("OrderObserver"))
+        when(componentRepository.findById("lab-bundle:OrderObserver"))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(recreated));
         when(catalogWriter.insertBundleIfAbsent(anyString(), anyLong(), any(), any(), any(), any(), any(), anyBoolean()))
@@ -110,7 +110,7 @@ class ConsumerServiceRegistrationTest {
         projector.setComponentName("OrderProjector");
         projector.setComponentType(ComponentType.Projector);
         projector.setUpdatedAt(Instant.now());
-        when(componentRepository.findById("OrderProjector")).thenReturn(Optional.of(projector));
+        when(componentRepository.findById("lab-bundle:OrderProjector")).thenReturn(Optional.of(projector));
 
         service.registerConsumers("lab-bundle", "instance-1", 3,
                 registration(byComponent("OrderProjector", "c1", "c2"),

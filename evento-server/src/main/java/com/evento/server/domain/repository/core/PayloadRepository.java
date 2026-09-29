@@ -12,11 +12,12 @@ import java.util.Optional;
 public interface PayloadRepository extends JpaRepository<Payload, String> {
 
 	@Query(value = "select p.name, p.type, p.path, p.line, p.description, p.domain, count(distinct h.uuid) as subscriptions, " +
-			"       string_agg(distinct h.component_component_name, ',') as subscribers, " +
+			"       string_agg(distinct hc.component_name, ',') as subscribers, " +
 			"       count(distinct i.handler_uuid) as invocations, " +
 			"       count(distinct h2.uuid) as returnedBy " +
 			"from core__payload p " +
 			" left join core__handler h on p.name = h.handled_payload_name " +
+			" left join core__component hc on h.component_id = hc.id " +
 			"left join core__handler__invocation i on i.invocations_name = p.name " +
 			"left join core__handler h2 on h2.return_type_name = p.name " +
 			"group by p.name order by p.updated_at desc", nativeQuery = true)
@@ -43,16 +44,16 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"from core__payload p " +
 			"         left join core__handler h on p.name = h.handled_payload_name and " +
 			"                                      ((p.type != 'DomainEvent') or (h.handler_type != 'EventSourcingHandler')) " +
-			"         left join core__component hc on h.component_component_name = hc.component_name " +
+			"         left join core__component hc on h.component_id = hc.id " +
 			"         left join core__bundle b on p.registered_in = b.id " +
 			"         left join core__handler__invocation i on i.invocations_name = p.name " +
 			"         left join core__handler hi on hi.uuid = i.handler_uuid " +
-			"         left join core__component hic on hi.component_component_name = hic.component_name " +
+			"         left join core__component hic on hi.component_id = hic.id " +
 			"         left join core__handler h2 on h2.return_type_name = p.name " +
-			"         left join core__component h2c on h2.component_component_name = h2c.component_name " +
+			"         left join core__component h2c on h2.component_id = h2c.id " +
 			"         left join core__handler__invocation ri on ri.invocations_name = h2.handled_payload_name " +
 			"         left join core__handler h3 on h3.uuid = ri.handler_uuid " +
-			"         left join core__component h3c on h3.component_component_name = h3c.component_name " +
+			"         left join core__component h3c on h3.component_id = h3c.id " +
 			"where p.name = ?1 " +
 			"group by p.name " +
 			"order by p.updated_at desc", nativeQuery = true)

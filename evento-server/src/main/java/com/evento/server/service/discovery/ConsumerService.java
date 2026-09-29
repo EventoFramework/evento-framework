@@ -151,14 +151,16 @@ public class ConsumerService {
                                        String sourceBundleId,
                                        String sourceInstanceId,
                                        long sourceBundleVersion) {
-        return componentRepository.findById(componentName).orElseGet(() -> {
+        var componentId = Component.idOf(sourceBundleId, componentName);
+        return componentRepository.findById(componentId).orElseGet(() -> {
             // Registration can run before discovery has written the component, and a
             // stale NodeLeft can delete the component rows between the two. The old
             // getReferenceById proxy blew up at flush time and the whole registration
             // was silently dropped; recreate an ephemeral row instead, and the next
             // discovery pass backfills its metadata. The inserts are ON CONFLICT DO
-            // NOTHING, so a concurrent discovery on another server (or of another bundle
-            // sharing the component name) cannot turn this into a duplicate-key failure.
+            // NOTHING, so a concurrent discovery on another server cannot turn this into a
+            // duplicate-key failure. Components are keyed per bundle: another bundle
+            // running the same class has its own row and is never touched from here.
             if (catalogWriter.insertBundleIfAbsent(sourceBundleId, sourceBundleVersion,
                     "", "", "", "", sourceInstanceId, true)) {
                 logger.warn("Bundle %s not found while registering consumers: created an ephemeral one"
@@ -169,7 +171,7 @@ public class ConsumerService {
                 logger.warn("Component %s not found while registering consumers for bundle: %s: created an ephemeral one"
                         .formatted(componentName, sourceBundleId));
             }
-            return componentRepository.findById(componentName).orElseThrow(() -> new IllegalStateException(
+            return componentRepository.findById(componentId).orElseThrow(() -> new IllegalStateException(
                     "Component %s vanished while registering consumers for bundle %s"
                             .formatted(componentName, sourceBundleId)));
         });

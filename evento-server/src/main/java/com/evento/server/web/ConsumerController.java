@@ -47,6 +47,7 @@ public class ConsumerController {
                 consumer.setBundleId(c.getComponent().getBundle().getId());
                 consumer.setInstances(new HashSet<>());
                 consumer.setBundleVersion(c.getComponent().getBundle().getVersion());
+                consumer.setComponentId(c.getComponent().getId());
                 consumer.setComponentName(c.getComponent().getComponentName());
                 consumer.setComponentType(c.getComponent().getComponentType());
                 ConsumerIds.parse(c.getConsumerId(), c.getComponent().getBundle().getId(),
