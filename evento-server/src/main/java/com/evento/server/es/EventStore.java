@@ -1,6 +1,5 @@
 package com.evento.server.es;
 
-import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.es.utils.ExpiringLruCache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,7 +40,33 @@ public class EventStore implements BrokerEventStore {
 
     private static final Logger logger = LogManager.getLogger(EventStore.class);
 
-    private static final String ES_LOCK = "es-lock";
+    /**
+     * CPES append: the global append lock, the sequence number and the row in ONE statement,
+     * hence one implicit (autocommit) transaction on one connection and one round trip.
+     *
+     * <p>The transaction-scoped advisory lock serialises appenders across every server, and is
+     * released only after the commit is visible, so the next appender's {@code nextval} is both
+     * higher and committed later: sequence order equals commit order, which is what lets CPES
+     * consumers read without a fetch delay. It cannot outlive a dead session (G3).
+     *
+     * <p>Evaluation order is data-driven: the INSERT projects {@code nextval} from the single
+     * row of the materialised {@code es_lock} CTE, so the lock is taken before the number is
+     * drawn. The key {@code hashtext('es-lock')} is the one the previous session-lock
+     * implementation used, so during a rolling upgrade old and new servers still exclude each
+     * other (session and transaction advisory locks share one lock space).
+     *
+     * <p>Round trips per append (measured by {@code EventStorePostgresIT}): before, 4 — a
+     * session {@code pg_advisory_lock} on a dedicated connection, {@code SELECT nextval}, the
+     * {@code INSERT}, {@code pg_advisory_unlock} (5 when the lock connection was re-validated);
+     * now 1.
+     */
+    static final String CPES_APPEND_SQL =
+            "WITH es_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) " +
+                    "INSERT INTO es__events " +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
+                    "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ? FROM es_lock " +
+                    "RETURNING event_sequence_number";
+
     private final long DELAY;
     private final EventStoreMode MODE;
     private final EventStoreRepository eventStoreRepository;
@@ -50,10 +75,10 @@ public class EventStore implements BrokerEventStore {
     private final ObjectMapper mapper = ObjectMapperUtils.getPayloadObjectMapper();
     private final Snowflake snowflake = new Snowflake();
 
+    /** A cached {@code null} value means "this aggregate has no snapshot" (saves a lookup). */
     private final ExpiringLruCache<String, Snapshot> snapshotCache;
+    /** Cached lists are never mutated after being cached: readers copy before appending. */
     private final ExpiringLruCache<String, List<EventStoreEntry>> eventsCache;
-
-    private final PgDistributedLock distributedLock;
 
 
     public EventStore(EventStoreRepository repository,
@@ -75,7 +100,6 @@ public class EventStore implements BrokerEventStore {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;
         this.jdbcTemplate = jdbcTemplate;
-        this.distributedLock = new PgDistributedLock(dataSource);
         snapshotCache = new ExpiringLruCache<>(aggregateSnapshotCacheSize, aggregateSnapshotCacheExpiry, TimeUnit.MILLISECONDS);
         eventsCache = new ExpiringLruCache<>(aggregateEventsCacheSize, aggregateEventsCacheExpiry, TimeUnit.MILLISECONDS);
         DELAY = fetchDelay;
@@ -171,15 +195,35 @@ public class EventStore implements BrokerEventStore {
     }
 
 
+    /**
+     * Turns a consumer's context filter into the LIKE pattern the fetch queries match with
+     * {@code ESCAPE '\'}: {@code *} is the only wildcard. LIKE's own metacharacters are escaped
+     * first, because context names legitimately contain {@code _} ({@code SUD_AMERICA},
+     * {@code AUSTRALIA_NZ}) and an unescaped {@code _} matches any character, so a
+     * {@code SUD_AMERICA} consumer would also receive {@code SUDXAMERICA}'s events.
+     */
+    static String contextLikePattern(String context) {
+        var sb = new StringBuilder(context.length() + 8);
+        for (int i = 0; i < context.length(); i++) {
+            char c = context.charAt(i);
+            switch (c) {
+                case '\\', '%', '_' -> sb.append('\\').append(c);
+                case '*' -> sb.append('%');
+                default -> sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit) {
         if (seq == null) seq = -1L;
         if (MODE == EventStoreMode.CPES) {
             return eventStoreRepository.fetchEvents(
-                    context.replace("*", "%"),
+                    contextLikePattern(context),
                     seq, PageRequest.of(0, limit));
         }
         return eventStoreRepository.fetchEvents(
-                context.replace("*", "%"),
+                contextLikePattern(context),
                 seq,
                 snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)), PageRequest.of(0, limit));
     }
@@ -188,12 +232,12 @@ public class EventStore implements BrokerEventStore {
         if (seq == null) seq = -1L;
         if (MODE == EventStoreMode.CPES) {
             return eventStoreRepository.fetchEvents(
-                    context.replace("*", "%"),
+                    contextLikePattern(context),
                     seq,
                     eventNames, PageRequest.of(0, limit));
         }
         return eventStoreRepository.fetchEvents(
-                context.replace("*", "%"),
+                contextLikePattern(context),
                 seq, snowflake.forInstant(Instant.now().minus(DELAY, ChronoUnit.MILLIS)),
                 eventNames, PageRequest.of(0, limit));
     }
@@ -231,27 +275,18 @@ public class EventStore implements BrokerEventStore {
                         eventMessage.getContext()
                 );
             } else {
-                distributedLock.lockedArea(
-                        ES_LOCK,
-                        () -> {
-                            SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT nextval('event_sequence_number_serial') AS event_sequence_number");
-                            if (rowSet.next()) {
-                                id.set(rowSet.getLong("event_sequence_number"));
-                            } else {
-                                throw new IllegalStateException("Failed to retrieve next event sequence number.");
-                            }
-                            jdbcTemplate.update(
-                                    "INSERT INTO es__events " +
-                                            "(event_sequence_number, aggregate_id, event_message, event_name, context) " +
-                                            "values  (? ,?, ?, ?, ?)",
-                                    id.get(),
-                                    aggregateId,
-                                    mapper.writeValueAsString(eventMessage),
-                                    eventMessage.getEventName(),
-                                    eventMessage.getContext()
-                            );
-                        }
+                Long seq = jdbcTemplate.queryForObject(
+                        CPES_APPEND_SQL,
+                        Long.class,
+                        aggregateId,
+                        mapper.writeValueAsString(eventMessage),
+                        eventMessage.getEventName(),
+                        eventMessage.getContext()
                 );
+                if (seq == null) {
+                    throw new IllegalStateException("Failed to retrieve next event sequence number.");
+                }
+                id.set(seq);
             }
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
@@ -310,11 +345,22 @@ public class EventStore implements BrokerEventStore {
             snapshotCache.remove(aggregateId);
             eventsCache.remove(aggregateId);
         }
-        if (!invalidateAggregateSnapshot && !snapshotCache.containsKey(aggregateId)) {
-            snapshotCache.put(aggregateId, snapshotRepository.findById(aggregateId).orElse(null));
+        // One TTL-aware lookup per cache: a containsKey/get pair could straddle the expiry and
+        // read a cached "no snapshot" for an aggregate that has one.
+        Snapshot snapshot = null;
+        if (!invalidateAggregateSnapshot) {
+            var cached = snapshotCache.lookup(aggregateId);
+            if (cached != null) {
+                snapshot = cached.getValue();
+            } else {
+                snapshot = snapshotRepository.findById(aggregateId).orElse(null);
+                snapshotCache.put(aggregateId, snapshot);
+            }
         }
-        var snapshot = invalidateAggregateSnapshot ? null : snapshotCache.get(aggregateId);
-        var events = eventsCache.getOrDefault(aggregateId, new ArrayList<>());
+        // Copy: the cached list may be read concurrently by another command for the same
+        // aggregate, so it is never appended to in place.
+        var cachedEvents = eventsCache.get(aggregateId);
+        var events = cachedEvents == null ? new ArrayList<EventStoreEntry>() : new ArrayList<>(cachedEvents);
         SqlRowSet rs;
         var max = 0L;
         var min = events.isEmpty() ? 0L : events.getFirst().getEventSequenceNumber();
@@ -377,10 +423,11 @@ public class EventStore implements BrokerEventStore {
 
         }
         eventsCache.put(aggregateId, events);
+        final Snapshot base = snapshot;
         return new AggregateStory(
-                snapshot == null ? new SerializedAggregateState<>(null) : snapshot.getAggregateState(),
+                base == null ? new SerializedAggregateState<>(null) : base.getAggregateState(),
                 events.stream()
-                        .filter(e -> snapshot == null || e.getEventSequenceNumber() > snapshot.getEventSequenceNumber())
+                        .filter(e -> base == null || e.getEventSequenceNumber() > base.getEventSequenceNumber())
                         .map(e -> (DomainEventMessage) e.getEventMessage())
                         .toList()
         );

@@ -9,7 +9,51 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **`PgDistributedLock`: one waiter could stall every lock of a server, and a lost lock
+  went unnoticed (G3).** Each instance pinned a single connection and blocked in
+  `pg_advisory_lock` on it, so a thread waiting on a key held by another server queued
+  every other acquire *and release* of that instance behind it (two servers could
+  deadlock each other until `socketTimeout`), and when that session died PostgreSQL
+  dropped all its locks while the JVM still believed it held them. Each held lock now
+  owns its own pooled connection (borrowed on acquire, unlocked and returned on
+  release); waiting polls `pg_try_advisory_lock` with jittered backoff, holds no
+  connection between attempts, and is bounded (60 s default,
+  `-Devento.lock.acquire.timeout.ms` or the new constructor) with
+  `LockAcquisitionTimeoutException`. `verifyHeld(key)` and `release(key)` detect a dead
+  owning session, log `event=lock_lost` and throw `LockLostException`;
+  `CommandBrokerHandler` calls `verifyHeld` right before appending, so a command whose
+  lock died while the bundle computed it is refused instead of forking the aggregate,
+  and a release failure after a successful append no longer replaces the reply.
+  **Pool sizing:** a locked command now holds one connection for its whole round trip;
+  the server's default `spring.datasource.hikari.maximum-pool-size` is raised to 30.
+- **CPES appends cost one round trip instead of four (G9).** The global `es-lock`,
+  `nextval` and the `INSERT` ran as separate autocommit statements on two connections.
+  They are now a single statement (`pg_advisory_xact_lock` in a materialised CTE +
+  `INSERT ... SELECT nextval(...) RETURNING`), i.e. one implicit transaction whose lock
+  is released only after the commit is visible, so sequence order still equals commit
+  order and the lock cannot outlive a dead session. Same lock key as before, so old and
+  new servers exclude each other during a rolling upgrade. Measured through a 100 ms
+  delay proxy: ~4.2 round trips before, ~1.1 after (`EventStorePostgresIT`).
+- **`es__events` has a primary key (G6, PK part).** Added idempotently on boot
+  (`DO` block guarded by `pg_constraint`). Existing duplicate sequence numbers fail the
+  boot with their count and the query to find them, rather than being skipped silently;
+  `evento.es.schema.enforce-primary-key=false` is the explicit escape hatch. Adding the
+  key scans the table under an exclusive lock once.
+- **Servers starting together no longer abort on `schema.sql` (G14).** Concurrent runs
+  raced on the catalog (`pg_type_typname_nsp_index`, `tuple concurrently updated`);
+  unlocked, 3 servers on a fresh database failed 10 rounds out of 10 in a probe. The SQL
+  initializer now runs under a session advisory lock (`AdvisoryLockedSchemaInitializer`,
+  replacing Boot's `DataSourceScriptDatabaseInitializer`; `spring.sql.init.*` unchanged).
+- **Context filters no longer treat `_` and `%` as wildcards (G15).** `SUD_AMERICA`
+  also matched `SUDXAMERICA`. LIKE metacharacters are escaped before `*` becomes `%`,
+  and the fetch queries declare `ESCAPE '\'`.
+- **Aggregate caches are thread-safe and honour their TTL (G19).** `ExpiringLruCache`
+  was an unsynchronised access-ordered `LinkedHashMap` read through the TTL-bypassing
+  `containsKey`/`getOrDefault`; it now wraps the map, synchronises every operation and
+  only offers TTL-aware reads. The cached event list is copied, not appended to in place.
+  Cross-server invalidation after `deleteAggregate` is still local only.
 
 ---
 
