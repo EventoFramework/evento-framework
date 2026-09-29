@@ -86,7 +86,7 @@ class S07RegionPartitionTest extends AbstractScenario {
             var cutAt = new AtomicReference<Instant>();
             var healAt = new AtomicReference<Instant>();
             var since = Instant.now();
-            var records = load(LabConfig.REGIONS, env("S07_RATE", 20), 1, 0.6,
+            var records = load(LabConfig.REGIONS, env("S07_RATE", FAULT_RATE), 1, 0.6,
                     startAfter.plus(partitionFor).plus(envSeconds("S07_AFTER_HEAL_S", 40)), elapsed -> {
                         if (cutAt.get() == null && elapsed.compareTo(startAfter) >= 0) {
                             cutAt.set(Instant.now());

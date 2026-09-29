@@ -60,7 +60,7 @@ class S03KillServerTest extends AbstractScenario {
             var killAt = new AtomicReference<Instant>();
             var killAfter = envSeconds("S03_KILL_AFTER_S", 20);
             var since = Instant.now();
-            var records = load(LabConfig.REGIONS, env("S03_RATE", 20), 1, 0.5, envSeconds("S03_DURATION_S", 110),
+            var records = load(LabConfig.REGIONS, env("S03_RATE", FAULT_RATE), 1, 0.5, envSeconds("S03_DURATION_S", 110),
                     elapsed -> {
                         if (killAt.get() == null && elapsed.compareTo(killAfter) >= 0) {
                             killAt.set(Instant.now());

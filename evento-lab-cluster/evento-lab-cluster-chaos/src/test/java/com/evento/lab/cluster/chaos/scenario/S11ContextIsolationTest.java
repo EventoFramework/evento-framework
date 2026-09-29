@@ -74,9 +74,25 @@ class S11ContextIsolationTest extends AbstractScenario {
             }
             report.param("syntheticOrders", synthetic);
 
-            var results = checkInvariants(records, envSeconds("S11_CONVERGENCE_S", 90));
-            // give the leaked events time to be projected too
+            // The synthetic events are not "expected" in any regional view, so I6 does not wait for
+            // them: wait here until each is in the global view and (if it leaks) in the regional
+            // view of the region it looks like, then settle, so I4/I5 see the final state.
+            var leakWait = envSeconds("S11_LEAK_WAIT_S", 60);
+            var settled = Cluster.waitUntil(leakWait, Duration.ofSeconds(2), () -> {
+                var s = db.snapshot(prefix);
+                if (s.global() == null || s.regional() == null) return false;
+                return synthetic.entrySet().stream().allMatch(e -> {
+                    var region = SYNTHETIC.entrySet().stream().filter(x -> x.getValue().equals(e.getKey()))
+                            .map(Map.Entry::getKey).findFirst().orElseThrow();
+                    return s.global().stream().anyMatch(v -> v.orderId().equals(e.getValue()))
+                            && s.regional().getOrDefault(region, List.of()).stream()
+                            .anyMatch(v -> v.orderId().equals(e.getValue()));
+                });
+            });
+            report.event("synthetic orders in global + regional views: " + settled
+                    + (settled ? "" : " (not all leaked within " + leakWait.toSeconds() + " s)"));
             Cluster.sleep(Duration.ofSeconds(5));
+            var results = checkInvariants(records, envSeconds("S11_CONVERGENCE_S", 90));
             var snap = db.snapshot(prefix);
             for (var region : SYNTHETIC.keySet()) {
                 var fake = SYNTHETIC.get(region);
@@ -90,7 +106,9 @@ class S11ContextIsolationTest extends AbstractScenario {
                         leaked.isEmpty(), !leaked.isEmpty(), null);
             }
             var i4 = find(results, "I4");
-            report.observe("I4 regional isolation", i4.expected(), i4.observed(), i4.passed());
+            report.observe("I4 regional isolation", i4.expected(),
+                    "the synthetic SUDXAMERICA / AUSTRALIAXNZ rows are foreign rows in the regional views (G15)",
+                    i4.observed(), i4.passed(), !i4.passed(), null);
 
             guiContexts();
         });

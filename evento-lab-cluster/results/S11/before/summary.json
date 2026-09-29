@@ -1,0 +1,255 @@
+{
+  "scenario" : "S11",
+  "title" : "Context isolation with underscore regions",
+  "gaps" : [ "G15", "G16", "L6" ],
+  "label" : "before",
+  "startedAt" : "2026-09-29T08:45:37.523055100Z",
+  "finishedAt" : "2026-09-29T08:46:28.196592700Z",
+  "durationSeconds" : 50,
+  "parameters" : {
+    "orderIdPrefix" : "s11-before-222ae4-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "syntheticOrders" : {
+      "SUDXAMERICA" : "s11-before-222ae4-synthetic-sudxamerica-6",
+      "AUSTRALIAXNZ" : "s11-before-222ae4-synthetic-australiaxnz-12"
+    }
+  },
+  "verdictCounts" : {
+    "KNOWN_DEFECT_REPRODUCED" : 4,
+    "AS_EXPECTED" : 1
+  },
+  "observations" : [ {
+    "name" : "order_view_sud_america vs context SUDXAMERICA",
+    "expected" : "only SUD_AMERICA events reach query-sud_america",
+    "expectedBeforeFix" : "LIKE 'SUD_AMERICA' matches SUDXAMERICA: the synthetic order leaks in (G15)",
+    "observed" : "5 own rows, leaked: [s11-before-222ae4-synthetic-sudxamerica-6]",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  }, {
+    "name" : "order_view_australia_nz vs context AUSTRALIAXNZ",
+    "expected" : "only AUSTRALIA_NZ events reach query-australia_nz",
+    "expectedBeforeFix" : "LIKE 'AUSTRALIA_NZ' matches AUSTRALIAXNZ: the synthetic order leaks in (G15)",
+    "observed" : "5 own rows, leaked: [s11-before-222ae4-synthetic-australiaxnz-12]",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  }, {
+    "name" : "I4 regional isolation",
+    "expected" : "order_view_<r> contains only context R",
+    "expectedBeforeFix" : "the synthetic SUDXAMERICA / AUSTRALIAXNZ rows are foreign rows in the regional views (G15)",
+    "observed" : "2 foreign row(s) in 12",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  }, {
+    "name" : "GUI consumer context (G16)",
+    "expected" : "every consumer shows its full context (SUD_AMERICA, AUSTRALIA_NZ)",
+    "expectedBeforeFix" : "split('_') cuts names with '_' (e.g. SUD), and the bundle ids query-sud_america/query-australia_nz shift every field",
+    "observed" : "wrong for [query-sud_america_SudAmericaOrderProjector_1_SUD_AMERICA, query-australia_nz_AustraliaNzOrderProjector_1_AUSTRALIA_NZ]",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  }, {
+    "name" : "GUI lists one consumer per regional projector",
+    "expected" : "7 regional consumers (one per query-<region> bundle)",
+    "expectedBeforeFix" : "one row: consumers are grouped by component simple name, shared by all 7 bundles",
+    "observed" : "7 regional consumer row(s)",
+    "verdict" : "AS_EXPECTED",
+    "note" : "core__component is keyed by the component's simple class name across bundles."
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 22 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 12,
+      "acknowledgedOps" : 22,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 12 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 12,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "FAIL",
+    "expected" : "order_view_<r> contains only context R",
+    "observed" : "2 foreign row(s) in 12",
+    "metrics" : {
+      "EUROPA.rows" : 0,
+      "AFRICA.rows" : 0,
+      "AMERICA.rows" : 0,
+      "SUD_AMERICA.rows" : 6,
+      "SUD_AMERICA.foreignRows" : 1,
+      "CINA.rows" : 0,
+      "INDIA.rows" : 0,
+      "AUSTRALIA_NZ.rows" : 6,
+      "AUSTRALIA_NZ.foreignRows" : 1,
+      "rows" : 12
+    },
+    "violationCount" : 2,
+    "violations" : [ "order_view_sud_america holds s11-before-222ae4-synthetic-sudxamerica-6 with context SUDXAMERICA", "order_view_australia_nz holds s11-before-222ae4-synthetic-australiaxnz-12 with context AUSTRALIAXNZ" ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of order_view_<r> (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 12,
+      "regionalRows" : 12,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 90 s",
+    "observed" : "converged in 63 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.063,
+      "timeoutSeconds" : 90,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 44,
+      "checkpoints" : {
+        "cluster-query-global_GlobalOrderProjector_1_*" : 44,
+        "cluster-saga_ClusterEventObserver_1_*" : 44,
+        "cluster-saga_PaymentSaga_1_*" : 44,
+        "query-australia_nz_AustraliaNzOrderProjector_1_AUSTRALIA_NZ" : 44,
+        "query-sud_america_SudAmericaOrderProjector_1_SUD_AMERICA" : 33
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 10,
+      "consumers" : 10,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "cluster-command" : "cell-core-eu-cluster-command",
+        "cluster-query-global" : "cell-core-eu-cluster-query-global",
+        "cluster-saga" : "saga-eu-cluster-saga",
+        "query-africa" : "region-africa-query-africa",
+        "query-america" : "region-america-query-america",
+        "query-australia_nz" : "region-australia-nz-query-australia_nz",
+        "query-cina" : "region-cina-query-cina",
+        "query-europa" : "region-europa-query-europa",
+        "query-india" : "region-india-query-india",
+        "query-sud_america" : "region-sud-america-query-sud_america"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=22 ack=22 failed=0 p50=1319ms p95=2222ms p99=2243ms max=2243ms",
+    "metrics" : {
+      "AUSTRALIA_NZ" : {
+        "count" : 11,
+        "acked" : 11,
+        "failed" : 0,
+        "p50" : 2062,
+        "p95" : 2243,
+        "p99" : 2243,
+        "max" : 2243,
+        "kinds" : { }
+      },
+      "SUD_AMERICA" : {
+        "count" : 11,
+        "acked" : 11,
+        "failed" : 0,
+        "p50" : 1135,
+        "p95" : 1319,
+        "p99" : 1319,
+        "max" : 1319,
+        "kinds" : { }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : { },
+  "timeline" : [ {
+    "tMs" : 3914,
+    "at" : "2026-09-29T08:45:41.437556100Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 16128,
+    "at" : "2026-09-29T08:45:53.651639300Z",
+    "event" : "synthetic order s11-before-222ae4-synthetic-sudxamerica-6 with context SUDXAMERICA: ACK"
+  }, {
+    "tMs" : 38598,
+    "at" : "2026-09-29T08:46:16.121204600Z",
+    "event" : "synthetic order s11-before-222ae4-synthetic-australiaxnz-12 with context AUSTRALIAXNZ: ACK"
+  }, {
+    "tMs" : 43083,
+    "at" : "2026-09-29T08:46:20.606864Z",
+    "event" : "synthetic orders in global + regional views: true"
+  }, {
+    "tMs" : 48085,
+    "at" : "2026-09-29T08:46:25.608924800Z",
+    "event" : "invariants: converging up to 90 s"
+  }, {
+    "tMs" : 49459,
+    "at" : "2026-09-29T08:46:26.982856200Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 50673,
+    "at" : "2026-09-29T08:46:28.196592700Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "GUI /api/consumer/ on evento-am" : [ "cluster-saga_ClusterEventObserver_1_* -> bundle=cluster-saga context=* version=1", "query-sud_america_SudAmericaOrderProjector_1_SUD_AMERICA -> bundle=query-sud_america context=1 version=SudAmericaOrderProjector", "query-america_AmericaOrderProjector_1_AMERICA -> bundle=query-america context=AMERICA version=1", "query-australia_nz_AustraliaNzOrderProjector_1_AUSTRALIA_NZ -> bundle=query-australia_nz context=1 version=AustraliaNzOrderProjector", "query-cina_CinaOrderProjector_1_CINA -> bundle=query-cina context=CINA version=1", "query-europa_EuropaOrderProjector_1_EUROPA -> bundle=query-europa context=EUROPA version=1", "query-india_IndiaOrderProjector_1_INDIA -> bundle=query-india context=INDIA version=1", "cluster-saga_PaymentSaga_1_* -> bundle=cluster-saga context=* version=1", "cluster-query-global_GlobalOrderProjector_1_* -> bundle=cluster-query-global context=* version=1", "query-africa_AfricaOrderProjector_1_AFRICA -> bundle=query-africa context=AFRICA version=1" ],
+    "stack actions" : [ ]
+  }
+}

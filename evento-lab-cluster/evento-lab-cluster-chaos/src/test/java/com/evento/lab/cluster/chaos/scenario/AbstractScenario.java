@@ -47,7 +47,18 @@ abstract class AbstractScenario {
             "Skipping unregister of bundle", "[BundleService] Unregister called for bundleId=",
             "duplicate key", "core__bundle_pkey", "core__component_pkey", "core__payload_pkey",
             "pg_type_typname_nsp_index", "tuple concurrently updated", "RequestTimeoutException",
-            "event=gateway_command_failed", "event=lab_ready");
+            "event=gateway_command_failed", "event=lab_ready", "deadlock detected",
+            "Failed to acquire advisory lock");
+
+    /**
+     * Default background load (orders/min/region) of the fault scenarios S3, S7, S8, S9.
+     * The assessment's 20/min is about twice what the pre-G9 cluster can append (see S00
+     * and FINDINGS.md, G9): under that overload APAC acknowledges only ~40% of commands
+     * without any fault, which would drown the effect of the injected fault. 4/min keeps
+     * the es-lock at roughly half utilisation. Override per scenario with {@code Sxx_RATE}
+     * or globally with {@code LAB_FAULT_RATE}.
+     */
+    static final double FAULT_RATE = env("LAB_FAULT_RATE", 4);
 
     protected LabConfig config;
     protected Cluster cluster;
@@ -59,6 +70,7 @@ abstract class AbstractScenario {
     protected String prefix;
 
     private final Deque<Runnable> cleanups = new ArrayDeque<>();
+    private final Map<String, Map<String, Integer>> allMarkers = new LinkedHashMap<>();
     private Instant scenarioStart;
     private boolean stackReachable;
 
@@ -196,9 +208,20 @@ abstract class AbstractScenario {
     }
 
     protected List<InvariantResult> checkInvariants(Collection<RequestRecord> records, Duration convergence) {
+        report.metric("failedRequestsByError", errorsByMessage(records));
         report.event("invariants: converging up to " + convergence.toSeconds() + " s");
         var results = Invariants.checkAll(() -> db.snapshot(prefix), records, convergence);
         report.invariants(results);
+        // Lag (ES head - checkpoint) per consumer right after the convergence wait: tells a
+        // slow lane (lag shrinking, N4) from a stuck one when I6 fails.
+        try {
+            var head = db.esHead();
+            var lag = new java.util.TreeMap<String, Long>();
+            db.checkpoints().forEach((k, v) -> lag.put(k, head - v));
+            report.metric("consumerLagAfterConvergenceWait", Map.of("esHead", head, "lag", lag));
+        } catch (Exception e) {
+            report.note("consumer lag not readable: " + e.getMessage());
+        }
         return results;
     }
 
@@ -210,6 +233,7 @@ abstract class AbstractScenario {
     /** Marker counts per service since {@code since}; also attaches the first matching lines. */
     protected Map<String, Map<String, Integer>> markers(List<String> services, Instant since, List<String> markers) {
         var out = new LinkedHashMap<String, Map<String, Integer>>();
+        var all = allMarkers;
         for (var s : services) {
             var logs = cluster.logsSince(s, since);
             var counts = Cluster.countMarkers(logs, markers);
@@ -219,7 +243,9 @@ abstract class AbstractScenario {
             for (var m : counts.keySet()) excerpt.addAll(Cluster.grep(logs, m, 3));
             if (!excerpt.isEmpty()) report.attach("log excerpts: " + s, excerpt);
         }
-        report.metric("logMarkers", out);
+        // several calls in one scenario (servers, then app JVMs) must not overwrite each other
+        all.putAll(out);
+        report.metric("logMarkers", new LinkedHashMap<>(all));
         return out;
     }
 
@@ -259,6 +285,25 @@ abstract class AbstractScenario {
     protected static Map<String, Long> kinds(Collection<RequestRecord> rs) {
         var out = new java.util.TreeMap<String, Long>();
         for (var r : rs) if (r.outcome() != RequestRecord.Outcome.ACK) out.merge(r.kind(), 1L, Long::sum);
+        return out;
+    }
+
+    /**
+     * Failed requests grouped by "kind: error message" (order ids and keys masked), so a
+     * report says *why* commands failed, not only how many (e.g. a Postgres "deadlock
+     * detected" behind kind=error).
+     */
+    protected static Map<String, Long> errorsByMessage(Collection<RequestRecord> rs) {
+        var out = new java.util.TreeMap<String, Long>();
+        for (var r : rs) {
+            if (r.outcome() == RequestRecord.Outcome.ACK) continue;
+            var msg = r.error() == null ? "" : r.error()
+                    .replaceAll("s\\d\\d[a-z0-9-]*", "<id>")
+                    .replaceAll("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<uuid>")
+                    .replaceAll("after [0-9]+ms", "after <n>ms");
+            if (msg.length() > 200) msg = msg.substring(0, 200) + "...";
+            out.merge(r.kind() + ": " + msg, 1L, Long::sum);
+        }
         return out;
     }
 

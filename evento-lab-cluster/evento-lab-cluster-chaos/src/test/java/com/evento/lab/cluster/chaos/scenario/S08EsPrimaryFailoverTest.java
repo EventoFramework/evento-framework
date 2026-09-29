@@ -54,7 +54,7 @@ class S08EsPrimaryFailoverTest extends AbstractScenario {
             var promoteDelay = envSeconds("S08_PROMOTE_DELAY_S", 5);
             var killAfter = envSeconds("S08_KILL_AFTER_S", 30);
             var since = Instant.now();
-            var records = load(LabConfig.REGIONS, env("S08_RATE", 20), 1, 0.5, envSeconds("S08_DURATION_S", 120),
+            var records = load(LabConfig.REGIONS, env("S08_RATE", FAULT_RATE), 1, 0.5, envSeconds("S08_DURATION_S", 120),
                     elapsed -> {
                         if (killAt.get() == null && elapsed.compareTo(killAfter) >= 0) {
                             killAt.set(Instant.now());
