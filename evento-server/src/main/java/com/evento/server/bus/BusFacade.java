@@ -41,6 +41,14 @@ public interface BusFacade {
     boolean isBundleAvailable(String bundleId);
 
     /**
+     * instanceId → zone for every connected node that advertised one in its
+     * Hello ({@code zone:<ZONE>} capability). Nodes without a zone are absent.
+     */
+    default java.util.Map<String, String> currentZones() {
+        return java.util.Map.of();
+    }
+
+    /**
      * Subscribe to the cluster lifecycle event stream. Subscribers are notified
      * synchronously on the publisher thread; a slow subscriber slows the bus.
      * Subscribers register-once-and-stay — there is no unsubscribe API. Lambda

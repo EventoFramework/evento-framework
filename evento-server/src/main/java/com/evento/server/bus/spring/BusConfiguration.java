@@ -52,8 +52,9 @@ public class BusConfiguration {
     }
 
     @Bean
-    public ClusterRegistry clusterRegistry(ConnectionRegistry connections) {
-        return new ClusterRegistry(connections);
+    public ClusterRegistry clusterRegistry(ConnectionRegistry connections, BusProperties props) {
+        log.info("event=cluster_registry_configured pick_strategy={}", props.pickStrategy());
+        return new ClusterRegistry(connections, props.pickStrategy());
     }
 
     @Bean(destroyMethod = "")

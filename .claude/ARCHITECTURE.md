@@ -139,7 +139,7 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 | `BusFacadeConfiguration` | Unconditional Spring `@Configuration`; wires `BusLifecycleFacade` as the only path |
 | `BusConfiguration` + `BusProperties` | Spring Boot auto-config + `evento.server.bus.*` properties |
 | `ConnectionRegistry` | `ConcurrentHashMap<NodeAddress, (Connection, token)>`. `register` supersedes + closes old transport; `unregister` is token-guarded |
-| `ClusterRegistry` | `payloadType → Set<NodeAddress>`. `RANDOM` / `FIRST` pick strategy |
+| `ClusterRegistry` | `payloadType → Set<NodeAddress>` + `instanceId → zone`. `RANDOM` (default) / `FIRST` / `LOCALITY_PREFERRED` pick strategy, chosen by `evento.server.bus.pick-strategy`; `pickFor(type, originator)` picks on behalf of the requesting bundle |
 | `CorrelationStore` | `ConcurrentHashMap<UUID, PendingCorrelation>`. Bounded shutdown; scheduler-driven expiry |
 | `ForwardingTable` | `correlationId → (originatorAddress, destinationAddress)`. `drainByDestination(addr)` removes only destination-side entries (leaves originator-side alive for QoS reconnect delivery) |
 | `ForwardingDedupCache` | LRU, 5 min TTL, 50k entries. Deduplicates retried `Request` at the broker |
@@ -326,6 +326,19 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
 10. **`MessageHandlerInterceptor` default methods.** All 24 interceptor methods are `default` (ISP
     fix). Implementors override only the hooks they need. Void methods get empty bodies; return-type
     methods pass through the last parameter.
+
+11. **Locality is a capability, not a wire field (G12).** A bundle declares its zone with
+    `EventoBundle.Builder.setZone("EU")` / `BundleClient.Builder.zone(...)`; it travels as the
+    `zone:<ZONE>` string in `Hello.capabilities`, so no `Message` type changed and an old broker
+    simply ignores it. With `evento.server.bus.pick-strategy=locality-preferred` the broker picks
+    among available handlers in the *originator's* zone and falls back to all handlers when that
+    zone has none: it never refuses a request `RANDOM` would have routed. The originator is the
+    session that sent the `Request`; server-local handlers that forward on their own
+    (`CommandBrokerHandler`) receive it through `OriginatorAwareRequestHandler`, so brokered
+    commands keep the caller's zone too. Server-initiated forwards with no originator (admin RPCs)
+    and zone-less callers get `RANDOM`. Zones are per-server state like the views
+    (`GET /api/cluster-status/zones`; env `EVENTO_SERVER_BUS_PICK_STRATEGY` in the stock `application.properties`). Routing by event *context* (the region a command belongs to)
+    is a different, larger change: commands carry no framework-level context (G23).
 
 ---
 

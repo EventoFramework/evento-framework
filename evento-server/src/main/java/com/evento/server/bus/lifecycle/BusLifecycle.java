@@ -90,9 +90,23 @@ public final class BusLifecycle {
         byte[] handle(byte[] payload) throws Exception;
     }
 
-    private final ConcurrentHashMap<String, LocalRequestHandler> localHandlers = new ConcurrentHashMap<>();
+    /**
+     * A server-local handler that also needs to know which bundle sent the
+     * request — e.g. {@code CommandBrokerHandler}, which forwards the command on
+     * to a bundle and wants the pick to honour the originator's zone.
+     */
+    @FunctionalInterface
+    public interface OriginatorAwareRequestHandler {
+        byte[] handle(byte[] payload, NodeAddress originator) throws Exception;
+    }
+
+    private final ConcurrentHashMap<String, OriginatorAwareRequestHandler> localHandlers = new ConcurrentHashMap<>();
 
     public void registerLocalHandler(String payloadType, LocalRequestHandler handler) {
+        localHandlers.put(payloadType, (payload, originator) -> handler.handle(payload));
+    }
+
+    public void registerLocalHandler(String payloadType, OriginatorAwareRequestHandler handler) {
         localHandlers.put(payloadType, handler);
     }
 
@@ -263,6 +277,8 @@ public final class BusLifecycle {
     public Set<NodeAddress> view() { return connectionRegistry.view(); }
     public Set<NodeAddress> availableView() { return connectionRegistry.availableView(); }
     public boolean isBundleAvailable(String bundleId) { return connectionRegistry.isAvailable(bundleId); }
+    /** instanceId → zone, for every connected node that advertised one. */
+    public java.util.Map<String, String> zones() { return clusterRegistry.zones(); }
     public void subscribe(Consumer<BusEvent> listener) { eventBus.subscribe(listener); }
     public int boundPort() { return transportServer.boundPort(); }
 
@@ -373,6 +389,9 @@ public final class BusLifecycle {
         var address = new NodeAddress(hello.bundleId(), version, hello.instanceId());
         session.bindAddress(address);
         session.transitionTo(BundleSession.Phase.REGISTERED);
+        // The zone rides in the Hello capabilities (no wire field of its own). It is
+        // recorded on every Hello, so a reconnect that moved zones is picked up.
+        clusterRegistry.setZone(address, HandshakeProtocol.zoneOf(hello.capabilities()));
         connectionRegistry.register(new Connection(
                 address, session.transport(), session.connectionToken(), Instant.now()));
         handshakeHandler.handle(hello, session.transport()).whenComplete((outcome, ex) -> {
@@ -384,6 +403,7 @@ public final class BusLifecycle {
             if (outcome instanceof HandshakeOutcome.Rejected) {
                 // Roll back the speculative registration.
                 connectionRegistry.unregister(address, session.connectionToken(), "handshake_rejected");
+                clusterRegistry.forgetZone(address);
                 session.transport().close();
                 return;
             }
@@ -460,7 +480,7 @@ public final class BusLifecycle {
         var localHandler = localHandlers.get(request.payloadType());
         if (localHandler != null) {
             try {
-                byte[] result = localHandler.handle(request.payload());
+                byte[] result = localHandler.handle(request.payload(), session.address());
                 var response = Response.success(request.correlationId(), request.payloadType(), result);
                 dedupCache.recordResponse(request.correlationId(), response);
                 session.transport().send(response);
@@ -474,7 +494,8 @@ public final class BusLifecycle {
             return;
         }
 
-        var destination = clusterRegistry.pick(request.payloadType());
+        // The originator is the bundle on this session; LOCALITY_PREFERRED uses its zone.
+        var destination = clusterRegistry.pickFor(request.payloadType(), session.address());
         if (destination.isEmpty()) {
             dedupCache.invalidate(request.correlationId());  // don't cache routing-side failures
             replyWithError(session.transport(), request.correlationId(),
@@ -577,6 +598,7 @@ public final class BusLifecycle {
         // instead of the cleaner "no handler for" routing-miss path.
         var nowEmptyTypes = clusterRegistry.removeNode(address);
         nowEmptyTypes.forEach(localHandlers::remove);
+        clusterRegistry.forgetZone(address);
 
         // Only drain entries where the disconnecting peer was the *destination*
         // (handler). Surface a failure to each originator so its future resolves

@@ -9,7 +9,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Locality-aware handler selection (G12).** A bundle can declare where it runs with
+  `EventoBundle.Builder.setZone("EU")` (or `BundleClient.Builder.zone(...)` /
+  `BundleClientConfig.Builder.zone(...)`). The zone travels as a `zone:<ZONE>` entry in the
+  existing `Hello.capabilities` set — no new wire message or field, and a broker that knows
+  nothing about zones ignores it. A broker started with
+  `evento.server.bus.pick-strategy=locality-preferred` (new `ClusterRegistry.PickStrategy.LOCALITY_PREFERRED`)
+  routes each request to an available handler in the same zone as the bundle that sent it and
+  falls back to any available handler when that zone has none, so a dead region costs latency
+  rather than availability. Commands brokered by `CommandBrokerHandler` pick on behalf of the
+  original sender through the new `BusLifecycle.OriginatorAwareRequestHandler`. The default
+  stays `random`. The zones a server knows are listed at `GET /api/cluster-status/zones`.
+  `LocalityPickIT` runs three handler replicas (EU, AM, APAC) and an AM caller over real TCP:
+  every call stays in AM until the AM replica is killed, then spreads over EU and APAC.
 
 ---
 
