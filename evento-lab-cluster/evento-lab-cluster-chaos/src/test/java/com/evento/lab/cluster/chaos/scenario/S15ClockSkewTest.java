@@ -11,7 +11,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * S15 (optional): a region JVM whose clock runs ahead. The server's fetch
+ * S15 (optional): a consumer JVM whose clock runs ahead ({@code order-query-eu},
+ * which projects EUROPA and AFRICA). The server's fetch
  * staleness gate compares the client's request timestamp with its own clock
  * ({@code EventStoreRequestHandlerBridge.java:57-63}), so a skewed consumer's
  * fetches can be dropped. Docker cannot skew one container's clock without
@@ -22,6 +23,8 @@ import java.util.UUID;
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S15ClockSkewTest extends AbstractScenario {
+
+    private static final String SKEWED = com.evento.lab.cluster.chaos.LabConfig.queryService("AFRICA");
 
     @Override
     protected String id() {
@@ -40,7 +43,7 @@ class S15ClockSkewTest extends AbstractScenario {
 
     @Override
     protected List<String> requiredServices() {
-        return List.of("evento-eu", "region-europa", "region-africa", "lb");
+        return List.of("evento-eu", SKEWED, "gateway-europa", "gateway-africa", "lb");
     }
 
     @Test
@@ -61,11 +64,11 @@ class S15ClockSkewTest extends AbstractScenario {
                 if (i > 0) env.put(kv.substring(0, i).trim(), kv.substring(i + 1).trim());
             }
             onCleanup(() -> {
-                cluster.recreateDefault("region-africa");
-                cluster.waitReady("region-africa", Duration.ofSeconds(300));
+                cluster.recreateDefault(SKEWED);
+                cluster.waitReady(SKEWED, Duration.ofSeconds(300));
             });
-            cluster.recreateWithEnv("region-africa", Map.copyOf(env));
-            cluster.waitReady("region-africa", Duration.ofSeconds(300));
+            cluster.recreateWithEnv(SKEWED, Map.copyOf(env));
+            cluster.waitReady(SKEWED, Duration.ofSeconds(300));
             var since = Instant.now();
             var ids = new java.util.ArrayList<String>();
             for (int i = 0; i < 5; i++) {
@@ -82,7 +85,7 @@ class S15ClockSkewTest extends AbstractScenario {
                     "the staleness gate drops the skewed consumer's fetches: the orders never appear",
                     seen ? "all " + ids.size() + " orders projected" : "orders not projected within 60 s",
                     seen, !seen, null);
-            markers(List.of("evento-eu", "region-africa"), since, List.of("stale", "fetch", "event=supervisor_session_failed"));
+            markers(List.of("evento-eu", SKEWED), since, List.of("stale", "fetch", "event=supervisor_session_failed"));
         });
     }
 }

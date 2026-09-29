@@ -27,8 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 class S03KillServerTest extends AbstractScenario {
 
     static final List<String> APAC = LabConfig.regionsOfCell("APAC");
-    static final List<String> APAC_JVMS = List.of("cell-core-apac", "saga-apac", "region-cina", "region-india",
-            "region-australia-nz");
+    static final List<String> APAC_JVMS = LabConfig.cellJvms("APAC");
 
     @Override
     protected String id() {
@@ -53,7 +52,7 @@ class S03KillServerTest extends AbstractScenario {
                 cluster.waitReady("evento-apac", Duration.ofSeconds(420));
             });
             var whoami = gateway.getBody("CINA", "/whoami");
-            report.param("region-cina whoami", whoami == null ? "unreachable" : Json.read(whoami));
+            report.param(LabConfig.regionService("CINA") + " whoami", whoami == null ? "unreachable" : Json.read(whoami));
             var viaLb = whoami != null && whoami.contains("bus-apac");
             report.param("busMode", viaLb ? "stream VIP (BUS_VIA_LB)" : "direct address list");
 

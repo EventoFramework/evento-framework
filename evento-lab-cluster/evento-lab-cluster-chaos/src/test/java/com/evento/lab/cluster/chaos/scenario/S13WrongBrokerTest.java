@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * S13: {@code region-europa} behind the EU bus VIP ({@code bus-eu:3030})
+ * S13: {@code gateway-europa} behind the EU bus VIP ({@code bus-eu:3030})
  * with the 2.4.6 wrong-broker guard {@code expectedServerInstanceId=evento-eu}.
  * When evento-eu dies the VIP hands the bundle a healthy server of the same
  * cluster, which the single-id guard refuses ({@code event=server_instance_mismatch}
@@ -22,6 +22,8 @@ import java.util.UUID;
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_LAB_CLUSTER", matches = "true")
 class S13WrongBrokerTest extends AbstractScenario {
+
+    private static final String SERVICE = com.evento.lab.cluster.chaos.LabConfig.regionService("EUROPA");
 
     @Override
     protected String id() {
@@ -44,15 +46,15 @@ class S13WrongBrokerTest extends AbstractScenario {
             onCleanup(() -> {
                 cluster.ensureRunning("evento-eu");
                 cluster.waitReady("evento-eu", Duration.ofSeconds(420));
-                cluster.recreateDefault("region-europa");
-                cluster.waitReady("region-europa", Duration.ofSeconds(300));
+                cluster.recreateDefault(SERVICE);
+                cluster.waitReady(SERVICE, Duration.ofSeconds(300));
             });
             var vip = System.getenv().getOrDefault("S13_BUS_ADDRESSES", "bus-eu:3030");
-            cluster.recreateWithEnv("region-europa", Map.of(
+            cluster.recreateWithEnv(SERVICE, Map.of(
                     "EVENTO_SERVER_ADDRESSES", vip,
-                    "EVENTO_EXPECTED_SERVER_INSTANCE_ID", "evento-eu"));
-            var ready = cluster.waitReady("region-europa", Duration.ofSeconds(300));
-            report.event("region-europa via " + vip + " expecting evento-eu, ready=" + ready);
+                    "EVENTO_EXPECTED_SERVER_ID", "evento-eu"));
+            var ready = cluster.waitReady(SERVICE, Duration.ofSeconds(300));
+            report.event(SERVICE + " via " + vip + " expecting evento-eu, ready=" + ready);
             var before = probe(3);
             report.observe("guard accepts the expected broker", "acknowledged through the VIP",
                     ack(before) + "/3 acknowledged " + kinds(before), ack(before) == 3);
@@ -63,10 +65,10 @@ class S13WrongBrokerTest extends AbstractScenario {
             var window = envSeconds("S13_WAIT_S", 60);
             Cluster.sleep(window);
             var after = probe(3);
-            var logs = cluster.logsSince("region-europa", since);
+            var logs = cluster.logsSince(SERVICE, since);
             var mismatches = Cluster.countMarkers(logs, List.of("event=server_instance_mismatch"))
                     .get("event=server_instance_mismatch");
-            report.attach("region-europa mismatch lines", Cluster.grep(logs, "server_instance_mismatch", 10));
+            report.attach(SERVICE + " mismatch lines", Cluster.grep(logs, "server_instance_mismatch", 10));
             report.metric("serverInstanceMismatches", mismatches);
             report.observe("failover to a healthy server of the same cluster",
                     "the bundle accepts any evento-lab-cluster server behind the VIP and EUROPA works again",
@@ -76,7 +78,7 @@ class S13WrongBrokerTest extends AbstractScenario {
                     ack(after) == 3, mismatches > 0, null);
             report.note("Foreign-cluster rejection (the other half of the G13 fix) needs a 4th server with "
                     + "EVENTO_CLUSTER_NAME set to something else; not part of the default topology.");
-            markers(List.of("region-europa", "lb"), since, MARKERS);
+            markers(List.of(SERVICE, "lb"), since, MARKERS);
         });
     }
 
