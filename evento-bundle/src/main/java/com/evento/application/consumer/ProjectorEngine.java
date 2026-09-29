@@ -305,7 +305,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
         var handler = handlers.getOrDefault(projectorName, null);
         if (handler == null) return;
 
-        var proxy = dispatchContext.gatewayTelemetryProxy().apply(handler.getComponentName(), publishedEvent.getEventMessage());
+        var proxy = dispatchContext.consumerGateway(handler.getComponentName(), publishedEvent, consumerId);
         dispatchContext.tracingAgent().track(publishedEvent.getEventMessage(), handler.getComponentName(),
                 null,
                 () -> {

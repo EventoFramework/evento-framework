@@ -158,7 +158,7 @@ public final class SagaEngine implements Runnable, ConsumerHandle {
             return null;
         }
 
-        var proxy = dispatchContext.gatewayTelemetryProxy().apply(handler.getComponentName(), publishedEvent.getEventMessage());
+        var proxy = dispatchContext.consumerGateway(handler.getComponentName(), publishedEvent, consumerId);
 
         final var stateForLambda = sagaState;
         return dispatchContext.tracingAgent().track(publishedEvent.getEventMessage(), handler.getComponentName(),
