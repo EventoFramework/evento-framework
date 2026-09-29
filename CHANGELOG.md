@@ -102,6 +102,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Commands were executed after their caller had timed out (N3).** The broker ignored
+  the caller's deadline: a command queued behind a saturated dispatch executor or an
+  aggregate lock was still forwarded, and the forward then got a fresh full timeout, so
+  under load every timed-out command was stored anyway (92 of 92 in the lab) and a saga
+  retrying a "failed" payment applied it four times. `Request.timeoutMillis`, which every
+  sender has always filled from its request timeout, is now read as the caller's
+  remaining budget: the broker derives a local deadline from it and the frame's arrival
+  time (`Request.deadlineFrom`, `Frame.receivedAtMs`, stamped on the I/O thread before
+  any queueing; no cross-machine clock comparison), and drops the request unexecuted
+  when the deadline has passed before routing (`queued`), while waiting for the command
+  lock (`lock_wait`, the wait is now bounded by the deadline:
+  `PgDistributedLock.acquire(key, maxWait)`), before the forward (`before_forward`), or
+  when the handler bundle has not answered in time (`before_append`; the forward budget
+  is what is left of the deadline and no event is appended). Each drop logs
+  `event=request_expired_dropped stage=...`, counts in
+  `evento.server.requests.expired{stage}` and answers `RequestExpiredException` (new,
+  determinate: nothing was stored), which `EventoServerAdapter` rebuilds as that type.
+  Requests without a timeout (`timeoutMillis = 0`) keep the old behaviour, and no wire
+  field was added. A command that passes the last check and outlives its deadline during
+  the append itself is still indeterminate; that needs an idempotency key (G5). Tested
+  over real TCP (`CommandDeadlineIT`): lock wait, late handler, saturated dispatch
+  queue, and the no-deadline path.
 - **The catalog keyed components by class name across bundles (N1).** `core__component`
   had `component_name` as primary key, so the same class deployed by several bundles
   (one projector class run by a `query-<region>` bundle per region) shared one row: all

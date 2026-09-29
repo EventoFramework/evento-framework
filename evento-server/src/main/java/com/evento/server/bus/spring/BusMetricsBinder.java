@@ -20,6 +20,8 @@ import io.micrometer.core.instrument.binder.MeterBinder;
  *   <li>{@code evento.server.correlations.pending} — outstanding server-initiated requests</li>
  *   <li>{@code evento.server.forwarding.table.size} — in-flight relayed requests</li>
  *   <li>{@code evento.server.forwarded} (tag {@code path=raw|reencoded}) — zero-copy vs re-encoded forwards</li>
+ *   <li>{@code evento.server.requests.expired} (tag {@code stage=queued|lock_wait|before_forward|before_append})
+ *       — requests dropped unexecuted because their caller's deadline had passed</li>
  *   <li>{@code evento.server.bus.executor.{pool.size,active,queue.depth,max}} — request-handling capacity</li>
  *   <li>{@code evento.server.bus.executor.saturated} — times demand exceeded pool + queue</li>
  * </ul>
@@ -66,6 +68,12 @@ public class BusMetricsBinder implements MeterBinder {
                 .description("Requests/responses relayed between bundles")
                 .tag("path", "reencoded")
                 .register(registry);
+        for (var stage : BusLifecycle.EXPIRED_STAGES) {
+            FunctionCounter.builder("evento.server.requests.expired", bus, b -> b.expiredDroppedCount(stage))
+                    .description("Requests dropped unexecuted because the caller's deadline had passed")
+                    .tag("stage", stage)
+                    .register(registry);
+        }
         Gauge.builder("evento.server.bus.executor.pool.size", executor, BusBusinessExecutor::getPoolSize)
                 .description("Live threads handling bundle requests")
                 .register(registry);

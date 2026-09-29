@@ -10,6 +10,7 @@ import com.evento.common.modeling.messaging.message.application.DomainCommandRes
 import com.evento.common.modeling.messaging.message.application.ServiceCommandMessage;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
+import com.evento.common.utils.LockAcquisitionTimeoutException;
 import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.event.BusEvent;
@@ -46,6 +47,18 @@ import java.util.concurrent.TimeoutException;
  *   <li>Return the stored {@code DomainEventMessage} to the original caller so
  *       that {@code CommandGatewayImpl} can extract the event payload.</li>
  * </ol>
+ *
+ * <p><b>Caller deadline.</b> Each command carries its caller's deadline
+ * ({@link BusLifecycle.DeadlineAwareRequestHandler}). A command whose caller has
+ * stopped waiting is not executed: the lock wait is bounded by what is left of the
+ * deadline, and the deadline is checked again before the forward and before the
+ * append. A caller that timed out used to see a timeout while the broker, queued
+ * behind the lock, went on and stored the event anyway (every one of 92 timed-out
+ * commands in the lab's saturated run), and a saga retrying the "failed" command
+ * applied it twice. A drop answers {@code RequestExpiredException} and logs
+ * {@code event=request_expired_dropped}. A command that passes the last check and
+ * then outlives its deadline during the append is still indeterminate for the
+ * caller; that window needs an idempotency key (CLUSTER-READINESS G5).
  *
  * <p>Service command flow:
  * <ol>
@@ -87,14 +100,14 @@ public class CommandBrokerHandler {
             for (var handler : discovered.discovery().handlers()) {
                 if (handler.getHandlerType() == HandlerType.AggregateCommandHandler) {
                     var pt = handler.getHandledPayload();
-                    lifecycle.registerLocalHandler(pt, (payload, originator) ->
-                            handleAggregateCommand(pt, payload, originator));
+                    lifecycle.registerLocalHandler(pt, (payload, originator, deadlineMs) ->
+                            handleAggregateCommand(pt, payload, originator, deadlineMs));
                     log.info("event=aggregate_command_handler_registered payloadType={}", pt);
                 } else if (handler.getHandlerType() == HandlerType.CommandHandler
                         && handler.getComponentType() == ComponentType.Service) {
                     var pt = handler.getHandledPayload();
-                    lifecycle.registerLocalHandler(pt, (payload, originator) ->
-                            handleServiceCommand(pt, payload, originator));
+                    lifecycle.registerLocalHandler(pt, (payload, originator, deadlineMs) ->
+                            handleServiceCommand(pt, payload, originator, deadlineMs));
                     log.info("event=service_command_handler_registered payloadType={}", pt);
                 }
             }
@@ -104,7 +117,7 @@ public class CommandBrokerHandler {
     // ---- aggregate command ----
 
     private byte[] handleAggregateCommand(String commandPayloadType, byte[] payload,
-                                          NodeAddress originator) throws Exception {
+                                          NodeAddress originator, long deadlineMs) throws Exception {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (DomainCommandMessage) eventoRequest.getBody();
 
@@ -112,7 +125,7 @@ public class CommandBrokerHandler {
         boolean lockAcquired = false;
         try {
             if (lockKey != null) {
-                distributedLock.acquire(lockKey);
+                acquireWithin(lockKey, deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
                 lockAcquired = true;
             }
 
@@ -136,9 +149,11 @@ public class CommandBrokerHandler {
             forwardRequest.setUnit(eventoRequest.getUnit());
             forwardRequest.setTimestamp(eventoRequest.getTimestamp());
 
-            long timeoutMs = eventoRequest.getUnit().toMillis(eventoRequest.getTimeout());
-            var response = forwardOrRetry(commandPayloadType,
-                    codec.encodeRequest(forwardRequest), timeoutMs, originator);
+            long timeoutMs = forwardBudget(eventoRequest.getUnit().toMillis(eventoRequest.getTimeout()),
+                    deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
+            var response = forwardWithin(commandPayloadType,
+                    codec.encodeRequest(forwardRequest), timeoutMs, originator, deadlineMs,
+                    eventoRequest.getCorrelationId());
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -159,6 +174,11 @@ public class CommandBrokerHandler {
             // between this check and the INSERT stays open; closing it needs a DB-level fence
             // (aggregate_seq, see CLUSTER-READINESS G6).
             if (lockAcquired) distributedLock.verifyHeld(lockKey);
+            // The bundle may have answered after the caller gave up (a slow handler, a
+            // retried forward): its timeout already told the caller "failed", so storing
+            // the event now would apply a command the caller may retry.
+            checkDeadline(deadlineMs, BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND, commandPayloadType,
+                    eventoRequest.getCorrelationId());
             long seqNum = eventStore.publishEvent(eventMessage, cmd.getAggregateId());
             log.debug("event=domain_event_stored payloadType={} aggregateId={} seq={}",
                     commandPayloadType, cmd.getAggregateId(), seqNum);
@@ -188,7 +208,7 @@ public class CommandBrokerHandler {
     // ---- service command ----
 
     private byte[] handleServiceCommand(String commandPayloadType, byte[] payload,
-                                        NodeAddress originator) throws Exception {
+                                        NodeAddress originator, long deadlineMs) throws Exception {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (ServiceCommandMessage) eventoRequest.getBody();
 
@@ -196,13 +216,15 @@ public class CommandBrokerHandler {
         boolean lockAcquired = false;
         try {
             if (lockKey != null) {
-                distributedLock.acquire(lockKey);
+                acquireWithin(lockKey, deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
                 lockAcquired = true;
             }
 
             // Forward the original payload unchanged — the bundle decodes EventoRequest{body: ServiceCommandMessage}.
-            long timeoutMs = eventoRequest.getUnit().toMillis(eventoRequest.getTimeout());
-            var response = forwardOrRetry(commandPayloadType, payload, timeoutMs, originator);
+            long timeoutMs = forwardBudget(eventoRequest.getUnit().toMillis(eventoRequest.getTimeout()),
+                    deadlineMs, commandPayloadType, eventoRequest.getCorrelationId());
+            var response = forwardWithin(commandPayloadType, payload, timeoutMs, originator, deadlineMs,
+                    eventoRequest.getCorrelationId());
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -221,6 +243,8 @@ public class CommandBrokerHandler {
             if (serviceEvent.getSerializedPayload() != null
                     && serviceEvent.getSerializedPayload().getObjectClass() != null) {
                 if (lockAcquired) distributedLock.verifyHeld(lockKey);
+                checkDeadline(deadlineMs, BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND, commandPayloadType,
+                        eventoRequest.getCorrelationId());
                 eventStore.publishEvent(serviceEvent, cmd.getAggregateId());
                 log.debug("event=service_event_stored payloadType={}", commandPayloadType);
             }
@@ -231,6 +255,66 @@ public class CommandBrokerHandler {
             if (lockAcquired) {
                 releaseQuietly(lockKey);
             }
+        }
+    }
+
+    /**
+     * Acquires the command's lock, waiting no longer than the caller does. A wait cut short
+     * by the caller's deadline is a drop ({@code lock_wait}); one cut short by the lock's own
+     * bound, while the caller still waits, stays a {@code LockAcquisitionTimeoutException}.
+     */
+    private void acquireWithin(String lockKey, long deadlineMs, String payloadType, String correlationId) {
+        if (deadlineMs == Long.MAX_VALUE) {
+            distributedLock.acquire(lockKey);
+            return;
+        }
+        long remainingMs = deadlineMs - System.currentTimeMillis();
+        if (remainingMs <= 0) {
+            throw lifecycle.expiredDrop(BusLifecycle.EXPIRED_STAGE_LOCK_WAIT, payloadType, correlationId, deadlineMs);
+        }
+        try {
+            distributedLock.acquire(lockKey, Duration.ofMillis(remainingMs));
+        } catch (LockAcquisitionTimeoutException e) {
+            if (System.currentTimeMillis() >= deadlineMs) {
+                throw lifecycle.expiredDrop(BusLifecycle.EXPIRED_STAGE_LOCK_WAIT, payloadType, correlationId, deadlineMs);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * How long the forward to the handler bundle may take: what is left of the caller's
+     * deadline (the lock wait and the story fetch already used part of it), capped by the
+     * command's own timeout. Throws the {@code before_forward} drop when nothing is left.
+     */
+    private long forwardBudget(long commandTimeoutMs, long deadlineMs, String payloadType, String correlationId) {
+        checkDeadline(deadlineMs, BusLifecycle.EXPIRED_STAGE_BEFORE_FORWARD, payloadType, correlationId);
+        if (deadlineMs == Long.MAX_VALUE) return commandTimeoutMs;
+        long remainingMs = deadlineMs - System.currentTimeMillis();
+        return commandTimeoutMs > 0 ? Math.min(commandTimeoutMs, remainingMs) : remainingMs;
+    }
+
+    /**
+     * {@link #forwardOrRetry} within the caller's deadline. A forward that fails once the
+     * deadline has passed (the handler bundle had not answered in time; a late answer is
+     * discarded) is a {@code before_append} drop: the broker appends nothing for it.
+     */
+    private Response forwardWithin(String payloadType, byte[] payload, long timeoutMs, NodeAddress originator,
+                                   long deadlineMs, String correlationId) throws Exception {
+        try {
+            return forwardOrRetry(payloadType, payload, timeoutMs, originator);
+        } catch (Exception e) {
+            if (deadlineMs != Long.MAX_VALUE && System.currentTimeMillis() >= deadlineMs) {
+                throw lifecycle.expiredDrop(BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND, payloadType, correlationId,
+                        deadlineMs);
+            }
+            throw e;
+        }
+    }
+
+    private void checkDeadline(long deadlineMs, String stage, String payloadType, String correlationId) {
+        if (deadlineMs != Long.MAX_VALUE && System.currentTimeMillis() >= deadlineMs) {
+            throw lifecycle.expiredDrop(stage, payloadType, correlationId, deadlineMs);
         }
     }
 

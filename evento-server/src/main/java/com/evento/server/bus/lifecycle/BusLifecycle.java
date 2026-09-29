@@ -100,14 +100,71 @@ public final class BusLifecycle {
         byte[] handle(byte[] payload, NodeAddress originator) throws Exception;
     }
 
-    private final ConcurrentHashMap<String, OriginatorAwareRequestHandler> localHandlers = new ConcurrentHashMap<>();
+    /**
+     * A server-local handler that also honours the caller's deadline: {@code deadlineMs}
+     * is this server's wall-clock time after which the caller no longer waits
+     * ({@link Request#deadlineFrom}), or {@link Long#MAX_VALUE} when the caller set no
+     * timeout. {@code CommandBrokerHandler} uses it to stop before the lock, the forward
+     * and the append of a command nobody waits for any more.
+     */
+    @FunctionalInterface
+    public interface DeadlineAwareRequestHandler {
+        byte[] handle(byte[] payload, NodeAddress originator, long deadlineMs) throws Exception;
+    }
+
+    private final ConcurrentHashMap<String, DeadlineAwareRequestHandler> localHandlers = new ConcurrentHashMap<>();
 
     public void registerLocalHandler(String payloadType, LocalRequestHandler handler) {
-        localHandlers.put(payloadType, (payload, originator) -> handler.handle(payload));
+        localHandlers.put(payloadType, (payload, originator, deadlineMs) -> handler.handle(payload));
     }
 
     public void registerLocalHandler(String payloadType, OriginatorAwareRequestHandler handler) {
+        localHandlers.put(payloadType, (payload, originator, deadlineMs) -> handler.handle(payload, originator));
+    }
+
+    public void registerLocalHandler(String payloadType, DeadlineAwareRequestHandler handler) {
         localHandlers.put(payloadType, handler);
+    }
+
+    /** Stage label: the request's deadline passed while it waited for this broker to dispatch it. */
+    public static final String EXPIRED_STAGE_QUEUED = "queued";
+    /** Stage label: the deadline passed while a command waited for its aggregate or resource lock. */
+    public static final String EXPIRED_STAGE_LOCK_WAIT = "lock_wait";
+    /** Stage label: the deadline passed before a command was forwarded to its handler bundle. */
+    public static final String EXPIRED_STAGE_BEFORE_FORWARD = "before_forward";
+    /**
+     * Stage label: the deadline passed while the handler bundle worked on the command (it
+     * did not answer in time, or answered late); the broker appended nothing for it.
+     */
+    public static final String EXPIRED_STAGE_BEFORE_APPEND = "before_append";
+    /** Every stage label, for metrics binding. */
+    public static final java.util.List<String> EXPIRED_STAGES = java.util.List.of(
+            EXPIRED_STAGE_QUEUED, EXPIRED_STAGE_LOCK_WAIT, EXPIRED_STAGE_BEFORE_FORWARD,
+            EXPIRED_STAGE_BEFORE_APPEND);
+
+    private final ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong> expiredDropped =
+            new ConcurrentHashMap<>();
+
+    /**
+     * Records that a request was dropped because its caller's deadline had passed, logs
+     * {@code event=request_expired_dropped} and returns the exception to answer it with.
+     * Callers must not have forwarded, locked-and-appended or otherwise executed it.
+     */
+    public com.evento.transport.RequestExpiredException expiredDrop(String stage, String payloadType,
+                                                                    Object correlationId, long deadlineMs) {
+        long overdueMs = System.currentTimeMillis() - deadlineMs;
+        expiredDropped.computeIfAbsent(stage, k -> new java.util.concurrent.atomic.AtomicLong()).incrementAndGet();
+        log.warn("event=request_expired_dropped stage={} payloadType={} correlationId={} overdueMs={}",
+                stage, payloadType, correlationId, overdueMs);
+        return new com.evento.transport.RequestExpiredException(
+                "request " + correlationId + " (" + payloadType + ") not executed: the caller's deadline passed "
+                        + overdueMs + " ms ago (stage " + stage + ")");
+    }
+
+    /** How many requests were dropped as expired at {@code stage} (see {@link #EXPIRED_STAGES}). */
+    public long expiredDroppedCount(String stage) {
+        var c = expiredDropped.get(stage);
+        return c == null ? 0L : c.get();
     }
 
     // Hot-path counters exposing whether the zero-copy forward fired (good) or
@@ -468,6 +525,16 @@ public final class BusLifecycle {
                     new IllegalStateException("handshake required before requests"));
             return;
         }
+        // The caller's deadline, measured from when the frame reached this broker (before
+        // it queued for a dispatch thread): a request nobody waits for any more is not
+        // routed, so a saturated broker stops executing commands whose callers already
+        // saw a timeout (and may be retrying them). No timeout = no deadline.
+        long deadlineMs = request.deadlineFrom(frame == null ? System.currentTimeMillis() : frame.receivedAtMs());
+        if (System.currentTimeMillis() >= deadlineMs) {
+            replyWithError(session.transport(), request.correlationId(),
+                    expiredDrop(EXPIRED_STAGE_QUEUED, request.payloadType(), request.correlationId(), deadlineMs));
+            return;
+        }
         // Exactly-once at the broker: a duplicate of an already-answered request
         // gets the cached response; a duplicate of an in-flight request is dropped.
         var dedupOutcome = dedupCache.resolveOrClaim(request.correlationId());
@@ -489,10 +556,14 @@ public final class BusLifecycle {
         var localHandler = localHandlers.get(request.payloadType());
         if (localHandler != null) {
             try {
-                byte[] result = localHandler.handle(request.payload(), session.address());
+                byte[] result = localHandler.handle(request.payload(), session.address(), deadlineMs);
                 var response = Response.success(request.correlationId(), request.payloadType(), result);
                 dedupCache.recordResponse(request.correlationId(), response);
                 session.transport().send(response);
+            } catch (com.evento.transport.RequestExpiredException expired) {
+                // Already logged as event=request_expired_dropped where it was refused.
+                dedupCache.invalidate(request.correlationId());
+                replyWithError(session.transport(), request.correlationId(), expired);
             } catch (Throwable t) {
                 FatalErrors.escalateIfFatal(t);
                 log.warn("event=local_handler_threw payloadType={} correlationId={}",
