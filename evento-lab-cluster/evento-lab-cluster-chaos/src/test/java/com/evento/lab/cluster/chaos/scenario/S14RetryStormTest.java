@@ -100,6 +100,15 @@ class S14RetryStormTest extends AbstractScenario {
             report.metric("firstAttempt", Map.of("sent", probes.size(), "failed", firstFailed.size(),
                     "failedAfter25s", timedOut, "kinds", kinds(first.values())));
 
+            // The G5 question needs a command in the ambiguous window: failed for the client but
+            // stored anyway. Count them before retrying; with none, a clean result proves nothing (L17).
+            // Late appends of a request the dead server already handed to the database are still
+            // possible, so wait a little first.
+            Cluster.sleep(Duration.ofSeconds(3));
+            var ambiguous = new ArrayList<Probe>();
+            for (var p : firstFailed) if (!db.eventsContaining(p.key()).isEmpty()) ambiguous.add(p);
+            report.metric("failedButStoredBeforeRetry", ambiguous.size());
+
             var retries = new LinkedHashMap<Probe, RequestRecord>();
             for (var p : firstFailed) retries.put(p, send(p, retryVia, true));
             report.event("retried " + retries.size() + " failed commands via " + retryVia + ": " + kinds(retries.values()));
@@ -127,11 +136,12 @@ class S14RetryStormTest extends AbstractScenario {
             report.metric("acknowledgedButNotStored", lost);
             if (!duplicates.isEmpty()) report.attach("duplicates", duplicates);
 
-            Boolean correct = !duplicates.isEmpty() ? Boolean.FALSE : (timedOut == 0 && firstFailed.isEmpty() ? null : Boolean.TRUE);
+            Boolean correct = !duplicates.isEmpty() ? Boolean.FALSE : (ambiguous.isEmpty() ? null : Boolean.TRUE);
             report.observe("a retried command is stored once",
                     "exactly one stored event per idempotency key (key persisted with the event, G5 fix)",
                     "a command stored before its reply was lost is stored again by the retry (G5)",
-                    duplicates.size() + " key(s) stored twice; per kind " + perKind,
+                    duplicates.size() + " key(s) stored twice; " + ambiguous.size() + " of " + firstFailed.size()
+                            + " failed first attempts were stored before the retry; per kind " + perKind,
                     correct, !duplicates.isEmpty(),
                     correct == null ? "No command was caught in the ambiguous window; tune S14_KILL_DELAY_MS." : null);
             report.observe("acknowledged commands are stored", "every 2xx has its event", lost + " missing",
