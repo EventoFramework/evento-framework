@@ -11,38 +11,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Broker endpoint failover for bundles (G2).** `BundleClientConfig` / `BundleClient.Builder`
-  take an ordered endpoint list (`endpoint(host, port)` / `endpoints(...)`, most preferred
-  first); `host`/`port` keep working as a one-element list. `EventoBundle` now passes
-  *every* address of `EventoServerMessageBusConfiguration` — before, addresses 2..n were
-  silently ignored and a bundle whose broker died stayed stranded next to two healthy ones.
-  `ConnectionSupervisor` moves to the next endpoint after a session that fails before READY,
-  and restarts from endpoint 0 after a READY session drops (fail-back happens at the next
-  disconnect; there is no background probe). Backoff counts passes over the list, so the
-  second broker is tried after one base delay; `start()` fails only once every endpoint was
-  tried. `event=handshake_complete` now logs `endpoint=` and `cluster=`.
-- **`BrokerChangedException` (G4).** Each pending request remembers the broker it was sent
-  through. When a new session's `Welcome` names a different `serverInstanceId`, those
-  requests fail at once (a failure `Response` naming `BrokerChangedException`, rethrown as
-  such by `EventoServerAdapter`) instead of hanging for the full request timeout: the old
-  broker buffers their replies and replays them only to a bundle that comes back to *it*.
-  It extends `RequestTimeoutException` because the outcome is equally indeterminate.
-  Reconnecting to the same broker keeps the survive-reconnect behaviour.
-- **Cluster identity in the handshake (G13).** `Welcome` gains an additive `clusterName`
-  (from `evento.cluster.name`; empty when not announced, older peers decode it unchanged),
-  and bundles gain `expectedClusterName` (`BundleClient.Builder`, `BundleClientConfig`,
-  `EventoServerMessageBusConfiguration.withExpectedClusterName`). A broker announcing another
-  cluster, or none, is refused before registration and the bundle keeps dialing the next
-  endpoint (`event=cluster_name_mismatch`). With an endpoint list use this rather than
-  `expectedServerInstanceId`, which would refuse every failover target; give each server a
-  unique `evento.server.bus.server-instance-id`, since G4 relies on it.
-- **Link settings on `EventoBundle.Builder` (G22).** `setTransportConfig`,
-  `setHeartbeatReadIdle` (also lowers the Ping cadence to a third when needed),
-  `setReconnectStrategy`, `setDefaultRequestTimeout`, `setMaxInFlightRequests`; plus
-  `NettyTransportConfig.withHeartbeat` / `withReconnectStrategy` and
-  `BundleClient.Builder.maxInFlightRequests`. The 45 s read-idle — how long a silent
-  partition goes unnoticed — was not reachable from the bundle before.
-
 ### Changed
 
 - **`PgDistributedLock` waits are bounded and a lost lock is an error.** `acquire` used to
@@ -185,6 +153,64 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   separate entries until the old instances leave; before, they were merged per component.
 - **Every server ran the hourly telemetry TTL sweep.** It is now guarded by an advisory
   try-lock, so one server per hour runs it.
+
+### - **Broker endpoint failover for bundles (G2).** `BundleClientConfig` / `BundleClient.Builder`
+
+  take an ordered endpoint list (`endpoint(host, port)` / `endpoints(...)`, most preferred
+  first); `host`/`port` keep working as a one-element list. `EventoBundle` now passes
+  *every* address of `EventoServerMessageBusConfiguration` — before, addresses 2..n were
+  silently ignored and a bundle whose broker died stayed stranded next to two healthy ones.
+  `ConnectionSupervisor` moves to the next endpoint after a session that fails before READY,
+  and restarts from endpoint 0 after a READY session drops (fail-back happens at the next
+  disconnect; there is no background probe). Backoff counts passes over the list, so the
+  second broker is tried after one base delay; `start()` fails only once every endpoint was
+  tried. `event=handshake_complete` now logs `endpoint=` and `cluster=`.
+- **`BrokerChangedException` (G4).** Each pending request remembers the broker it was sent
+  through. When a new session's `Welcome` names a different `serverInstanceId`, those
+  requests fail at once (a failure `Response` naming `BrokerChangedException`, rethrown as
+  such by `EventoServerAdapter`) instead of hanging for the full request timeout: the old
+  broker buffers their replies and replays them only to a bundle that comes back to *it*.
+  It extends `RequestTimeoutException` because the outcome is equally indeterminate.
+  Reconnecting to the same broker keeps the survive-reconnect behaviour.
+- **Cluster identity in the handshake (G13).** `Welcome` gains an additive `clusterName`
+  (from `evento.cluster.name`; empty when not announced, older peers decode it unchanged),
+  and bundles gain `expectedClusterName` (`BundleClient.Builder`, `BundleClientConfig`,
+  `EventoServerMessageBusConfiguration.withExpectedClusterName`). A broker announcing another
+  cluster, or none, is refused before registration and the bundle keeps dialing the next
+  endpoint (`event=cluster_name_mismatch`). With an endpoint list use this rather than
+  `expectedServerInstanceId`, which would refuse every failover target; give each server a
+  unique `evento.server.bus.server-instance-id`, since G4 relies on it.
+- **Link settings on `EventoBundle.Builder` (G22).** `setTransportConfig`,
+  `setHeartbeatReadIdle` (also lowers the Ping cadence to a third when needed),
+  `setReconnectStrategy`, `setDefaultRequestTimeout`, `setMaxInFlightRequests`; plus
+  `NettyTransportConfig.withHeartbeat` / `withReconnectStrategy` and
+  `BundleClient.Builder.maxInFlightRequests`. The 45 s read-idle — how long a silent
+  partition goes unnoticed — was not reachable from the bundle before.
+
+### - **Locality-aware handler selection (G12).** A bundle can declare where it runs with
+
+  `EventoBundle.Builder.setZone("EU")` (or `BundleClient.Builder.zone(...)` /
+  `BundleClientConfig.Builder.zone(...)`). The zone travels as a `zone:<ZONE>` entry in the
+  existing `Hello.capabilities` set — no new wire message or field, and a broker that knows
+  nothing about zones ignores it. A broker started with
+  `evento.server.bus.pick-strategy=locality-preferred` (new `ClusterRegistry.PickStrategy.LOCALITY_PREFERRED`)
+  routes each request to an available handler in the same zone as the bundle that sent it and
+  falls back to any available handler when that zone has none, so a dead region costs latency
+  rather than availability. Commands brokered by `CommandBrokerHandler` pick on behalf of the
+  original sender through the new `BusLifecycle.OriginatorAwareRequestHandler`. The default
+  stays `random`. The zones a server knows are listed at `GET /api/cluster-status/zones`.
+  `LocalityPickIT` runs three handler replicas (EU, AM, APAC) and an AM caller over real TCP:
+  every call stays in AM until the AM replica is killed, then spreads over EU and APAC.
+
+### Documentation
+
+- **Context naming and matching (G15, client side).** `EventoBundle.Builder.setComponentContexts`
+  now documents that `*` is the only wildcard in a context value and that servers without the
+  G15 fix treat `_` and `%` as `LIKE` wildcards too (`SUD_AMERICA` also matches `SUDXAMERICA`).
+- **Commands carry no framework-level context (G23).** The stale `DomainCommand` javadoc that
+  described a `PayloadWithContext` base class is replaced by what is true: only `Event` has a
+  context, and an aggregate that emits region-scoped events copies the context from a command
+  field into the event.
 
 ---
 

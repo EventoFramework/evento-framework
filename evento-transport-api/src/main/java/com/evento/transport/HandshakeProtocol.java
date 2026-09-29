@@ -20,5 +20,39 @@ public final class HandshakeProtocol {
     public static final String CAPABILITY_LZ4 = "lz4";
     public static final String CAPABILITY_PING_PONG = "ping-pong";
 
+    /**
+     * Prefix of the capability a bundle uses to say where it runs:
+     * {@code "zone:EU"}. It rides in {@code Hello.capabilities} rather than a
+     * field of its own so that no wire type changes and a peer that knows
+     * nothing about zones reads it as one more capability it does not share.
+     * The server reads it for locality-aware handler selection.
+     */
+    public static final String CAPABILITY_ZONE_PREFIX = "zone:";
+
+    /** The capability string that advertises {@code zone}. */
+    public static String zoneCapability(String zone) {
+        if (zone == null || zone.isBlank()) {
+            throw new IllegalArgumentException("zone must not be blank");
+        }
+        return CAPABILITY_ZONE_PREFIX + zone.trim();
+    }
+
+    /**
+     * The zone advertised in {@code capabilities}, or null when there is none.
+     * A blank value counts as none. With more than one, the lexically first
+     * wins so the answer does not depend on set iteration order.
+     */
+    public static String zoneOf(java.util.Collection<String> capabilities) {
+        if (capabilities == null) return null;
+        String found = null;
+        for (String cap : capabilities) {
+            if (cap == null || !cap.startsWith(CAPABILITY_ZONE_PREFIX)) continue;
+            String zone = cap.substring(CAPABILITY_ZONE_PREFIX.length()).trim();
+            if (zone.isEmpty()) continue;
+            if (found == null || zone.compareTo(found) < 0) found = zone;
+        }
+        return found;
+    }
+
     private HandshakeProtocol() {}
 }

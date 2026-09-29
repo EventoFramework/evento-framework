@@ -1,6 +1,7 @@
 package com.evento.application.client;
 
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
+import com.evento.transport.HandshakeProtocol;
 import com.evento.transport.netty.NettyTransportConfig;
 import com.evento.transport.protocol.PayloadDiscoveryInfo;
 
@@ -133,6 +134,11 @@ public record BundleClientConfig(
         return s == null || s.isBlank() ? null : s;
     }
 
+    /** The zone advertised through {@link #capabilities()}, or null when none is set. */
+    public String zone() {
+        return HandshakeProtocol.zoneOf(capabilities);
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -152,6 +158,7 @@ public record BundleClientConfig(
         private List<RegisteredHandler> registeredHandlers = List.of();
         private Map<String, PayloadDiscoveryInfo> payloadInfo = Map.of();
         private Set<String> capabilities = Set.of();
+        private String zone;
         private Duration handshakeTimeout = Duration.ofSeconds(5);
         private Duration registrationTimeout = Duration.ofSeconds(5);
         private Duration defaultRequestTimeout = Duration.ofSeconds(30);
@@ -186,6 +193,14 @@ public record BundleClientConfig(
         public Builder registeredHandlers(List<RegisteredHandler> handlers) { this.registeredHandlers = handlers; return this; }
         public Builder payloadInfo(Map<String, PayloadDiscoveryInfo> info) { this.payloadInfo = info; return this; }
         public Builder capabilities(Set<String> caps) { this.capabilities = caps; return this; }
+        /**
+         * Where this bundle runs, e.g. {@code "EU"}. Advertised to the broker as the
+         * {@code zone:<ZONE>} capability in {@code Hello} (it replaces any zone
+         * capability passed through {@link #capabilities}); a broker configured with
+         * the {@code LOCALITY_PREFERRED} pick strategy then prefers handlers in the
+         * same zone as the bundle that sent the request. Null or blank sets none.
+         */
+        public Builder zone(String zone) { this.zone = zone; return this; }
         public Builder handshakeTimeout(Duration d) { this.handshakeTimeout = d; return this; }
         public Builder registrationTimeout(Duration d) { this.registrationTimeout = d; return this; }
         public Builder defaultRequestTimeout(Duration d) { this.defaultRequestTimeout = d; return this; }
@@ -200,9 +215,18 @@ public record BundleClientConfig(
         public Builder expectedClusterName(String name) { this.expectedClusterName = name; return this; }
 
         public BundleClientConfig build() {
+            Set<String> caps = capabilities == null ? Set.of() : capabilities;
+            if (zone != null && !zone.isBlank()) {
+                var withZone = new java.util.LinkedHashSet<String>();
+                for (String c : caps) {
+                    if (!c.startsWith(HandshakeProtocol.CAPABILITY_ZONE_PREFIX)) withZone.add(c);
+                }
+                withZone.add(HandshakeProtocol.zoneCapability(zone));
+                caps = withZone;
+            }
             return new BundleClientConfig(host, port, bundleId, instanceId, bundleVersion,
                     authToken, description, detail, repositoryUrl, linePrefix,
-                    handlerPayloadTypes, registeredHandlers, payloadInfo, capabilities,
+                    handlerPayloadTypes, registeredHandlers, payloadInfo, caps,
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
                     maxInFlightRequests, transportConfig, autoEnable, expectedServerInstanceId,
                     expectedClusterName, endpoints);

@@ -87,12 +87,14 @@ public class CommandBrokerHandler {
             for (var handler : discovered.discovery().handlers()) {
                 if (handler.getHandlerType() == HandlerType.AggregateCommandHandler) {
                     var pt = handler.getHandledPayload();
-                    lifecycle.registerLocalHandler(pt, payload -> handleAggregateCommand(pt, payload));
+                    lifecycle.registerLocalHandler(pt, (payload, originator) ->
+                            handleAggregateCommand(pt, payload, originator));
                     log.info("event=aggregate_command_handler_registered payloadType={}", pt);
                 } else if (handler.getHandlerType() == HandlerType.CommandHandler
                         && handler.getComponentType() == ComponentType.Service) {
                     var pt = handler.getHandledPayload();
-                    lifecycle.registerLocalHandler(pt, payload -> handleServiceCommand(pt, payload));
+                    lifecycle.registerLocalHandler(pt, (payload, originator) ->
+                            handleServiceCommand(pt, payload, originator));
                     log.info("event=service_command_handler_registered payloadType={}", pt);
                 }
             }
@@ -101,7 +103,8 @@ public class CommandBrokerHandler {
 
     // ---- aggregate command ----
 
-    private byte[] handleAggregateCommand(String commandPayloadType, byte[] payload) throws Exception {
+    private byte[] handleAggregateCommand(String commandPayloadType, byte[] payload,
+                                          NodeAddress originator) throws Exception {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (DomainCommandMessage) eventoRequest.getBody();
 
@@ -135,7 +138,7 @@ public class CommandBrokerHandler {
 
             long timeoutMs = eventoRequest.getUnit().toMillis(eventoRequest.getTimeout());
             var response = forwardOrRetry(commandPayloadType,
-                    codec.encodeRequest(forwardRequest), timeoutMs);
+                    codec.encodeRequest(forwardRequest), timeoutMs, originator);
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -184,7 +187,8 @@ public class CommandBrokerHandler {
 
     // ---- service command ----
 
-    private byte[] handleServiceCommand(String commandPayloadType, byte[] payload) throws Exception {
+    private byte[] handleServiceCommand(String commandPayloadType, byte[] payload,
+                                        NodeAddress originator) throws Exception {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (ServiceCommandMessage) eventoRequest.getBody();
 
@@ -198,7 +202,7 @@ public class CommandBrokerHandler {
 
             // Forward the original payload unchanged — the bundle decodes EventoRequest{body: ServiceCommandMessage}.
             long timeoutMs = eventoRequest.getUnit().toMillis(eventoRequest.getTimeout());
-            var response = forwardOrRetry(commandPayloadType, payload, timeoutMs);
+            var response = forwardOrRetry(commandPayloadType, payload, timeoutMs, originator);
 
             if (response.isError()) {
                 return errorResponse(eventoRequest.getCorrelationId(),
@@ -251,8 +255,14 @@ public class CommandBrokerHandler {
      * un-reachable (DEGRADED / CONNECTING). Re-picks the destination on each
      * attempt so that a recovered or different node can be chosen. Stops when
      * the original command timeout has elapsed.
+     *
+     * <p>{@code originator} is the bundle that sent the command to the broker;
+     * the pick is made on its behalf so a {@code LOCALITY_PREFERRED} broker keeps
+     * the command in the caller's zone even though the forward itself is
+     * server-initiated.
      */
-    private Response forwardOrRetry(String payloadType, byte[] payload, long timeoutMs) throws Exception {
+    private Response forwardOrRetry(String payloadType, byte[] payload, long timeoutMs,
+                                    NodeAddress originator) throws Exception {
         long deadlineMs = System.currentTimeMillis() + timeoutMs;
         long backoffMs = SEND_RETRY_BACKOFF_INITIAL_MS;
         int attempt = 0;
@@ -261,7 +271,7 @@ public class CommandBrokerHandler {
             if (remainingMs <= 0) {
                 throw new TimeoutException("forward timed out after " + attempt + " attempt(s) for " + payloadType);
             }
-            var destination = clusterRegistry.pick(payloadType)
+            var destination = clusterRegistry.pickFor(payloadType, originator)
                     .orElseThrow(() -> new IllegalStateException("no available handler for " + payloadType));
             var future = lifecycle.forward(destination, payloadType, payload, Duration.ofMillis(remainingMs));
             try {
