@@ -34,8 +34,13 @@ public final class Contexts {
     /** The literal cross-region context: events for every region, consumed by one global lane. */
     public static final String GLOBAL = "ALL";
 
-    /** The consumer-side wildcard {@code "*"}: every context. The same value as {@code Context.WILDCARD} (formerly {@code Context.ALL}). */
-    public static final String WILDCARD = com.evento.common.utils.Context.WILDCARD;
+    /**
+     * The consumer-side wildcard {@code "*"}: every context. The same value as {@code Context.WILDCARD}
+     * (formerly {@code Context.ALL}). Written as a literal on purpose: {@code Context.WILDCARD} exists only
+     * after the cluster fixes, and the same lab source must also compile against the framework before them
+     * ({@code FRAMEWORK_REF=e7b823fe}); {@code ContextsTest} pins the equality.
+     */
+    public static final String WILDCARD = "*";
 
     private Contexts() {
     }

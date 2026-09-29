@@ -79,7 +79,7 @@ missing_containers() {
     [ "${rows:-0}" -lt "$want" ] && problems+="consumers=${rows:-0}/$want,"
     for b in $bundles; do
       h="$(sql "select count(*) from core__handler h join core__component c
-                on c.component_name = h.component_component_name where c.bundle_id = '$b'")"
+                on $handler_join where c.bundle_id = '$b'")"
       [ "${h:-0}" -eq 0 ] && problems+="handlers[$b]=0,"
     done
     [ -n "$problems" ] && echo "$c:${problems%,}"
@@ -114,9 +114,38 @@ repair() {
 }
 
 pg="$(es_primary)" || { echo "no event-store primary found" >&2; exit 2; }
+# The catalog shape differs across the N1 fix: after it core__handler points at
+# core__component.id ('<bundle>:<name>'), before it at the component name (the old primary key).
+if [ "$(sql "select count(*) from information_schema.columns
+             where table_name = 'core__handler' and column_name = 'component_id'")" = "1" ]; then
+  handler_join="c.id = h.component_id"
+else
+  handler_join="c.component_name = h.component_component_name"
+fi
+
+# A query error must never read as "nothing missing" (the listing runs in a subshell, where
+# errexit would silently end it): collect into a file and fail on a non-zero status.
+list_missing() {
+  local out
+  out="$(mktemp)"
+  missing_containers > "$out" || { rm -f "$out"; echo "catalog check query failed" >&2; exit 2; }
+  mapfile -t missing < <(sort "$out")
+  rm -f "$out"
+}
+
+# Consumer discovery runs asynchronously on the server after the handshake (seconds to tens of
+# seconds after a JVM reports healthy), so a check right after 'up --wait' waits up to
+# REPAIR_SETTLE_S (default 90) for the rows before calling anything missing.
+settle="${REPAIR_SETTLE_S:-90}"
+for i in $(seq 1 "$((settle / 5))"); do
+  list_missing
+  [ "${#missing[@]}" -eq 0 ] && break
+  sleep 5
+done
+
 passes="${REPAIR_PASSES:-3}"
 for pass in $(seq 1 "$passes"); do
-  mapfile -t missing < <(missing_containers | sort)
+  list_missing
   if [ "${#missing[@]}" -eq 0 ]; then
     log "event=lab_catalog_repair pass=$pass status=complete"
     exit 0
@@ -133,7 +162,7 @@ for pass in $(seq 1 "$passes"); do
   done
   wait || true
 done
-mapfile -t missing < <(missing_containers | sort)
+list_missing
 if [ "${#missing[@]}" -ne 0 ]; then
   log "event=lab_catalog_repair status=incomplete missing=${missing[*]}"
   exit 1

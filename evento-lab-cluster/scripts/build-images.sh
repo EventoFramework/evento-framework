@@ -45,7 +45,7 @@ done
 # Where to build: the working tree, or a temporary worktree at FRAMEWORK_REF.
 BUILD_DIR="$REPO_DIR"
 if [ -n "${FRAMEWORK_REF:-}" ]; then
-  BUILD_DIR="$(cd "$REPO_DIR/.." && { pwd -W 2>/dev/null || pwd; })/.evento-lab-fw-$(echo "$FRAMEWORK_REF" | tr -c 'A-Za-z0-9._-' '_')"
+  BUILD_DIR="$(cd "$REPO_DIR/.." && { pwd -W 2>/dev/null || pwd; })/.evento-lab-fw-$(printf %s "$FRAMEWORK_REF" | tr -c 'A-Za-z0-9._-' '_')"
   if [ -d "$BUILD_DIR" ]; then
     git -C "$REPO_DIR" worktree remove --force "$BUILD_DIR" >/dev/null 2>&1 || rm -rf "$BUILD_DIR"
   fi

@@ -491,6 +491,10 @@ public final class Invariants {
         var violations = new ArrayList<String>();
         int missingBundles = 0;
         for (var b : expectedBundles) {
+            // A bundle without handlers (the gateway only sends) never gets a core__bundle row: the
+            // server's discovery writes the catalog only for registrations that carry handlers
+            // (AutoDiscoveryService, unchanged since 2.x). Its liveness is in core__bundle_instance.
+            if (LabConfig.BUNDLES_WITHOUT_HANDLERS.contains(b)) continue;
             if (!catalog.bundles().containsKey(b)) {
                 missingBundles++;
                 violations.add("bundle " + b + " missing from core__bundle");

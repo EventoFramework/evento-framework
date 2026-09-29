@@ -218,6 +218,11 @@ class InvariantsTest {
         // the gateway owns no handler by design and is not flagged
         assertThat(r.metrics()).containsEntry("missingBundles", 1).containsEntry("missingHandlers", 1)
                 .containsEntry("missingConsumers", 1).containsEntry("bundlesWithoutHandlers", 0);
+        // the server writes no core__bundle row for a bundle without handlers: not a missing bundle
+        var noGatewayRow = new Rows.Catalog(Map.of("order-command", "order-command-eu"),
+                Map.of("CreateOrderCommand", Set.of("order-command")), Map.of());
+        assertThat(Invariants.i7Catalog(noGatewayRow, List.of("order-command", "order-gateway"),
+                List.of("CreateOrderCommand"), List.of()).metrics()).containsEntry("missingBundles", 0);
         // G8 / N1: a live bundle left without handler rows is flagged
         var lost = new Rows.Catalog(
                 Map.of("order-query", "a", "order-saga", "b"),
