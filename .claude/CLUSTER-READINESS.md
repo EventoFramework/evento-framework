@@ -50,6 +50,56 @@ The honest target for the lab is **3 active cells (EU, AM, APAC)**. Each cell ha
 
 **IMPL** means worth implementing in this effort: small, safe, and testable over real TCP or a real PG. **DOC** means document it, or it is too large for this effort.
 
+### Status after fixes
+
+State of branch `feat/evento-lab-cluster` after the batch-1 merges (`cluster/consumer`,
+`cluster/es-locks`, `cluster/discovery`, `cluster/client-failover`, `cluster/locality`) and
+the batch-2 commits (N1, context wildcard, N3). "Fixed" means the IMPL item described below is
+in the code with a real-TCP or real-Postgres test; the lab scenarios still have to be re-run
+against the new images to confirm it end to end. The gap descriptions below are the original
+assessment and are kept as written.
+
+| Gap | Severity | Status after fixes | Evidence / what is left |
+|---|---|---|---|
+| G1 inter-server routing | Blocker | **Open** (DOC) | Cell architecture remains the workaround; no peer mesh |
+| G2 first address only, no failover | Blocker | **Fixed** | Ordered endpoint list; next endpoint after a failed session, back to the first at the next disconnect (no background probe). `BundleClientFailoverIT` |
+| G3 lock pins one connection | Blocker | **Fixed** | Each held lock owns a connection from a dedicated pool (`evento.lock.pool.*`); polling waits bounded by `evento.lock.acquire.timeout.ms` or the caller's deadline; `LockLostException`. `PgDistributedLockIT`, `DistributedLockPoolPostgresIT` |
+| G4 in-flight requests on broker change | High | **Fixed** | `BrokerChangedException` when a new `Welcome` names another broker. `BundleCorrelationTrackerBrokerChangeTest`, `BundleClientFailoverIT` |
+| G5 no exactly-once across servers | High | **Open**, narrowed | N3 stops executing commands whose caller has given up; an append that outlives its deadline is still indeterminate. Idempotency key not implemented |
+| G6 no `es__events` PK / no append fence | High | **Partly fixed** | PK added online on boot (`SchemaInitializationPostgresIT`); `verifyHeld` before append narrows the fork window; the `aggregate_seq` fence is open |
+| G7 stale `NodeLeft` wipes a failed-over bundle | High | **Fixed** | Presence table `core__bundle_instance` (`BundlePresence`). `MultiServerCatalogIT` |
+| G8 discovery / registration insert race | High | **Fixed** | One `DISCOVERY:<bundle>` key, `ON CONFLICT` inserts, one transaction per pass, retried on 40P01/40001/23503. `MultiServerCatalogIT` |
+| G9 CPES `es-lock` ~4 round trips | High | **Fixed** | Single statement (`pg_advisory_xact_lock` CTE + `INSERT ... RETURNING`), ~1.1 RTT through a 100 ms proxy. `EventStorePostgresIT` |
+| G10 `recordAbsent` O(gap) | High | **Fixed** | `SequenceRangeSet`. `WatermarkCheckpointTest`, `SequenceRangeSetTest` |
+| G11 checkpoint can go backwards | High | **Fixed** (monotonic guard) | `GREATEST(last_sequence, ?)`; no commit on drift when the store is ahead. Owner-epoch fence not done |
+| G12 no locality in handler pick | High | **Fixed** (zone) | `LOCALITY_PREFERRED` + `zone:<Z>` capability. `LocalityPickIT`. Routing by event context remains open (G23) |
+| G13 server identity | Medium | **Fixed** | `Welcome.clusterName`, `withExpectedClusterName`; unique server ids are still the operator's job |
+| G14 concurrent `schema.sql` | Medium | **Fixed** | Schema init under an advisory lock. `SchemaInitializationPostgresIT` |
+| G15 unescaped LIKE | Medium | **Fixed** | `_`/`%` escaped, `ESCAPE '!'`; the literal context `"ALL"` is pinned too. `EventStorePostgresIT` |
+| G16 consumerId split on `_` | Medium | **Fixed** | `ConsumerIds.parse`. `ConsumerIdsTest` |
+| G17 views and admin are local | Medium | **Partly fixed** | Presence table gives cluster-wide ownership; dashboard and consumer admin still act on the local view |
+| G18 discovery on the bus thread | Medium | **Open** (DOC) | |
+| G19 `ExpiringLruCache` | Medium | **Fixed** | Synchronised, TTL-aware reads. `ExpiringLruCacheTest`. Cross-server invalidation after `deleteAggregate` open |
+| G20 Snowflake node id from MAC | Medium | **Open** (DOC) | Use CPES |
+| G21 no read datasource | Medium | **Open** (DOC) | |
+| G22 transport settings not in the builder | Medium | **Fixed** | `setTransportConfig`, `setDefaultRequestTimeout`, `setMaxInFlightRequests`, heartbeat overrides |
+| G23 commands carry no context | Medium | **Documented** | `DomainCommand` / `setComponentContexts` javadoc; by design |
+| G24 same bundle+context replicas compete worldwide | Medium | **Documented** | `setComponentContexts` javadoc and ARCHITECTURE §4.8: one engine and lane per context. Lane affinity (N4) open |
+| G25 orphaned consumer lock after a silent partition | Medium | **Open** (DOC) | PG keepalives in the lab |
+| Low: telemetry sweep on every server | Low | **Fixed** | `tryLockedArea` elects one server |
+| Low: `@Projector(context=...)` javadoc | Low | **Fixed** | Examples no longer show the removed attribute |
+| Low: contexts keyed by simple class name | Low | **Documented** | `setComponentContexts` javadoc |
+| N1 components keyed by class name across bundles | High | **Fixed** | `core__component.id = bundle:name`, in-place migration, unregister scoped to the bundle; same bundle id with different contexts per instance keeps every lane. `MultiServerCatalogIT`, `SchemaInitializationPostgresIT` |
+| N2 liveness probes on the command path | Medium | **Partly fixed** | The lock validates only after an I/O error; Hikari's borrow check remains, and `verifyHeld` adds one `pg_locks` query per locked append |
+| N3 commands executed after the caller timed out | High | **Fixed** (up to the append) | Deadline = arrival + `Request.timeoutMillis`; drops at `queued`, `lock_wait`, `before_forward`, `before_append`; `RequestExpiredException`; `evento.server.requests.expired{stage}`. `CommandDeadlineIT` |
+| N4 global lane placed without locality | Medium | **Open** | Place the single global consumer in the primary's cell, or add lane affinity |
+| N5 `es-lock` unfair to remote cells | Medium | **Partly fixed** | G9 cuts the hold to one statement; remote cells still pay their RTT per append |
+
+**Contexts, `"*"` versus `"ALL"`.** `com.evento.common.utils.Context.ALL` is the wildcard `"*"`,
+not a context named `"ALL"`. It is now deprecated in favour of `Context.WILDCARD`. Applications that
+publish cross-region events under the literal context `"ALL"` must declare their own constant
+(e.g. `Contexts.GLOBAL = "ALL"`); a consumer configured with `"ALL"` reads only those events.
+
 ### Blockers
 
 **G1: No inter-server routing (islands).** DOC for this effort; the design is recorded.

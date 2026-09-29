@@ -1,6 +1,26 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-09-05.
+Last updated: 2026-09-29.
+
+## Multi-region cluster: framework batches 1 and 2 on `feat/evento-lab-cluster` (2026-09-29, latest)
+
+- **Batch 1 merged** into the lab branch (merge commits, no rebase): `cluster/consumer` (G10,
+  G11), `cluster/es-locks` (G3, G6 PK, G9, G14, G15, G19, dedicated lock pool),
+  `cluster/discovery` (G7 presence table, G8, G16, telemetry sweep), `cluster/client-failover`
+  (G2, G4, G13, G22), `cluster/locality` (G12). Conflicts were the changelog, the discovery
+  services (now take the shared `PgDistributedLock` bean) and `MultiServerCatalogIT` (moved to
+  the Testcontainers 2.x `PostgreSQLContainer` of Boot 4.1's BOM).
+- **Batch 2:** N1 (components keyed per bundle, `core__component.id = bundle:name`, in-place
+  migration in `AdvisoryLockedSchemaInitializer`, GUI links by `componentId`); `Context.WILDCARD`
+  with `Context.ALL` deprecated (it is `"*"`, not a context named `"ALL"`); N3 (caller deadline
+  = frame arrival + `Request.timeoutMillis`, drops at queued / lock_wait / before_forward /
+  before_append, `RequestExpiredException`, `evento.server.requests.expired{stage}`).
+- Per-gap status: `.claude/CLUSTER-READINESS.md` "Status after fixes". Architecture: §4.6–4.8,
+  decisions 12–13.
+- **Next:** rebuild the lab images from this branch and re-run the scenarios (the lab app itself
+  is being refactored to per-responsibility bundles with contexts from config in the
+  `lab/bundles` worktree); still open: G1, G5 (idempotency key), G6 fence, N4 (global lane
+  placement), G17, G25.
 
 ## 2.4.6 prepared — watermark holes + broker identity check (2026-09-05, latest)
 

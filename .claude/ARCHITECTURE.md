@@ -118,7 +118,7 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 |---|---|---|
 | `Transport` | api | SPI: `send(Message)`, `sendRaw(byte[])`, `onFrame`, `onStateChange`, `close()` |
 | `TransportServer` | api | Server SPI: `bind(port)`, `onChildTransport`, `stop()` |
-| `Frame` | api | Parsed `Message` + retained raw wire bytes (zero-copy) |
+| `Frame` | api | Parsed `Message` + retained raw wire bytes (zero-copy) + `receivedAtMs` (stamped at decode on the I/O thread, before any dispatch queue; the broker measures request deadlines from it) |
 | `ConnectionStateMachine` | api | `AtomicReference`-backed; legal transitions only |
 | `ConnectionState` | api | `DISCONNECTED → CONNECTING → CONNECTED → DEGRADED → CLOSING → CLOSED`. `canSend()` is `true` for `CONNECTED` **and** `DEGRADED` (DEGRADED is advisory backpressure — socket is alive) |
 | `ExponentialBackoffWithJitter` | api | `min(maxBackoff, base × 2^attempt) × (1 ± jitter)`; default base=500 ms, max=30 s, jitter=0.2 |
@@ -260,8 +260,83 @@ and service `CommandHandler` payload type.
 `BrokerEventStore` interface (4 methods) decouples `CommandBrokerHandler` from the concrete
 Spring JPA `EventStore` — enables in-memory test implementations.
 
+**Caller deadline (N3).** `CommandBrokerHandler` registers as a
+`BusLifecycle.DeadlineAwareRequestHandler`. The deadline is `Frame.receivedAtMs +
+Request.timeoutMillis` (`Request.deadlineFrom`): the sender's remaining budget, which every
+sender has always filled from its request timeout, added to the local arrival time, so no
+clocks of different machines are compared (the deadline errs late by the one-way delay, never
+early). `timeoutMillis = 0` means no deadline (old behaviour). A request nobody waits for any
+more is dropped unexecuted at four points, each logging `event=request_expired_dropped
+stage=...`, counting in `evento.server.requests.expired{stage}` and answering
+`RequestExpiredException` (determinate: nothing stored):
+
+| Stage | Where | What is skipped |
+|---|---|---|
+| `queued` | `BusLifecycle.onRequest`, before routing (any request, local or forwarded) | everything; covers time queued for a dispatch thread |
+| `lock_wait` | `acquire(key, remaining)`; the lock wait is bounded by the deadline | lock, fetch, forward, append |
+| `before_forward` | after lock + story fetch | forward, append |
+| `before_append` | the handler bundle did not answer in time (the forward budget is what is left of the deadline, not a fresh timeout), or answered after it | append, snapshot |
+
+What stays open: an append that starts before the deadline and ends after it is indeterminate
+for the caller; only an idempotency key (G5) closes that.
+
 `PgDistributedLock`: when `DataSource` is null, falls back to JVM-only semaphore (safe for
-single-JVM/embedded scenarios like integration tests).
+single-JVM/embedded scenarios like integration tests). With a `DataSource` (production) it is
+one shared Spring bean (`DistributedLockConfiguration`) over a **dedicated Hikari pool**
+(`evento.lock.pool.maximum-size`, default 16; `evento.lock.pool.connection-timeout-ms`, default
+1000): each *held* lock owns one pooled connection from acquire to release, so holders never pin
+the connections their own work needs, and a waiter polls `pg_try_advisory_lock` with jittered
+backoff holding no connection between attempts. Waits are bounded (`-Devento.lock.acquire.timeout.ms`,
+60 s, or `acquire(key, maxWait)`) → `LockAcquisitionTimeoutException`; `verifyHeld` / `release`
+detect a lock whose session died → `LockLostException` (`event=lock_lost`). Budget
+`servers × (spring.datasource.hikari.maximum-pool-size 20 + 16)` under `max_connections`.
+
+### 4.7 Shared Catalog Across Servers (`com.evento.server.service.discovery.*`)
+
+Several servers share one `core__*` catalog, but each server's connection view is in-JVM only.
+
+| Piece | Role |
+|---|---|
+| `core__bundle_instance` + `BundlePresence` | **Presence table**: `instance_id → (bundle_id, server_instance_id, updated_at)`. A server claims the row on `NodeJoined`, refreshes its rows every `evento.server.presence.heartbeat-interval-ms` (30 s) and reaps its own unrefreshed ones; rows older than `evento.server.presence.stale-after-ms` (180 s, database clock) no longer count as live. On `NodeLeft` a server cleans up only if it still owns the row (`Release.OWNED`/`UNTRACKED`); `OWNED_ELSEWHERE` means the instance failed over and its fresh registration on another server is left alone (G7). Requires a unique server instance id per server |
+| `ConsumerService.catalogLockKey` | One advisory-lock key per bundle, `DISCOVERY:<bundleId>`, for discovery, consumer registration and leave cleanup (they used to race under different keys, G8) |
+| `CatalogWriter` | Race-free inserts (`INSERT ... ON CONFLICT DO NOTHING`) for bundle, component, payload and consumer rows; shared payload rows are created up front in name order and corrected after the discovery transaction commits, so two discoveries cannot deadlock |
+| `AutoDiscoveryService` / `ConsumerService` | One transaction per discovery / registration pass; a pass that loses a race (40P01, 40001, FK 23503, vanished row) is retried whole |
+
+**Component identity is per bundle (N1).** `core__component.id = bundle_id || ':' ||
+component_name` (`Component.idOf`), with a unique `(bundle_id, component_name)` index;
+`core__handler.component_id` and `core__consumer.component_id` reference it. The same class
+deployed by several bundles (one generic `OrderProjector` in a bundle per region) therefore has
+one row per bundle, and `BundleService.removeBundle` deletes only that bundle's handlers,
+consumers and components. Consumer rows are keyed by `instanceId_consumerId`, and the consumer
+id is `bundleId_Component_version_context`, so one bundle id run by several instances with
+different contexts lists every lane and a leaving instance removes only its own
+(`clearInstance`). Catalogs created before this are re-keyed in place, once, by
+`AdvisoryLockedSchemaInitializer` (one transaction under the schema lock,
+`event=catalog_component_rekeyed`). REST/GUI identify a component by `componentId`;
+`GET /api/catalog/component/{identifier}` also takes a bare name when it is unambiguous
+(`409` with the candidate ids otherwise).
+
+### 4.8 Cluster Configuration (server properties, bundle builder options)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `evento.server.instance.id` / `evento.cluster.node.server.id` (`EVENTO_SERVER_INSTANCE_ID`, `EVENTO_CLUSTER_NODE_SERVER_ID`) | `server-0` / `iris-evento-server` | Must be unique per server: presence ownership and the `Welcome.serverInstanceId` depend on it |
+| `evento.cluster.name` | empty | Announced in `Welcome.clusterName`; bundles may require it (`withExpectedClusterName`) instead of one server id (G13) |
+| `evento.server.bus.pick-strategy` | `random` | `random`, `first`, `locality-preferred` (§6 decision 11) |
+| `evento.lock.pool.maximum-size` / `evento.lock.pool.connection-timeout-ms` | 16 / 1000 | Dedicated lock pool (§4.6) |
+| `-Devento.lock.acquire.timeout.ms` | 60000 | Bound on any lock wait |
+| `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7) |
+| `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
+| `evento.es.mode` | `APES` in code, `CPES` shipped | Use CPES with several servers |
+
+Bundle side (`EventoBundle.Builder`): `EventoServerMessageBusConfiguration` with several
+`ClusterNodeAddress`es (ordered failover; back to the first endpoint at the next disconnect, G2),
+`withExpectedServerInstanceId` / `withExpectedClusterName`; `setZone` (the `zone:<Z>` Hello
+capability); `setTransportConfig`, `setDefaultRequestTimeout` (also the caller deadline the broker
+enforces), `setMaxInFlightRequests`; `setComponentContexts(Component.class, ctx...)` starts **one
+consumer engine per context** (own consumer id, checkpoint, lock); no contexts = the wildcard
+`Context.WILDCARD` (`"*"`). A context literally named `"ALL"` is an ordinary context; the
+deprecated `Context.ALL` constant is the wildcard, not `"ALL"`.
 
 ---
 
@@ -339,6 +414,18 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     and zone-less callers get `RANDOM`. Zones are per-server state like the views
     (`GET /api/cluster-status/zones`; env `EVENTO_SERVER_BUS_PICK_STRATEGY` in the stock `application.properties`). Routing by event *context* (the region a command belongs to)
     is a different, larger change: commands carry no framework-level context (G23).
+
+12. **A request's deadline is its arrival plus the sender's budget, never the sender's clock
+    (N3).** `Request.timeoutMillis` (on the wire since 2.0) is read as the remaining budget and
+    added to `Frame.receivedAtMs`, stamped on the I/O thread before the dispatch queue. Comparing
+    the sender's `timestampMs` with the server clock would drop or keep requests according to
+    clock skew between regions; the chosen form can only err late, by the one-way delay. No
+    field was added, so old bundles are protected too; `0` keeps the old no-deadline path.
+
+13. **Catalog rows are identified per bundle (N1).** A component is `(bundle, name)`, stored as
+    the deterministic string `bundle:name` rather than a composite JPA key, so `CatalogWriter`
+    keeps single-statement `ON CONFLICT` inserts and lookups are computed, not queried. Never key
+    a catalog row by a class name alone: the same class is routinely deployed in several bundles.
 
 ---
 
@@ -527,7 +614,7 @@ All controllers are under `com.evento.server.web.*` and depend on `BusFacade`.
 | `ClusterStatusController` | `/api/cluster` | Connected nodes, availability |
 | `BundleController` | `/api/bundle` | Bundle list, update, delete |
 | `HandlerController` | `/api/handler` | Handler graph, invocation graph |
-| `CatalogController` | `/api/catalog` | Payload catalog |
+| `CatalogController` | `/api/catalog` | Payload and component catalog; components by `componentId` (`bundle:name`), bare name only when unambiguous |
 | `ConsumerController` | `/api/consumer` | Consumer status, dead queue, retry |
 | `PerformanceController` | `/api/performance` | Performance model, time series |
 | `ArtifactController` | `/api/artifact` | Bundle artifact upload |
@@ -554,6 +641,8 @@ explorative read-only pivot.)
   - `evento.server.correlations.pending` — outstanding server-initiated correlations
   - `evento.server.forwarding.table.size` — in-flight relayed requests
   - `evento.server.forwarded{path=raw|reencoded}` — zero-copy vs re-encoded forward counts
+  - `evento.server.requests.expired{stage=queued|lock_wait|before_forward|before_append}` —
+    requests dropped unexecuted because the caller's deadline had passed (§4.6)
   - *Not yet covered:* heartbeat lag, per-type processing-duration timers, consumer lag (future work).
 - **Parallel-consumption metrics** — wired via `ConsumerMetricsRegistry`
   (`com.evento.server.bus.spring`), fed by a periodic `ConsumerStatsMessage` bundles push on

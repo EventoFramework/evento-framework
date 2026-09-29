@@ -23,7 +23,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `@Projector`/`@Saga`/`@Observer` javadoc examples no longer show the removed `context`
   attribute. A real-Postgres case pins that fetching `"ALL"` returns only `"ALL"` events.
 - **Broker endpoint failover for bundles (G2).** `BundleClientConfig` / `BundleClient.Builder`
-
   take an ordered endpoint list (`endpoint(host, port)` / `endpoints(...)`, most preferred
   first); `host`/`port` keep working as a one-element list. `EventoBundle` now passes
   *every* address of `EventoServerMessageBusConfiguration` — before, addresses 2..n were
@@ -55,7 +54,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `BundleClient.Builder.maxInFlightRequests`. The 45 s read-idle — how long a silent
   partition goes unnoticed — was not reachable from the bundle before.
 - **Locality-aware handler selection (G12).** A bundle can declare where it runs with
-
   `EventoBundle.Builder.setZone("EU")` (or `BundleClient.Builder.zone(...)` /
   `BundleClientConfig.Builder.zone(...)`). The zone travels as a `zone:<ZONE>` entry in the
   existing `Hello.capabilities` set — no new wire message or field, and a broker that knows
