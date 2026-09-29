@@ -117,4 +117,42 @@ class CodecVersionToleranceTest {
         assertThat(decoded.bundleId()).isEqualTo("orders");
         assertThat(decoded.capabilities()).containsExactly("ping-pong");
     }
+
+    @Test
+    void welcomeCarriesTheClusterNameAndToleratesBothSkews() throws Exception {
+        var mapper = JacksonCborCodec.defaultMapper();
+        var codec = new JacksonCborCodec();
+        var current = new com.evento.transport.message.Welcome(
+                java.util.UUID.randomUUID(), (byte) 1, "evento-eu",
+                java.util.Set.of("ping-pong"), 5L, "evento-lab-cluster");
+
+        // Round trip of the 2.5 shape.
+        var bytes = mapper.writeValueAsBytes((com.evento.transport.message.Message) current);
+        var decoded = (com.evento.transport.message.Welcome) codec.decode(bytes, 0, bytes.length);
+        assertThat(decoded.clusterName()).isEqualTo("evento-lab-cluster");
+        assertThat(decoded.serverInstanceId()).isEqualTo("evento-eu");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> asMap = mapper.readValue(bytes, Map.class);
+
+        // An older broker: no clusterName at all. Decodes, and "not announced" is
+        // the empty string, never null.
+        var older = new LinkedHashMap<>(asMap);
+        older.remove("clusterName");
+        var olderBytes = mapper.writeValueAsBytes(older);
+        var fromOlder = (com.evento.transport.message.Welcome) codec.decode(olderBytes, 0, olderBytes.length);
+        assertThat(fromOlder.clusterName()).isEmpty();
+        assertThat(fromOlder.serverInstanceId()).isEqualTo("evento-eu");
+
+        // A newer broker: fields this version does not know are skipped.
+        var newer = new LinkedHashMap<>(asMap);
+        newer.put("regionFromTheFuture", "eu-west");
+        var newerBytes = mapper.writeValueAsBytes(newer);
+        var fromNewer = (com.evento.transport.message.Welcome) codec.decode(newerBytes, 0, newerBytes.length);
+        assertThat(fromNewer.clusterName()).isEqualTo("evento-lab-cluster");
+
+        // The pre-2.5 constructor still compiles and means "not announced".
+        assertThat(new com.evento.transport.message.Welcome(java.util.UUID.randomUUID(), (byte) 1,
+                "x", java.util.Set.of(), 0L).clusterName()).isEmpty();
+    }
 }
