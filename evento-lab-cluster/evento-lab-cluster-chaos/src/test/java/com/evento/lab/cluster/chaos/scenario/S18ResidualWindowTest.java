@@ -58,52 +58,65 @@ class S18ResidualWindowTest extends AbstractScenario {
         scenario(() -> {
             int n = LabConfig.envInt("S18_ORDERS", 6);
             var cutFor = envSeconds("S18_CUT_S", 20);
-            var region = System.getenv().getOrDefault("S18_REGION", "CINA");
+            // One saga lane per region pays its orders one after the other, so spread the orders
+            // over the cell's regions: each lane has one payment in the window at a time.
+            var regions = List.of(System.getenv().getOrDefault("S18_REGIONS",
+                    String.join(",", LabConfig.regionsOfCell("APAC"))).split(","));
             report.param("orders", n);
             report.param("cutSeconds", cutFor.toSeconds());
-            report.param("region", region);
+            report.param("regions", regions);
             report.param("esLink", ES_LINK);
             report.param("outcomeStoreEnv", System.getenv().getOrDefault("EVENTO_SERVICE_OUTCOME_STORE", "jdbc (default)"));
             onCleanup(() -> toxi.setEnabled(ES_LINK, true));
 
             var orders = new ArrayList<String>();
+            var regionOf = new LinkedHashMap<String, String>();
             for (int i = 0; i < n; i++) {
+                var region = regions.get(i % regions.size());
                 var id = gateway.newOrderId(prefix + SLOW_MARKER + "-", region);
                 var created = gateway.create(region, id, UUID.randomUUID().toString());
                 if (created.outcome() != RequestRecord.Outcome.ACK) continue;
                 if (gateway.addItem(region, id, "sku-1", 1, UUID.randomUUID().toString()).outcome()
                         == RequestRecord.Outcome.ACK) {
                     orders.add(id);
+                    regionOf.put(id, region);
                 }
             }
-            report.event("created " + orders.size() + " " + region + " orders with an item");
+            report.event("created " + orders.size() + " orders with an item in " + regions);
             if (orders.isEmpty()) {
                 report.harnessError("no order could be created");
                 return;
             }
             var since = Instant.now();
-            for (var id : orders) gateway.complete(region, id, UUID.randomUUID().toString());
+            try (var exec = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+                for (var id : orders) exec.submit(() -> gateway.complete(regionOf.get(id), id, UUID.randomUUID().toString()));
+            }
             report.event("completed them: the saga pays each one (the handler answers "
                     + System.getenv().getOrDefault("LAB_PAYMENT_SLOW_MS", "4000") + " ms after its commit)");
 
-            // Cut once the payments have committed and their handlers are still answering.
-            // The first committed payment answers LAB_PAYMENT_SLOW_MS later: cut at most 1.5 s after it.
+            // Cut while payments are in the window: committed (payments row) but not yet stored
+            // (no PaymentProcessedEvent), i.e. their handlers are still answering. Cut as soon as
+            // every lane has one there, or 1 s after the first one shows up.
             Set<String> paidAtCut = new LinkedHashSet<>();
-            long deadline = System.currentTimeMillis() + 30_000;
+            Set<String> inWindowAtCut = new LinkedHashSet<>();
+            long deadline = System.currentTimeMillis() + 60_000;
             long firstSeen = -1;
             while (System.currentTimeMillis() < deadline) {
                 paidAtCut = attempts(prefix + SLOW_MARKER).keySet();
-                if (paidAtCut.size() >= orders.size()) break;
-                if (!paidAtCut.isEmpty()) {
+                var stored = paymentEvents(new ArrayList<>(paidAtCut));
+                inWindowAtCut = new LinkedHashSet<>();
+                for (var id : paidAtCut) if (stored.getOrDefault(id, 0) == 0) inWindowAtCut.add(id);
+                if (inWindowAtCut.size() >= Math.min(regions.size(), orders.size())) break;
+                if (!inWindowAtCut.isEmpty()) {
                     if (firstSeen < 0) firstSeen = System.currentTimeMillis();
-                    else if (System.currentTimeMillis() - firstSeen > 1_500) break;
+                    else if (System.currentTimeMillis() - firstSeen > 1_000) break;
                 }
-                Cluster.sleep(Duration.ofMillis(200));
+                Cluster.sleep(Duration.ofMillis(100));
             }
             toxi.setEnabled(ES_LINK, false);
             var cutAt = Instant.now();
             report.event("cut " + ES_LINK + " with " + paidAtCut.size() + " of " + orders.size()
-                    + " payments committed and still answering");
+                    + " payments committed, " + inWindowAtCut.size() + " of them still answering: " + inWindowAtCut);
             var storedAtCut = paymentEvents(orders);
             Cluster.sleep(cutFor);
             var storedAtHeal = paymentEvents(orders);
