@@ -14,10 +14,19 @@ due volte** (prima 8) e 4/4 retry di comandi già salvati con risposta 2xx; S03 
 eseguiti due volte**; S03 **8/8** JVM APAC e S13 **7/7** JVM EU tornati sul proprio server senza
 riavvii, in 55.7 s e 53.3 s.
 
+**Aggiornamento `after-inbox` (2026-10-09).** La finestra residua di G5 (un handler di servizio eseguito
+il cui evento non è stato salvato) è chiusa dallo **store degli esiti lato bundle**: S18 la colpisce apposta
+(3 pagamenti su 3 nella finestra) e **0** sono rieseguiti; con lo store spento, 3. E la chiave non costa
+più un round trip: un comando di aggregato con chiave fa 2 statement sull'event store come uno senza
+chiave (prima 4), uno di servizio 2 (prima 6; senza chiave 1); S00 p50 APAC 1135–1220 ms contro
+1359–1472 ms di `after-g5n16` ([AFTER-SUMMARY](../results/AFTER-SUMMARY.md), §"Re-run with the service
+outcome store").
+
 ## Quando leggerlo
 
-- Prima di scegliere L2 o L3 per un sistema reale: i limiti G1 e N16 decidono quali guasti
-  richiedono un intervento umano; di G5 resta la finestra residua descritta sotto.
+- Prima di scegliere L2 o L3 per un sistema reale: la regola delle celle (G1, scelta di progetto:
+  ogni cella ospita tutti i suoi handler) e il residuo di N16 decidono quali guasti richiedono un
+  intervento umano.
 - Quando pianifichi il lavoro sul framework: la tabella di priorità in fondo ordina gli interventi
   per impatto misurato.
 
@@ -25,9 +34,9 @@ riavvii, in 55.7 s e 53.3 s.
 
 | Id | Limite | Gravità | Prova | Rimedio oggi | Lavoro che lo chiude |
 |---|---|---|---|---|---|
-| G1 | nessun inoltro server-server | Blocker (per la topologia) | [S01](../results/S01/after/report.md): 0/5 `no handler` in ≤ 14 ms | architettura a celle con handler completi (L2) | mesh di server (sotto) |
+| G1 | nessun inoltro server-server: **scelta di progetto**, non un limite da chiudere (un client può essere collegato solo ad alcuni server; la topologia prevista è a celle) | – (era Blocker nella valutazione iniziale) | [S01](../results/S01/after/report.md): 0/5 `no handler` in ≤ 14 ms quando a una cella manca un handler | architettura a celle con handler completi (L2) | nessuno dovuto; una mesh di server resta un'opzione (sotto) |
 | N16 | failback dopo il failover degli endpoint: **implementato e misurato** (sonda lato bundle con readiness del server, ritorno reattivo su `no handler for`): S03 8/8 JVM a casa in 55.7 s, S13 7/7 in 53.3 s, senza riavvii, 0 falliti; resta il ritorno non atomico per cella (al più una richiesta fallita per chiamante; 0 osservate) | High → Medium | prima: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [S03](../results/S03/after/report.md); dopo: [S03 `after-g5n16`](../results/S03/after-g5n16/report.md), [S13 `after-g5n16`](../results/S13/after-g5n16/report.md); `BundleClientFailbackIT` | lista di indirizzi (non VIP); il laboratorio ripristina comunque il posizionamento (L22) | ritorno coordinato per cella, o la mesh G1 che rende innocuo l'ordine (sotto) |
-| G5 / N14 | ~~nessuna idempotenza tra retry~~ **implementato e misurato**: 0 chiavi doppie, 0 pagamenti doppi; resta la finestra "handler di servizio eseguito, evento non salvato" (non colpita nella S07 rieseguita) | High → Low | prima: [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi. Dopo: [S14 `after-g5n16`](../results/S14/after-g5n16/report.md) 0 chiavi doppie, 4/4 retry 2xx; [S03](../results/S03/after-g5n16/report.md) e [S07](../results/S07/after-g5n16/report.md) 0 pagamenti doppi. Codice: `IdempotentCommandPostgresIT` | `X-Idempotency-Key` → `sendIdempotent`; saghe: chiave derivata automatica | handler di servizio idempotenti sulla chiave ricevuta (finestra residua); retention delle chiavi |
+| G5 / N14 | ~~nessuna idempotenza tra retry~~ **implementato e misurato**: 0 chiavi doppie, 0 pagamenti doppi; la finestra "handler di servizio eseguito, evento non salvato" è chiusa dallo store degli esiti (S18: 0 rieseguiti, 3 senza store). Restano: store per cella, effetti esterni al database dell'handler, chiavi senza scadenza | High → Low | prima: [S14](../results/S14/after/report.md) 8 chiavi doppie; [S03 `after-run1`](../results/S03/after-run1/report.md), [S07](../results/S07/after/report.md) pagamenti doppi. Dopo: [S14 `after-g5n16`](../results/S14/after-g5n16/report.md) 0 chiavi doppie, 4/4 retry 2xx; [S03](../results/S03/after-g5n16/report.md) e [S07](../results/S07/after-g5n16/report.md) 0 pagamenti doppi; [S18 `after-inbox`](../results/S18/after-inbox/report.md) 0 rieseguiti, [senza store](../results/S18/after-inbox-store-off/report.md) 3. Codice: `IdempotentCommandPostgresIT`, `ServiceOutcomeReplayPostgresIT` | `X-Idempotency-Key` → `sendIdempotent`; saghe: chiave derivata automatica; `setServiceCommandOutcomeStore` + `ServiceCommandOutcomes.recordWith` nella transazione dell'handler | retention di chiavi ed esiti; chiave passata a valle per effetti esterni |
 | G6 | nessuna fence `aggregate_seq` sugli append | High (latente) | nessun fork osservato (S05, S08); PK su `es__events` aggiunta | lock per aggregato + `verifyHeld` | colonna `aggregate_seq` con `UNIQUE(aggregate_id, aggregate_seq)` (sotto) |
 | N5 / N9 / N15 | ogni append serializza sul `es-lock` globale raggiunto via WAN; commit dopo la deadline | Medium | [S06](../results/S06/after/report.md): p50 APAC 22.8 s a 300 ms; 31 commit dopo il timeout | primario ES nella cella più scrivente | `SET LOCAL lock_timeout` = deadline residua; append per aggregato con la fence G6 |
 | N4 | la lane `ALL` salta tra repliche, senza località | Medium | [S16](../results/S16/after/report.md): scrittori EU 9 / APAC 6, fan-out 10.2 s | una sola replica attiva nella cella del primario | affinità della lane (sotto) |
@@ -38,10 +47,13 @@ riavvii, in 55.7 s e 53.3 s.
 | G17 / G18 | dashboard locale; discovery sul thread del bus | Medium | [CLUSTER-READINESS](../../.claude/CLUSTER-READINESS.md) | interrogare ogni server | proxy delle azioni admin al server proprietario (presenza già disponibile) |
 | G10 / G20 | WATERMARK O(gap), Snowflake da MAC | – | [S12](../results/S12/after/report.md): non misurabile con CPES | usare CPES | – |
 
-## G1: mesh di server
+## G1: mesh di server (opzione, non correzione)
 
-Oggi ([L2](L2-cells.md)) la cella deve contenere ogni handler. Con una mesh, un server che non ha
-l'handler inoltra al peer che lo ha, e le celle possono essere parziali.
+G1 è una scelta di progetto: ogni server instrada verso i propri bundle, la connettività è
+regionale (un client può essere collegato solo ad alcuni server) e la topologia prevista è la
+cella con tutti i suoi handler ([L2](L2-cells.md)). Il fatto resta: una richiesta raggiunge solo
+gli handler collegati allo stesso server. Una mesh servirebbe solo a topologie diverse, con celle
+parziali: un server che non ha l'handler inoltrerebbe al peer che lo ha.
 
 ```mermaid
 flowchart LR
@@ -146,22 +158,34 @@ sequenceDiagram
   I comandi di servizio in esecuzione hanno una riga in `es__idempotency_claims` (proprietario,
   lease sull'orologio del database); un handler che non restituisce nulla lascia la riga
   "completata", così il retry non lo riesegue.
-- **Cosa fa il server.** Cerca la chiave **prima** del lock e dell'inoltro: se c'è, risponde con
-  l'evento salvato (`event=idempotent_replay`, metrica `evento.server.commands.idempotent.replayed`),
-  su qualunque server arrivi il retry. Duplicati concorrenti: un comando di aggregato ricontrolla la
-  chiave sotto il lock dell'aggregato (e l'indice unico fa da recinto); un comando di servizio
-  **rivendica** la chiave con una riga di claim prima dell'inoltro, così due duplicati in volo non
+- **Cosa fa il server.** Cerca la chiave dentro un round trip che il comando fa comunque, mai in uno
+  suo: un comando di aggregato nella lettura della storia sotto il lock dell'aggregato (un ramo
+  `UNION ALL` della query degli eventi), un comando di servizio nello statement che rivendica la
+  chiave. Se c'è, risponde con l'evento salvato (`event=idempotent_replay`, metrica
+  `evento.server.commands.idempotent.replayed`), su qualunque server arrivi il retry. Costo misurato
+  al driver JDBC (`IdempotentCommandPostgresIT`): aggregato con chiave 2 statement come senza (prima
+  4), servizio con chiave 2 contro 1 (prima 6). Duplicati concorrenti: per un comando di aggregato
+  l'indice unico fa da recinto anche senza lock; un comando di servizio
+  **rivendica** la chiave con una riga di claim prima dell'inoltro (l'append la marca completata nello
+  stesso statement, quindi non serve un secondo controllo), così due duplicati in volo non
   eseguono entrambi il pagamento e chi aspetta non tiene nessuna connessione (il vecchio lock di
   cluster `IDEMPOTENCY:<chiave>` teneva una connessione del pool dei lock per tutto l'handler, oltre
   a quella del lock `RESOURCE:`: con il pool pieno i comandi si aspettavano a vicenda). Un comando
   con chiave scartato per deadline (N3) la cui chiave risulta salvata riceve l'evento salvato; uno
   che smette di aspettare un'altra esecuzione della stessa chiave riceve
   `IdempotencyKeyInProgressException` (esito indeterminato), mai "scaduto".
-- **Finestra residua.** Un handler di servizio eseguito il cui evento **non** è stato salvato
-  (append fallito, server morto tra risposta e append: il caso di S07, cella partizionata) non lascia
-  la chiave, e il retry lo riesegue. Quell'handler deve deduplicare da sé sulla chiave che riceve
-  (`ServiceCommandMessage.getIdempotencyKey()`); i `payments` del laboratorio non lo fanno apposta,
-  per mostrare la finestra.
+- **Finestra residua: chiusa dallo store degli esiti.** Un handler di servizio eseguito il cui evento
+  **non** è stato salvato (append fallito, server morto tra risposta e append: il caso di S07, cella
+  partizionata) non lascia la chiave al broker, e il retry viene inoltrato di nuovo. Lo sa solo il
+  bundle che l'ha eseguito, quindi è lui a tenere il registro (pattern inbox):
+  `EventoBundle.Builder.setServiceCommandOutcomeStore(...)` (`JdbcServiceCommandOutcomeStore`, tabella
+  `evento_v2_service_outcome`). Con lo store, un comando con chiave il cui esito è registrato riceve
+  quell'esito senza rieseguire l'handler (`event=service_outcome_replayed`). Il pagamento del
+  laboratorio registra l'esito **nella propria transazione** (`ServiceCommandOutcomes.recordWith`):
+  riga `payments` ed esito committano insieme o per niente. Misurato da S18: 3 pagamenti nella
+  finestra, 0 rieseguiti; con `EVENTO_SERVICE_OUTCOME_STORE=off`, 3 rieseguiti. Limiti: lo store deve
+  essere condiviso da ogni istanza che può ricevere il retry (nel laboratorio è per cella, nel database
+  della cella); un effetto fuori da quel database (un PSP) richiede di passare la chiave a valle.
 - **Upgrade a rotazione (limite aperto).** Un server senza G5 ignora la chiave (salta il campo
   sconosciuto e fa un append senza chiave): durante un upgrade, un retry con chiave che arriva a un
   server vecchio viene eseguito come un comando senza chiave. L'exactly-once vale solo quando tutti i
@@ -208,9 +232,9 @@ Salvo il failback N16, nessuna delle voci sopra ha oggi una configurazione. Le l
 
 ## Matrice bundle × roadmap
 
-| Bundle | G1 mesh | G5 idempotenza | G6 fence | N4 affinità | G21 read datasource |
+| Bundle | G1 mesh (opzione) | G5 idempotenza | G6 fence | N4 affinità | G21 read datasource |
 |---|---|---|---|---|---|
-| `order-command` | non serve più in ogni cella | fatto dal broker; resta da chiavare `payments` sulla chiave ricevuta per la finestra residua | nessuna modifica | – | – |
+| `order-command` | non serve più in ogni cella | fatto dal broker; la finestra residua è chiusa dallo store degli esiti (registrato nella transazione del pagamento) | nessuna modifica | – | – |
 | `order-query` | query servite da qualunque cella (ma i dati restano regionali: L3 invariato) | – | – | la lane `ALL` resta nella cella scelta | fetch da una replica vicina |
 | `order-saga` | – | fatto: chiave derivata da (consumer, sequenza, ordinale), nessuna modifica | – | – | fetch da una replica vicina |
 | `order-observer` | – | – | – | – | fetch da una replica vicina |
@@ -222,9 +246,9 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 
 | Lavoro | Scenario | Risultato atteso |
 |---|---|---|
-| G1 mesh | S01 | AMERICA 5/5 anche senza `order-command-am` |
+| G1 mesh (opzione) | S01 | AMERICA 5/5 anche senza `order-command-am` |
 | N16 failback (implementato, **misurato**) | S03, S13 | **ottenuto**: S03 8/8 e S13 7/7 JVM a casa senza riavvii (55.7 s, 53.3 s), osservazioni "fail back" AS_EXPECTED, il ripristino di sicurezza di S13 non trova nulla |
-| G5 (implementato, **misurato**) | S14, S03, S07 | **ottenuto**: S14 0 chiavi doppie, 4/4 retry di comandi già salvati 2xx (kill a 3000 ms); S03 e S07 0 pagamenti doppi (finestra residua non colpita) |
+| G5 (implementato, **misurato**) | S14, S03, S07, S18 | **ottenuto**: S14 0 chiavi doppie, 4/4 retry di comandi già salvati 2xx (kill a 3000 ms; `after-inbox` anche a 2000 ms); S03 e S07 0 pagamenti doppi; S18 finestra residua colpita 3 volte, 0 pagamenti rieseguiti (3 senza store) |
 | N4 | S16 | un solo scrittore, fan-out vicino ai 2.1 s di `:before` |
 | N15 | S06 | 0 comandi salvati dopo il timeout a 300 ms |
 | staleness | S15 | ordini proiettati con orologio a −40 s |
@@ -244,10 +268,12 @@ Per ognuna, lo scenario che lo proverebbe è già nel laboratorio:
 
 - [ ] I miei chiamanti mandano una chiave di idempotenza quando ritentano (`sendIdempotent`)? Le
       saghe la derivano da sole; un client HTTP deve passarla (G5).
-- [ ] I miei handler di servizio con side effect deduplicano sulla chiave ricevuta (finestra residua G5)?
+- [ ] I miei bundle di servizio con side effect hanno uno store degli esiti condiviso da tutte le loro
+      istanze, e registrano l'esito nella transazione del side effect (finestra residua G5)? Gli effetti
+      esterni ricevono la chiave?
 - [ ] Posso tollerare qualche secondo di `no handler for` mentre una cella torna sul suo server
       (N16 residuo + G1)? Uso una lista di indirizzi, non un VIP, così il failback avviene da solo?
-- [ ] Ogni cella avrà sempre tutti gli handler (G1)?
+- [ ] Ogni cella avrà sempre tutti gli handler che i suoi chiamanti usano (G1, la regola delle celle)?
 - [ ] Il RTT verso il primario ES delle celle remote è compatibile con la latenza richiesta
       (≈ 7–9 RTT per comando, N9)?
 - [ ] Ho un solo punto che produce eventi globali, e posso accettare che un database regionale giù

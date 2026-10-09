@@ -268,8 +268,8 @@ nessun `CatalogProjector_1_*`.
 
 `OrderProjection` risponde a `FindOrderQuery` e `FindPriceQuery` dal database della propria cella.
 Ogni `order-query` della cella legge lo stesso database, quindi qualunque deployment della cella
-risponde per tutte le sue regioni e per il listino. Con G1 i server sono isole e le query restano
-nella cella comunque; con `locality-preferred` restano nella cella anche quando un failover mette
+risponde per tutte le sue regioni e per il listino. Per scelta (G1) ogni server instrada solo
+verso i propri bundle, quindi le query restano nella cella comunque; con `locality-preferred` restano nella cella anche quando un failover mette
 bundle di più celle sullo stesso server. Verifica ([integrazione](../results/_integration/after/checks.md)):
 `GET /orders/{id}` risponde nella cella dell'ordine per tutte le 7 regioni, e la stessa lettura da
 un'altra cella restituisce 404.
@@ -297,7 +297,7 @@ un'altra cella restituisce 404.
 | saga state | lo stato delle saghe non ha la dimensione del context (Low) | [CLUSTER-READINESS](../../.claude/CLUSTER-READINESS.md) |
 | gate di staleness | un consumer con orologio indietro > 30 s non riceve eventi | [S15](../results/S15/after/report.md) |
 | G1, N16 | come in L1 e L2 | [S01](../results/S01/after/report.md), [S13](../results/S13/after/report.md) |
-| G5/N14 | implementato dopo le misure (chiavi di idempotenza, vedi [L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)); in una cella partizionata resta la finestra residua: un pagamento eseguito il cui evento non si è potuto salvare viene rieseguito dal retry della saga dopo la guarigione | [S07](../results/S07/after/report.md) (pre-fix: 2 pagamenti doppi); [S07 `after-g5n16`](../results/S07/after-g5n16/report.md): 0 pagamenti doppi, finestra residua non colpita |
+| G5/N14 | implementato dopo le misure (chiavi di idempotenza, vedi [L5](L5-limits-roadmap.md#g5--n14-chiave-di-idempotenza-end-to-end)); la finestra residua di una cella partizionata (un pagamento eseguito il cui evento non si è potuto salvare) è chiusa dallo store degli esiti di `order-command`, nel database della cella: il retry della saga riceve l'esito registrato | [S07](../results/S07/after/report.md) (pre-fix: 2 pagamenti doppi); [S07 `after-g5n16`](../results/S07/after-g5n16/report.md): 0 pagamenti doppi; [S18 `after-inbox`](../results/S18/after-inbox/report.md): finestra colpita 3 volte, 0 rieseguiti |
 
 Le alternative al fan-out (una lane per regione) e i loro costi sono in [contexts.md](contexts.md).
 

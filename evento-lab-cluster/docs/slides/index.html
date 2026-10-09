@@ -361,7 +361,7 @@ svg .hit:hover + .bar-before, svg .hit:hover + .bar-after { opacity: .8; }
       <p class="xs muted" style="margin-top:6px">L'event store ha un solo primario, in EU. Ogni append da AM o APAC paga almeno un round trip WAN mentre tiene il lock globale.</p>
     </div>
     <div class="cols-3" style="grid-template-columns:1fr 1fr;gap:14px">
-      <div class="card"><h3>Routing a isole</h3><p>La mappa degli handler vive nella memoria di ogni server e non esiste un collegamento tra server. Se l'handler è attaccato a un altro server la richiesta fallisce con <code>no handler for</code> (G1).</p></div>
+      <div class="card"><h3>Routing per cella</h3><p>La mappa degli handler vive nella memoria di ogni server e non esiste un collegamento tra server: ogni server instrada verso i propri bundle. Se l'handler è attaccato a un altro server la richiesta fallisce con <code>no handler for</code> (G1). È una scelta di progetto: la connettività è regionale e la topologia prevista è la cella con tutti i suoi handler.</p></div>
       <div class="card"><h3>Un lock globale sulla WAN</h3><p>In CPES ogni append prende l'<code>es-lock</code> sul primario. Nella 2.4.6 servivano circa 4 round trip con il lock tenuto (G9), quindi le celle remote saturano.</p></div>
       <div class="card"><h3>Lock legati a sessioni</h3><p>Una sola connessione JDBC per tutti i lock advisory di un server (G3): una partizione silenziosa lascia i lock orfani e blocca gli altri server (N11, G25).</p></div>
       <div class="card"><h3>Failover e identità</h3><p>Il bundle si collega solo al primo indirizzo (G2). Le richieste in volo scadono dopo 30 s (G4) e non si sa a quale cluster appartenga il broker (G13).</p></div>
@@ -947,7 +947,7 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
         <tr><td>S15 orologio −40 s: ordini proiettati</td><td class="num">0/5</td><td class="num">0/5</td></tr>
       </table>
       <p class="small ink2" style="margin-top:12px"><span class="tag t-fixed">corretto</span> L'append ora è un solo statement (circa 1,1 RTT) e i lock hanno un pool dedicato, quindi una partizione non blocca più l'intero cluster.</p>
-      <p class="small ink2"><span class="tag t-fixed">corretto dopo</span> Con le chiavi di idempotenza (G5, N14) un retry riceve l'evento salvato: 0 chiavi doppie in S14, 0 pagamenti doppi in S07 (<code>after-g5n16</code>).</p>
+      <p class="small ink2"><span class="tag t-fixed">corretto dopo</span> Con le chiavi di idempotenza (G5, N14) un retry riceve l'evento salvato: 0 chiavi doppie in S14, 0 pagamenti doppi in S07 (<code>after-g5n16</code>). Lo store degli esiti lato bundle chiude anche la finestra residua: S18 3 pagamenti nella finestra, 0 rieseguiti (3 senza store), e la chiave non costa più un RTT (<code>after-inbox</code>).</p>
       <p class="small ink2"><span class="tag t-open">aperto</span> Le append restano serializzate su un lock attraverso la WAN (N5, N9, N15) e il controllo di staleness del fetch non tollera un orologio indietro di 40 s (S15).</p>
     </div>
   </div>
@@ -1139,11 +1139,11 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
   <div class="body">
     <table class="t tight" style="font-size:13.5px">
       <tr><th style="width:70px">Gap</th><th>Problema nella 2.4.6</th><th>Correzione</th><th style="width:250px">Evidenza nel lab</th><th style="width:96px">Stato</th></tr>
-      <tr><td>G1</td><td>Nessun routing tra server</td><td>Nessuna: architettura a celle</td><td>S01 0/5 su entrambe</td><td><span class="tag t-open">aperto</span></td></tr>
+      <tr><td>G1</td><td>Nessun routing tra server</td><td>Nessuna dovuta: scelta di progetto, architettura a celle</td><td>S01 0/5 su entrambe (cella senza handler)</td><td><span class="tag t-same">per scelta</span></td></tr>
       <tr><td>G2 · N16</td><td>Il bundle usa solo il primo indirizzo</td><td>Lista di endpoint: failover, poi failback (sonda)</td><td>S03 APAC 0/18 → 46/46; failback 8/8</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G3</td><td>Tutti i lock su un'unica connessione</td><td>Pool di lock dedicato, attese limitate, <code>LockLostException</code></td><td>S05 8 deadlock → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G4</td><td>Richieste in volo perse al cambio di broker</td><td><code>BrokerChangedException</code> al nuovo <code>Welcome</code></td><td>S14 24/24 dopo ≥ 25 s → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
-      <tr><td>G5 · N14</td><td>Nessun exactly-once tra server</td><td>Chiave di idempotenza salvata con l'evento</td><td>S14 chiavi doppie 1 → 8 → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+      <tr><td>G5 · N14</td><td>Nessun exactly-once tra server</td><td>Chiave di idempotenza salvata con l'evento; store degli esiti nel bundle di servizio (finestra residua)</td><td>S14 chiavi doppie 1 → 8 → 0; S18 pagamenti rieseguiti 3 → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G7 · N12</td><td>NodeLeft stantio cancella i consumer</td><td>Tabella di presenza <code>core__bundle_instance</code></td><td>S04 10 id cancellati → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G8</td><td>Race di inserimento nel catalogo</td><td>Un lock per bundle, <code>ON CONFLICT</code>, una transazione</td><td>riparazioni 7/7 → 0/7</td><td><span class="tag t-fixed">corretto</span></td></tr>
       <tr><td>G9 · N11</td><td>Append CPES in circa 4 round trip con lock tenuto</td><td>Uno statement: <code>pg_advisory_xact_lock</code> + <code>INSERT … RETURNING</code></td><td>S00 5,2 → 9,35 append/s; S07 0/16 → 41/41</td><td><span class="tag t-fixed">corretto</span></td></tr>
@@ -1246,11 +1246,12 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
         <tr><td>S14 chiavi doppie</td><td class="num">1</td><td class="num">8</td><td class="num">0</td><td><span class="tag t-fixed">corretto</span></td></tr>
         <tr><td>S07 pagamenti doppi</td><td class="num">0</td><td class="num">2</td><td class="num">0</td><td><span class="tag t-fixed">corretto</span></td></tr>
         <tr><td>S03 JVM fuori cella</td><td class="num">–</td><td class="num">8</td><td class="num">0</td><td><span class="tag t-fixed">corretto</span></td></tr>
+        <tr><td>S18 pagamenti rieseguiti nella finestra residua</td><td class="num">–</td><td class="num">–</td><td class="num">3 → 0</td><td><span class="tag t-fixed">corretto</span></td></tr>
       </table>
-      <p class="xs muted" style="margin-top:10px">Senza G5 il fallimento rapido peggiorava i duplicati (S14: 8 chiavi doppie). Con le chiavi 4 comandi già scritti sono stati ritentati e hanno ricevuto 2xx con l'evento salvato. S08 (N17) e S16 (N4): una run per immagine.</p>
+      <p class="xs muted" style="margin-top:10px">Senza G5 il fallimento rapido peggiorava i duplicati (S14: 8 chiavi doppie). Con le chiavi 4 comandi già scritti sono stati ritentati e hanno ricevuto 2xx con l'evento salvato. S18 (<code>after-inbox</code>): 3 senza lo store degli esiti, 0 con lo store. S08 (N17) e S16 (N4): una run per immagine.</p>
     </div>
   </div>
-  <div class="foot"><span>Fonte: results/S00, S03, S08, S16 (metrics), S07/S14 after-g5n16, COMPARISON.md</span><span class="pg"></span></div>
+  <div class="foot"><span>Fonte: results/S00, S03, S08, S16 (metrics), S07/S14 after-g5n16, S18 after-inbox{,-store-off}, COMPARISON.md</span><span class="pg"></span></div>
 </section>
 
 <!-- ================= 26. LIMITS & ROADMAP ================= -->
@@ -1262,7 +1263,7 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
       <h3>Subito <span class="tag t-open">correttezza</span></h3>
       <ul>
         <li><b><code>lock_timeout</code> legato alla deadline</b> durante l'attesa dell'<code>es-lock</code> (N15).</li>
-        <li><b>Finestra residua di G5</b>: un handler di servizio eseguito il cui evento non è stato salvato viene rieseguito dal retry; il side effect deve deduplicare sulla chiave. Le chiavi non scadono.</li>
+        <li><b>G5, oltre la cella</b>: la finestra residua è chiusa dallo store degli esiti (S18: 0 pagamenti rieseguiti, 3 senza store), ma lo store è per cella e copre solo gli effetti nel suo database; verso servizi esterni la chiave va passata a valle. Chiavi ed esiti non scadono.</li>
         <li><b>Gate di staleness</b> misurato sull'ora di ricezione del server, non sull'orologio del client (S15).</li>
       </ul>
     </div>
@@ -1278,14 +1279,14 @@ EVENTO_CLUSTER_NAME=evento-lab-cluster  EVENTO_INSTANCE_ID=&lt;servizio&gt;</pre
     <div class="card">
       <h3>Lungo termine <span class="tag t-same">architettura</span></h3>
       <ul>
-        <li><b>Mesh di server</b> (G1): i server si collegano come peer e inoltrano con la <code>ForwardingTable</code>, con un marcatore di hop contro i loop.</li>
+        <li><b>Mesh di server</b> (G1, opzione): solo per topologie con celle parziali; i server si collegano come peer e inoltrano con la <code>ForwardingTable</code>, con un marcatore di hop contro i loop. Con le celle complete non serve.</li>
         <li>Append senza un lock globale attraverso la WAN (N5, N9): ogni append remota paga ancora il suo RTT.</li>
         <li>Non esercitati o non misurabili qui: G10, G17, G18, G20, G21 (tra cui dashboard e amministrazione solo locali, discovery sul thread del bus, nessun datasource di lettura).</li>
       </ul>
     </div>
   </div>
-  <div class="callout" style="margin-top:14px">Conclusione: con le correzioni Evento regge <b>tre celle attive</b> con WAN, kill di server, promozioni di database e partizioni; i bundle tornano da soli al proprio server (N16) e un retry con la stessa chiave riceve l'evento già salvato (G5: 0 duplicati in S03, S07, S14). <b>Non</b> è ancora un cluster instradato (G1), e la chiave costa alle celle remote circa un RTT per comando.</div>
-  <div class="foot"><span>Fonte: results/COMPARISON.md "What is still broken", results/AFTER-SUMMARY.md (after-g5n16), .claude/STATUS.md</span><span class="pg"></span></div>
+  <div class="callout" style="margin-top:14px">Conclusione: con le correzioni Evento regge <b>tre celle attive</b> con WAN, kill di server, promozioni di database e partizioni; i bundle tornano da soli al proprio server (N16) e un retry con la stessa chiave riceve l'evento già salvato, e un pagamento già eseguito il cui evento non è stato salvato riceve l'esito registrato (G5: 0 duplicati in S03, S07, S14, S18), senza round trip in più per la chiave. Per scelta (G1) ogni server instrada verso i propri bundle: la topologia prevista è la cella con tutti i suoi handler.</div>
+  <div class="foot"><span>Fonte: results/COMPARISON.md "What is still broken", results/AFTER-SUMMARY.md (after-g5n16, after-inbox), .claude/STATUS.md</span><span class="pg"></span></div>
 </section>
 
 <!-- ================= 27. HOW TO RUN ================= -->
@@ -1342,7 +1343,7 @@ scripts/down.sh                 <span class="c"># container, reti e volumi (-v)<
 </nav>
 
 <script>
-// ============ data, copied from results/<S>/<label>/summary.json (2026-09-29) ============
+// ============ data, copied from results/<S>/<label>/summary.json (2026-09-29; inbox: 2026-10-09) ============
 const DATA = {
   // results/S00/{before,after}/summary.json -> metrics.latencyByRegion[R].p50 (ms), acked/count
   s00: [
@@ -1386,6 +1387,16 @@ const DATA = {
     s13: { failedBack: '7/7', allHomeSeconds: 53.314, restartedIntoPlace: 0 },
     s14: { killDelayMs: 3000, failedFirst: '18/24', storedBeforeRetry: 4, keysStoredTwice: 0, storedRetriesAcked: '4/4' },
     s16: { fanOutSeconds: 8.149, takeoverSeconds: 4.38, writers: { apac: 9, eu: 6 } },
+  },
+  // results/<S>/after-inbox*/summary.json (2026-10-09: service outcome store, key checks in existing round trips)
+  inbox: {
+    s00: { acked: '496/496', appendsPerSecond: 9.5, amP50: [667, 704], apacP50: [1135, 1220], i6Seconds: 3.509 },
+    s03: { apacAfterKill: '43/43', firstAckSeconds: 10.003, failedBack: '8/8', allHomeSeconds: 66.86, dupEvents: 0, dupPayments: 0, serviceOutcomeReplayed: 1 },
+    s07: { euAmDuringPartition: '40/40', dupEvents: 0, dupPayments: 0 },
+    s14: { killDelayMs: 2000, failedFirst: '16/24', storedBeforeRetry: 4, keysStoredTwice: 0, storedRetriesAcked: '4/4' },
+    s18: { residualWindowHits: 3, duplicatePaymentExecutions: 0, serviceOutcomeReplayed: 3, storeOff: { residualWindowHits: 3, duplicatePaymentExecutions: 3 } },
+    // IdempotentCommandPostgresIT: event-store statements per keyed first attempt (unkeyed: aggregate 2, service 1)
+    roundTrips: { aggregate: { before: 4, now: 2 }, service: { before: 6, now: 2 } },
   },
   // seconds; null = never within the fault window
   times: [

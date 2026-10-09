@@ -1,6 +1,28 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-09-30.
+Last updated: 2026-10-09.
+
+## G5 inbox + key round trips (branch `cluster/idempotency-inbox`, 2026-10-09)
+
+- **Outcome store for keyed service commands** (bundle side, inbox pattern):
+  `EventoBundle.Builder.setServiceCommandOutcomeStore`, `JdbcServiceCommandOutcomeStore`
+  (`evento_v2_service_outcome`, Flyway V2), `ServiceCommandOutcomes.recordWith` to record in the
+  handler's transaction. Closes the last G5 window (handler ran, event not stored).
+  `ServiceOutcomeReplayPostgresIT` (failed append; server death + lease takeover).
+- **Key checks in round trips the command already makes**: keyed aggregate 2 ES statements = unkeyed
+  (was 4); keyed service 2 vs 1 unkeyed (was 6). `IdempotentCommandPostgresIT` counts them at the driver.
+- **Lab `after-inbox`**: S00 496/496, p50 AM 667–704 ms / APAC 1135–1220 ms (after-g5n16 834–879 /
+  1359–1472); S03/S07 0 payments twice (S03 hit the window once, answered from the store); S14 0 keys
+  twice (4/4 retries 2xx at 2000 ms); **new S18** hits the window on purpose: 3 hits, 0 re-executions,
+  3 with `EVENTO_SERVICE_OUTCOME_STORE=off`. Numbers: `results/AFTER-SUMMARY.md` §"Re-run with the
+  service outcome store", COMPARISON.md `after-inbox` column.
+- **G1 reworded as a design choice** everywhere (each server routes to its own bundles; regional
+  connectivity; the cell is the intended topology; a mesh is an option, not a fix owed).
+- Open: outcome store per cell (a retry routed to another cell would miss it); effects outside the
+  handler's DB need the key passed on; keys/outcomes never expire; mixed-version roll-out windows
+  (pre-G5 servers, and pre/post round-trip-change servers); APAC p99 wider in this one S00 run.
+- Next: N4 lane affinity, N15 deadline-bound `lock_timeout`, repeat S08 (N17), S15 staleness gate,
+  key/outcome retention.
 
 ## G5 + N16 measured on the Docker lab (`after-g5n16`, 2026-09-30)
 
