@@ -2,6 +2,23 @@
 
 Last updated: 2026-10-09.
 
+## Command latency, phase by phase (branch `feat/evento-lab-cluster`, 2026-10-09)
+
+- **Instrumentation (permanent):** `evento.server.command.phase{phase,keyed}` timers + DEBUG
+  `event=command_phases` (logger `com.evento.server.es.phases`), via `CommandPhaseMetrics` and
+  `BusLifecycle.RequestTiming` / `TimedRequestHandler`; bundle side `EventoBundle.getLatencies()`
+  (`BundleLatencies`, `LatencyHistogram`, no Micrometer); lab `GET /lab/latency`,
+  `EVENTO_PHASE_LOG_LEVEL`. Tests: `CommandPhaseMetricsIT`, `LatencyHistogramTest`.
+- **Measured** (`evento-lab-cluster/docs/command-latency.md`, raw data `results/command-latency/`):
+  local (`CommandLatencyBenchmarkIT`, opt-in `EVENTO_RUN_BENCH=true`) p50 7.2 ms client RTT (append
+  with fsync 3 ms; JDBC RT 0.48 ms); 8 in flight 19 ms (append queues on CPES `es-lock`). Lab (S00
+  6/min/region, keyed): add item p50 EU 97, AM 595, APAC 1008 ms = ~6–7 WAN round trips + sync
+  replication. Two of them are Hikari `isValid` on borrow (idle > 500 ms): with
+  `-Dcom.zaxxer.hikari.aliveBypassWindowMs=60000` APAC add item 1128 → 847 ms.
+- Next (ranked in the doc): no borrow validation (config), unlock after reply, verify folded into
+  the append on the lock connection, lock+story in one statement, snapshot lookup folded into the
+  story query, `es-lock` not held across the sync-replication wait (G9).
+
 ## G5 inbox + key round trips (branch `cluster/idempotency-inbox`, 2026-10-09)
 
 - **Outcome store for keyed service commands** (bundle side, inbox pattern):

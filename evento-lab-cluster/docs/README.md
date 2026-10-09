@@ -32,6 +32,8 @@ Documenti trasversali:
   alternative per il fan-out globale (A: una lane, implementata; B: una lane per regione).
 - [chaos-scenarios.md](chaos-scenarios.md): S00…S17, con obiettivo, guasto, invarianti e numeri
   `:before` contro `:after`.
+- [command-latency.md](command-latency.md): quanto costa un comando di dominio, fase per fase
+  (lock, story, forward, append, …), misurato in locale e per cella in WAN, e cosa ottimizzare.
 
 ## Come si relazionano i livelli
 
