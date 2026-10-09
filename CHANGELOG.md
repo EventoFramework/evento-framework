@@ -11,6 +11,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Per-phase latency of aggregate commands.** The broker now times every executed aggregate
+  command phase by phase, from its frame's arrival to its reply written:
+  `evento.server.command.phase{phase=queue|codec|lock|story|forward|verify|append|snapshot|unlock|reply|total, keyed}`
+  (Micrometer timer with p50/p95/p99 and a percentile histogram), plus one DEBUG line per command
+  (`event=command_phases`, logger `com.evento.server.es.phases`). Bundles, which have no
+  Micrometer, measure their side with plain accessors: `EventoBundle.getLatencies()` /
+  `BundleClient.latencies()` give the round trip of every request by payload type and each
+  handler's execution time by type (`aggregate|service|query`, with decode/encode), on a lock-free
+  log-linear `LatencyHistogram`. `BusLifecycle.TimedRequestHandler` / `RequestTiming` hand a
+  local handler its request's arrival, dispatch and reply-written marks. `CommandLatencyBenchmarkIT`
+  (opt-in, `EVENTO_RUN_BENCH=true`) measures the breakdown on a real stack; the local and WAN
+  numbers, and what to optimise next, are in `evento-lab-cluster/docs/command-latency.md`.
+
 - **Service command outcome store: the last G5 window closed (inbox pattern).** A service handler
   that ran, and whose event the broker then could not store (the append failed, or the server
   died between the handler's answer and the append), used to run again on the broker's retry: the

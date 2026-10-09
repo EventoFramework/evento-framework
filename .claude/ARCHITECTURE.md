@@ -852,7 +852,30 @@ explorative read-only pivot.)
     recorded for a different command (type or aggregate id)
   - `evento.server.commands.idempotent.in_progress` — keyed commands answered "in progress"
     (indeterminate) because another execution of their key did not end before they stopped waiting
-  - *Not yet covered:* heartbeat lag, per-type processing-duration timers, consumer lag (future work).
+  - `evento.server.command.phase{phase,keyed}` — timer per phase of every *executed* aggregate
+    command (event appended; replays, refusals and drops are not sampled), from the frame's
+    decode on the I/O thread to the reply written to the caller's socket. Phases (consecutive
+    `nanoTime` laps, so they add up to `total`): `queue`, `codec` (broker CBOR: request decode,
+    forward encode, answer decode, reply body encode), `lock` (lock-pool borrow +
+    `pg_try_advisory_lock`), `story` (snapshot when not cached + events; a keyed command's key
+    check rides on it), `forward` (to the aggregate bundle and back), `verify` (`verifyHeld`),
+    `append`, `snapshot` (only when one is saved), `unlock`, `reply`, `total`. Percentile
+    histogram (0.1 ms–30 s, ~85 buckets per timer; p50/p95/p99 via `histogram_quantile`). Wiring:
+    `CommandPhaseMetrics` (bound by `CommandBrokerHandler.bindTo`), fed by
+    `BusLifecycle.RequestTiming` (arrival / dispatch / reply-written marks, handed to
+    `TimedRequestHandler`s). Raw samples: `CommandPhaseMetrics.addListener`; one DEBUG line per
+    command `event=command_phases ... lock=…ms story=…ms …` on logger `com.evento.server.es.phases`
+    (`LOGGING_LEVEL_COM_EVENTO_SERVER_ES_PHASES=DEBUG`). Measured breakdown (local and WAN):
+    `evento-lab-cluster/docs/command-latency.md`.
+  - *Not yet covered:* heartbeat lag, service-command and query phase timers, consumer lag (future work).
+- **Bundle-side latencies** (bundles have no Micrometer): `BundleClient.latencies()` /
+  `EventoBundle.getLatencies()` → `BundleLatencies` (`com.evento.application.client.metrics`):
+  `requestRtt()` by payload type (request frame handed to the transport → answer frame decoded,
+  non-error answers only) and `handlers()` by handler type `aggregate|service|query` (handler run,
+  decode excluded) plus `<type>.decode` / `<type>.encode`, recorded by `BundleInboundDispatcher`.
+  `LatencyHistogram`: lock-free log-linear buckets (32 per power of two, ≤ ~3% percentile
+  error, ~15 KB each), `snapshot()` → count/mean/p50/p95/p99/max, `reset()` starts a window. The
+  lab publishes them on `GET /lab/latency`.
 - **Parallel-consumption metrics** — wired via `ConsumerMetricsRegistry`
   (`com.evento.server.bus.spring`), fed by a periodic `ConsumerStatsMessage` bundles push on
   the admin notification channel. Push rather than poll: the counters live in bundle-side

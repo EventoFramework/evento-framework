@@ -90,6 +90,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * close: a service handler that ran while its event was not stored. The service bundle closes it
  * with a durable outcome store, which answers the retry without running the handler.
  *
+ * <p><b>Phase timing.</b> Every executed aggregate command is timed phase by phase, from its
+ * frame's arrival to its reply being written ({@link CommandPhaseMetrics}:
+ * {@code evento.server.command.phase{phase,keyed}} and a DEBUG {@code event=command_phases} line).
+ *
  * <p>The {@code before_append} drop applies to aggregate commands only, whose handlers
  * are pure (they compute an event from the story; nothing happened until the broker
  * appends it). A service command handler runs its own side effects: once it has
@@ -150,6 +154,7 @@ public class CommandBrokerHandler implements MeterBinder {
     private final BrokerEventStore eventStore;
     private final AdminPayloadCodec codec = new AdminPayloadCodec();
     private final PgDistributedLock distributedLock;
+    private final CommandPhaseMetrics phaseMetrics = new CommandPhaseMetrics();
 
     public CommandBrokerHandler(BusLifecycle lifecycle,
                                 ClusterRegistry clusterRegistry,
@@ -167,8 +172,8 @@ public class CommandBrokerHandler implements MeterBinder {
             for (var handler : discovered.discovery().handlers()) {
                 if (handler.getHandlerType() == HandlerType.AggregateCommandHandler) {
                     var pt = handler.getHandledPayload();
-                    lifecycle.registerLocalHandler(pt, (payload, originator, deadlineMs) ->
-                            handleAggregateCommand(pt, payload, originator, deadlineMs));
+                    lifecycle.registerLocalHandler(pt, (payload, originator, deadlineMs, timing) ->
+                            handleAggregateCommand(pt, payload, originator, deadlineMs, timing));
                     log.info("event=aggregate_command_handler_registered payloadType={}", pt);
                 } else if (handler.getHandlerType() == HandlerType.CommandHandler
                         && handler.getComponentType() == ComponentType.Service) {
@@ -337,17 +342,35 @@ public class CommandBrokerHandler implements MeterBinder {
                         CommandBrokerHandler::idempotencyInProgressCount)
                 .description("Keyed commands answered 'in progress' while another execution of the key was in flight")
                 .register(registry);
+        phaseMetrics.bindTo(registry);
+    }
+
+    /** Per-phase timing of executed aggregate commands ({@code evento.server.command.phase}). */
+    public CommandPhaseMetrics phaseMetrics() {
+        return phaseMetrics;
     }
 
     // ---- aggregate command ----
 
     private byte[] handleAggregateCommand(String commandPayloadType, byte[] payload,
-                                          NodeAddress originator, long deadlineMs) throws Exception {
+                                          NodeAddress originator, long deadlineMs,
+                                          BusLifecycle.RequestTiming timing) throws Exception {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (DomainCommandMessage) eventoRequest.getBody();
         String key = enforcedKey(cmd, commandPayloadType);
-        return idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
-                () -> executeAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs));
+        var clock = phaseMetrics.start(commandPayloadType, eventoRequest.getCorrelationId(), key != null, timing);
+        clock.lap(CommandPhaseMetrics.Phase.CODEC);
+        var reply = idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
+                () -> executeAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs,
+                        clock));
+        if (clock.appended) {
+            if (timing != null) {
+                timing.whenReplyWritten(written -> phaseMetrics.record(clock, written));
+            } else {
+                phaseMetrics.record(clock, System.nanoTime());
+            }
+        }
+        return reply;
     }
 
     /**
@@ -367,7 +390,8 @@ public class CommandBrokerHandler implements MeterBinder {
      */
     private byte[] executeAggregateCommand(String commandPayloadType, EventoRequest eventoRequest,
                                            DomainCommandMessage cmd, String key,
-                                           NodeAddress originator, long deadlineMs) throws Exception {
+                                           NodeAddress originator, long deadlineMs,
+                                           CommandPhaseMetrics.Clock clock) throws Exception {
         String lockKey = cmd.getLockId() != null ? RESOURCE_LOCK_PREFIX + cmd.getLockId() : null;
         boolean lockAcquired = false;
         try {
@@ -384,6 +408,7 @@ public class CommandBrokerHandler implements MeterBinder {
                                     + "key may hold");
                 }
                 lockAcquired = true;
+                clock.lap(CommandPhaseMetrics.Phase.LOCK);
             }
 
             // The key is checked with the story, in the same round trip, under the lock.
@@ -392,6 +417,7 @@ public class CommandBrokerHandler implements MeterBinder {
                     cmd.isInvalidateAggregateCaches(),
                     cmd.isInvalidateAggregateSnapshot(),
                     key);
+            clock.lap(CommandPhaseMetrics.Phase.STORY);
             if (key != null) {
                 var recorded = answerRecorded(keyed.record(), key, commandPayloadType, cmd.getAggregateId(),
                         eventoRequest, REPLAY_WITH_STORY);
@@ -416,9 +442,13 @@ public class CommandBrokerHandler implements MeterBinder {
 
             long timeoutMs = forwardBudget(eventoRequest.getUnit().toMillis(eventoRequest.getTimeout()),
                     deadlineMs, commandPayloadType, eventoRequest.getCorrelationId(), true);
+            clock.skip();
+            byte[] forwardPayload = codec.encodeRequest(forwardRequest);
+            clock.lap(CommandPhaseMetrics.Phase.CODEC);
             var response = forwardWithin(commandPayloadType,
-                    codec.encodeRequest(forwardRequest), timeoutMs, originator, deadlineMs,
+                    forwardPayload, timeoutMs, originator, deadlineMs,
                     eventoRequest.getCorrelationId(), true);
+            clock.lap(CommandPhaseMetrics.Phase.FORWARD);
 
             if (response.isError()) {
                 var recorded = key == null ? null
@@ -429,6 +459,7 @@ public class CommandBrokerHandler implements MeterBinder {
             }
 
             var eventoResponse = codec.decodeResponse(response.payload());
+            clock.lap(CommandPhaseMetrics.Phase.CODEC);
             if (eventoResponse.getBody() instanceof ExceptionWrapper) {
                 // Without the aggregate lock a duplicate can see the original's event in its
                 // story and be refused by the domain ("already created"): that refusal is the
@@ -447,15 +478,21 @@ public class CommandBrokerHandler implements MeterBinder {
             // may already be appending from the same story: refuse to commit a fork. The window
             // between this check and the INSERT stays open; closing it needs a DB-level fence
             // (aggregate_seq, see CLUSTER-READINESS G6).
-            if (lockAcquired) distributedLock.verifyHeld(lockKey);
+            if (lockAcquired) {
+                distributedLock.verifyHeld(lockKey);
+                clock.lap(CommandPhaseMetrics.Phase.VERIFY);
+            }
             // The bundle may have answered after the caller gave up (a slow handler, a
             // retried forward): its timeout already told the caller "failed", so storing
             // the event now would apply a command the caller may retry.
             checkDeadline(deadlineMs, BusLifecycle.EXPIRED_STAGE_BEFORE_APPEND, commandPayloadType,
                     eventoRequest.getCorrelationId());
+            clock.skip();
             long seqNum;
             try {
                 seqNum = eventStore.publishEvent(eventMessage, cmd.getAggregateId(), key, commandPayloadType);
+                clock.lap(CommandPhaseMetrics.Phase.APPEND);
+                clock.appended = true;
             } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {
                 // A duplicate on another server (or without the lock) appended first. This
                 // handler run was pure; answer with what was stored (or refuse, if the key
@@ -469,23 +506,32 @@ public class CommandBrokerHandler implements MeterBinder {
                     commandPayloadType, cmd.getAggregateId(), seqNum);
 
             if (cmdResponse.getSerializedAggregateState() != null) {
+                clock.skip();
                 eventStore.saveSnapshot(cmd.getAggregateId(), seqNum,
                         cmdResponse.getSerializedAggregateState());
+                clock.lap(CommandPhaseMetrics.Phase.SNAPSHOT);
             }
 
             if (cmdResponse.isAggregateDeleted()) {
+                clock.skip();
                 eventStore.deleteAggregate(cmd.getAggregateId());
+                clock.lap(CommandPhaseMetrics.Phase.APPEND);
                 log.debug("event=aggregate_deleted aggregateId={}", cmd.getAggregateId());
             }
 
             var reply = new EventoResponse();
             reply.setCorrelationId(eventoRequest.getCorrelationId());
             reply.setBody(eventMessage);
-            return codec.encodeResponse(reply);
+            clock.skip();
+            byte[] encoded = codec.encodeResponse(reply);
+            clock.lap(CommandPhaseMetrics.Phase.CODEC);
+            return encoded;
 
         } finally {
             if (lockAcquired) {
+                clock.skip();
                 releaseQuietly(lockKey);
+                clock.lap(CommandPhaseMetrics.Phase.UNLOCK);
             }
         }
     }

@@ -15,6 +15,7 @@ import com.evento.lab.cluster.api.query.FindPriceQuery;
 import com.evento.lab.cluster.support.BundleDeployment;
 import com.evento.lab.cluster.support.BundleRunner;
 import com.evento.lab.cluster.support.web.Failure;
+import com.evento.lab.cluster.support.web.LatencySamples;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -68,12 +69,14 @@ public class OrderGatewayController {
     private final BundleRunner runner;
     private final BundleDeployment deployment;
     private final PriceReaders priceReaders;
+    private final LatencySamples latencies;
     private final String region;
 
-    public OrderGatewayController(BundleRunner runner, PriceReaders priceReaders) {
+    public OrderGatewayController(BundleRunner runner, PriceReaders priceReaders, LatencySamples latencies) {
         this.runner = runner;
         this.deployment = runner.deployment();
         this.priceReaders = priceReaders;
+        this.latencies = latencies;
         this.region = deployment.requireRegion();
         runner.features().idempotencyKeys();
     }
@@ -113,7 +116,7 @@ public class OrderGatewayController {
         long start = System.nanoTime();
         try {
             // A replay answers with the order the first attempt created, whose id wins.
-            var created = send(new CreateOrderCommand(orderId, context, idempotencyKey), idempotencyKey);
+            var created = send("create", new CreateOrderCommand(orderId, context, idempotencyKey), idempotencyKey);
             if (created instanceof OrderCreatedEvent e && e.getOrderId() != null && !e.getOrderId().equals(orderId)) {
                 log.info("event=gateway_idempotent_replay op=create requestedOrderId={} orderId={} idempotencyKey={}",
                         orderId, e.getOrderId(), idempotencyKey);
@@ -125,7 +128,7 @@ public class OrderGatewayController {
             if (body != null && body.items() != null) {
                 for (var item : body.items()) {
                     var itemKey = idempotencyKey == null ? null : idempotencyKey + "#" + added;
-                    send(new AddOrderItemCommand(orderId, item.sku(), item.qty() == null ? 1 : item.qty(),
+                    send("add_item", new AddOrderItemCommand(orderId, item.sku(), item.qty() == null ? 1 : item.qty(),
                             context, itemKey), itemKey);
                     added++;
                 }
@@ -148,7 +151,7 @@ public class OrderGatewayController {
         var result = base(orderId);
         long start = System.nanoTime();
         try {
-            send(new AddOrderItemCommand(orderId, body.sku(), body.qty() == null ? 1 : body.qty(),
+            send("add_item", new AddOrderItemCommand(orderId, body.sku(), body.qty() == null ? 1 : body.qty(),
                     region, idempotencyKey), idempotencyKey);
             result.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
             return ResponseEntity.ok(result);
@@ -166,7 +169,7 @@ public class OrderGatewayController {
         var result = base(orderId);
         long start = System.nanoTime();
         try {
-            send(new CompleteOrderCommand(orderId, region, idempotencyKey), idempotencyKey);
+            send("complete", new CompleteOrderCommand(orderId, region, idempotencyKey), idempotencyKey);
             result.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -208,7 +211,7 @@ public class OrderGatewayController {
                 body.sku(), body.priceCents(), region, idempotencyKey);
         long start = System.nanoTime();
         try {
-            send(new SetPriceCommand(body.sku(), body.priceCents(), body.currency(), region, idempotencyKey),
+            send("set_price", new SetPriceCommand(body.sku(), body.priceCents(), body.currency(), region, idempotencyKey),
                     idempotencyKey);
             result.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
             return ResponseEntity.status(201).body(result);
@@ -262,11 +265,19 @@ public class OrderGatewayController {
         }
     }
 
-    /** Sends with {@code idempotencyKey} as the Evento idempotency key (when supported); returns the event. */
-    private Object send(Command command, String idempotencyKey) throws Exception {
-        return runner.features()
+    /**
+     * Sends with {@code idempotencyKey} as the Evento idempotency key (when supported); returns the
+     * event. Successful sends are timed per operation ({@code GET /lab/latency}, {@code operations}:
+     * {@code <op>} unkeyed, {@code <op>.keyed} with a key): the gateway's view of a command, from
+     * the gateway call to the decoded event.
+     */
+    private Object send(String op, Command command, String idempotencyKey) throws Exception {
+        long start = System.nanoTime();
+        var event = runner.features()
                 .send(bundle().getCommandGateway(), command, idempotencyKey, deployment.commandTimeoutMs())
                 .get();
+        latencies.record(idempotencyKey == null ? op : op + ".keyed", System.nanoTime() - start);
+        return event;
     }
 
     private EventoBundle bundle() {
