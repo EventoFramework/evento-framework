@@ -9,6 +9,88 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-10-09
+
+Cluster-readiness release: several `evento-server` instances sharing one PostgreSQL event
+store and catalog, bundles that fail over and fail back between them, exactly-once keyed
+commands, bounded distributed locks. Wire changes are additive (older bundles and servers
+interoperate); the database schema is migrated on the first boot of a 2.5.0 server.
+
+### Upgrade notes
+
+Read these before rolling 2.5.0 out. Details are in the entries below.
+
+1. **Upgrade every server together, then the bundles.** Stop all 2.4.x servers that share
+   the database, start the 2.5.0 servers, then roll the bundles at your own pace. The first
+   2.5.0 server to boot re-keys the component catalog (N1); a 2.4.x server still running
+   against the same database fails its catalog writes from then on (routing is in memory and
+   keeps working, discovery and consumer registration do not). Mixed 2.4.x / 2.5.0 servers
+   also weaken exactly-once: a keyed retry that lands on a 2.4.x server runs unkeyed. 2.4.x
+   bundles work against 2.5.0 servers unchanged (verified: 2.4.6 bundles registered and ran
+   aggregate, saga and service commands on a 2.5.0 server over a migrated 2.4.6 database), and
+   2.5.0 bundles against 2.4.x servers run without exactly-once and without probe-gated
+   fail-back.
+2. **Schema migrations run on the first boot** when Boot runs `schema.sql`
+   (`spring.sql.init.mode=always`, the shipped value), serialised across servers by a
+   PostgreSQL advisory lock, each idempotent (a re-boot is a no-op):
+   - `es__events` gains `PRIMARY KEY (event_sequence_number)`: first a full-table duplicate
+     check, then `CREATE UNIQUE INDEX CONCURRENTLY` (no lock on appends), then an instant
+     `ACCESS EXCLUSIVE` swap under `lock_timeout` 3 s, retried. **On a large event store the
+     first server's boot lasts as long as that scan plus index build** (the other servers wait
+     on the schema lock); to keep it out of the boot, apply
+     `db/upgrade/es-events-primary-key.sql` (in `evento-server.jar`) by hand beforehand.
+     Duplicate sequence numbers fail the boot with their count; resolve them, or boot with
+     `evento.es.schema.enforce-primary-key=false`.
+   - `es__events.idempotency_key` / `idempotency_command` (nullable, catalog-only change),
+     the partial unique index `es__events_idempotency_key_uidx` (built `CONCURRENTLY`, covers
+     only keyed rows, so existing data cannot violate it) and the table `es__idempotency_claims`.
+   - `core__component` re-keyed per bundle (`id = bundle_id:component_name`), with
+     `core__handler` / `core__consumer` moved to `component_id`: one transaction, a few hundred
+     rows, `ACCESS EXCLUSIVE` on the three catalog tables for its duration.
+   - `core__bundle_instance` (presence of each bundle instance per server).
+   - With the schema managed outside the server (`spring.sql.init.mode=never`) nothing is
+     changed: apply `db/upgrade/n1-component-id.sql` (required: the server refuses to boot over
+     a pre-N1 catalog), `es-events-primary-key.sql` and `es-events-idempotency-key.sql`
+     (optional, warned about) yourself.
+   - PostgreSQL 12 or later is required; the server refuses an older one at boot.
+3. **Connections: size `max_connections`.** Each server now runs an application pool of 20
+   (`spring.datasource.hikari.maximum-pool-size`, 5 idle; was Hikari's 10) plus a dedicated
+   lock pool of 10 (`evento.lock.pool.maximum-size`, `evento.lock.pool.connection-timeout-ms`
+   1000). Peak 30 per server: three servers fit PostgreSQL's default `max_connections=100`;
+   with more servers or other clients on the database raise it or lower the pools first. Lock
+   waits are now bounded (`evento.lock.acquire.timeout.ms`, default 60000) and throw
+   `LockAcquisitionTimeoutException` / `LockLostException` instead of hanging.
+4. **New server properties and defaults:** `evento.cluster.name` (env `EVENTO_CLUSTER_NAME`,
+   default `evento-server`, set it per deployment), `evento.server.bus.server-instance-id`
+   (must be unique per server; a WARN is logged for the shipped id),
+   `evento.server.presence.heartbeat-interval-ms` (30 s) and
+   `evento.server.presence.stale-after-ms` (3 min), `evento.server.bus.pick-strategy`
+   (`random`, or `locality-preferred` with bundle zones), `spring.task.scheduling.pool.size=2`,
+   `evento.es.schema.enforce-primary-key` (true).
+5. **Bundles now use every configured server address.** 2.4.x silently ignored addresses 2..n;
+   a 2.5.0 bundle fails over along the list and, by default, **fails back** to the first one
+   once it has answered probes for 30 s + up to 10 s jitter (`EventoBundle.Builder.setFailback*`,
+   `BundleClientConfig.failbackEnabled`, default on with more than one address). List the
+   bundle's local server first.
+6. **Idempotency is on for commands sent from consumers.** Commands a saga, projector or
+   observer handler sends get a derived key (`evento:<consumerId>:<seq>:<Command>:<n>`), so a
+   redelivered event no longer re-executes them. Consequence: rewinding a consumer answers its
+   re-sent commands as replays of the stored events; rewind under a new consumer id to run them
+   again. Explicit keys: `CommandGateway.sendIdempotent`. Keys and claims never expire yet.
+7. **Service command outcome store is opt-in.** The last exactly-once window (a service handler
+   ran but its event was not stored) is closed only for bundles that set
+   `EventoBundle.Builder.setServiceCommandOutcomeStore` (`JdbcServiceCommandOutcomeStore`,
+   Flyway `V2__service_command_outcome` on PostgreSQL and MySQL, applied by the store's own
+   migration) and record in the handler's transaction (`ServiceCommandOutcomes.recordWith`).
+   The store must be shared by every instance that can receive the retry.
+8. **Run on JDK 25.0.3 or later.** 25.0.1 and 25.0.2 carry JDK-8370887 (virtual-thread timer
+   heap corruption, ~20 s stalls on timed waits); bundles and the server log
+   `event=jdk_virtual_thread_timer_bug` at startup on those builds.
+9. **Commands past their caller's deadline are no longer executed** (N3): the broker drops them
+   with `RequestExpiredException` at the queue, lock-wait, forward and append stages
+   (`evento.server.requests.expired{stage}`). Callers that relied on a timed-out command still
+   being applied must retry it (with an idempotency key, safely).
+
 ### Added
 
 - **Per-phase latency of aggregate commands.** The broker now times every executed aggregate
@@ -939,7 +1021,16 @@ Last stable v1.x release. The v1 source history is preserved in the git log.
 
 ---
 
-[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/EventoFramework/evento-framework/compare/v2.4.6...v2.5.0
+[2.4.6]: https://github.com/EventoFramework/evento-framework/compare/v2.4.5...v2.4.6
+[2.4.5]: https://github.com/EventoFramework/evento-framework/compare/v2.4.4...v2.4.5
+[2.4.4]: https://github.com/EventoFramework/evento-framework/compare/v2.4.3...v2.4.4
+[2.4.3]: https://github.com/EventoFramework/evento-framework/compare/v2.4.2...v2.4.3
+[2.4.2]: https://github.com/EventoFramework/evento-framework/compare/v2.4.1...v2.4.2
+[2.4.1]: https://github.com/EventoFramework/evento-framework/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/EventoFramework/evento-framework/compare/v2.1.0...v2.4.0
+[2.1.0]: https://github.com/EventoFramework/evento-framework/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/EventoFramework/evento-framework/compare/v2.0.0-rc1...v2.0.0
 [2.0.0-rc1]: https://github.com/EventoFramework/evento-framework/compare/v1.15.5...v2.0.0-rc1
 [1.15.5]: https://github.com/EventoFramework/evento-framework/releases/tag/v1.15.5
