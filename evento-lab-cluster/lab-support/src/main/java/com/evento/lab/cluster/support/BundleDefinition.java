@@ -28,6 +28,15 @@ public interface BundleDefinition {
     }
 
     /**
+     * {@link #configure(EventoBundle.Builder, BundleDeployment)} with the reflective shim, for
+     * framework features the pre-fix images lack (outcomes it records show in {@code /whoami}).
+     */
+    default void configure(EventoBundle.Builder builder, BundleDeployment deployment, FrameworkFeatures features)
+            throws Exception {
+        configure(builder, deployment);
+    }
+
+    /**
      * The consumer engines this deployment will start, component name to
      * contexts (an empty list means the component runs no engine at all).
      * Shown by {@code /whoami} and logged at start-up.
