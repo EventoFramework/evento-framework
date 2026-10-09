@@ -2,6 +2,31 @@
 
 Last updated: 2026-10-09.
 
+## 2.5.0 release preparation (branch `feat/evento-lab-cluster`, 2026-10-09)
+
+- **Verdict: ready for a minor release (2.5.0)**, not yet merged, tagged or published. Next:
+  merge into `main`, then `echo y | scripts/release.sh minor` from `main`.
+- CHANGELOG rolled: `[2.5.0] — 2026-10-09` with an "Upgrade notes" section (servers together,
+  first-boot migrations and their cost on a large `es__events`, pool sizing / `max_connections`,
+  new properties, multi-address fail-over + fail-back default, derived idempotency keys, outcome
+  store opt-in, JDK ≥ 25.0.3, N3 deadline drops); fresh empty `[Unreleased]`; compare links for
+  2.1.0..2.5.0 added. SECURITY.md current version → 2.5.0.
+- Suite with `EVENTO_RUN_JDBC_IT=true` on JDK 25.0.4.1 (standard list with the full
+  `:evento-server:test`, every `evento-lab-cluster` module, `netty41Test`), run twice from
+  `cleanTest`: **761 tests, 0 failures, 20 skipped** both times (S00..S18 gated on
+  `EVENTO_LAB_CLUSTER`, `CommandLatencyBenchmarkIT` on `EVENTO_RUN_BENCH`). `assemble -x test`
+  (CodeQL's build) green; GUI `npm ci`, `ng lint`, production build green (the GUI output is
+  gitignored and built by release.yml, nothing to commit).
+- Publication: only transport-api, transport-netty, common, bundle, consumer-state-store-jdbc
+  publish (Central + GitHub Packages); no lab module has `maven-publish`. New public classes are
+  all in those jars.
+- Upgrade smoke (Docker, PG 17): `server:before` (= v2.4.6) + 2.4.6 lab bundles wrote 14 events
+  and the old catalog; the new server migrated it at boot (N1 re-key 29 ms, PK, idempotency
+  column/index), the 2.4.6 bundles re-registered and ran create / add item / complete (saga +
+  payment service) on old and new aggregates; then 2.5.0 bundles: keyed retry answered by
+  `idempotent_replay`, outcome store row written. Second boot: no-op. A 2.4.6 server still boots
+  on the migrated DB (catalog writes would fail, as documented).
+
 ## Command latency, phase by phase (branch `feat/evento-lab-cluster`, 2026-10-09)
 
 - **Instrumentation (permanent):** `evento.server.command.phase{phase,keyed}` timers + DEBUG
