@@ -121,17 +121,74 @@ public final class BusLifecycle {
         byte[] handle(byte[] payload, NodeAddress originator, long deadlineMs) throws Exception;
     }
 
-    private final ConcurrentHashMap<String, DeadlineAwareRequestHandler> localHandlers = new ConcurrentHashMap<>();
+    /**
+     * A {@link DeadlineAwareRequestHandler} that also sees the request's {@link RequestTiming}:
+     * when the frame reached this broker, when the handler started, and (through
+     * {@link RequestTiming#whenReplyWritten}) when its reply was written to the caller's socket.
+     * {@code CommandBrokerHandler} uses it to time a command's phases from arrival to reply.
+     */
+    @FunctionalInterface
+    public interface TimedRequestHandler {
+        byte[] handle(byte[] payload, NodeAddress originator, long deadlineMs, RequestTiming timing) throws Exception;
+    }
+
+    /**
+     * The broker-side clock marks of one request answered by a local handler, all
+     * {@link System#nanoTime()} readings: {@code arrivalNanos} is when the frame was decoded on the
+     * I/O thread (before it queued for a dispatch thread), {@code dispatchNanos} when the handler
+     * started. The handler may register one callback that receives the time its reply was written
+     * to the socket (the write future completed), on the transport's thread; it is not called when
+     * the request is answered with an error or the write fails. One small object per local
+     * request, nothing per forwarded one.
+     */
+    public static final class RequestTiming {
+        private final long arrivalNanos;
+        private final long dispatchNanos;
+        private volatile java.util.function.LongConsumer onReplyWritten;
+
+        public RequestTiming(long arrivalNanos, long dispatchNanos) {
+            this.arrivalNanos = arrivalNanos;
+            this.dispatchNanos = dispatchNanos;
+        }
+
+        /** When the request's frame was decoded (the queue phase starts here). */
+        public long arrivalNanos() { return arrivalNanos; }
+
+        /** When the local handler started (the queue phase ends here). */
+        public long dispatchNanos() { return dispatchNanos; }
+
+        /** Called with the {@code nanoTime} at which the successful reply was written. */
+        public void whenReplyWritten(java.util.function.LongConsumer callback) {
+            this.onReplyWritten = callback;
+        }
+
+        void replyWritten(long nanos) {
+            var callback = onReplyWritten;
+            if (callback == null) return;
+            try {
+                callback.accept(nanos);
+            } catch (RuntimeException e) {
+                log.debug("event=reply_timing_callback_failed error=\"{}\"", e.getMessage());
+            }
+        }
+    }
+
+    private final ConcurrentHashMap<String, TimedRequestHandler> localHandlers = new ConcurrentHashMap<>();
 
     public void registerLocalHandler(String payloadType, LocalRequestHandler handler) {
-        localHandlers.put(payloadType, (payload, originator, deadlineMs) -> handler.handle(payload));
+        localHandlers.put(payloadType, (payload, originator, deadlineMs, timing) -> handler.handle(payload));
     }
 
     public void registerLocalHandler(String payloadType, OriginatorAwareRequestHandler handler) {
-        localHandlers.put(payloadType, (payload, originator, deadlineMs) -> handler.handle(payload, originator));
+        localHandlers.put(payloadType, (payload, originator, deadlineMs, timing) -> handler.handle(payload, originator));
     }
 
     public void registerLocalHandler(String payloadType, DeadlineAwareRequestHandler handler) {
+        localHandlers.put(payloadType, (payload, originator, deadlineMs, timing) ->
+                handler.handle(payload, originator, deadlineMs));
+    }
+
+    public void registerLocalHandler(String payloadType, TimedRequestHandler handler) {
         localHandlers.put(payloadType, handler);
     }
 
@@ -603,10 +660,17 @@ public final class BusLifecycle {
         var localHandler = localHandlers.get(request.payloadType());
         if (localHandler != null) {
             try {
-                byte[] result = localHandler.handle(request.payload(), session.address(), deadlineMs);
+                var timing = new RequestTiming(frame == null ? System.nanoTime() : frame.receivedAtNanos(),
+                        System.nanoTime());
+                byte[] result = localHandler.handle(request.payload(), session.address(), deadlineMs, timing);
                 var response = Response.success(request.correlationId(), request.payloadType(), result);
                 dedupCache.recordResponse(request.correlationId(), response);
-                session.transport().send(response);
+                var written = session.transport().send(response);
+                if (written != null) {
+                    written.whenComplete((ok, writeFailure) -> {
+                        if (writeFailure == null) timing.replyWritten(System.nanoTime());
+                    });
+                }
             } catch (com.evento.transport.RequestExpiredException expired) {
                 // Already logged as event=request_expired_dropped where it was refused.
                 dedupCache.invalidate(request.correlationId());

@@ -1,6 +1,8 @@
 package com.evento.application.client;
 
 import com.evento.application.client.handler.HandlerRegistry;
+import com.evento.application.client.metrics.BundleLatencies;
+import com.evento.application.client.metrics.LatencyRecorder;
 import com.evento.application.manager.AggregateManager;
 import com.evento.application.manager.ProjectionManager;
 import com.evento.application.manager.ServiceManager;
@@ -35,20 +37,36 @@ public final class BundleInboundDispatcher implements HandlerRegistry.RequestHan
     private final AggregateManager aggregateManager;
     private final ServiceManager serviceManager;
     private final ProjectionManager projectionManager;
+    private final LatencyRecorder handlerLatency;
 
     public BundleInboundDispatcher(AdminPayloadCodec codec,
                                    AggregateManager aggregateManager,
                                    ServiceManager serviceManager,
                                    ProjectionManager projectionManager) {
+        this(codec, aggregateManager, serviceManager, projectionManager, null);
+    }
+
+    /**
+     * @param handlerLatency where to record each handler's execution time (by handler type, see
+     *                       {@link BundleLatencies#handlers()}); {@code null} records nothing
+     */
+    public BundleInboundDispatcher(AdminPayloadCodec codec,
+                                   AggregateManager aggregateManager,
+                                   ServiceManager serviceManager,
+                                   ProjectionManager projectionManager,
+                                   LatencyRecorder handlerLatency) {
         this.codec = codec;
         this.aggregateManager = aggregateManager;
         this.serviceManager = serviceManager;
         this.projectionManager = projectionManager;
+        this.handlerLatency = handlerLatency;
     }
 
     @Override
     public byte[] handle(byte[] payload, HandlerRegistry.RequestContext context) {
+        long start = System.nanoTime();
         var request = codec.decodeRequest(payload);
+        long decoded = System.nanoTime();
         var reply = new EventoResponse();
         reply.setCorrelationId(request.getCorrelationId());
         reply.setRequestTimestamp(request.getTimestamp());
@@ -59,7 +77,26 @@ public final class BundleInboundDispatcher implements HandlerRegistry.RequestHan
         } catch (Throwable t) {
             reply.setBody(new ExceptionWrapper(t));
         }
-        return codec.encodeResponse(reply);
+        long handled = System.nanoTime();
+        byte[] encoded = codec.encodeResponse(reply);
+        if (handlerLatency != null) {
+            String type = handlerType(request.getBody());
+            if (type != null) {
+                handlerLatency.record(type, handled - decoded);
+                handlerLatency.record(type + ".decode", decoded - start);
+                handlerLatency.record(type + ".encode", System.nanoTime() - handled);
+            }
+        }
+        return encoded;
+    }
+
+    private static String handlerType(Object body) {
+        return switch (body) {
+            case DecoratedDomainCommandMessage ignored -> BundleLatencies.AGGREGATE;
+            case ServiceCommandMessage ignored -> BundleLatencies.SERVICE;
+            case QueryMessage<?> ignored -> BundleLatencies.QUERY;
+            case null, default -> null;
+        };
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

@@ -120,6 +120,9 @@ x-server-env: &server-env
   # G12: prefer handlers in the caller's zone (EVENTO_ZONE of the bundles). A server without
   # the locality fix ignores the property; islands (G1) keep requests in-cell anyway.
   EVENTO_SERVER_BUS_PICK_STRATEGY: ${PICK_STRATEGY:-locality-preferred}
+  # One DEBUG line per executed aggregate command with its phase timings (event=command_phases,
+  # docs/command-latency.md). EVENTO_PHASE_LOG_LEVEL=DEBUG for a latency run; INFO otherwise.
+  LOGGING_LEVEL_COM_EVENTO_SERVER_ES_PHASES: ${EVENTO_PHASE_LOG_LEVEL:-INFO}
   JAVA_OPTS: *java-opts
 
 # Every bundle runs the Spring web server on 8080 and /actuator/health stays DOWN until its

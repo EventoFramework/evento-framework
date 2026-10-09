@@ -52,6 +52,8 @@ public final class BundleClient implements AutoCloseable {
     private final ProcessedRequestCache processedRequestCache;
     private final ConnectionSupervisor supervisor;
     private final InboundDispatcher inboundDispatcher;
+    private final com.evento.application.client.metrics.BundleLatencies latencies =
+            new com.evento.application.client.metrics.BundleLatencies();
 
     public BundleClient(BundleClientConfig config) {
         this(config, new JacksonCborPayloadCodec());
@@ -174,6 +176,7 @@ public final class BundleClient implements AutoCloseable {
                             + " requests already in flight (max " + limit + ")"));
         }
         var correlationId = UUID.randomUUID();
+        long startNanos = System.nanoTime();
         var future = correlationTracker.track(correlationId, payloadType, timeout,
                 supervisor.serverInstanceId());
         var request = new Request(
@@ -195,6 +198,9 @@ public final class BundleClient implements AutoCloseable {
         // them. Let the supervisor move back now rather than after its window (N16).
         future.thenAccept(response -> {
             if (isNoHandler(response)) supervisor.noHandlerOnCurrentBroker(payloadType);
+            else if (response != null && !response.isError()) {
+                latencies.requestRtt().record(payloadType, System.nanoTime() - startNanos);
+            }
         });
         return future;
     }
@@ -290,6 +296,13 @@ public final class BundleClient implements AutoCloseable {
     public BundleClientConfig config() { return config; }
 
     public int pendingOutboundCount() { return correlationTracker.pendingCount(); }
+
+    /**
+     * Latencies this bundle measured itself: the round trip of its requests by payload type,
+     * and its handlers' execution time by handler type (recorded by the request handlers that
+     * use it, e.g. {@code BundleInboundDispatcher}).
+     */
+    public com.evento.application.client.metrics.BundleLatencies latencies() { return latencies; }
     public int processedRequestCacheSize() { return processedRequestCache.size(); }
 
     /**

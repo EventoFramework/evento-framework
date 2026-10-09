@@ -90,6 +90,16 @@ public class EventoBundle {
      */
     private final EngineSupervisor engineSupervisor;
 
+    /**
+     * What this bundle measured itself: its requests' round trips by payload type and its
+     * handlers' execution time by handler type (see {@link com.evento.application.client.metrics.BundleLatencies});
+     * {@code null} when the bundle does not run over the v2 {@code BundleClient}.
+     */
+    public com.evento.application.client.metrics.BundleLatencies getLatencies() {
+        return eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter
+                ? adapter.client().latencies() : null;
+    }
+
     private EventoBundle(
             String basePackage,
             String bundleId,
@@ -751,8 +761,6 @@ public class EventoBundle {
                     .map(a -> new BundleClientConfig.Endpoint(a.serverAddress(), a.serverPort()))
                     .toList();
             var adminCodec = new AdminPayloadCodec();
-            var dispatcher = new BundleInboundDispatcher(adminCodec,
-                    aggregateManager, serviceManager, projectionManager);
             var adminHandler = new BundleAdminRequestHandler(adminCodec,
                     (id, type) -> {
                         var bundle = eventoBundle.get();
@@ -793,6 +801,9 @@ public class EventoBundle {
                     .autoEnable(false)
                     .build();
 
+            var dispatcher = new BundleInboundDispatcher(adminCodec,
+                    aggregateManager, serviceManager, projectionManager,
+                    bundleClient.latencies().handlers());
             bundleClient.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, adminHandler);
             for (String payloadType : handlerPayloadTypes) {
                 bundleClient.registerRequestHandler(payloadType, dispatcher);

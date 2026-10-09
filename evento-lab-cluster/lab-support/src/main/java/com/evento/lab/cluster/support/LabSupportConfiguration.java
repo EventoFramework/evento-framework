@@ -1,6 +1,8 @@
 package com.evento.lab.cluster.support;
 
 import com.evento.lab.cluster.support.web.LabInfoController;
+import com.evento.lab.cluster.support.web.LabLatencyController;
+import com.evento.lab.cluster.support.web.LatencySamples;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
@@ -15,7 +17,7 @@ import org.springframework.context.annotation.Import;
  * {@code EVENTO_BUNDLE_ID} overrides.
  */
 @Configuration
-@Import(LabInfoController.class)
+@Import({LabInfoController.class, LabLatencyController.class, LatencySamples.class})
 public class LabSupportConfiguration {
 
     @Bean
