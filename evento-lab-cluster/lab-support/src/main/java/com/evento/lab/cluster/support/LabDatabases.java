@@ -86,6 +86,15 @@ public final class LabDatabases implements AutoCloseable {
         }
     }
 
+    /**
+     * Run the framework's JDBC migrations (consumer state and, from G5's inbox fix on, the
+     * service-outcome table) on the app database, under the schema lock. For a bundle without
+     * consumers whose service handlers record their outcomes there (order-command).
+     */
+    public void initialiseFrameworkSchemaOnApp() throws SQLException {
+        LabSchema.initialise(app(), true, List.of());
+    }
+
     private HikariDataSource pool(String name, DbSettings s) {
         return pools.computeIfAbsent(name, n -> {
             var cfg = new HikariConfig();

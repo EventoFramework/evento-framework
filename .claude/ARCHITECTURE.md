@@ -554,20 +554,28 @@ reaches another server. **Idempotency keys (G5)** carry exactly-once across both
 | `CommandGateway.supportsIdempotencyKeys()` | common | `false` by default; `true` for `CommandGatewayImpl` unless a subclass overrides the five-argument `send` without the six-argument one (a keyed send would bypass the override). Only a supporting gateway gets derived keys; any other one gets the plain five-argument send, as before G5 |
 | Derived keys | bundle, `GatewayTelemetryProxy` | A consumer engine scopes the per-event gateway with `(consumerId, eventSequenceNumber)` (`DispatchContext.consumerGateway`); commands sent without a key get `evento:<consumerId>:<seq>:<CommandSimpleName>:<n>`, `n` counting the commands **of that type** in the invocation (reset on each attempt of the handler's retry loop), so a redelivered event re-issues identical keys (> 255 chars: `evento:sha256:<hex>`) |
 | `es__events.idempotency_key` / `idempotency_command` + `es__events_idempotency_key_uidx` | server | Nullable key and command type (the command's identity, with `aggregate_id`), partial `UNIQUE ... WHERE idempotency_key IS NOT NULL`. Added online by `AdvisoryLockedSchemaInitializer` (columns only if missing, under a short retried `lock_timeout`; index `CONCURRENTLY`, invalid leftover dropped; every check resolves `es__events` through `search_path`, never by index name alone); `db/upgrade/es-events-idempotency-key.sql` for external schemas |
-| `es__idempotency_claims` | server | One row per keyed **service** command while it executes: identity, owner, lease on the database clock. Deleted once the event carrying the key is stored or the execution failed; kept with `completed_at` when the handler returned nothing |
+| `es__idempotency_claims` | server | One row per keyed **service** command: identity, owner, lease on the database clock. Marked `completed_at` and kept once the outcome is settled: by the append statement itself when the event is stored (same statement, same transaction), or after a handler that returned nothing. Deleted only after a failed execution, so a retry may run it |
 | Keyed append | server, `EventStore` | The CPES single statement (APES: a plain insert) plus `ON CONFLICT (idempotency_key) WHERE ... DO NOTHING`; no row = a committed event holds the key (`IdempotencyKeyConflictException`) |
 | Support probe | server, `EventStore.idempotencySupported()` | PostgreSQL only (another database: never, logged once); valid index on the `es__events` that `search_path` resolves, `idempotency_command` column, claims table. Otherwise keyed commands run unkeyed and the broker does no lookup, claim or lock for them (`event=idempotency_key_unsupported`, re-probed every minute). An index, column or table that disappears later (`42P10`, `42703`, `42P01`) turns support off with a WARN and the append goes through unkeyed |
-| Replay / refusal | server, `CommandBrokerHandler` | Key looked up **before** lock and forward (event and claim in one statement). Recorded for the same command (type + aggregate id): answered with the stored event (or an empty result for an event-less completion), no handler runs (`event=idempotent_replay stage=...`, `evento.server.commands.idempotent.replayed`). Recorded for a different command: `IdempotencyKeyMismatchException` (`event=idempotency_key_mismatch`, `evento.server.commands.idempotent.mismatched`), nothing executed, never the other command's event |
+| Replay / refusal | server, `CommandBrokerHandler` | Key looked up in a round trip the command makes anyway, never in one of its own: aggregate commands in the story fetch under the aggregate lock (a `UNION ALL` branch of the events query, `BrokerEventStore.fetchAggregateStory(..., key)`, `stage=with_story`); service commands in the claim statement (`claimOrFindIdempotencyKey`: a CTE reads the event and the claim and inserts the claim only when no event holds the key, `stage=before_lock`). Recorded for the same command (type + aggregate id): answered with the stored event (or an empty result for an event-less completion), no handler runs (`event=idempotent_replay stage=...`, `evento.server.commands.idempotent.replayed`). Recorded for a different command: `IdempotencyKeyMismatchException` (`event=idempotency_key_mismatch`, `evento.server.commands.idempotent.mismatched`), nothing executed, never the other command's event |
 
-Concurrent duplicates: an aggregate command re-checks the key under the aggregate lock, before
-the story is fetched (otherwise the duplicate's handler sees the original's event and refuses,
-"already created"); without a lock, or with a lost one, the unique index lets one append through
-and the others (append conflict or domain refusal) replay — the handler is pure. A service
-command **claims** the key (`INSERT ... ON CONFLICT DO UPDATE ... WHERE` the old claim's lease ran
-out and it names the same command: insert or take-over in one atomic statement) and re-checks
-under the claim; a duplicate polls the claim (10 ms to 200 ms backoff) holding nothing. The lease
-covers the lock wait and is renewed to the forward budget + 10 s right before the forward; an
-owner that finds its claim taken over does not forward. The claim is a row, not a session lock:
+Concurrent duplicates: an aggregate command checks the key under the aggregate lock, in the same
+statement that fetches the story (otherwise the duplicate's handler sees the original's event and
+refuses, "already created"); without a lock, or with a lost one, the unique index lets one append
+through and the others (append conflict or domain refusal) replay — the handler is pure. There is
+no lookup before the lock: it cost a round trip on every first attempt to spare a replay (the
+rare case) its lock wait. A service command **claims** the key in one statement that also reads
+what is recorded (`INSERT ... SELECT ... WHERE NOT EXISTS (event) ON CONFLICT DO UPDATE ... WHERE`
+the old claim's lease ran out and it names the same command: insert or take-over, atomic); no
+re-check follows, because the owner marks its claim completed **in its append statement** and
+keeps the row: the insert's arbiter reads the latest row version, so a claim can never be won for
+a key whose event is stored, even one committed after the claimer's snapshot (when the owner
+deleted its claim after the append, a claimer whose snapshot predated the append could insert a
+fresh claim and miss the event — hence the old second lookup). A duplicate polls the claim
+statement (10 ms to 200 ms backoff) holding nothing. The first lease covers the lock wait and the
+forward (remaining deadline + command timeout + 10 s); it is renewed only when a lock wait without
+a deadline outlasted it, and an owner that finds its claim taken over does not forward. A failed
+execution deletes its claim (a retry may run). The claim is a row, not a session lock:
 an earlier design took an `IDEMPOTENCY:<key>` advisory lock, pinning a lock-pool connection for
 the whole handler run on top of the command's `RESOURCE:` lock, and with the pool full of such
 holders each waited for a second connection none could release (hold-and-wait); since every
@@ -591,15 +599,55 @@ corrupting the outer result or blocking on the outer claim) and should use `key 
 a consumer handler whose attempts send commands of one type in a different order gets a
 mismatch, not a wrong replay, and should pass explicit keys.
 
-**Open window:** a service handler that ran while its event was not stored (the append failed,
-the server died between the answer and the append) leaves no key behind, and the retry runs it
-again (a dead owner's claim expires with its lease). Such handlers must be idempotent themselves,
-on the same key (`ServiceCommandMessage` is injectable into a `@CommandHandler`).
+**Round trips (event-store statements per command, `IdempotentCommandPostgresIT`
+`aKeyedFirstAttemptCostsTheRoundTripsOfAnUnkeyedOne`, counted at the JDBC driver; lock statements
+are on the lock pool and identical for keyed and unkeyed commands):**
+
+| Path | Unkeyed | Keyed, before | Keyed, now | Replay, now |
+|---|---|---|---|---|
+| Aggregate command | 2 (story, append) | 4 (+ lookup before the lock, + lookup under it) | **2** (key in the story query) | 1 (the story query answers) |
+| Service command, with or without `lockId` | 1 (append) | 6 (+ lookup, claim, re-check, renewal, release) | **2** (+ the claim; the append completes it) | 1 (the claim statement answers) |
+
+The remaining service-command statement is the claim itself: a write that has to happen before a
+handler with side effects runs, so it cannot ride on a later round trip. A void service handler
+pays one more (completing its claim, as before).
+
+**Service handler that ran, event not stored (closed by the bundle's outcome store).** When the
+append fails, or the server dies between the handler's answer and the append, the broker has no
+record of the run: the claim is released (or its lease expires) and the retry forwards the
+command again. The service bundle is the one party that knows the handler ran, so it keeps the
+record (inbox pattern):
+
+| Piece | Where | Role |
+|---|---|---|
+| `ServiceCommandOutcomeStore` (+ `StoredOutcome`, `InMemoryServiceCommandOutcomeStore`) | common, `messaging.outcome` | `find(key)`, `record(key, commandType, result)` (first wins), `recordInTransaction(Connection, ...)` (in the caller's transaction; `DuplicateServiceOutcomeException` when another execution committed first), `sweepBefore` |
+| `JdbcServiceCommandOutcomeStore` | consumer-state-store-jdbc | Postgres / MySQL table `evento_v2_service_outcome` (key PK, command type, serialized result, `recorded_at`), Flyway `V2__service_command_outcome` (idempotent) |
+| `EventoBundle.Builder.setServiceCommandOutcomeStore` | bundle | Off by default. With a store, `ServiceManager` answers a keyed command whose key has an outcome without running the handler (`event=service_outcome_replayed`), refuses a key recorded for another command type (`IdempotencyKeyMismatchException`), else runs the handler and records its outcome before replying |
+| `ServiceCommandOutcomes` | common | Per-invocation handle, injectable into a service `@CommandHandler` and reachable as `ServiceCommandOutcomes.current()` from a `MessageHandlerInterceptor`: `idempotencyKey()`, `recordWith(Connection, result)` |
+
+The broker needs nothing new: its retry claims the key (or takes an expired claim over),
+forwards, the bundle answers from the store, and the broker appends that answer as for any
+first attempt (`ServiceOutcomeReplayPostgresIT`: append failure, and server death with lease
+takeover on another server; one handler run, one event each). Guarantees: recording after the
+handler returns closes the broker's window, leaving the process dying between the side effect and
+the record; recording **in the handler's transaction** (`recordWith`) closes that too for side
+effects in the same database (both commit or neither; a racing second execution hits the
+primary key, rolls back and is answered with the first outcome). Side effects outside that
+database (a payment provider, a mail) need the key passed downstream
+(`ServiceCommandMessage#getIdempotencyKey()` or `ServiceCommandOutcomes#idempotencyKey()`). The
+store must be shared by every instance the retry can reach: in the lab, each cell's order-command
+records in its own cell database, so a retry that lands in another cell is not covered. A lookup
+failure fails the command (nothing ran); a record failure after a successful run only logs
+(`event=service_outcome_record_failed`), since the event the broker stores answers later retries.
 
 **Mixed-version rolling upgrade (not closed):** a server without G5 ignores the key (it skips the
 unknown field and appends unkeyed). During an upgrade, a keyed retry that lands on an old server
 runs as an unkeyed command: exactly-once holds only once every server runs a G5 version. Upgrade
-the servers before relying on keys (bundles may follow in any order).
+the servers before relying on keys (bundles may follow in any order). The same holds between
+G5 servers before and after the round-trip change: an older one deletes its claim after the
+append instead of completing it in the append, so a newer one's claim statement can, in a window
+of microseconds, miss an event that committed between its snapshot and its insert. Upgrade all
+servers together, or accept that window for the duration of the roll-out.
 
 **Keys never expire (not closed).** A key lives as long as its event (an event-less completion as
 long as its claim row); there is no TTL or archival yet. Two consequences: the index and the
@@ -621,6 +669,8 @@ These are the user-facing APIs — changing signatures requires a major version 
 - **Modeling types**: `AggregateState`, `Event`, `Command`, `Query`, `DomainCommandMessage`,
   `DomainEventMessage`, `ServiceCommandMessage`, `ServiceEventMessage`, `DecoratedDomainCommandMessage`
 - **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5), `QueryGateway` (injected into components)
+- **Service outcome SPI** (G5 inbox): `ServiceCommandOutcomeStore`, `ServiceCommandOutcomes`
+  (injectable into service handlers), `EventoBundle.Builder.setServiceCommandOutcomeStore`
 - **Consumer SPIs**: `ConsumerStateStore`, `ConsumerLock`, `SagaStateStore`, `DeadEventQueue`,
   `DedupeStore`, `ConsumerEngineConfig`, `ConsumerExecutor` + `ConsumerExecutors`
 - **Server Spring starter**: `evento.server.bus.*` properties + `BusFacade` autowiring
@@ -691,7 +741,7 @@ cross-bundle assertion surfaces in the same JVM.
 
 ## 12. Database Schema (Consumer State Store)
 
-Tables created by Flyway V1 migration per dialect (`postgres` / `mysql`):
+Tables created by the Flyway migrations (V1, V2) per dialect (`postgres` / `mysql`):
 
 | Table | Purpose |
 |---|---|
@@ -699,6 +749,7 @@ Tables created by Flyway V1 migration per dialect (`postgres` / `mysql`):
 | `evento_v2_saga_state` | Saga state JSON(B) + flat `associations` JSON(B) column for fast lookup |
 | `evento_v2_dead_event` | DLQ entries with retry flag |
 | `evento_v2_dedupe` | Observer dedupe entries with sweep window |
+| `evento_v2_service_outcome` | (V2) Outcomes of keyed service commands, kept by the service bundle (`JdbcServiceCommandOutcomeStore`, §8): key PK, command type, serialized result, `recorded_at` |
 
 JDBC locks:
 - **Postgres:** `pg_try_advisory_lock(hashtext(consumerId))` — session-scoped, pins one `Connection` per `LockHandle`

@@ -23,9 +23,9 @@ import java.util.Optional;
  *       partial unique index: no two appends of one key ever both succeed.</li>
  *   <li>A <b>claim</b> in {@code es__idempotency_claims} while a service command with the key
  *       executes: owner, identity, a lease on the database clock. It is a row, not a session
- *       lock, so a waiting or executing duplicate pins no connection. It is deleted once the
- *       event is stored, kept (completed) when the handler produced no event, and deleted when
- *       the execution failed.</li>
+ *       lock, so a waiting or executing duplicate pins no connection. It is marked completed
+ *       once the event is stored (in the append statement) or the handler produced no event,
+ *       and kept; it is deleted when the execution failed.</li>
  * </ul>
  */
 public interface BrokerEventStore {
@@ -109,10 +109,76 @@ public interface BrokerEventStore {
     }
 
     /**
-     * Deletes the (uncompleted) claim of {@code owner}: after the event carrying the key is
-     * stored, or after a failed execution, which a retry may then run again.
+     * Deletes the (uncompleted) claim of {@code owner} after a failed execution, which a retry
+     * may then run again.
      */
     default void releaseIdempotencyClaim(String idempotencyKey, String owner) {
+    }
+
+    /**
+     * The aggregate story and, when {@code idempotencyKey} is not null, what is recorded for the
+     * key. A store that can should read both in one round trip ({@link EventStore} does: the key
+     * lookup is a branch of the events query), so that a keyed aggregate command costs no round
+     * trip more than an unkeyed one. This default does a lookup and then the fetch.
+     *
+     * @return the story (never null) and the record ({@code null} when nothing is recorded or
+     * {@code idempotencyKey} is null)
+     */
+    default KeyedAggregateStory fetchAggregateStory(String aggregateId, boolean invalidateCaches,
+                                                    boolean invalidateSnapshot, String idempotencyKey) {
+        IdempotencyRecord record = idempotencyKey == null ? null : findIdempotencyRecord(idempotencyKey).orElse(null);
+        return new KeyedAggregateStory(fetchAggregateStory(aggregateId, invalidateCaches, invalidateSnapshot), record);
+    }
+
+    /**
+     * Claims {@code idempotencyKey} unless something settles it, and reports what is recorded
+     * when it does not claim. {@link EventStore} does it in one statement, which needs no lookup
+     * before and no re-check after; this default composes the older calls (lookup, claim,
+     * re-check under the claim), so a store written before keeps its guarantees.
+     *
+     * @return {@code claimed} true when {@code owner} now holds the claim; otherwise the record
+     * as read (may be {@code null}: nothing visible yet, e.g. a claim inserted concurrently)
+     */
+    default ClaimAttempt claimOrFindIdempotencyKey(String idempotencyKey, String commandType, String aggregateId,
+                                                   String owner, long leaseMs) {
+        var before = findIdempotencyRecord(idempotencyKey).orElse(null);
+        if (before != null && (before.event() != null || before.claim() == ClaimState.RUNNING
+                || before.claim() == ClaimState.COMPLETED || !before.belongsTo(commandType, aggregateId))) {
+            return new ClaimAttempt(false, before);
+        }
+        if (!claimIdempotencyKey(idempotencyKey, commandType, aggregateId, owner, leaseMs)) {
+            return new ClaimAttempt(false, null);
+        }
+        var after = findIdempotencyRecord(idempotencyKey).orElse(null);
+        if (after != null && after.event() != null) {
+            releaseIdempotencyClaim(idempotencyKey, owner);
+            return new ClaimAttempt(false, after);
+        }
+        return new ClaimAttempt(true, null);
+    }
+
+    /**
+     * The keyed append of a service command whose key {@code claimOwner} claimed: the event,
+     * and the claim settled with it. {@link EventStore} marks the claim completed in the append
+     * statement itself (same transaction, no extra round trip) and keeps the row, which is what
+     * lets {@link #claimOrFindIdempotencyKey} skip the re-check. This default appends and then
+     * deletes the claim, as before.
+     *
+     * @throws IdempotencyKeyConflictException when an event with that key is already stored
+     */
+    default long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                              String commandType, String claimOwner) {
+        long seq = publishEvent(eventMessage, aggregateId, idempotencyKey, commandType);
+        if (claimOwner != null) releaseIdempotencyClaim(idempotencyKey, claimOwner);
+        return seq;
+    }
+
+    /** A story with the record of the command's key, read together. */
+    record KeyedAggregateStory(AggregateStory story, IdempotencyRecord record) {
+    }
+
+    /** The outcome of {@link #claimOrFindIdempotencyKey}. */
+    record ClaimAttempt(boolean claimed, IdempotencyRecord record) {
     }
 
     /** An event as stored, with the sequence number it was given. */

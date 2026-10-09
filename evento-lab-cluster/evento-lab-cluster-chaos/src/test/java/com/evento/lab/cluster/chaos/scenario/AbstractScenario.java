@@ -49,7 +49,8 @@ abstract class AbstractScenario {
             "pg_type_typname_nsp_index", "tuple concurrently updated", "RequestTimeoutException",
             "event=gateway_command_failed", "event=lab_ready", "deadlock detected",
             "Failed to acquire advisory lock", "event=failback_started", "event=failback_completed",
-            "event=failback_failed");
+            "event=failback_failed", "event=service_outcome_replayed", "event=idempotent_replay",
+            "event=idempotent_duplicate_execution");
 
     /**
      * Default background load (orders/min/region) of the fault scenarios S3, S7, S8, S9.
@@ -349,11 +350,14 @@ abstract class AbstractScenario {
                 dupEvents + " duplicate event(s): " + i2.metrics(), dupEvents == 0, dupEvents > 0, null);
         int dupPayments = metric(i2, "duplicatePaymentExecutions");
         report.observe("no payment executed twice (side effects)",
-                "0: the saga's retry carries the derived key of its first attempt and is replayed (G5)",
+                "0: the saga's retry carries the derived key of its first attempt and is replayed by the broker "
+                        + "(G5), or, when the payment ran but its event was not stored, by order-command's outcome "
+                        + "store (G5 inbox)",
                 "the saga's retry of an indeterminate ProcessPayment charges again (N14)",
                 dupPayments + " extra payment execution(s)", dupPayments == 0, dupPayments > 0,
-                "Residual window, documented: a payment whose event could not be stored (append failed or "
-                        + "the server died first) leaves no key behind, so its retry runs the handler again.");
+                "The residual window (a payment whose event could not be stored) is closed only with the outcome "
+                        + "store: images before the inbox fix, or EVENTO_SERVICE_OUTCOME_STORE=off, still pay twice "
+                        + "there (S18 hits it on purpose).");
     }
 
     private static int metric(InvariantResult r, String name) {

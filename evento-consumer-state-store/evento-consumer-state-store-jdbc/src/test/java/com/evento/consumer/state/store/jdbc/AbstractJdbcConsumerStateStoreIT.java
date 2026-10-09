@@ -460,6 +460,79 @@ abstract class AbstractJdbcConsumerStateStoreIT {
         assertThat(dedupe.tryClaim("c1", "new")).isFalse();
     }
 
+    // --- ServiceCommandOutcomeStore (G5 residual window) ------------------
+
+    @Test
+    void outcomeStoreRecordsOnceAndFindsWhatWasRecorded() {
+        var outcomes = new JdbcServiceCommandOutcomeStore(dataSource, dialect());
+        var key = "pay-" + java.util.UUID.randomUUID();
+        assertThat(outcomes.find(key)).isEmpty();
+        assertThat(outcomes.record(key, "PayCommand", new byte[]{1, 2, 3})).isTrue();
+        assertThat(outcomes.record(key, "PayCommand", new byte[]{9})).as("the first outcome stays").isFalse();
+        var found = outcomes.find(key).orElseThrow();
+        assertThat(found.commandType()).isEqualTo("PayCommand");
+        assertThat(found.serializedResult()).containsExactly(1, 2, 3);
+        assertThat(found.recordedAt()).isNotNull();
+
+        var voidKey = "mail-" + java.util.UUID.randomUUID();
+        assertThat(outcomes.record(voidKey, "MailCommand", null)).isTrue();
+        assertThat(outcomes.find(voidKey).orElseThrow().isVoid()).isTrue();
+    }
+
+    @Test
+    void outcomeRecordedInTransactionCommitsAndRollsBackWithTheHandlersWrites() throws Exception {
+        var outcomes = new JdbcServiceCommandOutcomeStore(dataSource, dialect());
+        var rolledBack = "tx-rb-" + java.util.UUID.randomUUID();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            assertThat(outcomes.recordInTransaction(c, rolledBack, "PayCommand", new byte[]{7})).isTrue();
+            c.rollback();
+        }
+        assertThat(outcomes.find(rolledBack)).as("rolled back with the transaction").isEmpty();
+
+        var committed = "tx-ok-" + java.util.UUID.randomUUID();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            outcomes.recordInTransaction(c, committed, "PayCommand", new byte[]{8});
+            c.commit();
+        }
+        assertThat(outcomes.find(committed).orElseThrow().serializedResult()).containsExactly(8);
+
+        // A second execution of the key, committing after the first: refused, typed.
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            assertThatThrownBy(() -> outcomes.recordInTransaction(c, committed, "PayCommand", new byte[]{9}))
+                    .isInstanceOf(com.evento.common.messaging.outcome.DuplicateServiceOutcomeException.class);
+            c.rollback();
+        }
+        assertThat(outcomes.find(committed).orElseThrow().serializedResult()).containsExactly(8);
+    }
+
+    @Test
+    void outcomeSweepRemovesOldOutcomesOnly() throws Exception {
+        var outcomes = new JdbcServiceCommandOutcomeStore(dataSource, dialect());
+        var old = "old-" + java.util.UUID.randomUUID();
+        var recent = "new-" + java.util.UUID.randomUUID();
+        outcomes.record(old, "PayCommand", null);
+        outcomes.record(recent, "PayCommand", null);
+        try (Connection c = dataSource.getConnection();
+             var ps = c.prepareStatement("UPDATE evento_v2_service_outcome SET recorded_at = ? WHERE idempotency_key = ?")) {
+            ps.setTimestamp(1, java.sql.Timestamp.from(Instant.parse("2000-01-01T00:00:00Z")));
+            ps.setString(2, old);
+            ps.executeUpdate();
+        }
+        assertThat(outcomes.sweepBefore(Instant.parse("2020-01-01T00:00:00Z"))).isEqualTo(1);
+        assertThat(outcomes.find(old)).isEmpty();
+        assertThat(outcomes.find(recent)).isPresent();
+    }
+
+    @Test
+    void outcomeMigrationIsRepeatable() {
+        // Re-running the migrator on a migrated database is a no-op (and V2 is IF NOT EXISTS).
+        FlywayMigrator.migrate(dataSource, dialect());
+        assertThat(new JdbcServiceCommandOutcomeStore(dataSource, dialect()).find("absent")).isEmpty();
+    }
+
     // --- helpers ------------------------------------------------------------
 
     // Non-final on purpose: NON_FINAL default typing only writes the type wrapper

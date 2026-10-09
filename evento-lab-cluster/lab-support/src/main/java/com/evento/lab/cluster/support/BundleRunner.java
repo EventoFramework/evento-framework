@@ -138,7 +138,7 @@ public class BundleRunner implements AutoCloseable {
         features.zone(builder, deployment.zone());
         features.heartbeatReadIdle(builder, deployment.heartbeatReadIdle());
         features.failback(builder, deployment.failbackWindow());
-        definition.configure(builder, deployment);
+        definition.configure(builder, deployment, features);
         return builder.start();
     }
 
