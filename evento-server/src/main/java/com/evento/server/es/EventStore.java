@@ -142,6 +142,77 @@ public class EventStore implements BrokerEventStore {
                     "AND " + IDEMPOTENCY_CLAIMS_TABLE + ".aggregate_id IS NOT DISTINCT FROM EXCLUDED.aggregate_id " +
                     "RETURNING owner";
 
+    /**
+     * The first attempt of a keyed service command, in ONE round trip (no lookup before it, no
+     * re-check after it): what is recorded for the key, read from the statement's snapshot, and
+     * a claim inserted (or taken over from a dead owner, see {@link #CLAIM_SQL}) only when no
+     * event holds the key in that snapshot.
+     *
+     * <p>Why no re-check is needed: an owner that stores its event marks its claim completed in
+     * the same statement ({@link #completingClaim}) and never deletes it. So a claim row exists,
+     * in its latest version, for every key whose service event is stored. The insert's arbiter
+     * reads that latest version (not the snapshot) and refuses a completed claim, even when the
+     * event committed after this statement's snapshot was taken. Before, the owner deleted its
+     * claim after the append: a claimer whose snapshot predated the append could then insert a
+     * fresh claim and miss the event, hence the second lookup under the claim.
+     *
+     * <p>Columns: 1 the claim owner when this statement claimed, else null; 2–5 the event; 6–10
+     * the claim as in {@link #IDEMPOTENCY_RECORD_SQL}. Parameters: key, key, then
+     * {@link #CLAIM_SQL}'s five values.
+     */
+    static final String CLAIM_OR_FIND_SQL =
+            "WITH ev AS (SELECT event_sequence_number, event_message, idempotency_command, aggregate_id " +
+                    "FROM es__events WHERE idempotency_key = ?), " +
+                    "cl AS (SELECT command_type, aggregate_id, completed_at IS NOT NULL AS completed, " +
+                    "lease_until < now() AS expired FROM " + IDEMPOTENCY_CLAIMS_TABLE + " WHERE idempotency_key = ?), " +
+                    "ins AS (INSERT INTO " + IDEMPOTENCY_CLAIMS_TABLE +
+                    " (idempotency_key, command_type, aggregate_id, owner, lease_until) " +
+                    "SELECT ?, ?, ?, ?, now() + ? * interval '1 millisecond' WHERE NOT EXISTS (SELECT 1 FROM ev) " +
+                    "ON CONFLICT (idempotency_key) DO UPDATE SET owner = EXCLUDED.owner, " +
+                    "lease_until = EXCLUDED.lease_until, created_at = now() " +
+                    "WHERE " + IDEMPOTENCY_CLAIMS_TABLE + ".completed_at IS NULL " +
+                    "AND " + IDEMPOTENCY_CLAIMS_TABLE + ".lease_until < now() " +
+                    "AND " + IDEMPOTENCY_CLAIMS_TABLE + ".command_type = EXCLUDED.command_type " +
+                    "AND " + IDEMPOTENCY_CLAIMS_TABLE + ".aggregate_id IS NOT DISTINCT FROM EXCLUDED.aggregate_id " +
+                    "RETURNING owner) " +
+                    "SELECT (SELECT owner FROM ins), ev.event_sequence_number, ev.event_message, " +
+                    "ev.idempotency_command, ev.aggregate_id, cl.command_type, cl.aggregate_id, cl.completed, " +
+                    "cl.expired, cl.command_type IS NOT NULL " +
+                    "FROM (SELECT 1) q LEFT JOIN ev ON true LEFT JOIN cl ON true";
+
+    /**
+     * Turns a keyed append statement (one that ends with {@code RETURNING event_sequence_number})
+     * into one that also marks the service command's claim completed, in the same statement and
+     * so the same transaction: the stored event and the completed claim become visible together,
+     * and the claim row stays (see {@link #CLAIM_OR_FIND_SQL}). Two more parameters: key, owner.
+     * The claim of another owner (one that took the key over) is left alone.
+     */
+    static String completingClaim(String keyedAppendReturningSeq) {
+        return "WITH appended AS (" + keyedAppendReturningSeq + "), " +
+                "done AS (UPDATE " + IDEMPOTENCY_CLAIMS_TABLE + " SET completed_at = now() " +
+                "WHERE idempotency_key = ? AND owner = ? AND completed_at IS NULL " +
+                "AND EXISTS (SELECT 1 FROM appended)) " +
+                "SELECT event_sequence_number FROM appended";
+    }
+
+    /**
+     * Columns appended to an aggregate-story query so the key lookup of a keyed aggregate command
+     * rides on the story fetch (one round trip): the story rows get kind 0 and nulls, the record
+     * row kind 1 and {@link #IDEMPOTENCY_RECORD_SQL}'s columns. Two more parameters: key, key.
+     */
+    private static final String STORY_ROW_RECORD_COLUMNS =
+            ", null::varchar, null::varchar, null::varchar, null::varchar, null::boolean, null::boolean, " +
+                    "null::boolean ";
+
+    private static final String STORY_RECORD_ROW =
+            " UNION ALL SELECT 1, e.event_sequence_number, e.event_message, e.idempotency_command, e.aggregate_id, " +
+                    "c.command_type, c.aggregate_id, c.completed_at IS NOT NULL, c.lease_until < now(), " +
+                    "c.idempotency_key IS NOT NULL " +
+                    "FROM (SELECT 1) q " +
+                    "LEFT JOIN es__events e ON e.idempotency_key = ? " +
+                    "LEFT JOIN " + IDEMPOTENCY_CLAIMS_TABLE + " c ON c.idempotency_key = ? " +
+                    "ORDER BY 1, 2";
+
     /** SQLSTATEs meaning "the schema lacks what keys need" (dropped index, column or table). */
     private static final java.util.Set<String> MISSING_SCHEMA_STATES = java.util.Set.of(
             "42P10", // no unique index matching the ON CONFLICT arbiter
@@ -394,6 +465,22 @@ public class EventStore implements BrokerEventStore {
     @Override
     public long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
                              String commandType) {
+        return publishKeyed(eventMessage, aggregateId, idempotencyKey, commandType, null);
+    }
+
+    /**
+     * The keyed append of a service command: the event, and its claim marked completed, in one
+     * statement (one round trip, one transaction). The claim is kept, not deleted: see
+     * {@link #CLAIM_OR_FIND_SQL} for why that lets the claim of a retry need no second lookup.
+     */
+    @Override
+    public long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                             String commandType, String claimOwner) {
+        return publishKeyed(eventMessage, aggregateId, idempotencyKey, commandType, claimOwner);
+    }
+
+    private long publishKeyed(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                              String commandType, String claimOwner) {
         if (idempotencyKey == null || !idempotencySupported()) {
             return publishEvent(eventMessage, aggregateId);
         }
@@ -406,19 +493,80 @@ public class EventStore implements BrokerEventStore {
         try {
             if (MODE == EventStoreMode.APES) {
                 long id = snowflake.nextId();
-                int inserted = jdbcTemplate.update(APES_KEYED_APPEND_SQL, id, aggregateId, json,
-                        eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType);
-                if (inserted == 0) throw new IdempotencyKeyConflictException(idempotencyKey);
+                if (claimOwner == null) {
+                    int inserted = jdbcTemplate.update(APES_KEYED_APPEND_SQL, id, aggregateId, json,
+                            eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType);
+                    if (inserted == 0) throw new IdempotencyKeyConflictException(idempotencyKey);
+                    return id;
+                }
+                List<Long> seq = jdbcTemplate.queryForList(
+                        completingClaim(APES_KEYED_APPEND_SQL + " RETURNING event_sequence_number"), Long.class,
+                        id, aggregateId, json, eventMessage.getEventName(), eventMessage.getContext(),
+                        idempotencyKey, commandType, idempotencyKey, claimOwner);
+                if (seq.isEmpty()) throw new IdempotencyKeyConflictException(idempotencyKey);
                 return id;
             }
-            List<Long> seq = jdbcTemplate.queryForList(CPES_KEYED_APPEND_SQL, Long.class, aggregateId, json,
-                    eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType);
+            List<Long> seq = claimOwner == null
+                    ? jdbcTemplate.queryForList(CPES_KEYED_APPEND_SQL, Long.class, aggregateId, json,
+                    eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType)
+                    : jdbcTemplate.queryForList(completingClaim(CPES_KEYED_APPEND_SQL), Long.class, aggregateId, json,
+                    eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType,
+                    idempotencyKey, claimOwner);
             if (seq.isEmpty()) throw new IdempotencyKeyConflictException(idempotencyKey);
             return seq.getFirst();
         } catch (DataAccessException e) {
             if (!schemaLost(e, "keyed_append")) throw e;
             return publishEvent(eventMessage, aggregateId);
         }
+    }
+
+    /**
+     * Claims the key or reports what is recorded for it, in one round trip
+     * ({@link #CLAIM_OR_FIND_SQL}).
+     */
+    @Override
+    public ClaimAttempt claimOrFindIdempotencyKey(String idempotencyKey, String commandType, String aggregateId,
+                                                  String owner, long leaseMs) {
+        try {
+            return jdbcTemplate.query(CLAIM_OR_FIND_SQL, rs -> {
+                if (!rs.next()) return new ClaimAttempt(false, null);
+                String claimedBy = rs.getString(1);
+                if (owner.equals(claimedBy)) return new ClaimAttempt(true, null);
+                return new ClaimAttempt(false, readRecord(rs, 2));
+            }, idempotencyKey, idempotencyKey, idempotencyKey, commandType, aggregateId, owner, Math.max(1L, leaseMs));
+        } catch (DataAccessException e) {
+            // Claims table gone: run as an unkeyed command would (support is now off).
+            if (!schemaLost(e, "claim")) throw e;
+            return new ClaimAttempt(true, null);
+        }
+    }
+
+    /**
+     * Reads the record columns starting at {@code first}: event seq, message, command, aggregate,
+     * then claim type, aggregate, completed, expired, present (as {@link #IDEMPOTENCY_RECORD_SQL}).
+     */
+    private IdempotencyRecord readRecord(java.sql.ResultSet rs, int first) throws SQLException {
+        StoredEvent event = null;
+        long seq = rs.getLong(first);
+        if (!rs.wasNull()) {
+            try {
+                event = new StoredEvent(seq, (EventMessage<?>) mapper.readValue(rs.getString(first + 1), Serializable.class));
+            } catch (JsonProcessingException e) {
+                throw new IllegalStateException("stored event " + seq + " is unreadable", e);
+            }
+        }
+        boolean claimed = rs.getBoolean(first + 8);
+        ClaimState claim = !claimed ? ClaimState.NONE
+                : rs.getBoolean(first + 6) ? ClaimState.COMPLETED
+                : rs.getBoolean(first + 7) ? ClaimState.EXPIRED
+                : ClaimState.RUNNING;
+        if (event != null) {
+            return new IdempotencyRecord(rs.getString(first + 2), rs.getString(first + 3), event, claim);
+        }
+        if (claimed) {
+            return new IdempotencyRecord(rs.getString(first + 4), rs.getString(first + 5), null, claim);
+        }
+        return null;
     }
 
     /**
@@ -430,30 +578,9 @@ public class EventStore implements BrokerEventStore {
     public Optional<IdempotencyRecord> findIdempotencyRecord(String idempotencyKey) {
         if (idempotencyKey == null || !idempotencySupported()) return Optional.empty();
         try {
-            return jdbcTemplate.query(IDEMPOTENCY_RECORD_SQL, rs -> {
-                if (!rs.next()) return Optional.<IdempotencyRecord>empty();
-                StoredEvent event = null;
-                long seq = rs.getLong(1);
-                if (!rs.wasNull()) {
-                    try {
-                        event = new StoredEvent(seq, (EventMessage<?>) mapper.readValue(rs.getString(2), Serializable.class));
-                    } catch (JsonProcessingException e) {
-                        throw new IllegalStateException("stored event " + seq + " is unreadable", e);
-                    }
-                }
-                boolean claimed = rs.getBoolean(9);
-                ClaimState claim = !claimed ? ClaimState.NONE
-                        : rs.getBoolean(7) ? ClaimState.COMPLETED
-                        : rs.getBoolean(8) ? ClaimState.EXPIRED
-                        : ClaimState.RUNNING;
-                if (event != null) {
-                    return Optional.of(new IdempotencyRecord(rs.getString(3), rs.getString(4), event, claim));
-                }
-                if (claimed) {
-                    return Optional.of(new IdempotencyRecord(rs.getString(5), rs.getString(6), null, claim));
-                }
-                return Optional.<IdempotencyRecord>empty();
-            }, idempotencyKey, idempotencyKey);
+            return jdbcTemplate.query(IDEMPOTENCY_RECORD_SQL,
+                    rs -> rs.next() ? Optional.ofNullable(readRecord(rs, 1)) : Optional.<IdempotencyRecord>empty(),
+                    idempotencyKey, idempotencyKey);
         } catch (DataAccessException e) {
             if (!schemaLost(e, "lookup")) throw e;
             return Optional.empty();
@@ -614,6 +741,35 @@ public class EventStore implements BrokerEventStore {
     public AggregateStory fetchAggregateStory(String aggregateId,
                                               boolean invalidateAggregateCaches,
                                               boolean invalidateAggregateSnapshot) {
+        return fetchStory(aggregateId, invalidateAggregateCaches, invalidateAggregateSnapshot, null).story();
+    }
+
+    /**
+     * The story and, for a keyed command, what is recorded for its key, in the story's own round
+     * trip: the key lookup is a {@code UNION ALL} branch of the events query
+     * ({@link #STORY_RECORD_ROW}), so a keyed aggregate command costs exactly the round trips of
+     * an unkeyed one. Before, it paid two more lookups (one before the aggregate lock, one under
+     * it), each a round trip to the event-store primary: from a remote cell, one or two WAN RTTs
+     * per command.
+     */
+    @Override
+    public KeyedAggregateStory fetchAggregateStory(String aggregateId, boolean invalidateCaches,
+                                                   boolean invalidateSnapshot, String idempotencyKey) {
+        if (idempotencyKey == null || !idempotencySupported()) {
+            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, null);
+        }
+        try {
+            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, idempotencyKey);
+        } catch (DataAccessException e) {
+            if (!schemaLost(e, "story_lookup")) throw e;
+            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, null);
+        }
+    }
+
+    private KeyedAggregateStory fetchStory(String aggregateId,
+                                           boolean invalidateAggregateCaches,
+                                           boolean invalidateAggregateSnapshot,
+                                           String idempotencyKey) {
         Assert.isTrue(aggregateId != null, "Fetching aggregate state without an aggregate Id");
         if (invalidateAggregateCaches) {
             snapshotCache.remove(aggregateId);
@@ -635,75 +791,69 @@ public class EventStore implements BrokerEventStore {
         // aggregate, so it is never appended to in place.
         var cachedEvents = eventsCache.get(aggregateId);
         var events = cachedEvents == null ? new ArrayList<EventStoreEntry>() : new ArrayList<>(cachedEvents);
-        SqlRowSet rs;
-        var max = 0L;
+        String where;
+        Object[] params;
+        long max;
         var min = events.isEmpty() ? 0L : events.getFirst().getEventSequenceNumber();
         if (snapshot == null) {
             max = events.isEmpty() ? 0L : events.getLast().getEventSequenceNumber();
-            rs = jdbcTemplate.queryForRowSet(
-                    "select event_sequence_number, event_message " +
-                            "from es__events " +
-                            "where aggregate_id = ? " +
-                            "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) " +
-                            "order by event_sequence_number",
-                    aggregateId,
-                    min,
-                    max
-            );
-
+            where = "where aggregate_id = ? " +
+                    "and (es__events.event_sequence_number < ? or es__events.event_sequence_number > ?) ";
+            params = new Object[]{aggregateId, min, max};
         } else {
             max = events.isEmpty() ? snapshot.getEventSequenceNumber() : events.getLast().getEventSequenceNumber();
             if (snapshot.getEventSequenceNumber() < min) {
-                rs = jdbcTemplate.queryForRowSet(
-                        "select event_sequence_number, event_message " +
-                                "from es__events " +
-                                "where aggregate_id = ? " +
-                                "and ((es__events.event_sequence_number > ? and es__events.event_sequence_number < ?) or (es__events.event_sequence_number > ?)) " +
-                                "order by event_sequence_number",
-                        aggregateId,
-                        snapshot.getEventSequenceNumber(),
-                        events.getFirst().getEventSequenceNumber(),
-                        max
-                );
-
+                where = "where aggregate_id = ? " +
+                        "and ((es__events.event_sequence_number > ? and es__events.event_sequence_number < ?) " +
+                        "or (es__events.event_sequence_number > ?)) ";
+                params = new Object[]{aggregateId, snapshot.getEventSequenceNumber(),
+                        events.getFirst().getEventSequenceNumber(), max};
             } else {
-                rs = jdbcTemplate.queryForRowSet(
-                        "select event_sequence_number, event_message " +
-                                "from es__events " +
-                                "where aggregate_id = ? " +
-                                "and es__events.event_sequence_number > ? " +
-                                "order by event_sequence_number",
-                        aggregateId,
-                        max
-                );
+                where = "where aggregate_id = ? and es__events.event_sequence_number > ? ";
+                params = new Object[]{aggregateId, max};
             }
         }
+        String sql;
+        if (idempotencyKey == null) {
+            sql = "select 0, event_sequence_number, event_message from es__events " + where
+                    + "order by event_sequence_number";
+        } else {
+            sql = "select 0, event_sequence_number, event_message" + STORY_ROW_RECORD_COLUMNS
+                    + "from es__events " + where + STORY_RECORD_ROW;
+            params = java.util.Arrays.copyOf(params, params.length + 2);
+            params[params.length - 2] = idempotencyKey;
+            params[params.length - 1] = idempotencyKey;
+        }
 
-        var i = 0;
-        while (true) {
+        final long fetchedAfter = max;
+        var record = new IdempotencyRecord[1];
+        var inserted = new int[1];
+        jdbcTemplate.query(sql, (java.sql.ResultSet rs) -> {
+            if (rs.getInt(1) == 1) {
+                record[0] = readRecord(rs, 2);
+                return;
+            }
             try {
-                if (!rs.next()) break;
                 var entry = new EventStoreEntry();
-                entry.setEventSequenceNumber(rs.getLong(1));
-                entry.setEventMessage(mapper.readValue(rs.getString(2), DomainEventMessage.class));
-                if (entry.getEventSequenceNumber() > max) {
+                entry.setEventSequenceNumber(rs.getLong(2));
+                entry.setEventMessage(mapper.readValue(rs.getString(3), DomainEventMessage.class));
+                if (entry.getEventSequenceNumber() > fetchedAfter) {
                     events.add(entry);
                 } else {
-                    events.add(i++, entry);
+                    events.add(inserted[0]++, entry);
                 }
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-
-        }
+        }, params);
         eventsCache.put(aggregateId, events);
         final Snapshot base = snapshot;
-        return new AggregateStory(
+        return new KeyedAggregateStory(new AggregateStory(
                 base == null ? new SerializedAggregateState<>(null) : base.getAggregateState(),
                 events.stream()
                         .filter(e -> base == null || e.getEventSequenceNumber() > base.getEventSequenceNumber())
                         .map(e -> (DomainEventMessage) e.getEventMessage())
                         .toList()
-        );
+        ), record[0]);
     }
 }
