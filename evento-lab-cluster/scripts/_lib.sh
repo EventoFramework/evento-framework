@@ -25,20 +25,30 @@ compose() {
   docker compose -p "$COMPOSE_PROJECT" -f "$DOCKER_DIR/compose.yaml" "$@"
 }
 
-# JDK 25 for Gradle: honour an explicit JAVA_HOME that is already 25, otherwise look in the
-# usual places (the Windows lab host, macOS java_home, SDKMAN-style ~/.jdks).
+# JDK 25 for Gradle, update 3 or later: 25.0.1 and 25.0.2 have JDK-8370887 (a cancelled timed
+# wait corrupts the virtual-thread timer heap, so a 150 ms sleep can take ~20 s and bundles and
+# ITs stall). Honour an explicit JAVA_HOME only when it is a fixed 25, otherwise look in the
+# usual places (SDKMAN/IntelliJ-style ~/.jdks newest first, macOS java_home).
+jdk25_ok() {
+  local v
+  v="$("$1/bin/java" -version 2>&1 | sed -n 's/.*version "\(25[^"]*\)".*/\1/p' | head -1)"
+  [ -n "$v" ] || return 1
+  case "$v" in 25|25.0|25.0.0*|25.0.1|25.0.1.*|25.0.2|25.0.2.*) return 1 ;; esac
+  return 0
+}
+
 ensure_jdk25() {
-  if [ -n "${JAVA_HOME:-}" ] && "$JAVA_HOME/bin/java" -version 2>&1 | grep -q 'version "25'; then
+  if [ -n "${JAVA_HOME:-}" ] && jdk25_ok "$JAVA_HOME"; then
     return 0
   fi
   local c
-  for c in "C:/Users/Gaborando/.jdks/openjdk-25.0.1" "$HOME/.jdks/openjdk-25.0.1" "$HOME"/.jdks/*25*; do
-    if [ -x "$c/bin/java" ] || [ -x "$c/bin/java.exe" ]; then export JAVA_HOME="$c"; return 0; fi
+  for c in $(ls -d "$HOME"/.jdks/*25* 2>/dev/null | sort -rV); do
+    if jdk25_ok "$c"; then export JAVA_HOME="$c"; return 0; fi
   done
   if [ -x /usr/libexec/java_home ]; then
-    JAVA_HOME="$(/usr/libexec/java_home -v 25 2>/dev/null)" && export JAVA_HOME && return 0
+    c="$(/usr/libexec/java_home -v 25 2>/dev/null)" && jdk25_ok "$c" && export JAVA_HOME="$c" && return 0
   fi
-  echo "warning: no JDK 25 found; relying on Gradle toolchain auto-detection (JAVA_HOME=${JAVA_HOME:-unset})" >&2
+  echo "warning: no JDK 25.0.3+ found (25.0.1/25.0.2 have JDK-8370887); relying on Gradle toolchain auto-detection (JAVA_HOME=${JAVA_HOME:-unset})" >&2
 }
 
 gradlew() {

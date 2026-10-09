@@ -286,8 +286,9 @@ against the concurrent `schema.sql`, G14) -> bundles. `COLD_START=true` (S10) dr
 
 ## Build and run
 
-Requirements: Docker with compose v2, JDK 25 for Gradle (the scripts find
-`C:/Users/Gaborando/.jdks/openjdk-25.0.1`, `~/.jdks/*25*` or macOS `java_home -v 25`).
+Requirements: Docker with compose v2, JDK **25.0.3 or later** for Gradle (25.0.1 and 25.0.2 have
+JDK-8370887, a virtual-thread timer stall). The scripts pick the newest fixed `~/.jdks/*25*`
+(this host: `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1`) or macOS `java_home -v 25`.
 Every `.sh` works under Git Bash; the `.ps1` twins call the same script through Git Bash.
 
 ```bash
