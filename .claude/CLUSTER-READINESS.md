@@ -281,7 +281,7 @@ In priority order: G2, G4, G13 (the minimum needed for failover to be meaningful
 
 ### Facts
 
-- **Toolchain.** JDK 25 is at `C:/Users/Gaborando/.jdks/openjdk-25.0.1`. The default `JAVA_HOME` is 21.0.2, which is fine for the Gradle daemon, and the toolchain auto-detects 25. Gradle 9.6.1 wrapper. Offline builds work.
+- **Toolchain.** JDK 25 is at `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1` (25.0.1 is also installed but has JDK-8370887: do not use it). The default `JAVA_HOME` is 21.0.2, which is fine for the Gradle daemon, and the toolchain auto-detects 25. Gradle 9.6.1 wrapper. Offline builds work.
 - **Build.**
   ```
   ./gradlew :evento-server:bootJar <lab modules>:bootJar -x test --offline
