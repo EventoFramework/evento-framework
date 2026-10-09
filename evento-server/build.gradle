@@ -53,6 +53,11 @@ dependencies {
 	testImplementation 'org.awaitility:awaitility:4.3.0'
 	testImplementation "io.netty:netty-pkitesting:${nettyVersion}"
 	testImplementation project(':evento-bundle')
+	// The JDBC service-outcome store, for the G5 residual-window IT. Its Flyway is left out: the
+	// IT runs the migration script directly, and the server's own tests keep the Boot-managed one.
+	testImplementation(project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')) {
+		exclude group: 'org.flywaydb'
+	}
 	// Real-Postgres ITs for the event store, locks and schema init (gated by EVENTO_RUN_JDBC_IT).
 	// Versions come from Spring Boot's Testcontainers 2.x BOM.
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
