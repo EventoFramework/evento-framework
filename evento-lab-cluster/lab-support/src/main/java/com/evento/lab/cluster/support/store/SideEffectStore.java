@@ -29,22 +29,58 @@ public class SideEffectStore {
 
     /** @return the attempt number for this order (1 on the first call). */
     public int recordPayment(String orderId, String paymentId, String context) throws SQLException {
-        try (var con = dataSource.getConnection(); var ps = con.prepareStatement("""
-                INSERT INTO payments AS p (order_id, payment_id, context, first_handler, last_handler)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT (order_id) DO UPDATE SET
-                    attempts = p.attempts + 1,
-                    last_handler = EXCLUDED.last_handler,
-                    last_at = now()
-                RETURNING attempts""")) {
-            ps.setString(1, orderId);
-            ps.setString(2, paymentId);
-            ps.setString(3, context);
-            ps.setString(4, writer);
-            ps.setString(5, writer);
-            try (var rs = ps.executeQuery()) {
-                rs.next();
-                return rs.getInt(1);
+        try {
+            return recordPayment(orderId, paymentId, context, (con, attempt) -> attempt);
+        } catch (SQLException | RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Work done in the payment's transaction, before it commits. */
+    @FunctionalInterface
+    public interface InPaymentTransaction<T> {
+        T apply(java.sql.Connection connection, int attempt) throws Exception;
+    }
+
+    /**
+     * Records the payment and runs {@code beforeCommit} in the same transaction: the payment
+     * service builds its event there and records it as the command's outcome (G5 inbox), so the
+     * payment row and the outcome commit together or not at all. Anything thrown rolls both back.
+     */
+    public <T> T recordPayment(String orderId, String paymentId, String context, InPaymentTransaction<T> beforeCommit)
+            throws Exception {
+        try (var con = dataSource.getConnection()) {
+            con.setAutoCommit(false);
+            try {
+                int attempt;
+                try (var ps = con.prepareStatement("""
+                        INSERT INTO payments AS p (order_id, payment_id, context, first_handler, last_handler)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT (order_id) DO UPDATE SET
+                            attempts = p.attempts + 1,
+                            last_handler = EXCLUDED.last_handler,
+                            last_at = now()
+                        RETURNING attempts""")) {
+                    ps.setString(1, orderId);
+                    ps.setString(2, paymentId);
+                    ps.setString(3, context);
+                    ps.setString(4, writer);
+                    ps.setString(5, writer);
+                    try (var rs = ps.executeQuery()) {
+                        rs.next();
+                        attempt = rs.getInt(1);
+                    }
+                }
+                T result = beforeCommit.apply(con, attempt);
+                con.commit();
+                return result;
+            } catch (Exception e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
             }
         }
     }

@@ -25,8 +25,10 @@ import com.evento.lab.cluster.api.event.PaymentProcessedEvent;
  * redelivered (a {@code BrokerChangedException} or timeout failed the handler,
  * a lane changed owner before the checkpoint) the retry carries the same key
  * and the broker answers with the stored {@code PaymentProcessedEvent} instead
- * of charging again (N14). What it cannot cover is a payment that ran while its
- * event was not stored (S07's partition): that retry runs the handler again.
+ * of charging again (N14). A payment that ran while its event was not stored
+ * (S07's partition, S18) is covered on the other side: order-command records the
+ * payment's outcome in the payment's own transaction, and answers the retry from
+ * it without paying again (G5 inbox).
  */
 @Saga(version = 1)
 public class PaymentSaga {

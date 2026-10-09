@@ -161,9 +161,11 @@ class S07RegionPartitionTest extends AbstractScenario {
                     "two replicas process one lane after the partition; the stale one re-applies (G11)",
                     i2.observed(), i2.passed(), !i2.passed(), null);
             // N14: after healing, the saga retried payments whose first attempt was indeterminate.
-            // Duplicate events must be 0 with G5; a payment that ran while the cell could not
-            // append is the documented residual (observeExactlyOnce's note).
+            // Duplicate events must be 0 with G5, and duplicate payments 0 too with the outcome
+            // store, even for a payment that ran while the cell could not append (the residual
+            // window, which S18 hits on purpose).
             observeExactlyOnce(i2);
+            report.metric("serviceOutcomeReplayed", total(appMarkers, "event=service_outcome_replayed"));
         });
     }
 

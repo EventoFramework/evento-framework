@@ -157,6 +157,86 @@ public final class FrameworkFeatures {
         }
     }
 
+    // ---- service command outcome store (G5 residual window) ----
+
+    static final String OUTCOME_STORE_CLASS = "com.evento.consumer.state.store.jdbc.JdbcServiceCommandOutcomeStore";
+    static final String OUTCOMES_CLASS = "com.evento.common.messaging.outcome.ServiceCommandOutcomes";
+    private static final Method OUTCOMES_CURRENT = findOutcomes("current");
+    private static final Method OUTCOMES_RECORD_WITH = findOutcomes("recordWith");
+
+    private static Method findOutcomes(String name) {
+        try {
+            var cls = Class.forName(OUTCOMES_CLASS, false, FrameworkFeatures.class.getClassLoader());
+            return name.equals("current") ? cls.getMethod("current")
+                    : cls.getMethod("recordWith", java.sql.Connection.class,
+                    Class.forName("com.evento.common.modeling.messaging.payload.ServiceEvent", false,
+                            FrameworkFeatures.class.getClassLoader()));
+        } catch (ClassNotFoundException | NoSuchMethodException | LinkageError e) {
+            return null;
+        }
+    }
+
+    /**
+     * Give the bundle a JDBC outcome store on {@code dataSource} (the service's own database,
+     * which must already hold {@code evento_v2_service_outcome}), so a keyed service command
+     * whose handler already ran is answered from it instead of running again (the G5 residual
+     * window). {@code mode} {@code off} (or a framework without the store) leaves it out.
+     *
+     * @return whether the store was set
+     */
+    public boolean serviceOutcomeStore(EventoBundle.Builder builder, javax.sql.DataSource dataSource, String mode) {
+        if ("off".equalsIgnoreCase(mode)) {
+            record("serviceOutcomeStore", false, "off (EVENTO_SERVICE_OUTCOME_STORE)");
+            return false;
+        }
+        try {
+            var cls = Class.forName(OUTCOME_STORE_CLASS, true, FrameworkFeatures.class.getClassLoader());
+            var store = cls.getConstructor(javax.sql.DataSource.class,
+                    com.evento.consumer.state.store.jdbc.SqlDialect.class)
+                    .newInstance(dataSource, com.evento.consumer.state.store.jdbc.SqlDialect.POSTGRES);
+            var setter = find(builder.getClass(), "setServiceCommandOutcomeStore", cls);
+            if (setter == null) {
+                record("serviceOutcomeStore", false, "no EventoBundle.Builder.setServiceCommandOutcomeStore");
+                return false;
+            }
+            setter.invoke(builder, store);
+            record("serviceOutcomeStore", true, "jdbc (evento_v2_service_outcome)");
+            return true;
+        } catch (ClassNotFoundException | LinkageError e) {
+            record("serviceOutcomeStore", false, "no " + OUTCOME_STORE_CLASS);
+            return false;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot configure the service outcome store", e);
+        }
+    }
+
+    /** Whether the framework has the service outcome store (classes present). */
+    public static boolean serviceOutcomesAvailable() {
+        return OUTCOMES_RECORD_WITH != null && classExists(OUTCOME_STORE_CLASS);
+    }
+
+    /**
+     * Records {@code result} as the outcome of the keyed service command being handled on this
+     * thread, in the transaction of {@code connection}
+     * ({@code ServiceCommandOutcomes.current().recordWith}). A no-op on a framework without the
+     * store, without a key or without a configured store. A duplicate (another execution of the
+     * key committed first) propagates: roll back.
+     */
+    public static boolean recordServiceOutcome(java.sql.Connection connection, Object result) throws java.sql.SQLException {
+        if (OUTCOMES_CURRENT == null || OUTCOMES_RECORD_WITH == null) return false;
+        try {
+            var current = OUTCOMES_CURRENT.invoke(null);
+            return (Boolean) OUTCOMES_RECORD_WITH.invoke(current, connection, result);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("ServiceCommandOutcomes not accessible", e);
+        } catch (InvocationTargetException e) {
+            var cause = e.getCause();
+            if (cause instanceof java.sql.SQLException sql) throw sql;
+            if (cause instanceof RuntimeException re) throw re;
+            throw new IllegalStateException("recording the service outcome failed", cause);
+        }
+    }
+
     static boolean classExists(String name) {
         try {
             Class.forName(name, false, FrameworkFeatures.class.getClassLoader());

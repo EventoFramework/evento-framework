@@ -181,6 +181,7 @@ class S03KillServerTest extends AbstractScenario {
             // N14 showed up here (run 1): the saga's retry of a ProcessPayment that had failed
             // with BrokerChangedException charged again. With G5 its derived key replays it.
             observeExactlyOnce(find(results, "I2"));
+            report.metric("serviceOutcomeReplayed", total(appMarkers, "event=service_outcome_replayed"));
         });
     }
 }
