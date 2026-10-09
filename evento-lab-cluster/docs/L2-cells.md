@@ -15,7 +15,11 @@
 Ogni evento-server è un broker indipendente: registro degli handler, tabella di inoltro e
 correlazioni stanno nella JVM (`ClusterRegistry`, `ConnectionRegistry`). Non esiste un
 collegamento server-server. Una richiesta il cui handler non è collegato **allo stesso server**
-fallisce subito con `no handler for <PayloadType>`. Quindi:
+fallisce subito con `no handler for <PayloadType>`. È una **scelta di progetto**, non un difetto:
+la connettività è regionale, un client può essere collegato solo ad alcuni server, e la cella,
+con il suo server e un set completo di handler accanto, è la topologia prevista. Le richieste
+restano nella cella, un guasto di cella resta nella cella, e la coerenza tra celle viene dal
+database degli eventi condiviso. Quindi:
 
 - ogni cella deve ospitare **tutti** gli handler che i suoi chiamanti usano: comandi
   (`order-command`), query (`order-query`), e i comandi emessi dalle saghe;
@@ -24,8 +28,9 @@ fallisce subito con `no handler for <PayloadType>`. Quindi:
 
 Lo scenario [S01](../results/S01/after/report.md) lo dimostra: fermato `order-command-am`, la
 regione AMERICA riceve 0/5 `no handler for CreateOrderCommand` in ≤ 14 ms, **anche** se gli handler
-sono vivi in EU e APAC. Stesso risultato su `:before` e `:after`: G1 è aperto per scelta
-(vedi [L5](L5-limits-roadmap.md)).
+sono vivi in EU e APAC. Stesso risultato su `:before` e `:after`: è il comportamento voluto
+(G1, scelta di progetto); S01 mostra il costo di una cella a cui manca un handler. Una mesh di
+server resta un'opzione per topologie con celle parziali (vedi [L5](L5-limits-roadmap.md)).
 
 ## Topologia
 
@@ -233,7 +238,7 @@ x-env-l2: &env-l2
 
 | Id | Limite | Prova |
 |---|---|---|
-| G1 | nessun inoltro tra server | [S01](../results/S01/after/report.md) |
+| G1 (scelta di progetto) | nessun inoltro tra server: la cella deve ospitare ogni handler che i suoi chiamanti usano | [S01](../results/S01/after/report.md) |
 | N16 (residuo) | il failback è per bundle, non per cella: durante il ritorno chiamanti e handler della stessa cella possono stare su server diversi e G1 dà `no handler for`; il primo `no handler for` fa tornare subito il chiamante (ritorno reattivo), quindi il costo è una richiesta fallita per chiamante, non una finestra; con un VIP non c'è failback | prima del fix: [S13 `after-n16-evidence`](../results/S13/after-n16-evidence/report.md), [FINDINGS N16](../FINDINGS.md); fix: `BundleClientFailbackIT`, S03 e S13 da rieseguire |
 | N5 / N9 | ogni append serializza su un lock globale raggiunto via WAN: un comando remoto costa ancora ~7–9 round trip | [S00](../results/S00/after/report.md): p50 AM 0.73–0.76 s, APAC 1.16–1.18 s; [S06](../results/S06/after/report.md): a 300 ms di RTT, p50 APAC 22.8 s |
 | N15 | sotto contesa del `es-lock` un comando può committare dopo la deadline del chiamante | [S06](../results/S06/after/report.md): 31 comandi scaduti e salvati a 300 ms |

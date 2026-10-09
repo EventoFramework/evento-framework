@@ -345,6 +345,19 @@ public class EventoBundle {
          */
         private String zone;
 
+        /**
+         * Where this bundle records the outcomes of keyed service commands (G5): null (the
+         * default) records nothing. With a store, a service command whose idempotency key
+         * already has an outcome is answered with it and its handler is not run again
+         * ({@code event=service_outcome_replayed}): the broker's retry after a handler ran but
+         * its event could not be stored (append failed, server died before the append) no longer
+         * repeats the handler's side effects. Use a store every instance of the service shares,
+         * e.g. {@code JdbcServiceCommandOutcomeStore} on the service's own database; a handler
+         * that records in its own transaction ({@code ServiceCommandOutcomes#recordWith}) is
+         * exactly-once for its database writes.
+         */
+        private com.evento.common.messaging.outcome.ServiceCommandOutcomeStore serviceCommandOutcomeStore;
+
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
@@ -630,6 +643,7 @@ public class EventoBundle {
                     tracingAgent,
                     messageHandlerInterceptor
             );
+            serviceManager.setOutcomeStore(serviceCommandOutcomeStore);
             var projectionManager = new ProjectionManager(
                     bundleId,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId, performanceService,

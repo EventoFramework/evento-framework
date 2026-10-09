@@ -133,8 +133,9 @@ CREATE TABLE IF NOT EXISTS es__events
 
 -- Idempotency claims (G5): one row per keyed service command while it executes (owner and a
 -- lease on the database clock, so a duplicate waits on a row instead of pinning a lock
--- connection), deleted once the event carrying the key is stored, kept (completed_at) for a
--- handler that produced no event so its retries are answered instead of re-run.
+-- connection). Completed (completed_at) and kept once the event carrying the key is stored (in
+-- the append statement itself) or the handler produced no event, so a later claim of the key
+-- is refused by the row and needs no second lookup; deleted only after a failed execution.
 CREATE TABLE IF NOT EXISTS es__idempotency_claims
 (
     idempotency_key varchar(255) NOT NULL PRIMARY KEY,

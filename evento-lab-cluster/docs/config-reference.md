@@ -38,6 +38,8 @@ Fonte: [`BundleDeployment`](../lab-support/src/main/java/com/evento/lab/cluster/
 | `COMMAND_TIMEOUT_MS` | 30000 | timeout di comandi e query del gateway; diventa la deadline sul server (N3) | L0 |
 | `EVENTO_HEARTBEAT_READ_IDLE_S` | nessuno (framework: 45 s) | rilevamento di un broker silenzioso (`Builder.setHeartbeatReadIdle`, G22) | L1 |
 | `EVENTO_FAILBACK_WINDOW_S` | nessuno (framework: 30 s) | quanto il primo indirizzo deve essere sano prima che un bundle in failover ci torni (`Builder.setFailbackStabilityWindow`, N16); nel compose vuoto = default; `/whoami` riporta la feature `failback` | L1 |
+| `EVENTO_SERVICE_OUTCOME_STORE` | `jdbc` | solo `order-command`: store degli esiti dei comandi di servizio con chiave (G5 inbox) sul database app della cella, tabella `evento_v2_service_outcome` (migrazione Flyway al boot); il pagamento registra l'esito nella sua transazione. `off` lo toglie (finestra residua di nuovo aperta, run di controllo di S18). Ignorato dalle immagini senza la correzione; `/whoami` riporta la feature `serviceOutcomeStore` | L5 |
+| `LAB_PAYMENT_SLOW_MS` | 4000 | solo `order-command`: per gli ordini con `slowpay` nell'id il pagamento risponde così tanto dopo il commit (aggancio di S18) | – |
 | `JAVA_OPTS` | nel compose `LAB_JAVA_OPTS` | opzioni JVM | – |
 
 Pool Hikari creati da [`LabDatabases`](../lab-support/src/main/java/com/evento/lab/cluster/support/LabDatabases.java):
@@ -106,6 +108,7 @@ Fonte: [`../docker/compose.yaml`](../docker/compose.yaml), [`../scripts/`](../sc
 | `S13_BUS_ADDRESSES`, `S13_WAIT_S`, `S13_FAILBACK_WAIT_S` | `bus-eu:3030`, 60, 180 | S13 (l'ultima: attesa del failback N16 dei JVM EU dopo il ritorno di `evento-eu`) |
 | `S14_KILL_DELAY_MS`, `S14_PROBES_PER_KIND`, `S14_RETRY_REGION` | 150, 8, `EUROPA` | S14 (2000 per catturare G5, L17) |
 | `S15_IMAGE`, `S15_FAKETIME_ENV` | – | S15: immagine con libfaketime e il suo ambiente (L18) |
+| `S18_ORDERS`, `S18_CUT_S`, `S18_REGIONS`, `S18_CONVERGENCE_S` | 6, 20, `CINA,INDIA,AUSTRALIA_NZ`, 300 | S18: ordini `slowpay` pagati dalla saga (distribuiti sulle regioni: una lane di saga per regione, un pagamento alla volta), durata del taglio di `apac-to-es-pg-eu`, attesa del pagamento di tutti |
 | `S16_EVENTS`, `S16_OUTAGE_EVENTS`, `S16_OUTAGE_S`, `S16_CONVERGENCE_S` | 5, 4, 40, 120 | S16 |
 | `S17_ORDERS`, `S17_CONVERGENCE_S` | 2, 90 | S17 |
 
@@ -170,6 +173,7 @@ anche contro 2.4.6; `/whoami` dice quali sono state applicate).
 | `EventoBundle.Builder.setFailbackStabilityWindow(Duration)` | 30 s | quanto l'endpoint 0 deve rispondere a ogni sonda prima del ritorno; una sonda fallita la azzera; ×2 dopo ogni ritorno fallito (max 16×); dopo 3 rifiuti di fila dell'handshake il failback si sospende; un `no handler for` dal server attuale la salta (ritorno reattivo) |
 | `EventoBundle.Builder.setFailbackJitter(Duration)` | 10 s | ritardo casuale massimo aggiunto per istanza; i bundle senza handler aspettano in più l'intero intervallo (prima: una finestra intera, 30 s) |
 | `EventoBundle.Builder.setFailbackDrainTimeout(Duration)` | 10 s | attesa massima delle richieste in volo; le uscenti rimaste falliscono con `BrokerChangedException` |
+| `EventoBundle.Builder.setServiceCommandOutcomeStore(ServiceCommandOutcomeStore)` | nessuno | esiti dei comandi di servizio con chiave (G5 inbox): un retry la cui chiave ha un esito è risposto da qui senza rieseguire l'handler (`event=service_outcome_replayed`); nel laboratorio `JdbcServiceCommandOutcomeStore` sul database app (`EVENTO_SERVICE_OUTCOME_STORE`). L'handler registra nella propria transazione con `ServiceCommandOutcomes.recordWith(connection, evento)` |
 | `EventoBundle.Builder.setTransportConfig(NettyTransportConfig)` | `NettyTransportConfig.defaults()` (connect 5 s) | trasporto completo |
 | `EventoBundle.Builder.setConsumerEngineConfigBuilder(...)` | in-memory | nel laboratorio JDBC: `JdbcConsumerLock`, `JdbcConsumerStateStore`, `JdbcSagaStateStore`, `JdbcDeadEventQueue`, `JdbcDedupeStore` |
 

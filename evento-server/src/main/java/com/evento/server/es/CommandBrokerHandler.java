@@ -71,9 +71,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * key ({@code CommandMessage#getIdempotencyKey()}), which is stored with its event, together
  * with the command's identity (payload type and aggregate id), under a partial unique index. A
  * keyed command whose key already has an event <em>of the same identity</em> is answered with
- * that event before the lock and the forward, on whichever server it arrives
+ * that event instead of being forwarded, on whichever server it arrives
  * ({@code event=idempotent_replay}, {@code evento.server.commands.idempotent.replayed}), and
- * no handler runs; a key recorded for a <em>different</em> command is refused with
+ * no handler runs. The key is looked up in a round trip the command makes anyway (the story
+ * fetch under the aggregate lock; the service claim), so a keyed first attempt costs what an
+ * unkeyed one does (aggregate) or one statement more (service: the claim). A key recorded for a
+ * <em>different</em> command is refused with
  * {@code IdempotencyKeyMismatchException} ({@code event=idempotency_key_mismatch}), never
  * answered with the other command's event. Concurrent duplicates are serialised by the
  * aggregate lock (aggregate commands, key re-checked under it; the unique index backs it up) or
@@ -83,8 +86,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * completes its claim, so its retries are answered with an empty result instead of re-running
  * it. A duplicate that stops waiting on another execution of its key is answered
  * {@code IdempotencyKeyInProgressException} (indeterminate), not "expired, not executed"; a
- * deadline drop whose key is found stored becomes the replay. One window stays open: a service
- * handler that ran while its event was not stored.
+ * deadline drop whose key is found stored becomes the replay. One window is not the broker's to
+ * close: a service handler that ran while its event was not stored. The service bundle closes it
+ * with a durable outcome store, which answers the retry without running the handler.
  *
  * <p>The {@code before_append} drop applies to aggregate commands only, whose handlers
  * are pure (they compute an event from the story; nothing happened until the broker
@@ -112,7 +116,11 @@ public class CommandBrokerHandler implements MeterBinder {
     private static final String RESOURCE_LOCK_PREFIX = "RESOURCE:";
     /** Replay stages (see {@link #idempotentReplayedCount(String)}). */
     public static final String REPLAY_BEFORE_LOCK = "before_lock";
+    /** No longer used: aggregate commands are checked with their story ({@link #REPLAY_WITH_STORY}). */
     public static final String REPLAY_AFTER_LOCK = "after_lock";
+    /** An aggregate command whose key was found by the story fetch (under the lock, when it has one). */
+    public static final String REPLAY_WITH_STORY = "with_story";
+    /** No longer used: the claim statement itself reports what is recorded. */
     public static final String REPLAY_AFTER_CLAIM = "after_claim";
     public static final String REPLAY_AFTER_WAIT = "after_wait";
     public static final String REPLAY_AFTER_HANDLER_ERROR = "after_handler_error";
@@ -193,21 +201,15 @@ public class CommandBrokerHandler implements MeterBinder {
     }
 
     /**
-     * Runs a keyed command at most once: a command whose key already has a stored event is
-     * answered with that event before anything else happens (no lock, no handler, no deadline
-     * check), and a deadline drop is turned into that answer when the event turns out to be
-     * stored meanwhile, so a replay is never reported as "expired, not executed" once the
-     * original committed. Unkeyed commands go straight to {@code execution}. With
-     * {@code lookUpFirst} false the execution does the first lookup itself (the keyed service
-     * path, whose claim loop starts with one).
+     * Runs a keyed command at most once. The execution looks the key up itself, in a round trip
+     * it makes anyway (the aggregate story fetch, the service claim), so a keyed command costs
+     * no extra lookup on its first attempt. A deadline drop is turned into the stored answer when
+     * the event turns out to be stored meanwhile, so a replay is never reported as "expired, not
+     * executed" once the original committed. Unkeyed commands go straight to {@code execution}.
      */
     private byte[] idempotent(String key, String payloadType, String aggregateId, EventoRequest request,
-                              boolean lookUpFirst, CommandExecution execution) throws Exception {
+                              CommandExecution execution) throws Exception {
         if (key == null) return execution.run();
-        if (lookUpFirst) {
-            var recorded = answerRecorded(key, payloadType, aggregateId, request, REPLAY_BEFORE_LOCK);
-            if (recorded != null) return recorded;
-        }
         try {
             return execution.run();
         } catch (RequestExpiredException e) {
@@ -344,18 +346,20 @@ public class CommandBrokerHandler implements MeterBinder {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (DomainCommandMessage) eventoRequest.getBody();
         String key = enforcedKey(cmd, commandPayloadType);
-        return idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest, true,
+        return idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
                 () -> executeAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs));
     }
 
     /**
      * The aggregate path. With a key, concurrent duplicates are serialised by the aggregate lock
      * (a domain command locks on its aggregate id unless it names another lock) and the key is
-     * checked again under it, before the story is fetched: the second duplicate must not run the
-     * handler against a story that already holds the first one's event (a creation would be
-     * refused as "already exists" instead of replayed). Without a lock, or with a lost one, the
-     * unique index is the fence: the losing append replays. Aggregate handlers are pure, so a
-     * handler run whose append then loses changes nothing.
+     * checked under it, in the same statement that fetches the story (no round trip of its own):
+     * the second duplicate must not run the handler against a story that already holds the first
+     * one's event (a creation would be refused as "already exists" instead of replayed). There is
+     * no lookup before the lock any more: it cost a round trip on every first attempt to save the
+     * lock wait of a replay, the rare case. Without a lock, or with a lost one, the unique index
+     * is the fence: the losing append replays. Aggregate handlers are pure, so a handler run whose
+     * append then loses changes nothing.
      *
      * <p>A keyed command whose deadline passes while it waits for the aggregate lock may be
      * waiting behind an execution of its own key, which can still commit: it is answered
@@ -380,17 +384,20 @@ public class CommandBrokerHandler implements MeterBinder {
                                     + "key may hold");
                 }
                 lockAcquired = true;
-                if (key != null) {
-                    var recorded = answerRecorded(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
-                            REPLAY_AFTER_LOCK);
-                    if (recorded != null) return recorded;
-                }
             }
 
-            var story = eventStore.fetchAggregateStory(
+            // The key is checked with the story, in the same round trip, under the lock.
+            var keyed = eventStore.fetchAggregateStory(
                     cmd.getAggregateId(),
                     cmd.isInvalidateAggregateCaches(),
-                    cmd.isInvalidateAggregateSnapshot());
+                    cmd.isInvalidateAggregateSnapshot(),
+                    key);
+            if (key != null) {
+                var recorded = answerRecorded(keyed.record(), key, commandPayloadType, cmd.getAggregateId(),
+                        eventoRequest, REPLAY_WITH_STORY);
+                if (recorded != null) return recorded;
+            }
+            var story = keyed.story();
 
             var decorated = new DecoratedDomainCommandMessage();
             decorated.setCommandMessage(cmd);
@@ -494,7 +501,7 @@ public class CommandBrokerHandler implements MeterBinder {
             return executeServiceCommand(commandPayloadType, payload, eventoRequest, cmd, null, null,
                     originator, deadlineMs);
         }
-        return idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest, false,
+        return idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
                 () -> executeKeyedServiceCommand(commandPayloadType, payload, eventoRequest, cmd, key,
                         originator, deadlineMs));
     }
@@ -503,10 +510,19 @@ public class CommandBrokerHandler implements MeterBinder {
      * A keyed service command. Its handler has side effects, so the unique index alone (which
      * only stops the second append) is not enough: the execution first <em>claims</em> the key
      * (a row in {@code es__idempotency_claims}, inserted or taken over from a dead owner whose
-     * lease ran out, in one atomic statement), and checks the key again under the claim. A
-     * duplicate that finds the claim held polls it until it is settled (stored event, empty
-     * completion, or released after a failure, in which case it claims and runs) or until it
-     * stops waiting, and then answers {@code IdempotencyKeyInProgressException}.
+     * lease ran out). The claim statement also reads what is recorded for the key, so one round
+     * trip claims or answers ({@link BrokerEventStore#claimOrFindIdempotencyKey}); no lookup runs
+     * before it and none under it (an owner marks its claim completed in its append statement, so
+     * a claim can never be won for a key whose event is stored). A duplicate that finds the claim
+     * held polls it until it is settled (stored event, empty completion, or released after a
+     * failure, in which case it claims and runs) or until it stops waiting, and then answers
+     * {@code IdempotencyKeyInProgressException}.
+     *
+     * <p>The claim's first lease covers the wait for the command's lock and the forward (what is
+     * left of the caller's deadline + the command's timeout + {@value #CLAIM_LEASE_GRACE_MS} ms),
+     * so it is renewed only when a lock wait without a deadline outlasted it. Before, every keyed
+     * service command paid a lookup, the claim, a re-check, a renewal and a release: five round
+     * trips to the event-store primary where an unkeyed one pays none; now one (the claim).
      *
      * <p>The claim is a row, not a session lock: neither the owner nor the waiters hold a
      * connection for it. An earlier design took a cluster-wide {@code IDEMPOTENCY:<key>} advisory
@@ -515,11 +531,12 @@ public class CommandBrokerHandler implements MeterBinder {
      * second connection that none could release (hold-and-wait), and every consumer-sent service
      * command is keyed. Now every command holds at most one lock connection.
      *
-     * <p>What it cannot close: a handler that ran while its event was not stored (the append
-     * failed, the server died between the answer and the append). The claim is released on
-     * failure, and a dead owner's claim expires with its lease; a retry then runs the handler
-     * again. Such a handler must be idempotent itself, which it can be on the same key
-     * ({@code ServiceCommandMessage#getIdempotencyKey()} is passed to it).
+     * <p>What the broker alone cannot close: a handler that ran while its event was not stored
+     * (the append failed, the server died between the answer and the append). The claim is
+     * released on failure, and a dead owner's claim expires with its lease; a retry then forwards
+     * the command again. The service bundle closes it with a durable outcome store
+     * ({@code EventoBundle.Builder#setServiceCommandOutcomeStore}): the retry is answered from
+     * the recorded outcome without running the handler, and the broker stores that answer.
      */
     private byte[] executeKeyedServiceCommand(String commandPayloadType, byte[] payload, EventoRequest eventoRequest,
                                               ServiceCommandMessage cmd, String key,
@@ -531,17 +548,23 @@ public class CommandBrokerHandler implements MeterBinder {
                 : BusLifecycle.monotonicMillis() + (commandTimeoutMs > 0 ? commandTimeoutMs : DEFAULT_KEY_WAIT_MS);
         long pollMs = CLAIM_POLL_INITIAL_MS;
         boolean waited = false;
+        Claim claim;
         while (true) {
-            var record = eventStore.findIdempotencyRecord(key).orElse(null);
-            var settled = answerRecorded(record, key, commandPayloadType, aggregateId, eventoRequest,
+            long now = BusLifecycle.monotonicMillis();
+            long untilDeadlineMs = Math.max(0L, waitBoundMs - now);
+            long forwardMs = commandTimeoutMs > 0 ? commandTimeoutMs : untilDeadlineMs;
+            long leaseMs = untilDeadlineMs + forwardMs + CLAIM_LEASE_GRACE_MS;
+            var attempt = eventStore.claimOrFindIdempotencyKey(key, commandPayloadType, aggregateId, owner, leaseMs);
+            if (attempt.claimed()) {
+                // Measured from before the statement was sent: the database starts the lease
+                // later, so this local end is a conservative one.
+                claim = new Claim(owner, now + leaseMs);
+                break;
+            }
+            var settled = answerRecorded(attempt.record(), key, commandPayloadType, aggregateId, eventoRequest,
                     waited ? REPLAY_AFTER_WAIT : REPLAY_BEFORE_LOCK);
             if (settled != null) return settled;
-            boolean held = record != null && record.claim() == BrokerEventStore.ClaimState.RUNNING;
-            if (!held) {
-                long leaseMs = Math.max(0L, waitBoundMs - BusLifecycle.monotonicMillis()) + CLAIM_LEASE_GRACE_MS;
-                if (eventStore.claimIdempotencyKey(key, commandPayloadType, aggregateId, owner, leaseMs)) break;
-                // Another execution claimed it between the lookup and the claim: wait for it.
-            }
+            // Held by another execution (or claimed concurrently and not visible yet): wait for it.
             if (BusLifecycle.monotonicMillis() >= waitBoundMs) {
                 return inProgress(key, commandPayloadType, eventoRequest,
                         "another execution of this key was still in flight when this request stopped waiting");
@@ -551,31 +574,43 @@ public class CommandBrokerHandler implements MeterBinder {
             pollMs = Math.min(pollMs * 2, CLAIM_POLL_MAX_MS);
         }
         try {
-            // Under the claim, check again: the previous owner may have stored its event and
-            // released its claim between our lookup and our claim.
-            var settled = answerRecorded(key, commandPayloadType, aggregateId, eventoRequest, REPLAY_AFTER_CLAIM);
-            if (settled != null) return settled;
-            return executeServiceCommand(commandPayloadType, payload, eventoRequest, cmd, key, owner,
+            return executeServiceCommand(commandPayloadType, payload, eventoRequest, cmd, key, claim,
                     originator, deadlineMs);
         } finally {
-            // No-op once the event is stored (already deleted) or the claim completed; after a
-            // failure it lets a retry run the command again.
-            try {
-                eventStore.releaseIdempotencyClaim(key, owner);
-            } catch (RuntimeException e) {
-                log.warn("event=idempotency_claim_release_failed idempotencyKey={} error=\"{}\" "
-                        + "reason=\"the claim expires with its lease\"", key, e.getMessage());
+            if (!claim.settled) {
+                // After a failure (an error answer, a lost forward, a failed append): a retry may
+                // run the command again. On success the claim was completed by the append itself.
+                try {
+                    eventStore.releaseIdempotencyClaim(key, owner);
+                } catch (RuntimeException e) {
+                    log.warn("event=idempotency_claim_release_failed idempotencyKey={} error=\"{}\" "
+                            + "reason=\"the claim expires with its lease\"", key, e.getMessage());
+                }
             }
         }
     }
 
+    /** A claim this broker holds on a key, and whether its outcome is settled (nothing to release). */
+    private static final class Claim {
+        final String owner;
+        /** Conservative local end of the lease, on {@link BusLifecycle#monotonicMillis()}. */
+        long leaseEndsAtMs;
+        boolean settled;
+
+        Claim(String owner, long leaseEndsAtMs) {
+            this.owner = owner;
+            this.leaseEndsAtMs = leaseEndsAtMs;
+        }
+    }
+
     /**
-     * The service path. With a key ({@code claimOwner} non-null), the key is already claimed by
-     * {@link #executeKeyedServiceCommand}: the lease is renewed to cover the forward before it,
-     * and the outcome is recorded after it (the event with the key, or an empty completion).
+     * The service path. With a key ({@code claim} non-null), the key is already claimed by
+     * {@link #executeKeyedServiceCommand}: the lease is renewed before the forward only when it
+     * might not cover it, and the outcome is recorded after it (the event with the key, which
+     * completes the claim in the same statement, or an empty completion).
      */
     private byte[] executeServiceCommand(String commandPayloadType, byte[] payload, EventoRequest eventoRequest,
-                                         ServiceCommandMessage cmd, String key, String claimOwner,
+                                         ServiceCommandMessage cmd, String key, Claim claim,
                                          NodeAddress originator, long deadlineMs) throws Exception {
         String lockKey = cmd.getLockId() != null ? RESOURCE_LOCK_PREFIX + cmd.getLockId() : null;
         boolean lockAcquired = false;
@@ -591,11 +626,17 @@ public class CommandBrokerHandler implements MeterBinder {
             // event must be stored (see the class javadoc).
             long timeoutMs = forwardBudget(eventoRequest.getUnit().toMillis(eventoRequest.getTimeout()),
                     deadlineMs, commandPayloadType, eventoRequest.getCorrelationId(), false);
-            if (claimOwner != null
-                    && !eventStore.renewIdempotencyClaim(key, claimOwner, timeoutMs + CLAIM_LEASE_GRACE_MS)) {
-                // Our lease ran out (a long lock wait) and a retry took the key over: it runs it.
-                return inProgress(key, commandPayloadType, eventoRequest,
-                        "the claim on the key expired before the forward and another execution took it over");
+            if (claim != null && BusLifecycle.monotonicMillis() + timeoutMs + CLAIM_LEASE_GRACE_MS > claim.leaseEndsAtMs) {
+                // Only after a lock wait the first lease did not cover (a command without deadline).
+                long renewMs = timeoutMs + CLAIM_LEASE_GRACE_MS;
+                long renewedAt = BusLifecycle.monotonicMillis();
+                if (!eventStore.renewIdempotencyClaim(key, claim.owner, renewMs)) {
+                    // Our lease ran out (a long lock wait) and a retry took the key over: it runs it.
+                    claim.settled = true; // not ours any more: nothing to release
+                    return inProgress(key, commandPayloadType, eventoRequest,
+                            "the claim on the key expired before the forward and another execution took it over");
+                }
+                claim.leaseEndsAtMs = renewedAt + renewMs;
             }
             var response = forwardWithin(commandPayloadType, payload, timeoutMs, originator, deadlineMs,
                     eventoRequest.getCorrelationId(), false);
@@ -629,11 +670,17 @@ public class CommandBrokerHandler implements MeterBinder {
                             BusLifecycle.monotonicMillis() - deadlineMs);
                 }
                 try {
-                    eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key, commandPayloadType);
+                    if (claim != null) {
+                        eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key, commandPayloadType, claim.owner);
+                        claim.settled = true;
+                    } else {
+                        eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key, commandPayloadType);
+                    }
                 } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {
                     // Only possible when the claim expired and was taken over while this handler
                     // ran (its lease covers the forward, so: a server paused or partitioned past
-                    // it): a duplicate ran the handler too. The first event stands.
+                    // it): a duplicate ran the handler too, unless the bundle answered both from
+                    // its outcome store. The first event stands.
                     log.warn("event=idempotent_duplicate_execution payloadType={} idempotencyKey={} correlationId={} "
                                     + "reason=\"the handler ran for a key that another execution stored first\"",
                             commandPayloadType, key, eventoRequest.getCorrelationId());
@@ -643,14 +690,15 @@ public class CommandBrokerHandler implements MeterBinder {
                     throw conflict;
                 }
                 log.debug("event=service_event_stored payloadType={}", commandPayloadType);
-            } else if (claimOwner != null) {
+            } else if (claim != null) {
                 // A handler that returns nothing (void or null) stores no event, so without this
                 // its key would be recorded nowhere and every retry would run it again.
-                if (!eventStore.completeIdempotencyClaim(key, claimOwner)) {
+                if (!eventStore.completeIdempotencyClaim(key, claim.owner)) {
                     log.warn("event=idempotency_claim_lost payloadType={} idempotencyKey={} correlationId={} "
                                     + "reason=\"the claim expired and was taken over while the handler ran\"",
                             commandPayloadType, key, eventoRequest.getCorrelationId());
                 }
+                claim.settled = true;
             }
 
             return codec.encodeResponse(eventoResponse);

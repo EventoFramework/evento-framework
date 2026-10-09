@@ -1,5 +1,13 @@
 # evento-lab-cluster: findings (images `:before` = evento 2.4.6 and `:after` = the cluster fixes, 2026-09-29)
 
+> **G1 is a design choice, not an open defect.** Each server routes requests only to the bundles
+> attached to it, so a request reaches a handler only on the same server (S01: `no handler for`,
+> 0/5 in ≤ 14 ms). That is intended: connectivity is regional, a client may be connected to only some
+> of the servers, and the cell (a server with a complete set of handlers next to it) is the intended
+> topology. The sections below written before this was settled list G1 among the open gaps; read
+> them as "the cell rule", whose cost S01 measures. Latest re-run: `after-inbox` (2026-10-09, see
+> "Re-run with the outcome store" below).
+
 | Id | What | Severity | Lab status |
 |---|---|---|---|
 | N1 | `core__component` keyed by simple class name across bundles | High (catalog) | workaround removed: regions are contexts of one class (lab/bundles) |
@@ -29,7 +37,7 @@
 | L16 | the chaos driver ran the catalog repair with WSL `bash` on Windows | High (lab) | fixed |
 | L17 | S14 marked G5 AS_EXPECTED with no command in the ambiguous window | Medium (lab) | fixed |
 | L18 | S15 skewed the clock ahead, which can never trip the staleness gate | Medium (lab) | fixed |
-| N14 (+G5) | a saga retries an indeterminate command (broker change, partition) and the payment runs twice | High (correctness) | **fixed, measured** (`after-g5n16`: S03 and S07 0 events twice, 0 payments twice; S14 0 keys twice, 4/4 stored retries answered 2xx); residual window (payment ran, event not stored) not hit |
+| N14 (+G5) | a saga retries an indeterminate command (broker change, partition) and the payment runs twice | High (correctness) | **fixed, measured** (`after-g5n16`: S03 and S07 0 events twice, 0 payments twice; S14 0 keys twice, 4/4 stored retries answered 2xx); residual window (payment ran, event not stored) **closed** by the bundle-side outcome store (`after-inbox`: S18 3 payments in the window, 0 extra executions, 3 with the store off; S03 hit it once, answered from the store) |
 | N15 (+N3/N5) | under `es-lock` contention commands commit after their caller's deadline; N3 drops none | Medium (correctness) | **open** (`:after` S06: 31 at 300 ms) |
 | N16 (+G2/G1) | no failback: bundles stay on the remote server after their own server returns | High (availability, cost) | **fixed, measured** (`after-g5n16`: S03 8/8 APAC JVMs home without restarts, last 55.7 s after the server was ready; S13 7/7 EU, 53.3 s; 0 failed/suspended/reactive) |
 | N17 | ES promotion outage 15.1 s on `:after` vs 7.6 s on `:before` | Low (availability) | recorded, one run each |
@@ -366,7 +374,7 @@ Summary: [`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md). Side by side wi
   repair), G9 (S00 492/492, 9.35 appends/s; S06 6.55 appends/s at 300 ms against 1.65), G13 (S13: a
   foreign cluster is refused, and failover works with the guard on), G14 (S10 0/3), G15/G16/N10 (S11),
   N3 up to the append (S00 0 stored after timeout).
-- **Still open:** G1 (S01), G5 (S14: 8 keys stored twice; N14), N4 (S16), the fetch staleness gate
+- **Still open:** G1 (S01; since reclassified as a design choice, see the note at the top), G5 (S14: 8 keys stored twice; N14), N4 (S16), the fetch staleness gate
   (S15), N15, N16. G6, G10 and G25 were not observable in this lab. (G5/N14 and N16 were fixed and
   measured afterwards: see "Re-run with G5 and N16" below.)
 
@@ -392,6 +400,37 @@ their harness changed after the first `:before` run.
   (L17's knob).
 - **Unchanged:** S02 (315/315 after the kill), S05 (0 deadlocks, 120/120), S16 (N4 still splits the
   writers 9/6; takeover 4.4 s; convergence after healing 16.3 s against 0.07 s, one run each).
+
+## Re-run with the outcome store (`after-inbox`, 2026-10-09)
+Branch `cluster/idempotency-inbox`: the bundle-side outcome store for keyed service commands (G5 inbox)
+and idempotency-key checks folded into round trips commands already make. Summary:
+[`results/AFTER-SUMMARY.md`](results/AFTER-SUMMARY.md) §"Re-run with the service outcome store";
+side by side: [`results/COMPARISON.md`](results/COMPARISON.md).
+
+- **G5 residual window closed, measured.** The new S18 makes `order-command`'s payment answer 4 s after its
+  commit (`slowpay` orders) and cuts `evento-apac`'s link to the ES primary while it is answering. With the
+  outcome store ([`S18/after-inbox`](results/S18/after-inbox/report.md)): 3 of 3 committed payments were caught
+  in the window, **0 executed again** (attempts = 1 for all 6 orders), 3 `service_outcome_replayed`, one
+  `PaymentProcessedEvent` per order, converged 35 s after the cut. Control with
+  `EVENTO_SERVICE_OUTCOME_STORE=off` ([`S18/after-inbox-store-off`](results/S18/after-inbox-store-off/report.md)):
+  the same 3 hits, **3 extra executions** (attempts = 2), which is the defect the store closes. S03 hit the
+  window by chance (`PaymentSaga_1_INDIA:40`, answered from the store) and still had 0 payments twice; S07
+  had 0 twice and did not hit it.
+- **The keys' round trip is gone.** At the JDBC driver (`IdempotentCommandPostgresIT`) a keyed aggregate
+  command runs 2 event-store statements, as an unkeyed one (4 before); a keyed service command 2 (6 before;
+  unkeyed 1: the claim is a write that must precede the handler). On the lab, S00 p50 AM 667–704 ms and APAC
+  1135–1220 ms, against 834–879 / 1359–1472 ms in `after-g5n16` and 733–761 / 1156–1178 ms pre-G5; 496/496
+  acked, 9.5 appends/s. The APAC p99 was wider in this run (2.3–3.7 s), one run each.
+- **S14** (kill 3000 ms): 7/24 failed first attempts (commands are faster, so fewer were in flight), 1 stored
+  before the retry, 1/1 answered 2xx, 0 keys twice. At 2000 ms (INCONCLUSIVE in `after-g5n16`): 4 of 16 stored,
+  4/4 answered 2xx, 0 keys twice.
+- **What stays open for G5:** the outcome store is per cell (it must share the payment's database to record
+  in its transaction), so a retry routed to another cell's `order-command` would not find it; locality routing
+  keeps a saga's payments in its cell. Effects outside the handler's database need the key passed downstream.
+  Keys and outcomes never expire.
+- **Lab:** the first S18 harness paid 6 CINA orders through one saga lane, one at a time, and missed the
+  window ([`S18/after-inbox-run1`](results/S18/after-inbox-run1/report.md), INCONCLUSIVE); the orders are now
+  spread over the cell's three regions and the cut waits until each lane has a payment in the window.
 
 ## N14: a saga's automatic retry duplicates the payment (G5 at application level)
 - **Evidence (`:after`):**
@@ -424,6 +463,11 @@ their harness changed after the first `:before` run.
   stays open (no key is recorded without the event). **Measured** (`after-g5n16`): S03 and S07 0 payments
   executed twice and 0 events stored twice; S14 0 keys stored twice, 4/4 stored-then-retried commands
   answered 2xx with the stored event. The residual window was not hit in S07's run.
+- **Residual window closed (`after-inbox`):** the service bundle records each keyed command's outcome
+  (`EventoBundle.Builder.setServiceCommandOutcomeStore`; the lab's payment records it in its own
+  transaction), so the broker's retry of a payment whose event was not stored is answered from that record
+  without running the handler. S18 3 hits, 0 extra executions (store off: 3); S03 one hit by chance,
+  answered from the store.
 
 ## N15: commands commit after their caller's deadline under `es-lock` contention
 - **Evidence (`:after` S06, 300 ms RTT to the ES primary):** 31 commands timed out at the caller
@@ -457,8 +501,9 @@ their harness changed after the first `:before` run.
   to the first only at the next disconnect. There is no background probe (the G2 plan had one:
   "periodically re-tries index 0 to fail back").
 - **Impact:** after any server restart, a cell's traffic crosses the WAN indefinitely (latency,
-  toxiproxy cost, exposure to other cells' faults). With G1, handlers and callers of one cell can end
-  up on different servers. The cell architecture assumes they never do.
+  toxiproxy cost, exposure to other cells' faults). Since each server routes only to its own
+  bundles (G1, by design), handlers and callers of one cell can end up on different servers, which
+  breaks the cell rule the architecture relies on.
 - **Proposals:** a fail-back probe to the preferred endpoint with jitter and a drain of in-flight
   calls; or have the server shed bundles whose preferred server is back (a "go home" hint in
   `Welcome`/presence). Until then: restart the cell's JVMs after a server returns. The lab does

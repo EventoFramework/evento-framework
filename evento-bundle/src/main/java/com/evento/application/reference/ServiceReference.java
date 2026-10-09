@@ -95,7 +95,9 @@ public class ServiceReference extends Reference {
                     commandGateway,
                     queryGateway,
                     cm,
-                    cm.getMetadata()
+                    cm.getMetadata(),
+                    // the outcome handle of this invocation (inactive without a key or a store)
+                    com.evento.common.messaging.outcome.ServiceCommandOutcomes.current()
             );
 
             return messageHandlerInterceptor.afterServiceCommandHandling(

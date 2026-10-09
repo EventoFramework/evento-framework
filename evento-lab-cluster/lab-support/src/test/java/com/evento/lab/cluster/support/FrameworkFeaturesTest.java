@@ -120,6 +120,29 @@ class FrameworkFeaturesTest {
     }
 
     @Test
+    void theServiceOutcomeStoreIsSetWhenTheFrameworkHasItAndSkippedWhenOff() throws Exception {
+        var features = new FrameworkFeatures();
+        var builder = EventoBundle.Builder.builder();
+        // no connection is opened by configuring the store
+        javax.sql.DataSource ds = (javax.sql.DataSource) java.lang.reflect.Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{javax.sql.DataSource.class}, (p, m, a) -> {
+                    throw new UnsupportedOperationException(m.getName());
+                });
+        boolean set = features.serviceOutcomeStore(builder, ds, "jdbc");
+        assertThat(set).isEqualTo(FrameworkFeatures.serviceOutcomesAvailable());
+        var getter = builder.getClass().getMethod("getServiceCommandOutcomeStore");
+        assertThat(getter.invoke(builder)).isNotNull();
+
+        var off = EventoBundle.Builder.builder();
+        assertThat(features.serviceOutcomeStore(off, ds, "off")).isFalse();
+        assertThat(getter.invoke(off)).isNull();
+        assertThat(features.outcomes()).extracting(FrameworkFeatures.Outcome::feature).contains("serviceOutcomeStore");
+
+        // outside a keyed invocation the transactional record is a no-op
+        assertThat(FrameworkFeatures.recordServiceOutcome(null, null)).isFalse();
+    }
+
+    @Test
     void theGatewayHeaderBecomesTheEventoIdempotencyKey() throws Exception {
         var features = new FrameworkFeatures();
         boolean keys = features.idempotencyKeys();

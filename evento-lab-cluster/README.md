@@ -6,7 +6,7 @@ per l'event store e tre database applicativi regionali indipendenti, un load bal
 "location-aware" e un proxy WAN che simula latenze e partizioni tra continenti. Le applicazioni
 sono cinque bundle con responsabilità specifiche (command, query, saga, observer, gateway), ognuno
 un solo codice sorgente che diventa un deployment diverso cambiando solo la configurazione. Gli
-scenari (S0..S17) producono i risultati in `results/` e servono come evidenza prima/dopo per le
+scenari (S0..S18) producono i risultati in `results/` e servono come evidenza prima/dopo per le
 correzioni del framework.
 
 **EN** — A chaos-testing lab for a multi-region Evento deployment: 7 regions (Evento contexts)
@@ -14,7 +14,7 @@ grouped into 3 cells, 3 active evento-servers, one replicated Postgres cluster f
 store and three independent regional app databases, a location-aware load balancer and a WAN
 proxy that emulates inter-continental latency and partitions. The applications are five bundles
 with specific responsibilities (command, query, saga, observer, gateway); each is one codebase
-that becomes a different deployment through configuration only. The scenarios (S0..S17) write
+that becomes a different deployment through configuration only. The scenarios (S0..S18) write
 their evidence to `results/`, captured before and after each framework fix.
 
 Design inputs, gap ids (G1..G25), invariants (I1..I8) and the scenario catalogue live in
@@ -185,7 +185,8 @@ Queries resolve in the caller's cell: the servers run `EVENTO_SERVER_BUS_PICK_ST
 (`PICK_STRATEGY`, default `locality-preferred`; ignored by a server without the G12 fix) and every
 bundle advertises `EVENTO_ZONE`. Every order-query deployment of a cell reads the same cell
 database, so any of them answers `FindOrderQuery` / `FindPriceQuery` for every region of the cell
-and for the fanned-out catalog. Before G1 the servers are islands, which keeps requests in-cell
+and for the fanned-out catalog. Each server routes only to its own bundles (G1, a design choice:
+connectivity is regional and the cell is the intended topology), which keeps requests in-cell
 anyway.
 
 Total limits about 8.9 GiB (36 services); 21 bundle JVMs.
@@ -386,8 +387,9 @@ over the three cell databases.
 | S15 | Clock skew (optional) | +40 s on `order-query-eu` | fetch staleness gate |
 | S16 | Global ALL events | fan-out to 3 databases; stop `app-pg-apac`; kill the lane holder | G24, G11, N4 |
 | S17 | Context routing | one class, engines per context; no cross-context rows; `*` sees all | setComponentContexts, G8, G15 |
+| S18 | G5 residual window | `slowpay` payments answer 4 s after their commit; cut `apac-to-es-pg-eu` while they answer (control: `EVENTO_SERVICE_OUTCOME_STORE=off`) | G5 (service outcome store) |
 
-Suggested order: S0, S17, S16, S10, S11, S1, S2, S3, S4, S5, S6, S12, S7, S8, S9, S13, S14.
+Suggested order: S0, S17, S16, S10, S11, S1, S2, S3, S4, S5, S6, S12, S7, S8, S9, S13, S14, S18.
 
 Recreate the stack (`scripts/down.sh && scripts/up.sh`) after S10 and after S04. S10 drops the
 event store, and S04's variant B leaves the `:before` catalog beyond repair (N12). S08 and S09
@@ -433,7 +435,7 @@ lab-api/                      commands, events, queries, views, Regions, Context
 lab-support/                  BundleDeployment, ContextSelection, DataTargets, FrameworkFeatures,
                               BundleRunner, LabDatabases, stores (order_view, catalog_price, side effects)
 order-command/ order-query/ order-saga/ order-observer/ order-gateway/   one boot jar each
-evento-lab-cluster-chaos/     scenarios S00..S17, invariants I1..I8
+evento-lab-cluster-chaos/     scenarios S00..S18, invariants I1..I8
 docs/                         cluster-mode guide (IT): L0..L5, config reference, contexts, scenarios
 docker/
   Dockerfile                  generic JVM image (explicit jar via ARG JAR, L1)

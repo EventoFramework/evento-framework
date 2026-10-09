@@ -146,6 +146,13 @@ x-env-common: &env-common
   # Optional: seconds the own server must be healthy before a failed-over bundle moves back
   # (N16). Empty = the framework default (30 s); ignored by images without fail-back.
   EVENTO_FAILBACK_WINDOW_S: ${EVENTO_FAILBACK_WINDOW_S:-}
+  # order-command: record the outcome of keyed service commands (payments) in the cell's app
+  # database, in the payment's transaction (G5 inbox). "off" reopens the residual window (S18
+  # control run); images without the fix ignore it.
+  EVENTO_SERVICE_OUTCOME_STORE: ${EVENTO_SERVICE_OUTCOME_STORE:-jdbc}
+  # order-command: how long a payment of an order whose id contains "slowpay" waits after its
+  # commit before answering (S18 cuts the server off the event store in that gap).
+  LAB_PAYMENT_SLOW_MS: ${LAB_PAYMENT_SLOW_MS:-4000}
   JAVA_OPTS: *java-opts
 
 # Per-cell bus: zone + address list "own server first, then the other two through toxiproxy"
