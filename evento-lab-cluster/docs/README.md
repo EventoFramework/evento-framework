@@ -19,10 +19,10 @@ laboratorio (N1…N17) e i difetti del laboratorio stesso (L1…L24) in [`../FIN
 |---|---|---|---|
 | 0 | [L0-single-server.md](L0-single-server.md) | un server, un Postgres, tutti i bundle | parti da zero; è anche la base di ogni altro livello |
 | 1 | [L1-server-ha.md](L1-server-ha.md) | 2–3 server sullo stesso database, failover del client (lista di endpoint, `expectedClusterName`, `BrokerChangedException`) | vuoi sopravvivere alla morte di un server |
-| 2 | [L2-cells.md](L2-cells.md) | celle geografiche: un server per sito, un set **completo** di handler per cella (G1), pick per località, catalogo e presenza condivisi | hai utenti su più siti e vuoi risposte locali |
+| 2 | [L2-cells.md](L2-cells.md) | celle geografiche: un server per sito, un set **completo** di handler per cella (G1: ogni server instrada verso i propri bundle, per scelta), pick per località, catalogo e presenza condivisi | hai utenti su più siti e vuoi risposte locali |
 | 3 | [L3-multi-region-contexts.md](L3-multi-region-contexts.md) | regioni come *context*, database applicativi regionali, contesto `ALL` con **una** lane globale e fan-out, query nella cella | i dati devono restare nella regione, con eventi globali (listino) |
 | 4 | [L4-db-failover.md](L4-db-failover.md) | failover di Postgres: URL multi-host, standby sincrono vs asincrono, lock pool, keepalive, deadline | vuoi sopravvivere alla morte del primario |
-| 5 | [L5-limits-roadmap.md](L5-limits-roadmap.md) | cosa resta aperto (G1 mesh, G5 idempotenza, fence `aggregate_seq`, read datasource, affinità della lane N4, failback N16) | devi decidere se il cluster è adatto al tuo caso |
+| 5 | [L5-limits-roadmap.md](L5-limits-roadmap.md) | cosa resta aperto (fence `aggregate_seq`, read datasource, affinità della lane N4, residuo del failback N16, retention delle chiavi G5) e le opzioni (mesh G1) | devi decidere se il cluster è adatto al tuo caso |
 
 Documenti trasversali:
 

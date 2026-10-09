@@ -11,6 +11,46 @@ Verdicts: AS_EXPECTED means the system behaved correctly. KNOWN_DEFECT_REPRODUCE
 defect still shows. UNEXPECTED means the behaviour was wrong in a way the scenario did not predict.
 INCONCLUSIVE means the fault did not exercise the question.
 
+## Re-run with the service outcome store and cheaper keys: `after-inbox`, 2026-10-09
+
+Two framework changes on `cluster/idempotency-inbox`, measured here: the bundle-side **outcome store**
+for keyed service commands (the G5 inbox: a payment that ran while its event could not be stored is
+answered from the outcome recorded in the payment's own transaction instead of running again), and
+**idempotency-key checks folded into round trips commands already make** (counted at the JDBC driver
+by `IdempotentCommandPostgresIT`: a keyed aggregate command now runs 2 event-store statements, like an
+unkeyed one, against 4 before; a keyed service command 2 against 6, unkeyed 1). The images were rebuilt
+from the branch (`LAB_TAG=after`); `order-command` records each payment's outcome in the payment's
+transaction on the cell's app database (`EVENTO_SERVICE_OUTCOME_STORE=jdbc`, the default). Runs one at a
+time with `EVENTO_LAB_LABEL=after-inbox`: S00 (key cost), S03 / S07 / S14 (exactly-once, regressions) and
+the new **S18**, which hits the residual window on purpose. S18 ran on a fresh stack, then once more as a
+control with the store switched off on `order-command-apac` (`after-inbox-store-off`).
+
+| Scenario | Verdicts | Key numbers (`after-inbox`) | `after-g5n16` |
+|---|---|---|---|
+| **S00** baseline 7×20/min | 9 AS_EXPECTED | **496/496** acked. p50/p99: EUROPA 264/775 ms, AFRICA 262/851 ms, AMERICA 667/1783 ms, SUD_AMERICA 704/1448 ms, CINA 1135/3719 ms, INDIA 1220/2308 ms, AUSTRALIA_NZ 1181/3544 ms. **9.5 appends/s**, I6 3.5 s, 76/76 payments, 0 unacked stored, 0 duplicates. | 482/482; p50 AM 834–879 ms, APAC 1359–1472 ms; 9.02 appends/s |
+| **S03** kill `evento-apac` | **12 AS_EXPECTED** | First APAC ack **10.0 s** after the kill; APAC after the kill 43/43 (p50 472 ms, p99 578 ms); EU+AM 58/58. 8/8 APAC JVMs failed back without a restart, the last 66.9 s after `evento-apac` was ready. **0 events stored twice, 0 payments executed twice.** The residual window was hit by chance: one payment (`PaymentSaga_1_INDIA:40`) had run while its event could not be stored, and its retry was answered from the outcome store (`event=service_outcome_replayed` ×1 on `order-command-apac`); one more retry was replayed by the broker (`event=idempotent_replay` ×1 on `evento-eu`). Bundle side: 3 `BrokerChangedException`, 1 `RequestTimeoutException`. I6 0.37 s. | 46/46, first ack 10.9 s; fail-back 55.7 s; 0 twice; window not hit |
+| **S07** APAC partition 62 s | **6 AS_EXPECTED** | EU+AM **40/40** during the partition (p50 215 ms, p99 908 ms); APAC 0/12 (lb 504, expected); `*` lanes stalled 0 s; I6 0.21 s. **0 events stored twice, 0 payments executed twice**; the window was not hit in this run (0 outcome replays). | 44/44, p50 666 ms; 0 twice |
+| **S14** retry storm, kill 3000 ms | **4 AS_EXPECTED** | 7/24 first attempts failed, all `broker_changed`, 0 after ≥ 25 s; 1 of 7 had been stored before the retry; **0 keys stored twice; 1/1 retry answered 2xx** with the stored event. | 18/24 failed, 4 stored, 0 twice, 4/4 2xx |
+| S14 kill 2000 ms (`after-inbox-kill2000`) | **4 AS_EXPECTED** | 16/24 failed, all `broker_changed`, 0 after ≥ 25 s; 4 of 16 had been stored; **0 keys stored twice; 4/4 retries 2xx**. | 22/24 failed, none stored (INCONCLUSIVE) |
+| **S18** residual window (new) | **3 AS_EXPECTED** | 6 `slowpay` orders over CINA/INDIA/AUSTRALIA_NZ; `apac-to-es-pg-eu` cut for 20 s while **3 of 3** committed payments were still answering (window hit 3 times). **0 extra executions** (attempts = 1 for all 6), 3 `service_outcome_replayed`, one `PaymentProcessedEvent` per order, converged 35 s after the cut. | – (the defect was documented, not measured) |
+| S18 control, store off (`after-inbox-store-off`) | 2 AS_EXPECTED, **1 KNOWN_DEFECT_REPRODUCED** | Same cut, `EVENTO_SERVICE_OUTCOME_STORE=off`: window hit 3 times, **3 extra executions** (attempts = 2 for each of the 3 orders in the window), still one event per order (the broker stored only the retry's answer). | – |
+| S18 first harness (`after-inbox-run1`) | 1 AS_EXPECTED, 2 INCONCLUSIVE | 6 CINA orders: one saga lane pays them one at a time, so at the cut only 1 payment had committed and its event was already stored; window not hit. Kept as evidence for the harness change (orders spread over the cell's 3 regions, cut when every lane has one payment in the window). | – |
+
+**Latency of keyed commands (S00).** The extra round trip the keys cost in `after-g5n16` is gone: p50 AM
+667–704 ms (pre-G5 `after` 733–761 ms, `after-g5n16` 834–879 ms) and APAC 1135–1220 ms (`after`
+1156–1178 ms, `after-g5n16` 1359–1472 ms), while every command still carries a key. Appends/s 9.5 against
+9.35 and 9.02. EU p50 is 262–264 ms (`after` 131–265, `after-g5n16` 176–180), and the APAC p99 is wider
+in this run (2.3–3.7 s against 1.9–2.0 s and 2.5–2.7 s; p95 2.0–2.1 s): one run each, so the tails are
+not a measured regression, but they are not a measured improvement either. The S14 shift (7 failed first
+attempts at 3000 ms against 18) is the same effect seen from the other side: with fewer round trips most
+of the 24 probes were already answered when the server died, so the ambiguous window moved earlier and the
+2000 ms run, INCONCLUSIVE in `after-g5n16`, now catches 4 stored commands.
+
+**What the store does not cover.** It is per cell: `order-command` records in its cell's database, so a
+retry routed to another cell's `order-command` would not find the outcome (locality routing keeps a saga's
+payments in its cell, which is what the lab exercises). Effects outside the handler's database (a real
+payment provider) need the key passed downstream. Keys and outcomes never expire.
+
 ## Re-run with idempotency keys (G5) and fail-back (N16): `after-g5n16`, 2026-09-29
 
 After G5 and N16 (and their review fixes) were merged, the images were rebuilt from the working tree

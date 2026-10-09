@@ -11,6 +11,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Service command outcome store: the last G5 window closed (inbox pattern).** A service handler
+  that ran, and whose event the broker then could not store (the append failed, or the server
+  died between the handler's answer and the append), used to run again on the broker's retry: the
+  broker had no record of the run. The bundle that ran it now keeps that record.
+  `EventoBundle.Builder.setServiceCommandOutcomeStore(ServiceCommandOutcomeStore)` (off by
+  default): a keyed service command whose key has a recorded outcome is answered with it and the
+  handler is not run (`event=service_outcome_replayed`); a key recorded for another command type
+  is refused with `IdempotencyKeyMismatchException`; otherwise the handler runs and its outcome is
+  recorded before the reply leaves. The broker needs nothing new: its retry claims the key (or
+  takes an expired claim over), forwards, and stores the answer like any other.
+  `ServiceCommandOutcomeStore` (`find`, `record`, `recordInTransaction`, `sweepBefore`),
+  `InMemoryServiceCommandOutcomeStore` and `ServiceCommandOutcomes` live in
+  `com.evento.common.messaging.outcome`; `JdbcServiceCommandOutcomeStore` (PostgreSQL and MySQL,
+  table `evento_v2_service_outcome`, idempotent Flyway migration `V2__service_command_outcome`)
+  in `evento-consumer-state-store-jdbc`. For exactly-once with local side effects, record in the
+  handler's own transaction: inject `ServiceCommandOutcomes` into the `@CommandHandler` (or use
+  `ServiceCommandOutcomes.current()` in a `MessageHandlerInterceptor`) and call
+  `recordWith(connection, result)` before committing; the side effects and the outcome then commit
+  together or not at all, and a second execution racing on the key gets
+  `DuplicateServiceOutcomeException`, rolls back and is answered with the first outcome. Side
+  effects outside that database (a payment provider) are not covered by any store: pass the key
+  downstream (`ServiceCommandOutcomes.idempotencyKey()`). The store must be shared by every
+  instance that can receive the retry. `ServiceOutcomeReplayPostgresIT` (real TCP and Postgres:
+  failed append; server death with lease takeover on another server), `ServiceManagerOutcomeStoreTest`,
+  the JDBC store on both dialects. Measured on `evento-lab-cluster` (new scenario S18, which cuts
+  the server's link to the event store while committed payments are still answering): 3 payments
+  caught in the window, 0 executed again; with the store switched off, 3 executed twice.
 - **Startup warning on JDK 25.0.1 / 25.0.2.** Bundles (`EventoBundle.Builder.start`) and the
   bus (`BusLifecycle.start`) log `event=jdk_virtual_thread_timer_bug` on those builds: they carry
   JDK-8370887, where cancelling a timed park corrupts the virtual-thread timer heap and timed
@@ -44,8 +71,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   answered with the stored event. Keys are enforced only on PostgreSQL with the full schema in
   the `search_path` schema; otherwise (or if the index disappears later) keyed commands run
   unkeyed with a warning. Only successes are recorded (a refused command can be retried with the
-  same key). Not covered: a service handler that ran while its event could not be stored is run
-  again by the retry (it must be idempotent on the key it receives); during a rolling upgrade a
+  same key). A service handler that ran while its event could not be stored is covered by the
+  service bundle's outcome store (below), not by the broker; during a rolling upgrade a
   keyed retry that lands on a pre-G5 server runs unkeyed (upgrade all servers first); keys never
   expire, so rewinding a consumer answers the commands it re-sends as replays (rewind under a new
   consumer id to run them again).
@@ -160,6 +187,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Idempotency keys no longer cost round trips of their own.** Measured on the lab (S00): a keyed
+  command from a remote cell paid one or two extra WAN round trips to the event-store primary
+  (p50 AM +~100 ms, APAC +~200–300 ms). Counted at the JDBC driver, a keyed aggregate command ran
+  4 event-store statements against 2 unkeyed, a keyed service command 6 against 1. Aggregate
+  commands now read the key in the story fetch under the aggregate lock (a `UNION ALL` branch of
+  the events query; no lookup before the lock): **2 = 2**. Service commands claim or answer in
+  one statement (a CTE reads event and claim and inserts the claim only when no event holds the
+  key), and the append marks the claim completed in the same statement, so there is no re-check,
+  no release on success, and no renewal unless an unbounded lock wait outlasted the first lease:
+  **2 against 1** (the claim must precede a handler with side effects). Replays cost one statement
+  either way. Claim rows are now kept (completed) after the event is stored: a claim can never be
+  won for a key whose event exists, even one committed after the claimer's snapshot, which is what
+  made the re-check unnecessary. Replay log stages: aggregate replays are now `stage=with_story`.
+  `BrokerEventStore` gains `fetchAggregateStory(..., key)`, `claimOrFindIdempotencyKey` and a
+  claim-completing `publishEvent(..., claimOwner)`, with defaults that compose the previous calls.
+  Pinned by `IdempotentCommandPostgresIT.aKeyedFirstAttemptCostsTheRoundTripsOfAnUnkeyedOne`
+  (CPES and APES). On the lab, keyed S00 p50 is back to the unkeyed range (AM 667–704 ms, APAC
+  1135–1220 ms, against 834–879 ms and 1359–1472 ms before this change). Upgrade all servers
+  together: a server from before this change deletes its claim after the append instead of
+  completing it, which reopens, for the roll-out, a window of microseconds in which a newer
+  server's claim can miss an event committed after its snapshot.
 - **`PgDistributedLock` waits are bounded and a lost lock is an error.** `acquire` used to
   wait forever; it now throws `LockAcquisitionTimeoutException` after 60 s
   (`evento.lock.acquire.timeout.ms`, a Spring property like the pool settings, env
@@ -433,6 +481,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- **G1 is documented as a design choice.** Each server routes requests only to the bundles
+  attached to it, so a request reaches a handler only on the same server (`no handler for`
+  otherwise). The cluster readiness notes, the lab findings and the cluster-mode guide now
+  describe this as intended rather than as an open blocker: connectivity is regional, a client
+  may be connected to only some servers, and a cell with a complete set of handlers next to its
+  server is the intended topology. A server peer mesh stays an option for partial cells.
 - **Context naming and matching (G15, client side).** `EventoBundle.Builder.setComponentContexts`
   now documents that `*` is the only wildcard in a context value and that servers without the
   G15 fix treat `_` and `%` as `LIKE` wildcards too (`SUD_AMERICA` also matches `SUDXAMERICA`).
