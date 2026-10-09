@@ -11,6 +11,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Startup warning on JDK 25.0.1 / 25.0.2.** Bundles (`EventoBundle.Builder.start`) and the
+  bus (`BusLifecycle.start`) log `event=jdk_virtual_thread_timer_bug` on those builds: they carry
+  JDK-8370887, where cancelling a timed park corrupts the virtual-thread timer heap and timed
+  waits (sleep, timed get, tryAcquire) can stall for ~20 s. Bundle handlers, consumer engines and
+  the connection supervisor run on virtual threads. Use JDK 25.0.3 or later.
 - **Idempotency keys: exactly-once commands across retries and servers (G5).** A command can
   carry an idempotency key (`CommandMessage.getIdempotencyKey`, an additive wire field: older
   peers send none and skip it). `CommandGateway.sendIdempotent(command, key[, metadata,

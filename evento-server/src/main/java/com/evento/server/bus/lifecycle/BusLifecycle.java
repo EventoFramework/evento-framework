@@ -310,6 +310,7 @@ public final class BusLifecycle {
     }
 
     public int start(int port) {
+        com.evento.common.utils.JdkRuntimeCheck.warning().ifPresent(log::warn);
         int bound = transportServer.start(port);
         var scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
             var t = new Thread(r, "evento-bus-maintenance");

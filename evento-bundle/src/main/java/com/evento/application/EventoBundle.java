@@ -591,6 +591,7 @@ public class EventoBundle {
             if (eventoServerMessageBusConfiguration == null) {
                 throw new IllegalArgumentException("Invalid messageBusConfiguration");
             }
+            com.evento.common.utils.JdkRuntimeCheck.warning().ifPresent(logger::warn);
 
             if (injector == null) {
                 injector = clz -> null;
