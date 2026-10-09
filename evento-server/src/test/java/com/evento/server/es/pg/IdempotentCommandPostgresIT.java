@@ -134,7 +134,8 @@ class IdempotentCommandPostgresIT {
     private JdbcTemplate jdbc;
 
     private record Server(String name, BusLifecycle lifecycle, ClusterRegistry cluster, CommandBrokerHandler broker,
-                          SwitchableStore store, int port, ExecutorService executor) {
+                          SwitchableStore store, int port, ExecutorService executor,
+                          RoundTripCountingDataSource roundTrips) {
     }
 
     /** The event store mode under test. */
@@ -219,7 +220,9 @@ class IdempotentCommandPostgresIT {
         assertThat(paidAgain.nonce).isEqualTo(paid.nonce);
         assertThat(serviceCalls).as("the payment ran once").hasValue(1);
         assertThat(rowsWithKey(payKey)).isEqualTo(1);
-        assertThat(claimsOf(payKey)).as("the claim is gone once the event holds the key").isZero();
+        assertThat(jdbc.queryForObject("select count(*) from es__idempotency_claims "
+                + "where idempotency_key = ? and completed_at is not null", Integer.class, payKey))
+                .as("the claim is completed by the append statement itself, and kept").isEqualTo(1);
     }
 
     @Test
@@ -576,6 +579,70 @@ class IdempotentCommandPostgresIT {
         assertThat(paid.id).isEqualTo(payment.id);
     }
 
+    @Test
+    void aKeyedFirstAttemptCostsTheRoundTripsOfAnUnkeyedOne() throws Exception {
+        // Every event-store statement of server A is counted (each is one round trip to the ES
+        // primary; from a remote cell, one WAN RTT). The RESOURCE lock runs on the lock pool, the
+        // same for keyed and unkeyed commands, and is not counted. Before this change a keyed
+        // aggregate command paid 2 lookups more (before the lock, under it) and a keyed service
+        // command 5 more (lookup, claim, re-check, renewal, release): measured on S00 as about
+        // +100 ms p50 in AM and +200-300 ms in APAC.
+        var gw = gateway(serverA);
+        var counter = serverA.roundTrips();
+        // Warm-up: the support probe, the pools.
+        gw.sendIdempotent(new IdemCmd("rt-warm-" + UUID.randomUUID()), "rt-warm-" + UUID.randomUUID())
+                .get(10, TimeUnit.SECONDS);
+        gw.sendIdempotent(new IdemServiceCmd("rt-warm-" + UUID.randomUUID()), "rt-warm-" + UUID.randomUUID())
+                .get(10, TimeUnit.SECONDS);
+
+        int unkeyedAggregate = roundTrips(counter, "aggregate unkeyed",
+                () -> gw.send(new IdemCmd("rt-u-" + UUID.randomUUID())).get(10, TimeUnit.SECONDS));
+        var orderId = "rt-k-" + UUID.randomUUID();
+        int keyedAggregate = roundTrips(counter, "aggregate keyed",
+                () -> gw.sendIdempotent(new IdemCmd(orderId), "rt-" + orderId).get(10, TimeUnit.SECONDS));
+        int replayedAggregate = roundTrips(counter, "aggregate replay",
+                () -> gw.sendIdempotent(new IdemCmd(orderId), "rt-" + orderId).get(10, TimeUnit.SECONDS));
+
+        int unkeyedService = roundTrips(counter, "service unkeyed",
+                () -> gw.send(new IdemServiceCmd("rt-pay-u-" + UUID.randomUUID())).get(10, TimeUnit.SECONDS));
+        var payment = "rt-pay-k-" + UUID.randomUUID();
+        int keyedService = roundTrips(counter, "service keyed",
+                () -> gw.sendIdempotent(new IdemServiceCmd(payment), "rt-" + payment).get(10, TimeUnit.SECONDS));
+        int replayedService = roundTrips(counter, "service replay",
+                () -> gw.sendIdempotent(new IdemServiceCmd(payment), "rt-" + payment).get(10, TimeUnit.SECONDS));
+        var account = "rt-acct-" + UUID.randomUUID();
+        int unkeyedLockedService = roundTrips(counter, "locked service unkeyed",
+                () -> gw.send(new IdemServiceCmd("rt-lpay-u-" + UUID.randomUUID(), account)).get(10, TimeUnit.SECONDS));
+        var lockedPayment = "rt-lpay-k-" + UUID.randomUUID();
+        int keyedLockedService = roundTrips(counter, "locked service keyed",
+                () -> gw.sendIdempotent(new IdemServiceCmd(lockedPayment, account), "rt-" + lockedPayment)
+                        .get(10, TimeUnit.SECONDS));
+
+        assertThat(keyedAggregate).as("a keyed aggregate command: the key rides on the story fetch")
+                .isEqualTo(unkeyedAggregate);
+        assertThat(replayedAggregate).as("a replay: the story fetch answers it, nothing is appended")
+                .isLessThan(unkeyedAggregate);
+        assertThat(keyedService).as("a keyed service command: one claim statement, which also reads the record; "
+                + "the append completes the claim").isEqualTo(unkeyedService + 1);
+        assertThat(keyedLockedService).isEqualTo(unkeyedLockedService + 1);
+        assertThat(replayedService).as("a service replay: the claim statement answers it").isEqualTo(1);
+    }
+
+    private static int roundTrips(RoundTripCountingDataSource counter, String label, ThrowingCall call)
+            throws Exception {
+        counter.reset();
+        call.run();
+        int n = counter.count();
+        System.out.println("event=round_trips path=\"" + label + "\" count=" + n + " statements=" + counter.statements()
+                .stream().map(q -> q == null ? "?" : q.length() > 60 ? q.substring(0, 60) + "..." : q).toList());
+        return n;
+    }
+
+    @FunctionalInterface
+    private interface ThrowingCall {
+        void run() throws Exception;
+    }
+
     // ------------------------------------------------------------------------------------ helpers
 
     /** Pays for {@code order}, then ships it: two commands, in this order. Returns both nonces. */
@@ -692,7 +759,9 @@ class IdempotentCommandPostgresIT {
                 TokenValidator.acceptAll(),
                 new ForwardingDedupCache(1000, Duration.ofMinutes(1)));
         int port = lifecycle.start(0);
-        var eventStore = new EventStore(null, null, new JdbcTemplate(ds), ds,
+        // Every statement of the event store is counted (one round trip each, autocommit).
+        var roundTrips = new RoundTripCountingDataSource(ds);
+        var eventStore = new EventStore(null, null, new JdbcTemplate(roundTrips.dataSource()), roundTrips.dataSource(),
                 1024, 1024, 150_000, 150_000, 69, mode());
         // Both "servers" run in this JVM, so their APES Snowflakes would derive the same node id
         // from the host's MAC and collide on event_sequence_number; real servers run on
@@ -707,7 +776,7 @@ class IdempotentCommandPostgresIT {
         closeables.add(lockPool);
         PgDistributedLock lock = lockConfig.eventoDistributedLock(lockPool, 20_000L);
         var broker = new CommandBrokerHandler(lifecycle, cluster, store, lock);
-        return new Server(name, lifecycle, cluster, broker, store, port, executor);
+        return new Server(name, lifecycle, cluster, broker, store, port, executor, roundTrips);
     }
 
     /** An aggregate that creates once: a second creation of the same id is refused by the domain. */
@@ -900,6 +969,28 @@ class IdempotentCommandPostgresIT {
         @Override
         public void releaseIdempotencyClaim(String idempotencyKey, String owner) {
             delegate.releaseIdempotencyClaim(idempotencyKey, owner);
+        }
+
+        @Override
+        public KeyedAggregateStory fetchAggregateStory(String aggregateId, boolean invalidateCaches,
+                                                       boolean invalidateSnapshot, String idempotencyKey) {
+            if (idempotencyKey != null) lookups.incrementAndGet();
+            return delegate.fetchAggregateStory(aggregateId, invalidateCaches, invalidateSnapshot,
+                    supported ? idempotencyKey : null);
+        }
+
+        @Override
+        public ClaimAttempt claimOrFindIdempotencyKey(String idempotencyKey, String commandType, String aggregateId,
+                                                      String owner, long leaseMs) {
+            claims.incrementAndGet();
+            return delegate.claimOrFindIdempotencyKey(idempotencyKey, commandType, aggregateId, owner, leaseMs);
+        }
+
+        @Override
+        public long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                                 String commandType, String claimOwner) {
+            return supported ? delegate.publishEvent(eventMessage, aggregateId, idempotencyKey, commandType, claimOwner)
+                    : delegate.publishEvent(eventMessage, aggregateId);
         }
     }
 
