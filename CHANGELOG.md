@@ -9,6 +9,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.5.2] — 2026-10-13
+
+Bug-fix release on top of 2.5.1: no API, wire, schema or configuration change. Upgrade bundles
+and servers in any order; the fix applies on whichever side receives the reply (the broker for
+replies from handlers, the bundle for replies from the broker).
+
 ### Fixed
 
 - **A reply written just before its sender closed the session could be lost.** The Netty
@@ -1053,7 +1059,8 @@ Last stable v1.x release. The v1 source history is preserved in the git log.
 
 ---
 
-[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.5.1...HEAD
+[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.5.2...HEAD
+[2.5.2]: https://github.com/EventoFramework/evento-framework/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/EventoFramework/evento-framework/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/EventoFramework/evento-framework/compare/v2.4.6...v2.5.0
 [2.4.6]: https://github.com/EventoFramework/evento-framework/compare/v2.4.5...v2.4.6
