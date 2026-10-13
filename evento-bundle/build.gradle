@@ -30,7 +30,7 @@ dependencies {
     testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
 
     implementation 'org.reflections:reflections:0.10.2'
-    implementation 'io.github.classgraph:classgraph:4.8.186'
+    implementation 'io.github.classgraph:classgraph:4.8.194'
     implementation 'org.ow2.asm:asm:9.10.1'
 
     api project(':evento-common')
@@ -41,14 +41,14 @@ dependencies {
     implementation 'org.apache.logging.log4j:log4j-core:2.26.1'
     implementation 'org.apache.logging.log4j:log4j-api:2.26.1'
 
-    implementation 'com.squareup.okhttp3:okhttp:5.4.0'
+    implementation 'com.squareup.okhttp3:okhttp:5.5.0'
 
 
-    compileOnly 'org.projectlombok:lombok:1.18.40'
-    annotationProcessor 'org.projectlombok:lombok:1.18.40'
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
-    testCompileOnly 'org.projectlombok:lombok:1.18.40'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.40'
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
 
 
