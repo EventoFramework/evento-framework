@@ -1,6 +1,7 @@
 package com.evento.transport.netty;
 
 import com.evento.transport.Frame;
+import com.evento.transport.message.Response;
 import com.evento.transport.state.ConnectionState;
 import com.evento.transport.state.ConnectionStateMachine;
 import io.netty.channel.ChannelHandlerContext;
@@ -18,7 +19,8 @@ import java.util.function.Consumer;
  * (virtual threads by default) so the event loop is never blocked by user logic.
  *
  * <p>Also tracks the last-inbound timestamp for failure detection at the
- * application layer.
+ * application layer, and holds the disconnect transition until the responses already
+ * read have reached the listener ({@link InboundDeliveries}).
  */
 final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
 
@@ -42,16 +44,25 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Frame frame) {
         lastInboundMs.set(System.currentTimeMillis());
-        businessExecutor.execute(() -> {
-            try {
-                listener.accept(frame);
-            } catch (Throwable t) {
-                log.error("event=listener_error channel={} type={} correlationId={}",
-                        ctx.channel().id(),
-                        frame.message().getClass().getSimpleName(),
-                        frame.message().correlationId(), t);
-            }
-        });
+        var deliveries = frame.message() instanceof Response ? InboundDeliveries.of(ctx.channel()) : null;
+        if (deliveries != null) deliveries.begin();
+        try {
+            businessExecutor.execute(() -> {
+                try {
+                    listener.accept(frame);
+                } catch (Throwable t) {
+                    log.error("event=listener_error channel={} type={} correlationId={}",
+                            ctx.channel().id(),
+                            frame.message().getClass().getSimpleName(),
+                            frame.message().correlationId(), t);
+                } finally {
+                    if (deliveries != null) deliveries.end();
+                }
+            });
+        } catch (RuntimeException e) {
+            if (deliveries != null) deliveries.end();
+            throw e;
+        }
     }
 
     @Override
@@ -63,10 +74,13 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         log.info("event=channel_inactive channel={}", ctx.channel().id());
-        // Force state machine forward so the surrounding Transport notifies its listeners.
-        if (state.current() != ConnectionState.CLOSED) {
-            state.forceTransition(ConnectionState.DISCONNECTED, "channel_inactive");
-        }
+        // Force state machine forward so the surrounding Transport notifies its listeners,
+        // once the responses already read have been delivered.
+        InboundDeliveries.of(ctx.channel()).runWhenIdle(ctx.channel(), () -> {
+            if (state.current() != ConnectionState.CLOSED) {
+                state.forceTransition(ConnectionState.DISCONNECTED, "channel_inactive");
+            }
+        });
         ctx.fireChannelInactive();
     }
 }

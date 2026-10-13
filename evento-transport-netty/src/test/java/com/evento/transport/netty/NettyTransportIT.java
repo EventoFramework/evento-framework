@@ -360,4 +360,80 @@ class NettyTransportIT {
             chunkServer.stop();
         }
     }
+
+    /**
+     * A peer that writes a response and closes at once (a bundle leaving its broker at
+     * the end of a fail-back drain): the response is still on its way to the listener
+     * when the close is seen. The disconnect used to be announced first, and a broker
+     * then failed the originator with "peer disconnected" and dropped the response.
+     */
+    @Test
+    @Timeout(20)
+    void aResponseReadBeforeThePeerClosesIsDeliveredBeforeTheDisconnect() throws Exception {
+        client.connect().join();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> !serverChildren.isEmpty());
+        var child = serverChildren.getFirst();
+        var inListener = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var events = new CopyOnWriteArrayList<String>();
+        child.onMessage(msg -> {
+            if (!(msg instanceof Response)) return;
+            inListener.countDown();
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            events.add("response");
+        });
+        child.onStateChange((from, to) -> {
+            if (to == ConnectionState.DISCONNECTED) events.add("disconnected");
+        });
+
+        client.send(Response.success(UUID.randomUUID(), "echo", new byte[]{1})).get(5, TimeUnit.SECONDS);
+        assertThat(inListener.await(5, TimeUnit.SECONDS)).isTrue();
+        client.close();
+
+        Thread.sleep(500);
+        assertThat(events).as("disconnect held while the response is being delivered").isEmpty();
+        release.countDown();
+        await().atMost(5, TimeUnit.SECONDS).until(() -> events.contains("disconnected"));
+        assertThat(events).startsWith("response", "disconnected");
+    }
+
+    /** A listener that never returns cannot hold the disconnect for longer than the grace. */
+    @Test
+    @Timeout(20)
+    void aStuckResponseListenerDelaysTheDisconnectOnlyByTheGrace() throws Exception {
+        client.connect().join();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> !serverChildren.isEmpty());
+        var child = serverChildren.getFirst();
+        var inListener = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var disconnected = new CountDownLatch(1);
+        child.onMessage(msg -> {
+            if (!(msg instanceof Response)) return;
+            inListener.countDown();
+            try {
+                release.await(15, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        child.onStateChange((from, to) -> {
+            if (to == ConnectionState.DISCONNECTED) disconnected.countDown();
+        });
+        try {
+            client.send(Response.success(UUID.randomUUID(), "echo", new byte[]{1})).get(5, TimeUnit.SECONDS);
+            assertThat(inListener.await(5, TimeUnit.SECONDS)).isTrue();
+            long closedAt = System.nanoTime();
+            client.close();
+
+            assertThat(disconnected.await(InboundDeliveries.GRACE.toMillis() + 3000, TimeUnit.MILLISECONDS)).isTrue();
+            long tookMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - closedAt);
+            assertThat(tookMs).isGreaterThanOrEqualTo(InboundDeliveries.GRACE.toMillis() - 100);
+        } finally {
+            release.countDown();
+        }
+    }
 }
