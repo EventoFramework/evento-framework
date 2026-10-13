@@ -146,11 +146,14 @@ public final class NettyClientTransport implements Transport {
                 // For now we mark the connection as CONNECTED; the handshake supervisor will downgrade
                 // the state to DEGRADED if the Hello/Welcome handshake fails.
                 state.compareAndTransition(ConnectionState.HANDSHAKING, ConnectionState.CONNECTED, "tcp_ready");
-                ch.closeFuture().addListener(closeFuture -> {
-                    if (state.current() != ConnectionState.CLOSED) {
-                        state.forceTransition(ConnectionState.DISCONNECTED, "channel_closed");
-                    }
-                });
+                ch.closeFuture().addListener(closeFuture ->
+                        // After the responses the broker sent before closing have been
+                        // delivered: see InboundDeliveries.
+                        InboundDeliveries.of(ch).runWhenIdle(ch, () -> {
+                            if (state.current() != ConnectionState.CLOSED) {
+                                state.forceTransition(ConnectionState.DISCONNECTED, "channel_closed");
+                            }
+                        }));
                 if (closingOrClosed()) {
                     // close() slipped in between the check above and the assignment:
                     // it may have seen channel == null.
