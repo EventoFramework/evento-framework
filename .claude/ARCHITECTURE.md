@@ -22,6 +22,12 @@ Bundles register their handler types with the server at startup. All inter-bundl
 (commands, queries, events) flows through the server broker; bundles never talk directly to each
 other.
 
+Since 2.5 several servers can share one PostgreSQL event store and catalog (cluster mode, §4.7–4.8).
+Each server routes only to the bundles connected to it, with no server-to-server forwarding
+(G1, a design choice): the intended topology is a *cell*, a server with a complete set of
+handlers next to it. Bundles fail over along an ordered address list and fail back to the first
+address once it is healthy again.
+
 ---
 
 ## 2. Repository Module Map
@@ -35,19 +41,28 @@ evento-framework/
 ├── evento-server/                Server runtime: bus lifecycle, event store, REST API, Spring Boot app
 ├── evento-consumer-state-store/
 │   └── evento-consumer-state-store-jdbc/  JDBC impls (Postgres + MySQL) for consumer SPIs
-├── evento-gui/                   Web GUI (React, static assets)
+├── evento-gui/                   Web GUI (Angular 22 + Ionic 8), built into the server's static resources
 ├── evento-lab/                   In-process integration tests (single-bundle RTT, failure matrix, etc.)
-└── evento-lab-microservices/     Multi-bundle integration tests (RECQ microservices scenario)
-    ├── evento-lab-ms-api/
-    ├── evento-lab-ms-command/
-    ├── evento-lab-ms-query/
-    ├── evento-lab-ms-saga/
-    ├── evento-lab-ms-observer/
-    └── evento-lab-ms-it/
+├── evento-lab-microservices/     Multi-bundle integration tests (RECQ microservices scenario)
+│   ├── evento-lab-ms-api/
+│   ├── evento-lab-ms-command/
+│   ├── evento-lab-ms-query/
+│   ├── evento-lab-ms-saga/
+│   ├── evento-lab-ms-observer/
+│   └── evento-lab-ms-it/
+└── evento-lab-cluster/           Multi-server, multi-region lab (Docker compose, toxiproxy WAN, chaos S00–S18)
+    ├── lab-api/  lab-support/    payloads; env-driven BundleDeployment/BundleRunner shared by every image
+    ├── order-command/ order-query/ order-saga/ order-observer/ order-gateway/   one image each
+    ├── evento-lab-cluster-chaos/  scenario driver (gated on EVENTO_LAB_CLUSTER)
+    └── docs/                      cluster-mode guide L0–L5, config reference, chaos results (Italian)
 ```
 
-**Gradle**: version `2.0.0-rc1`, Java toolchain `25`, Spring Boot `3.5.5`, Jackson CBOR `2.18.2`,
-Netty `4.1.124.Final`. Root `build.gradle` centralises all versions in `allprojects { ext { … } }`.
+**Gradle**: version `2.5.2` (wrapper 9.7.1), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
+`4.1.1` (server and lab services), Jackson `2.22.2`, Netty `4.2.17.Final`, Flyway `13.4.0`. Root
+`build.gradle` centralises versions in `allprojects { ext { … } }`; the release script bumps
+`version` / `eventoVersion` there and `evento-server/version.json`. The published libraries also
+run on Netty 4.1 (what Spring Boot 3.x BOMs resolve): `:evento-transport-netty:netty41Test`
+re-runs the transport tests against `4.1.124.Final`.
 
 ---
 
@@ -127,6 +142,8 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 | `InMemoryTransport` | api | Test double; `simulateDisconnect()` → DISCONNECTED (not DEGRADED) |
 | `NettyClientTransport` | netty | Client-side Netty channel + reconnect |
 | `NettyServerTransport` | netty | Server-side accept loop; each accepted channel → `ServerChildTransport` |
+| `MessageInboundHandler` | netty | Terminal pipeline handler: hands every inbound `Frame` to the business executor (virtual threads), never the event loop |
+| `InboundDeliveries` | netty | Per-channel count of `Response` frames read but not yet delivered; the `DISCONNECTED` transition (channel inactive, server-child and client close listeners) waits for them, bounded by 2 s (`event=disconnect_after_delivery_grace`). See §6 decision 14 |
 | `NettyTransportConfig` | netty | Optional `SslContext` (prepends `SslHandler` when set) |
 
 ### 4.2 Server Bus (`evento-server`, `com.evento.server.bus.*`)
@@ -198,7 +215,9 @@ refuses new `Request`s with `SendFailedException`, i.e. definitely not sent; rep
 notifications pass; `evento:enable` is deferred to the next session, ordered against the drain by
 a lock so it cannot re-enable the broker being left) → `evento:disable` on the current broker →
 wait (≥ 250 ms grace, ≤ `failbackDrainTimeout`, 10 s) for `InboundDispatcher.inFlightRequests()`
-(decremented when the reply's write completes, so a chunked reply is not cut off) and
+(decremented when the reply's write completes, so a chunked reply is not cut off; a written
+reply can still race the close on the broker's side, which since 2.5.2 delivers responses it has
+read before announcing the disconnect, §6 decision 14) and
 `BundleCorrelationTracker.pendingCount()` to reach 0 → set `failbackRequested` (cleared again if
 the session ended meanwhile), close. The run loop dials endpoint 0 without backoff; identity
 checks run on that handshake as usual. Leftover outbound requests get `BrokerChangedException`
@@ -514,6 +533,16 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     keeps single-statement `ON CONFLICT` inserts and lookups are computed, not queried. Never key
     a catalog row by a class name alone: the same class is routinely deployed in several bundles.
 
+14. **A disconnect is announced after the responses already received (2.5.2).** Inbound frames
+    are dispatched to the business executor, but a channel's close is seen on the event loop. A
+    peer that writes a reply and closes at once (the end of a fail-back drain) used to lose that
+    reply: the broker's disconnect cleanup drained the forwarding entry and failed the originator
+    with "peer disconnected" before the reply was routed. `InboundDeliveries` orders the
+    transition after pending `Response` deliveries, with a 2 s bound so a stuck listener cannot
+    keep a dead session alive. Only responses are tracked: a request still being served must
+    not delay cleanup. Do not move the state transition back onto the close listener directly;
+    `NettyTransportIT.aResponseReadBeforeThePeerClosesIsDeliveredBeforeTheDisconnect` pins it.
+
 ---
 
 ## 7. Security Model
@@ -679,7 +708,9 @@ These are the user-facing APIs — changing signatures requires a major version 
 
 ## 10. Build & Test
 
-**Toolchain:** JDK 25 (`/usr/libexec/java_home -v 25` on macOS). Gradle 9.0 wrapper at `./gradlew`.
+**Toolchain:** JDK 25.0.3 or later (`/usr/libexec/java_home -v 25` on macOS;
+`C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1` on the Windows dev host). Never 25.0.1/25.0.2
+(JDK-8370887 stalls virtual-thread timed waits ~20 s). Gradle 9.7.1 wrapper at `./gradlew`.
 
 **Standard test run:**
 ```bash
@@ -700,17 +731,23 @@ EVENTO_RUN_JDBC_IT=true JAVA_HOME=$(/usr/libexec/java_home -v 25) \
   ./gradlew :evento-consumer-state-store:evento-consumer-state-store-jdbc:test
 ```
 
+Other gates: `:evento-transport-netty:netty41Test` (Netty 4.1 compatibility, part of `check`);
+`EVENTO_RUN_JDBC_IT=true` for the Testcontainers/Postgres ITs (e.g. `MultiServerCatalogIT`,
+`IdempotentCommandPostgresIT`, `ServiceOutcomeReplayPostgresIT`); `EVENTO_RUN_BENCH=true` for
+`CommandLatencyBenchmarkIT`; `EVENTO_LAB_CLUSTER=true` for the `evento-lab-cluster` scenarios
+(run through its `scripts/`, needs the Docker stack).
+
 **Coverage:** `./gradlew jacocoTestReport` — minimum 70% on new modules.
 
-**Test counts (JDK 25, as of v2.0.0-rc1):**
-- `evento-transport-api`: 41+
-- `evento-transport-netty`: 8 (7 IT + 1 chunking)
-- `evento-server`: 76+ (includes 80 MB large-payload round-trip IT, 10 disconnect scenarios)
-- `evento-common`: 52 (consumer processor + in-memory SPI impls)
-- `evento-bundle`: 7 (engine supervisor + admin handle)
-- `evento-lab`: 31 (6 in-memory + 6 connectivity + 4 command RTT + 9 FailureMatrix + 2 ProjectorRetry + 2 Stress + 2 ConsumerInterceptor)
-- `evento-lab-ms-it`: 22 (3 consumer lifecycle + 2 saga + 2 reconnect + 2 order lifecycle + 2 payment saga + 3 notification + 2 multi-context + 3 RTT/stress + 3 command RTT)
-- JDBC ITs: 50+ (23 scenarios × Postgres + MySQL, gated on `EVENTO_RUN_JDBC_IT=true`)
+**Test counts (JDK 25.0.4, 2.5.2, standard run above):**
+- `evento-transport-api`: 53
+- `evento-transport-netty`: 18 (also run against Netty 4.1 by `netty41Test`)
+- `evento-server`: ~228 on CI's core run (≈54 skipped without Postgres/Docker)
+- `evento-common`: 131
+- `evento-bundle`: 83
+- `evento-lab`: 45 (4 skipped)
+- `evento-lab-ms-it`: 25
+- `evento-consumer-state-store-jdbc`: 74 JDBC ITs, all skipped unless `EVENTO_RUN_JDBC_IT=true`
 
 ---
 
@@ -931,18 +968,20 @@ explorative read-only pivot.)
 
 ---
 
-## 16. Current Status (as of merge to `main`)
+## 16. Current Status
 
-Version: `2.0.0-rc1`. Tag: `v2.0.0-rc1`.
+Version: `2.5.2` (tag `v2.5.2`), published to Maven Central, GitHub Packages, Docker Hub / GHCR
+(`eventoframework/evento-server:2.5.2` = `latest`). Releases are cut from `main` with
+`scripts/release.sh patch|minor|major`; the tag triggers every publishing workflow.
 
-**All three rewrite phases (PR1/PR2/PR3) are shipped and merged to `main`.**  
-**Remaining before `v2.0.0` GA:**
-- Deploy to staging with real traffic generator
-- Soak 1–2 weeks with early adopters
-- Merge any staging findings, bump version → `2.0.0`, tag, publish to Maven Central
+| Line | What it brought |
+|---|---|
+| 2.0.0 | CBOR/Netty transport, sealed messages, v2 consumer engines, exactly-once QoS caches |
+| 2.4.x | parallel consumers, bounded observer fan-out, throughput/capacity metrics, WATERMARK checkpoints |
+| 2.5.0 | cluster mode: endpoint failover + fail-back, idempotency keys and service outcome store, caller deadlines, locality-preferred routing, presence, per-bundle catalog, bounded distributed locks, per-phase command latency |
+| 2.5.1 | dependency sweep (Spring Boot 4.1.1, Netty 4.2.17, Jackson 2.22.2, Gradle 9.7.1, Angular 22.2) |
+| 2.5.2 | replies no longer lost when their sender closes right after writing them (§6 decision 14) |
 
-**Known post-RC1 fixes already committed:**
-- Fix A: `onTransportDisconnected` superseded-session race (routing loss on reconnect)
-- Fix B: FK violation in `BundleService` orphan-payload cleanup
-- Fix C: `DEGRADED` channel no longer drops in-flight responses
-- Fix D: In-flight responses buffered + replayed on originator reconnect
+Details per release: `CHANGELOG.md`. Session-level progress and open work: [`STATUS.md`](STATUS.md);
+open cluster limits and roadmap: `evento-lab-cluster/docs/L5-limits-roadmap.md`. User docs:
+docs.eventoframework.com (repo `evento-doc`), cluster section under *Evento Server Cluster*.
