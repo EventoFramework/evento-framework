@@ -12,6 +12,10 @@ Last updated: 2026-10-13.
   disconnect waits for pending responses, 2 s grace); `NettyTransportIT` reproduces it
   deterministically. Merged with `--admin` (user's call), released as **v2.5.2**; all release
   workflows green; doc/site snippets and the upgrade guide point to 2.5.2; demo server on 2.5.2.
+- evento-todo (`e865299`) on `evento-bundle` / `consumer-state-store-jdbc` 2.5.2 (no code change;
+  Spring Boot 3.5 BOM still resolves Netty 4.1.135 and Jackson 2.21.4). Demo rebuilt it from the
+  repo (`docker compose build --no-cache todo && up -d --no-deps todo`); smoke test through
+  demo.eventoframework.com: create list, query, add todo, delete, no errors in either log.
 
 
 - **v2.5.1** (dependency-only patch carrying #253): CHANGELOG entry + SECURITY.md, then
@@ -26,7 +30,7 @@ Last updated: 2026-10-13.
 - **evento-www** (`a7a9558`, deployed with `deploy/deploy.sh`): home "Cluster mode" section with
   the lab numbers, hero badge → `#cluster`, get-started snippets 2.5.1.
 - **Demo** (`gui.`/`demo.eventoframework.com`): server pulled to 2.5.1 (catalog re-key at boot,
-  31 ms); evento-todo still on `evento-bundle` 2.4.5 (works unchanged against 2.5 servers).
+  31 ms); evento-todo moved to 2.5.2 later the same day (see the 2.5.2 entry).
   The compose uses `:latest`, so a plain `docker compose pull evento-server && up -d --no-deps
   evento-server` on the host is the upgrade path.
 
