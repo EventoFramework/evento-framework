@@ -61,8 +61,28 @@ Evento Framework v2.0 is a ground-up rewrite of the transport and server bus:
 - **Sealed `Message` records** — exhaustive dispatch enforced by the compiler; adding a new wire type is a one-liner.
 - **Exactly-once QoS** — dedup cache on both broker and bundle sides; callers can retry with the same `correlationId`.
 - **v2 consumer engines** — `ProjectorEngine`, `SagaEngine`, `ObserverEngine` composed on focused SPIs (`ConsumerLock`, `ConsumerStateStore`, `SagaStateStore`, `DeadEventQueue`, `DedupeStore`). JDBC impls for Postgres and MySQL included.
-- **Metrics-only, no built-in scaling** — the framework emits performance metrics only; cluster orchestration and instance lifecycle are external concerns (k8s / Nomad).
+- **Metrics-only, no built-in scaling** — the framework emits performance metrics only; instance lifecycle is an external concern (k8s / Nomad). Running several servers as a cluster is covered below.
 - **Zero-copy forwarding** — broker relays `Request`/`Response` as raw bytes without re-encoding.
+
+## Cluster Mode (2.5)
+
+Several `evento-server` instances can share one PostgreSQL event store and catalog — from a hot standby on one site to one server per continent. Since 2.5.0 the cluster is production-ready:
+
+- **Failover and fail-back.** A bundle uses every server address it is given, most preferred first. It fails over along the list when its server dies, and returns to the first one on its own once that server has been healthy for a stability window. Requests in flight on a server it left fail at once with `BrokerChangedException` instead of hanging until the timeout.
+- **Exactly-once commands.** `CommandGateway.sendIdempotent(command, key)` makes a retry safe on whichever server it lands: a duplicate key is answered with the stored event. Commands sent by sagas, projectors and observers get a derived key automatically, and a service bundle can close the last window with a shared outcome store (`setServiceCommandOutcomeStore`).
+- **Cells and locality.** Each server routes to the bundles connected to it, so the intended topology is a cell: a server with a complete set of handlers next to it. Bundles declare a zone (`setZone("EU")`) and `evento.server.bus.pick-strategy=locality-preferred` keeps requests in the caller's zone, falling back to any zone only when needed.
+- **Safe shared state.** Bounded distributed locks on a pool of their own, per-server presence tracking so that a stale disconnect never wipes a bundle that moved, a catalog keyed per bundle, and commands dropped unexecuted once their caller's deadline has passed.
+
+Measured on a three-continent lab: 492/492 commands confirmed (227/319 on 2.4.6), a cell left without its server back in 10.3 s, and no payment executed twice across server failures.
+
+```java
+var bus = new EventoServerMessageBusConfiguration(
+        new ClusterNodeAddress("evento-eu", 3030),     // this cell's server first
+        new ClusterNodeAddress("evento-am", 3030))
+    .withExpectedClusterName("orders-prod");
+```
+
+Upgrade all servers together, then the bundles: the first 2.5 server to boot migrates the schema. See [Evento Server Cluster](https://docs.eventoframework.com/evento-server/evento-server-cluster) for topologies, configuration and the upgrade guide.
 
 ## Parallel Consumers (2.4.0)
 
@@ -102,6 +122,7 @@ The documentation of Evento Framework includes:
 - [Tutorial](https://docs.eventoframework.com/getting-started/todolist-recq-tutorial)
 - [Evento Framework](https://docs.eventoframework.com/evento-framework/evento-framework-introcution)
 - [Evento Server](https://docs.eventoframework.com/evento-server/evento-server-introduction)
+- [Evento Server Cluster](https://docs.eventoframework.com/evento-server/evento-server-cluster)
 - [Evento GUI](https://docs.eventoframework.com/evento-gui/explore-recq-systems-visually)
 
 ## Enterprise Repository Resources
