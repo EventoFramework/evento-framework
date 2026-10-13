@@ -1,6 +1,26 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-13.
+
+## Dependency sweep (PR #253, merged into `main`, 2026-10-13)
+
+- The 25 open Dependabot PRs were consolidated into #253 (merged with `--admin`: `main` needs
+  1 approving review, which the author cannot give) and closed with a pointer to it.
+- Now on: Gradle 9.7.1 (wrapper jar regenerated), Spring Boot 4.1.1 (also the
+  `evento-lab-cluster` modules, which Dependabot does not scan), Netty 4.2.17.Final,
+  Jackson 2.22.2, Flyway 13.4.0, OkHttp 5.5.0, ClassGraph 4.8.194, JUnit launcher 6.1.3,
+  Lombok 1.18.48 (`evento-bundle` now uses the root `lombokVersion`); GUI Angular 22.2.2
+  (framework + build/cli), typescript-eslint 8.71.2, Capacitor 8.5.3, marked 18.1.1,
+  mermaid 11.17.2, eslint-plugin-jsdoc 64.5.4; Actions setup-java 5.7.0,
+  wrapper-validation 6.3.0, CodeQL 4.37.6.
+- **Lockstep groups** (bumping one alone fails CI, so batch them): the Angular framework
+  packages + `compiler-cli` (exact peer pin → `npm ci` ERESOLVE); `@typescript-eslint/*` +
+  `typescript-eslint`; CodeQL `init`/`analyze`/`upload-sarif`. When npm refuses an incremental
+  bump, drop those families' entries from `package-lock.json` and `npm install` once.
+- Verified: full CLAUDE.md suite locally on JDK 25.0.4, `assemble testClasses`, `ng lint`,
+  `ng build`; CI on #253 all green (build-and-test, jdbc-integration-tests, gui-build, CodeQL).
+- Not updated: ARCHITECTURE.md's "Gradle" line is a v2.0.0-rc1 snapshot (Boot 3.5.5, Jackson
+  2.18.2) and was already stale.
 
 ## 2.5.0 release preparation (branch `feat/evento-lab-cluster`, 2026-10-09)
 

@@ -13,8 +13,8 @@ load-bearing docs live in [`.claude/`](.claude/):
 
 ## Quick orientation
 
-- Active branch: **`main`** (`next` merged; `v2.0.0` released / tagged).
-- Toolchain: **JDK 25.0.3 or later**, Gradle 9.6.1, Spring Boot 3.5.5. Use
+- Active branch: **`main`** (latest release tagged: `v2.5.0`).
+- Toolchain: **JDK 25.0.3 or later**, Gradle 9.7.1, Spring Boot 4.1.1. Use
   `/usr/libexec/java_home -v 25` on macOS; on the Windows dev host
   `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1`. Never 25.0.1/25.0.2: JDK-8370887 can stall
   virtual-thread timed waits for ~20 s (bundle handlers, consumer engines, flaky ITs).
