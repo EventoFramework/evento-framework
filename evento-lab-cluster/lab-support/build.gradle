@@ -11,7 +11,7 @@ java { toolchain { languageVersion = javaLanguageVersion } }
 repositories { mavenCentral(); mavenLocal() }
 
 dependencyManagement {
-    imports { mavenBom 'org.springframework.boot:spring-boot-dependencies:4.1.0' }
+    imports { mavenBom 'org.springframework.boot:spring-boot-dependencies:4.1.1' }
     // Flyway (pulled in by the JDBC consumer state store) needs
     // jackson-annotations >= 2.20; the Boot BOM would pin an older one.
     // Same override as evento-lab.
