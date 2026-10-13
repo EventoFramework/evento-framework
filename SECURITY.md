@@ -8,7 +8,7 @@ Security fixes are provided for the currently maintained major release line.
 
 | Version | Supported |
 |---|---|
-| `2.x` (current: `2.5.0`) | Yes |
+| `2.x` (current: `2.5.1`) | Yes |
 | `1.x` | No |
 
 ## Reporting a Vulnerability

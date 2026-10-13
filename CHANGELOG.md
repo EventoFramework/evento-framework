@@ -9,6 +9,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.5.1] — 2026-10-13
+
+Dependency patch release on top of 2.5.0: no API, wire or schema change, and no new
+configuration. Servers and bundles of 2.5.0 and 2.5.1 interoperate in any mix.
+
+### Changed
+
+- **Runtime libraries.** Spring Boot 4.1.1 (server and lab services), Netty 4.2.17.Final,
+  Jackson 2.22.2, Flyway 13.4.0, OkHttp 5.5.0,
+  ClassGraph 4.8.194. The published library POMs carry these versions; applications that pin
+  their own Netty or Jackson should align.
+- **Build.** Gradle 9.7.1, Lombok 1.18.48 (`evento-bundle` now takes it from the root
+  `lombokVersion` instead of a pinned 1.18.40), JUnit platform launcher 6.1.3.
+- **GUI** (embedded in the server image). Angular 22.2.2, Capacitor 8.5.3, marked 18.1.1,
+  mermaid 11.17.2; lint toolchain typescript-eslint 8.71.2, eslint-plugin-jsdoc 64.5.4.
+- **CI.** actions/setup-java 5.7.0, Gradle wrapper-validation 6.3.0, CodeQL actions 4.37.6.
+
 ## [2.5.0] — 2026-10-09
 
 Cluster-readiness release: several `evento-server` instances sharing one PostgreSQL event
@@ -1021,7 +1038,8 @@ Last stable v1.x release. The v1 source history is preserved in the git log.
 
 ---
 
-[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/EventoFramework/evento-framework/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/EventoFramework/evento-framework/compare/v2.4.6...v2.5.0
 [2.4.6]: https://github.com/EventoFramework/evento-framework/compare/v2.4.5...v2.4.6
 [2.4.5]: https://github.com/EventoFramework/evento-framework/compare/v2.4.4...v2.4.5
