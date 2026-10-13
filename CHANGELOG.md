@@ -9,6 +9,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A reply written just before its sender closed the session could be lost.** The Netty
+  transport hands every inbound frame to the business executor but saw the channel's close on
+  the event loop, and announced the disconnect at once. A bundle that answered a request and
+  closed straight after (the end of a fail-back drain does exactly that) raced the two: the
+  broker failed the originator with `peer disconnected: <instance>` and dropped the reply that
+  was already on its way, so a request the handler had executed surfaced as an error.
+  `BundleClientFailbackIT.aLargeReplyWrittenDuringTheDrainArrivesWhole` failed this way on CI.
+  The disconnect transition (server and client side) now waits until the responses already
+  read from the channel have reached the listener, bounded by 2 s
+  (`event=disconnect_after_delivery_grace` when a listener outlives it). Only responses are
+  tracked: a request still being served when its sender leaves does not delay the disconnect.
+  `NettyTransportIT` pins the order and the bound.
+
 ## [2.5.1] — 2026-10-13
 
 Dependency patch release on top of 2.5.0: no API, wire or schema change, and no new

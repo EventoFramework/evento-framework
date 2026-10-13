@@ -107,9 +107,13 @@ public final class NettyServerTransport implements TransportServer {
                         childChannels.add(ch);
                         ch.closeFuture().addListener(cf -> {
                             childChannels.remove(ch);
-                            if (childState.current() != ConnectionState.CLOSED) {
-                                childState.forceTransition(ConnectionState.DISCONNECTED, "child_channel_closed");
-                            }
+                            // After the responses the peer sent before closing have been
+                            // delivered: see InboundDeliveries.
+                            InboundDeliveries.of(ch).runWhenIdle(ch, () -> {
+                                if (childState.current() != ConnectionState.CLOSED) {
+                                    childState.forceTransition(ConnectionState.DISCONNECTED, "child_channel_closed");
+                                }
+                            });
                         });
                         try {
                             connectionHandler.accept(child);
