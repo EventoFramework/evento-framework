@@ -2,7 +2,17 @@
 
 Last updated: 2026-10-13.
 
-## 2.5.1 released, docs/site/demo updated (2026-10-13)
+## 2.5.2 released: replies lost on a close right after the write (2026-10-13)
+
+- CI on `main` failed after 2.5.1: `BundleClientFailbackIT.aLargeReplyWrittenDuringTheDrainArrivesWhole`
+  got `peer disconnected: big-1`. Not a flake: `MessageInboundHandler` dispatches frames to the
+  business executor while the close became `DISCONNECTED` at once on the event loop, so the
+  broker's disconnect cleanup could run before an already-received reply was routed (the end of a
+  fail-back drain closes right after the last write). Fixed in #254 (`InboundDeliveries`: the
+  disconnect waits for pending responses, 2 s grace); `NettyTransportIT` reproduces it
+  deterministically. Merged with `--admin` (user's call), released as **v2.5.2**; all release
+  workflows green; doc/site snippets and the upgrade guide point to 2.5.2; demo server on 2.5.2.
+
 
 - **v2.5.1** (dependency-only patch carrying #253): CHANGELOG entry + SECURITY.md, then
   `scripts/release.sh patch`. All workflows green: Maven Central, GitHub Packages, signed boot
