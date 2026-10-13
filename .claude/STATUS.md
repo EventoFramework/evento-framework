@@ -2,6 +2,24 @@
 
 Last updated: 2026-10-13.
 
+## 2.5.1 released, docs/site/demo updated (2026-10-13)
+
+- **v2.5.1** (dependency-only patch carrying #253): CHANGELOG entry + SECURITY.md, then
+  `scripts/release.sh patch`. All workflows green: Maven Central, GitHub Packages, signed boot
+  jar / GitHub Release, image `eventoframework/evento-server:2.5.1` (= `latest`).
+- **README**: new "Cluster Mode (2.5)" section linking the docs.
+- **evento-doc** (`6558916`, pushed to `master`, GitBook syncs): `evento-server/evento-server-cluster`
+  is now a section (README + bundle failover/fail-back, exactly-once commands, cells and locality,
+  cluster configuration, upgrading to 2.5); Advanced Options, bus configuration, Context,
+  Invoker, Saga, Cluster Status, server setup updated; snippets at 2.5.1. Source of truth for
+  the content: CHANGELOG 2.5.0 + `evento-lab-cluster/docs/` (Italian) — keep them in sync.
+- **evento-www** (`a7a9558`, deployed with `deploy/deploy.sh`): home "Cluster mode" section with
+  the lab numbers, hero badge → `#cluster`, get-started snippets 2.5.1.
+- **Demo** (`gui.`/`demo.eventoframework.com`): server pulled to 2.5.1 (catalog re-key at boot,
+  31 ms); evento-todo still on `evento-bundle` 2.4.5 (works unchanged against 2.5 servers).
+  The compose uses `:latest`, so a plain `docker compose pull evento-server && up -d --no-deps
+  evento-server` on the host is the upgrade path.
+
 ## Dependency sweep (PR #253, merged into `main`, 2026-10-13)
 
 - The 25 open Dependabot PRs were consolidated into #253 (merged with `--admin`: `main` needs
