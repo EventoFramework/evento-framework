@@ -824,7 +824,7 @@ EVENTO_RUN_JDBC_IT=true JAVA_HOME=$(/usr/libexec/java_home -v 25) \
 
 Other gates: `:evento-transport-netty:netty41Test` (Netty 4.1 compatibility, part of `check`);
 `EVENTO_RUN_JDBC_IT=true` for the Testcontainers/Postgres ITs (e.g. `MultiServerCatalogIT`,
-`IdempotentCommandPostgresIT`, `ServiceOutcomeReplayPostgresIT`); `EVENTO_RUN_BENCH=true` for
+`IdempotentCommandPostgresIT`, `ServiceOutcomeReplayPostgresIT`); `EVENTO_RUN_BENCH=true` for `QueryPathBenchmarkIT` (broker cost of a query answer by size and mode, `evento-lab-cluster/docs/query-path.md`) and
 `CommandLatencyBenchmarkIT`; `EVENTO_LAB_CLUSTER=true` for the `evento-lab-cluster` scenarios
 (run through its `scripts/`, needs the Docker stack).
 
