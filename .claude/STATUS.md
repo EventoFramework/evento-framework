@@ -1,6 +1,44 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-13.
+Last updated: 2026-10-15.
+
+## Query path overhaul (branch `feat/query-streaming`, 2026-10-15, not committed yet)
+
+User request (Italian): queries must not fill the broker's memory; stream large answers both
+through the broker (default, backwards compatible) and point-to-point for systems that support
+it; `Page` next to `Single`/`Multiple` (and a stream type); no caching of queries ("straight");
+local short-circuit of a bundle's own queries keeping tracing/logging as if through the server;
+read-your-writes. Routing by context deliberately **postponed** (user: the same reasoning would
+apply to commands). Bundle-side query-result caching was **not** done (contradicts "straight").
+
+Done, all in `CHANGELOG.md [Unreleased]` and ARCHITECTURE §3, §4.2, §4.9, §6 (15–20), §8, §9, §14:
+
+1. Straight reads at the broker (`queryPayloadTypes` in the registration, event fetches too):
+   no dedup, no reconnect buffer; callers re-send lost reads (`resendSentBefore`). Dedup cache and
+   reconnect buffer bounded in bytes (Spring properties `evento.server.bus.dedup.*`,
+   `reconnect-buffer.max-bytes`).
+2. Transport: `CompositeByteBuf` reassembly, slice-based chunking, wrapped encoder output;
+   end-to-end DEFLATE replies (`PayloadEncoding`, `Request.acceptEncodings`).
+3. `Page`/`PageRequest`, `Streamed` (lazy), `QueryStreamBatch`.
+4. Local query short-circuit (`BundleClient.answersLocally`), same byte path as remote.
+5. Read-your-writes: broker returns event seq + context; `ConsistencyToken` (per context),
+   `sendTracked`, `QueryOptions.after/readYourWrites`, `ProjectorConsistencyGate`.
+6. Streams via broker: `StreamData/Credit/Cancel/Redirect`, `stream:1` capability, `SerialLane`,
+   credit-based flow control, `QueryGateway.stream` → `QueryStream`.
+7. Direct streams: `DirectStreamServer`/`Client`, ticket in `Hello.authToken`, broker fallback.
+
+New tests: `StraightQueryIT`, `CompressedReplyIT`, `LocalQueryShortCircuitIT`, `StreamRelayIT`,
+`DirectStreamIT` (server bus); `ForwardingDedupCacheTest`; `BundleCorrelationTrackerResendTest`;
+`PayloadEncodingTest`, `CodecVersionToleranceTest` additions; `ChunkReassemblerTest` additions;
+`QueryResponseCodecTest`, `ConsistencyAndOptionsTest` (common); `ReadYourWritesIT`,
+`QueryStreamingIT` (lab).
+
+Next: user review → commit in logical pieces (Conventional Commits) → evento-doc pages
+(streaming, pages, read-your-writes, direct streams) → GUI/dashboard for the new broker
+meters → a benchmark of broker heap vs answer size (plain vs streamed vs direct) for the thesis.
+Open design points: streams do not survive a session change (they fail, by design); RYW with
+async `ON_START` handlers waits for quiescence; tracing of a lazy `Streamed` covers the handler
+call, not the iteration.
 
 ## 2.5.2 released: replies lost on a close right after the write (2026-10-13)
 
