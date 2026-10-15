@@ -9,7 +9,14 @@ import com.evento.transport.message.Notification;
 import com.evento.transport.message.Pong;
 import com.evento.transport.message.Request;
 import com.evento.transport.message.Response;
+import com.evento.transport.codec.PayloadEncoding;
 import com.evento.transport.message.ResponseError;
+import com.evento.transport.message.StreamCancel;
+import com.evento.transport.message.StreamCredit;
+import com.evento.transport.message.StreamData;
+import com.evento.transport.message.StreamRedirect;
+import com.evento.application.client.stream.InboundStream;
+import com.evento.application.client.stream.OutboundStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +53,22 @@ public final class InboundDispatcher {
     private final Function<Message, java.util.concurrent.CompletableFuture<Void>> sender;
     private final java.util.Set<String> dedupExemptPayloadTypes;
     private final java.util.concurrent.atomic.AtomicInteger inFlight = new java.util.concurrent.atomic.AtomicInteger();
+    /** Replies of at least this many bytes are compressed for callers that accept it; 0 never. */
+    private final int compressionThreshold;
+    /** Whether inbound replies may be compressed (this bundle asked for it), and are decoded. */
+    private final boolean decodeReplies;
+
+    // ---- streamed replies (2.6) ----
+    /** Streams this bundle is receiving, by correlation id. */
+    private final java.util.concurrent.ConcurrentHashMap<java.util.UUID, InboundStream> inboundStreams =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** Streams this bundle's handlers are sending, by correlation id. */
+    private final java.util.concurrent.ConcurrentHashMap<java.util.UUID, OutboundStream> outboundStreams =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** Whether the current session can carry stream frames (the broker accepted the capability). */
+    private volatile java.util.function.BooleanSupplier streamsAccepted = () -> false;
+    /** Where streams are offered on direct connections; null when this bundle offers none. */
+    private volatile com.evento.application.client.stream.DirectStreamServer directServer;
 
     public InboundDispatcher(BundleCorrelationTracker correlationTracker,
                               ProcessedRequestCache dedupCache,
@@ -67,6 +90,26 @@ public final class InboundDispatcher {
                               Executor businessExecutor,
                               Function<Message, java.util.concurrent.CompletableFuture<Void>> sender,
                               java.util.Set<String> dedupExemptPayloadTypes) {
+        this(correlationTracker, dedupCache, handlerRegistry, businessExecutor, sender, dedupExemptPayloadTypes,
+                0, false);
+    }
+
+    /**
+     * @param compressionThreshold replies of at least this many bytes are compressed when
+     *        the request accepts it ({@link com.evento.transport.codec.PayloadEncoding}); 0 never
+     * @param decodeReplies whether this bundle's requests accept compressed replies, which are
+     *        then decoded before they complete their request
+     */
+    public InboundDispatcher(BundleCorrelationTracker correlationTracker,
+                              ProcessedRequestCache dedupCache,
+                              HandlerRegistry handlerRegistry,
+                              Executor businessExecutor,
+                              Function<Message, java.util.concurrent.CompletableFuture<Void>> sender,
+                              java.util.Set<String> dedupExemptPayloadTypes,
+                              int compressionThreshold,
+                              boolean decodeReplies) {
+        this.compressionThreshold = Math.max(0, compressionThreshold);
+        this.decodeReplies = decodeReplies;
         this.correlationTracker = correlationTracker;
         this.dedupCache = dedupCache;
         this.handlerRegistry = handlerRegistry;
@@ -83,9 +126,32 @@ public final class InboundDispatcher {
     public void dispatch(Message message) {
         switch (message) {
             case Response r -> {
-                if (!correlationTracker.complete(r)) {
+                var stream = inboundStreams.get(r.correlationId());
+                if (stream != null) {
+                    // A streamed request answered the plain way (an older handler) or failed.
+                    stream.accept(r);
+                } else if (!correlationTracker.complete(decoded(r))) {
                     log.debug("event=orphan_response correlationId={}", r.correlationId());
                 }
+            }
+            case StreamData d -> {
+                var stream = inboundStreams.get(d.correlationId());
+                if (stream != null) stream.accept(d);
+                else log.debug("event=stream_frame_orphan correlationId={} seq={}", d.correlationId(), d.seq());
+            }
+            case StreamRedirect r -> {
+                var stream = inboundStreams.get(r.correlationId());
+                if (stream != null) stream.accept(r);
+            }
+            case StreamCredit c -> {
+                var stream = outboundStreams.get(c.correlationId());
+                if (stream != null) stream.grant(c.credits());
+            }
+            case StreamCancel c -> {
+                var outbound = outboundStreams.get(c.correlationId());
+                if (outbound != null) outbound.cancel(c.reason());
+                var inbound = inboundStreams.get(c.correlationId());
+                if (inbound != null) inbound.fail(new IllegalStateException("stream cancelled: " + c.reason()));
             }
             case Request req -> dispatchRequest(req);
             case Notification n -> dispatchNotification(n);
@@ -95,6 +161,19 @@ public final class InboundDispatcher {
     }
 
     private void dispatchRequest(Request req) {
+        if (req.isStreamed() && streamsAccepted.getAsBoolean()
+                && handlerRegistry.requestHandlerFor(req.payloadType())
+                        instanceof HandlerRegistry.StreamingRequestHandler streaming) {
+            var direct = directServer;
+            if (req.streamDirect() && direct != null) {
+                // The caller can take it directly: hand it a ticket to this bundle's
+                // endpoint; the data then never crosses the broker.
+                trySend(direct.offer(req, streaming));
+                return;
+            }
+            runCounted(() -> runStream(req, streaming, sender));
+            return;
+        }
         if (dedupExemptPayloadTypes.contains(req.payloadType())) {
             // Idempotent request (query): run it directly, never touch the dedup
             // cache — so its response is not retained in memory after sending.
@@ -172,11 +251,169 @@ public final class InboundDispatcher {
                             req.correlationId(), req.payloadType(),
                             req.sourceBundleId(), req.sourceInstanceId(),
                             req.sourceBundleVersion(), req.timestampMs()));
+            if (req.accepts(PayloadEncoding.DEFLATE)) {
+                body = PayloadEncoding.deflateIfWorthwhile(body, compressionThreshold);
+            }
             return Response.success(req.correlationId(), req.payloadType(), body);
         } catch (Throwable t) {
             log.warn("event=handler_threw correlationId={} payloadType={}",
                     req.correlationId(), req.payloadType(), t);
             return Response.failure(req.correlationId(), ResponseError.of(t));
+        }
+    }
+
+    /**
+     * Answers a request this bundle sent to itself, on the business executor, exactly as
+     * an inbound one: same handler, same reply bytes. A request the handler has not
+     * answered within {@code timeout} completes like a remote one that ran out of time
+     * (the handler keeps running, as it would behind a broker).
+     */
+    public java.util.concurrent.CompletableFuture<Response> answerLocally(Request req, java.time.Duration timeout) {
+        var reply = new java.util.concurrent.CompletableFuture<Response>();
+        try {
+            businessExecutor.execute(() -> {
+                try {
+                    reply.complete(computeResponse(req));
+                } catch (Throwable t) {
+                    reply.complete(Response.failure(req.correlationId(), ResponseError.of(t)));
+                }
+            });
+        } catch (RuntimeException rejected) {
+            return java.util.concurrent.CompletableFuture.completedFuture(
+                    Response.failure(req.correlationId(), ResponseError.of(rejected)));
+        }
+        if (timeout != null && !timeout.isZero() && !timeout.isNegative()) {
+            long ms = timeout.toMillis();
+            reply.completeOnTimeout(Response.failure(req.correlationId(), new ResponseError(
+                    com.evento.transport.RequestTimeoutException.class.getName(),
+                    "request expired after " + ms + "ms (timeout=" + ms + ", answered locally)", null)),
+                    ms, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+        return reply;
+    }
+
+    /** Offers streams on direct connections to callers that ask for it (null: never). */
+    public void setDirectServer(com.evento.application.client.stream.DirectStreamServer server) {
+        this.directServer = server;
+    }
+
+    /** Whether stream frames may be sent on the current session. */
+    public void setStreamsAccepted(java.util.function.BooleanSupplier accepted) {
+        this.streamsAccepted = accepted == null ? () -> false : accepted;
+    }
+
+    /** Starts receiving a stream: frames for {@code stream}'s correlation id go to it. */
+    public void registerInbound(InboundStream stream) {
+        inboundStreams.put(stream.correlationId(), stream);
+    }
+
+    public void unregisterInbound(java.util.UUID correlationId) {
+        inboundStreams.remove(correlationId);
+    }
+
+    /** Streams being received now. */
+    public int inboundStreams() {
+        return inboundStreams.size();
+    }
+
+    /** Streams being sent now. */
+    public int outboundStreams() {
+        return outboundStreams.size();
+    }
+
+    /**
+     * The session ended: streams cannot move to another one (their frames would be lost or
+     * repeated). Received streams fail, sent streams stop (their handlers' sources close).
+     */
+    public void streamsLost(String reason) {
+        var cause = new IllegalStateException("stream interrupted: " + reason);
+        for (var stream : java.util.List.copyOf(inboundStreams.values())) stream.fail(cause);
+        for (var stream : java.util.List.copyOf(outboundStreams.values())) stream.cancel(reason);
+    }
+
+    /**
+     * Runs a streaming handler for {@code req}, writing frames through {@code frameSender}:
+     * the session's transport, the local pipe of a stream this bundle asked itself, or a
+     * direct connection. Returns the write of the terminal frame.
+     */
+    java.util.concurrent.CompletableFuture<Void> runStream(Request req,
+                                                           HandlerRegistry.StreamingRequestHandler handler,
+                                                           Function<Message, java.util.concurrent.CompletableFuture<Void>> frameSender) {
+        var sink = new OutboundStream(req.correlationId(), frameSender, req.streamWindow(),
+                java.time.Duration.ofMillis(req.timeoutMillis() > 0 ? req.timeoutMillis() : 30_000),
+                req.accepts(PayloadEncoding.DEFLATE), compressionThreshold);
+        outboundStreams.put(req.correlationId(), sink);
+        try {
+            handler.handleStream(req.payload(), new HandlerRegistry.RequestContext(
+                    req.correlationId(), req.payloadType(),
+                    req.sourceBundleId(), req.sourceInstanceId(),
+                    req.sourceBundleVersion(), req.timestampMs()), sink);
+            return sink.complete();
+        } catch (HandlerRegistry.StreamCancelledException cancelled) {
+            log.debug("event=stream_cancelled correlationId={} payloadType={} reason=\"{}\"",
+                    req.correlationId(), req.payloadType(), cancelled.getMessage());
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
+        } catch (Throwable t) {
+            log.warn("event=stream_handler_threw correlationId={} payloadType={}",
+                    req.correlationId(), req.payloadType(), t);
+            return sink.fail(t);
+        } finally {
+            outboundStreams.remove(req.correlationId());
+        }
+    }
+
+    /**
+     * Answers, here and as a stream, a request this bundle sent to itself: the frames go
+     * straight into {@code stream} (credit and cancel straight back), through the same
+     * handler path a remote stream takes.
+     */
+    public void answerLocally(Request req, InboundStream stream) {
+        var handler = handlerRegistry.requestHandlerFor(req.payloadType());
+        if (!(handler instanceof HandlerRegistry.StreamingRequestHandler streaming)) {
+            answerLocally(req, java.time.Duration.ofMillis(req.timeoutMillis()))
+                    .thenAccept(stream::accept);
+            return;
+        }
+        Function<Message, java.util.concurrent.CompletableFuture<Void>> pipe = m -> {
+            if (m instanceof StreamData d) stream.accept(d);
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
+        };
+        try {
+            businessExecutor.execute(() -> runStream(req, streaming, pipe));
+        } catch (RuntimeException rejected) {
+            stream.fail(rejected);
+        }
+    }
+
+    /** Credit and cancel of a stream this bundle answers itself, from its local caller. */
+    public void controlLocally(Message control) {
+        switch (control) {
+            case StreamCredit c -> {
+                var stream = outboundStreams.get(c.correlationId());
+                if (stream != null) stream.grant(c.credits());
+            }
+            case StreamCancel c -> {
+                var stream = outboundStreams.get(c.correlationId());
+                if (stream != null) stream.cancel(c.reason());
+            }
+            default -> { }
+        }
+    }
+
+    /** Whether a request handler is registered here for {@code payloadType}. */
+    public boolean handles(String payloadType) {
+        return handlerRegistry.requestHandlerFor(payloadType) != null;
+    }
+
+    /** A successful reply with its payload decoded, when this bundle accepts encoded replies. */
+    private Response decoded(Response r) {
+        if (!decodeReplies || r.isError() || !PayloadEncoding.isEncoded(r.payload())) return r;
+        try {
+            return new Response(r.correlationId(), r.payloadType(), PayloadEncoding.decode(r.payload()),
+                    null, r.timestampMs());
+        } catch (RuntimeException corrupt) {
+            log.warn("event=reply_decode_failed correlationId={} payloadType={}", r.correlationId(), r.payloadType(), corrupt);
+            return Response.failure(r.correlationId(), ResponseError.of(corrupt));
         }
     }
 

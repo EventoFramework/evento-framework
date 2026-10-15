@@ -11,6 +11,29 @@ import com.evento.common.utils.Context;
 public abstract class EventMessage<T extends Event> extends Message<T> {
 
 	private String context;
+
+	/**
+	 * Where the broker stored this event, when it came back as a command's result (2.6).
+	 * Process-local: never serialized, never stored with the event.
+	 */
+	@com.fasterxml.jackson.annotation.JsonIgnore
+	private transient com.evento.common.modeling.messaging.query.ConsistencyToken storedAt;
+
+	/**
+	 * Where the broker stored this event (its context and global sequence number), as a
+	 * token a query can require; null when unknown (an older broker, or an event that did
+	 * not come back as a command result).
+	 */
+	@com.fasterxml.jackson.annotation.JsonIgnore
+	public com.evento.common.modeling.messaging.query.ConsistencyToken getStoredAt() {
+		return storedAt;
+	}
+
+	@com.fasterxml.jackson.annotation.JsonIgnore
+	public void setStoredAt(com.evento.common.modeling.messaging.query.ConsistencyToken storedAt) {
+		this.storedAt = storedAt;
+	}
+
 	/**
 	 * Constructs a new EventMessage with the given payload.
 	 *

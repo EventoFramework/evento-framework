@@ -24,6 +24,7 @@ import com.evento.transport.SendFailedException;
 import com.evento.transport.Transport;
 import com.evento.transport.TransportServer;
 import com.evento.transport.codec.JacksonCborPayloadCodec;
+import com.evento.transport.codec.PayloadEncoding;
 import com.evento.transport.codec.PayloadCodec;
 import com.evento.transport.message.Hello;
 import com.evento.transport.message.Message;
@@ -31,6 +32,10 @@ import com.evento.transport.message.Notification;
 import com.evento.transport.message.Request;
 import com.evento.transport.message.Response;
 import com.evento.transport.message.ResponseError;
+import com.evento.transport.message.StreamCancel;
+import com.evento.transport.message.StreamCredit;
+import com.evento.transport.message.StreamData;
+import com.evento.transport.message.StreamRedirect;
 import com.evento.transport.state.ConnectionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -175,6 +180,39 @@ public final class BusLifecycle {
 
     private final ConcurrentHashMap<String, TimedRequestHandler> localHandlers = new ConcurrentHashMap<>();
 
+    /**
+     * Payload types routed "straight": read-only, idempotent requests (queries, event
+     * fetches). They claim no exactly-once dedup slot, their responses are never cached
+     * for replay nor buffered for an originator that is away: a lost read is simply asked
+     * again by its caller. Bundles declare their {@code @QueryHandler} types in the
+     * registration ({@link BundleRegistrationInfo#queryPayloadTypes()}); server-local
+     * read handlers through {@link #registerStraightPayloadType}. A payload type names
+     * one message class cluster-wide, so the set only grows.
+     */
+    private final Set<String> straightPayloadTypes = ConcurrentHashMap.newKeySet();
+
+    /** Route {@code payloadType} straight (see {@link #isStraight}): idempotent, never cached. */
+    public void registerStraightPayloadType(String payloadType) {
+        if (payloadType != null && !payloadType.isBlank()) straightPayloadTypes.add(payloadType);
+    }
+
+    private volatile int responseCompressionThreshold = PayloadEncoding.DEFAULT_THRESHOLD;
+
+    /**
+     * Replies of this broker's own handlers (event fetches, command results) of at least
+     * this many bytes are compressed when the caller accepts it ({@link PayloadEncoding});
+     * 0 never compresses. Forwarded replies are compressed, or not, by the bundle that
+     * produced them: the broker relays bytes as they are.
+     */
+    public void setResponseCompressionThreshold(int bytes) {
+        this.responseCompressionThreshold = Math.max(0, bytes);
+    }
+
+    /** Whether requests of {@code payloadType} bypass the dedup cache and the reconnect buffer. */
+    public boolean isStraight(String payloadType) {
+        return payloadType != null && straightPayloadTypes.contains(payloadType);
+    }
+
     public void registerLocalHandler(String payloadType, LocalRequestHandler handler) {
         localHandlers.put(payloadType, (payload, originator, deadlineMs, timing) -> handler.handle(payload));
     }
@@ -247,10 +285,30 @@ public final class BusLifecycle {
      * are replayed to the new transport so in-flight futures can complete.
      * Entries expire after {@link #RECONNECT_BUFFER_TTL_MS} to bound memory.
      */
-    private record PendingResponseEntry(Response response, Frame frame, long expiresAtMs) {}
+    private record PendingResponseEntry(Response response, Frame frame, long expiresAtMs, long bytes) {}
     private final ConcurrentHashMap<String, ConcurrentLinkedQueue<PendingResponseEntry>> reconnectBuffer
             = new ConcurrentHashMap<>();
     private static final long RECONNECT_BUFFER_TTL_MS = 120_000L;
+    /** Default bound on the bytes held for originators that are away (see {@link #setReconnectBufferMaxBytes}). */
+    public static final long DEFAULT_RECONNECT_BUFFER_MAX_BYTES = 256L * 1024 * 1024;
+    private volatile long reconnectBufferMaxBytes = DEFAULT_RECONNECT_BUFFER_MAX_BYTES;
+    private final java.util.concurrent.atomic.AtomicLong reconnectBufferBytes = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * Bound on the bytes of the responses buffered for originators that are away. A
+     * response that would cross it is not buffered ({@code event=reconnect_buffer_full}):
+     * its caller times out with an indeterminate outcome, as it would if it never came
+     * back, instead of a burst of disconnects exhausting the broker's heap. Queries are
+     * never buffered at all (they are re-asked, see {@link #isStraight}).
+     */
+    public void setReconnectBufferMaxBytes(long maxBytes) {
+        this.reconnectBufferMaxBytes = Math.max(0L, maxBytes);
+    }
+
+    /** Bytes currently buffered for originators that are away. */
+    public long reconnectBufferBytes() {
+        return reconnectBufferBytes.get();
+    }
 
     // Background maintenance: prunes the forwarding table (relays whose originator died mid-call)
     // and expired reconnect-buffer entries (responses for originators that never came back).
@@ -328,15 +386,20 @@ public final class BusLifecycle {
         this.tokenValidator = tokenValidator;
         this.dedupCache = dedupCache;
         this.serverInstanceId = serverInstanceId;
+        // Relaying streamed replies is part of this broker, not a deployment option: it is
+        // accepted from every bundle that offers it.
+        var capabilities = new java.util.HashSet<>(serverCapabilities);
+        capabilities.add(HandshakeProtocol.CAPABILITY_STREAM);
         this.handshakeHandler = new HandshakeHandler(
                 serverInstanceId,
-                serverCapabilities,
+                capabilities,
                 (hello, info) -> validateHello(hello));
         this.router = new MessageRouter(
                 this::onHello,
                 this::onRequest,
                 this::onResponse,
-                this::onNotification);
+                this::onNotification,
+                this::onStream);
         transportServer.onConnection(this::acceptConnection);
         transportServer.setPreSessionReadiness(() -> probeReadiness.getAsBoolean());
     }
@@ -421,8 +484,9 @@ public final class BusLifecycle {
         int removed = 0;
         for (var queue : reconnectBuffer.values()) {
             for (var it = queue.iterator(); it.hasNext(); ) {
-                if (now > it.next().expiresAtMs()) {
-                    it.remove();
+                var pending = it.next();
+                if (now > pending.expiresAtMs() && queue.remove(pending)) {
+                    reconnectBufferBytes.addAndGet(-pending.bytes());
                     removed++;
                 }
             }
@@ -563,6 +627,7 @@ public final class BusLifecycle {
         long version = parseBundleVersion(hello.bundleVersion());
         var address = new NodeAddress(hello.bundleId(), version, hello.instanceId());
         session.bindAddress(address);
+        session.setCapabilities(handshakeHandler.negotiated(hello));
         session.transitionTo(BundleSession.Phase.REGISTERED);
         connectionRegistry.register(new Connection(
                 address, session.transport(), session.connectionToken(), Instant.now()));
@@ -595,6 +660,7 @@ public final class BusLifecycle {
                 // old payload types dangling in the routing table.
                 var evictedTypes = clusterRegistry.removeNode(session.address());
                 evictedTypes.forEach(localHandlers::remove);
+                info.queryPayloadTypes().forEach(this::registerStraightPayloadType);
                 clusterRegistry.registerHandlers(session.address(), info.handlerPayloadTypes());
                 eventBus.publish(new BusEvent.BundleRegistered(session.address(), info, Instant.now()));
             }
@@ -641,20 +707,25 @@ public final class BusLifecycle {
         }
         // Exactly-once at the broker: a duplicate of an already-answered request
         // gets the cached response; a duplicate of an in-flight request is dropped.
-        var dedupOutcome = dedupCache.resolveOrClaim(request.correlationId());
-        switch (dedupOutcome) {
-            case ForwardingDedupCache.Outcome.Replay replay -> {
-                log.info("event=request_dedup_replay correlationId={} payloadType={}",
-                        request.correlationId(), request.payloadType());
-                session.transport().send(replay.response());
-                return;
+        // Straight (idempotent) requests skip it: a duplicate read is answered again,
+        // and its response — often the largest payload on the bus — is never retained.
+        boolean straight = isStraight(request.payloadType());
+        if (!straight) {
+            var dedupOutcome = dedupCache.resolveOrClaim(request.correlationId());
+            switch (dedupOutcome) {
+                case ForwardingDedupCache.Outcome.Replay replay -> {
+                    log.info("event=request_dedup_replay correlationId={} payloadType={}",
+                            request.correlationId(), request.payloadType());
+                    session.transport().send(replay.response());
+                    return;
+                }
+                case ForwardingDedupCache.Outcome.InFlight ignored -> {
+                    log.info("event=request_dedup_drop_inflight correlationId={} payloadType={}",
+                            request.correlationId(), request.payloadType());
+                    return;
+                }
+                case ForwardingDedupCache.Outcome.Claimed ignored -> { /* fresh; route below */ }
             }
-            case ForwardingDedupCache.Outcome.InFlight ignored -> {
-                log.info("event=request_dedup_drop_inflight correlationId={} payloadType={}",
-                        request.correlationId(), request.payloadType());
-                return;
-            }
-            case ForwardingDedupCache.Outcome.Claimed ignored -> { /* fresh; route below */ }
         }
 
         var localHandler = localHandlers.get(request.payloadType());
@@ -663,8 +734,11 @@ public final class BusLifecycle {
                 var timing = new RequestTiming(frame == null ? System.nanoTime() : frame.receivedAtNanos(),
                         System.nanoTime());
                 byte[] result = localHandler.handle(request.payload(), session.address(), deadlineMs, timing);
+                if (request.accepts(PayloadEncoding.DEFLATE)) {
+                    result = PayloadEncoding.deflateIfWorthwhile(result, responseCompressionThreshold);
+                }
                 var response = Response.success(request.correlationId(), request.payloadType(), result);
-                dedupCache.recordResponse(request.correlationId(), response);
+                if (!straight) dedupCache.recordResponse(request.correlationId(), response);
                 var written = session.transport().send(response);
                 if (written != null) {
                     written.whenComplete((ok, writeFailure) -> {
@@ -701,7 +775,16 @@ public final class BusLifecycle {
                     new IllegalStateException("handler vanished: " + destAddress.instanceId()));
             return;
         }
-        forwardingTable.track(request.correlationId(), session.address(), destAddress, request.payloadType());
+        if (request.isStreamed() && !session.supportsStreams()) {
+            // It could not decode the frames this would bring back.
+            replyWithError(session.transport(), request.correlationId(),
+                    new IllegalStateException("streamed reply asked on a session that did not negotiate "
+                            + HandshakeProtocol.CAPABILITY_STREAM));
+            return;
+        }
+        if (request.isStreamed()) streamsOpened.incrementAndGet();
+        forwardingTable.track(request.correlationId(), session.address(), destAddress, request.payloadType(),
+                request.isStreamed());
         // Zero-copy forward: the broker doesn't re-encode the Request — it writes
         // the exact bytes that arrived on the wire to the destination's channel.
         // Saves one CBOR pass + one byte[] allocation on every hop. Fall back to
@@ -719,27 +802,55 @@ public final class BusLifecycle {
         if (correlationStore.complete(response)) {
             return;  // server-initiated request
         }
-        // Cache the response so duplicate requests on the way get a replay.
-        dedupCache.recordResponse(response.correlationId(), response);
         var entry = forwardingTable.resolve(response.correlationId());
         if (entry.isEmpty()) {
+            // Still fill a dedup slot a duplicate may be waiting on (it is a no-op when
+            // there is none).
+            dedupCache.recordResponse(response.correlationId(), response);
             log.debug("event=orphan_response correlationId={}", response.correlationId());
             return;
         }
+        boolean straight = isStraight(entry.get().payloadType());
+        // Cache the response so duplicate requests on the way get a replay; a read is
+        // never cached, a duplicate of it is simply answered again.
+        if (!straight) dedupCache.recordResponse(response.correlationId(), response);
         var originator = entry.get().originator();
         var originatorConn = connectionRegistry.lookup(originator);
         if (originatorConn.isEmpty()) {
-            // Originator disconnected before the handler replied. Buffer the
-            // response so it can be replayed when the originator reconnects.
-            reconnectBuffer
-                    .computeIfAbsent(originator.instanceId(), k -> new ConcurrentLinkedQueue<>())
-                    .add(new PendingResponseEntry(response, frame,
-                            System.currentTimeMillis() + RECONNECT_BUFFER_TTL_MS));
-            log.info("event=response_buffered_for_reconnect correlationId={} originator={}",
-                    response.correlationId(), originator.instanceId());
+            if (straight) {
+                // The caller asks a lost read again when it reattaches: holding the
+                // answer here would only pin (possibly large) bytes for two minutes.
+                log.info("event=straight_response_dropped_originator_away correlationId={} payloadType={} originator={}",
+                        response.correlationId(), entry.get().payloadType(), originator.instanceId());
+                return;
+            }
+            bufferForReconnect(originator, response, frame);
             return;
         }
         forwardOrSend(originatorConn.get().transport(), frame, response);
+    }
+
+    /**
+     * Originator disconnected before the handler replied: buffer the response so it can
+     * be replayed when the originator reconnects, within the byte bound.
+     */
+    private void bufferForReconnect(NodeAddress originator, Response response, Frame frame) {
+        long bytes = 64L + (response.payload() == null ? 0 : response.payload().length)
+                + (frame == null ? 0 : frame.rawBytes().length);
+        long after = reconnectBufferBytes.addAndGet(bytes);
+        if (after > reconnectBufferMaxBytes) {
+            reconnectBufferBytes.addAndGet(-bytes);
+            log.warn("event=reconnect_buffer_full correlationId={} originator={} bytes={} bufferedBytes={} maxBytes={}"
+                            + " - response not buffered, the caller's request ends indeterminate",
+                    response.correlationId(), originator.instanceId(), bytes, after - bytes, reconnectBufferMaxBytes);
+            return;
+        }
+        reconnectBuffer
+                .computeIfAbsent(originator.instanceId(), k -> new ConcurrentLinkedQueue<>())
+                .add(new PendingResponseEntry(response, frame,
+                        System.currentTimeMillis() + RECONNECT_BUFFER_TTL_MS, bytes));
+        log.info("event=response_buffered_for_reconnect correlationId={} originator={}",
+                response.correlationId(), originator.instanceId());
     }
 
     /**
@@ -764,6 +875,94 @@ public final class BusLifecycle {
             forwardedRawCount.decrementAndGet();
             forwardedReencodedCount.incrementAndGet();
             return dest.send(fallback);
+        }
+    }
+
+    // ---- streamed replies (2.6) ----
+
+    private final java.util.concurrent.atomic.AtomicLong streamsOpened = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong streamFramesRelayed = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong streamBytesRelayed = new java.util.concurrent.atomic.AtomicLong();
+
+    /** Streamed requests forwarded since start. */
+    public long streamsOpened() { return streamsOpened.get(); }
+    /** Streams being relayed now. */
+    public int activeStreams() { return forwardingTable.streamCount(); }
+    /** Stream frames relayed (data and control) since start. */
+    public long streamFramesRelayed() { return streamFramesRelayed.get(); }
+    /** Bytes of stream frames relayed since start. */
+    public long streamBytesRelayed() { return streamBytesRelayed.get(); }
+    /** Bytes of command replies the exactly-once cache retains for replay. */
+    public long dedupRetainedBytes() { return dedupCache.retainedBytes(); }
+
+    /**
+     * Relays one frame of a streamed reply. The broker holds nothing of a stream but its
+     * forwarding entry: each frame is written to the other side as it was read (zero copy),
+     * and since the caller grants credit only as it consumes, the frames in flight for a
+     * stream never exceed its window, whatever the size of the result.
+     *
+     * <ul>
+     *   <li>{@link StreamData} and {@link StreamRedirect} come from the handler and go to the
+     *       caller; {@link StreamCredit} and {@link StreamCancel} come from the caller and go
+     *       to the handler. A frame from any other session is dropped: a stream belongs to
+     *       the two peers that opened it.</li>
+     *   <li>A frame for a stream the broker no longer knows (ended, cancelled, its caller gone)
+     *       is answered with a cancel, so a handler stops instead of waiting for credit.</li>
+     * </ul>
+     */
+    private void onStream(Message message, Frame frame, BundleSession session) {
+        if (session.address() == null) return;
+        var id = message.correlationId();
+        var known = forwardingTable.touch(id);
+        if (known.isEmpty()) {
+            if (message instanceof StreamData || message instanceof StreamRedirect) {
+                cancelTowards(session, id, "stream unknown to the broker (ended, cancelled, or its caller left)");
+            }
+            log.debug("event=stream_frame_orphan type={} correlationId={}", message.getClass().getSimpleName(), id);
+            return;
+        }
+        var entry = known.get();
+        boolean fromHandler = message instanceof StreamData || message instanceof StreamRedirect;
+        var expectedSender = fromHandler ? entry.destination() : entry.originator();
+        if (!expectedSender.equals(session.address())) {
+            log.warn("event=stream_frame_foreign type={} correlationId={} from={} expected={}",
+                    message.getClass().getSimpleName(), id, session.address().instanceId(), expectedSender.instanceId());
+            return;
+        }
+        var target = fromHandler ? entry.originator() : entry.destination();
+        boolean terminal = message instanceof StreamData d ? d.last()
+                : message instanceof StreamCancel || message instanceof StreamRedirect;
+        if (terminal) forwardingTable.resolve(id);
+
+        var targetConnection = connectionRegistry.lookup(target);
+        var targetSession = targetConnection.map(c -> sessionsByTransport.get(c.transport())).orElse(null);
+        if (targetConnection.isEmpty() || targetSession == null || !targetSession.supportsStreams()) {
+            if (fromHandler) {
+                // The caller is gone: stop the handler.
+                forwardingTable.resolve(id);
+                cancelTowards(session, id, "caller " + target.instanceId() + " is no longer connected");
+            }
+            // Credit or cancel for a handler that left (its caller got a failure reply) or
+            // that cannot stream (it answers with a plain reply): nothing to relay.
+            return;
+        }
+        streamFramesRelayed.incrementAndGet();
+        streamBytesRelayed.addAndGet(frame == null ? 0 : frame.rawBytes().length);
+        forwardOrSend(targetConnection.get().transport(), frame, message).exceptionally(t -> {
+            if (fromHandler) {
+                forwardingTable.resolve(id);
+                cancelTowards(session, id, "relay to the caller failed: " + t.getMessage());
+            }
+            return null;
+        });
+    }
+
+    private void cancelTowards(BundleSession session, UUID correlationId, String reason) {
+        if (!session.supportsStreams()) return;
+        try {
+            session.transport().send(StreamCancel.of(correlationId, reason));
+        } catch (SendFailedException sfe) {
+            log.debug("event=stream_cancel_send_failed correlationId={}", correlationId);
         }
     }
 
@@ -824,6 +1023,17 @@ public final class BusLifecycle {
             });
         }
 
+        // Streams this peer was receiving cannot resume on another session: tell their
+        // handlers to stop rather than wait for credit until their timeout.
+        for (var stream : forwardingTable.drainStreamsByOriginator(address)) {
+            connectionRegistry.lookup(stream.destination()).ifPresent(handlerConn -> {
+                var handlerSession = sessionsByTransport.get(handlerConn.transport());
+                if (handlerSession != null) {
+                    cancelTowards(handlerSession, stream.correlationId(), "caller " + address.instanceId() + " disconnected");
+                }
+            });
+        }
+
         // Server-initiated correlations (no forwarding involved) also fail.
         correlationStore.failMatching(c -> c.to().equals(address), disconnectCause);
     }
@@ -834,7 +1044,11 @@ public final class BusLifecycle {
         var queue = reconnectBuffer.remove(address.instanceId());
         if (queue == null || queue.isEmpty()) return;
         long now = System.currentTimeMillis();
-        for (var pending : queue) {
+        // poll, not iterate: the maintenance prune may hold this queue too, and only the
+        // side that removes an entry releases its bytes.
+        PendingResponseEntry pending;
+        while ((pending = queue.poll()) != null) {
+            reconnectBufferBytes.addAndGet(-pending.bytes());
             if (now > pending.expiresAtMs()) {
                 log.debug("event=buffered_response_expired correlationId={}",
                         pending.response().correlationId());

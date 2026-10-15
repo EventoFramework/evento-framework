@@ -129,6 +129,8 @@ public final class ConnectionSupervisor implements AutoCloseable {
             new java.util.concurrent.atomic.AtomicInteger();
     /** The broker of the current (or last) session that passed the handshake; null before the first. */
     private volatile String serverInstanceId;
+    /** The capabilities the broker of the current (or last) session accepted. */
+    private volatile java.util.Set<String> acceptedCapabilities = java.util.Set.of();
     private volatile BundleClientConfig.Endpoint currentEndpoint;
     private final CopyOnWriteArrayList<Consumer<String>> brokerListeners = new CopyOnWriteArrayList<>();
 
@@ -188,6 +190,11 @@ public final class ConnectionSupervisor implements AutoCloseable {
      * session, or of the last one that passed the handshake; null before any.
      */
     public String serverInstanceId() { return serverInstanceId; }
+
+    /** Whether the broker of the current session accepted {@code capability} in its Welcome. */
+    public boolean accepted(String capability) {
+        return acceptedCapabilities.contains(capability);
+    }
 
     /** The endpoint of the current (or last) session; null before the first dial. */
     public BundleClientConfig.Endpoint currentEndpoint() { return currentEndpoint; }
@@ -946,6 +953,7 @@ public final class ConnectionSupervisor implements AutoCloseable {
                     welcome.serverInstanceId(), welcome.clusterName(), endpoint,
                     welcome.acceptedCapabilities());
             serverInstanceId = welcome.serverInstanceId();
+            acceptedCapabilities = welcome.acceptedCapabilities();
             for (var l : brokerListeners) {
                 try { l.accept(welcome.serverInstanceId()); }
                 catch (Throwable t) { log.warn("event=broker_listener_error", t); }
@@ -960,7 +968,8 @@ public final class ConnectionSupervisor implements AutoCloseable {
         // Step 1: lean registration — server builds routing table immediately
         var info = new BundleRegistrationInfo(
                 parseVersion(config.bundleVersion()),
-                config.handlerPayloadTypes());
+                config.handlerPayloadTypes(),
+                config.queryPayloadTypes());
         transport.send(new Notification(UUID.randomUUID(),
                 BundleRegistrationInfo.PAYLOAD_TYPE,
                 payloadCodec.encode(info),

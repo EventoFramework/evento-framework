@@ -94,14 +94,18 @@ final class AsmInvocationScanner {
 
     // ── gateway-call predicates (shared with ConfinementScanner) ──────────────
 
+    /** Gateway methods that send a command (first argument) or ask a query (first argument). */
+    private static final java.util.Set<String> COMMAND_METHODS = java.util.Set.of("send", "sendIdempotent", "sendTracked");
+    private static final java.util.Set<String> QUERY_METHODS = java.util.Set.of("query", "queryWith", "stream");
+
     static boolean isCommandGatewayCall(String name, String desc) {
-        if (!name.equals("send")) return false;
+        if (!COMMAND_METHODS.contains(name)) return false;
         Type[] args = Type.getArgumentTypes(desc);
         return args.length > 0 && COMMAND_INTERNAL.equals(args[0].getInternalName());
     }
 
     static boolean isQueryGatewayCall(String name, String desc) {
-        if (!name.equals("query")) return false;
+        if (!QUERY_METHODS.contains(name)) return false;
         Type[] args = Type.getArgumentTypes(desc);
         return args.length > 0 && QUERY_INTERNAL.equals(args[0].getInternalName());
     }

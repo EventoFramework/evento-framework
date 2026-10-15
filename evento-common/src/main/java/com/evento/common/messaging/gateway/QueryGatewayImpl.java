@@ -5,6 +5,7 @@ import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;
 import com.evento.common.modeling.messaging.payload.Query;
+import com.evento.common.modeling.messaging.payload.View;
 import com.evento.common.modeling.messaging.query.QueryResponse;
 
 import java.util.concurrent.CompletableFuture;
@@ -50,5 +51,47 @@ public class QueryGatewayImpl implements QueryGateway {
 			future.completeExceptionally(e);
 			return future;
 		}
+	}
+
+	/**
+	 * With {@link QueryOptions#readYourWrites()}, the answer reflects every write this
+	 * process's commands made ({@link EventoServer#ownWrites()}), plus any token passed with
+	 * {@link QueryOptions#after}.
+	 */
+	@Override
+	@SuppressWarnings("unchecked")
+	public <T extends QueryResponse<?>> CompletableFuture<T> queryWith(Query<T> query, QueryOptions options) {
+		try
+		{
+			var opts = options == null ? QueryOptions.defaults() : options;
+			return eventoServer.request(message(query, opts), opts.timeoutMillis(this), TimeUnit.MILLISECONDS)
+					.thenApply(r -> (T) r);
+		} catch (Exception e)
+		{
+			return CompletableFuture.failedFuture(e);
+		}
+	}
+
+	@Override
+	public <V extends View> QueryStream<V> stream(Query<? extends QueryResponse<V>> query, QueryOptions options) {
+		var opts = options == null ? QueryOptions.defaults() : options;
+		QueryStream<V> streamed;
+		try {
+			streamed = eventoServer.streamQuery(message(query, opts), opts, opts.timeoutMillis(this));
+		} catch (RuntimeException e) {
+			return QueryStream.failed(e);
+		}
+		return streamed != null ? streamed : QueryGateway.super.stream(query, opts);
+	}
+
+	private QueryMessage<?> message(Query<?> query, QueryOptions opts) {
+		var message = new QueryMessage<>(query);
+		message.setMetadata(opts.getMetadata());
+		var consistency = opts.getConsistency();
+		if (opts.isReadYourWrites()) {
+			consistency = consistency.merge(eventoServer.ownWrites());
+		}
+		message.setConsistency(consistency);
+		return message;
 	}
 }

@@ -432,6 +432,33 @@ public class EventoBundle {
          */
         private Duration failbackDrainTimeout;
 
+        /**
+         * Answer the queries this bundle handles itself, without the broker, once the
+         * bundle is enabled (default true). The query keeps the handler-side path of a
+         * remote one: codec, interceptors, tracing agent, handler and round-trip metrics.
+         */
+        private boolean localQueryShortCircuit = true;
+
+        /**
+         * Replies of this bundle's handlers of at least this many bytes are compressed for
+         * callers that accept it (default 32 KiB); 0 never compresses.
+         */
+        private int compressionThreshold = com.evento.transport.codec.PayloadEncoding.DEFAULT_THRESHOLD;
+
+        /** Whether this bundle's requests accept compressed replies (default true). */
+        private boolean acceptCompressedReplies = true;
+
+        /**
+         * Offer this bundle's streamed query answers on direct connections (2.6), for
+         * callers that ask for it ({@code QueryOptions.direct()}): the broker routes the
+         * query and the data flows bundle to bundle. Null (default): streams go through
+         * the broker, which relays them with flow control.
+         */
+        private com.evento.application.client.stream.DirectStreamConfig directStreamConfig;
+
+        /** Target size of one frame of a streamed query answer (default 256 KiB). */
+        private int streamFrameBytes = com.evento.application.client.BundleInboundDispatcher.DEFAULT_STREAM_FRAME_BYTES;
+
         private com.fasterxml.jackson.databind.ObjectMapper objectMapper = ObjectMapperUtils.getPayloadObjectMapper();
         private Map<String, Set<String>> contexts = new HashMap<>();
         private Consumer<EventoBundle> onEventoStartedHook = (eventoServer) -> {};
@@ -787,6 +814,10 @@ public class EventoBundle {
                     .defaultRequestTimeout(defaultRequestTimeout)
                     .maxInFlightRequests(maxInFlightRequests)
                     .zone(zone)
+                    .localQueryShortCircuit(localQueryShortCircuit)
+                    .compressionThreshold(compressionThreshold)
+                    .acceptCompressedReplies(acceptCompressedReplies)
+                    .directStreams(directStreamConfig)
                     .bundleVersion(String.valueOf(bundleVersion))
                     .description(description.isEmpty() ? bundleId : description)
                     .detail(detail)
@@ -804,6 +835,11 @@ public class EventoBundle {
             var dispatcher = new BundleInboundDispatcher(adminCodec,
                     aggregateManager, serviceManager, projectionManager,
                     bundleClient.latencies().handlers());
+            // Read-your-writes: a query carrying a consistency token waits for this
+            // bundle's projectors (bound to the engines once they exist, below).
+            dispatcher.setStreamFrameBytes(streamFrameBytes);
+            final var enginesForGate = new AtomicReference<EngineSupervisor>();
+            dispatcher.setConsistencyGate(new com.evento.application.consumer.ProjectorConsistencyGate(enginesForGate::get));
             bundleClient.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, adminHandler);
             for (String payloadType : handlerPayloadTypes) {
                 bundleClient.registerRequestHandler(payloadType, dispatcher);
@@ -828,6 +864,7 @@ public class EventoBundle {
                 consumerEngineConfigBuilder = ConsumerEngineConfig::inMemory;
             }
             final var supervisor = new EngineSupervisor();
+            enginesForGate.set(supervisor);
 
             eventoBundle.set(new EventoBundle(
                     basePackage.getName(),

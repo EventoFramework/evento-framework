@@ -56,6 +56,20 @@ class AsmInvocationScannerTest {
         assertThat(result.commands()).isEmpty();
     }
 
+    // ── every gateway method, not only send/query ──────────────────────────────
+
+    @Test
+    void detectsKeyedAndTrackedSendsAndQueriesWithOptionsOrStreamed() throws Exception {
+        assertThat(AsmInvocationScanner.scan(method(GatewayVariantsFixture.class, "onKeyed")).commands().values())
+                .containsExactly("SentDomainCmd");
+        assertThat(AsmInvocationScanner.scan(method(GatewayVariantsFixture.class, "onTracked")).commands().values())
+                .containsExactly("SentDomainCmd");
+        assertThat(AsmInvocationScanner.scan(method(GatewayVariantsFixture.class, "onQueryWith")).queries().values())
+                .containsExactly("SentQuery");
+        assertThat(AsmInvocationScanner.scan(method(GatewayVariantsFixture.class, "onStream")).queries().values())
+                .containsExactly("SentQuery");
+    }
+
     // ── lambda body ────────────────────────────────────────────────────────────
 
     @Test

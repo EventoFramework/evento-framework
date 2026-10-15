@@ -56,6 +56,27 @@ public class CommandGatewayImpl implements CommandGateway {
 	public <R> CompletableFuture<R> send(Command command, Metadata metadata,
 										 Message<?> handledMessage, long timeout, TimeUnit unit,
 										 String idempotencyKey) {
+		return requestCommand(command, metadata, idempotencyKey, timeout, unit)
+				.thenApply(e -> (R) resultOf(e));
+	}
+
+	/**
+	 * Like {@link #send(Command, Metadata, Message, long, TimeUnit, String)}, also reporting where
+	 * the broker stored the command's event (it says so from 2.6; an older broker answers
+	 * {@link com.evento.common.modeling.messaging.query.ConsistencyToken#NONE}).
+	 */
+	@Override
+	@SuppressWarnings("unchecked")
+	public <R> CompletableFuture<Tracked<R>> sendTracked(Command command, Metadata metadata,
+														  Message<?> handledMessage, long timeout, TimeUnit unit,
+														  String idempotencyKey) {
+		return requestCommand(command, metadata, idempotencyKey, timeout, unit)
+				.thenApply(e -> new Tracked<>((R) resultOf(e),
+						e instanceof EventMessage<?> em ? em.getStoredAt() : null));
+	}
+
+	private CompletableFuture<Serializable> requestCommand(Command command, Metadata metadata, String idempotencyKey,
+													 long timeout, TimeUnit unit) {
 		try
 		{
 			var message = command instanceof DomainCommand ?
@@ -63,30 +84,30 @@ public class CommandGatewayImpl implements CommandGateway {
 					new ServiceCommandMessage((ServiceCommand) command);
 			message.setMetadata(metadata);
 			message.setIdempotencyKey(idempotencyKey);
-
-			return (CompletableFuture<R>) eventoServer.request(message, timeout, unit).thenApply(e -> {
-				if (e instanceof EventMessage<?> em) {
-					// v2 path: the handler bundle returns a ServiceEventMessage/DomainEventMessage
-					// wrapper. Extract the actual event payload, mirroring what the v1 server did
-					// (it called getSerializedPayload().getSerializedObject() before forwarding).
-					var sp = em.getSerializedPayload();
-					return sp == null ? null : (R) sp.getObject();
-				}
-				if (!(e instanceof String)) {
-					return e;
-				}
-				try {
-					return ObjectMapperUtils.getPayloadObjectMapper()
-							.readValue(e.toString(), Serializable.class);
-				} catch (JsonProcessingException ex) {
-					throw new CompletionException(ex);
-				}
-			});
+			return eventoServer.request(message, timeout, unit);
 		} catch (Exception e)
 		{
-			var future = new CompletableFuture<R>();
-			future.completeExceptionally(e);
-			return future;
+			return CompletableFuture.failedFuture(e);
+		}
+	}
+
+	/** The command's result as callers have always received it: the event's payload. */
+	private static Object resultOf(Object e) {
+		if (e instanceof EventMessage<?> em) {
+			// v2 path: the handler bundle returns a ServiceEventMessage/DomainEventMessage
+			// wrapper. Extract the actual event payload, mirroring what the v1 server did
+			// (it called getSerializedPayload().getSerializedObject() before forwarding).
+			var sp = em.getSerializedPayload();
+			return sp == null ? null : sp.getObject();
+		}
+		if (!(e instanceof String)) {
+			return e;
+		}
+		try {
+			return ObjectMapperUtils.getPayloadObjectMapper()
+					.readValue(e.toString(), Serializable.class);
+		} catch (JsonProcessingException ex) {
+			throw new CompletionException(ex);
 		}
 	}
 

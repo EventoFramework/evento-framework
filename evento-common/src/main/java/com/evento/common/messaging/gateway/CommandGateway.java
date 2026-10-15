@@ -181,4 +181,29 @@ public interface CommandGateway extends Gateway {
 		return false;
 	}
 
+
+	/** {@link #sendTracked(Command, Metadata, Message, long, TimeUnit, String)} with the defaults. */
+	default <R> CompletableFuture<Tracked<R>> sendTracked(Command command) {
+		return sendTracked(command, null, null, getDefaultTimeoutTime(), getDefaultTimeoutUnit(), null);
+	}
+
+	/** {@link #sendTracked(Command, Metadata, Message, long, TimeUnit, String)} with the default timeout. */
+	default <R> CompletableFuture<Tracked<R>> sendTracked(Command command, Metadata metadata) {
+		return sendTracked(command, metadata, null, getDefaultTimeoutTime(), getDefaultTimeoutUnit(), null);
+	}
+
+	/**
+	 * Sends a command like {@link #send(Command, Metadata, Message, long, TimeUnit, String)} and
+	 * also answers where its event was stored, so a later query can require to see it
+	 * ({@code QueryOptions#after(Tracked#token())}).
+	 *
+	 * <p>The default implementation refuses: a gateway written before write positions existed
+	 * cannot report them, and a token it made up would let a query answer stale.
+	 */
+	default <R> CompletableFuture<Tracked<R>> sendTracked(Command command, Metadata metadata,
+														   Message<?> handledMessage, long timeout, TimeUnit unit,
+														   String idempotencyKey) {
+		return CompletableFuture.failedFuture(new UnsupportedOperationException(getClass().getName()
+				+ " does not report write positions (sendTracked)"));
+	}
 }

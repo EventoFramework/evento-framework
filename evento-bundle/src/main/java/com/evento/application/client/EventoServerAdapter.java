@@ -48,6 +48,10 @@ public final class EventoServerAdapter implements EventoServer {
     private final String bundleId;
     private final String instanceId;
     private final long bundleVersion;
+    /** Every write this process's commands made: context → highest stored sequence number. */
+    private final java.util.concurrent.atomic.AtomicReference<com.evento.common.modeling.messaging.query.ConsistencyToken>
+            ownWrites = new java.util.concurrent.atomic.AtomicReference<>(
+                    com.evento.common.modeling.messaging.query.ConsistencyToken.NONE);
 
     public EventoServerAdapter(BundleClient client,
                                  String bundleId,
@@ -101,7 +105,7 @@ public final class EventoServerAdapter implements EventoServer {
         String payloadType = resolvePayloadType(request);
         Duration timeoutDuration = Duration.ofMillis(unit.toMillis(timeout));
         try {
-            return client.request(payloadType, codec.encodeRequest(envelope), timeoutDuration)
+            return client.request(payloadType, codec.encodeRequest(envelope), timeoutDuration, isIdempotentRead(request))
                     .thenApply(response -> {
                         if (response.isError()) {
                             throw new CompletionException(toException(response.error(), payloadType));
@@ -111,6 +115,7 @@ public final class EventoServerAdapter implements EventoServer {
                         if (body instanceof ExceptionWrapper wrap) {
                             throw new CompletionException(wrap.toException());
                         }
+                        recordWrite(decoded, body);
                         return (T) body;
                     });
         } catch (Exception e) {
@@ -133,7 +138,7 @@ public final class EventoServerAdapter implements EventoServer {
      * gateway derives): the broker then answers it with the event the first
      * attempt stored, on whichever server the retry lands (G5).
      */
-    private static RuntimeException toException(com.evento.transport.message.ResponseError error,
+    static RuntimeException toException(com.evento.transport.message.ResponseError error,
                                                 String payloadType) {
         if (error == null) {
             return new IllegalStateException("request failed: " + payloadType);
@@ -163,6 +168,53 @@ public final class EventoServerAdapter implements EventoServer {
             return new com.evento.transport.RequestNotSentException(payloadType + ": " + message);
         }
         return new IllegalStateException(message);
+    }
+
+    /**
+     * A command's reply says where its event was stored (a 2.6 broker): remember it for
+     * {@link #ownWrites()} and tag the returned event with it ({@code sendTracked}).
+     */
+    private void recordWrite(com.evento.common.modeling.messaging.message.internal.EventoResponse decoded,
+                             Serializable body) {
+        var seq = decoded.getEventSequenceNumber();
+        if (seq == null || seq < 0) return;
+        var token = com.evento.common.modeling.messaging.query.ConsistencyToken.of(decoded.getEventContext(), seq);
+        ownWrites.accumulateAndGet(token, com.evento.common.modeling.messaging.query.ConsistencyToken::merge);
+        if (body instanceof com.evento.common.modeling.messaging.message.application.EventMessage<?> em) {
+            em.setStoredAt(token);
+        }
+    }
+
+    /**
+     * Streams the answer of {@code query} (2.6): views pulled as they are consumed, the
+     * frames carried by the broker with flow control, or answered in process when this
+     * bundle handles the query itself. Returns a stream in every case: when the session or
+     * the answering bundle cannot stream, the whole answer arrives in one reply and is
+     * iterated the same way.
+     */
+    @Override
+    public <V extends com.evento.common.modeling.messaging.payload.View>
+    com.evento.common.messaging.gateway.QueryStream<V> streamQuery(QueryMessage<?> query,
+                                                                   com.evento.common.messaging.gateway.QueryOptions options,
+                                                                   long timeoutMillis) {
+        var envelope = new EventoRequest();
+        envelope.setSourceBundleId(bundleId);
+        envelope.setSourceInstanceId(instanceId);
+        envelope.setSourceBundleVersion(bundleVersion);
+        envelope.setCorrelationId(UUID.randomUUID().toString());
+        envelope.setBody(query);
+        envelope.setTimestamp(Instant.now().toEpochMilli());
+        envelope.setTimeout(timeoutMillis);
+        envelope.setUnit(TimeUnit.MILLISECONDS);
+        var frames = client.openStream(query.getQueryName(), codec.encodeRequest(envelope),
+                Duration.ofMillis(timeoutMillis), options.getWindow(), options.isDirect());
+        return new com.evento.application.client.stream.FrameQueryStream<>(frames, codec,
+                EventoServerAdapter::toException);
+    }
+
+    @Override
+    public com.evento.common.modeling.messaging.query.ConsistencyToken ownWrites() {
+        return ownWrites.get();
     }
 
     @Override
@@ -212,6 +264,17 @@ public final class EventoServerAdapter implements EventoServer {
      * (rare — mostly framework-internal) we fall back to the body's simple
      * class name.
      */
+    /**
+     * Reads that may run any number of times: queries and the consumers' event-store
+     * reads. They are asked again when a session ends with them in flight (see
+     * {@link BundleClient#request(String, byte[], Duration, boolean)}).
+     */
+    static boolean isIdempotentRead(Serializable request) {
+        return request instanceof QueryMessage<?>
+                || request instanceof com.evento.common.messaging.consumer.EventFetchRequest
+                || request instanceof com.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
+    }
+
     private String resolvePayloadType(Serializable request) {
         if (request instanceof CommandMessage<?> cm) return cm.getCommandName();
         if (request instanceof QueryMessage<?> qm) return qm.getQueryName();

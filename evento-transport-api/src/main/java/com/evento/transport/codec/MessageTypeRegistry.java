@@ -8,6 +8,10 @@ import com.evento.transport.message.Pong;
 import com.evento.transport.message.Reject;
 import com.evento.transport.message.Request;
 import com.evento.transport.message.Response;
+import com.evento.transport.message.StreamCancel;
+import com.evento.transport.message.StreamCredit;
+import com.evento.transport.message.StreamData;
+import com.evento.transport.message.StreamRedirect;
 import com.evento.transport.message.Welcome;
 
 import java.util.Map;
@@ -20,15 +24,20 @@ import java.util.Set;
  */
 public final class MessageTypeRegistry {
 
-    private static final Map<String, Class<? extends Message>> BY_NAME = Map.of(
-            "HEL", Hello.class,
-            "WLC", Welcome.class,
-            "REJ", Reject.class,
-            "PNG", Ping.class,
-            "PON", Pong.class,
-            "REQ", Request.class,
-            "RSP", Response.class,
-            "NTF", Notification.class
+    private static final Map<String, Class<? extends Message>> BY_NAME = Map.ofEntries(
+            Map.entry("HEL", Hello.class),
+            Map.entry("WLC", Welcome.class),
+            Map.entry("REJ", Reject.class),
+            Map.entry("PNG", Ping.class),
+            Map.entry("PON", Pong.class),
+            Map.entry("REQ", Request.class),
+            Map.entry("RSP", Response.class),
+            Map.entry("NTF", Notification.class),
+            // 2.6, only exchanged with peers that negotiated the stream capability
+            Map.entry("SDA", StreamData.class),
+            Map.entry("SCR", StreamCredit.class),
+            Map.entry("SCN", StreamCancel.class),
+            Map.entry("SRD", StreamRedirect.class)
     );
 
     private static final Set<Class<? extends Message>> ALLOWED = Set.copyOf(BY_NAME.values());

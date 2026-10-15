@@ -22,6 +22,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * table records the originator address keyed by the same {@code correlationId}
  * that travels end-to-end with the request.
  *
+ * <p><b>Streams (2.6).</b> A request that asked for a streamed reply keeps its entry
+ * for the whole stream: every frame is relayed by looking the entry up, not resolving
+ * it, and refreshes its activity; the entry goes with the last frame, a cancel, or a
+ * reply that ended it. A stream lives as long as it moves, so it is pruned by
+ * inactivity, never by age.
+ *
  * <p>Stale entries (where the originator has disconnected before the response
  * arrives, or where the destination handler never replied) are pruned by the
  * caller via {@link #removeOlderThan(long)}.
@@ -30,8 +36,23 @@ public final class ForwardingTable {
 
     private static final Logger log = LoggerFactory.getLogger(ForwardingTable.class);
 
+    /**
+     * @param submittedAtMs  when the request was forwarded
+     * @param streamed       whether the caller asked for a streamed reply
+     * @param lastActivityMs the last frame relayed for it (= {@code submittedAtMs} until then)
+     */
     public record Entry(UUID correlationId, NodeAddress originator, NodeAddress destination,
-                        String payloadType, long submittedAtMs) {}
+                        String payloadType, long submittedAtMs, boolean streamed, long lastActivityMs) {
+
+        public Entry(UUID correlationId, NodeAddress originator, NodeAddress destination,
+                     String payloadType, long submittedAtMs) {
+            this(correlationId, originator, destination, payloadType, submittedAtMs, false, submittedAtMs);
+        }
+
+        Entry touched(long nowMs) {
+            return new Entry(correlationId, originator, destination, payloadType, submittedAtMs, streamed, nowMs);
+        }
+    }
 
     private final Map<UUID, Entry> table = new ConcurrentHashMap<>();
 
@@ -42,7 +63,14 @@ public final class ForwardingTable {
      */
     public boolean track(UUID correlationId, NodeAddress originator,
                          NodeAddress destination, String payloadType) {
-        var entry = new Entry(correlationId, originator, destination, payloadType, System.currentTimeMillis());
+        return track(correlationId, originator, destination, payloadType, false);
+    }
+
+    /** {@link #track(UUID, NodeAddress, NodeAddress, String)} for a request that asked for a streamed reply. */
+    public boolean track(UUID correlationId, NodeAddress originator,
+                         NodeAddress destination, String payloadType, boolean streamed) {
+        long now = System.currentTimeMillis();
+        var entry = new Entry(correlationId, originator, destination, payloadType, now, streamed, now);
         return table.putIfAbsent(correlationId, entry) == null;
     }
 
@@ -55,13 +83,25 @@ public final class ForwardingTable {
     }
 
     /**
-     * Drop entries older than {@code cutoffMs} epoch millis. Returns count removed.
-     * Used by a periodic cleaner to bound memory when originators die mid-call.
+     * The entry of a stream that is still running, refreshed: what a frame of the stream
+     * is relayed by. Empty when unknown (ended, cancelled, pruned).
+     */
+    public Optional<Entry> touch(UUID correlationId) {
+        long now = System.currentTimeMillis();
+        return Optional.ofNullable(table.computeIfPresent(correlationId, (k, e) -> e.touched(now)));
+    }
+
+    /**
+     * Drop entries older than {@code cutoffMs} epoch millis — for a stream, idle since
+     * then. Returns count removed. Used by a periodic cleaner to bound memory when
+     * originators die mid-call.
      */
     public int removeOlderThan(long cutoffMs) {
         int[] count = {0};
         table.entrySet().removeIf(e -> {
-            if (e.getValue().submittedAtMs() < cutoffMs) {
+            var entry = e.getValue();
+            long reference = entry.streamed() ? entry.lastActivityMs() : entry.submittedAtMs();
+            if (reference < cutoffMs) {
                 count[0]++;
                 return true;
             }
@@ -114,6 +154,23 @@ public final class ForwardingTable {
     }
 
     /**
+     * Atomically remove and return the streams {@code address} was receiving. A stream
+     * cannot resume on another session (its frames would be duplicated or lost), so when
+     * its caller goes away the handler is told to stop instead of waiting for credit.
+     */
+    public List<Entry> drainStreamsByOriginator(NodeAddress address) {
+        var drained = new ArrayList<Entry>();
+        for (var key : List.copyOf(table.keySet())) {
+            var entry = table.get(key);
+            if (entry == null || !entry.streamed()) continue;
+            if (entry.originator().equals(address) && table.remove(key, entry)) {
+                drained.add(entry);
+            }
+        }
+        return drained;
+    }
+
+    /**
      * Convenience: drop entries involving {@code address} without returning them.
      */
     public int removeInvolving(NodeAddress address) {
@@ -122,6 +179,15 @@ public final class ForwardingTable {
 
     public int size() {
         return table.size();
+    }
+
+    /** Streams currently relayed. */
+    public int streamCount() {
+        int n = 0;
+        for (var entry : table.values()) {
+            if (entry.streamed()) n++;
+        }
+        return n;
     }
 
     public Instant oldestEntryInstant() {

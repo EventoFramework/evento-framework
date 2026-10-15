@@ -173,6 +173,31 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
         return commandGateway.send(command, correlated, this.handledMessage, timeout, unit);
     }
 
+    /**
+     * {@link #send(Command, Metadata, Message, long, TimeUnit, String)} reporting where the
+     * event was stored: same counters, correlation and (derived) idempotency key.
+     */
+    @Override
+    public <R> CompletableFuture<com.evento.common.messaging.gateway.Tracked<R>> sendTracked(
+            Command command, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit,
+            String idempotencyKey) {
+        updateInvocationCounter(command);
+        var type = commandType(command);
+        int ordinal = commandOrdinals.computeIfAbsent(type, t -> new AtomicInteger()).getAndIncrement();
+        var key = CommandMessage.normalizeIdempotencyKey(idempotencyKey);
+        var correlated = tracingAgent.correlate(metadata, this.handledMessage);
+        if (key != null) {
+            try {
+                CommandMessage.checkCallerIdempotencyKey(key);
+            } catch (IllegalArgumentException e) {
+                return CompletableFuture.failedFuture(e);
+            }
+        } else if (idempotencyScope != null && commandGateway.supportsIdempotencyKeys()) {
+            key = deriveIdempotencyKey(idempotencyScope, type, ordinal);
+        }
+        return commandGateway.sendTracked(command, correlated, this.handledMessage, timeout, unit, key);
+    }
+
     /** Whether the target gateway carries keys (see {@link CommandGateway#supportsIdempotencyKeys()}). */
     @Override
     public boolean supportsIdempotencyKeys() {
@@ -261,6 +286,27 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
         updateInvocationCounter(query);
         return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
+    }
+
+    @Override
+    public <T extends QueryResponse<?>> CompletableFuture<T> queryWith(Query<T> query,
+                                                                      com.evento.common.messaging.gateway.QueryOptions options) {
+        updateInvocationCounter(query);
+        return queryGateway.queryWith(query, correlated(options));
+    }
+
+    @Override
+    public <V extends com.evento.common.modeling.messaging.payload.View>
+    com.evento.common.messaging.gateway.QueryStream<V> stream(Query<? extends QueryResponse<V>> query,
+                                                              com.evento.common.messaging.gateway.QueryOptions options) {
+        updateInvocationCounter(query);
+        return queryGateway.stream(query, correlated(options));
+    }
+
+    private com.evento.common.messaging.gateway.QueryOptions correlated(
+            com.evento.common.messaging.gateway.QueryOptions options) {
+        var opts = options == null ? com.evento.common.messaging.gateway.QueryOptions.defaults() : options;
+        return opts.metadata(tracingAgent.correlate(opts.getMetadata(), this.handledMessage));
     }
 
     /**

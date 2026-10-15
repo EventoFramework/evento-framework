@@ -273,6 +273,10 @@ public class CommandBrokerHandler implements MeterBinder {
         var reply = new EventoResponse();
         reply.setCorrelationId(request.getCorrelationId());
         reply.setBody((java.io.Serializable) body);
+        if (seq >= 0 && body instanceof com.evento.common.modeling.messaging.message.application.EventMessage<?> em) {
+            reply.setEventSequenceNumber(seq);
+            reply.setEventContext(em.getContext());
+        }
         return codec.encodeResponse(reply);
     }
 
@@ -522,6 +526,9 @@ public class CommandBrokerHandler implements MeterBinder {
             var reply = new EventoResponse();
             reply.setCorrelationId(eventoRequest.getCorrelationId());
             reply.setBody(eventMessage);
+            // Where the write landed: lets the caller ask a later query to reflect it.
+            reply.setEventSequenceNumber(seqNum);
+            reply.setEventContext(eventMessage.getContext());
             clock.skip();
             byte[] encoded = codec.encodeResponse(reply);
             clock.lap(CommandPhaseMetrics.Phase.CODEC);
@@ -716,12 +723,15 @@ public class CommandBrokerHandler implements MeterBinder {
                             BusLifecycle.monotonicMillis() - deadlineMs);
                 }
                 try {
+                    long seqNum;
                     if (claim != null) {
-                        eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key, commandPayloadType, claim.owner);
+                        seqNum = eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key, commandPayloadType, claim.owner);
                         claim.settled = true;
                     } else {
-                        eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key, commandPayloadType);
+                        seqNum = eventStore.publishEvent(serviceEvent, cmd.getAggregateId(), key, commandPayloadType);
                     }
+                    eventoResponse.setEventSequenceNumber(seqNum);
+                    eventoResponse.setEventContext(serviceEvent.getContext());
                 } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {
                     // Only possible when the claim expired and was taken over while this handler
                     // ran (its lease covers the forward, so: a server paused or partitioned past

@@ -1001,13 +1001,47 @@ public final class ConsumerProcessor {
 
     private record Cursor(ConsumerCheckpoint checkpoint, long version) {}
 
+    /**
+     * The last checkpoint this process read or committed per consumer: how far a consumer
+     * running here has got, without a round trip to the store. Read by the read-your-writes
+     * gate; the store stays the truth (another instance may hold the lane).
+     */
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> knownCheckpoints =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * The last checkpoint of {@code consumerId} this process read or committed, or {@code -1}
+     * when it has not run here. Free (no store access); may trail the store when another
+     * instance holds the consumer's lane, see {@link #storedCheckpoint}.
+     */
+    public long knownCheckpoint(String consumerId) {
+        return knownCheckpoints.getOrDefault(consumerId, -1L);
+    }
+
+    /** The checkpoint of {@code consumerId} in the store, or {@code -1} when it has none. One store read. */
+    public long storedCheckpoint(String consumerId) {
+        long stored = stateStore.read(consumerId).map(v -> v.checkpoint().lastSequenceNumber()).orElse(-1L);
+        if (stored >= 0) knownCheckpoints.merge(consumerId, stored, Math::max);
+        return stored;
+    }
+
     private Cursor readCursor(String consumerId) {
-        return stateStore.read(consumerId)
+        var cursor = stateStore.read(consumerId)
                 .map(v -> new Cursor(v.checkpoint(), v.version()))
                 .orElse(new Cursor(null, 0L));
+        if (cursor.checkpoint != null) {
+            knownCheckpoints.merge(consumerId, cursor.checkpoint.lastSequenceNumber(), Math::max);
+        }
+        return cursor;
     }
 
     private long advanceCheckpoint(String consumerId, ConsumerCheckpoint next, long currentVersion) {
+        long version = commitCheckpoint(consumerId, next, currentVersion);
+        knownCheckpoints.merge(consumerId, next.lastSequenceNumber(), Math::max);
+        return version;
+    }
+
+    private long commitCheckpoint(String consumerId, ConsumerCheckpoint next, long currentVersion) {
         try {
             return stateStore.commit(consumerId, next, currentVersion);
         } catch (OptimisticLockException e) {

@@ -18,6 +18,33 @@ public class EventoResponse implements Serializable, Expirable {
     private TimeUnit unit = TimeUnit.SECONDS;
 
     /**
+     * Where the event a command produced was stored: its global sequence number and its
+     * context, set by the broker on a command's reply (2.6, additive: null from an older
+     * broker, and for commands that stored nothing). They let the caller ask a later query
+     * to reflect this write ({@code ConsistencyToken}).
+     */
+    private Long eventSequenceNumber;
+    private String eventContext;
+
+    /** The global sequence number of the event the command stored, or null. */
+    public Long getEventSequenceNumber() {
+        return eventSequenceNumber;
+    }
+
+    public void setEventSequenceNumber(Long eventSequenceNumber) {
+        this.eventSequenceNumber = eventSequenceNumber;
+    }
+
+    /** The context of the event the command stored, or null. */
+    public String getEventContext() {
+        return eventContext;
+    }
+
+    public void setEventContext(String eventContext) {
+        this.eventContext = eventContext;
+    }
+
+    /**
      * Returns the body of the EventoResponse.
      *
      * @return The body of the EventoResponse.
