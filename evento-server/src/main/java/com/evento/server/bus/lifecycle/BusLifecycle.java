@@ -390,6 +390,8 @@ public final class BusLifecycle {
         // accepted from every bundle that offers it.
         var capabilities = new java.util.HashSet<>(serverCapabilities);
         capabilities.add(HandshakeProtocol.CAPABILITY_STREAM);
+        // So is keeping payload revisions: this broker's envelope classes carry them.
+        capabilities.add(HandshakeProtocol.CAPABILITY_REVISION);
         this.handshakeHandler = new HandshakeHandler(
                 serverInstanceId,
                 capabilities,

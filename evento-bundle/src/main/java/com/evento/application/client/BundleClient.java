@@ -409,6 +409,14 @@ public final class BundleClient implements AutoCloseable {
         return supervisor.accepted(HandshakeProtocol.CAPABILITY_STREAM);
     }
 
+    /**
+     * Whether the broker of the current session keeps payload revisions (2.6): payloads of a
+     * revised class may only be sent when it does.
+     */
+    public boolean revisionsAccepted() {
+        return supervisor.accepted(HandshakeProtocol.CAPABILITY_REVISION);
+    }
+
     /** Streams this bundle is receiving through the broker now. */
     public int inboundStreams() {
         return inboundDispatcher.inboundStreams();

@@ -335,9 +335,13 @@ public record BundleClientConfig(
             Set<String> caps = capabilities == null ? Set.of() : capabilities;
             // Every 2.6 bundle can take and give streamed replies; the broker decides per
             // session whether they flow (Welcome.acceptedCapabilities).
-            if (!caps.contains(HandshakeProtocol.CAPABILITY_STREAM)) {
+            // Likewise payload revisions: the bundle always writes them, and sends a revised
+            // payload only where the broker keeps them.
+            if (!caps.contains(HandshakeProtocol.CAPABILITY_STREAM)
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_REVISION)) {
                 var withStream = new java.util.LinkedHashSet<>(caps);
                 withStream.add(HandshakeProtocol.CAPABILITY_STREAM);
+                withStream.add(HandshakeProtocol.CAPABILITY_REVISION);
                 caps = withStream;
             }
             if (zone != null && !zone.isBlank()) {
