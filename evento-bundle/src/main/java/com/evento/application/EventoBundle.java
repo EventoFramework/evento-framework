@@ -481,6 +481,17 @@ public class EventoBundle {
         private Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors = new HashMap<>();
 
         /**
+         * The history of this bundle's payload classes (2.6): each {@link com.evento.common.versioning.Upcaster}
+         * turns a payload stored or sent with an older shape into the next one, before it is
+         * deserialized. They apply to the events projectors, sagas and observers read (dead-event
+         * retries included), to the events and snapshot an aggregate is rebuilt from, and to the
+         * commands and queries this bundle receives. A step that renames a command or a query
+         * also routes the old name here, so callers not yet upgraded keep reaching the handler.
+         * Validated at start: one step per payload and revision, and no chain may loop.
+         */
+        private List<com.evento.common.versioning.Upcaster> upcasters = new ArrayList<>();
+
+        /**
          * The event contexts a consumer component (projector, saga, observer) reads.
          * A component with no contexts set reads every context
          * ({@link com.evento.common.utils.Context#WILDCARD}, {@code "*"}).
@@ -519,6 +530,14 @@ public class EventoBundle {
          * emit events in the caller's context has to copy it from a command field
          * into the event itself.
          */
+        /** Adds steps to {@link #upcasters} (2.6). */
+        public Builder addUpcasters(com.evento.common.versioning.Upcaster... steps) {
+            var all = new ArrayList<>(upcasters);
+            all.addAll(Arrays.asList(steps));
+            this.upcasters = all;
+            return this;
+        }
+
         public Builder setComponentContexts(Class<?> componentClass, String... contexts) {
             this.contexts.put(componentClass.getSimpleName(), new HashSet<>(Arrays.asList(contexts)));
             return this;
@@ -774,8 +793,13 @@ public class EventoBundle {
             var meta = HandlerMetadataBuilder.build(aggregateManager, serviceManager,
                     projectionManager, projectorManager, observerManager, sagaManager,
                     invokerManager, strictConfinement);
-            var handlers = meta.handlers();
+            var handlers = new ArrayList<>(meta.handlers());
             var payloadInfo = meta.payloadInfo();
+            // Built before connecting: a duplicate step or a loop fails the start, not a read.
+            var upcasterChain = com.evento.common.versioning.Upcasters.of(upcasters);
+            if (!upcasterChain.isEmpty()) {
+                logger.info("Upcasters: {}", upcasterChain);
+            }
 
             final AtomicReference<EventoBundle> eventoBundle = new AtomicReference<>();
 
@@ -799,6 +823,25 @@ public class EventoBundle {
             // table. v2 routes on payloadType (simple class name), matching the
             // convention v1 declared in RegisteredHandler.handledPayload.
             var handlerPayloadTypes = new ArrayList<>(payloadInfo.keySet());
+            // A command or query an upcaster renamed keeps reaching its handler under the former
+            // name, which callers not yet upgraded still send: the handler is declared for it too,
+            // so the broker routes and treats it alike (an aggregate command is decorated with the
+            // history of its aggregate, a query is straight), and the dispatcher upcasts it on
+            // arrival. Renamed events need nothing of the kind: consumers fetch every event.
+            var aliases = upcasterChain.aliasesOf(handlerPayloadTypes);
+            for (var alias : aliases.entrySet()) {
+                for (var h : meta.handlers()) {
+                    if (alias.getValue().equals(h.getHandledPayload())
+                            && (h.getHandlerType() == com.evento.common.modeling.bundle.types.HandlerType.AggregateCommandHandler
+                            || h.getHandlerType() == com.evento.common.modeling.bundle.types.HandlerType.CommandHandler
+                            || h.getHandlerType() == com.evento.common.modeling.bundle.types.HandlerType.QueryHandler)) {
+                        handlers.add(h.forPayload(alias.getKey()));
+                        if (!handlerPayloadTypes.contains(alias.getKey())) handlerPayloadTypes.add(alias.getKey());
+                        logger.info("Routing former payload name {} to the handler of {} in {}",
+                                alias.getKey(), alias.getValue(), h.getComponentName());
+                    }
+                }
+            }
 
             var bundleClientBuilder = BundleClient.builder(bundleId, instanceId)
                     .endpoints(endpoints)
@@ -838,6 +881,8 @@ public class EventoBundle {
             // Read-your-writes: a query carrying a consistency token waits for this
             // bundle's projectors (bound to the engines once they exist, below).
             dispatcher.setStreamFrameBytes(streamFrameBytes);
+            dispatcher.setUpcasters(upcasterChain);
+            dispatcher.setRevisionGuard(new com.evento.application.client.RevisionGuard(bundleClient::revisionsAccepted));
             final var enginesForGate = new AtomicReference<EngineSupervisor>();
             dispatcher.setConsistencyGate(new com.evento.application.consumer.ProjectorConsistencyGate(enginesForGate::get));
             bundleClient.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, adminHandler);
@@ -892,6 +937,7 @@ public class EventoBundle {
             var start = Instant.now();
             var wait = new Semaphore(0);
             var engineConfig = consumerEngineConfigBuilder.apply(eventoServer, performanceService);
+            engineConfig.processor().setUpcasters(upcasterChain);
             ConsumerExecutorValidator.validate(
                     eventoBundle.get().getProjectorManager().getReferences(),
                     eventoBundle.get().getObserverManager().getReferences(),
