@@ -21,6 +21,15 @@ public final class HandshakeProtocol {
     public static final String CAPABILITY_PING_PONG = "ping-pong";
 
     /**
+     * The peer exchanges streamed replies ({@code StreamData}, {@code StreamCredit},
+     * {@code StreamCancel}, {@code StreamRedirect}, 2.6). Stream messages are only sent to
+     * a peer that negotiated it: one that did not cannot decode them. A broker accepts it
+     * from every bundle that offers it; a bundle streams only on a session where it was
+     * accepted.
+     */
+    public static final String CAPABILITY_STREAM = "stream:1";
+
+    /**
      * Prefix of the capability a bundle uses to say where it runs:
      * {@code "zone:EU"}. It rides in {@code Hello.capabilities} rather than a
      * field of its own so that no wire type changes and a peer that knows

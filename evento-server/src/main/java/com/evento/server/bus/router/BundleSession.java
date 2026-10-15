@@ -41,6 +41,20 @@ public final class BundleSession {
         }
     }
 
+    /** The capabilities negotiated with this peer in the handshake (none before it). */
+    private volatile java.util.Set<String> capabilities = java.util.Set.of();
+
+    public java.util.Set<String> capabilities() { return capabilities; }
+
+    public void setCapabilities(java.util.Set<String> negotiated) {
+        this.capabilities = negotiated == null ? java.util.Set.of() : java.util.Set.copyOf(negotiated);
+    }
+
+    /** Whether this peer negotiated streamed replies (it can decode stream frames). */
+    public boolean supportsStreams() {
+        return capabilities.contains(com.evento.transport.HandshakeProtocol.CAPABILITY_STREAM);
+    }
+
     public Phase phase() { return phase.get(); }
     public void transitionTo(Phase next) { phase.set(next); }
 

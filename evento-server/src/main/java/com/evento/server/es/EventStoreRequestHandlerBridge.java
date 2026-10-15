@@ -87,6 +87,12 @@ public class EventStoreRequestHandlerBridge {
             resp.setTimestamp(System.currentTimeMillis());
             return codec.encodeResponse(resp);
         });
+
+        // Both are reads: a consumer that loses one fetches again from its checkpoint.
+        // Caching them for exactly-once replay pinned every fetch batch (up to
+        // fetch-size events) in the broker's heap for the dedup window.
+        lifecycle.registerStraightPayloadType(EventFetchRequest.class.getSimpleName());
+        lifecycle.registerStraightPayloadType(EventLastSequenceNumberRequest.class.getSimpleName());
     }
 
     /**

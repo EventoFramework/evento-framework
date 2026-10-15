@@ -115,6 +115,11 @@ public final class HandshakeHandler {
                 .thenApply(v -> (HandshakeOutcome) new HandshakeOutcome.Rejected(code, reason));
     }
 
+    /** The capabilities a Welcome to {@code hello} accepts: those both sides offer. */
+    public Set<String> negotiated(Hello hello) {
+        return intersection(hello.capabilities(), serverCapabilities);
+    }
+
     private static Set<String> intersection(Set<String> a, Set<String> b) {
         if (a == null || a.isEmpty()) return Set.of();
         return a.stream().filter(b::contains).collect(java.util.stream.Collectors.toUnmodifiableSet());

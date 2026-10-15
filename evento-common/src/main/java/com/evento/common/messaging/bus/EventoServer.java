@@ -40,4 +40,29 @@ public interface EventoServer {
      * @return the bundle ID
      */
     String getBundleId();
+
+    /**
+     * Every write this process's commands made through this server so far (context →
+     * highest event sequence number): what {@code QueryOptions#readYourWrites()} requires.
+     * {@link com.evento.common.modeling.messaging.query.ConsistencyToken#NONE} when unknown.
+     */
+    default com.evento.common.modeling.messaging.query.ConsistencyToken ownWrites() {
+        return com.evento.common.modeling.messaging.query.ConsistencyToken.NONE;
+    }
+
+    /**
+     * Asks {@code query} for a streamed answer: views pulled as they are consumed, with
+     * flow control end to end. {@code null} when this server cannot stream, in which case
+     * the gateway asks the query the plain way and iterates the whole answer.
+     *
+     * @param query         the query message (metadata and consistency set)
+     * @param options       window and transport preferences
+     * @param timeoutMillis how long to wait for the first views, and then between batches
+     */
+    default <V extends com.evento.common.modeling.messaging.payload.View>
+    com.evento.common.messaging.gateway.QueryStream<V> streamQuery(
+            com.evento.common.modeling.messaging.message.application.QueryMessage<?> query,
+            com.evento.common.messaging.gateway.QueryOptions options, long timeoutMillis) {
+        return null;
+    }
 }

@@ -23,20 +23,20 @@ class BundleClientConfigZoneTest {
     void noZoneAdvertisesNothing() {
         var cfg = base().capabilities(Set.of("lz4")).build();
         assertThat(cfg.zone()).isNull();
-        assertThat(HelloFactory.build(cfg).capabilities()).containsExactly("lz4");
+        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "stream:1");
     }
 
     @Test
     void theZoneIsAddedToTheHelloCapabilities() {
         var cfg = base().capabilities(Set.of("lz4")).zone("AM").build();
         assertThat(cfg.zone()).isEqualTo("AM");
-        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "zone:AM");
+        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "zone:AM", "stream:1");
     }
 
     @Test
     void anExplicitZoneReplacesOnePassedAsARawCapabilityWhateverTheCallOrder() {
         var zoneFirst = base().zone(" EU ").capabilities(Set.of("zone:AM", "ping-pong")).build();
-        assertThat(zoneFirst.capabilities()).containsExactlyInAnyOrder("zone:EU", "ping-pong");
+        assertThat(zoneFirst.capabilities()).containsExactlyInAnyOrder("zone:EU", "ping-pong", "stream:1");
 
         var rawOnly = base().capabilities(Set.of("zone:APAC")).build();
         assertThat(rawOnly.zone()).isEqualTo("APAC");
@@ -46,6 +46,7 @@ class BundleClientConfigZoneTest {
     void aBlankZoneIsNone() {
         var cfg = base().zone("  ").build();
         assertThat(cfg.zone()).isNull();
-        assertThat(cfg.capabilities()).isEmpty();
+        // No zone capability; only the stream capability every 2.6 bundle offers.
+        assertThat(cfg.capabilities()).containsExactly("stream:1");
     }
 }

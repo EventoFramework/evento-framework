@@ -1,13 +1,12 @@
 package com.evento.transport.netty;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -41,6 +40,12 @@ import java.util.concurrent.TimeUnit;
  * </ul>
  * Any breach of a hard cap closes the channel — a peer that violates the framing contract is not
  * trusted to behave. Buffers are also released when the channel goes inactive.
+ *
+ * <p><b>No copies.</b> A partial stream is a {@link CompositeByteBuf} of retained slices of
+ * the chunks as they arrived, emitted as is on the last chunk. It used to be a
+ * {@code ByteArrayOutputStream} (each chunk copied in, the array regrown by doubling) turned
+ * into an array ({@code toByteArray}, one more full copy): a 100 MB reply cost the broker
+ * about three times its size in transient heap before the decoder's own copy.
  */
 final class ChunkReassembler extends MessageToMessageDecoder<ByteBuf> {
 
@@ -69,12 +74,13 @@ final class ChunkReassembler extends MessageToMessageDecoder<ByteBuf> {
         this.partialStreamTtlNanos = partialStreamTtlNanos;
     }
 
-    /** A partial stream: the accumulated bytes plus the time the first chunk arrived (for TTL eviction). */
+    /** A partial stream: the chunks received so far plus the time the first one arrived (for TTL eviction). */
     private static final class Partial {
-        final ByteArrayOutputStream acc = new ByteArrayOutputStream();
+        final CompositeByteBuf acc;
         final long startedNanos;
 
-        Partial(long startedNanos) {
+        Partial(CompositeByteBuf acc, long startedNanos) {
+            this.acc = acc;
             this.startedNanos = startedNanos;
         }
     }
@@ -102,25 +108,23 @@ final class ChunkReassembler extends MessageToMessageDecoder<ByteBuf> {
                         ctx.close();
                         return;
                     }
-                    acc = new Partial(now);
+                    acc = new Partial(ctx.alloc().compositeBuffer(Integer.MAX_VALUE), now);
                     pending.put(streamId, acc);
                 }
 
-                if ((long) acc.acc.size() + dataLen > maxMessageBytes) {
+                if ((long) acc.acc.readableBytes() + dataLen > maxMessageBytes) {
                     log.error("event=chunk_message_too_large limit={} stream={} channel={}",
                             maxMessageBytes, streamId, ctx.channel().id());
-                    pending.remove(streamId);
+                    pending.remove(streamId).acc.release();
                     ctx.close();
                     return;
                 }
 
-                byte[] data = new byte[dataLen];
-                in.readBytes(data);
-                acc.acc.write(data, 0, dataLen);
+                acc.acc.addComponent(true, in.readRetainedSlice(dataLen));
 
                 if (isLast) {
                     pending.remove(streamId);
-                    out.add(Unpooled.wrappedBuffer(acc.acc.toByteArray()));
+                    out.add(acc.acc);  // ownership passes downstream
                 }
             }
             default -> {
@@ -137,7 +141,8 @@ final class ChunkReassembler extends MessageToMessageDecoder<ByteBuf> {
         while (it.hasNext()) {
             Map.Entry<UUID, Partial> e = it.next();
             if (now - e.getValue().startedNanos > partialStreamTtlNanos) {
-                log.warn("event=chunk_stream_expired stream={} bytes={}", e.getKey(), e.getValue().acc.size());
+                log.warn("event=chunk_stream_expired stream={} bytes={}", e.getKey(), e.getValue().acc.readableBytes());
+                e.getValue().acc.release();
                 it.remove();
             }
         }
@@ -146,7 +151,25 @@ final class ChunkReassembler extends MessageToMessageDecoder<ByteBuf> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         // Free any buffers held for incomplete streams when the connection drops.
-        pending.clear();
+        releasePending();
         super.channelInactive(ctx);
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        releasePending();
+        super.handlerRemoved(ctx);
+    }
+
+    private void releasePending() {
+        for (var partial : pending.values()) {
+            partial.acc.release();
+        }
+        pending.clear();
+    }
+
+    /** Test hook: how many streams are partially received. */
+    int pendingStreams() {
+        return pending.size();
     }
 }
