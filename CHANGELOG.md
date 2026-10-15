@@ -9,6 +9,107 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Query-path release: queries no longer cost the broker memory, large answers stream with flow
+control (through the broker or bundle to bundle), a bundle answers its own queries without the
+broker, and a query can require to see a write. Wire changes are additive and negotiated
+(`stream:1` capability); 2.5 bundles and servers interoperate with it in any mix.
+
+### Upgrade notes
+
+- **Queries are routed "straight" by a 2.6 broker** when a 2.6 handler bundle declares them
+  (`BundleRegistrationInfo.queryPayloadTypes`): no exactly-once slot, no cached reply, no
+  reconnect buffering. A 2.6 caller asks a query again on its next session when it lost it; a
+  2.5 caller that loses its session while a query is in flight now waits for its timeout
+  instead of getting the buffered reply. Upgrade callers along with handlers.
+- **Broker memory is bounded in bytes**, not only in entries: new properties
+  `evento.server.bus.dedup.max-retained-bytes` (128 MiB), `evento.server.bus.dedup.max-response-bytes`
+  (1 MiB), `evento.server.bus.reconnect-buffer.max-bytes` (256 MiB),
+  `evento.server.bus.compression.threshold-bytes` (32 KiB).
+- Every 2.6 bundle advertises `stream:1` in its Hello. Code that asserts the exact capability set
+  of a Hello must expect it.
+
+### Added
+
+- **Streamed queries.** `QueryGateway.stream(query[, QueryOptions])` returns a `QueryStream<V>`
+  (an `Iterable` + `AutoCloseable`, `stream()` for a `java.util.stream.Stream`) whose views are
+  pulled as they are consumed. It works for every query handler, whatever it answers with;
+  existing handlers need no change. On the wire: four sealed messages (`StreamData`,
+  `StreamCredit`, `StreamCancel`, `StreamRedirect`), sent only between peers that negotiated
+  `HandshakeProtocol.CAPABILITY_STREAM`. The caller's window (`QueryOptions.window`, default 16
+  frames) is credit: the handler sends a frame only against it and the caller returns credit as
+  it consumes, so no hop ever holds more than a window of frames of a stream, whatever the
+  result's size. The broker relays the frames as it read them (zero copy) and keeps nothing but
+  the forwarding entry. A stream's frames keep their order on every hop (one serial dispatch
+  lane per connection for `StreamData`). Closing a stream early, the caller leaving, the handler
+  leaving, or a caller that stops granting credit for the stream's timeout each end the stream
+  on both sides and close the handler's source. A handler that cannot stream (a 2.5 bundle, or a
+  session through a 2.5 broker) answers whole, and the stream iterates that answer.
+- **`Streamed<T>`**, a lazy query answer (`Streamed.of(() -> repository.stream(...))`): produced
+  only as fast as a streaming caller consumes it, its source closed at the end, on cancel or on
+  failure; collected into one reply for a plain `query` caller.
+- **`Page<T>` and `PageRequest`**: offset pages (with an optional total) and cursor pages
+  (`Page.ofCursor`, `PageRequest.after`), `hasNext()` / `next()` for the following request.
+- **Direct streams (bundle to bundle).** A bundle configured with
+  `EventoBundle.Builder.setDirectStreamConfig(DirectStreamConfig.on(port, advertisedHost))`
+  offers its streams on its own endpoint to callers that ask with `QueryOptions.direct()`: the
+  broker routes the query and relays one `StreamRedirect` carrying a random, single-use ticket
+  bound to the stream (10 s TTL); the caller connects, presents the ticket, and the data never
+  crosses the broker. Unreachable endpoint, TLS mismatch, refused or expired ticket: the caller
+  asks the stream again through the broker by itself. Optional TLS (`withTls`), NAT-friendly
+  `advertisedPort`. Counters: `BundleClient.directStreamsServed()`, `directStreamsFollowed()`,
+  `directStreamFallbacks()`.
+- **Local query short-circuit.** A bundle answers the queries it handles itself, without the
+  broker, once it is enabled (`setLocalQueryShortCircuit`, default true). The query takes the
+  handler-side path of a remote one byte for byte (codec, consistency gate, interceptors,
+  `TracingAgent`, performance metrics, handler and round-trip latencies), so tracing and
+  dashboards see it as before and a view that does not serialize fails locally too. Commands
+  always go through the broker. A bundle not yet enabled (projectors still catching up) or
+  disabled does not serve itself. Streams short-circuit the same way, in process.
+- **Read-your-writes.** A command's reply now says where its event was stored
+  (`EventoResponse.eventSequenceNumber` / `eventContext`, set by the broker).
+  `CommandGateway.sendTracked(...)` returns `Tracked<R>(result, token)`;
+  `QueryGateway.queryWith(query, QueryOptions.defaults().after(token))` is answered only once the
+  answering bundle's projectors have processed the write, `readYourWrites()` covers every write
+  of this process, and `ConsistencyToken.encode()`/`parse()` carry a token across processes (an
+  HTTP header). Tokens are per context: a projector of another context is not waited for. The
+  answering bundle wakes its projectors instead of waiting out their idle pause, reads the
+  shared checkpoint when another instance holds the lane, and fails the query with
+  `ConsistencyTimeoutException` just before the caller's deadline rather than answer stale. With
+  async (`executor=`) handlers the guarantee needs `CheckpointMode.WATERMARK` (or no task in
+  flight).
+- **End-to-end reply compression.** Requests list the encodings they accept
+  (`Request.acceptEncodings`); handlers (and the broker for its own replies, event fetches
+  included) DEFLATE a reply of 32 KiB or more when that saves at least an eighth. The broker
+  relays compressed bytes untouched. JDK `Deflater`, no new dependency; a self-describing marker
+  (`0xFF 'E' 'Z' 0x01`, never valid CBOR) survives an older broker's re-encoding.
+  `setCompressionThreshold` / `setAcceptCompressedReplies` on the bundle builder.
+- `QueryGateway.queryWith(query, QueryOptions)` (timeout, metadata, consistency); named apart
+  from the `query` overloads so existing `query(q, null)` calls stay unambiguous. Gateways
+  written before it refuse a consistency requirement instead of dropping it, and stream by
+  asking the plain way.
+- Broker counters: `BusLifecycle.streamsOpened()`, `activeStreams()`, `streamFramesRelayed()`,
+  `streamBytesRelayed()`, `reconnectBufferBytes()`; `ForwardingDedupCache.retainedBytes()`.
+
+### Changed
+
+- **Idempotent reads are asked again after a lost session.** Queries and the consumers' event
+  fetches still pending when a bundle's session ends are re-sent on the next session (same
+  correlation id, the time they have left), on whatever broker it is, instead of failing with
+  `BrokerChangedException` or waiting for a reply no broker keeps.
+- **The broker's exactly-once cache holds only writes.** Server-local reads
+  (`EventFetchRequest`, `EventLastSequenceNumberRequest`) and declared queries bypass it; a
+  command reply over 1 MiB is remembered as answered without its bytes (a duplicate then gets
+  `ForwardingDedupCache.DuplicateRequestException`, never a second execution), and the cache
+  drops retained bytes least recently used first when over its budget.
+- **Fewer copies of large messages.** The chunk reassembler holds the received chunks as a
+  composite buffer instead of copying them into a growing array and copying that again; the
+  encoder wraps the codec's array instead of copying it; chunking slices instead of copying.
+
+### Fixed
+
+- A response over the reconnect buffer's byte budget is no longer buffered
+  (`event=reconnect_buffer_full`): a burst of disconnects can no longer exhaust the broker's heap.
+
 ## [2.5.2] — 2026-10-13
 
 Bug-fix release on top of 2.5.1: no API, wire, schema or configuration change. Upgrade bundles
