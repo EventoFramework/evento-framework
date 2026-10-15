@@ -124,6 +124,7 @@ end by the broker's raw forward: `acceptEncodings` (reply compression the caller
 the stream on a direct connection). The four stream messages are sent **only** to a peer that
 negotiated `HandshakeProtocol.CAPABILITY_STREAM` (`stream:1`): an older peer cannot decode
 them and would close the channel. Every 2.6 bundle offers it; `BusLifecycle` always accepts it.
+Same for `CAPABILITY_REVISION` (`revision:1`, 2.6): the broker keeps payload revisions (§4.10).
 
 Adding a new wire type: extend `Message` permits + register a byte tag in `MessageTypeRegistry`.
 The compiler enforces exhaustive dispatch everywhere.
@@ -493,6 +494,29 @@ deprecated `Context.ALL` constant is the wildcard, not `"ALL"`.
 | Read-your-writes | `EventoResponse.eventSequenceNumber/eventContext` (broker) → `EventoServerAdapter.recordWrite` (`ownWrites`, `EventMessage.storedAt`) → `QueryMessage.consistency` → `ProjectorConsistencyGate` → `ProjectorEngine.awaitPosition` | Per-context positions; the gate waits for the projectors of those contexts (wildcard: the highest), by `ConsumerProcessor.knownCheckpoint` or the store's checkpoint (another instance's lane, read at most every 50 ms), wakes the consume loop, and throws `ConsistencyTimeoutException` at the caller's deadline less a margin (a tenth, ≤ 250 ms) |
 | Compression | `PayloadEncoding` | Per request (`acceptEncodings`), end to end, marker `0xFF 'E' 'Z' 0x01` + zlib; ≥ 32 KiB and ≥ 1/8 saved |
 
+### 4.10 Payload Versioning (2.6): revisions and upcasters (`com.evento.common.versioning`)
+
+A payload is stored as JSON `["binary.ClassName", { fields }]` (default typing) inside a
+`SerializedObject`, and events are routed by simple class name, so a class that changes shape,
+moves or is renamed can no longer read its history. 2.6 versions payloads the way Axon does
+(revision + upcaster chain, read-time, history never rewritten), with the rename ("make a V2
+class") as a first-class step.
+
+| Concern | Where | How |
+|---|---|---|
+| Revision of a class | `@Revision(n)`, `Revisions.of` | Not inherited; none = 0. Raise it only for changes Jackson cannot absorb (rename/split/move/meaning); added or removed fields need none |
+| Revision of a payload | `SerializedObject.revision` | Written from the class at serialization, `NON_DEFAULT` (absent when 0, so pre-2.6 payloads read as 0); stored in `event_message` / `es__snapshot` JSON, no schema change |
+| A step | `Upcaster.from(name\|class, rev).to(rev, json -> ...)` / `.to(NewClass.class, rev[, json -> ...])` | Revision step: same class, revision must rise. Rename: rewrites the type id, `objectClass` and the routed name; the old class may be deleted (named by its simple name) |
+| The chain | `Upcasters` | One step per (name, revision); loops refused at build; applied until no step starts where the last ended; works on a JSON tree with exact decimals (`STRIP_TRAILING_BIGDECIMAL_ZEROES` off, `USE_BIG_DECIMAL_FOR_FLOATS`); `UpcastException` names payload + revision |
+| Where it runs (bundle) | `ConsumerProcessor.fetchEvents` + dead-event retries; `BundleInboundDispatcher.upcast` (command/query on arrival; for an aggregate command also its event stream and snapshot) | Projectors, sagas, observers, aggregates and handlers only ever see current shapes. A failing upcaster stops its consumer at that event (logged `event=upcast_failed`) instead of dead-lettering every old event |
+| Old names still sent | `Upcasters.aliasesOf` → `EventoBundle` adds `RegisteredHandler.forPayload(alias)` + routing type | A renamed command/query keeps its handler under the former name: the broker decorates/straightens it like the current one, the dispatcher upcasts it |
+| Old brokers | `RevisionGuard` (`EventoServerAdapter` outgoing, dispatcher replies) + `CAPABILITY_REVISION` | A pre-2.6 broker re-encodes envelopes without the revision: a revised payload is refused on such a session instead of being stored as revision 0 |
+| Registration | `EventoBundle.Builder.addUpcasters(...)` / `setUpcasters(List)` | Validated at start (before connecting) |
+
+Not covered (by design or yet): downcasting for older readers (tolerant reader instead:
+`FAIL_ON_UNKNOWN_PROPERTIES` off), splitting one event into several, upcasting saga state and
+query answers (views), metadata changes.
+
 ---
 
 ## 5. Handshake & Registration Protocol
@@ -624,6 +648,24 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     single-use, short-lived ticket bound to one correlation id carries its decision to the
     direct connection. A caller that cannot connect falls back to the broker on its own, so the
     feature can be enabled without knowing every caller's network.
+
+21. **Payloads are upcast on read, never migrated (2.6).** The event store is the history: an
+    upcaster that turns out wrong is fixed and applies to every read after, while a rewritten
+    store cannot be un-rewritten. Read-time cost is one JSON tree pass, and only for payloads a
+    step starts from. Upcasting runs in the bundle, where the classes are; the broker stays
+    payload-agnostic.
+
+22. **A revision per class, a rename as a step (2.6).** A new `XxxV2` class for every change
+    makes every consumer handle every version forever and leaks versions into routing names.
+    The class keeps its name and gains a revision for shape changes; a rename (`OrderPlaced` →
+    `OrderPlacedV2`) is still possible, as one more step, for when the meaning changes. Then only
+    the new class has handlers, and callers still sending the old name are routed to them.
+
+23. **Refuse rather than corrupt with an older broker (2.6).** A 2.5 broker re-encodes payload
+    envelopes with classes that have no revision, so a revised payload would be stored as
+    revision 0 and upcast again on every read, silently. The bundle refuses to send a revised
+    payload on a session without `revision:1`; the remedy, upgrading brokers first, is the
+    normal order.
 
 ---
 
@@ -788,7 +830,10 @@ These are the user-facing APIs — changing signatures requires a major version 
 - **Query model (2.6)**: `Single`, `Multiple`, `Page` + `PageRequest`, `Streamed`; `ConsistencyToken`,
   `QueryOptions`, `ConsistencyTimeoutException`, `QueryStream.QueryStreamException`
 - **Bundle builder options (2.6)**: `setLocalQueryShortCircuit`, `setCompressionThreshold`,
-  `setAcceptCompressedReplies`, `setDirectStreamConfig(DirectStreamConfig)`, `setStreamFrameBytes`
+  `setAcceptCompressedReplies`, `setDirectStreamConfig(DirectStreamConfig)`, `setStreamFrameBytes`,
+  `addUpcasters` / `setUpcasters`
+- **Payload versioning (2.6)**: `@Revision`, `Upcaster` (`from(..).to(..)`), `Upcasters`,
+  `UpcastException`, `Revisions`
 - **Service outcome SPI** (G5 inbox): `ServiceCommandOutcomeStore`, `ServiceCommandOutcomes`
   (injectable into service handlers), `EventoBundle.Builder.setServiceCommandOutcomeStore`
 - **Consumer SPIs**: `ConsumerStateStore`, `ConsumerLock`, `SagaStateStore`, `DeadEventQueue`,
