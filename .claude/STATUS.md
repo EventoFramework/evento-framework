@@ -2,6 +2,32 @@
 
 Last updated: 2026-10-16.
 
+## Enterprise readiness vs Axon 5 (branch `enterprise/2.6-readiness`, 2026-10-16)
+
+User request (Italian): verify a competitor analysis against Axon 5.4 / Axoniq on the code, decide
+the strategic points, roadmap. Analysis only, no code changed. Written to
+[`ENTERPRISE-2.6.md`](ENTERPRISE-2.6.md): gap table with ids (L/S/C/J/O/A/F/R), decision records
+D1..D10 (all "da decidere"), 3-phase roadmap with checkboxes. Key findings: `LICENSE.txt` adds
+restrictions the AGPL forbids; G6 also bites without failover (`getLockId()` → `null` = no lock,
+no verify); client libs compile with `--release 21` except one `Entry` name clash (bundle 1, server
+3); deadline drops already exist at the broker (N3); `evento-bundle` pulls `log4j-core`.
+Next: user decides D1, D9, D2 first; then work item by item on this branch.
+
+**Session 2 (same day): implemented the decided items** (user: licence b, Java b, security ok, Spring
+starter ok, OTel ok but opt-in with no overhead, test fixtures ok). Not committed. Plan updated
+(`ENTERPRISE-2.6.md`, "Stato al 2026-10-16"), CHANGELOG `[Unreleased]`, ARCHITECTURE §2/§6(24-25)/§7/§10/§14,
+CLAUDE.md.
+- Licence: per-module `LICENSE.txt`, `licenses/`, `NOTICE.txt`, `CLA.md` (draft, needs a lawyer), POM SPDX.
+- Java 21: `clientLibraries` + `clientJavaRelease` in root `build.gradle`, `-PtestJdk=21`, CI job.
+- Logging: client libs on SLF4J only; log4j configs moved to test resources; okhttp removed.
+- Server: `SecurityProfileGuard` (`evento.server.security.profile`), `BusTlsProperties` (`evento.server.bus.tls.*`).
+- Bundle: `setAuthToken` (was missing!), `setRestrictPayloadTypes`/`setAllowedPayloadPackages`,
+  `setBasePackageName`, `stop(Duration)`, `CorrelatingGateways`; `PayloadTypeAllowlist` live validator.
+- New modules (Apache-2.0, release 21, `gradle/evento-library.gradle`): `evento-test`, `evento-opentelemetry`
+  (OTel API 1.66.0), `evento-spring-boot-starter` (tests on Boot 4.1.1 and 3.5.16 via `boot3Test`).
+- Open: projector/service fixtures, starter health/metrics, server-side spans, event e2e trace test,
+  reflections removal, website/evento-doc licence pages, OIDC (S4).
+
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
 User request (Italian): an enterprise feature to version payloads and use the new versions;

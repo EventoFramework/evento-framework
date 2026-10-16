@@ -32,8 +32,56 @@ a revised payload needs a 2.6 broker.
   would record it as revision 0. Unrevised payloads, the default, flow through any broker.
 - Every 2.6 bundle advertises `stream:1` and `revision:1` in its Hello. Code that asserts the exact capability set
   of a Hello must expect it.
+- **Licence: the client libraries are now Apache-2.0** (`evento-transport-api`, `evento-transport-netty`,
+  `evento-common`, `evento-bundle`, `evento-consumer-state-store-jdbc` and the new starter, OpenTelemetry and
+  test modules). The server and the web console stay AGPL-3.0 or commercial. See `LICENSE.txt`; contributions
+  go through the CLA (`CLA.md`).
+- **The client libraries run on Java 21+** (compiled with `--release 21`; the server stays on 25). On JDK 21–23
+  a virtual thread blocked inside `synchronized` pins its carrier: Evento's own critical sections are short,
+  but a handler that blocks inside `synchronized` belongs on `ConsumerExecutors.pooled(...)`.
+- **Logging goes through SLF4J only.** `evento-common` and `evento-bundle` no longer depend on `log4j-core`
+  and no longer ship `log4j2.properties` / `log4j2.xml`, which overrode the application's logging setup. Spring
+  Boot applications log Evento through their own configuration with no change; a plain Java application needs
+  an SLF4J binding (Logback, `log4j-slf4j2-impl` + `log4j-core`, …), or SLF4J prints a "no providers" warning
+  and drops the logs. The unused `okhttp` dependency of `evento-bundle` is gone.
 
 ### Added
+
+- **Spring Boot starter (`evento-spring-boot-starter`).** With `evento.bundle.id` set, the bundle is built from
+  `evento.bundle.*` properties (servers, auth token, TLS and mutual TLS, zone, payload allowlist, consumer state,
+  tracing), started after the context is ready and stopped gracefully on shutdown; `CommandGateway` and
+  `QueryGateway` beans for application code; components get their constructor arguments from the context.
+  JDBC consumer state is used when `evento-consumer-state-store-jdbc` and a `DataSource` are present, tracing when
+  `evento-opentelemetry` and an `OpenTelemetry` bean are. `EventoBundleCustomizer` beans adjust the builder.
+  Compiled against the API Spring Boot 3 and 4 share, tested on 4.1 and 3.5; Evento itself still does not
+  depend on Spring.
+- **OpenTelemetry tracing (`evento-opentelemetry`), opt-in.** `OpenTelemetryTracingAgent`: a span per handler
+  (`SERVER` for commands, queries, invocations; `CONSUMER` for events) and the W3C `traceparent`/`tracestate` in
+  the metadata of everything a handler sends, through the server unchanged; `linkingConsumers()` starts consumer
+  traces with a link instead of a parent. The gateways `EventoBundle.getCommandGateway()`/`getQueryGateway()`
+  carry the trace of the calling code too (an HTTP request span). Depends on the OpenTelemetry API only; a
+  bundle without the agent keeps the no-op `TracingAgent` and its gateways unwrapped.
+- **Test fixtures (`evento-test`).** `AggregateFixture.of(aggregate).given(events).when(command)
+  .expectEvent(...)/expectException(...)/expectState(...)` and `SagaFixture.of(saga).given(events)
+  .whenEvent(event).expectCommands(...)/expectEnded()/expectAssociation(...)`, running the component's own
+  handlers with no broker or database; `RecordingCommandGateway` and `StubQueryGateway` for the commands and
+  queries handlers send. Payloads compare by `equals`, else field by field.
+- **Security profile on the server.** `evento.server.security.profile` (`EVENTO_SERVER_SECURITY_PROFILE`):
+  `dev`, the default, lists at startup the hardening that is off (`event=security_profile_dev`); `prod` refuses
+  to start, before the bus port opens, until the bus token, bus TLS, the deserialization allowlist, a web
+  console and a database password other than the shipped `secret`, and explicit CORS origins are all set.
+- **TLS and mutual TLS on the bus from properties**: `evento.server.bus.tls.enabled`, `cert-chain`,
+  `private-key` (PEM, PKCS#8), `private-key-password`, `trust-certs`, `client-auth=none|optional|require`,
+  `protocols` (default TLSv1.3, TLSv1.2), also as `EVENTO_SERVER_BUS_TLS_*`. Before, TLS on the server needed
+  code. `evento.server.web.cors.allowed-origins` is now also `EVENTO_SERVER_WEB_CORS_ALLOWED_ORIGINS`.
+- **Payload allowlist from code**: `PayloadTypeAllowlist.restrictTo(packages)` and, on the bundle,
+  `EventoBundle.Builder.setRestrictPayloadTypes(true)` (the bundle's base package) and
+  `setAllowedPayloadPackages(...)`. The validator now reads the allowlist on every check, so mappers built
+  before the restriction apply it too.
+- `EventoBundle.Builder.setAuthToken(...)`: the shared secret a server with `evento.server.bus.auth-token`
+  requires. Before, a bundle built with `EventoBundle.Builder` could not present one.
+- `EventoBundle.stop(Duration)`: leave the server's routing, stop the consumer engines, close the connection.
+- `EventoBundle.Builder.setBasePackageName(String)`, for when no `Package` object is at hand.
 
 - **Payload versioning (upcasting).** `@Revision(n)` on a payload class (event, command, query,
   aggregate state) records its revision in every payload written (`SerializedObject.revision`,
@@ -126,6 +174,8 @@ a revised payload needs a 2.6 broker.
 
 ### Fixed
 
+- `JdbcConsumerStateStore` held a monitor while it waited for the pool, the network and Flyway; it is a
+  `ReentrantLock` now, so a virtual thread waiting there does not pin its carrier on JDK 21–23.
 - A response over the reconnect buffer's byte budget is no longer buffered
   (`event=reconnect_buffer_full`): a burst of disconnects can no longer exhaust the broker's heap.
 

@@ -41,6 +41,9 @@ evento-framework/
 ├── evento-server/                Server runtime: bus lifecycle, event store, REST API, Spring Boot app
 ├── evento-consumer-state-store/
 │   └── evento-consumer-state-store-jdbc/  JDBC impls (Postgres + MySQL) for consumer SPIs
+├── evento-spring-boot-starter/   Auto-configuration: bundle from evento.bundle.* properties, gateway beans
+├── evento-opentelemetry/         OpenTelemetryTracingAgent: span per handler, W3C context in metadata
+├── evento-test/                  Given/when/then fixtures for aggregates and sagas (no broker, no DB)
 ├── evento-gui/                   Web GUI (Angular 22 + Ionic 8), built into the server's static resources
 ├── evento-lab/                   In-process integration tests (single-bundle RTT, failure matrix, etc.)
 ├── evento-lab-microservices/     Multi-bundle integration tests (RECQ microservices scenario)
@@ -56,6 +59,14 @@ evento-framework/
     ├── evento-lab-cluster-chaos/  scenario driver (gated on EVENTO_LAB_CLUSTER)
     └── docs/                      cluster-mode guide L0–L5, config reference, chaos results (Italian)
 ```
+
+**Licences and Java baselines.** The client libraries (`clientLibraries` in the root `build.gradle`:
+transport-api, transport-netty, common, bundle, consumer-state-store-jdbc, spring-boot-starter,
+opentelemetry, test) are **Apache-2.0** and compile with **`--release 21`**; the server, the GUI and
+the labs are **AGPL-3.0 or commercial** and target 25 (`LICENSE.txt`). New published libraries apply
+`gradle/evento-library.gradle` (publication, POM licence, LICENSE/NOTICE in the jar).
+`-PtestJdk=21` runs the client tests on JDK 21 (CI job `client-libraries-jdk21`). Libraries log through
+SLF4J only and ship no logging configuration.
 
 **Gradle**: version `2.5.2` (wrapper 9.7.1), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
 `4.1.1` (server and lab services), Jackson `2.22.2`, Netty `4.2.17.Final`, Flyway `13.4.0`. Root
@@ -667,17 +678,47 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     payload on a session without `revision:1`; the remedy, upgrading brokers first, is the
     normal order.
 
+24. **The client libraries are Apache-2.0 and Java 21; the server is AGPL/commercial and Java 25
+    (2026-10).** Applications link only the libraries, so they carry no copyleft and run on the
+    LTS enterprises use; the server ships as an image, so its licence and JVM are Evento's choice.
+    The split is the `clientLibraries` list. Contributions go through a CLA (`CLA.md`) so the
+    commercial licence stays possible.
+
+25. **Integrations are optional modules, not core dependencies (2026-10).** Spring
+    (`evento-spring-boot-starter`), OpenTelemetry (`evento-opentelemetry`) and the test fixtures
+    (`evento-test`) depend on the core, never the reverse; the core keeps its extension points
+    (`TracingAgent`, the injector, the builder). A bundle without them pays nothing: the no-op
+    `TracingAgent` leaves the gateways unwrapped.
+
 ---
 
 ## 7. Security Model
 
+- **Security profile (server):** `evento.server.security.profile=dev|prod`
+  (`SecurityProfileGuard`, bean created before the transport config). `dev` (2.x default) logs the
+  failing checks once (`event=security_profile_dev`); `prod` refuses to start, before the bus port
+  opens, unless: bus auth token set, bus TLS on, deserialization allowlist set, GUI and datasource
+  passwords not the shipped `secret`, CORS origins explicit. 3.0 plans `prod` as default.
+
 - **Authentication:** `Hello.authToken: String`. `HandshakeHandler` → `TokenValidator.validate(token)`.
   Built-in impls: `acceptAll()` (default) and `sharedSecret(token)` (constant-time compare).
-  Failed auth → `Reject(CODE_AUTH_FAILED)` → `BundleClient.start()` future fails.
+  Failed auth → `Reject(CODE_AUTH_FAILED)` → `BundleClient.start()` future fails. Server:
+  `evento.server.bus.auth-token`; bundle: `EventoBundle.Builder.setAuthToken` (starter:
+  `evento.bundle.auth-token`).
 
 - **TLS:** `NettyTransportConfig.sslContext` (nullable). When set, the pipeline prepends
   `SslHandler`. Same config record for client and server (`SslContextBuilder.forClient()` vs
-  `forServer()`).
+  `forServer()`). Server from properties: `evento.server.bus.tls.*` (`BusTlsProperties`: PEM
+  `cert-chain`, `private-key` PKCS#8, `trust-certs`, `client-auth=none|optional|require` for mTLS).
+  Bundle: `setTransportConfig(NettyTransportConfig.defaults().withSslContext(...))`, or the starter's
+  `evento.bundle.tls.*`.
+
+- **Payload deserialization:** `PayloadTypeAllowlist` builds a *live* validator for the polymorphic
+  payload mappers: open (any `Serializable`, warned once) until restricted by
+  `evento.serialization.allowed-packages` / `EVENTO_SERIALIZATION_ALLOWED_PACKAGES` or
+  `restrictTo(...)` (bundle: `setRestrictPayloadTypes` adds the base package,
+  `setAllowedPayloadPackages`); then only `com.evento.`, `java.util/time/math` and the allowed
+  packages. Restricted names are refused before the class is loaded.
 
 - **CBOR type whitelist:** `MessageTypeRegistry` maps byte tags to explicit classes under the
   sealed `Message` hierarchy. `allowIfSubType(Message.class)` + explicit registration per type.
@@ -858,8 +899,16 @@ JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew \
   :evento-bundle:test \
   :evento-consumer-state-store:evento-consumer-state-store-jdbc:test \
   :evento-lab:test \
-  :evento-lab-microservices:evento-lab-ms-it:test
+  :evento-lab-microservices:evento-lab-ms-it:test \
+  :evento-test:test \
+  :evento-opentelemetry:test \
+  :evento-spring-boot-starter:test \
+  :evento-spring-boot-starter:boot3Test
 ```
+
+`boot3Test` re-runs the starter tests with the Spring Boot 3.5 BOM enforced (Spring 6.2, Netty 4.1,
+Jackson 2.21): the starter compiles against the API Boot 3 and 4 share and exports no Spring
+dependency. The starter's tests run a real broker, so they compile and run on 25.
 
 **JDBC integration tests** (requires Docker, Postgres + MySQL via Testcontainers):
 ```bash
@@ -1009,6 +1058,15 @@ explorative read-only pivot.)
 ---
 
 ## 14. Observability
+
+- **Tracing (opt-in, `evento-opentelemetry`):** `OpenTelemetryTracingAgent extends TracingAgent`.
+  `doTrack` opens a span per handler (`<component> <payload>`, `SERVER` for commands/queries/
+  invocations, `CONSUMER` for events), parent from the message metadata's W3C `traceparent`
+  (`linkingConsumers()`: consumers start a new trace with a link). `correlate` injects the current
+  span into a copy of the outgoing metadata (fallback: the handled message's context). Handlers'
+  gateways correlate through `GatewayTelemetryProxy`; the gateways `EventoBundle` exposes to
+  application code are wrapped by `CorrelatingGateways` **only when the agent is not the no-op base
+  class**. The server carries metadata opaquely: no wire change. API-only dependency.
 
 - **Micrometer metrics** — wired via `BusMetricsBinder` (`com.evento.server.bus.spring`),
   exposed on `/actuator/prometheus` + `/actuator/metrics` (`micrometer-registry-prometheus`):
