@@ -168,11 +168,24 @@ public class BusConfiguration {
                                      TokenValidator tokenValidator,
                                      BusProperties props,
                                      @Value("${evento.cluster.name:}") String clusterName,
+                                     // Bytes of command responses kept for exactly-once replay, and the
+                                     // largest one kept (a larger one is remembered as answered only).
+                                     @Value("${evento.server.bus.dedup.max-retained-bytes:134217728}") long dedupMaxRetainedBytes,
+                                     @Value("${evento.server.bus.dedup.max-response-bytes:1048576}") int dedupMaxResponseBytes,
+                                     // Bytes of command responses held for callers that are away.
+                                     @Value("${evento.server.bus.reconnect-buffer.max-bytes:268435456}") long reconnectBufferMaxBytes,
+                                     // The broker's own replies (event fetches) from this size are
+                                     // compressed for callers that accept it; 0 never.
+                                     @Value("${evento.server.bus.compression.threshold-bytes:32768}") int compressionThreshold,
                                      org.springframework.beans.factory.ObjectProvider<
                                              org.springframework.boot.availability.ApplicationAvailability> availability) {
         var lifecycle = new BusLifecycle(transportServer, connections, cluster, correlations,
                 forwarding, eventBus, props.serverInstanceId(),
-                Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec, tokenValidator);
+                Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec, tokenValidator,
+                new com.evento.server.bus.correlation.ForwardingDedupCache(50_000, java.time.Duration.ofMinutes(5),
+                        dedupMaxRetainedBytes, dedupMaxResponseBytes));
+        lifecycle.setReconnectBufferMaxBytes(reconnectBufferMaxBytes);
+        lifecycle.setResponseCompressionThreshold(compressionThreshold);
         // The bus binds in a @PostConstruct, long before the rest of the context (JPA,
         // event store, schema) is up. A bundle that failed over elsewhere probes this
         // broker to decide when to move back (N16): it must not be told "healthy"

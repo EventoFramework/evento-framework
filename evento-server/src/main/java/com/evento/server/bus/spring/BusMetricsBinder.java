@@ -24,6 +24,12 @@ import io.micrometer.core.instrument.binder.MeterBinder;
  *       — requests dropped unexecuted because their caller's deadline had passed</li>
  *   <li>{@code evento.server.bus.executor.{pool.size,active,queue.depth,max}} — request-handling capacity</li>
  *   <li>{@code evento.server.bus.executor.saturated} — times demand exceeded pool + queue</li>
+ *   <li>{@code evento.server.streams.active} / {@code evento.server.streams.opened} — streamed
+ *       query answers being relayed now / since start (2.6)</li>
+ *   <li>{@code evento.server.stream.frames} / {@code evento.server.stream.bytes} — stream frames
+ *       and their bytes relayed</li>
+ *   <li>{@code evento.server.reconnect.buffer.bytes}, {@code evento.server.dedup.retained.bytes}
+ *       — the broker's two reply buffers, both bounded in bytes</li>
  * </ul>
  *
  * <p>{@code evento.server.bus.executor.saturated} is the one to alert on. It only
@@ -89,6 +95,27 @@ public class BusMetricsBinder implements MeterBinder {
         FunctionCounter.builder("evento.server.bus.executor.saturated", executor,
                         BusBusinessExecutor::saturatedCount)
                 .description("Times incoming demand exceeded pool and queue capacity")
+                .register(registry);
+        Gauge.builder("evento.server.streams.active", bus, BusLifecycle::activeStreams)
+                .description("Streamed query answers being relayed")
+                .register(registry);
+        FunctionCounter.builder("evento.server.streams.opened", bus, BusLifecycle::streamsOpened)
+                .description("Streamed query answers relayed since start")
+                .register(registry);
+        FunctionCounter.builder("evento.server.stream.frames", bus, BusLifecycle::streamFramesRelayed)
+                .description("Stream frames relayed (data, credit, cancel, redirect)")
+                .register(registry);
+        FunctionCounter.builder("evento.server.stream.bytes", bus, BusLifecycle::streamBytesRelayed)
+                .description("Bytes of stream frames relayed")
+                .baseUnit("bytes")
+                .register(registry);
+        Gauge.builder("evento.server.reconnect.buffer.bytes", bus, BusLifecycle::reconnectBufferBytes)
+                .description("Bytes of replies held for callers that are away")
+                .baseUnit("bytes")
+                .register(registry);
+        Gauge.builder("evento.server.dedup.retained.bytes", bus, BusLifecycle::dedupRetainedBytes)
+                .description("Bytes of command replies retained for exactly-once replay")
+                .baseUnit("bytes")
                 .register(registry);
     }
 }

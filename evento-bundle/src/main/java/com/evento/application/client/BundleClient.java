@@ -10,6 +10,8 @@ import com.evento.transport.codec.JacksonCborPayloadCodec;
 import com.evento.transport.codec.PayloadCodec;
 import com.evento.transport.message.Notification;
 import com.evento.transport.message.Request;
+import com.evento.application.client.stream.InboundStream;
+import com.evento.transport.HandshakeProtocol;
 import com.evento.transport.message.Response;
 import com.evento.transport.protocol.ProtocolNotifications;
 import org.slf4j.Logger;
@@ -54,6 +56,17 @@ public final class BundleClient implements AutoCloseable {
     private final InboundDispatcher inboundDispatcher;
     private final com.evento.application.client.metrics.BundleLatencies latencies =
             new com.evento.application.client.metrics.BundleLatencies();
+    /** Incremented by every session that passes the handshake. */
+    private final java.util.concurrent.atomic.AtomicLong sessionEpoch = new java.util.concurrent.atomic.AtomicLong();
+    /** The query payload types this bundle's own handlers answer. */
+    private final java.util.Set<String> localQueryTypes;
+    /** Whether this bundle is in the broker's available view (enable() called, disable() not since). */
+    private volatile boolean enabled;
+    private final java.util.concurrent.atomic.LongAdder localQueries = new java.util.concurrent.atomic.LongAdder();
+    /** This bundle's endpoint for direct streams, or null when it offers none. */
+    private final com.evento.application.client.stream.DirectStreamServer directServer;
+    /** Follows the direct streams other bundles offer to this one. */
+    private final com.evento.application.client.stream.DirectStreamClient directClient;
 
     public BundleClient(BundleClientConfig config) {
         this(config, new JacksonCborPayloadCodec());
@@ -66,21 +79,51 @@ public final class BundleClient implements AutoCloseable {
         this.correlationTracker = new BundleCorrelationTracker();
         this.processedRequestCache = new ProcessedRequestCache();
         this.supervisor = new ConnectionSupervisor(config, payloadCodec);
+        this.localQueryTypes = queryPayloadTypes(config);
+        // An auto-enabled bundle is enabled by its registration, without an enable() call.
+        this.enabled = config.autoEnable();
         this.inboundDispatcher = new InboundDispatcher(
                 correlationTracker,
                 processedRequestCache,
                 handlerRegistry,
                 config.transportConfig().businessExecutor(),
                 this::sendInternal,
-                queryPayloadTypes(config)
+                queryPayloadTypes(config),
+                config.compressionThreshold(),
+                config.acceptCompressedReplies()
         );
         this.supervisor.setInboundSink(inboundDispatcher.asMessageSink());
+        // Every session that passes the handshake starts a new epoch; idempotent
+        // requests remember the epoch they were sent on.
+        this.supervisor.onBrokerAccepted(serverInstanceId -> sessionEpoch.incrementAndGet());
         // A reply is buffered by the broker the request went through and is only
         // replayed to this bundle on that broker. Attaching anywhere else strands
         // it; say so now instead of after the whole request timeout.
         this.supervisor.onBrokerAccepted(correlationTracker::failSentOnOtherBroker);
+        // No broker keeps the reply of a read for a caller that went away: ask the
+        // reads that were in flight again as soon as the new session can send.
+        this.supervisor.onStateChange((from, to) -> {
+            if (to == BundleClientState.READY) {
+                correlationTracker.resendSentBefore(sessionEpoch.get(), supervisor::send);
+            }
+        });
         // What a fail-back switch waits for before it closes the session (N16).
         this.supervisor.setDrainCounters(inboundDispatcher::inFlightRequests, correlationTracker::pendingCount);
+        // Stream frames flow only on a session whose broker accepted the capability, and a
+        // stream does not survive its session (its frames would be lost or repeated).
+        this.inboundDispatcher.setStreamsAccepted(() -> supervisor.accepted(HandshakeProtocol.CAPABILITY_STREAM));
+        this.directServer = config.directStreams() == null ? null
+                : new com.evento.application.client.stream.DirectStreamServer(config.directStreams(),
+                        config.transportConfig(), config.instanceId(), inboundDispatcher::runStream,
+                        inboundDispatcher::dispatch);
+        this.inboundDispatcher.setDirectServer(directServer);
+        this.directClient = new com.evento.application.client.stream.DirectStreamClient(config.transportConfig(),
+                config.bundleId(), config.instanceId(), config.bundleVersion(), config.handshakeTimeout());
+        this.supervisor.onStateChange((from, to) -> {
+            if (from == BundleClientState.READY && to != BundleClientState.READY) {
+                inboundDispatcher.streamsLost("the session to the broker ended (" + to + ")");
+            }
+        });
     }
 
     // ---------- Lifecycle ----------
@@ -90,6 +133,8 @@ public final class BundleClient implements AutoCloseable {
      * the bundle is READY (or when the first attempt fails).
      */
     public CompletableFuture<Void> start() {
+        // Bound before the bundle registers: a direct stream may be asked of it at once.
+        if (directServer != null) directServer.start();
         return supervisor.start();
     }
 
@@ -103,6 +148,8 @@ public final class BundleClient implements AutoCloseable {
             supervisor.stop(deadline);
         } finally {
             correlationTracker.shutdown(deadline);
+            if (directServer != null) directServer.close();
+            directClient.close();
         }
     }
 
@@ -165,6 +212,22 @@ public final class BundleClient implements AutoCloseable {
      * the supervisor cannot accept the send (e.g. not yet READY).
      */
     public CompletableFuture<Response> request(String payloadType, byte[] payload, Duration timeout) {
+        return request(payloadType, payload, timeout, false);
+    }
+
+    /**
+     * @param idempotent whether the request is a read that may be executed any number of
+     *                   times (a query, an event fetch). Brokers route such reads straight
+     *                   and keep no reply for a caller that went away, so an idempotent
+     *                   request still pending when its session ends is sent again on the
+     *                   next one (same correlation id, the time it has left) rather than
+     *                   failing; a request with side effects never is.
+     */
+    public CompletableFuture<Response> request(String payloadType, byte[] payload, Duration timeout,
+                                              boolean idempotent) {
+        if (idempotent && answersLocally(payloadType)) {
+            return requestLocally(payloadType, payload, timeout);
+        }
         int limit = config.maxInFlightRequests();
         if (limit > 0 && correlationTracker.pendingCount() >= limit) {
             // Refuse now rather than add to a backlog nobody can serve in time.
@@ -177,15 +240,16 @@ public final class BundleClient implements AutoCloseable {
         }
         var correlationId = UUID.randomUUID();
         long startNanos = System.nanoTime();
-        var future = correlationTracker.track(correlationId, payloadType, timeout,
-                supervisor.serverInstanceId());
         var request = new Request(
                 correlationId,
                 config.bundleId(), config.instanceId(), config.bundleVersion(),
                 payloadType, payload,
                 timeout == null ? 0L : timeout.toMillis(),
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                acceptEncodings(), 0, false
         );
+        var future = correlationTracker.track(correlationId, payloadType, timeout,
+                supervisor.serverInstanceId(), idempotent ? request : null, sessionEpoch.get());
         try {
             supervisor.send(request);
         } catch (SendFailedException sfe) {
@@ -203,6 +267,161 @@ public final class BundleClient implements AutoCloseable {
             }
         });
         return future;
+    }
+
+    /**
+     * Whether a read of {@code payloadType} is answered by this bundle itself: it is one of
+     * its own queries, the short-circuit is on, and the bundle is enabled. A bundle that is
+     * not enabled yet (its projectors still catching up, see
+     * {@code @Projector(waitForHeadReached)}) or that was disabled is not served by the
+     * broker, and does not serve itself either: the query goes to the broker, which picks
+     * an instance that is.
+     */
+    public boolean answersLocally(String payloadType) {
+        return config.localQueryShortCircuit() && enabled
+                && localQueryTypes.contains(payloadType) && inboundDispatcher.handles(payloadType);
+    }
+
+    /**
+     * Same bytes, same handler path as a remote query (decode, handler, interceptors,
+     * tracing, handler metrics, encode, decode at the caller), without the broker. The
+     * round trip is recorded under the payload type like a remote one.
+     */
+    private CompletableFuture<Response> requestLocally(String payloadType, byte[] payload, Duration timeout) {
+        var correlationId = UUID.randomUUID();
+        long startNanos = System.nanoTime();
+        var request = new Request(correlationId,
+                config.bundleId(), config.instanceId(), config.bundleVersion(),
+                payloadType, payload,
+                timeout == null ? 0L : timeout.toMillis(),
+                System.currentTimeMillis());
+        localQueries.increment();
+        return inboundDispatcher.answerLocally(request, timeout).whenComplete((response, t) -> {
+            long elapsed = System.nanoTime() - startNanos;
+            if (response != null && !response.isError()) {
+                latencies.requestRtt().record(payloadType, elapsed);
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("event=query_answered_locally payloadType={} correlationId={} elapsedMs={} error={}",
+                        payloadType, correlationId, elapsed / 1_000_000.0,
+                        response == null || response.isError());
+            }
+        });
+    }
+
+    /**
+     * Asks {@code payloadType} for a streamed reply: frames pulled from the returned stream
+     * as the caller consumes them, with credit flowing back, so that no hop holds more
+     * than {@code window} frames of it. Close the stream (it cancels one that has not ended).
+     *
+     * <ul>
+     *   <li>A query this bundle answers itself streams in process (same handler path, no
+     *       broker), see {@link #answersLocally}.</li>
+     *   <li>On a session whose broker does not relay streams, or towards a handler that
+     *       cannot stream, the reply arrives whole, as one {@link InboundStream.Item.Whole}.</li>
+     *   <li>{@code direct}: the handler may offer the stream on a direct connection
+     *       ({@link com.evento.transport.message.StreamRedirect}); the caller of this method
+     *       handles that through {@link InboundStream#onRedirect}.</li>
+     * </ul>
+     *
+     * @param timeout how long to wait for the first frame, and then between two frames
+     */
+    public InboundStream openStream(String payloadType, byte[] payload, Duration timeout, int window, boolean direct) {
+        var correlationId = UUID.randomUUID();
+        long timeoutMs = timeout == null ? 0L : timeout.toMillis();
+        if (answersLocally(payloadType)) {
+            localQueries.increment();
+            var stream = new InboundStream(correlationId, payloadType, window, timeout,
+                    inboundDispatcher::controlLocally, id -> { });
+            inboundDispatcher.answerLocally(new Request(correlationId,
+                    config.bundleId(), config.instanceId(), config.bundleVersion(),
+                    payloadType, payload, timeoutMs, System.currentTimeMillis(),
+                    java.util.Set.of(), window, false), stream);
+            log.debug("event=stream_answered_locally payloadType={} correlationId={}", payloadType, correlationId);
+            return stream;
+        }
+        boolean streams = supervisor.accepted(HandshakeProtocol.CAPABILITY_STREAM);
+        var stream = new InboundStream(correlationId, payloadType, window, timeout,
+                this::sendInternal, inboundDispatcher::unregisterInbound);
+        inboundDispatcher.registerInbound(stream);
+        if (streams && direct) {
+            // Taken on the direct connection the handler offers, or asked again through
+            // the broker when that connection cannot be made.
+            stream.onRedirect(redirect -> directClient.follow(stream, redirect,
+                    () -> reaskViaBroker(stream, payload, timeout)));
+        }
+        var request = new Request(correlationId,
+                config.bundleId(), config.instanceId(), config.bundleVersion(),
+                payloadType, payload, timeoutMs, System.currentTimeMillis(),
+                acceptEncodings(), streams ? window : 0, streams && direct);
+        try {
+            supervisor.send(request);
+        } catch (SendFailedException notSent) {
+            stream.fail(notSent);
+        }
+        return stream;
+    }
+
+    /**
+     * Asks a stream again through the broker, without the direct option, under a new
+     * correlation id: its handler offered a direct connection that could not be made
+     * (unreachable, refused, ticket expired). The stream had received nothing yet; the
+     * query is a read, so asking it again is safe.
+     */
+    public void reaskViaBroker(InboundStream stream, byte[] payload, Duration timeout) {
+        var correlationId = UUID.randomUUID();
+        stream.retarget(correlationId, this::sendInternal);
+        inboundDispatcher.registerInbound(stream);
+        boolean streams = supervisor.accepted(HandshakeProtocol.CAPABILITY_STREAM);
+        var request = new Request(correlationId,
+                config.bundleId(), config.instanceId(), config.bundleVersion(),
+                stream.payloadType(), payload, timeout == null ? 0L : timeout.toMillis(), System.currentTimeMillis(),
+                acceptEncodings(), streams ? stream.window() : 0, false);
+        try {
+            supervisor.send(request);
+        } catch (SendFailedException notSent) {
+            stream.fail(notSent);
+        }
+    }
+
+    /** The port of this bundle's direct-stream endpoint, or -1 when it offers none. */
+    public int directStreamPort() {
+        return directServer == null ? -1 : directServer.boundPort();
+    }
+
+    /** Streams this bundle served on direct connections. */
+    public long directStreamsServed() {
+        return directServer == null ? 0 : directServer.served();
+    }
+
+    /** Streams this bundle took on a direct connection another bundle offered. */
+    public long directStreamsFollowed() {
+        return directClient.followed();
+    }
+
+    /** Direct streams offered to this bundle that it had to ask again through the broker. */
+    public long directStreamFallbacks() {
+        return directClient.fallbacks();
+    }
+
+    /** Whether the current session carries streamed replies. */
+    public boolean streamsAccepted() {
+        return supervisor.accepted(HandshakeProtocol.CAPABILITY_STREAM);
+    }
+
+    /** Streams this bundle is receiving through the broker now. */
+    public int inboundStreams() {
+        return inboundDispatcher.inboundStreams();
+    }
+
+    /** Streams this bundle's handlers are sending now. */
+    public int outboundStreams() {
+        return inboundDispatcher.outboundStreams();
+    }
+
+    /** Queries this bundle answered itself instead of sending them through the broker. */
+    public long localQueries() {
+        return localQueries.sum();
     }
 
     /** The broker's routing miss: nothing on it handles the payload type. */
@@ -248,6 +467,7 @@ public final class BundleClient implements AutoCloseable {
         // in ClusterRegistry.handlers but never appear in ConnectionRegistry.enabledView,
         // causing permanent "no handler for X" routing failures.
         supervisor.markEnabled();
+        enabled = true;
         try {
             return supervisor.send(new Notification(UUID.randomUUID(),
                     ProtocolNotifications.ENABLE, new byte[0], System.currentTimeMillis()))
@@ -267,11 +487,20 @@ public final class BundleClient implements AutoCloseable {
     }
 
     public CompletableFuture<Void> disable() {
+        enabled = false;
         return supervisor.send(new Notification(UUID.randomUUID(),
                 ProtocolNotifications.DISABLE, new byte[0], System.currentTimeMillis()));
     }
 
     // ---------- Internals ----------
+
+    private static final java.util.Set<String> DEFLATE_ONLY =
+            java.util.Set.of(com.evento.transport.codec.PayloadEncoding.DEFLATE);
+
+    /** What this bundle's requests accept in their replies. */
+    java.util.Set<String> acceptEncodings() {
+        return config.acceptCompressedReplies() ? DEFLATE_ONLY : java.util.Set.of();
+    }
 
     private CompletableFuture<Void> sendInternal(com.evento.transport.message.Message m) {
         return supervisor.send(m);
@@ -284,12 +513,7 @@ public final class BundleClient implements AutoCloseable {
      * responses in memory.
      */
     private static java.util.Set<String> queryPayloadTypes(BundleClientConfig config) {
-        return config.registeredHandlers().stream()
-                .filter(h -> h.getHandlerType()
-                        == com.evento.common.modeling.bundle.types.HandlerType.QueryHandler)
-                .map(com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler::getHandledPayload)
-                .filter(java.util.Objects::nonNull)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return java.util.Set.copyOf(config.queryPayloadTypes());
     }
 
     public PayloadCodec payloadCodec() { return payloadCodec; }
@@ -366,6 +590,14 @@ public final class BundleClient implements AutoCloseable {
         public Builder failbackStabilityWindow(Duration d) { cfg.failbackStabilityWindow(d); return this; }
         public Builder failbackJitter(Duration d) { cfg.failbackJitter(d); return this; }
         public Builder failbackDrainTimeout(Duration d) { cfg.failbackDrainTimeout(d); return this; }
+        /** Compress this bundle's replies of at least this many bytes for callers that accept it; 0 never. */
+        public Builder compressionThreshold(int bytes) { cfg.compressionThreshold(bytes); return this; }
+        /** Whether this bundle's requests accept compressed replies (default true). */
+        public Builder acceptCompressedReplies(boolean v) { cfg.acceptCompressedReplies(v); return this; }
+        /** Answer this bundle's own queries locally once it is enabled (default true). */
+        public Builder localQueryShortCircuit(boolean v) { cfg.localQueryShortCircuit(v); return this; }
+        /** Offer streamed answers on direct connections (null: through the broker only). */
+        public Builder directStreams(com.evento.application.client.stream.DirectStreamConfig c) { cfg.directStreams(c); return this; }
 
         public BundleClient build() {
             return new BundleClient(cfg.build(), payloadCodec);

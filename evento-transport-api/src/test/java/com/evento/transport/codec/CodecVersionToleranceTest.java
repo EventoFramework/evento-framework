@@ -155,4 +155,49 @@ class CodecVersionToleranceTest {
         assertThat(new com.evento.transport.message.Welcome(java.util.UUID.randomUUID(), (byte) 1,
                 "x", java.util.Set.of(), 0L).clusterName()).isEmpty();
     }
+
+    @Test
+    void aPlainRequestKeepsItsPre26WireShapeAndTheNewFieldsTravelWhenSet() throws Exception {
+        var mapper = JacksonCborCodec.defaultMapper();
+        var codec = new JacksonCborCodec();
+        var id = java.util.UUID.randomUUID();
+        var plain = new com.evento.transport.message.Request(id, "web", "web-1", "1", "FindOrders",
+                new byte[]{1}, 5_000L, 7L);
+
+        var plainBytes = mapper.writeValueAsBytes((com.evento.transport.message.Message) plain);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> plainMap = mapper.readValue(plainBytes, Map.class);
+        // Unset additive fields stay off the wire: an old peer sees exactly what it always did.
+        assertThat(plainMap).doesNotContainKeys("acceptEncodings", "streamWindow", "streamDirect");
+
+        var streamed = new com.evento.transport.message.Request(id, "web", "web-1", "1", "FindOrders",
+                new byte[]{1}, 5_000L, 7L, java.util.Set.of(PayloadEncoding.DEFLATE), 16, true);
+        var bytes = mapper.writeValueAsBytes((com.evento.transport.message.Message) streamed);
+        var decoded = (com.evento.transport.message.Request) codec.decode(bytes, 0, bytes.length);
+        assertThat(decoded.accepts(PayloadEncoding.DEFLATE)).isTrue();
+        assertThat(decoded.streamWindow()).isEqualTo(16);
+        assertThat(decoded.isStreamed()).isTrue();
+        assertThat(decoded.streamDirect()).isTrue();
+
+        // An older peer decoding the plain shape gets the defaults, never null.
+        var fromOlder = (com.evento.transport.message.Request) codec.decode(plainBytes, 0, plainBytes.length);
+        assertThat(fromOlder.acceptEncodings()).isEmpty();
+        assertThat(fromOlder.isStreamed()).isFalse();
+        assertThat(fromOlder.streamDirect()).isFalse();
+    }
+
+    @Test
+    void theRegistrationDeclaresQueriesAndAnOlderBundleDeclaresNone() throws Exception {
+        var current = new com.evento.transport.protocol.BundleRegistrationInfo(3L,
+                List.of("FindOrders", "PlaceOrder"), List.of("FindOrders"));
+        var decoded = codec.decode(codec.encode(current), com.evento.transport.protocol.BundleRegistrationInfo.class);
+        assertThat(decoded.queryPayloadTypes()).containsExactly("FindOrders");
+
+        var older = new LinkedHashMap<String, Object>();
+        older.put("bundleVersion", 2L);
+        older.put("handlerPayloadTypes", List.of("FindOrders"));
+        var fromOlder = codec.decode(cbor(older), com.evento.transport.protocol.BundleRegistrationInfo.class);
+        assertThat(fromOlder.queryPayloadTypes()).isEmpty();
+        assertThat(fromOlder.handlerPayloadTypes()).containsExactly("FindOrders");
+    }
 }

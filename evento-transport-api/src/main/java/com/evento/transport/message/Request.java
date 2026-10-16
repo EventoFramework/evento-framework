@@ -1,8 +1,10 @@
 package com.evento.transport.message;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -19,6 +21,20 @@ import java.util.UUID;
  * forwards, locks or appends anything. Measured from the arrival, the deadline
  * errs late by the one-way network delay, never early. {@code timestampMs} is the
  * sender's clock and is not used for this.
+ *
+ * <p><b>Additive fields (2.6).</b> All three travel end to end: the broker forwards the
+ * bytes it received, so a broker that predates them still delivers them, and a
+ * handler that predates them ignores them (and answers the plain way, which every
+ * caller accepts).
+ * <ul>
+ *   <li>{@code acceptEncodings}: payload encodings the caller can decode in the reply
+ *       (see {@code PayloadEncoding}); empty = identity only.</li>
+ *   <li>{@code streamWindow}: {@code > 0} asks for the reply as a stream of
+ *       {@link StreamData} frames, of which the handler may send this many before the
+ *       caller grants more with {@link StreamCredit}; {@code 0} = one {@link Response}.</li>
+ *   <li>{@code streamDirect}: the caller can also take the stream on a direct connection
+ *       to the handler, if the handler offers one ({@link StreamRedirect}).</li>
+ * </ul>
  */
 public record Request(
         UUID correlationId,
@@ -28,7 +44,11 @@ public record Request(
         String payloadType,
         byte[] payload,
         long timeoutMillis,
-        long timestampMs
+        long timestampMs,
+        // Left off the wire when unset, so a plain request costs what it did before.
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) Set<String> acceptEncodings,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) int streamWindow,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean streamDirect
 ) implements Message {
 
     @JsonCreator
@@ -40,7 +60,10 @@ public record Request(
             @JsonProperty("payloadType") String payloadType,
             @JsonProperty("payload") byte[] payload,
             @JsonProperty("timeoutMillis") long timeoutMillis,
-            @JsonProperty("timestampMs") long timestampMs
+            @JsonProperty("timestampMs") long timestampMs,
+            @JsonProperty("acceptEncodings") Set<String> acceptEncodings,
+            @JsonProperty("streamWindow") int streamWindow,
+            @JsonProperty("streamDirect") boolean streamDirect
     ) {
         this.correlationId = correlationId;
         this.sourceBundleId = sourceBundleId;
@@ -50,6 +73,33 @@ public record Request(
         this.payload = payload == null ? new byte[0] : payload;
         this.timeoutMillis = timeoutMillis;
         this.timestampMs = timestampMs;
+        this.acceptEncodings = acceptEncodings == null ? Set.of() : Set.copyOf(acceptEncodings);
+        this.streamWindow = Math.max(0, streamWindow);
+        this.streamDirect = streamDirect;
+    }
+
+    /** Pre-2.6 shape: identity payloads, a single {@link Response}. */
+    public Request(UUID correlationId, String sourceBundleId, String sourceInstanceId,
+                   String sourceBundleVersion, String payloadType, byte[] payload,
+                   long timeoutMillis, long timestampMs) {
+        this(correlationId, sourceBundleId, sourceInstanceId, sourceBundleVersion, payloadType,
+                payload, timeoutMillis, timestampMs, null, 0, false);
+    }
+
+    /** Whether the caller asked for the reply as a stream. */
+    public boolean isStreamed() {
+        return streamWindow > 0;
+    }
+
+    /** Whether the caller can decode a reply in {@code encoding}. */
+    public boolean accepts(String encoding) {
+        return encoding != null && acceptEncodings.contains(encoding);
+    }
+
+    /** The same request with another remaining budget, sent now (a resend). */
+    public Request withTimeout(long remainingMillis, long nowMs) {
+        return new Request(correlationId, sourceBundleId, sourceInstanceId, sourceBundleVersion, payloadType,
+                payload, remainingMillis, nowMs, acceptEncodings, streamWindow, streamDirect);
     }
 
     /**

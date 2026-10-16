@@ -2,6 +2,7 @@ package com.evento.transport.netty;
 
 import com.evento.transport.Frame;
 import com.evento.transport.message.Response;
+import com.evento.transport.message.StreamData;
 import com.evento.transport.state.ConnectionState;
 import com.evento.transport.state.ConnectionStateMachine;
 import io.netty.channel.ChannelHandlerContext;
@@ -30,6 +31,8 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
     private final Executor businessExecutor;
     private final AtomicLong lastInboundMs;
     private final ConnectionStateMachine state;
+    /** The frames of streamed replies of this channel, in the order they were read. */
+    private final SerialLane streamLane;
 
     MessageInboundHandler(Consumer<Frame> listener,
                           Executor businessExecutor,
@@ -39,6 +42,7 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
         this.businessExecutor = businessExecutor;
         this.lastInboundMs = lastInboundMs;
         this.state = state;
+        this.streamLane = new SerialLane(businessExecutor);
     }
 
     @Override
@@ -46,8 +50,11 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
         lastInboundMs.set(System.currentTimeMillis());
         var deliveries = frame.message() instanceof Response ? InboundDeliveries.of(ctx.channel()) : null;
         if (deliveries != null) deliveries.begin();
+        // A stream's frames must keep their order: one lane per channel. Everything else
+        // runs concurrently, each frame on its own thread.
+        Executor executor = frame.message() instanceof StreamData ? streamLane : businessExecutor;
         try {
-            businessExecutor.execute(() -> {
+            executor.execute(() -> {
                 try {
                     listener.accept(frame);
                 } catch (Throwable t) {

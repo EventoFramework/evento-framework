@@ -43,15 +43,21 @@ final class ChunkingEncoder extends MessageToMessageEncoder<ByteBuf> {
         this.chunkDataCapacity = maxFrameLength - 22;
     }
 
+    /**
+     * Header buffers are allocated, data is never copied: a FULL frame is the 1-byte
+     * header composed with the message, a CHUNK frame the 18-byte header composed with a
+     * retained slice of it. Each composite is still one buffer, so the downstream
+     * {@code LengthFieldPrepender} frames it as one.
+     */
     @Override
     protected void encode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
         int readable = in.readableBytes();
         if (1 + readable <= maxFrameLength - 4) {
             // fits in one FULL frame
-            ByteBuf buf = ctx.alloc().buffer(1 + readable);
-            buf.writeByte(0x00);
-            buf.writeBytes(in);
-            out.add(buf);
+            ByteBuf header = ctx.alloc().buffer(1).writeByte(0x00);
+            out.add(ctx.alloc().compositeBuffer(2)
+                    .addComponents(true, header, in.retainedSlice()));
+            in.skipBytes(readable);
         } else {
             // split into CHUNK frames
             UUID id = UUID.randomUUID();
@@ -60,13 +66,13 @@ final class ChunkingEncoder extends MessageToMessageEncoder<ByteBuf> {
             while (in.isReadable()) {
                 int toRead = Math.min(in.readableBytes(), chunkDataCapacity);
                 boolean isLast = in.readableBytes() == toRead; // this chunk drains the buffer
-                ByteBuf buf = ctx.alloc().buffer(18 + toRead);
-                buf.writeByte(0x01);
-                buf.writeLong(msb);
-                buf.writeLong(lsb);
-                buf.writeByte(isLast ? 0x01 : 0x00);
-                buf.writeBytes(in, toRead);
-                out.add(buf);
+                ByteBuf header = ctx.alloc().buffer(18);
+                header.writeByte(0x01);
+                header.writeLong(msb);
+                header.writeLong(lsb);
+                header.writeByte(isLast ? 0x01 : 0x00);
+                out.add(ctx.alloc().compositeBuffer(2)
+                        .addComponents(true, header, in.readRetainedSlice(toRead)));
             }
         }
     }

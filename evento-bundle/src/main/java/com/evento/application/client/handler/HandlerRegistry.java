@@ -28,6 +28,45 @@ public final class HandlerRegistry {
         void handle(byte[] payload, NotificationContext context) throws Exception;
     }
 
+    /**
+     * A request handler that can also answer with a stream of frames (2.6), when the caller
+     * asked for one and the session can carry it; otherwise its plain
+     * {@link #handle(byte[], RequestContext)} answers.
+     */
+    public interface StreamingRequestHandler extends RequestHandler {
+
+        /**
+         * Writes the answer to {@code sink}, frame by frame, and returns when it is complete:
+         * the framework then ends the stream. Throwing ends it in failure; a cancelled stream
+         * surfaces as {@link StreamCancelledException} from {@link StreamSink#send}, which the
+         * handler should let propagate after releasing what it holds.
+         */
+        void handleStream(byte[] payload, RequestContext context, StreamSink sink) throws Exception;
+    }
+
+    /** Where a {@link StreamingRequestHandler} writes its frames. */
+    public interface StreamSink {
+
+        /**
+         * Sends one frame. Blocks while the caller has granted no credit (flow control): the
+         * handler produces only as fast as the caller consumes.
+         *
+         * @throws StreamCancelledException when the caller stopped the stream, went away, or
+         *                                  granted no credit within the stream's timeout
+         */
+        void send(byte[] frame) throws StreamCancelledException, InterruptedException;
+
+        /** Whether the stream was stopped; a handler may check it to stop early. */
+        boolean isCancelled();
+    }
+
+    /** The caller of a stream stopped it, went away, or stopped granting credit. */
+    public static final class StreamCancelledException extends Exception {
+        public StreamCancelledException(String message) {
+            super(message);
+        }
+    }
+
     public record RequestContext(java.util.UUID correlationId,
                                   String payloadType,
                                   String sourceBundleId,

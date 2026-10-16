@@ -46,6 +46,40 @@ class ChunkReassemblerTest {
     }
 
     @Test
+    void reassemblyHoldsTheChunksWithoutCopyingAndReleasesThemOnce() {
+        var ch = new EmbeddedChannel(new ChunkReassembler());
+        UUID s = UUID.randomUUID();
+        ByteBuf first = chunk(s, false, bytes("abc"));
+        ByteBuf last = chunk(s, true, bytes("def"));
+
+        ch.writeInbound(first);
+        // The partial message keeps the frame alive through a retained slice, not a copy.
+        assertThat(first.refCnt()).isEqualTo(1);
+        ch.writeInbound(last);
+
+        ByteBuf out = ch.readInbound();
+        assertThat(out.toString(StandardCharsets.UTF_8)).isEqualTo("abcdef");
+        out.release();
+        assertThat(first.refCnt()).isZero();
+        assertThat(last.refCnt()).isZero();
+        assertThat(ch.finishAndReleaseAll()).isFalse();
+    }
+
+    @Test
+    void partialStreamsAreReleasedWhenTheChannelCloses() {
+        var reassembler = new ChunkReassembler();
+        var ch = new EmbeddedChannel(reassembler);
+        ByteBuf partial = chunk(UUID.randomUUID(), false, bytes("never finished"));
+        ch.writeInbound(partial);
+        assertThat(reassembler.pendingStreams()).isEqualTo(1);
+
+        ch.close();
+        assertThat(reassembler.pendingStreams()).isZero();
+        assertThat(partial.refCnt()).isZero();
+        ch.finishAndReleaseAll();
+    }
+
+    @Test
     void closesChannelWhenSingleMessageExceedsMaxBytes() {
         // 8-byte cap; first 5-byte chunk is fine, second pushes past the cap.
         var ch = new EmbeddedChannel(new ChunkReassembler(8, 16, Long.MAX_VALUE));

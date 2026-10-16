@@ -28,12 +28,28 @@ public class QueryMessage<T extends Query<?>> extends Message<T> {
 
 
 	/**
+	 * The writes the answer must reflect (2.6, additive): the answering bundle waits until
+	 * its projectors have processed them. Null or empty: answered from the read model as it
+	 * is. A bundle that predates the field ignores it.
+	 */
+	private com.evento.common.modeling.messaging.query.ConsistencyToken consistency;
+
+	/**
 	 * Retrieves the name of the query.
 	 *
 	 * @return The name of the query as a String.
 	 */
 	public String getQueryName() {
 		return super.getPayloadName();
+	}
+
+	/** The writes the answer must reflect, or null. */
+	public com.evento.common.modeling.messaging.query.ConsistencyToken getConsistency() {
+		return consistency;
+	}
+
+	public void setConsistency(com.evento.common.modeling.messaging.query.ConsistencyToken consistency) {
+		this.consistency = consistency == null || consistency.isEmpty() ? null : consistency;
 	}
 
 	@Override
