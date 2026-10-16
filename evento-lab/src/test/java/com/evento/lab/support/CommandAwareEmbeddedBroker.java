@@ -38,6 +38,7 @@ public final class CommandAwareEmbeddedBroker implements AutoCloseable {
     private final BusLifecycle lifecycle;
     private final int port;
     private final CommandAwareTestEventStore eventStore;
+    private final CommandBrokerHandler commandBroker;
 
     public CommandAwareEmbeddedBroker() throws Exception {
         var eventBus = new BusEventBus();
@@ -56,12 +57,13 @@ public final class CommandAwareEmbeddedBroker implements AutoCloseable {
         eventStore = new CommandAwareTestEventStore(port);
 
         // Wire command broker — null DataSource is safe when commands carry no lockId
-        new CommandBrokerHandler(lifecycle, cluster, eventStore, null);
+        commandBroker = new CommandBrokerHandler(lifecycle, cluster, eventStore, null);
     }
 
     public int port() { return port; }
     public BusLifecycle lifecycle() { return lifecycle; }
     public CommandAwareTestEventStore eventStore() { return eventStore; }
+    public CommandBrokerHandler commandBroker() { return commandBroker; }
 
     /**
      * Creates a lightweight gateway client for sending commands and queries from tests.

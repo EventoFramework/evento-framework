@@ -30,6 +30,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
+    // Command spans (CommandTracing): the API only, a no-op unless the OpenTelemetry Java agent
+    // or an OpenTelemetry bean provides an SDK.
+    implementation "io.opentelemetry:opentelemetry-api:${openTelemetryVersion}"
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
 
 	runtimeOnly 'org.postgresql:postgresql'
@@ -52,6 +55,8 @@ dependencies {
 	testImplementation 'org.assertj:assertj-core:3.27.7'
 	testImplementation 'org.awaitility:awaitility:4.3.0'
 	testImplementation "io.netty:netty-pkitesting:${nettyVersion}"
+	testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${openTelemetryVersion}"
+	testImplementation "io.opentelemetry:opentelemetry-sdk:${openTelemetryVersion}"
 	testImplementation project(':evento-bundle')
 	// The JDBC service-outcome store, for the G5 residual-window IT. Its Flyway is left out: the
 	// IT runs the migration script directly, and the server's own tests keep the Boot-managed one.

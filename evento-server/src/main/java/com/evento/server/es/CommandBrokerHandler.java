@@ -155,6 +155,7 @@ public class CommandBrokerHandler implements MeterBinder {
     private final AdminPayloadCodec codec = new AdminPayloadCodec();
     private final PgDistributedLock distributedLock;
     private final CommandPhaseMetrics phaseMetrics = new CommandPhaseMetrics();
+    private volatile CommandTracing tracing = CommandTracing.global();
 
     public CommandBrokerHandler(BusLifecycle lifecycle,
                                 ClusterRegistry clusterRegistry,
@@ -184,6 +185,23 @@ public class CommandBrokerHandler implements MeterBinder {
                 }
             }
         });
+    }
+
+    /**
+     * Spans for executed commands ({@link CommandTracing}): the application's {@code OpenTelemetry}
+     * bean when there is one, else {@link io.opentelemetry.api.GlobalOpenTelemetry} (the Java
+     * agent's, or a no-op). {@code evento.server.tracing.enabled=false} turns them off.
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureTracing(@org.springframework.beans.factory.annotation.Value("${evento.server.tracing.enabled:true}") boolean enabled,
+                          org.springframework.beans.factory.ObjectProvider<io.opentelemetry.api.OpenTelemetry> openTelemetry) {
+        tracing = enabled ? CommandTracing.of(openTelemetry.getIfAvailable(io.opentelemetry.api.GlobalOpenTelemetry::get))
+                : CommandTracing.OFF;
+    }
+
+    /** Trace executed commands with {@code openTelemetry}; null turns the spans off. For servers built without Spring. */
+    public void setOpenTelemetry(io.opentelemetry.api.OpenTelemetry openTelemetry) {
+        tracing = openTelemetry == null ? CommandTracing.OFF : CommandTracing.of(openTelemetry);
     }
 
     // ---- idempotency (G5) ----
@@ -363,18 +381,30 @@ public class CommandBrokerHandler implements MeterBinder {
         var cmd = (DomainCommandMessage) eventoRequest.getBody();
         String key = enforcedKey(cmd, commandPayloadType);
         var clock = phaseMetrics.start(commandPayloadType, eventoRequest.getCorrelationId(), key != null, timing);
+        var tracing = this.tracing;
+        var span = tracing.start("command", commandPayloadType, eventoRequest.getCorrelationId(), cmd.getMetadata());
+        // The bundle's handler span becomes a child of this one.
+        cmd.setMetadata(tracing.inject(span, cmd.getMetadata()));
         clock.lap(CommandPhaseMetrics.Phase.CODEC);
-        var reply = idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
-                () -> executeAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs,
-                        clock));
-        if (clock.appended) {
-            if (timing != null) {
-                timing.whenReplyWritten(written -> phaseMetrics.record(clock, written));
-            } else {
-                phaseMetrics.record(clock, System.nanoTime());
+        try (var ignored = span.makeCurrent()) {
+            var reply = idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
+                    () -> executeAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs,
+                            clock));
+            if (clock.appended) {
+                if (timing != null) {
+                    timing.whenReplyWritten(written -> phaseMetrics.record(clock, written));
+                } else {
+                    phaseMetrics.record(clock, System.nanoTime());
+                }
             }
+            return reply;
+        } catch (Exception | Error e) {
+            CommandTracing.fail(span, e);
+            throw e;
+        } finally {
+            CommandTracing.phases(span, clock, key != null);
+            span.end();
         }
-        return reply;
     }
 
     /**
@@ -550,13 +580,23 @@ public class CommandBrokerHandler implements MeterBinder {
         var eventoRequest = codec.decodeRequest(payload);
         var cmd = (ServiceCommandMessage) eventoRequest.getBody();
         String key = enforcedKey(cmd, commandPayloadType);
-        if (key == null) {
-            return executeServiceCommand(commandPayloadType, payload, eventoRequest, cmd, null, null,
-                    originator, deadlineMs);
+        // Forwarded as received (no re-encoding): the handler's span is a sibling of this one.
+        var span = tracing.start("command", commandPayloadType, eventoRequest.getCorrelationId(), cmd.getMetadata());
+        try (var ignored = span.makeCurrent()) {
+            if (key == null) {
+                return executeServiceCommand(commandPayloadType, payload, eventoRequest, cmd, null, null,
+                        originator, deadlineMs);
+            }
+            return idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
+                    () -> executeKeyedServiceCommand(commandPayloadType, payload, eventoRequest, cmd, key,
+                            originator, deadlineMs));
+        } catch (Exception | Error e) {
+            CommandTracing.fail(span, e);
+            throw e;
+        } finally {
+            CommandTracing.phases(span, null, key != null);
+            span.end();
         }
-        return idempotent(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
-                () -> executeKeyedServiceCommand(commandPayloadType, payload, eventoRequest, cmd, key,
-                        originator, deadlineMs));
     }
 
     /**

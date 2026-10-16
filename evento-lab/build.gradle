@@ -44,6 +44,11 @@ dependencies {
 
     testImplementation project(':evento-server')
     testImplementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')
+    testImplementation project(':evento-opentelemetry')
+    // CommandBrokerHandler is a MeterBinder: calling it from a test needs the type.
+    testImplementation 'io.micrometer:micrometer-core'
+    testImplementation "io.opentelemetry:opentelemetry-sdk:${openTelemetryVersion}"
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${openTelemetryVersion}"
 
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
     testRuntimeOnly  "org.junit.platform:junit-platform-launcher"
