@@ -1,6 +1,34 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-15.
+Last updated: 2026-10-16.
+
+## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
+
+User request (Italian): an enterprise feature to version payloads and use the new versions;
+the user's own idea was "create a new class and call it V2", asking for the right strategy and
+what Axon does. Axon 4: `@Revision` + `SingleEventUpcaster`/`EventMultiUpcaster` chain on the
+raw representation, read time, store never rewritten; Axon 5.2+: `EventTransformation`
+(`from(MessageType)` → `to(MessageType)`, separate `rename`, `split` in 5.3), and handling-time
+payload conversion first. Chosen (ARCHITECTURE §4.10, decisions 21–23): revision per class +
+upcaster chain at read time, with the "V2 class" as a rename step (old class deletable, old
+command/query names still routed to the renamed handler). Not done: split, downcasting,
+saga-state / view upcasting, metadata changes.
+
+Done: `com.evento.common.versioning` (`Revision`, `Revisions`, `Upcaster`, `Upcasters`,
+`UpcastException`); `SerializedObject.revision`; `ConsumerProcessor.setUpcasters` (fetch + DLQ
+retries); `BundleInboundDispatcher` upcasts commands/queries, aggregate event streams and
+snapshots; aliases via `RegisteredHandler.forPayload`; `CAPABILITY_REVISION` + `RevisionGuard`;
+`EventoBundle.Builder.addUpcasters/setUpcasters`. Tests: `UpcastersTest` (common),
+`RevisionGuardTest` (bundle), `PayloadVersioningIT` (lab, real TCP: projector, aggregate from
+events and from snapshot, events written now, old command and query names).
+
+User docs (asked by the user): evento-doc branch `docs/2.6-query-path-versioning` (sibling repo,
+not pushed) adds Payload Versioning and Upcasting, Streamed and Paged Queries, Read Your Writes,
+Upgrading to 2.6, the 2.6 memory-bound server properties, and links from @QueryHandler / Query
+and View; this repo's README gains two 2.6 sections linking those pages. Bump the dependency
+snippets in evento-doc to 2.6.0 at release.
+
+Next: user review → push/PR (stacked on the query-path PR) and the evento-doc PR together.
 
 ## Query path overhaul (branch `feat/query-streaming`, 2026-10-15, not committed yet)
 

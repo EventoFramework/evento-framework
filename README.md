@@ -109,6 +109,42 @@ Alert on `evento.server.bus.executor.saturated`, watch `…queue.depth` as the e
 
 See [Throughput and Capacity](https://docs.eventoframework.com/evento-server/setup-evento-server/throughput-and-capacity) for the sizing arithmetic and the detection playbook.
 
+## Streamed Queries and Read-Your-Writes (2.6)
+
+A large query answer no longer has to travel, and sit, whole in the Evento Server. Any query can be consumed as a stream, pulled with flow control so that no hop holds more than a window of it; a projection can produce it lazily from a cursor, and the views can even skip the server and flow bundle to bundle:
+
+```java
+@QueryHandler
+Streamed<OrderView> handle(ExportOrders q) {
+    return Streamed.of(() -> repository.streamByCustomer(q.getCustomerId()));
+}
+
+try (var orders = queryGateway.stream(new ExportOrders(customerId), QueryOptions.defaults().direct())) {
+    orders.forEach(writer::write);
+}
+```
+
+The server keeps no query answers any more (on a 64 MiB answer: nothing retained instead of 65 MiB, and 153 ms instead of 634 ms with a direct stream), `Page<View>` answers by offset or cursor, a bundle answers its own queries in process with the same tracing, and `sendTracked` + `QueryOptions.after(token)` make a query wait until the projections reflect a write.
+
+See [Streamed and Paged Queries](https://docs.eventoframework.com/evento-framework/component/projection/streaming-and-paged-queries) and [Read Your Writes](https://docs.eventoframework.com/evento-framework/component/projection/read-your-writes).
+
+## Payload Versioning (2.6)
+
+Payload classes can change shape or name without losing the history written with the old one. A class declares its revision, and upcasters registered on the bundle turn older payloads into the current shape when they are read; the event store is never rewritten:
+
+```java
+@Revision(1)
+public class ItemAdded extends DomainEvent { String itemId; String title; int quantity; }
+
+.addUpcasters(
+    Upcaster.from(ItemAdded.class, 0).to(1, json -> json.set("title", json.remove("name"))),
+    Upcaster.from("ItemRenamed", 0).to(ItemRenamedV2.class, 0))   // the old class can be deleted
+```
+
+Upcasting covers projectors, sagas, observers, aggregates (events and snapshots), commands and queries; a renamed command or query is still routed under its former name. Upgrade the servers to 2.6 before deploying the first `@Revision`.
+
+See [Payload Versioning and Upcasting](https://docs.eventoframework.com/evento-framework/payload-and-messages/payload-versioning) and [Upgrading to 2.6](https://docs.eventoframework.com/evento-server/evento-server-cluster/upgrading-to-2-6).
+
 ## Getting Started
 
 To start using Evento Framework, see the [Getting Started documentation](https://docs.eventoframework.com/getting-started/quick-start).

@@ -11,8 +11,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Query-path release: queries no longer cost the broker memory, large answers stream with flow
 control (through the broker or bundle to bundle), a bundle answers its own queries without the
-broker, and a query can require to see a write. Wire changes are additive and negotiated
-(`stream:1` capability); 2.5 bundles and servers interoperate with it in any mix.
+broker, and a query can require to see a write. Payloads can be versioned: a class records its
+revision and upcasters read older shapes. Wire changes are additive and negotiated (`stream:1`,
+`revision:1` capabilities); 2.5 bundles and servers interoperate with it in any mix, except that
+a revised payload needs a 2.6 broker.
 
 ### Upgrade notes
 
@@ -25,10 +27,27 @@ broker, and a query can require to see a write. Wire changes are additive and ne
   `evento.server.bus.dedup.max-retained-bytes` (128 MiB), `evento.server.bus.dedup.max-response-bytes`
   (1 MiB), `evento.server.bus.reconnect-buffer.max-bytes` (256 MiB),
   `evento.server.bus.compression.threshold-bytes` (32 KiB).
-- Every 2.6 bundle advertises `stream:1` in its Hello. Code that asserts the exact capability set
+- **Upgrade the brokers before deploying a class with `@Revision`.** A 2.6 bundle refuses to send
+  or store a revised payload through a broker older than 2.6 (no `revision:1` capability), which
+  would record it as revision 0. Unrevised payloads, the default, flow through any broker.
+- Every 2.6 bundle advertises `stream:1` and `revision:1` in its Hello. Code that asserts the exact capability set
   of a Hello must expect it.
 
 ### Added
+
+- **Payload versioning (upcasting).** `@Revision(n)` on a payload class (event, command, query,
+  aggregate state) records its revision in every payload written (`SerializedObject.revision`,
+  absent when 0, so everything stored before reads as revision 0). An `Upcaster` turns a payload
+  stored or sent with an older shape into the next one, as JSON, before it is deserialized:
+  `Upcaster.from(OrderPlaced.class, 0).to(1, json -> json.set("customerId", json.remove("clientId")))`
+  for a revision, `Upcaster.from("OrderPlaced", 0).to(OrderPlacedV2.class, 0[, json -> ...])` for a
+  class replaced by another (the old one may be deleted). Registered on the bundle with
+  `EventoBundle.Builder.addUpcasters(...)`, chained (validated at start: one step per payload and
+  revision, no loops) and applied on every read: events of projectors, sagas and observers
+  (dead-event retries too), the events and snapshot an aggregate is rebuilt from, and commands and
+  queries received. History is never rewritten. A renamed command or query is also routed under
+  its former name, so callers not yet upgraded keep reaching its handler. A failing upcaster stops
+  its consumer at that event (`event=upcast_failed`) until fixed.
 
 - **Streamed queries.** `QueryGateway.stream(query[, QueryOptions])` returns a `QueryStream<V>`
   (an `Iterable` + `AutoCloseable`, `stream()` for a `java.util.stream.Stream`) whose views are

@@ -70,6 +70,8 @@ public final class ConsumerProcessor {
     private final Duration submitTimeout;
     private final Duration inlineBarrierTimeout;
     private final long watermarkLagWarnThreshold;
+    /** Turns events stored with an older shape into the current one before any handler sees them. */
+    private volatile com.evento.common.versioning.Upcasters upcasters = com.evento.common.versioning.Upcasters.NONE;
 
     /**
      * Per-consumer count of tasks dispatched to a {@link ConsumerExecutor} and not yet
@@ -305,7 +307,7 @@ public final class ConsumerProcessor {
         Optional<ConsumerLock.LockHandle> held = lock.tryAcquire(consumerId);
         if (held.isEmpty()) return;
         try (var ignored = held.get()) {
-            for (PublishedEvent event : deadEventQueue.getRetriable(consumerId)) {
+            for (PublishedEvent event : retriable(consumerId)) {
                 var start = Instant.now();
                 try {
                     deadEventQueue.remove(consumerId, event);
@@ -412,7 +414,7 @@ public final class ConsumerProcessor {
             // Replay runs inline, not on the observer executor. It is operator-driven and
             // low-volume, and routing it through the shared executor would let a replay
             // storm starve live consumption.
-            for (PublishedEvent event : deadEventQueue.getRetriable(consumerId)) {
+            for (PublishedEvent event : retriable(consumerId)) {
                 var start = Instant.now();
                 try {
                     deadEventQueue.remove(consumerId, event);
@@ -488,7 +490,7 @@ public final class ConsumerProcessor {
         Optional<ConsumerLock.LockHandle> held = lock.tryAcquire(consumerId);
         if (held.isEmpty()) return;
         try (var ignored = held.get()) {
-            for (PublishedEvent event : deadEventQueue.getRetriable(consumerId)) {
+            for (PublishedEvent event : retriable(consumerId)) {
                 var start = Instant.now();
                 AtomicReference<Long> sagaStateId = new AtomicReference<>();
                 try {
@@ -1098,12 +1100,38 @@ public final class ConsumerProcessor {
         }
     }
 
+    /**
+     * A page of events, each upcast to its current shape (and name). An event no upcaster can
+     * read fails the page, and the consumer retries it: skipping it would lose it for good, and
+     * sending every older event of a type to the dead-event queue because one upcaster is wrong
+     * would be worse. The fix is the upcaster; the consumer resumes where it stopped.
+     */
     private EventFetchResponse fetchEvents(String context, long lastSeq, int fetchSize, String consumerName)
             throws Exception {
-        return (EventFetchResponse) eventoServer
+        var resp = (EventFetchResponse) eventoServer
                 .request(new EventFetchRequest(context, lastSeq, fetchSize, consumerName),
                         timeoutMillis, TimeUnit.MILLISECONDS)
                 .get();
+        if (!upcasters.isEmpty() && resp.getEvents() != null) {
+            for (var event : resp.getEvents()) {
+                try {
+                    upcasters.upcast(event);
+                } catch (com.evento.common.versioning.UpcastException e) {
+                    logger.error("event=upcast_failed consumer={} eventSequenceNumber={} payload={} revision={} "
+                                    + "reason=\"the consumer stops at this event until its upcaster is fixed\"",
+                            consumerName, event.getEventSequenceNumber(), e.getPayloadName(), e.getRevision(), e);
+                    throw e;
+                }
+            }
+        }
+        return resp;
+    }
+
+    /** The retriable dead events of a consumer, upcast like fetched ones (they may predate a deploy). */
+    private java.util.Collection<PublishedEvent> retriable(String consumerId) {
+        var events = deadEventQueue.getRetriable(consumerId);
+        if (!upcasters.isEmpty()) events.forEach(upcasters::upcast);
+        return events;
     }
 
     private SagaStateFetcher buildFetcher(AtomicReference<Long> idHolder) {
@@ -1141,6 +1169,14 @@ public final class ConsumerProcessor {
 
     private static ZonedDateTime toZdt(Instant i) {
         return i == null ? null : ZonedDateTime.ofInstant(i, ZoneId.systemDefault());
+    }
+
+    /**
+     * The upcasters applied to every event before dispatch, fetched or retried from the
+     * dead-event queue (2.6); none by default. The bundle sets those registered on it.
+     */
+    public void setUpcasters(com.evento.common.versioning.Upcasters upcasters) {
+        this.upcasters = upcasters == null ? com.evento.common.versioning.Upcasters.NONE : upcasters;
     }
 
     /** Exposed for tests + Spring wiring inspection. */
