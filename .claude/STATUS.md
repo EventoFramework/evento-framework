@@ -22,7 +22,13 @@ snapshots; aliases via `RegisteredHandler.forPayload`; `CAPABILITY_REVISION` + `
 `RevisionGuardTest` (bundle), `PayloadVersioningIT` (lab, real TCP: projector, aggregate from
 events and from snapshot, events written now, old command and query names).
 
-Next: user review → push/PR (stacked on the query-path PR) → evento-doc page on versioning.
+User docs (asked by the user): evento-doc branch `docs/2.6-query-path-versioning` (sibling repo,
+not pushed) adds Payload Versioning and Upcasting, Streamed and Paged Queries, Read Your Writes,
+Upgrading to 2.6, the 2.6 memory-bound server properties, and links from @QueryHandler / Query
+and View; this repo's README gains two 2.6 sections linking those pages. Bump the dependency
+snippets in evento-doc to 2.6.0 at release.
+
+Next: user review → push/PR (stacked on the query-path PR) and the evento-doc PR together.
 
 ## Query path overhaul (branch `feat/query-streaming`, 2026-10-15, not committed yet)
 
