@@ -3,20 +3,23 @@ package com.evento.application.performance;
 import lombok.Getter;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
+import com.evento.common.modeling.messaging.payload.Payload;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /**
  * Extension hook for correlating and tracking messages for performance monitoring and tracing.
  *
  * <p><b>The base implementation is a deliberate no-op:</b> {@link #doTrack} simply runs the
- * transaction and {@link #correlate(Metadata, Message)} returns the metadata unchanged. There is
- * no distributed-tracing wiring here — no trace-id generation, no W3C {@code traceparent}
- * propagation across the wire, no OpenTelemetry. Cross-bundle call chains are therefore <em>not</em>
- * reconstructable from this class alone today.
+ * transaction, {@link #traceSend} simply sends, and {@link #correlate(Metadata, Message)} returns
+ * the metadata unchanged, so a bundle without tracing pays nothing.
  *
- * <p>It is shaped as an extension point: {@code doTrack}/{@code correlate} are overridable, so a
- * real tracing implementation can be supplied by subclassing. Wiring genuine W3C trace-context
- * propagation + an OpenTelemetry/Micrometer-Tracing bridge is tracked as Phase 0/2 item 3 in
- * {@code .claude/ENTERPRISE-PLAN.md}. Until then, treat this as a placeholder, not a feature.
+ * <p>Three hooks, all overridable: {@link #doTrack} around every handler, {@link #traceSend}
+ * around every command or query a handler or the application sends (a stream query is only
+ * {@linkplain #correlate correlated}), {@link #correlate} on the metadata of what is sent. The
+ * OpenTelemetry implementation is {@code com.evento.opentelemetry.OpenTelemetryTracingAgent}
+ * ({@code evento-opentelemetry}).
  */
 @Getter
 public class TracingAgent {
@@ -81,6 +84,24 @@ public class TracingAgent {
                             Track trackingAnnotation,
                             Transaction<T> transaction) throws Throwable {
         return transaction.run();
+    }
+
+    /**
+     * Sends one command or query: {@code send} puts the given metadata on the wire and returns the
+     * reply. The base implementation sends {@link #correlate(Metadata, Message) correlated}
+     * metadata; a tracing implementation opens a span that lasts until the reply and puts that
+     * span's context in the metadata instead.
+     *
+     * @param payload        the command or query sent
+     * @param metadata       the caller's metadata, possibly {@code null}; not modified
+     * @param handledMessage the message being handled while sending, or {@code null}
+     * @param send           sends with the metadata it is given
+     * @param <R>            the reply type
+     * @return the reply of {@code send}
+     */
+    public <R> CompletableFuture<R> traceSend(Payload payload, Metadata metadata, Message<?> handledMessage,
+                                              Function<Metadata, CompletableFuture<R>> send) {
+        return send.apply(correlate(metadata, handledMessage));
     }
 
     /**

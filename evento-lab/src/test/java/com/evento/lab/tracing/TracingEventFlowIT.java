@@ -30,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * One trace from an HTTP request to the read model, over real TCP: the request span sends a
- * command through the bundle's gateway, the broker executes it in its own span (lock, story,
+ * One trace from an HTTP request to the read model, over real TCP: under the request span the
+ * bundle's gateway sends a command in a CLIENT span, the broker executes it in a child span (lock, story,
  * append as attributes) and forwards it to the aggregate as that span's child, stores the event
  * with the metadata the aggregate's span put in it, and the projector consuming that event from
  * the store continues the same trace.
@@ -84,12 +84,16 @@ class TracingEventFlowIT {
         await().atMost(5, TimeUnit.SECONDS).until(() -> span("LabProjector").isPresent());
 
         var traceId = request.getSpanContext().getTraceId();
+        var send = span("send").orElseThrow();
         var server = span("evento command").orElseThrow();
         var aggregate = span("LabAggregate").orElseThrow();
         var projector = span("LabProjector").orElseThrow();
 
+        assertThat(send.getTraceId()).isEqualTo(traceId);
+        assertThat(send.getParentSpanId()).isEqualTo(request.getSpanContext().getSpanId());
+        assertThat(send.getKind()).isEqualTo(SpanKind.CLIENT);
         assertThat(server.getTraceId()).isEqualTo(traceId);
-        assertThat(server.getParentSpanId()).isEqualTo(request.getSpanContext().getSpanId());
+        assertThat(server.getParentSpanId()).isEqualTo(send.getSpanId());
         assertThat(server.getAttributes().asMap().keySet()).anyMatch(k -> k.getKey().equals("evento.phase.story.ms"))
                 .anyMatch(k -> k.getKey().equals("evento.phase.append.ms"));
         assertThat(aggregate.getTraceId()).isEqualTo(traceId);

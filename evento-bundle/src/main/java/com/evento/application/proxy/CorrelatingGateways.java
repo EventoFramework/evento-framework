@@ -18,8 +18,9 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * The gateways {@code EventoBundle} hands to application code (a REST controller, a scheduled
- * job): every message they send gets its metadata through {@link TracingAgent#correlate}, as the
- * gateways passed to handlers already do ({@link GatewayTelemetryProxy}). That is how a trace
+ * job): every command or query they send goes through {@link TracingAgent#traceSend} (a stream
+ * query through {@link TracingAgent#correlate}), as from the gateways passed to handlers
+ * ({@link GatewayTelemetryProxy}). That is how a trace
  * started outside Evento (an HTTP request) reaches the handlers.
  *
  * <p>Only used when the bundle has a tracing agent other than the no-op base class, so a bundle
@@ -46,22 +47,23 @@ public final class CorrelatingGateways {
         @Override
         public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage,
                                              long timeout, TimeUnit unit) {
-            return target.send(command, agent.correlate(metadata, handledMessage), handledMessage, timeout, unit);
+            return agent.traceSend(command, metadata, handledMessage, correlated ->
+                    target.send(command, correlated, handledMessage, timeout, unit));
         }
 
         @Override
         public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage,
                                              long timeout, TimeUnit unit, String idempotencyKey) {
-            return target.send(command, agent.correlate(metadata, handledMessage), handledMessage, timeout, unit,
-                    idempotencyKey);
+            return agent.traceSend(command, metadata, handledMessage, correlated ->
+                    target.send(command, correlated, handledMessage, timeout, unit, idempotencyKey));
         }
 
         @Override
         public <R> CompletableFuture<Tracked<R>> sendTracked(Command command, Metadata metadata,
                                                              Message<?> handledMessage, long timeout, TimeUnit unit,
                                                              String idempotencyKey) {
-            return target.sendTracked(command, agent.correlate(metadata, handledMessage), handledMessage, timeout,
-                    unit, idempotencyKey);
+            return agent.traceSend(command, metadata, handledMessage, correlated ->
+                    target.sendTracked(command, correlated, handledMessage, timeout, unit, idempotencyKey));
         }
 
         @Override
@@ -85,12 +87,15 @@ public final class CorrelatingGateways {
         public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata,
                                                                       Message<?> handledMessage, long timeout,
                                                                       TimeUnit unit) {
-            return target.query(query, agent.correlate(metadata, handledMessage), handledMessage, timeout, unit);
+            return agent.traceSend(query, metadata, handledMessage, correlated ->
+                    target.query(query, correlated, handledMessage, timeout, unit));
         }
 
         @Override
         public <T extends QueryResponse<?>> CompletableFuture<T> queryWith(Query<T> query, QueryOptions options) {
-            return target.queryWith(query, correlated(options));
+            var opts = options == null ? QueryOptions.defaults() : options;
+            return agent.traceSend(query, opts.getMetadata(), null, correlated ->
+                    target.queryWith(query, opts.metadata(correlated)));
         }
 
         @Override

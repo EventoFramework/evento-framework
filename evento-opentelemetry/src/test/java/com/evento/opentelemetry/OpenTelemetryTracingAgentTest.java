@@ -3,6 +3,7 @@ package com.evento.opentelemetry;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.proxy.CorrelatingGateways;
 import com.evento.common.messaging.gateway.CommandGateway;
+import com.evento.common.messaging.gateway.QueryGateway;
 import com.evento.common.modeling.messaging.message.application.DomainCommandMessage;
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
@@ -10,6 +11,10 @@ import com.evento.common.modeling.messaging.message.application.Metadata;
 import com.evento.common.modeling.messaging.payload.Command;
 import com.evento.common.modeling.messaging.payload.DomainCommand;
 import com.evento.common.modeling.messaging.payload.DomainEvent;
+import com.evento.common.modeling.messaging.payload.Query;
+import com.evento.common.modeling.messaging.payload.View;
+import com.evento.common.modeling.messaging.query.QueryResponse;
+import com.evento.common.modeling.messaging.query.Single;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -40,6 +45,35 @@ class OpenTelemetryTracingAgentTest {
 
     public static class OrderPlaced extends DomainEvent {
         String orderId = "o1";
+    }
+
+    public static class OrderView implements View {
+    }
+
+    public static class FindOrder extends Query<Single<OrderView>> {
+    }
+
+    /** Records what is sent and answers with {@link #reply}, which a test completes when it wants. */
+    static final class RecordingGateway implements CommandGateway, QueryGateway {
+        final List<Metadata> sent = new ArrayList<>();
+        CompletableFuture<Object> reply = new CompletableFuture<>();
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <R> CompletableFuture<R> send(Command command, Metadata metadata, Message<?> handledMessage,
+                                             long timeout, TimeUnit unit) {
+            sent.add(metadata);
+            return (CompletableFuture<R>) reply;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata,
+                                                                      Message<?> handledMessage, long timeout,
+                                                                      TimeUnit unit) {
+            sent.add(metadata);
+            return (CompletableFuture<T>) (CompletableFuture<?>) reply;
+        }
     }
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
@@ -169,6 +203,84 @@ class OpenTelemetryTracingAgentTest {
         var gateway = CorrelatingGateways.commands(raw, agent);
         agent.track(new DomainCommandMessage(new PlaceOrder()), "HttpRequest", null, () -> gateway.send(new PlaceOrder()));
         assertThat(sent).singleElement().satisfies(m -> assertThat(m).containsKey("traceparent"));
+    }
+
+    @Test
+    void aSendRunsInAClientSpanUntilTheReply() throws Throwable {
+        var raw = new RecordingGateway();
+        var gateway = CorrelatingGateways.commands(raw, agent);
+        var pending = new ArrayList<CompletableFuture<Object>>();
+        agent.track(new DomainCommandMessage(new PlaceOrder()), "HttpRequest", null,
+                () -> pending.add(gateway.send(new PlaceOrder())));
+        var handler = single();
+        assertThat(pending.getFirst()).isSameAs(raw.reply);
+        exporter.reset();
+
+        raw.reply.complete("ok");
+
+        var send = single();
+        assertThat(send.getName()).isEqualTo("send PlaceOrder");
+        assertThat(send.getKind()).isEqualTo(SpanKind.CLIENT);
+        assertThat(send.getParentSpanId()).isEqualTo(handler.getSpanId());
+        assertThat(send.getTraceId()).isEqualTo(handler.getTraceId());
+        assertThat(send.getStatus().getStatusCode()).isEqualTo(StatusCode.UNSET);
+        // The receiver's parent is the send span, not the handler's.
+        assertThat(raw.sent.getFirst().get("traceparent")).contains(send.getSpanId());
+    }
+
+    @Test
+    void aFailedReplyMarksTheSendSpan() {
+        var raw = new RecordingGateway();
+        var gateway = CorrelatingGateways.commands(raw, agent);
+        gateway.send(new PlaceOrder());
+        raw.reply.completeExceptionally(new IllegalStateException("aggregate o1 is closed"));
+
+        var send = single();
+        assertThat(send.getStatus().getStatusCode()).isEqualTo(StatusCode.ERROR);
+        assertThat(send.getEvents()).anyMatch(e -> e.getName().equals("exception"));
+    }
+
+    @Test
+    void aQueryIsAQuerySpan() {
+        var raw = new RecordingGateway();
+        CorrelatingGateways.queries(raw, agent).query(new FindOrder());
+        raw.reply.complete(null);
+
+        assertThat(single().getName()).isEqualTo("query FindOrder");
+    }
+
+    @Test
+    void withoutACurrentSpanTheSendJoinsTheTraceOfTheHandledMessage() {
+        var handled = new DomainEventMessage(new OrderPlaced());
+        var meta = new Metadata();
+        meta.put("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+        handled.setMetadata(meta);
+
+        agent.traceSend(new PlaceOrder(), null, handled, m -> CompletableFuture.completedFuture(null));
+
+        var send = single();
+        assertThat(send.getTraceId()).isEqualTo("0af7651916cd43dd8448eb211c80319c");
+        assertThat(send.getParentSpanId()).isEqualTo("b7ad6b7169203331");
+    }
+
+    @Test
+    void aSendThatThrowsEndsItsSpan() {
+        assertThatThrownBy(() -> agent.traceSend(new PlaceOrder(), null, null, m -> {
+            throw new IllegalArgumentException("bad key");
+        })).isInstanceOf(IllegalArgumentException.class);
+        assertThat(single().getStatus().getStatusCode()).isEqualTo(StatusCode.ERROR);
+    }
+
+    @Test
+    void theNoOpAgentSendsTheMetadataAsItIs() {
+        var meta = new Metadata();
+        meta.put("tenant", "acme");
+        var seen = new ArrayList<Metadata>();
+        new TracingAgent("orders", 1).traceSend(new PlaceOrder(), meta, null, m -> {
+            seen.add(m);
+            return CompletableFuture.completedFuture(null);
+        });
+        assertThat(seen).singleElement().isSameAs(meta);
     }
 
     private SpanData single() {

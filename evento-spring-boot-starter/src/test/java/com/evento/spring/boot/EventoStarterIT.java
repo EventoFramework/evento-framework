@@ -119,11 +119,14 @@ class EventoStarterIT {
                 request.end();
             }
 
-            await().atMost(5, TimeUnit.SECONDS).until(() -> SPANS.getFinishedSpanItems().size() >= 2);
+            await().atMost(5, TimeUnit.SECONDS).until(() -> SPANS.getFinishedSpanItems().size() >= 3);
+            var send = SPANS.getFinishedSpanItems().stream()
+                    .filter(s -> s.getName().equals("query FindPrice")).findFirst().orElseThrow();
             var handler = SPANS.getFinishedSpanItems().stream()
                     .filter(s -> s.getName().startsWith("PriceProjection")).findFirst().orElseThrow();
+            assertThat(send.getParentSpanId()).isEqualTo(request.getSpanContext().getSpanId());
             assertThat(handler.getTraceId()).isEqualTo(request.getSpanContext().getTraceId());
-            assertThat(handler.getParentSpanId()).isEqualTo(request.getSpanContext().getSpanId());
+            assertThat(handler.getParentSpanId()).isEqualTo(send.getSpanId());
         });
     }
 

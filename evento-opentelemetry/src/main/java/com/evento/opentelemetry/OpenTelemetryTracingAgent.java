@@ -5,6 +5,8 @@ import com.evento.application.performance.Track;
 import com.evento.common.modeling.messaging.message.application.EventMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.Metadata;
+import com.evento.common.modeling.messaging.payload.Payload;
+import com.evento.common.modeling.messaging.payload.Query;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
@@ -15,6 +17,9 @@ import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapPropagator;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Function;
 
 /**
  * A {@link TracingAgent} that traces with OpenTelemetry. Opt-in: a bundle without it runs the
@@ -30,11 +35,16 @@ import java.util.List;
  *   <li><b>A span per handler</b>: every command, query, event and invocation handler runs in a
  *       span named {@code <component> <payload>} ({@code SERVER} for commands, queries and
  *       invocations, {@code CONSUMER} for events), with the error recorded when it throws.</li>
- *   <li><b>Trace context in the message metadata</b>: whatever a handler sends (commands, queries,
- *       the event a command produces) carries the W3C {@code traceparent}/{@code tracestate} of
- *       its span, through the server, which does not read it. So does what application code sends
- *       through {@code EventoBundle.getCommandGateway()}/{@code getQueryGateway()} while a span is
- *       current, e.g. inside an instrumented HTTP request.</li>
+ *   <li><b>A span per send</b>: every command or query a handler or the application sends runs
+ *       in a {@code CLIENT} span named {@code send <command>} or {@code query <query>}, from the
+ *       send to the reply, with the error recorded when the reply is a failure. So a trace shows
+ *       how long the caller waited, not only how long the handler ran.</li>
+ *   <li><b>Trace context in the message metadata</b>: whatever is sent (commands, queries, the
+ *       event a command produces) carries the W3C {@code traceparent}/{@code tracestate} of the
+ *       send span (of the handler span for events), through the server, which does not read it.
+ *       Application code sending through {@code EventoBundle.getCommandGateway()}/
+ *       {@code getQueryGateway()} while a span is current, e.g. inside an instrumented HTTP
+ *       request, starts its send span under it.</li>
  *   <li><b>Consumers</b>: by default a projector, saga or observer span is a child of the span
  *       that produced the event, so a trace runs from the HTTP request to the read models. With
  *       {@link #linkingConsumers()} it starts a new trace with a link instead: better when events
@@ -115,6 +125,56 @@ public class OpenTelemetryTracingAgent extends TracingAgent {
         } finally {
             span.end();
         }
+    }
+
+    /**
+     * A {@code CLIENT} span around the send, ended when the reply arrives; the metadata sent
+     * carries its context. Its parent is the current span, else the trace of the handled message.
+     * The reply future is returned as it is, so cancelling it still reaches the gateway.
+     */
+    @Override
+    public <R> CompletableFuture<R> traceSend(Payload payload, Metadata metadata, Message<?> handledMessage,
+                                              Function<Metadata, CompletableFuture<R>> send) {
+        var parent = Context.current();
+        if (!Span.fromContext(parent).getSpanContext().isValid() && handledMessage != null
+                && handledMessage.getMetadata() != null) {
+            parent = propagator.extract(Context.root(), handledMessage.getMetadata(), GETTER);
+        }
+        var name = payload == null ? "" : payload.getClass().getSimpleName();
+        var span = tracer.spanBuilder((payload instanceof Query<?> ? "query " : "send ") + name)
+                .setParent(parent)
+                .setSpanKind(SpanKind.CLIENT)
+                .setAttribute("messaging.system", "evento")
+                .setAttribute("messaging.operation.type", "send")
+                .setAttribute("evento.bundle", getBundleId())
+                .setAttribute("evento.payload", name)
+                .startSpan();
+        var context = parent.with(span);
+        var out = copy(metadata);
+        propagator.inject(context, out, (carrier, key, value) -> carrier.put(key, value));
+        CompletableFuture<R> reply;
+        try (var ignored = context.makeCurrent()) {
+            reply = send.apply(out);
+        } catch (RuntimeException | Error e) {
+            fail(span, e);
+            span.end();
+            throw e;
+        }
+        if (reply == null) {
+            span.end();
+            return null;
+        }
+        reply.whenComplete((value, error) -> {
+            if (error != null) fail(span, error instanceof CompletionException && error.getCause() != null
+                    ? error.getCause() : error);
+            span.end();
+        });
+        return reply;
+    }
+
+    private static void fail(Span span, Throwable error) {
+        span.recordException(error);
+        span.setStatus(StatusCode.ERROR, error.getClass().getSimpleName());
     }
 
     /**
