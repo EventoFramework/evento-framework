@@ -3,8 +3,8 @@ package com.evento.application.manager;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.AggregateReference;
 import com.evento.application.reference.AggregateStateEnvelope;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Aggregate;
 import com.evento.common.modeling.exceptions.HandlerNotFoundException;
@@ -24,7 +24,7 @@ import java.util.function.Function;
  */
 public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCommandMessage, AggregateReference> {
 
-    private static final Logger logger = LogManager.getLogger(AggregateManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(AggregateManager.class);
 
     /**
      * Constructs an instance of AggregateManager.

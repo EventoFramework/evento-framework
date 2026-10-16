@@ -28,8 +28,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.proxy.InvokerWrapper;
@@ -67,7 +67,7 @@ import java.util.function.Function;
 @Getter
 public class EventoBundle {
 
-    private static final Logger logger = LogManager.getLogger(EventoBundle.class);
+    private static final Logger logger = LoggerFactory.getLogger(EventoBundle.class);
     private final String basePackage;
     private final String bundleId;
     private final String instanceId;

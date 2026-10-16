@@ -35,6 +35,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:6.1.3'
     testImplementation 'org.awaitility:awaitility:4.3.0'
     testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.26.1'
     testImplementation project(':evento-transport-api')
 }
 

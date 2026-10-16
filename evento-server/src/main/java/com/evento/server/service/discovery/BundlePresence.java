@@ -3,8 +3,8 @@ package com.evento.server.service.discovery;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.spring.BusProperties;
 import jakarta.annotation.PostConstruct;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,7 +42,7 @@ import java.util.Optional;
 @Component
 public class BundlePresence {
 
-    private static final Logger logger = LogManager.getLogger(BundlePresence.class);
+    private static final Logger logger = LoggerFactory.getLogger(BundlePresence.class);
 
     /** The id every server gets from the shipped application.properties (G13). */
     static final String SHIPPED_DEFAULT_SERVER_ID = "iris-evento-server";

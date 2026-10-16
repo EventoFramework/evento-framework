@@ -1,8 +1,8 @@
 package com.evento.application.manager;
 
 import lombok.Getter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.common.modeling.annotations.component.Invoker;
 import com.evento.common.modeling.annotations.handler.InvocationHandler;
 import com.evento.common.modeling.bundle.types.ComponentType;
@@ -23,7 +23,7 @@ import java.util.Map;
  */
 @Getter
 public class InvokerManager {
-    private static final Logger logger = LogManager.getLogger(InvokerManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(InvokerManager.class);
 
     private final List<RegisteredHandler> handlers = new ArrayList<>();
     private final Map<RegisteredHandler, Method> handlerMethods = new IdentityHashMap<>();

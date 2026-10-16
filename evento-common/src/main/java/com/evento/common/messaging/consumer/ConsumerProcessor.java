@@ -15,8 +15,8 @@ import com.evento.common.modeling.state.SagaState;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.utils.ChannelErrors;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -55,7 +55,7 @@ import java.util.function.Function;
  */
 public final class ConsumerProcessor {
 
-    private static final Logger logger = LogManager.getLogger(ConsumerProcessor.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConsumerProcessor.class);
 
     private final EventoServer eventoServer;
     private final ConsumerLock lock;

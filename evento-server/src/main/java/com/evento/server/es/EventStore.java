@@ -12,8 +12,8 @@ import com.evento.server.es.eventstore.EventStoreEntry;
 import com.evento.server.es.eventstore.EventStoreRepository;
 import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.es.snapshot.SnapshotRepository;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class EventStore implements BrokerEventStore {
 
-    private static final Logger logger = LogManager.getLogger(EventStore.class);
+    private static final Logger logger = LoggerFactory.getLogger(EventStore.class);
 
     /**
      * CPES append: the global append lock, the sequence number and the row in ONE statement,

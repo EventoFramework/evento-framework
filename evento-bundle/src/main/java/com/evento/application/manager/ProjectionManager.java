@@ -2,8 +2,8 @@ package com.evento.application.manager;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ProjectionReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Projection;
 import com.evento.common.modeling.exceptions.HandlerNotFoundException;
@@ -21,7 +21,7 @@ import java.util.function.Function;
  * Projections are components capable of handling query messages.
  */
 public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>, ProjectionReference> {
-    private static final Logger logger = LogManager.getLogger(ProjectionManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(ProjectionManager.class);
 
     /**
      * Constructs a new ProjectionManager instance.

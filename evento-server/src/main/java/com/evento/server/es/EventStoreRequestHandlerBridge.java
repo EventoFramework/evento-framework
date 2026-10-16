@@ -7,8 +7,8 @@ import com.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
 import com.evento.common.messaging.consumer.EventLastSequenceNumberResponse;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.server.bus.lifecycle.BusLifecycle;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Component
 public class EventStoreRequestHandlerBridge {
 
-    private static final Logger logger = LogManager.getLogger(EventStoreRequestHandlerBridge.class);
+    private static final Logger logger = LoggerFactory.getLogger(EventStoreRequestHandlerBridge.class);
 
     public EventStoreRequestHandlerBridge(BusLifecycle lifecycle,
                                           EventStore eventStore,

@@ -10,8 +10,8 @@ import com.evento.server.bus.BusFacade;
 import com.evento.server.domain.model.core.Component;
 import com.evento.server.domain.model.core.Consumer;
 import com.evento.server.domain.repository.core.*;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 @Service
 public class ConsumerService {
 
-    private static final Logger logger = LogManager.getLogger(ConsumerService.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConsumerService.class);
     private final ComponentRepository componentRepository;
     private final ConsumerRepository consumerRepository;
     private final BundleRepository bundleRepository;

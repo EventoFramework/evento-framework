@@ -2,8 +2,8 @@ package com.evento.application.manager;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ServiceReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.messaging.outcome.DuplicateServiceOutcomeException;
 import com.evento.common.messaging.outcome.ServiceCommandOutcomeStore;
@@ -27,7 +27,7 @@ import java.util.function.Function;
  * and implements the required methods for parsing and handling the service commands.
  */
 public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessage, ServiceReference> {
-    private static final Logger logger = LogManager.getLogger(ServiceManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(ServiceManager.class);
 
     private volatile ServiceCommandOutcomeStore outcomeStore;
     private final java.util.concurrent.atomic.AtomicLong replayed = new java.util.concurrent.atomic.AtomicLong();

@@ -2,8 +2,8 @@ package com.evento.application.manager;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.SagaReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Saga;
 import com.evento.common.modeling.messaging.message.application.Message;
@@ -16,7 +16,7 @@ import java.util.function.Function;
 
 public class SagaManager extends ConsumerComponentManager<SagaReference> {
 
-    private static final Logger logger = LogManager.getLogger(SagaManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(SagaManager.class);
 
     public SagaManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
                        TracingAgent tracingAgent,

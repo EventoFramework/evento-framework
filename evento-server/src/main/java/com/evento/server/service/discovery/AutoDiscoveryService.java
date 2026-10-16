@@ -4,8 +4,8 @@ import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.domain.model.core.*;
 import com.evento.server.domain.repository.core.*;
 import com.evento.server.service.HandlerService;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.server.bus.BusFacade;
@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Service
 public class AutoDiscoveryService {
-    private static final Logger logger = LogManager.getLogger(AutoDiscoveryService.class);
+    private static final Logger logger = LoggerFactory.getLogger(AutoDiscoveryService.class);
     /** Total attempts of a discovery pass that loses a race with another server's catalog writes. */
     static final int MAX_DISCOVERY_ATTEMPTS = 3;
     private final BundleRepository bundleRepository;

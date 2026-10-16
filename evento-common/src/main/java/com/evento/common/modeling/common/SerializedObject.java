@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.common.serialization.ObjectMapperUtils;
 
 import java.io.Serializable;
@@ -18,7 +18,7 @@ import java.io.Serializable;
 
 public class SerializedObject<T extends Serializable> implements Serializable {
 
-	private static final Logger logger = LogManager.getLogger(SerializedObject.class);
+	private static final Logger logger = LoggerFactory.getLogger(SerializedObject.class);
 	private String serializedObject;
 	private String objectClass;
 	/**

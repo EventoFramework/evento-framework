@@ -15,8 +15,8 @@ import com.evento.common.modeling.messaging.query.Streamed;
 import com.evento.transport.protocol.PayloadDiscoveryInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -24,7 +24,7 @@ import java.util.*;
 
 final class HandlerMetadataBuilder {
 
-    private static final Logger logger = LogManager.getLogger(HandlerMetadataBuilder.class);
+    private static final Logger logger = LoggerFactory.getLogger(HandlerMetadataBuilder.class);
 
     record Result(
             List<RegisteredHandler> handlers,

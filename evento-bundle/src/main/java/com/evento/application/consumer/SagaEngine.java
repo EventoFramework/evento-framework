@@ -14,8 +14,8 @@ import com.evento.common.utils.ChannelErrors;
 import com.evento.common.utils.Sleep;
 import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
 import lombok.Getter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -37,7 +37,7 @@ import java.util.function.Supplier;
  */
 public final class SagaEngine implements Runnable, ConsumerHandle {
 
-    private static final Logger logger = LogManager.getLogger(SagaEngine.class);
+    private static final Logger logger = LoggerFactory.getLogger(SagaEngine.class);
 
     @Getter
     private final String bundleId;

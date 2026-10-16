@@ -3,8 +3,8 @@ package com.evento.application.consumer;
 import com.evento.application.consumer.ConsumerHandle;
 import com.evento.common.messaging.consumer.ConsumerExecutor;
 import com.evento.common.modeling.bundle.types.ComponentType;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class EngineSupervisor {
 
-    private static final Logger logger = LogManager.getLogger(EngineSupervisor.class);
+    private static final Logger logger = LoggerFactory.getLogger(EngineSupervisor.class);
 
     private final List<ProjectorEngine> projectorEngines = new ArrayList<>();
     private final List<SagaEngine> sagaEngines = new ArrayList<>();

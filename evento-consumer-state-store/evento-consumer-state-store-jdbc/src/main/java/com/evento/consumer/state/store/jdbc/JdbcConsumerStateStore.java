@@ -8,8 +8,8 @@ import com.evento.common.messaging.consumer.OptimisticLockException;
 import com.evento.common.messaging.consumer.ProjectorCheckpoint;
 import com.evento.common.messaging.consumer.SagaCheckpoint;
 import com.evento.common.messaging.consumer.VersionedCheckpoint;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -52,7 +52,7 @@ import java.util.stream.Stream;
  */
 public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
-    private static final Logger logger = LogManager.getLogger(JdbcConsumerStateStore.class);
+    private static final Logger logger = LoggerFactory.getLogger(JdbcConsumerStateStore.class);
 
     private static final String KIND_EVENT = "EVENT";
     private static final String KIND_SAGA = "SAGA";

@@ -1,7 +1,7 @@
 package com.evento.common.utils;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -73,7 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class PgDistributedLock {
 
-    private static final Logger logger = LogManager.getLogger(PgDistributedLock.class);
+    private static final Logger logger = LoggerFactory.getLogger(PgDistributedLock.class);
 
     /** Default bound on how long {@link #acquire(String)} waits for a contended key. */
     public static final long DEFAULT_ACQUIRE_TIMEOUT_MS = 60_000L;
