@@ -718,7 +718,17 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
   CSRF via `CookieCsrfTokenRepository` + `CsrfCookieFilter`, `/api/**` answers 401 (no redirect),
   `OidcRoles` maps a claim path to `ROLE_WEB`/`ROLE_ADMIN`; Basic kept for machine clients.
   `AuthController`: `GET /api/auth/mode` (public), `GET /api/auth/me`; logout `POST /api/auth/logout`.
-  Tests: `WebSecurityTest` (MockMvc, both modes), `OidcRolesTest`.
+  Tests: `WebSecurityTest` (MockMvc, both modes), `OidcRolesTest`, `ConsoleApiTest` (every console
+  controller, real security chain, services mocked). Every write is `ROLE_ADMIN`; the GUI signs out
+  only on 401 and reports a 403 (`apiWrite`).
+
+- **Audit trail (server, 2.6):** `com.evento.server.web.audit`. Spring Boot audit support with
+  `LoggingAuditEventRepository` (`key=value` line on logger `evento.audit` = the durable record, plus an
+  in-memory ring of `evento.server.audit.capacity` for `/actuator/auditevents`, ADMIN only). `AdminAudit`
+  wraps console writes (`record` / `recordAsync`, outcome on completion) → `ADMIN_ACTION`. Own listeners
+  replace Boot's: `AUTHENTICATION_FAILURE`, OIDC `AUTHENTICATION_SUCCESS` / `LOGOUT` (Basic successes
+  skipped: one per request), `AUTHORIZATION_FAILURE` for authenticated users only (needs the
+  `SpringAuthorizationEventPublisher` bean). No database table yet (needs F4).
 
 - **Payload deserialization:** `PayloadTypeAllowlist` builds a *live* validator for the polymorphic
   payload mappers: open (any `Serializable`, warned once) until restricted by
@@ -1070,16 +1080,18 @@ explorative read-only pivot.)
   `doTrack` opens a span per handler (`<component> <payload>`, `SERVER` for commands/queries/
   invocations, `CONSUMER` for events), parent from the message metadata's W3C `traceparent`
   (`linkingConsumers()`: consumers start a new trace with a link). `correlate` injects the current
-  span into a copy of the outgoing metadata (fallback: the handled message's context). Handlers'
-  gateways correlate through `GatewayTelemetryProxy`; the gateways `EventoBundle` exposes to
-  application code are wrapped by `CorrelatingGateways` **only when the agent is not the no-op base
-  class**. The server carries metadata opaquely: no wire change. API-only dependency.
+  span into a copy of the outgoing metadata (fallback: the handled message's context). `traceSend`
+  wraps every command/query sent in a `CLIENT` span (`send <Command>` / `query <Query>`) ended when the
+  reply future completes (the future is returned as is); the metadata carries that span. Streams are
+  only correlated. Handlers' gateways go through `GatewayTelemetryProxy`; the gateways `EventoBundle`
+  exposes to application code are wrapped by `CorrelatingGateways` **only when the agent is not the
+  no-op base class**. The server carries metadata opaquely: no wire change. API-only dependency.
   Server side, `CommandTracing` (`CommandBrokerHandler`): a span per executed command, parent from the
   command's metadata, phase times from the `CommandPhaseMetrics` clock as attributes; for aggregate
   commands the span is injected into the forwarded command's metadata (the bundle span is its child),
   service commands are forwarded unchanged. `GlobalOpenTelemetry` (Java agent) or an `OpenTelemetry`
-  bean; `evento.server.tracing.enabled=false` off. `TracingEventFlowIT` (lab): request → server →
-  aggregate → projector in one trace.
+  bean; `evento.server.tracing.enabled=false` off. `TracingEventFlowIT` (lab): request → send →
+  server → aggregate → projector in one trace.
 
 - **Micrometer metrics** — wired via `BusMetricsBinder` (`com.evento.server.bus.spring`),
   exposed on `/actuator/prometheus` + `/actuator/metrics` (`micrometer-registry-prometheus`):

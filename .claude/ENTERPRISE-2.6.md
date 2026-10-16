@@ -272,11 +272,12 @@ Le dipendenze sono indicate con `←`.
       (i 74 JDBC saltati senza Docker). Audit `synchronized`: solo quel lock bloccava su I/O (D3)
 - [x] A1 Via `log4j-core` (e le config log4j nei jar) e `okhttp`; librerie solo su SLF4J; `reflections`
       sostituita da ClassGraph (`ComponentScan`, stessa semantica), `javassist` dichiarata.
-      **Resta (basso)**: `hibernate-validator` esposto come `api`
+      `hibernate-validator` rimosso: nessun codice usava la bean validation
 - [ ] O2 Metrica di lag dei consumer
 - [ ] B1 Benchmark del tetto di append/s per cella, pubblicato ← C1
-- [~] Q1 Test di autenticazione web: `WebSecurityTest` (MockMvc, Basic e OIDC), `OidcRolesTest`.
-      **Resta**: test dei controller REST
+- [x] Q1 Test di autenticazione web: `WebSecurityTest` (MockMvc, Basic e OIDC), `OidcRolesTest`;
+      `ConsoleApiTest`: tutti i controller della console con la catena di sicurezza vera e i servizi
+      mock (ruoli per endpoint, risposte, audit). Ha trovato un 500 al posto di 400 (pagine > 1000)
 
 ### Fase 2 — adozione (2.8-2.9)
 
@@ -295,13 +296,19 @@ Le dipendenze sono indicate con `←`.
       se l'agente non è quello no-op. Nessuna modifica al filo (D6).
       Poi: span del server per ogni comando (`CommandTracing`, fasi come attributi, agente Java o bean
       `OpenTelemetry`), `TracingEventFlowIT`: richiesta → server → aggregato → projector in una trace.
-      **Resta**: span client/producer sugli invii
+      Poi: span `CLIENT` per ogni comando e query inviati (`send <Command>` / `query <Query>`, fino alla
+      risposta), nuovo hook `TracingAgent.traceSend`; l'IT verifica richiesta → send → server → aggregato
+      → projector
 - [ ] O3 Timer su query e service command
 - [x] S4 OIDC per la console: `evento.server.web.auth=oidc`, authorization code con PKCE gestito dal
       server (sessione HttpOnly, CSRF da cookie, nessun token nel browser), gruppi → `WEB`/`ADMIN`
       (`OidcRoles`, claim annidati), Basic resta per i client macchina; GUI: `/api/auth/mode`, bottone
       "Sign in with your organisation". Testato con MockMvc, **non** contro un identity provider reale (D4).
-      **Resta**: audit log delle azioni admin
+      Poi: audit trail (`AuditConfiguration`, audit di Spring Boot): `ADMIN_ACTION` con esito reale,
+      login falliti, login/logout OIDC, rifiuti a utenti autenticati; una riga `key=value` sul logger
+      `evento.audit` (il record durevole, da mandare al SIEM) e `/actuator/auditevents` solo ADMIN.
+      La rimozione di un bundle richiede ADMIN; la GUI non fa più logout su 403.
+      **Poi**: tabella di audit su database quando c'è Flyway (F4)
 - [ ] F8 Guida di mapping Axon 4 + importatore `domain_event_entry` (D8)
 - [ ] F9 Più eventi per comando
 - [ ] F11 Retention di chiavi di idempotenza ed esiti

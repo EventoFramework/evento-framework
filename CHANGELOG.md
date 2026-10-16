@@ -44,6 +44,11 @@ a revised payload needs a 2.6 broker.
   Boot applications log Evento through their own configuration with no change; a plain Java application needs
   an SLF4J binding (Logback, `log4j-slf4j2-impl` + `log4j-core`, …), or SLF4J prints a "no providers" warning
   and drops the logs. The unused `okhttp` dependency of `evento-bundle` is gone.
+- **`evento-bundle` no longer brings `hibernate-validator`** (nor Jakarta Validation, Jakarta EL, JBoss Logging,
+  Classmate) onto the application's classpath: Evento never used it. An application that validates its own
+  beans with it declares the dependency itself.
+- **Removing a bundle from the catalog (`DELETE /api/bundle/{id}`) needs the `ADMIN` role**, like the other
+  console writes; it needed only `WEB`. A script calling it with a WEB-only user gets 403.
 
 ### Added
 
@@ -95,6 +100,17 @@ a revised payload needs a 2.6 broker.
   its child. A no-op without an agent; `evento.server.tracing.enabled=false` turns it off.
 - **Fixtures for projectors and services**: `ProjectorFixture` (`given` / `whenEvent`, `replaying()`, asserts on
   the projector's repository) and `ServiceFixture` (`when(command)`, `expectEvent` / `expectNoEvent`).
+- **Audit trail on the server.** Every console write (retry, delete or replay dead events, remove a bundle) is
+  recorded with who, what, target, remote address and its real outcome (`ADMIN_ACTION`, written when the
+  bundle's answer arrives); so are failed sign-ins (`AUTHENTICATION_FAILURE`), OIDC sign-ins and sign-outs, and
+  actions refused to a signed-in user (`AUTHORIZATION_FAILURE`). One `key=value` line per event on the
+  `evento.audit` logger, the durable record to route to a SIEM, and the latest
+  `evento.server.audit.capacity` (1000) events at `/actuator/auditevents`, ADMIN only.
+  `management.auditevents.enabled=false` turns it off.
+- **A span per command and query sent**: `OpenTelemetryTracingAgent` wraps every send (from a handler or from
+  the application's gateways) in a `CLIENT` span `send <Command>` / `query <Query>` that lasts until the reply,
+  with the error when the reply fails; the broker's and the handler's spans are its children. New hook
+  `TracingAgent.traceSend(...)`, a plain send in the no-op base agent.
 - **Starter observability**: Micrometer meters `evento.bundle.connected`, `evento.bundle.request{payload}`,
   `evento.bundle.handler{type}` (with `.p99` / `.max`); opt-in readiness that follows the connection
   (`evento.bundle.connection-readiness=true`); `EventoBundleStartedEvent` when the server starts routing to the
@@ -197,6 +213,11 @@ a revised payload needs a 2.6 broker.
 
 ### Fixed
 
+- The web console logged the user out on any 403: a user without `ADMIN` (normal with OIDC groups) who tried a
+  dead-event action was sent back to the login page. Only 401 signs out now; a refused action shows "This
+  action needs the ADMIN role.", and the retry toggle flips back.
+- A page size over 1000 on `/api/system-state-store/event` and `/snapshot` answered 500 (an unmapped Tomcat
+  exception); it answers 400.
 - `JdbcConsumerStateStore` held a monitor while it waited for the pool, the network and Flyway; it is a
   `ReentrantLock` now, so a virtual thread waiting there does not pin its carrier on JDK 21–23.
 - A response over the reconnect buffer's byte budget is no longer buffered

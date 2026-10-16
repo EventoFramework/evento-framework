@@ -37,6 +37,20 @@ Sibling repos, local branches only, nothing pushed or deployed: `evento-www` `li
 (licensing page + footer), `evento-doc` `docs/enterprise-2.6` (Licensing, Spring Boot starter, OpenTelemetry,
 Testing with Fixtures, Security, GUI Auth OIDC; Quick Start Java 21). OIDC not tried against a real provider.
 
+**Session 4 (same day): the rest of the open list, committed piece by piece.**
+- Audit trail (`com.evento.server.web.audit`): Spring Boot audit with `LoggingAuditEventRepository` (one
+  `key=value` line per event on logger `evento.audit` + in-memory ring for `/actuator/auditevents`, ADMIN only),
+  `AdminAudit` around each console write (outcome recorded when the bundle answers), own authentication /
+  authorization listeners (Basic successes and anonymous refusals left out). `DELETE /api/bundle/{id}` now ADMIN.
+  GUI: only 401 signs out; admin actions use `apiWrite` and show a toast on 403.
+- `ConsoleApiTest`: every console controller under the real security chain, services mocked. Found the
+  page-size check answering 500 (Tomcat `BadRequestException`); now `ResponseStatusException(400)`.
+- `TracingAgent.traceSend` hook; `OpenTelemetryTracingAgent` opens a CLIENT span per command/query sent,
+  ended on the reply; `TracingEventFlowIT` checks request → send → server → aggregate → projector.
+- `hibernate-validator` dropped from `evento-bundle` (unused).
+Still open: CLA legal review; `evento-test-broker` (needs A2); push/deploy of this branch and the sibling
+branches (user's call); decisions D2, D8, D9, D10; roadmap items F4, C1, O2, O3, B1, R1/R2…
+
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
 User request (Italian): an enterprise feature to version payloads and use the new versions;
