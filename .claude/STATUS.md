@@ -28,6 +28,15 @@ CLAUDE.md.
 - Open: projector/service fixtures, starter health/metrics, server-side spans, event e2e trace test,
   reflections removal, website/evento-doc licence pages, OIDC (S4).
 
+**Session 3 (same day): committed in 10 pieces, then the "open" list.** Every intermediate commit compiled
+(`testClasses` in a worktree each). Then: `ProjectorFixture`/`ServiceFixture`; server command spans
+(`CommandTracing`) + `TracingEventFlowIT`; starter Micrometer meters, opt-in connection readiness,
+`EventoBundleStartedEvent` (published on enable, not on `start()`); ClassGraph `ComponentScan` replaces
+Reflections; console OIDC (`evento.server.web.auth=oidc`, `OidcRoles`, `AuthController`, GUI SSO button).
+Sibling repos, local branches only, nothing pushed or deployed: `evento-www` `licensing/apache-client-libraries`
+(licensing page + footer), `evento-doc` `docs/enterprise-2.6` (Licensing, Spring Boot starter, OpenTelemetry,
+Testing with Fixtures, Security, GUI Auth OIDC; Quick Start Java 21). OIDC not tried against a real provider.
+
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
 User request (Italian): an enterprise feature to version payloads and use the new versions;

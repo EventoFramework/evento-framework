@@ -82,6 +82,23 @@ a revised payload needs a 2.6 broker.
   requires. Before, a bundle built with `EventoBundle.Builder` could not present one.
 - `EventoBundle.stop(Duration)`: leave the server's routing, stop the consumer engines, close the connection.
 - `EventoBundle.Builder.setBasePackageName(String)`, for when no `Package` object is at hand.
+- **Single sign-on for the web console**: `evento.server.web.auth=oidc` (`EVENTO_SERVER_WEB_AUTH`) signs users
+  in with the organisation's identity provider (authorization code with PKCE, run by the server; the session is
+  an HttpOnly cookie, writes carry the `XSRF-TOKEN` CSRF token, no token reaches the browser). The provider's
+  groups map to `WEB` / `ADMIN` (`evento.server.web.oidc.roles-claim`, `web-role`, `admin-role`; nested claims
+  such as Keycloak's `realm_access.roles` work). HTTP Basic stays for machine clients. The GUI asks
+  `GET /api/auth/mode` and shows "Sign in with your organisation"; `GET /api/auth/me` tells who is signed in.
+  Default stays `basic`.
+- **Server spans for commands**: with the OpenTelemetry Java agent on the server (or an `OpenTelemetry` bean),
+  each executed command gets a span `evento command <payload>` with its phase times as attributes
+  (`evento.phase.lock.ms`, `.story.ms`, `.append.ms`, …), child of the caller's span; the aggregate's span is
+  its child. A no-op without an agent; `evento.server.tracing.enabled=false` turns it off.
+- **Fixtures for projectors and services**: `ProjectorFixture` (`given` / `whenEvent`, `replaying()`, asserts on
+  the projector's repository) and `ServiceFixture` (`when(command)`, `expectEvent` / `expectNoEvent`).
+- **Starter observability**: Micrometer meters `evento.bundle.connected`, `evento.bundle.request{payload}`,
+  `evento.bundle.handler{type}` (with `.p99` / `.max`); opt-in readiness that follows the connection
+  (`evento.bundle.connection-readiness=true`); `EventoBundleStartedEvent` when the server starts routing to the
+  bundle. `EventoBundle.getConnectionState()` / `onConnectionStateChange(...)`.
 
 - **Payload versioning (upcasting).** `@Revision(n)` on a payload class (event, command, query,
   aggregate state) records its revision in every payload written (`SerializedObject.revision`,
@@ -171,6 +188,12 @@ a revised payload needs a 2.6 broker.
 - **Fewer copies of large messages.** The chunk reassembler holds the received chunks as a
   composite buffer instead of copying them into a growing array and copying that again; the
   encoder wraps the codec's array instead of copying it; chunking slices instead of copying.
+
+### Changed
+
+- Component scanning uses ClassGraph instead of Reflections (unmaintained since 2021): same semantics, annotated
+  classes and their subclasses within the base package. The component managers' `parse` methods take a
+  `ComponentScan`; `javassist` (invoker proxies) is now a direct dependency.
 
 ### Fixed
 

@@ -713,6 +713,13 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
   Bundle: `setTransportConfig(NettyTransportConfig.defaults().withSslContext(...))`, or the starter's
   `evento.bundle.tls.*`.
 
+- **Web console (2.6):** `evento.server.web.auth=basic|oidc` (`WebConfig`). `oidc`: Spring Security
+  `oauth2Login` (registration `evento.server.web.oidc.registration-id`, default `evento`), session cookie,
+  CSRF via `CookieCsrfTokenRepository` + `CsrfCookieFilter`, `/api/**` answers 401 (no redirect),
+  `OidcRoles` maps a claim path to `ROLE_WEB`/`ROLE_ADMIN`; Basic kept for machine clients.
+  `AuthController`: `GET /api/auth/mode` (public), `GET /api/auth/me`; logout `POST /api/auth/logout`.
+  Tests: `WebSecurityTest` (MockMvc, both modes), `OidcRolesTest`.
+
 - **Payload deserialization:** `PayloadTypeAllowlist` builds a *live* validator for the polymorphic
   payload mappers: open (any `Serializable`, warned once) until restricted by
   `evento.serialization.allowed-packages` / `EVENTO_SERIALIZATION_ALLOWED_PACKAGES` or
@@ -1067,6 +1074,12 @@ explorative read-only pivot.)
   gateways correlate through `GatewayTelemetryProxy`; the gateways `EventoBundle` exposes to
   application code are wrapped by `CorrelatingGateways` **only when the agent is not the no-op base
   class**. The server carries metadata opaquely: no wire change. API-only dependency.
+  Server side, `CommandTracing` (`CommandBrokerHandler`): a span per executed command, parent from the
+  command's metadata, phase times from the `CommandPhaseMetrics` clock as attributes; for aggregate
+  commands the span is injected into the forwarded command's metadata (the bundle span is its child),
+  service commands are forwarded unchanged. `GlobalOpenTelemetry` (Java agent) or an `OpenTelemetry`
+  bean; `evento.server.tracing.enabled=false` off. `TracingEventFlowIT` (lab): request → server →
+  aggregate → projector in one trace.
 
 - **Micrometer metrics** — wired via `BusMetricsBinder` (`com.evento.server.bus.spring`),
   exposed on `/actuator/prometheus` + `/actuator/metrics` (`micrometer-registry-prometheus`):

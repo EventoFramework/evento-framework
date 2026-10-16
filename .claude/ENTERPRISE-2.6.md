@@ -254,7 +254,8 @@ Le dipendenze sono indicate con `←`.
 - [x] L1 `LICENSE.txt` riscritto per modulo (client Apache-2.0, resto AGPL-3.0 o commerciale), testi
       canonici in `licenses/`, `LICENSE.txt` per modulo, `NOTICE.txt`, SPDX nei POM, LICENSE/NOTICE nei
       jar, ambito di `LICENSE-COMMERCIAL.txt` ristretto ai componenti AGPL, README e CONTRIBUTING (D1).
-      **Resta**: pagina `eventoframework.com/licensing` ed evento-doc
+      Sito (`evento-www`, branch `licensing/apache-client-libraries`) ed evento-doc (branch
+      `docs/enterprise-2.6`, pagina Licensing) aggiornati in locale: **resta** push e deploy (decisione dell'utente)
 - [x] L2 `CLA.md` (bozza su modello ICLA Apache + diritto di rilicenziare), richiesto da CONTRIBUTING (D1).
       **Resta**: revisione di un legale prima del primo contributo esterno
 - [ ] F4 Flyway sull'event store, con baseline dei database esistenti
@@ -269,11 +270,13 @@ Le dipendenze sono indicate con `←`.
       (`ProcessedRequestCache`), lock di `JdbcConsumerStateStore` da monitor a `ReentrantLock`; job CI
       `client-libraries-jdk21`; verificato in locale su corretto-21.0.12.1: 402 test, 0 falliti
       (i 74 JDBC saltati senza Docker). Audit `synchronized`: solo quel lock bloccava su I/O (D3)
-- [~] A1 Via `log4j-core` (e le config log4j nei jar) e `okhttp`; librerie solo su SLF4J.
-      **Resta**: `reflections 0.10.2` (abbandonata, sovrapposta a classgraph), `hibernate-validator` come `api`
+- [x] A1 Via `log4j-core` (e le config log4j nei jar) e `okhttp`; librerie solo su SLF4J; `reflections`
+      sostituita da ClassGraph (`ComponentScan`, stessa semantica), `javassist` dichiarata.
+      **Resta (basso)**: `hibernate-validator` esposto come `api`
 - [ ] O2 Metrica di lag dei consumer
 - [ ] B1 Benchmark del tetto di append/s per cella, pubblicato ← C1
-- [ ] Q1 Test REST e autenticazione
+- [~] Q1 Test di autenticazione web: `WebSecurityTest` (MockMvc, Basic e OIDC), `OidcRolesTest`.
+      **Resta**: test dei controller REST
 
 ### Fase 2 — adozione (2.8-2.9)
 
@@ -281,16 +284,24 @@ Le dipendenze sono indicate con `←`.
       consumer JDBC/memoria, tracing), `SmartLifecycle` con stop ordinato, bean `CommandGateway`/`QueryGateway`,
       `EventoBundleCustomizer`. Compilato sulle API comuni a Boot 3 e 4, testato su 4.1.1 e 3.5.16
       (`boot3Test`); `EventoStarterIT` su TCP reale con token e trace (D5).
-      **Resta**: health indicator e metriche Micrometer del bundle (API diverse tra Boot 3 e 4)
-- [~] F2 `evento-test`: `AggregateFixture`, `SagaFixture`, `RecordingCommandGateway`, `StubQueryGateway` (D7).
-      **Resta**: fixture per projector e service; `evento-test-broker` (dipende dalla pubblicazione del server, A2)
+      Poi: metriche Micrometer (`evento.bundle.connected`, `.request{payload}`, `.handler{type}`), readiness
+      legata alla connessione (opt-in), `EventoBundleStartedEvent`: soluzioni uguali per Boot 3 e 4 al posto
+      di un `HealthIndicator`, che ha package diversi nelle due versioni
+- [x] F2 `evento-test`: `AggregateFixture`, `SagaFixture`, `ProjectorFixture`, `ServiceFixture`,
+      `RecordingCommandGateway`, `StubQueryGateway` (D7).
+      **Resta**: `evento-test-broker` (dipende dalla pubblicazione del server, A2)
 - [x] O1 `evento-opentelemetry` (`OpenTelemetryTracingAgent`, OTel API 1.66.0): span per handler, W3C nei
       metadati, `linkingConsumers()`; `CorrelatingGateways` per i gateway usati dal codice applicativo, solo
       se l'agente non è quello no-op. Nessuna modifica al filo (D6).
-      **Resta**: span lato server, span client/producer sugli invii, test end-to-end su un evento
-      (comando → projector) attraverso il broker
+      Poi: span del server per ogni comando (`CommandTracing`, fasi come attributi, agente Java o bean
+      `OpenTelemetry`), `TracingEventFlowIT`: richiesta → server → aggregato → projector in una trace.
+      **Resta**: span client/producer sugli invii
 - [ ] O3 Timer su query e service command
-- [ ] S4 OIDC nella GUI + audit log (D4)
+- [x] S4 OIDC per la console: `evento.server.web.auth=oidc`, authorization code con PKCE gestito dal
+      server (sessione HttpOnly, CSRF da cookie, nessun token nel browser), gruppi → `WEB`/`ADMIN`
+      (`OidcRoles`, claim annidati), Basic resta per i client macchina; GUI: `/api/auth/mode`, bottone
+      "Sign in with your organisation". Testato con MockMvc, **non** contro un identity provider reale (D4).
+      **Resta**: audit log delle azioni admin
 - [ ] F8 Guida di mapping Axon 4 + importatore `domain_event_entry` (D8)
 - [ ] F9 Più eventi per comando
 - [ ] F11 Retention di chiavi di idempotenza ed esiti
