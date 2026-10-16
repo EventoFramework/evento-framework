@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackages;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.SmartLifecycle;
 
 import java.io.File;
@@ -34,13 +35,16 @@ public class EventoBundleLifecycle implements SmartLifecycle {
     private final EventoProperties properties;
     private final ListableBeanFactory beanFactory;
     private final ObjectProvider<EventoBundleCustomizer> customizers;
+    private final ApplicationEventPublisher events;
     private volatile EventoBundle bundle;
 
     public EventoBundleLifecycle(EventoProperties properties, ListableBeanFactory beanFactory,
-                                 ObjectProvider<EventoBundleCustomizer> customizers) {
+                                 ObjectProvider<EventoBundleCustomizer> customizers,
+                                 ApplicationEventPublisher events) {
         this.properties = properties;
         this.beanFactory = beanFactory;
         this.customizers = customizers;
+        this.events = events;
     }
 
     /** The running bundle, or null before {@link #start()} and after {@link #stop()}. */
@@ -66,8 +70,15 @@ public class EventoBundleLifecycle implements SmartLifecycle {
             for (var customizer : customizers.orderedStream().toList()) {
                 customizer.customize(builder);
             }
+            // start() returns once connected; the bundle is enabled (routed to) later, after the
+            // projectors that wait for the head. That is when it is "started" for the application.
+            var hook = builder.getOnEventoStartedHook();
+            builder.setOnEventoStartedHook(started -> {
+                log.info("event=evento_bundle_started bundle={} servers={}", properties.getId(), properties.getServers());
+                events.publishEvent(new EventoBundleStartedEvent(this, started));
+                if (hook != null) hook.accept(started);
+            });
             bundle = builder.start();
-            log.info("event=evento_bundle_started bundle={} servers={}", properties.getId(), properties.getServers());
         } catch (Exception e) {
             throw new IllegalStateException("cannot start the Evento bundle '" + properties.getId() + "': " + e.getMessage(), e);
         }

@@ -27,7 +27,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.ReadinessState;
+import org.springframework.context.ApplicationListener;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -56,6 +61,11 @@ class EventoStarterIT {
 
     @BeforeEach
     void startBroker() {
+        port = startBrokerOn(0);
+        SPANS = InMemorySpanExporter.create();
+    }
+
+    private int startBrokerOn(int requestedPort) {
         var eventBus = new BusEventBus();
         var connections = new ConnectionRegistry(eventBus);
         broker = new BusLifecycle(new NettyServerTransport(NettyTransportConfig.defaults()), connections,
@@ -63,8 +73,7 @@ class EventoStarterIT {
                 eventBus, "starter-broker", Set.of(HandshakeProtocol.CAPABILITY_PING_PONG),
                 new JacksonCborPayloadCodec(), TokenValidator.sharedSecret(TOKEN),
                 new ForwardingDedupCache(1000, Duration.ofMinutes(1)));
-        port = broker.start(0);
-        SPANS = InMemorySpanExporter.create();
+        return broker.start(requestedPort);
     }
 
     @AfterEach
@@ -90,6 +99,7 @@ class EventoStarterIT {
             assertThat(ctx).hasNotFailed();
             assertThat(ctx.getBean(EventoBundleLifecycle.class).isRunning()).isTrue();
 
+            awaitEnabled();
             var answer = ctx.getBean(QueryGateway.class).query(new FindPrice("ink")).get(10, TimeUnit.SECONDS);
 
             assertThat(answer.getData().getItem()).isEqualTo("ink");
@@ -102,6 +112,7 @@ class EventoStarterIT {
         app().run(ctx -> {
             var tracer = ctx.getBean(OpenTelemetry.class).getTracer("test");
             var request = tracer.spanBuilder("GET /prices/pen").setSpanKind(SpanKind.SERVER).startSpan();
+            awaitEnabled();
             try (var ignored = request.makeCurrent()) {
                 ctx.getBean(QueryGateway.class).query(new FindPrice("pen")).get(10, TimeUnit.SECONDS);
             } finally {
@@ -125,8 +136,72 @@ class EventoStarterIT {
         });
     }
 
+    @Test
+    void theBundlesMeasurementsReachTheMeterRegistry() {
+        app().withPropertyValues("evento.bundle.metrics-refresh=100ms").run(ctx -> {
+            awaitEnabled();
+            ctx.getBean(QueryGateway.class).query(new FindPrice("pen")).get(10, TimeUnit.SECONDS);
+            var registry = ctx.getBean(MeterRegistry.class);
+
+            assertThat(registry.get("evento.bundle.connected").tag("bundle", "prices").gauge().value()).isEqualTo(1);
+            await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+                var handler = registry.get("evento.bundle.handler").tag("type", "query").functionTimer();
+                assertThat(handler.count()).isGreaterThanOrEqualTo(1);
+                assertThat(registry.get("evento.bundle.handler.p99").tag("type", "query").timeGauge()).isNotNull();
+            });
+        });
+    }
+
+    @Test
+    void withConnectionReadinessTheApplicationRefusesTrafficWhileTheBundleReconnects() {
+        app().withPropertyValues("evento.bundle.connection-readiness=true")
+                .withUserConfiguration(ReadinessLog.class)
+                .run(ctx -> {
+                    var log = ctx.getBean(ReadinessLog.class);
+                    awaitEnabled();
+                    broker.stop(Duration.ofMillis(200));
+                    await().atMost(10, TimeUnit.SECONDS).until(() -> log.last() == ReadinessState.REFUSING_TRAFFIC);
+                    startBrokerOn(port);
+                    await().atMost(30, TimeUnit.SECONDS).until(() -> log.last() == ReadinessState.ACCEPTING_TRAFFIC);
+                });
+    }
+
+    @Test
+    void withoutConnectionReadinessTheBundleLeavesReadinessAlone() {
+        app().withUserConfiguration(ReadinessLog.class).run(ctx -> {
+            assertThat(ctx).doesNotHaveBean(EventoBundleReadiness.class);
+            broker.stop(Duration.ofMillis(200));
+            Thread.sleep(1000);
+            assertThat(ctx.getBean(ReadinessLog.class).last()).isNull();
+        });
+    }
+
+    /** The bundle answers once the broker routes to it, which trails the context's start. */
+    private void awaitEnabled() {
+        await().atMost(10, TimeUnit.SECONDS).until(() -> !broker.availableView().isEmpty());
+    }
+
+    /** Records the readiness changes published in the context. */
+    static class ReadinessLog implements ApplicationListener<AvailabilityChangeEvent<ReadinessState>> {
+        private volatile ReadinessState last;
+
+        @Override
+        public void onApplicationEvent(AvailabilityChangeEvent<ReadinessState> event) {
+            last = event.getState();
+        }
+
+        ReadinessState last() {
+            return last;
+        }
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class Beans {
+        @Bean
+        MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
+        }
+
         @Bean
         PriceBook priceBook() {
             return new PriceBook();

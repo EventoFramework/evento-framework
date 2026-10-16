@@ -61,6 +61,12 @@ public class EventoProperties {
     /** How long a graceful stop waits for the consumer engines. */
     private Duration shutdownTimeout = Duration.ofSeconds(30);
 
+    /** Readiness follows the connection to the server (REFUSING_TRAFFIC while it reconnects). */
+    private boolean connectionReadiness;
+
+    /** How often newly measured payload types are added to the Micrometer meters. */
+    private Duration metricsRefresh = Duration.ofSeconds(15);
+
     private final Tls tls = new Tls();
     private final Serialization serialization = new Serialization();
     private final ConsumerState consumerState = new ConsumerState();
@@ -158,6 +164,10 @@ public class EventoProperties {
     public void setAutoStartup(boolean autoStartup) { this.autoStartup = autoStartup; }
     public Duration getShutdownTimeout() { return shutdownTimeout; }
     public void setShutdownTimeout(Duration shutdownTimeout) { this.shutdownTimeout = shutdownTimeout; }
+    public boolean isConnectionReadiness() { return connectionReadiness; }
+    public void setConnectionReadiness(boolean connectionReadiness) { this.connectionReadiness = connectionReadiness; }
+    public Duration getMetricsRefresh() { return metricsRefresh; }
+    public void setMetricsRefresh(Duration metricsRefresh) { this.metricsRefresh = metricsRefresh; }
     public Tls getTls() { return tls; }
     public Serialization getSerialization() { return serialization; }
     public ConsumerState getConsumerState() { return consumerState; }

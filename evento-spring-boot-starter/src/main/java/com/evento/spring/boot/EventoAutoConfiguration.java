@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -39,6 +40,8 @@ import javax.sql.DataSource;
  *       {@link EventoBundleCustomizer} beans, starts it after the context is ready, stops it
  *       gracefully on shutdown;</li>
  *   <li>{@link CommandGateway} and {@link QueryGateway} beans for application code;</li>
+ *   <li>with Micrometer and a {@code MeterRegistry}: {@link EventoBundleMetrics}; with
+ *       {@code evento.bundle.connection-readiness=true}: {@link EventoBundleReadiness};</li>
  *   <li>with {@code evento-consumer-state-store-jdbc} and a {@link DataSource}: consumer checkpoints,
  *       saga state, dead events and dedupe in the database ({@code evento.bundle.consumer-state.*});</li>
  *   <li>with {@code evento-opentelemetry} and an {@link OpenTelemetry} bean: a span per handler and
@@ -59,8 +62,29 @@ public class EventoAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public EventoBundleLifecycle eventoBundleLifecycle(EventoProperties properties, ListableBeanFactory beanFactory,
-                                                       ObjectProvider<EventoBundleCustomizer> customizers) {
-        return new EventoBundleLifecycle(properties, beanFactory, customizers);
+                                                       ObjectProvider<EventoBundleCustomizer> customizers,
+                                                       ApplicationEventPublisher events) {
+        return new EventoBundleLifecycle(properties, beanFactory, customizers, events);
+    }
+
+    /** Readiness follows the bundle's connection; opt-in (see {@link EventoBundleReadiness}). */
+    @Bean
+    @ConditionalOnProperty(prefix = "evento.bundle", name = "connection-readiness", havingValue = "true")
+    public EventoBundleReadiness eventoBundleReadiness(ApplicationEventPublisher events) {
+        return new EventoBundleReadiness(events);
+    }
+
+    /** The bundle's own measurements in the application's Micrometer registry. */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "io.micrometer.core.instrument.MeterRegistry")
+    static class MetricsConfiguration {
+
+        @Bean
+        EventoBundleMetrics eventoBundleMetrics(ObjectProvider<io.micrometer.core.instrument.MeterRegistry> registry,
+                                                EventoProperties properties) {
+            var r = registry.getIfUnique();
+            return r == null ? null : new EventoBundleMetrics(r, properties.getMetricsRefresh());
+        }
     }
 
     @Bean

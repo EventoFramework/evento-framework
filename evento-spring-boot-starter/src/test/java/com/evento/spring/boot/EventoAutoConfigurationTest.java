@@ -115,10 +115,11 @@ class EventoAutoConfigurationTest {
     void theOptionalIntegrationsStayAwayWhenTheirLibrariesAreMissing() {
         runner.withPropertyValues("evento.bundle.id=orders")
                 .withClassLoader(new FilteredClassLoader(OpenTelemetryTracingAgent.class, OpenTelemetry.class,
-                        JdbcConsumerStateStore.class))
+                        JdbcConsumerStateStore.class, io.micrometer.core.instrument.MeterRegistry.class))
                 .run(ctx -> {
                     assertThat(ctx).hasNotFailed();
                     assertThat(ctx).doesNotHaveBean(EventoBundleCustomizer.class);
+                    assertThat(ctx).doesNotHaveBean(EventoBundleMetrics.class);
                 });
     }
 

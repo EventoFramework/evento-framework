@@ -96,6 +96,23 @@ public class EventoBundle {
                 ? adapter.client().latencies() : null;
     }
 
+    /**
+     * The state of the connection to the server ({@code READY} when requests can flow), or
+     * {@code null} when the bundle does not run over the v2 {@code BundleClient}.
+     */
+    public com.evento.application.client.BundleClientState getConnectionState() {
+        return eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter
+                ? adapter.client().state() : null;
+    }
+
+    /** Calls {@code listener(previous, next)} on every change of {@link #getConnectionState()}. */
+    public void onConnectionStateChange(java.util.function.BiConsumer<com.evento.application.client.BundleClientState,
+            com.evento.application.client.BundleClientState> listener) {
+        if (eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter) {
+            adapter.client().onStateChange(listener);
+        }
+    }
+
     private EventoBundle(
             String basePackage,
             String bundleId,

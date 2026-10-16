@@ -27,10 +27,12 @@ dependencies {
     // Optional integrations, switched on by what the application has on its classpath.
     compileOnly project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')
     compileOnly project(':evento-opentelemetry')
+    compileOnly 'io.micrometer:micrometer-core'
 
     bootTestPlatform platform("org.springframework.boot:spring-boot-dependencies:${bootVersion}")
     testImplementation 'org.springframework.boot:spring-boot-autoconfigure'
     testImplementation 'org.springframework.boot:spring-boot-test'
+    testImplementation 'io.micrometer:micrometer-core'
     testImplementation 'org.springframework:spring-test'
     testImplementation project(':evento-opentelemetry')
     testImplementation project(':evento-consumer-state-store:evento-consumer-state-store-jdbc')
