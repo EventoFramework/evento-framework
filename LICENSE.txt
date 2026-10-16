@@ -17,6 +17,7 @@ The libraries an application links against:
   evento-common
   evento-bundle
   evento-consumer-state-store/evento-consumer-state-store-jdbc
+  evento-test
 
 are licensed under the Apache License, Version 2.0 (SPDX: Apache-2.0); see
 licenses/Apache-2.0.txt and NOTICE.txt. Using them in an application, open

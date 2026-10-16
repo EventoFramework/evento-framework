@@ -1,0 +1,15 @@
+ext.libraryName = 'Evento Framework - Test Fixtures'
+ext.libraryDescription = 'Given/when/then fixtures for Evento aggregates and sagas: no broker, no database'
+apply from: rootProject.file('gradle/evento-library.gradle')
+
+dependencies {
+    api project(':evento-bundle')
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.26.1'
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+}

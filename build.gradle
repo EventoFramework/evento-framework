@@ -40,6 +40,7 @@ ext.clientLibraries = [
         ':evento-common',
         ':evento-bundle',
         ':evento-consumer-state-store:evento-consumer-state-store-jdbc',
+        ':evento-test',
 ]
 ext.clientJavaRelease = 21
 
