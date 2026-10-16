@@ -13,7 +13,6 @@ import com.evento.common.modeling.messaging.message.application.DomainCommandRes
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.state.SerializedAggregateState;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.BiFunction;
@@ -43,15 +42,15 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
     /**
      * Parses and processes annotated aggregate classes.
      *
-     * @param reflections           The `Reflections` instance to discover annotated classes.
+     * @param scan                  The classes of the bundle's package.
      * @param findInjectableObject   A function to find injectable objects.
      * @throws InvocationTargetException If there is an issue with invoking a method.
      * @throws InstantiationException    If there is an issue with instantiating a class.
      * @throws IllegalAccessException    If there is an issue with accessing a class or its members.
      */
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
 
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Aggregate.class)) {
+        for (Class<?> aClass : scan.annotatedWith(Aggregate.class)) {
             var aggregateReference = new AggregateReference(createComponentInstance(aClass, findInjectableObject),
                     aClass.getAnnotation(Aggregate.class).snapshotFrequency());
             for (String command : aggregateReference.getRegisteredCommands()) {

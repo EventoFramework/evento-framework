@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Observer;
 import com.evento.common.modeling.messaging.message.application.Message;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
@@ -24,8 +23,8 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
     }
 
     @Override
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Observer.class)) {
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        for (Class<?> aClass : scan.annotatedWith(Observer.class)) {
             var observerReference = new ObserverReference(createComponentInstance(aClass, findInjectableObject));
             getReferences().add(observerReference);
             for (String event : observerReference.getRegisteredEvents()) {

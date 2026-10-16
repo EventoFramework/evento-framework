@@ -10,7 +10,6 @@ import com.evento.common.modeling.exceptions.HandlerNotFoundException;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;
 import com.evento.common.modeling.messaging.query.QueryResponse;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.BiFunction;
@@ -41,16 +40,16 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
     /**
      * Parses the classes annotated with @Projection and registers the query handlers.
      *
-     * @param reflections          The reflections instance used for scanning classes.
+     * @param scan          the classes of the bundle's package
      * @param findInjectableObject The function used to find injectable objects.
      * @throws InvocationTargetException If the class instantiation fails.
      * @throws InstantiationException    If the class instantiation fails.
      * @throws IllegalAccessException    If the class instantiation fails.
      */
     @Override
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject)
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject)
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projection.class)) {
+        for (Class<?> aClass : scan.annotatedWith(Projection.class)) {
             var projectionReference = new ProjectionReference(createComponentInstance(aClass, findInjectableObject));
             for (String query : projectionReference.getRegisteredQueries()) {
                 getHandlers().put(query, projectionReference);

@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Projector;
 import com.evento.common.modeling.messaging.message.application.Message;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
@@ -26,8 +25,8 @@ public class ProjectorManager extends ConsumerComponentManager<ProjectorReferenc
         super(bundleId, gatewayTelemetryProxy, tracingAgent, sssFetchSize, sssFetchDelay, messageHandlerInterceptor);
     }
 
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projector.class)) {
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        for (Class<?> aClass : scan.annotatedWith(Projector.class)) {
             var projectorReference = new ProjectorReference(createComponentInstance(aClass, findInjectableObject));
             getReferences().add(projectorReference);
             for (String event : projectorReference.getRegisteredEvents()) {

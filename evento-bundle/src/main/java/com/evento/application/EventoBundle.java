@@ -44,10 +44,6 @@ import com.evento.common.modeling.messaging.message.application.*;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.performance.RemotePerformanceService;
 import com.evento.common.serialization.ObjectMapperUtils;
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-import org.reflections.util.ConfigurationBuilder;
-import org.reflections.util.FilterBuilder;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -770,25 +766,17 @@ public class EventoBundle {
             var invokerManager = new InvokerManager();
 
             logger.info("Discovery handlers in %s".formatted(base));
-            // SubTypes is configured to keep every scanned type (not only types
-            // with a scanned supertype) so the confinement check below can sweep
-            // the whole package, component or not.
-            // forPackages only selects classpath roots that CONTAIN the package;
-            // without the input filter every class sharing those roots would be
-            // scanned too, so two bundles in one jar could never be isolated.
-            Reflections reflections = new Reflections(new ConfigurationBuilder()
-                    .forPackages(base)
-                    .filterInputsBy(new FilterBuilder().includePackage(base))
-                    .setScanners(Scanners.TypesAnnotated,
-                            Scanners.SubTypes.filterResultsBy(c -> true)));
+            // Only the base package (and its sub-packages) is scanned, so two bundles in one jar
+            // stay isolated; every class is kept for the confinement check below.
+            var scan = com.evento.application.manager.ComponentScan.of(base);
 
-            aggregateManager.parse(reflections, injector);
-            serviceManager.parse(reflections, injector);
-            projectionManager.parse(reflections, injector);
-            projectorManager.parse(reflections, injector);
-            sagaManager.parse(reflections, injector);
-            observerManager.parse(reflections, injector);
-            invokerManager.parse(reflections);
+            aggregateManager.parse(scan, injector);
+            serviceManager.parse(scan, injector);
+            projectionManager.parse(scan, injector);
+            projectorManager.parse(scan, injector);
+            sagaManager.parse(scan, injector);
+            observerManager.parse(scan, injector);
+            invokerManager.parse(scan);
 
             logger.info("Discovery Complete");
 
@@ -805,10 +793,10 @@ public class EventoBundle {
                     com.evento.common.modeling.annotations.component.Saga.class,
                     com.evento.common.modeling.annotations.component.Observer.class,
                     com.evento.common.modeling.annotations.component.Invoker.class)) {
-                componentClasses.addAll(reflections.getTypesAnnotatedWith(annotation));
+                componentClasses.addAll(scan.annotatedWith(annotation));
             }
             var confinementViolations = ConfinementScanner.check(
-                    reflections.getSubTypesOf(Object.class), componentClasses);
+                    scan.allClasses(), componentClasses);
             for (var v : confinementViolations) {
                 logger.warn("Confinement check: {}.{} (line {}) invokes the {} gateway "
                                 + "outside any component class - this call site is invisible to "
