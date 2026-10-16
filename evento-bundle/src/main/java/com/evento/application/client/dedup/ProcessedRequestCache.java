@@ -44,23 +44,25 @@ public final class ProcessedRequestCache {
         Outcome IN_FLIGHT = new InFlight();
     }
 
-    private static final class Entry {
+    // Not "Entry": inside the LinkedHashMap subclass below that name resolves to
+    // LinkedHashMap.Entry on JDK 21 (javac --release 21).
+    private static final class Slot {
         final long claimedAtMs;
         volatile Response response;  // null while in-flight
-        Entry(long claimedAtMs) { this.claimedAtMs = claimedAtMs; }
+        Slot(long claimedAtMs) { this.claimedAtMs = claimedAtMs; }
     }
 
     private final int maxEntries;
     private final long ttlMs;
-    private final Map<UUID, Entry> entries;
+    private final Map<UUID, Slot> entries;
 
     public ProcessedRequestCache(int maxEntries, Duration ttl) {
         this.maxEntries = maxEntries;
         this.ttlMs = ttl.toMillis();
         // Access-order LRU; eldest entry evicted when capacity is exceeded.
         this.entries = java.util.Collections.synchronizedMap(
-                new LinkedHashMap<UUID, Entry>(maxEntries + 16, 0.75f, true) {
-                    @Override protected boolean removeEldestEntry(Map.Entry<UUID, Entry> eldest) {
+                new LinkedHashMap<UUID, Slot>(maxEntries + 16, 0.75f, true) {
+                    @Override protected boolean removeEldestEntry(Map.Entry<UUID, Slot> eldest) {
                         return size() > maxEntries;
                     }
                 });
@@ -77,7 +79,7 @@ public final class ProcessedRequestCache {
             if (existing != null) {
                 if (now - existing.claimedAtMs > ttlMs) {
                     // Expired — treat as fresh.
-                    entries.put(correlationId, new Entry(now));
+                    entries.put(correlationId, new Slot(now));
                     return Outcome.CLAIMED;
                 }
                 if (existing.response != null) {
@@ -85,7 +87,7 @@ public final class ProcessedRequestCache {
                 }
                 return Outcome.IN_FLIGHT;
             }
-            entries.put(correlationId, new Entry(now));
+            entries.put(correlationId, new Slot(now));
             return Outcome.CLAIMED;
         }
     }

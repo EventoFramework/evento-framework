@@ -53,6 +53,48 @@ jobs:
             **/build/test-results/
           retention-days: 7
 
+  client-libraries-jdk21:
+    # The client libraries promise Java 21+ (compiled with --release 21, see the root
+    # build.gradle). Build with 25, run their tests on a real 21 runtime, so a JDK 22+
+    # behaviour or API the compiler cannot see still fails here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 21 and 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: corretto
+          java-version: |
+            21
+            25
+          cache: gradle
+
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+
+      - name: Run client library tests on JDK 21
+        run: |
+          ./gradlew --no-daemon -PtestJdk=21 \
+            -Porg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64 \
+            :evento-transport-api:test \
+            :evento-transport-netty:test \
+            :evento-common:test \
+            :evento-bundle:test \
+            :evento-consumer-state-store:evento-consumer-state-store-jdbc:test
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: client-jdk21-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
+
   jdbc-integration-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -29,3 +29,29 @@ subprojects {
         }
     }
 }
+
+// The libraries applications link against run on Java 21+: built with JDK 25 but compiled with
+// --release 21, so neither the language level nor the JDK API can drift past 21. The server
+// ships as an image and stays on 25. Keep this list in sync with section 1 of LICENSE.txt.
+// `-PtestJdk=21` runs their tests on that JDK (CI checks the baseline that way).
+ext.clientLibraries = [
+        ':evento-transport-api',
+        ':evento-transport-netty',
+        ':evento-common',
+        ':evento-bundle',
+        ':evento-consumer-state-store:evento-consumer-state-store-jdbc',
+]
+ext.clientJavaRelease = 21
+
+configure(subprojects.findAll { it.path in clientLibraries }) {
+    tasks.withType(JavaCompile).configureEach {
+        options.release = clientJavaRelease
+    }
+    if (project.hasProperty('testJdk')) {
+        tasks.withType(Test).configureEach {
+            javaLauncher = javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(project.property('testJdk') as int)
+            }
+        }
+    }
+}

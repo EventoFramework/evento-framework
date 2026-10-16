@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 /**
@@ -64,7 +65,9 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     private volatile Connection sharedConn;
     private boolean migrated;          // guarded by connLock
-    private final Object connLock = new Object();
+    // A lock, not a monitor: getConn() waits for the pool, the network and Flyway while holding
+    // it, and on JDK 21-23 a virtual thread blocked inside synchronized pins its carrier.
+    private final ReentrantLock connLock = new ReentrantLock();
 
     /**
      * Creates the store with the v2 schema auto-created on first connection.
@@ -94,9 +97,10 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     // --- Connection management ----------------------------------------------
 
-    /** Synchronized only for the validity check and reconnect; returns immediately once a live connection exists. */
+    /** Locked only for the validity check and reconnect; returns immediately once a live connection exists. */
     private Connection getConn() throws SQLException {
-        synchronized (connLock) {
+        connLock.lock();
+        try {
             if (autoMigrate && !migrated) {
                 // Create the evento_v2_* schema before the first query. Idempotent
                 // and guarded so it runs exactly once per store; on a transient
@@ -111,12 +115,19 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
                 logger.info("JdbcConsumerStateStore: (re)connected to database");
             }
             return sharedConn;
+        } finally {
+            connLock.unlock();
         }
     }
 
     /** Marks the connection as bad so the next {@link #getConn()} call reconnects. */
     private void invalidateConn() {
-        synchronized (connLock) { sharedConn = null; }
+        connLock.lock();
+        try {
+            sharedConn = null;
+        } finally {
+            connLock.unlock();
+        }
     }
 
     private static void closeQuietly(Connection c) {
@@ -377,9 +388,12 @@ public final class JdbcConsumerStateStore implements ConsumerStateStore {
 
     @Override
     public void close() {
-        synchronized (connLock) {
+        connLock.lock();
+        try {
             closeQuietly(sharedConn);
             sharedConn = null;
+        } finally {
+            connLock.unlock();
         }
     }
 
