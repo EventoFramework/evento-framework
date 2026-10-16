@@ -377,8 +377,27 @@ public class EventoBundle {
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
+        /**
+         * Restrict polymorphic payload deserialization to the framework, JDK value types, the
+         * {@link #basePackage} and {@link #allowedPayloadPackages} (see
+         * {@link com.evento.common.serialization.PayloadTypeAllowlist}). Off by default in 2.x;
+         * turn it on in production. Setting {@link #allowedPayloadPackages} turns it on too.
+         */
+        private boolean restrictPayloadTypes;
+
+        /**
+         * Packages, besides {@link #basePackage}, whose classes travel as payloads (commands,
+         * events, queries, results, aggregate state), e.g. a shared API module.
+         */
+        private java.util.List<String> allowedPayloadPackages = java.util.List.of();
 
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
+
+        /**
+         * The shared secret the server requires when {@code evento.server.bus.auth-token} is set,
+         * sent in the handshake. Null sends none (accepted only by a server without a token).
+         */
+        private String authToken;
 
         /**
          * Transport settings for the link to the broker (event loops, codec,
@@ -669,6 +688,12 @@ public class EventoBundle {
                 throw new IllegalArgumentException("Invalid messageBusConfiguration");
             }
             com.evento.common.utils.JdkRuntimeCheck.warning().ifPresent(logger::warn);
+            if (restrictPayloadTypes || !allowedPayloadPackages.isEmpty()) {
+                var packages = new java.util.ArrayList<String>();
+                packages.add(base);
+                packages.addAll(allowedPayloadPackages);
+                com.evento.common.serialization.PayloadTypeAllowlist.restrictTo(packages);
+            }
 
             if (injector == null) {
                 injector = clz -> null;
@@ -861,6 +886,7 @@ public class EventoBundle {
             var bundleClient = bundleClientBuilder
                     .expectedServerInstanceId(eventoServerMessageBusConfiguration.getExpectedServerInstanceId())
                     .expectedClusterName(eventoServerMessageBusConfiguration.getExpectedClusterName())
+                    .authToken(authToken)
                     .transportConfig(effectiveTransportConfig())
                     .defaultRequestTimeout(defaultRequestTimeout)
                     .maxInFlightRequests(maxInFlightRequests)

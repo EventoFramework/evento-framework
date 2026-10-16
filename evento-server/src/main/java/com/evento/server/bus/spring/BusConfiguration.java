@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>v2 bus is the production bus as of v2.0.
  */
 @Configuration
-@EnableConfigurationProperties(BusProperties.class)
+@EnableConfigurationProperties({BusProperties.class, BusTlsProperties.class})
 public class BusConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(BusConfiguration.class);
@@ -119,10 +119,22 @@ public class BusConfiguration {
         return pool;
     }
 
+    /**
+     * {@code evento.server.security.profile}: in {@code prod} the context fails here, before the
+     * transport config (and so the bus port) exists, when a hardening check does not pass.
+     */
+    @Bean
+    public SecurityProfileGuard securityProfileGuard(org.springframework.core.env.Environment env,
+                                                     BusTlsProperties tls) {
+        return SecurityProfileGuard.enforce(env, tls);
+    }
+
     @Bean
     public NettyTransportConfig nettyTransportConfig(BusProperties props,
+                                                     BusTlsProperties tls,
+                                                     SecurityProfileGuard securityProfile,
                                                      ThreadPoolExecutor busBusinessExecutor) {
-        return new NettyTransportConfig(
+        var config = new NettyTransportConfig(
                 props.heartbeatWriteIdle(),
                 props.heartbeatReadIdle(),
                 props.connectTimeout(),
@@ -133,6 +145,10 @@ public class BusConfiguration {
                 new com.evento.transport.codec.JacksonCborCodec(),
                 busBusinessExecutor
         );
+        var ssl = tls.serverContext();
+        if (ssl == null) return config;
+        log.info("event=bus_tls_enabled client_auth={} protocols={}", tls.clientAuth(), tls.protocols());
+        return config.withSslContext(ssl);
     }
 
     @Bean(destroyMethod = "")
