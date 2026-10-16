@@ -1,6 +1,7 @@
 package com.evento.common.modeling.common;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
@@ -20,6 +21,13 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 	private static final Logger logger = LogManager.getLogger(SerializedObject.class);
 	private String serializedObject;
 	private String objectClass;
+	/**
+	 * The {@link com.evento.common.versioning.Revision} of the class when the object was
+	 * serialized (2.6); 0, and absent from the JSON, for an unrevised class and for everything
+	 * written before revisions existed.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+	private int revision;
 
 	/**
 	 * Represents a serialized object that can be converted to and from a string representation.
@@ -30,8 +38,10 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 		try
 		{
 			this.serializedObject = ObjectMapperUtils.getPayloadObjectMapper().writeValueAsString(object);
-			if (object != null)
+			if (object != null) {
 				this.objectClass = object.getClass().toString();
+				this.revision = com.evento.common.versioning.Revisions.of(object.getClass());
+			}
 		} catch (JsonProcessingException e)
 		{
 			logger.error("Serialization failed", e);
@@ -79,6 +89,24 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 	 */
 	public void setObjectClass(String objectClass) {
 		this.objectClass = objectClass;
+	}
+
+	/**
+	 * Retrieves the revision of the serialized object's class when it was written.
+	 *
+	 * @return the revision, 0 when the class has none or the object predates revisions
+	 */
+	public int getRevision() {
+		return revision;
+	}
+
+	/**
+	 * Sets the revision of the serialized object (an upcaster moved it to another one).
+	 *
+	 * @param revision the revision
+	 */
+	public void setRevision(int revision) {
+		this.revision = revision;
 	}
 
 	/**

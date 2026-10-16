@@ -95,6 +95,31 @@ public class RegisteredHandler implements Serializable {
 
     public RegisteredHandler() {}
 
+    /**
+     * This handler declared for another payload name: a former name that an upcaster renames to
+     * the one this handler takes (2.6), so the broker routes and treats it the same way.
+     */
+    public RegisteredHandler forPayload(String payloadName) {
+        var copy = new RegisteredHandler();
+        copy.componentType = componentType;
+        copy.componentName = componentName;
+        copy.handlerType = handlerType;
+        copy.handledPayloadType = handledPayloadType;
+        copy.handledPayload = payloadName;
+        copy.returnType = returnType;
+        copy.returnIsMultiple = returnIsMultiple;
+        copy.associationProperty = associationProperty;
+        copy.componentDescription = componentDescription;
+        copy.componentDetail = componentDetail;
+        copy.componentPath = componentPath;
+        copy.componentLine = componentLine;
+        copy.handlerLine = handlerLine;
+        copy.executor = executor;
+        copy.invokedCommands = invokedCommands;
+        copy.invokedQueries = invokedQueries;
+        return copy;
+    }
+
     // ── routing getters/setters ─────────────────────────────────────────────────
 
     public ComponentType getComponentType() { return componentType; }

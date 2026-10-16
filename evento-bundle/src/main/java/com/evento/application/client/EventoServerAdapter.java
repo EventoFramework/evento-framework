@@ -48,6 +48,7 @@ public final class EventoServerAdapter implements EventoServer {
     private final String bundleId;
     private final String instanceId;
     private final long bundleVersion;
+    private final RevisionGuard revisionGuard;
     /** Every write this process's commands made: context → highest stored sequence number. */
     private final java.util.concurrent.atomic.AtomicReference<com.evento.common.modeling.messaging.query.ConsistencyToken>
             ownWrites = new java.util.concurrent.atomic.AtomicReference<>(
@@ -70,6 +71,7 @@ public final class EventoServerAdapter implements EventoServer {
         this.bundleId = bundleId;
         this.instanceId = instanceId;
         this.bundleVersion = bundleVersion;
+        this.revisionGuard = new RevisionGuard(client::revisionsAccepted);
     }
 
     @Override
@@ -105,6 +107,7 @@ public final class EventoServerAdapter implements EventoServer {
         String payloadType = resolvePayloadType(request);
         Duration timeoutDuration = Duration.ofMillis(unit.toMillis(timeout));
         try {
+            if (!client.answersLocally(payloadType)) revisionGuard.checkOutgoing(request);
             return client.request(payloadType, codec.encodeRequest(envelope), timeoutDuration, isIdempotentRead(request))
                     .thenApply(response -> {
                         if (response.isError()) {
@@ -206,6 +209,7 @@ public final class EventoServerAdapter implements EventoServer {
         envelope.setTimestamp(Instant.now().toEpochMilli());
         envelope.setTimeout(timeoutMillis);
         envelope.setUnit(TimeUnit.MILLISECONDS);
+        if (!client.answersLocally(query.getQueryName())) revisionGuard.checkOutgoing(query);
         var frames = client.openStream(query.getQueryName(), codec.encodeRequest(envelope),
                 Duration.ofMillis(timeoutMillis), options.getWindow(), options.isDirect());
         return new com.evento.application.client.stream.FrameQueryStream<>(frames, codec,

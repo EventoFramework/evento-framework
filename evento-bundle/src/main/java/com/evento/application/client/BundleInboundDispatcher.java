@@ -58,6 +58,22 @@ public final class BundleInboundDispatcher implements HandlerRegistry.StreamingR
     private volatile com.evento.application.consumer.ConsistencyGate consistencyGate =
             com.evento.application.consumer.ConsistencyGate.NONE;
     private volatile int streamFrameBytes = DEFAULT_STREAM_FRAME_BYTES;
+    /** Turns payloads of an older shape (sent by an older caller, or stored) into the current one. */
+    private volatile com.evento.common.versioning.Upcasters upcasters = com.evento.common.versioning.Upcasters.NONE;
+    private volatile RevisionGuard revisionGuard = RevisionGuard.NONE;
+
+    /**
+     * Upcasters applied to every request on arrival (2.6): the command or query, and for an
+     * aggregate command the events and the snapshot it is rebuilt from.
+     */
+    public void setUpcasters(com.evento.common.versioning.Upcasters upcasters) {
+        this.upcasters = upcasters == null ? com.evento.common.versioning.Upcasters.NONE : upcasters;
+    }
+
+    /** Refuses replies the broker of the session could not store with their revision (2.6). */
+    public void setRevisionGuard(RevisionGuard guard) {
+        this.revisionGuard = guard == null ? RevisionGuard.NONE : guard;
+    }
 
     /** Target size of one frame of a streamed answer (views per batch adapt to it). */
     public void setStreamFrameBytes(int bytes) {
@@ -104,7 +120,10 @@ public final class BundleInboundDispatcher implements HandlerRegistry.StreamingR
         reply.setTimeout(request.getTimeout());
         reply.setUnit(request.getUnit());
         try {
-            reply.setBody(dispatch(request.getBody(), deadlineNanos));
+            upcast(request.getBody());
+            var result = dispatch(request.getBody(), deadlineNanos);
+            revisionGuard.checkReply(result);
+            reply.setBody(result);
         } catch (Throwable t) {
             reply.setBody(new ExceptionWrapper(t));
         }
@@ -134,6 +153,7 @@ public final class BundleInboundDispatcher implements HandlerRegistry.StreamingR
         long decoded = System.nanoTime();
         QueryResponse<?> result;
         try {
+            upcast(qm);
             if (qm.getConsistency() != null) {
                 awaitConsistency(qm, start + consistencyBudgetNanos(request));
             }
@@ -200,6 +220,25 @@ public final class BundleInboundDispatcher implements HandlerRegistry.StreamingR
         reply.setUnit(request.getUnit());
         reply.setBody(body);
         return codec.encodeResponse(reply);
+    }
+
+    /**
+     * Brings a request to the shapes this bundle's classes have. An aggregate command carries
+     * the aggregate's history too: its events and snapshot are upcast before the aggregate is
+     * rebuilt from them, like the events a projector reads.
+     */
+    private void upcast(Object body) {
+        var chain = upcasters;
+        if (chain.isEmpty()) return;
+        switch (body) {
+            case DecoratedDomainCommandMessage cm -> {
+                chain.upcast(cm.getCommandMessage());
+                if (cm.getEventStream() != null) cm.getEventStream().forEach(chain::upcast);
+                chain.upcast(cm.getSerializedAggregateState());
+            }
+            case com.evento.common.modeling.messaging.message.application.Message<?> m -> chain.upcast(m);
+            case null, default -> { }
+        }
     }
 
     private static String handlerType(Object body) {
