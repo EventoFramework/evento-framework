@@ -4,14 +4,10 @@ import com.evento.application.reference.SagaReference;
 import com.evento.application.utils.ReflectionUtils;
 import com.evento.common.modeling.annotations.component.Saga;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
-import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
-import com.evento.common.modeling.messaging.message.application.EventMessage;
-import com.evento.common.modeling.messaging.message.application.ServiceEventMessage;
-import com.evento.common.modeling.messaging.payload.DomainEvent;
 import com.evento.common.modeling.messaging.payload.Event;
-import com.evento.common.modeling.messaging.payload.ServiceEvent;
 import com.evento.common.modeling.state.SagaState;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 
 /**
@@ -71,8 +67,10 @@ public final class SagaFixture<S> {
     /** Events the saga already handled, oldest first. Fails at the first handler that throws. */
     public SagaFixture<S> given(Event... events) {
         for (var event : events) {
+            var published = Events.published(event, ++sequence);
+            var handler = handlerFor(published);
             try {
-                handle(event);
+                handle(event, published, handler);
             } catch (Throwable t) {
                 throw new AssertionError("the saga failed on the given " + Payloads.describe(event), t);
             }
@@ -82,40 +80,32 @@ public final class SagaFixture<S> {
 
     /** Handle {@code event} and return the commands it sent and the state after it. */
     public SagaResult whenEvent(Event event) {
+        var published = Events.published(event, ++sequence);
+        var handler = handlerFor(published);
         commandGateway.clear();
         try {
-            handle(event);
+            handle(event, published, handler);
             return new SagaResult(state, null, commandGateway.sent());
         } catch (Throwable t) {
             return new SagaResult(state, t, commandGateway.sent());
         }
     }
 
-    private void handle(Event event) throws Throwable {
-        var published = publish(event);
-        var message = published.getEventMessage();
+    private Method handlerFor(PublishedEvent published) {
         var handler = reference.getSagaEventHandler(published.getEventName());
         if (handler == null) {
             throw new AssertionError(reference.getComponentName() + " has no @SagaEventHandler for "
                     + published.getEventName());
         }
+        return handler;
+    }
+
+    private void handle(Event event, PublishedEvent published,
+                        Method handler) throws Throwable {
+        var message = published.getEventMessage();
         var next = (SagaState) ReflectionUtils.invoke(reference.getRef(), handler,
                 event, state, commandGateway, queryGateway, published, message.getMetadata(),
                 Instant.ofEpochMilli(message.getTimestamp()));
         if (next != null) state = next;
-    }
-
-    private PublishedEvent publish(Event event) {
-        EventMessage<?> message = switch (event) {
-            case DomainEvent e -> new DomainEventMessage(e);
-            case ServiceEvent e -> new ServiceEventMessage(e);
-            default -> throw new IllegalArgumentException("not a DomainEvent or ServiceEvent: " + event.getClass().getName());
-        };
-        var published = new PublishedEvent();
-        published.setEventMessage(message);
-        published.setEventName(message.getEventName());
-        published.setEventSequenceNumber(++sequence);
-        published.setCreatedAt(message.getTimestamp());
-        return published;
     }
 }
