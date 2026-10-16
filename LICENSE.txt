@@ -17,6 +17,7 @@ The libraries an application links against:
   evento-common
   evento-bundle
   evento-consumer-state-store/evento-consumer-state-store-jdbc
+  evento-opentelemetry
   evento-test
 
 are licensed under the Apache License, Version 2.0 (SPDX: Apache-2.0); see

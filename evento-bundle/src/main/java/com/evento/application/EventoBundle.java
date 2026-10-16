@@ -948,8 +948,11 @@ public class EventoBundle {
             eventoBundle.set(new EventoBundle(
                     base,
                     bundleId, instanceId,
-                    aggregateManager, projectionManager, sagaManager, commandGateway,
-                    queryGateway,
+                    aggregateManager, projectionManager, sagaManager,
+                    // What application code gets: correlated like the handlers' gateways when
+                    // a tracing agent is set (the handlers keep the raw ones behind their proxy).
+                    com.evento.application.proxy.CorrelatingGateways.commands(commandGateway, tracingAgent),
+                    com.evento.application.proxy.CorrelatingGateways.queries(queryGateway, tracingAgent),
                     performanceService,
                     serviceManager, projectorManager, observerManager, tracingAgent,
                     eventoServer,
