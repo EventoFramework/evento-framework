@@ -41,7 +41,11 @@ jobs:
             :evento-common:test \
             :evento-bundle:test \
             :evento-lab:test \
-            :evento-lab-microservices:evento-lab-ms-it:test
+            :evento-lab-microservices:evento-lab-ms-it:test \
+            :evento-test:test \
+            :evento-opentelemetry:test \
+            :evento-spring-boot-starter:test \
+            :evento-spring-boot-starter:boot3Test
 
       - name: Upload test reports
         if: always()
@@ -83,7 +87,9 @@ jobs:
             :evento-transport-netty:test \
             :evento-common:test \
             :evento-bundle:test \
-            :evento-consumer-state-store:evento-consumer-state-store-jdbc:test
+            :evento-consumer-state-store:evento-consumer-state-store-jdbc:test \
+            :evento-test:test \
+            :evento-opentelemetry:test
 
       - name: Upload test reports
         if: always()
