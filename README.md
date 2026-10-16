@@ -2,7 +2,7 @@
 
 # [Evento Framework](https://www.eventoframework.com/)
 
-[![License](https://img.shields.io/badge/License-AGPL%203.0%20%2F%20Commercial-blue.svg)](LICENSE.txt)
+[![License: client libraries](https://img.shields.io/badge/client%20libraries-Apache%202.0-blue.svg)](LICENSE.txt) [![License: server](https://img.shields.io/badge/server-AGPL%203.0%20%2F%20Commercial-blue.svg)](LICENSE.txt)
 [![CI](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/EventoFramework/evento-framework/badge)](https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework)
@@ -180,9 +180,14 @@ The Evento Framework is in its early stages, actively evolving with the contribu
 By joining forces, we can make Evento a valuable tool for building the next generation of distributed applications!
 
 ## License
-Copyright 2020-2026 © Gabor Galazzo. All rights reserved.
+Copyright 2020-2026 © Gabor Galazzo.
 
-Evento Framework v2.0 is dual-licensed:
+- **Client libraries — Apache-2.0.** `evento-transport-api`, `evento-transport-netty`, `evento-common`,
+  `evento-bundle` and `evento-consumer-state-store-jdbc`: the jars your application links against
+  carry no copyleft obligation.
+- **Server and web console — AGPL-3.0 or commercial licence.** `evento-server` and `evento-gui`
+  (and the rest of this repository). Running the server unmodified does not put your applications under
+  the AGPL. For warranties, support or to avoid the AGPL on the server, see
+  [`LICENSE-COMMERCIAL.txt`](LICENSE-COMMERCIAL.txt).
 
-- **AGPL-3.0** — free for open-source projects. See [`LICENSE.txt`](LICENSE.txt).
-- **Commercial licence** — for proprietary / closed-source use. See [`LICENSE-COMMERCIAL.txt`](LICENSE-COMMERCIAL.txt) or contact the author.
+Details in [`LICENSE.txt`](LICENSE.txt); contributions go through the [CLA](CLA.md).

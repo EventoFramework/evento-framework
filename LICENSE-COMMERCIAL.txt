@@ -10,8 +10,15 @@ purchase order or license certificate ("Licensee").
 1. DEFINITIONS
 ────────────────────────────────────────────────────────────────────────────
 
-"Software" means the Evento Framework source code, compiled artifacts,
-documentation, and all associated files distributed by the Licensor.
+"Software" means the Evento Framework components that LICENSE.txt places
+under the GNU AGPL v3.0 (section 2 of LICENSE.txt: the Evento server, the web
+console and the other files listed there), in source and compiled form, with
+their documentation. This Agreement is an alternative to the AGPL v3.0 for
+those components only.
+
+The client libraries listed in section 1 of LICENSE.txt are licensed to
+everyone under the Apache License 2.0 and need no commercial licence. Nothing
+in this Agreement restricts the rights the Apache License 2.0 grants on them.
 
 "Deployment" means installing, executing, hosting, or operating the Software
 or any product that incorporates the Software in a production, staging, or

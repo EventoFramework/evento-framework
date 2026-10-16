@@ -77,8 +77,9 @@ publishing {
 
                 licenses {
                     license {
-                        name = "Dual License: AGPL-3.0 or Commercial"
-                        url = "https://www.eventoframework.com/licensing"
+                        name = "Apache-2.0"
+                        url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        distribution = "repo"
                     }
                 }
 
@@ -135,4 +136,10 @@ javadoc{
         options.addBooleanOption("html5", true)
         options.addStringOption('Xdoclint:none', '-quiet')
     }
+}
+
+// Apache-2.0 §4: ship the licence and the NOTICE inside the jar.
+tasks.named('jar') {
+    from(file('LICENSE.txt')) { into 'META-INF' }
+    from(rootProject.file('NOTICE.txt')) { into 'META-INF' }
 }
