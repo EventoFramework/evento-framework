@@ -5,7 +5,12 @@ import com.evento.transport.message.Hello;
 import com.evento.transport.message.Notification;
 import com.evento.transport.message.Pong;
 import com.evento.transport.message.Request;
+import com.evento.transport.message.Message;
 import com.evento.transport.message.Response;
+import com.evento.transport.message.StreamCancel;
+import com.evento.transport.message.StreamCredit;
+import com.evento.transport.message.StreamData;
+import com.evento.transport.message.StreamRedirect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,20 +32,33 @@ public final class MessageRouter {
     @FunctionalInterface public interface RequestHandler { void handle(Request request, Frame frame, BundleSession session); }
     @FunctionalInterface public interface ResponseHandler { void handle(Response response, Frame frame, BundleSession session); }
     @FunctionalInterface public interface NotificationHandler { void handle(Notification notification, Frame frame, BundleSession session); }
+    /** The frames of streamed replies (2.6): {@code StreamData}, {@code StreamCredit}, {@code StreamCancel}, {@code StreamRedirect}. */
+    @FunctionalInterface public interface StreamHandler { void handle(Message message, Frame frame, BundleSession session); }
 
     private final HelloHandler helloHandler;
     private final RequestHandler requestHandler;
     private final ResponseHandler responseHandler;
     private final NotificationHandler notificationHandler;
+    private final StreamHandler streamHandler;
 
     public MessageRouter(HelloHandler helloHandler,
                          RequestHandler requestHandler,
                          ResponseHandler responseHandler,
                          NotificationHandler notificationHandler) {
+        this(helloHandler, requestHandler, responseHandler, notificationHandler, null);
+    }
+
+    /** @param streamHandler where stream frames go; null logs them as unrouted */
+    public MessageRouter(HelloHandler helloHandler,
+                         RequestHandler requestHandler,
+                         ResponseHandler responseHandler,
+                         NotificationHandler notificationHandler,
+                         StreamHandler streamHandler) {
         this.helloHandler = helloHandler;
         this.requestHandler = requestHandler;
         this.responseHandler = responseHandler;
         this.notificationHandler = notificationHandler;
+        this.streamHandler = streamHandler;
     }
 
     public void route(Frame frame, BundleSession session) {
@@ -49,6 +67,10 @@ public final class MessageRouter {
             case Request r -> requestHandler.handle(r, frame, session);
             case Response r -> responseHandler.handle(r, frame, session);
             case Notification n -> notificationHandler.handle(n, frame, session);
+            case StreamData d when streamHandler != null -> streamHandler.handle(d, frame, session);
+            case StreamCredit c when streamHandler != null -> streamHandler.handle(c, frame, session);
+            case StreamCancel c when streamHandler != null -> streamHandler.handle(c, frame, session);
+            case StreamRedirect r when streamHandler != null -> streamHandler.handle(r, frame, session);
             case Pong p -> log.trace("event=pong_received correlationId={} session={}", p.correlationId(),
                     session.address() == null ? "<accepted>" : session.address().instanceId());
             default -> log.warn("event=unrouted_message type={} session={}",

@@ -107,7 +107,31 @@ public record BundleClientConfig(
          * {@code BrokerChangedException} when the preferred broker's Welcome
          * arrives, exactly as after a failover.
          */
-        Duration failbackDrainTimeout
+        Duration failbackDrainTimeout,
+        /**
+         * Replies this bundle's handlers produce of at least this many bytes are
+         * compressed when the caller accepts it (default 32 KiB, see
+         * {@link com.evento.transport.codec.PayloadEncoding}); 0 or less never compresses.
+         */
+        int compressionThreshold,
+        /**
+         * Whether this bundle's requests accept compressed replies (default true). The
+         * handler, or the broker for its own reads, decides per reply.
+         */
+        boolean acceptCompressedReplies,
+        /**
+         * Whether a query this bundle can answer itself is answered here instead of
+         * through the broker (default true), once the bundle is enabled. The query takes
+         * the same path a remote one takes on the handler side (codec, handler,
+         * interceptors, tracing, metrics); only the two network hops and the broker are
+         * skipped.
+         */
+        boolean localQueryShortCircuit,
+        /**
+         * Where this bundle offers its streamed answers on direct connections (2.6), for
+         * callers that ask for it; null (default) streams through the broker only.
+         */
+        com.evento.application.client.stream.DirectStreamConfig directStreams
 ) {
 
     /** One broker the bundle may dial. */
@@ -161,6 +185,7 @@ public record BundleClientConfig(
         failbackStabilityWindow = nonNegativeOr(failbackStabilityWindow, Duration.ofSeconds(30));
         failbackJitter          = nonNegativeOr(failbackJitter, Duration.ofSeconds(10));
         failbackDrainTimeout    = nonNegativeOr(failbackDrainTimeout, Duration.ofSeconds(10));
+        if (compressionThreshold < 0) compressionThreshold = 0;
     }
 
     /**
@@ -186,6 +211,22 @@ public record BundleClientConfig(
     /** The zone advertised through {@link #capabilities()}, or null when none is set. */
     public String zone() {
         return HandshakeProtocol.zoneOf(capabilities);
+    }
+
+    /**
+     * The payload types handled by {@code @QueryHandler}s. Queries are read-only and
+     * idempotent: they bypass every exactly-once cache (this bundle's and, once declared
+     * in the registration, the broker's) and are simply asked again when lost.
+     */
+    public List<String> queryPayloadTypes() {
+        return registeredHandlers.stream()
+                .filter(h -> h.getHandlerType()
+                        == com.evento.common.modeling.bundle.types.HandlerType.QueryHandler)
+                .map(RegisteredHandler::getHandledPayload)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     public static Builder builder() {
@@ -223,6 +264,10 @@ public record BundleClientConfig(
         private Duration failbackStabilityWindow;
         private Duration failbackJitter;
         private Duration failbackDrainTimeout;
+        private int compressionThreshold = com.evento.transport.codec.PayloadEncoding.DEFAULT_THRESHOLD;
+        private boolean acceptCompressedReplies = true;
+        private boolean localQueryShortCircuit = true;
+        private com.evento.application.client.stream.DirectStreamConfig directStreams;
 
         /** Single-broker shorthand; ignored once {@link #endpoint}/{@link #endpoints} is used. */
         public Builder host(String host) { this.host = host; return this; }
@@ -277,9 +322,24 @@ public record BundleClientConfig(
         public Builder failbackJitter(Duration d) { this.failbackJitter = d; return this; }
         /** Bound on waiting for in-flight requests before the switch; null keeps 10 s. */
         public Builder failbackDrainTimeout(Duration d) { this.failbackDrainTimeout = d; return this; }
+        /** Compress replies of at least this many bytes for callers that accept it; 0 never compresses. */
+        public Builder compressionThreshold(int bytes) { this.compressionThreshold = bytes; return this; }
+        /** Whether this bundle's requests accept compressed replies (default true). */
+        public Builder acceptCompressedReplies(boolean v) { this.acceptCompressedReplies = v; return this; }
+        /** Answer this bundle's own queries locally once it is enabled (default true). */
+        public Builder localQueryShortCircuit(boolean v) { this.localQueryShortCircuit = v; return this; }
+        /** Offer streamed answers on direct connections (null: through the broker only). */
+        public Builder directStreams(com.evento.application.client.stream.DirectStreamConfig c) { this.directStreams = c; return this; }
 
         public BundleClientConfig build() {
             Set<String> caps = capabilities == null ? Set.of() : capabilities;
+            // Every 2.6 bundle can take and give streamed replies; the broker decides per
+            // session whether they flow (Welcome.acceptedCapabilities).
+            if (!caps.contains(HandshakeProtocol.CAPABILITY_STREAM)) {
+                var withStream = new java.util.LinkedHashSet<>(caps);
+                withStream.add(HandshakeProtocol.CAPABILITY_STREAM);
+                caps = withStream;
+            }
             if (zone != null && !zone.isBlank()) {
                 var withZone = new java.util.LinkedHashSet<String>();
                 for (String c : caps) {
@@ -294,7 +354,8 @@ public record BundleClientConfig(
                     handshakeTimeout, registrationTimeout, defaultRequestTimeout, shutdownDeadline,
                     maxInFlightRequests, transportConfig, autoEnable, expectedServerInstanceId,
                     expectedClusterName, endpoints, failbackEnabled, failbackProbeInterval,
-                    failbackStabilityWindow, failbackJitter, failbackDrainTimeout);
+                    failbackStabilityWindow, failbackJitter, failbackDrainTimeout,
+                    compressionThreshold, acceptCompressedReplies, localQueryShortCircuit, directStreams);
         }
     }
 }

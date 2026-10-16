@@ -82,6 +82,16 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
 
     private volatile PublishedEvent lastConsumedEvent = null;
 
+    // ---- read-your-writes (2.6) ----
+    /** Signalled after every consume cycle: a query waiting for a position re-checks. */
+    private final java.util.concurrent.locks.ReentrantLock progressLock = new java.util.concurrent.locks.ReentrantLock();
+    private final java.util.concurrent.locks.Condition progressed = progressLock.newCondition();
+    /** Released by a waiting query: the loop fetches now instead of finishing its idle pause. */
+    private final java.util.concurrent.Semaphore wakeup = new java.util.concurrent.Semaphore(0);
+    /** How often waiting queries may read the store (another instance may hold this lane). */
+    private static final long STORE_READ_INTERVAL_NANOS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50);
+    private final java.util.concurrent.atomic.AtomicLong storeReadAtNanos = new java.util.concurrent.atomic.AtomicLong();
+
     public ProjectorEngine(String bundleId,
                            String projectorName,
                            int projectorVersion,
@@ -221,6 +231,8 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                 }
                 hasError = true;
             }
+            // Before any pause: a query waiting to read its own write re-checks now.
+            signalProgress();
 
             // Async handlers fail on their own threads, long after the fetch loop moved
             // on, so their failures never surface as `hasError`. Left unchecked, a downed
@@ -241,7 +253,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
             } else {
                 channelErrorAttempts = 0;
                 if (sssFetchSize - consumedEventCount > 10) {
-                    Sleep.apply(sssFetchSize - consumedEventCount);
+                    idle(sssFetchSize - consumedEventCount);
                 }
             }
 
@@ -269,6 +281,80 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                         now - lastConsumedEvent.getCreatedAt());
             }
         }
+    }
+
+    /** The pause between two fetches at the head, cut short by {@link #wakeup}. */
+    private void idle(long millis) {
+        try {
+            if (wakeup.tryAcquire(millis, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                wakeup.drainPermits();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void signalProgress() {
+        progressLock.lock();
+        try {
+            progressed.signalAll();
+        } finally {
+            progressLock.unlock();
+        }
+    }
+
+    /**
+     * Blocks until this projector has processed every event up to {@code sequenceNumber}
+     * of its context (read-your-writes), or {@code deadlineNanos} ({@link System#nanoTime()})
+     * passes.
+     *
+     * <p>"Processed" is the checkpoint: the one this process committed, or the one in the
+     * store when another instance holds this lane. Under {@link CheckpointMode#ON_START} an
+     * async handler's checkpoint moves when the handler starts, so the position counts only
+     * while no async handler is running; under {@link CheckpointMode#WATERMARK} it is the
+     * completed frontier. A waiting query wakes the consume loop, so the answer comes after
+     * one fetch rather than after the idle pause.
+     *
+     * @return how long it waited, in nanoseconds
+     * @throws com.evento.common.modeling.exceptions.ConsistencyTimeoutException when the deadline passes first
+     */
+    public long awaitPosition(long sequenceNumber, long deadlineNanos) throws InterruptedException {
+        long start = System.nanoTime();
+        while (!reached(sequenceNumber)) {
+            long now = System.nanoTime();
+            if (now - deadlineNanos >= 0) {
+                throw new com.evento.common.modeling.exceptions.ConsistencyTimeoutException(
+                        "projector " + projectorName + " (context " + context + ") has processed up to "
+                                + Math.max(processor.knownCheckpoint(consumerId), 0) + ", not yet event "
+                                + sequenceNumber + ", within the query's deadline");
+            }
+            wakeup.release();
+            progressLock.lock();
+            try {
+                progressed.awaitNanos(Math.min(deadlineNanos - now, STORE_READ_INTERVAL_NANOS));
+            } finally {
+                progressLock.unlock();
+            }
+        }
+        return System.nanoTime() - start;
+    }
+
+    private boolean reached(long sequenceNumber) {
+        boolean quiescent = checkpointMode == CheckpointMode.WATERMARK || processor.inFlightCount(consumerId) == 0;
+        if (!quiescent) return false;
+        if (processor.knownCheckpoint(consumerId) >= sequenceNumber) return true;
+        // Not known here: another instance may be consuming this lane. Read the store,
+        // at most once per interval whatever the number of waiting queries.
+        long now = System.nanoTime();
+        long last = storeReadAtNanos.get();
+        if (now - last >= STORE_READ_INTERVAL_NANOS && storeReadAtNanos.compareAndSet(last, now)) {
+            try {
+                return processor.storedCheckpoint(consumerId) >= sequenceNumber;
+            } catch (RuntimeException e) {
+                logger.debug("Checkpoint read for {} failed while a query waited: {}", consumerId, e.toString());
+            }
+        }
+        return false;
     }
 
     /**

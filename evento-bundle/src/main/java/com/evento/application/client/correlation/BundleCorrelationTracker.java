@@ -3,6 +3,7 @@ package com.evento.application.client.correlation;
 import com.evento.transport.BrokerChangedException;
 import com.evento.transport.RequestTimeoutException;
 import com.evento.transport.ShutdownInProgressException;
+import com.evento.transport.message.Request;
 import com.evento.transport.message.Response;
 import com.evento.transport.message.ResponseError;
 import org.slf4j.Logger;
@@ -38,10 +39,21 @@ public final class BundleCorrelationTracker {
 
     private static final Logger log = LoggerFactory.getLogger(BundleCorrelationTracker.class);
 
+    /**
+     * @param resendable the request itself when it is idempotent (a query, an event fetch):
+     *                   such a request is asked again on the next session instead of
+     *                   waiting for a reply the broker does not keep for it
+     * @param epoch      the session it was (last) sent on
+     */
     private record Pending(String payloadType, long submittedAtMs, long timeoutMs,
-                           String serverInstanceId, CompletableFuture<Response> future) {
+                           String serverInstanceId, CompletableFuture<Response> future,
+                           Request resendable, long epoch) {
         boolean isExpired(long nowMs) {
             return timeoutMs > 0 && (nowMs - submittedAtMs) > timeoutMs;
+        }
+
+        Pending onEpoch(long newEpoch) {
+            return new Pending(payloadType, submittedAtMs, timeoutMs, serverInstanceId, future, resendable, newEpoch);
         }
     }
 
@@ -79,13 +91,23 @@ public final class BundleCorrelationTracker {
      */
     public CompletableFuture<Response> track(UUID correlationId, String payloadType, Duration timeout,
                                              String serverInstanceId) {
+        return track(correlationId, payloadType, timeout, serverInstanceId, null, 0L);
+    }
+
+    /**
+     * @param resendable the request, when it is idempotent and may be sent again on a later
+     *                   session ({@link #resendSentBefore}); null for anything with side effects
+     * @param epoch      the session the request is sent on
+     */
+    public CompletableFuture<Response> track(UUID correlationId, String payloadType, Duration timeout,
+                                             String serverInstanceId, Request resendable, long epoch) {
         if (shutdownInitiated.get()) {
             return CompletableFuture.failedFuture(
                     new ShutdownInProgressException("bundle correlation tracker shutting down"));
         }
         var future = new CompletableFuture<Response>();
         var entry = new Pending(payloadType == null ? "unknown" : payloadType, System.currentTimeMillis(),
-                timeout == null ? 0L : timeout.toMillis(), serverInstanceId, future);
+                timeout == null ? 0L : timeout.toMillis(), serverInstanceId, future, resendable, epoch);
         var existing = pending.putIfAbsent(correlationId, entry);
         if (existing != null) {
             return CompletableFuture.failedFuture(
@@ -143,6 +165,9 @@ public final class BundleCorrelationTracker {
             var entry = pending.get(key);
             if (entry == null || entry.serverInstanceId() == null
                     || entry.serverInstanceId().equals(currentServerInstanceId)) continue;
+            // An idempotent request is not lost with the broker: it is asked again on
+            // the new session (resendSentBefore), whatever broker that is.
+            if (entry.resendable() != null) continue;
             if (!pending.remove(key, entry)) continue;
             var err = new ResponseError(BrokerChangedException.class.getName(),
                     "outcome indeterminate: sent via broker '" + entry.serverInstanceId()
@@ -158,6 +183,44 @@ public final class BundleCorrelationTracker {
                     failed, currentServerInstanceId, byBroker);
         }
         return failed;
+    }
+
+    /**
+     * Send again, through {@code sender}, every idempotent request still pending that was
+     * sent on a session before {@code epoch}: no broker keeps the reply of a read for a
+     * caller that went away (it routes reads straight), so the reply of a read in flight
+     * when the session ended is gone and only asking again completes it. The request keeps
+     * its correlation id and its deadline: it is sent with the time it has left. A send
+     * that fails now is left pending; the next session tries again, or it expires.
+     *
+     * @return how many requests were sent again
+     */
+    public int resendSentBefore(long epoch, java.util.function.Function<Request, CompletableFuture<Void>> sender) {
+        if (pending.isEmpty()) return 0;
+        long now = System.currentTimeMillis();
+        int resent = 0;
+        var byType = new java.util.TreeMap<String, Integer>();
+        for (var key : java.util.List.copyOf(pending.keySet())) {
+            var entry = pending.get(key);
+            if (entry == null || entry.resendable() == null || entry.epoch() >= epoch) continue;
+            long remaining = entry.timeoutMs() <= 0 ? 0L : entry.timeoutMs() - (now - entry.submittedAtMs());
+            if (entry.timeoutMs() > 0 && remaining <= 0) continue;  // the expiry sweep ends it
+            if (!pending.replace(key, entry, entry.onEpoch(epoch))) continue;
+            var again = entry.resendable().withTimeout(remaining, now);
+            try {
+                sender.apply(again);
+                byType.merge(entry.payloadType(), 1, Integer::sum);
+                resent++;
+            } catch (RuntimeException notSent) {
+                pending.computeIfPresent(key, (k, current) -> current.future() == entry.future()
+                        ? current.onEpoch(entry.epoch()) : current);
+                log.debug("event=idempotent_request_resend_failed correlationId={} cause={}", key, notSent.toString());
+            }
+        }
+        if (resent > 0) {
+            log.info("event=idempotent_requests_resent count={} byType={}", resent, byType);
+        }
+        return resent;
     }
 
     public int pendingCount() {

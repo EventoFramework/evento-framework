@@ -96,7 +96,10 @@ MessageInboundHandler   ← dispatches Frame on virtual-thread executor
 
 `ChunkReassembler` buffers chunks per stream UUID and fires downstream only on the last chunk.
 The `maxFrameLength` parameter controls per-chunk memory, not message size — there is no hard limit
-on message size.
+on message size. Since 2.6 nothing on this path copies a message more than once: the reassembler
+holds retained slices in a `CompositeByteBuf`, `ChunkingEncoder` composes headers with slices,
+`CborMessageEncoder` wraps the codec's array. A large answer should still be **streamed**
+(§4.9), not chunked: a chunked message is reassembled whole on every hop.
 
 **Sealed `Message` hierarchy** (`evento-transport-api`, `com.evento.transport.message`):
 ```
@@ -108,8 +111,19 @@ Message (sealed interface)
   ├── Pong       (seq, ts)
   ├── Request    (correlationId, payloadType: String, payload: byte[])
   ├── Response   (correlationId, payload: byte[], failure: ResponseError)
-  └── Notification (payloadType: String, payload: byte[])
+  ├── Notification (payloadType: String, payload: byte[])
+  ├── StreamData     (correlationId, seq, payload, last, failure)   ← 2.6, "SDA"
+  ├── StreamCredit   (correlationId, credits)                       ← 2.6, "SCR"
+  ├── StreamCancel   (correlationId, reason)                        ← 2.6, "SCN"
+  └── StreamRedirect (correlationId, host, port, ticket, expiresAtMs) ← 2.6, "SRD"
 ```
+
+`Request` gained three additive fields (2.6), all off the wire when unset and all carried end to
+end by the broker's raw forward: `acceptEncodings` (reply compression the caller decodes),
+`streamWindow` (> 0 = streamed reply, the initial credit), `streamDirect` (the caller can take
+the stream on a direct connection). The four stream messages are sent **only** to a peer that
+negotiated `HandshakeProtocol.CAPABILITY_STREAM` (`stream:1`): an older peer cannot decode
+them and would close the channel. Every 2.6 bundle offers it; `BusLifecycle` always accepts it.
 
 Adding a new wire type: extend `Message` permits + register a byte tag in `MessageTypeRegistry`.
 The compiler enforces exhaustive dispatch everywhere.
@@ -142,7 +156,8 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 | `InMemoryTransport` | api | Test double; `simulateDisconnect()` → DISCONNECTED (not DEGRADED) |
 | `NettyClientTransport` | netty | Client-side Netty channel + reconnect |
 | `NettyServerTransport` | netty | Server-side accept loop; each accepted channel → `ServerChildTransport` |
-| `MessageInboundHandler` | netty | Terminal pipeline handler: hands every inbound `Frame` to the business executor (virtual threads), never the event loop |
+| `MessageInboundHandler` | netty | Terminal pipeline handler: hands every inbound `Frame` to the business executor (virtual threads), never the event loop; `StreamData` frames go through the channel's `SerialLane` instead, so a stream's frames keep their order |
+| `SerialLane` | netty | Runs tasks one at a time in submission order on the shared executor, holding no thread between bursts (2.6) |
 | `InboundDeliveries` | netty | Per-channel count of `Response` frames read but not yet delivered; the `DISCONNECTED` transition (channel inactive, server-child and client close listeners) waits for them, bounded by 2 s (`event=disconnect_after_delivery_grace`). See §6 decision 14 |
 | `NettyTransportConfig` | netty | Optional `SslContext` (prepends `SslHandler` when set) |
 
@@ -158,8 +173,8 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 | `ConnectionRegistry` | `ConcurrentHashMap<NodeAddress, (Connection, token)>`. `register` supersedes + closes old transport; `unregister` is token-guarded |
 | `ClusterRegistry` | `payloadType → Set<NodeAddress>` + `instanceId → zone`. `RANDOM` (default) / `FIRST` / `LOCALITY_PREFERRED` pick strategy, chosen by `evento.server.bus.pick-strategy`; `pickFor(type, originator)` picks on behalf of the requesting bundle |
 | `CorrelationStore` | `ConcurrentHashMap<UUID, PendingCorrelation>`. Bounded shutdown; scheduler-driven expiry |
-| `ForwardingTable` | `correlationId → (originatorAddress, destinationAddress)`. `drainByDestination(addr)` removes only destination-side entries (leaves originator-side alive for QoS reconnect delivery) |
-| `ForwardingDedupCache` | LRU, 5 min TTL, 50k entries. Deduplicates retried `Request` at the broker |
+| `ForwardingTable` | `correlationId → (originatorAddress, destinationAddress)`. `drainByDestination(addr)` removes only destination-side entries (leaves originator-side alive for QoS reconnect delivery). A streamed request keeps its entry for the whole stream (`touch` per frame, pruned by inactivity, `drainStreamsByOriginator` on caller loss) |
+| `ForwardingDedupCache` | LRU, 5 min TTL, 50k entries, 128 MiB of retained replies, 1 MiB per reply (a larger one is remembered as answered: `DuplicateRequestException` to a duplicate). Deduplicates retried `Request`s with side effects; straight payload types never enter it |
 | `HandshakeHandler` | Validates `Hello` → calls `TokenValidator` → calls `BusLifecycle.onHello` |
 | `TokenValidator` | SPI: `acceptAll()` (default) or `sharedSecret(token)` (constant-time compare) |
 | `MessageRouter` | OCP dispatcher — `Map<Class<? extends Message>, Handler>` registered in `start()` |
@@ -169,7 +184,25 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 
 **Reconnect QoS (Fix D):** When a handler replies while the originator is disconnected,
 `BusLifecycle.onResponse` buffers the `Response` in `reconnectBuffer` (keyed by `instanceId`,
-2-minute TTL). `onHello` calls `deliverPendingResponses` on re-handshake.
+2-minute TTL, bounded by `setReconnectBufferMaxBytes`, 256 MiB: a reply over it is not buffered,
+`event=reconnect_buffer_full`). `onHello` calls `deliverPendingResponses` on re-handshake.
+
+**Straight payload types (2.6).** Reads are routed without any of that: no dedup slot, no
+cached reply, no reconnect buffering (`event=straight_response_dropped_originator_away`).
+Bundles declare their `@QueryHandler` types in `BundleRegistrationInfo.queryPayloadTypes`;
+server-local reads (`EventFetchRequest`, `EventLastSequenceNumberRequest`) are registered by
+`EventStoreRequestHandlerBridge` (`registerStraightPayloadType`). A caller asks a lost read again
+(`BundleCorrelationTracker.resendSentBefore`, §4.3). The broker's own replies are DEFLATE-compressed
+for callers that accept it (`setResponseCompressionThreshold`, 32 KiB).
+
+**Stream relay (2.6, `BusLifecycle.onStream`).** `StreamData`/`StreamRedirect` from the
+destination go to the originator, `StreamCredit`/`StreamCancel` from the originator to the
+destination, each as the raw frame (zero copy), only between sessions that negotiated
+`stream:1` (`BundleSession.supportsStreams`); a frame from any other session is dropped
+(`event=stream_frame_foreign`). A frame for an unknown stream, or whose caller is gone, is
+answered with `StreamCancel` so the handler stops. The last data frame, a cancel or a redirect
+ends the entry; the caller's disconnect cancels its streams at their handlers. Counters:
+`streamsOpened`, `activeStreams`, `streamFramesRelayed`, `streamBytesRelayed`.
 
 **Supersede race (Fix A):** `onTransportDisconnected` returns early when `ConnectionRegistry.unregister`
 returns empty (token mismatch = superseded session). This prevents wiping the handlers of a
@@ -183,7 +216,7 @@ reconnected bundle.
 | `BundleClientConfig` | Record + Builder: host/port list, identity, authToken, capabilities, timeouts, transport config, autoEnable |
 | `BundleClientState` | `INITIAL → CONNECTING → HANDSHAKING → REGISTERING → READY → RECONNECTING → CLOSING → CLOSED` |
 | `ConnectionSupervisor` | Owns Netty transport + reconnect loop over the ordered endpoint list (next endpoint after a session that fails before READY, endpoint 0 after a READY session drops). `start()` future resolves at first `READY`. Runs the fail-back thread (below) |
-| `BundleCorrelationTracker` | `UUID → CompletableFuture<Response>`. Scheduler-driven expiry. `failAll()` on shutdown only (not on disconnect — futures survive reconnect) |
+| `BundleCorrelationTracker` | `UUID → CompletableFuture<Response>`. Scheduler-driven expiry. `failAll()` on shutdown only (not on disconnect — futures survive reconnect). Idempotent reads (`request(..., idempotent = true)`: queries, event fetches) remember their `Request` and session epoch: `resendSentBefore` sends them again on the next READY session (same id, remaining budget), and `failSentOnOtherBroker` leaves them alone |
 | `ProcessedRequestCache` | Inbound dedup: `resolveOrClaim` → `Claimed / InFlight / Replay`. LRU + TTL |
 | `HandlerRegistry` | `payloadType → RequestHandler / NotificationHandler` (pure byte arrays) |
 | `HelloFactory` | Builds `Hello` from `BundleClientConfig` |
@@ -191,6 +224,9 @@ reconnected bundle.
 | `EventoServerAdapter` | Implements `EventoServer` (the gateway SPI) over `BundleClient` |
 | `BundleInboundDispatcher` | Bridges `HandlerRegistry.RequestHandler` ↔ v2 CBOR byte-array contract for `@CommandHandler` / `@QueryHandler` annotated classes |
 | `BundleAdminRequestHandler` | Handles `evento:server-admin-request` — decodes `EventoRequest`, dispatches consumer ops, encodes `EventoResponse` |
+| `stream.InboundStream` / `stream.OutboundStream` | The caller's and the handler's end of a streamed reply: ordered frames and credit returned by half-windows / frames sent only against credit, cancel on idle timeout (2.6, §4.9) |
+| `stream.FrameQueryStream` | `QueryStream<V>` over an `InboundStream`: decodes batches, whole answers and `ExceptionWrapper` frames |
+| `stream.DirectStreamServer` / `DirectStreamClient` / `DirectStreamConfig` | Bundle-to-bundle streams: ticketed endpoint, redirect follower with broker fallback (2.6, §4.9) |
 
 **Fail-back to the preferred endpoint (N16).** While a session is READY on any endpoint but 0
 and `BundleClientConfig.failbackActive()` (enabled, default true, and 2+ endpoints), a virtual
@@ -444,6 +480,19 @@ consumer engine per context** (own consumer id, checkpoint, lock); no contexts =
 `Context.WILDCARD` (`"*"`). A context literally named `"ALL"` is an ordinary context; the
 deprecated `Context.ALL` constant is the wildcard, not `"ALL"`.
 
+### 4.9 Query Path (2.6): straight reads, streams, local answers, read-your-writes
+
+| Concern | Where | How |
+|---|---|---|
+| Straight reads | `BusLifecycle.isStraight`, `BundleCorrelationTracker.resendSentBefore` | §4.2: queries never cached nor buffered by the broker; the caller asks a lost one again |
+| Streamed answers | `QueryGateway.stream` → `EventoServerAdapter.streamQuery` → `BundleClient.openStream` → broker → `InboundDispatcher.runStream` → `BundleInboundDispatcher.handleStream` | Views in `QueryStreamBatch` frames (~`setStreamFrameBytes`, 256 KiB, batch size adapts), sent against credit (`QueryOptions.window`, 16); `ExceptionWrapper` frame for a query failure; plain `Response` when a side cannot stream |
+| Lazy answers | `Streamed<T>` | Source opened after the handler returns (outside interceptors), read as frames go, closed at end/cancel/failure; `materialize()` for a plain reply |
+| Pages | `Page<T>`, `PageRequest` | Offset (optional total) or cursor; `next()` gives the following request |
+| Direct streams | `DirectStreamServer` (handler) / `DirectStreamClient` (caller) | `streamDirect` request → `StreamRedirect` (random single-use ticket, bound to the correlation id, TTL 10 s) via the broker → caller connects, `Hello.authToken` = ticket → frames on that connection; any failure to establish → `BundleClient.reaskViaBroker` (new correlation id, plain broker stream) |
+| Local answers | `BundleClient.answersLocally` / `requestLocally` / `openStream`, `InboundDispatcher.answerLocally` | Own query + short-circuit on + bundle enabled → the request bytes run through the handler path in process (same codec, gate, interceptors, tracing, metrics); streams through an in-process pipe with the same credit |
+| Read-your-writes | `EventoResponse.eventSequenceNumber/eventContext` (broker) → `EventoServerAdapter.recordWrite` (`ownWrites`, `EventMessage.storedAt`) → `QueryMessage.consistency` → `ProjectorConsistencyGate` → `ProjectorEngine.awaitPosition` | Per-context positions; the gate waits for the projectors of those contexts (wildcard: the highest), by `ConsumerProcessor.knownCheckpoint` or the store's checkpoint (another instance's lane, read at most every 50 ms), wakes the consume loop, and throws `ConsistencyTimeoutException` at the caller's deadline less a margin (a tenth, ≤ 250 ms) |
+| Compression | `PayloadEncoding` | Per request (`acceptEncodings`), end to end, marker `0xFF 'E' 'Z' 0x01` + zlib; ≥ 32 KiB and ≥ 1/8 saved |
+
 ---
 
 ## 5. Handshake & Registration Protocol
@@ -543,6 +592,39 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     not delay cleanup. Do not move the state transition back onto the close listener directly;
     `NettyTransportIT.aResponseReadBeforeThePeerClosesIsDeliveredBeforeTheDisconnect` pins it.
 
+15. **Reads are straight; exactly-once is for writes (2.6).** A query is idempotent: caching its
+    reply for replay or buffering it for an absent caller spends the broker's heap on the
+    largest payloads of the bus to avoid a re-execution that costs nothing. Reads bypass both,
+    and the caller re-asks what it lost. Do not route a payload type with side effects as
+    straight.
+
+16. **Large answers stream with credit, never chunk (2.6).** Chunking bounds frame size, not
+    memory: every hop reassembles the whole message. A stream bounds memory by the caller's
+    window on every hop, because the handler produces only against credit the caller returns as
+    it consumes. Ordering is per connection (`SerialLane`), not a reorder buffer: frames of one
+    stream always arrive on one connection.
+
+17. **Stream messages only to peers that negotiated them (2.6).** Decoding an unknown `@t` closes
+    the channel, so `stream:1` gates every `StreamData`/`StreamCredit`/`StreamCancel`/
+    `StreamRedirect`; a side that cannot stream answers whole and the other side iterates it.
+    That keeps 2.5 and 2.6 peers interoperable in any mix.
+
+18. **A local answer takes the remote path minus the network (2.6).** The short-circuit runs the
+    request bytes through the same codec and handler path a remote query takes, rather than
+    calling the projection with objects: tracing, interceptors and metrics see it as before, a
+    view that does not serialize fails here as it would remotely, and the caller cannot share
+    mutable state with the projection.
+
+19. **Consistency tokens are per context (2.6).** A projector reads only its contexts; one global
+    sequence number could make it wait for an event it will never see. The token says, per
+    context, what must have been processed; the wildcard projector takes the highest.
+
+20. **Direct streams are ticketed by the broker, and optional (2.6).** The broker keeps routing,
+    locality, deadlines and authentication; it only stops carrying the data. A random,
+    single-use, short-lived ticket bound to one correlation id carries its decision to the
+    direct connection. A caller that cannot connect falls back to the broker on its own, so the
+    feature can be enabled without knowing every caller's network.
+
 ---
 
 ## 7. Security Model
@@ -567,7 +649,10 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
 |---|---|
 | **Broker (dedup incoming)** | `ForwardingDedupCache` — LRU, 5 min TTL, 50k entries. Duplicate `Request` (same `correlationId`) → replay cached `Response`; in-flight duplicate → silent drop |
 | **Bundle handler side** | `ProcessedRequestCache` — `resolveOrClaim` returns `Claimed / InFlight / Replay`. Handler runs at most once per `correlationId` |
-| **Reconnect delivery** | `reconnectBuffer` on `BusLifecycle` buffers responses for disconnected originators (2-minute TTL). `deliverPendingResponses` replays on reconnect |
+| **Reconnect delivery** | `reconnectBuffer` on `BusLifecycle` buffers responses for disconnected originators (2-minute TTL, 256 MiB). `deliverPendingResponses` replays on reconnect |
+
+None of the three applies to **straight** payload types (queries, event fetches, 2.6): they are
+idempotent, so the caller asks them again instead (§4.2, decision 15).
 
 A caller bundle can retry with the same `correlationId` and receive exactly one side-effect plus
 the same response back.
@@ -697,7 +782,13 @@ These are the user-facing APIs — changing signatures requires a major version 
 - **Bundle bootstrap**: `EventoBundle.Builder` (fluent builder returned by `EventoBundle.builder()`)
 - **Modeling types**: `AggregateState`, `Event`, `Command`, `Query`, `DomainCommandMessage`,
   `DomainEventMessage`, `ServiceCommandMessage`, `ServiceEventMessage`, `DecoratedDomainCommandMessage`
-- **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5), `QueryGateway` (injected into components)
+- **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5; `sendTracked` → `Tracked<R>`, 2.6),
+  `QueryGateway` (injected into components; `queryWith(query, QueryOptions)`, `stream(query[, options])`
+  → `QueryStream<V>`, 2.6)
+- **Query model (2.6)**: `Single`, `Multiple`, `Page` + `PageRequest`, `Streamed`; `ConsistencyToken`,
+  `QueryOptions`, `ConsistencyTimeoutException`, `QueryStream.QueryStreamException`
+- **Bundle builder options (2.6)**: `setLocalQueryShortCircuit`, `setCompressionThreshold`,
+  `setAcceptCompressedReplies`, `setDirectStreamConfig(DirectStreamConfig)`, `setStreamFrameBytes`
 - **Service outcome SPI** (G5 inbox): `ServiceCommandOutcomeStore`, `ServiceCommandOutcomes`
   (injectable into service handlers), `EventoBundle.Builder.setServiceCommandOutcomeStore`
 - **Consumer SPIs**: `ConsumerStateStore`, `ConsumerLock`, `SagaStateStore`, `DeadEventQueue`,
@@ -733,7 +824,7 @@ EVENTO_RUN_JDBC_IT=true JAVA_HOME=$(/usr/libexec/java_home -v 25) \
 
 Other gates: `:evento-transport-netty:netty41Test` (Netty 4.1 compatibility, part of `check`);
 `EVENTO_RUN_JDBC_IT=true` for the Testcontainers/Postgres ITs (e.g. `MultiServerCatalogIT`,
-`IdempotentCommandPostgresIT`, `ServiceOutcomeReplayPostgresIT`); `EVENTO_RUN_BENCH=true` for
+`IdempotentCommandPostgresIT`, `ServiceOutcomeReplayPostgresIT`); `EVENTO_RUN_BENCH=true` for `QueryPathBenchmarkIT` (broker cost of a query answer by size and mode, `evento-lab-cluster/docs/query-path.md`) and
 `CommandLatencyBenchmarkIT`; `EVENTO_LAB_CLUSTER=true` for the `evento-lab-cluster` scenarios
 (run through its `scripts/`, needs the Docker stack).
 
@@ -932,6 +1023,14 @@ explorative read-only pivot.)
 - **Structured logging:** SLF4J. Key=value on every bus lifecycle transition. `event=disconnect_superseded_skip` etc.
 - **Zero-copy counters**: `BusLifecycle.forwardedRawCount` / `forwardedReencodedCount` — every
   Netty-to-Netty forward must use the raw path; tests pin this contract.
+- **Query path (2.6)**: broker `evento.server.streams.active`, `evento.server.streams.opened`,
+  `evento.server.stream.frames`, `evento.server.stream.bytes`,
+  `evento.server.reconnect.buffer.bytes`, `evento.server.dedup.retained.bytes` (Micrometer, bound
+  by `BusMetricsBinder`); bundle `BundleClient.localQueries()`, `inboundStreams()`,
+  `outboundStreams()`, `directStreamsServed()` / `directStreamsFollowed()` /
+  `directStreamFallbacks()`, handler latencies `query.stream`. Logs: `event=query_answered_locally`,
+  `query_streamed`, `query_waited_for_writes` (DEBUG), `idempotent_requests_resent`,
+  `direct_stream_fallback`, `direct_stream_refused`, `straight_response_dropped_originator_away`.
 
 ---
 

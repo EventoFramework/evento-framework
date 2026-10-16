@@ -10,6 +10,8 @@ import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.common.modeling.messaging.payload.DomainEvent;
 import com.evento.common.modeling.messaging.query.Multiple;
+import com.evento.common.modeling.messaging.query.Page;
+import com.evento.common.modeling.messaging.query.Streamed;
 import com.evento.transport.protocol.PayloadDiscoveryInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
@@ -213,7 +215,7 @@ final class HandlerMetadataBuilder {
                     k,
                     ((Class<?>) ((ParameterizedType) m.getGenericReturnType())
                             .getActualTypeArguments()[0]).getSimpleName(),
-                    r.isAssignableFrom(Multiple.class),
+                    returnsMany(r),
                     null
             );
             applyComponentMetadata(h, v.getRef().getClass());
@@ -261,5 +263,16 @@ final class HandlerMetadataBuilder {
         }
 
         return new Result(handlers, payloadInfo);
+    }
+
+    /**
+     * Whether a query handler answers with several views: a {@link Multiple}, a
+     * {@link Page} or a {@link Streamed} (or a supertype that may be one of them).
+     */
+    static boolean returnsMany(Class<?> returnType) {
+        return Multiple.class.isAssignableFrom(returnType)
+                || Page.class.isAssignableFrom(returnType)
+                || Streamed.class.isAssignableFrom(returnType)
+                || returnType.isAssignableFrom(Multiple.class);
     }
 }

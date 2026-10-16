@@ -29,8 +29,13 @@ import java.util.UUID;
         @JsonSubTypes.Type(value = Request.class,      name = "REQ"),
         @JsonSubTypes.Type(value = Response.class,     name = "RSP"),
         @JsonSubTypes.Type(value = Notification.class, name = "NTF"),
+        @JsonSubTypes.Type(value = StreamData.class,   name = "SDA"),
+        @JsonSubTypes.Type(value = StreamCredit.class, name = "SCR"),
+        @JsonSubTypes.Type(value = StreamCancel.class, name = "SCN"),
+        @JsonSubTypes.Type(value = StreamRedirect.class, name = "SRD"),
 })
-public sealed interface Message permits Hello, Welcome, Reject, Ping, Pong, Request, Response, Notification {
+public sealed interface Message permits Hello, Welcome, Reject, Ping, Pong, Request, Response, Notification,
+        StreamData, StreamCredit, StreamCancel, StreamRedirect {
 
     /**
      * Correlation identifier. For Request/Response pairs, this is the shared ID;

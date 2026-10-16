@@ -1,0 +1,122 @@
+{
+  "scenario" : "S13",
+  "title" : "Wrong-broker guard and server identity",
+  "gaps" : [ "G13", "N16" ],
+  "label" : "after-query",
+  "startedAt" : "2026-10-15T14:19:36.390164900Z",
+  "finishedAt" : "2026-10-15T14:24:55.781079100Z",
+  "durationSeconds" : 319,
+  "parameters" : {
+    "orderIdPrefix" : "s13-after-query-3a25d0-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 4,
+    "KNOWN_DEFECT_REPRODUCED" : 1
+  },
+  "observations" : [ {
+    "name" : "C: bundle expecting a foreign cluster",
+    "expected" : "the session is refused (cluster_name_mismatch) and the bundle never becomes READY",
+    "expectedBeforeFix" : "no cluster identity in 2.4.6: the bundle attaches to whatever server answers (G13)",
+    "observed" : "healthy=false, busState READY=false, 39 cluster_name_mismatch line(s), feature null",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "guard accepts the expected broker",
+    "expected" : "acknowledged through the VIP",
+    "expectedBeforeFix" : null,
+    "observed" : "3/3 acknowledged {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "A: legacy single-id guard on failover",
+    "expected" : "by contract the single expected id refuses every other server, even a healthy one of the same cluster (recorded on both image sets; the fix is variant B's cluster name)",
+    "expectedBeforeFix" : "the single expected id rejects every healthy failover target: server_instance_mismatch loop (G13)",
+    "observed" : "0/3 acknowledged {error=3}; 7 mismatch log lines in 60 s",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  }, {
+    "name" : "A: EU bundles fail back to evento-eu once it is healthy again (N16)",
+    "expected" : "every EU JVM that failed over to another server is attached to evento-eu again, without a restart, within 180 s",
+    "expectedBeforeFix" : "no failback: they stay on the remote server until restarted (N16)",
+    "observed" : "7 JVM(s) remote while evento-eu was down {gateway-africa=evento-am, order-command-eu=evento-am, order-observer=evento-am, order-query-eu=evento-am, order-query-global-eu=evento-am, order-query-wildcard=evento-am, order-saga-eu=evento-am}; still remote after the wait: {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "B: failover to a healthy server of the same cluster (cluster-name guard)",
+    "expected" : "the bundle accepts any evento-lab-cluster server behind the VIP, EUROPA works again, and the cluster-name guard is active",
+    "expectedBeforeFix" : "no cluster-name guard in 2.4.6: failover works only because nothing is checked (G13)",
+    "observed" : "ready=true, 3/3 before the kill {}, 3/3 after {}; guard available: evento-lab-cluster",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "C.clusterNameMismatches" : 39,
+    "C.expectedClusterNameFeature" : null,
+    "serverInstanceMismatches" : 7,
+    "logMarkers" : {
+      "gateway-europa" : {
+        "event=handshake_complete" : 1,
+        "event=bundle_state_transition" : 5
+      },
+      "lb" : { }
+    },
+    "A.bundlesRemoteWhileEuDown" : {
+      "gateway-africa" : "evento-am",
+      "order-command-eu" : "evento-am",
+      "order-observer" : "evento-am",
+      "order-query-eu" : "evento-am",
+      "order-query-global-eu" : "evento-am",
+      "order-query-wildcard" : "evento-am",
+      "order-saga-eu" : "evento-am"
+    },
+    "A.bundlesStillRemoteAfterEuReturned" : { },
+    "A.allHomeSecondsAfterEuReady" : 53.457,
+    "A.bundlesRestartedIntoPlace" : { },
+    "B.expectedClusterNameFeature" : "available: evento-lab-cluster",
+    "B.probesBeforeKill" : "3/3",
+    "B.probesAfterKill" : "3/3 {}"
+  },
+  "timeline" : [ {
+    "tMs" : 8327,
+    "at" : "2026-10-15T14:19:44.718033100Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 82046,
+    "at" : "2026-10-15T14:20:58.436711500Z",
+    "event" : "gateway-europa via bus-eu:3030 expecting evento-eu, ready=true"
+  }, {
+    "tMs" : 83126,
+    "at" : "2026-10-15T14:20:59.516789900Z",
+    "event" : "A: killed evento-eu"
+  }, {
+    "tMs" : 161938,
+    "at" : "2026-10-15T14:22:18.328225200Z",
+    "event" : "evento-eu back, ready=true"
+  }, {
+    "tMs" : 226317,
+    "at" : "2026-10-15T14:23:22.707725400Z",
+    "event" : "B: killed evento-eu"
+  }, {
+    "tMs" : 291168,
+    "at" : "2026-10-15T14:24:27.559151Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 319390,
+    "at" : "2026-10-15T14:24:55.780569300Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "gateway-europa C cluster mismatch lines" : [ "2026-10-15T14:19:50.836Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=cluster_name_mismatch host=bus-eu port=3030 announced=evento-lab-cluster expected=foreign-cluster - refusing to register with this broker", "2026-10-15T14:19:51.478Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=cluster_name_mismatch host=bus-eu port=3030 announced=evento-lab-cluster expected=foreign-cluster - refusing to register with this broker", "2026-10-15T14:19:52.433Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=cluster_name_mismatch host=bus-eu port=3030 announced=evento-lab-cluster expected=foreign-cluster - refusing to register with this broker", "2026-10-15T14:19:54.934Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=cluster_name_mismatch host=bus-eu port=3030 announced=evento-lab-cluster expected=foreign-cluster - refusing to register with this broker", "2026-10-15T14:19:55.958Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=cluster_name_mismatch host=bus-eu port=3030 announced=evento-lab-cluster expected=foreign-cluster - refusing to register with this broker" ],
+    "gateway-europa mismatch lines" : [ "2026-10-15T14:21:02.299Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=server_instance_mismatch host=bus-eu port=3030 announced=evento-apac expected=evento-eu - refusing to register with this broker", "2026-10-15T14:21:03.554Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=server_instance_mismatch host=bus-eu port=3030 announced=evento-am expected=evento-eu - refusing to register with this broker", "2026-10-15T14:21:04.885Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=server_instance_mismatch host=bus-eu port=3030 announced=evento-apac expected=evento-eu - refusing to register with this broker", "2026-10-15T14:21:07.438Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=server_instance_mismatch host=bus-eu port=3030 announced=evento-am expected=evento-eu - refusing to register with this broker", "2026-10-15T14:21:12.710Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=server_instance_mismatch host=bus-eu port=3030 announced=evento-apac expected=evento-eu - refusing to register with this broker", "2026-10-15T14:21:20.025Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=server_instance_mismatch host=bus-eu port=3030 announced=evento-am expected=evento-eu - refusing to register with this broker", "2026-10-15T14:21:34.749Z ERROR 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=server_instance_mismatch host=bus-eu port=3030 announced=evento-apac expected=evento-eu - refusing to register with this broker" ],
+    "log excerpts: gateway-europa" : [ "2026-10-15T14:23:25.337Z  INFO 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-apac cluster=evento-lab-cluster endpoint=bus-eu:3030 accepted_caps=[stream:1]", "2026-10-15T14:23:22.446Z  INFO 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=READY to=RECONNECTING reason=post_session force=true", "2026-10-15T14:23:22.912Z  INFO 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=RECONNECTING to=CONNECTING reason=open_transport force=true", "2026-10-15T14:23:22.935Z  INFO 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=bundle_state_transition from=CONNECTING to=HANDSHAKING reason=tcp_up force=true" ],
+    "gateway-europa B handshakes after the kill" : [ "2026-10-15T14:23:25.337Z  INFO 1 --- [order-gateway] [-gateway-europa] c.e.a.c.connection.ConnectionSupervisor  : event=handshake_complete server_instance=evento-apac cluster=evento-lab-cluster endpoint=bus-eu:3030 accepted_caps=[stream:1]" ],
+    "stack actions" : [ "2026-10-15T14:19:44.725619800Z compose up -d --no-deps --force-recreate gateway-europa with env {EVENTO_CLUSTER_NAME=foreign-cluster, EVENTO_EXPECTED_SERVER_ID=, EVENTO_SERVER_ADDRESSES=bus-eu:3030}", "2026-10-15T14:20:47.709179300Z compose up -d --no-deps --force-recreate gateway-europa with env {EVENTO_SERVER_ADDRESSES=bus-eu:3030, EVENTO_EXPECTED_SERVER_ID=evento-eu}", "2026-10-15T14:20:59.045397300Z docker kill evento-eu", "2026-10-15T14:22:00.564128800Z docker start evento-eu (restore)", "2026-10-15T14:23:13.347452400Z compose up -d --no-deps --force-recreate gateway-europa with env {EVENTO_SERVER_ADDRESSES=bus-eu:3030, EVENTO_EXPECTED_SERVER_ID=}", "2026-10-15T14:23:22.325116200Z docker kill evento-eu", "2026-10-15T14:24:27.627295300Z docker start evento-eu (restore)", "2026-10-15T14:24:45.640821200Z compose up -d --no-deps --force-recreate gateway-europa (restore default)" ]
+  }
+}
