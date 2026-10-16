@@ -17,6 +17,7 @@ The libraries an application links against:
   evento-common
   evento-bundle
   evento-consumer-state-store/evento-consumer-state-store-jdbc
+  evento-spring-boot-starter
   evento-opentelemetry
   evento-test
 

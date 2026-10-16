@@ -42,6 +42,7 @@ ext.clientLibraries = [
         ':evento-bundle',
         ':evento-consumer-state-store:evento-consumer-state-store-jdbc',
         ':evento-test',
+        ':evento-spring-boot-starter',
         ':evento-opentelemetry',
 ]
 ext.clientJavaRelease = 21
@@ -50,7 +51,8 @@ configure(subprojects.findAll { it.path in clientLibraries }) {
     tasks.withType(JavaCompile).configureEach {
         options.release = clientJavaRelease
     }
-    if (project.hasProperty('testJdk')) {
+    // Not the starter: its end-to-end test runs a real broker, and the server needs JDK 25.
+    if (project.hasProperty('testJdk') && project.path != ':evento-spring-boot-starter') {
         tasks.withType(Test).configureEach {
             javaLauncher = javaToolchains.launcherFor {
                 languageVersion = JavaLanguageVersion.of(project.property('testJdk') as int)
