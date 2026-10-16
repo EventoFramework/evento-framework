@@ -305,6 +305,12 @@ public class EventoBundle {
     @Accessors(chain = true)
     public static class Builder {
         private Package basePackage;
+
+        /**
+         * The base package by name, for when no {@link Package} object is at hand (a Spring Boot
+         * starter reading it from configuration). {@link #basePackage} wins when both are set.
+         */
+        private String basePackageName;
         private String bundleId;
         private String instanceId;
         private long bundleVersion = 1;
@@ -370,6 +376,7 @@ public class EventoBundle {
 
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
+
 
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
 
@@ -651,9 +658,10 @@ public class EventoBundle {
          * @throws Exception if there is an error during initialization
          */
         public EventoBundle start() throws Exception {
-            if (basePackage == null) {
+            if (basePackage == null && (basePackageName == null || basePackageName.isBlank())) {
                 throw new IllegalArgumentException("Invalid basePackage");
             }
+            final String base = basePackage != null ? basePackage.getName() : basePackageName.trim();
             if (bundleId == null || bundleId.isBlank()) {
                 throw new IllegalArgumentException("Invalid bundleId");
             }
@@ -736,7 +744,7 @@ public class EventoBundle {
             );
             var invokerManager = new InvokerManager();
 
-            logger.info("Discovery handlers in %s".formatted(basePackage));
+            logger.info("Discovery handlers in %s".formatted(base));
             // SubTypes is configured to keep every scanned type (not only types
             // with a scanned supertype) so the confinement check below can sweep
             // the whole package, component or not.
@@ -744,8 +752,8 @@ public class EventoBundle {
             // without the input filter every class sharing those roots would be
             // scanned too, so two bundles in one jar could never be isolated.
             Reflections reflections = new Reflections(new ConfigurationBuilder()
-                    .forPackages(basePackage.getName())
-                    .filterInputsBy(new FilterBuilder().includePackage(basePackage.getName()))
+                    .forPackages(base)
+                    .filterInputsBy(new FilterBuilder().includePackage(base))
                     .setScanners(Scanners.TypesAnnotated,
                             Scanners.SubTypes.filterResultsBy(c -> true)));
 
@@ -912,7 +920,7 @@ public class EventoBundle {
             enginesForGate.set(supervisor);
 
             eventoBundle.set(new EventoBundle(
-                    basePackage.getName(),
+                    base,
                     bundleId, instanceId,
                     aggregateManager, projectionManager, sagaManager, commandGateway,
                     queryGateway,
@@ -1193,6 +1201,26 @@ public class EventoBundle {
     void startConsumerStatsPublisher(ConsumerStatsPublisher publisher) {
         this.consumerStatsPublisher = publisher;
         publisher.start();
+    }
+
+    /**
+     * Graceful stop: leave the server's routing (no new requests reach this bundle), stop the
+     * consumer engines within {@code deadline}, close the connection. For containers that own the
+     * lifecycle (the Spring Boot starter); the JVM shutdown hook stops only the engines.
+     * Idempotent.
+     */
+    public void stop(Duration deadline) {
+        if (eventoServer instanceof EventoServerAdapter adapter) {
+            try {
+                adapter.disable();
+            } catch (RuntimeException e) {
+                logger.debug("event=bundle_stop_disable_failed cause={}", e.toString());
+            }
+        }
+        stopV2Engines(deadline);
+        if (eventoServer instanceof EventoServerAdapter adapter) {
+            adapter.close();
+        }
     }
 
     public void stopV2Engines(Duration deadline) {
