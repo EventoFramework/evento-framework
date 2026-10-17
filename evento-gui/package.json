@@ -38,7 +38,7 @@
     "jsdom": "^30.0.1",
     "jwt-decode": "^4.0.0",
     "marked": "^18.0.9",
-    "marked-katex-extension": "^5.1.10",
+    "marked-katex-extension": "^5.1.13",
     "mermaid": "^11.16.1",
     "ng-apexcharts": "^2.4.0",
     "ngx-markdown": "^22.0.0",
