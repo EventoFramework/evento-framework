@@ -73,6 +73,19 @@ concurrent commands now fail instead of forking), ARCHITECTURE §4.6, CLUSTER-RE
 "Upgrading to 2.6". Next: B1 (benchmark against Axon Server); a server-side retry on fence conflict would let
 the per-aggregate lock go (WAN round trips), to weigh with B1.
 
+**Session 6, continued: B1, the benchmark against Axon (`benchmarks/axon-comparison`).** Standalone Gradle
+build (composite on this repo): Evento CPES/APES (caller bundle → server → aggregate bundle), Axon Framework
+5.4 on JPA (pool 10 and 64), Axon 5.4 + Axon Server 2026.1.7. Scenarios create/spread/hot, closed loop at
+1/8/32/128 in flight, CPU pinning (infra 0-3, apps 4-7), fresh stack per scenario. Public report
+`results/REPORT.md` (Italian, with units); Axon Server results only in `results-private/` (git-ignored,
+Axoniq ToS forbid disclosure: never commit or publish them). The benchmark found three bugs, all fixed:
+the version read as text (`ORDER BY aggregate_seq` sorted "9" after "10"), responses starved behind requests
+on the bus business executor (everything timed out at 128 in flight), Snowflake ids throwing when the clock
+steps back (APES refused a few commands a minute on WSL2). Results vs Axon JPA: Evento never collapses and
+never refuses; Axon JPA leads slightly at 8 in flight on create, collapses from 32 (pool exhausted), is
+5-15× slower on spread/hot. Next: the user weighs D2 (b) / a server-side retry against the private Axon
+Server numbers; CI on PR #281.
+
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
 User request (Italian): an enterprise feature to version payloads and use the new versions;

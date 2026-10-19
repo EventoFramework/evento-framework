@@ -312,8 +312,14 @@ Le dipendenze sono indicate con `←`.
       sostituita da ClassGraph (`ComponentScan`, stessa semantica), `javassist` dichiarata.
       `hibernate-validator` rimosso: nessun codice usava la bean validation
 - [ ] O2 Metrica di lag dei consumer
-- [ ] B1 Benchmark del tetto di append/s per cella, pubblicato, **confrontato con Axon Server** sullo
-      stesso hardware (obiettivo: pari o meglio) ← C1
+- [x] B1 Benchmark del tetto di append/s per cella (`benchmarks/axon-comparison`, risultati in
+      `results/REPORT.md`): una cella su un i7-6700K regge ~430 cmd/s in CPES (lock globale) e ~1300 in
+      APES, ~50 cmd/s su un aggregato conteso, senza rifiuti e senza collasso fino a 128 in volo. Axon
+      Framework 5.4 open source (JPA, pool di default) collassa da 32 in volo e su spread/hot è 5-15× sotto
+      (nessuno snapshot: ricarica la storia). Il confronto con **Axon Server** è stato misurato ma i risultati
+      restano fuori dal repository (ToS Axoniq, `results-private/`, git-ignored). Ha trovato due bug, corretti:
+      deadlock del trasporto sotto carico e id Snowflake che fallivano quando l'orologio torna indietro.
+      Da decidere (utente): se aprire D2 (b) alla luce del confronto privato
 - [x] L4 Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit nel repository privato
       `evento-server-enterprise` (Spring Boot autoconfigurazione, build inclusa `../evento`, boot jar
       distribuibile). Nel server pubblico solo i punti di estensione `ConsoleSignIn` e

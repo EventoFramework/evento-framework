@@ -231,6 +231,10 @@ a revised payload needs a 2.6 broker.
   processed and every command expired after 30 s (a 4-CPU server stopped at 128 commands in flight, or 32 on one
   aggregate). Responses now run on virtual threads of their own (`evento-transport-netty`), in servers and
   bundles alike. Found by the Axon comparison benchmark (`benchmarks/axon-comparison`).
+- **APES refused commands when the clock stepped back.** The Snowflake ids of APES events threw
+  `IllegalStateException: Invalid System Clock!` whenever the system clock was a millisecond behind the last id
+  (NTP, a virtual machine's time sync), and the command being stored failed. Ids now go on from the last one issued
+  until the clock catches up. Found by the same benchmark (a few commands a minute on WSL2).
 - The web console logged the user out on any 403: a user without `ADMIN` (normal with OIDC groups) who tried a
   dead-event action was sent back to the login page. Only 401 signs out now; a refused action shows "This
   action needs the ADMIN role.", and the retry toggle flips back.
