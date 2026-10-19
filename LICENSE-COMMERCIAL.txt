@@ -14,7 +14,10 @@ purchase order or license certificate ("Licensee").
 under the GNU AGPL v3.0 (section 2 of LICENSE.txt: the Evento server, the web
 console and the other files listed there), in source and compiled form, with
 their documentation. This Agreement is an alternative to the AGPL v3.0 for
-those components only.
+those components only. Where the purchase order or license certificate says
+so, the Software also includes Evento Enterprise, the proprietary module that
+adds features to the Evento server and is available only under this
+Agreement.
 
 The client libraries listed in section 1 of LICENSE.txt are licensed to
 everyone under the Apache License 2.0 and need no commercial licence. Nothing

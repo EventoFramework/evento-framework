@@ -51,6 +51,15 @@ Testing with Fixtures, Security, GUI Auth OIDC; Quick Start Java 21). OIDC not t
 Still open: CLA legal review; `evento-test-broker` (needs A2); push/deploy of this branch and the sibling
 branches (user's call); decisions D2, D8, D9, D10; roadmap items F4, C1, O2, O3, B1, R1/R2…
 
+**Session 5 (2026-10-19): decisions closed, enterprise features split out.** All of D1-D10 decided (D2 a,
+D8 a, D9 a = everything ships as 2.6.0, D10 b). The user wants the console's enterprise features under the
+commercial licence, so OIDC and the audit trail moved to the private repo `EventoFramework/evento-server-enterprise`
+(auto-configuration on the new SPI `com.evento.server.web.spi`: `ConsoleSignIn`, `AdminActionListener`;
+`AdminActions` runs console writes). The branch history was rewritten before its first push so that code never
+appears in the public repo (old history: local branch `backup/2.6-before-enterprise-split`, never push it).
+Session-3/4 notes above describe classes that now live in the enterprise repo. Next: C1 (aggregate_seq fence,
+also validating the lock), then B1 against Axon Server.
+
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
 User request (Italian): an enterprise feature to version payloads and use the new versions;

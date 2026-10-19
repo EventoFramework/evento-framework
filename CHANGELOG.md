@@ -87,26 +87,21 @@ a revised payload needs a 2.6 broker.
   requires. Before, a bundle built with `EventoBundle.Builder` could not present one.
 - `EventoBundle.stop(Duration)`: leave the server's routing, stop the consumer engines, close the connection.
 - `EventoBundle.Builder.setBasePackageName(String)`, for when no `Package` object is at hand.
-- **Single sign-on for the web console**: `evento.server.web.auth=oidc` (`EVENTO_SERVER_WEB_AUTH`) signs users
-  in with the organisation's identity provider (authorization code with PKCE, run by the server; the session is
-  an HttpOnly cookie, writes carry the `XSRF-TOKEN` CSRF token, no token reaches the browser). The provider's
-  groups map to `WEB` / `ADMIN` (`evento.server.web.oidc.roles-claim`, `web-role`, `admin-role`; nested claims
-  such as Keycloak's `realm_access.roles` work). HTTP Basic stays for machine clients. The GUI asks
-  `GET /api/auth/mode` and shows "Sign in with your organisation"; `GET /api/auth/me` tells who is signed in.
-  Default stays `basic`.
+- **Pluggable sign-in for the web console**: `evento.server.web.auth` (`EVENTO_SERVER_WEB_AUTH`, default
+  `basic`) names the sign-in; a `ConsoleSignIn` bean of that mode adds its flow to the security chain, Basic
+  stays for machine clients, and the server refuses to start if no sign-in provides the mode. The GUI asks
+  `GET /api/auth/mode` and shows "Sign in with your organisation" for a server-side sign-in; `GET /api/auth/me`
+  tells who is signed in. Single sign-on with OpenID Connect is part of **Evento Enterprise** (commercial).
 - **Server spans for commands**: with the OpenTelemetry Java agent on the server (or an `OpenTelemetry` bean),
   each executed command gets a span `evento command <payload>` with its phase times as attributes
   (`evento.phase.lock.ms`, `.story.ms`, `.append.ms`, …), child of the caller's span; the aggregate's span is
   its child. A no-op without an agent; `evento.server.tracing.enabled=false` turns it off.
 - **Fixtures for projectors and services**: `ProjectorFixture` (`given` / `whenEvent`, `replaying()`, asserts on
   the projector's repository) and `ServiceFixture` (`when(command)`, `expectEvent` / `expectNoEvent`).
-- **Audit trail on the server.** Every console write (retry, delete or replay dead events, remove a bundle) is
-  recorded with who, what, target, remote address and its real outcome (`ADMIN_ACTION`, written when the
-  bundle's answer arrives); so are failed sign-ins (`AUTHENTICATION_FAILURE`), OIDC sign-ins and sign-outs, and
-  actions refused to a signed-in user (`AUTHORIZATION_FAILURE`). One `key=value` line per event on the
-  `evento.audit` logger, the durable record to route to a SIEM, and the latest
-  `evento.server.audit.capacity` (1000) events at `/actuator/auditevents`, ADMIN only.
-  `management.auditevents.enabled=false` turns it off.
+- **Admin action hook**: every console write (retry, delete or replay dead events, remove a bundle) runs
+  through `AdminActions`, which tells the `AdminActionListener` beans when it starts and when it ends, with
+  the real outcome (after the bundle's answer). The audit trail of **Evento Enterprise** (commercial) is
+  such a listener.
 - **A span per command and query sent**: `OpenTelemetryTracingAgent` wraps every send (from a handler or from
   the application's gateways) in a `CLIENT` span `send <Command>` / `query <Query>` that lasts until the reply,
   with the error when the reply fails; the broker's and the handler's spans are its children. New hook

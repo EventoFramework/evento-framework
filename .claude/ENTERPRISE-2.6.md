@@ -18,8 +18,15 @@ Decise dall'utente: **D9 (a)** tutto il branch esce come 2.6.0; **D8 (a)** nessu
 **D10 (b)** l'hub resta com'è (l'evoluzione possibile è annotata sotto D10). Risposte: nessun cliente
 con licenza commerciale, nessun codice di terzi, **le funzioni enterprise della GUI sotto licenza
 commerciale** (vedi L4), obiettivo di scrittura sull'event store: **pari o migliore di Axon Server**
-(vedi B1). Da decidere: D2. Pushati `evento-doc` (`docs/enterprise-2.6`) ed `evento-www`
-(`licensing/apache-client-libraries`); il branch del framework no, finché non è risolto L4.
+(vedi B1). Pushati `evento-doc` (`docs/enterprise-2.6`) ed `evento-www`
+(`licensing/apache-client-libraries`).
+
+Poi, stesso giorno: **L4 (b)** OIDC e audit spostati nel repository privato
+`EventoFramework/evento-server-enterprise` (autoconfigurazione sui punti di estensione
+`ConsoleSignIn` / `AdminActionListener` del server); la storia del branch è stata riscritta prima del
+push perché quel codice non comparisse mai nel repository pubblico (vecchia storia solo in locale,
+branch `backup/2.6-before-enterprise-split`). **D2 (a)** con la fence `aggregate_seq` (C1) e il
+benchmark contro Axon Server. La tesi non ha scadenza. Tutte le decisioni D1-D10 sono prese.
 
 ## Stato al 2026-10-16 (sessione 2)
 
@@ -142,7 +149,11 @@ XL (più mesi o non tecnico).
   - [x] La GUI resta tutta AGPL o ha una parte commerciale? Le funzioni enterprise (OIDC/SSO, audit,
         RBAC fine) sotto licenza commerciale (2026-10-19). Conseguenza: L4.
 
-### D2 Consistenza e scala — da decidere
+### D2 Consistenza e scala — decisa 2026-10-19: (a)
+
+`es-lock` resta; C1 (numero di sequenza per aggregato con vincolo unico, che valida anche il lock) si
+fa; B1 misura il tetto per cella contro Axon Server. Se il benchmark resta sotto, si apre (b). Analisi
+originale:
 
 - **Fatto chiave:** la fence `aggregate_seq` **non** permette di togliere `es-lock`. `es-lock` fa
   coincidere ordine di sequenza e ordine di commit (`EventStore.java:48-61`), la garanzia su cui i
@@ -260,7 +271,7 @@ richiede di cambiare architettura. Analisi originale:
 ### Domande aperte trasversali
 
 - [ ] Quanto fattura oggi la licenza commerciale e quale ricavo ti aspetti tra licenza, supporto e GUI?
-- [ ] La tesi ha una scadenza che deve guidare l'ordine (per esempio lo spike D2 b)?
+- [x] La tesi ha una scadenza che deve guidare l'ordine (per esempio lo spike D2 b)? No (2026-10-19).
 
 ---
 
@@ -297,10 +308,13 @@ Le dipendenze sono indicate con `←`.
 - [ ] O2 Metrica di lag dei consumer
 - [ ] B1 Benchmark del tetto di append/s per cella, pubblicato, **confrontato con Axon Server** sullo
       stesso hardware (obiettivo: pari o meglio) ← C1
-- [ ] L4 Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit sono nel codice del server,
-      cioè AGPL nel repository pubblico. Va scelto dove vivono (modulo o repository privato,
-      attivazione con chiave di licenza) prima di pushare il branch: una volta pubblicati in AGPL, quella
-      versione resta AGPL
+- [x] L4 Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit nel repository privato
+      `evento-server-enterprise` (Spring Boot autoconfigurazione, build inclusa `../evento`, boot jar
+      distribuibile). Nel server pubblico solo i punti di estensione `ConsoleSignIn` e
+      `AdminActionListener`; con `evento.server.web.auth=oidc` senza il modulo il server non parte.
+      Verificato col jar avviato su PostgreSQL. `LICENSE.txt` e `LICENSE-COMMERCIAL.txt` lo citano
+      (da far rivedere al legale con L2). **Resta**: chiave di licenza, immagine container e workflow
+      di release del modulo
 - [x] Q1 Test di autenticazione web: `WebSecurityTest` (MockMvc, Basic e OIDC), `OidcRolesTest`;
       `ConsoleApiTest`: tutti i controller della console con la catena di sicurezza vera e i servizi
       mock (ruoli per endpoint, risposte, audit). Ha trovato un 500 al posto di 400 (pagine > 1000)
@@ -326,7 +340,7 @@ Le dipendenze sono indicate con `←`.
       risposta), nuovo hook `TracingAgent.traceSend`; l'IT verifica richiesta → send → server → aggregato
       → projector
 - [ ] O3 Timer su query e service command
-- [x] S4 OIDC per la console: `evento.server.web.auth=oidc`, authorization code con PKCE gestito dal
+- [x] S4 (in Evento Enterprise dal 2026-10-19, vedi L4) OIDC per la console: `evento.server.web.auth=oidc`, authorization code con PKCE gestito dal
       server (sessione HttpOnly, CSRF da cookie, nessun token nel browser), gruppi → `WEB`/`ADMIN`
       (`OidcRoles`, claim annidati), Basic resta per i client macchina; GUI: `/api/auth/mode`, bottone
       "Sign in with your organisation". Testato con MockMvc, **non** contro un identity provider reale (D4).

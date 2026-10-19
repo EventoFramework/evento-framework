@@ -54,6 +54,12 @@ contact the copyright holder:
   Website: https://www.eventoframework.com/licensing
   Email  : gabor.galazzo@gmail.com
 
+Evento Enterprise (single sign-on and audit trail for the web console) is a
+separate, proprietary module, not part of this repository and available only
+under the commercial licence. The server's extension points it uses
+(com.evento.server.web.spi) are part of the AGPL server like everything else
+in section 2.
+
 ────────────────────────────────────────────────────────────────────────────
 Contributions
 ────────────────────────────────────────────────────────────────────────────

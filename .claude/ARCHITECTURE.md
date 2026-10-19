@@ -713,22 +713,21 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
   Bundle: `setTransportConfig(NettyTransportConfig.defaults().withSslContext(...))`, or the starter's
   `evento.bundle.tls.*`.
 
-- **Web console (2.6):** `evento.server.web.auth=basic|oidc` (`WebConfig`). `oidc`: Spring Security
-  `oauth2Login` (registration `evento.server.web.oidc.registration-id`, default `evento`), session cookie,
-  CSRF via `CookieCsrfTokenRepository` + `CsrfCookieFilter`, `/api/**` answers 401 (no redirect),
-  `OidcRoles` maps a claim path to `ROLE_WEB`/`ROLE_ADMIN`; Basic kept for machine clients.
-  `AuthController`: `GET /api/auth/mode` (public), `GET /api/auth/me`; logout `POST /api/auth/logout`.
-  Tests: `WebSecurityTest` (MockMvc, both modes), `OidcRolesTest`, `ConsoleApiTest` (every console
-  controller, real security chain, services mocked). Every write is `ROLE_ADMIN`; the GUI signs out
-  only on 401 and reports a 403 (`apiWrite`).
+- **Web console (2.6):** `evento.server.web.auth` (`WebConfig`): `basic` (default, stateless, no
+  CSRF) or the mode of a `ConsoleSignIn` bean (`com.evento.server.web.spi`), which adds its flow,
+  session and CSRF to the chain after the URL rules; Basic kept for machine clients; unknown mode →
+  startup fails. `AuthController`: `GET /api/auth/mode` (public: mode + `loginUrl`), `GET /api/auth/me`.
+  Every write is `ROLE_ADMIN` and runs through `AdminActions`, which notifies the `AdminActionListener`
+  beans (start on the request thread, end with the real outcome; a listener failing at start refuses
+  the action). The GUI signs out only on 401 and reports a 403 (`apiWrite`). Tests: `WebSecurityTest`
+  (Basic, plugged sign-in, unknown mode), `AdminActionsTest`, `ConsoleApiTest` (every console
+  controller, real security chain, services mocked).
 
-- **Audit trail (server, 2.6):** `com.evento.server.web.audit`. Spring Boot audit support with
-  `LoggingAuditEventRepository` (`key=value` line on logger `evento.audit` = the durable record, plus an
-  in-memory ring of `evento.server.audit.capacity` for `/actuator/auditevents`, ADMIN only). `AdminAudit`
-  wraps console writes (`record` / `recordAsync`, outcome on completion) → `ADMIN_ACTION`. Own listeners
-  replace Boot's: `AUTHENTICATION_FAILURE`, OIDC `AUTHENTICATION_SUCCESS` / `LOGOUT` (Basic successes
-  skipped: one per request), `AUTHORIZATION_FAILURE` for authenticated users only (needs the
-  `SpringAuthorizationEventPublisher` bean). No database table yet (needs F4).
+- **Evento Enterprise (commercial, private repository `evento-server-enterprise`):** OIDC sign-in
+  (`OidcSignIn`, `OidcRoles`) and the audit trail (`LoggingAuditEventRepository`, `AuditedAdminActions`,
+  authentication/authorization listeners) as a Spring Boot auto-configuration on those two extension
+  points. Its build includes this repository (`includeBuild('../evento')`) and produces the
+  distributable boot jar. Nothing here refers to it: keep the SPI stable and backward compatible.
 
 - **Payload deserialization:** `PayloadTypeAllowlist` builds a *live* validator for the polymorphic
   payload mappers: open (any `Serializable`, warned once) until restricted by
