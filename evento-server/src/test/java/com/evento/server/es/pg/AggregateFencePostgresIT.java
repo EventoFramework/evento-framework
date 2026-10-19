@@ -119,6 +119,22 @@ class AggregateFencePostgresIT {
 
     @ParameterizedTest
     @EnumSource(EventStoreMode.class)
+    void versionsKeepCountingPastNineAndOneHundred(EventStoreMode mode) throws Exception {
+        // The newest version must be found as a number: as text, "9" sorts after "10" and every
+        // append from version 10 on was refused (found by the Axon comparison benchmark).
+        var a = store(serverA, mode, 1);
+        var order = newAggregate();
+        a.appendAggregateEvent(event("created"), order, null, COMMAND, 0L);
+        for (long version = 1; version < 120; version++) {
+            var story = story(a, order);
+            assertThat(story.aggregateVersion()).isEqualTo(version);
+            a.appendAggregateEvent(event("item " + version), order, null, COMMAND, story.aggregateVersion());
+        }
+        assertThat(story(store(serverB, mode, 2), order).aggregateVersion()).isEqualTo(120);
+    }
+
+    @ParameterizedTest
+    @EnumSource(EventStoreMode.class)
     void aSecondAppendFromTheSameStoryIsRefusedAndStoresNothing(EventStoreMode mode) throws Exception {
         // Two servers decided from the same story (a lost lock, or no lock at all).
         var a = store(serverA, mode, 1);

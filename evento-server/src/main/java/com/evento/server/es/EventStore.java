@@ -151,9 +151,12 @@ public class EventStore implements BrokerEventStore {
      * the same snapshot as the events and costs no round trip: the aggregate's newest fenced
      * event, its sequence number (column 2) and version (column 3, as text to fit the union).
      * One backward step of {@link #AGGREGATE_SEQ_INDEX}. One more parameter: the aggregate id.
+     * The text column is aliased: unaliased it is still named {@code aggregate_seq}, and
+     * {@code ORDER BY} prefers an output column to an input one, so the newest version was picked
+     * as text ("9" after "10") and every append past version 10 was refused.
      */
     private static final String STORY_VERSION_ROW =
-            " UNION ALL (SELECT 2, event_sequence_number, aggregate_seq::text%s FROM es__events " +
+            " UNION ALL (SELECT 2, event_sequence_number, aggregate_seq::text AS version_text%s FROM es__events " +
                     "WHERE aggregate_id = ? AND aggregate_seq IS NOT NULL ORDER BY aggregate_seq DESC LIMIT 1)";
 
     /** Claims table of in-flight (and event-less completed) keyed service commands. */
