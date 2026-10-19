@@ -101,7 +101,7 @@ See [Parallel Consumers](https://docs.eventoframework.com/evento-framework/event
 
 ## Throughput and Capacity (2.4.0)
 
-A server absorbs concurrent requests up to `evento.server.bus.business-executor-max-size` (default `cores × 8`); past that they queue, and past the queue they run on the calling event loop so pressure reaches the client over TCP.
+A server absorbs concurrent requests up to `evento.server.bus.business-executor-max-size` (default `cores × 32`); past that they queue, and past the queue they run on the calling event loop so pressure reaches the client over TCP.
 
 What makes exceeding capacity worse than merely slow is that every request carries a client deadline and **nothing cancels the work when it expires**. Beyond the limit the server keeps producing responses for callers that have already given up, so throughput collapses rather than degrading — CPU and databases look idle throughout, and client retries hold it there. Reducing *client* concurrency is what recovers it, and fewer concurrent clients often complete strictly more work.
 
