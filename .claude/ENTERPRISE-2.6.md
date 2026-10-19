@@ -291,7 +291,13 @@ Le dipendenze sono indicate con `←`.
 - [x] L2 `CLA.md` (bozza su modello ICLA Apache + diritto di rilicenziare), richiesto da CONTRIBUTING (D1).
       **Resta**: revisione di un legale prima del primo contributo esterno
 - [ ] F4 Flyway sull'event store, con baseline dei database esistenti
-- [ ] C1 Fence `aggregate_seq`, obbligatoria anche senza lock ← F4 (D2)
+- [x] C1 Fence `aggregate_seq`, obbligatoria anche senza lock (2026-10-19). Colonna nullable e
+      indice unico parziale `(aggregate_id, aggregate_seq)` online come G5 (F4 non serviva), script
+      `db/upgrade/es-events-aggregate-seq.sql`; versione letta nella stessa query della storia,
+      append alla versione successiva, il chiamante perdente riceve `AggregateConflictException` (nessun retry
+      automatico). Test: `AggregateFencePostgresIT` (12, CPES e APES) e il caso senza lock su due
+      server (8 comandi: prima 8 eventi salvati, ora 1). Resta: un retry automatico lato server, che
+      permetterebbe di togliere il lock per aggregato (round trip WAN), da valutare con B1
 - [x] S1 + S2 `evento.server.security.profile=dev|prod` (`SecurityProfileGuard`, 6 controlli, in `prod` il
       server non parte); TLS/mTLS del bus da properties (`evento.server.bus.tls.*`, `BusTlsProperties`);
       `EventoBundle.Builder.setAuthToken`. Test: `SecurityProfileGuardTest`, `BusTlsPropertiesIT` (mTLS su TCP) (D4)

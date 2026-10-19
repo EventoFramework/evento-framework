@@ -1,6 +1,6 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-19.
 
 ## Enterprise readiness vs Axon 5 (branch `enterprise/2.6-readiness`, 2026-10-16)
 
@@ -59,6 +59,19 @@ commercial licence, so OIDC and the audit trail moved to the private repo `Event
 appears in the public repo (old history: local branch `backup/2.6-before-enterprise-split`, never push it).
 Session-3/4 notes above describe classes that now live in the enterprise repo. Next: C1 (aggregate_seq fence,
 also validating the lock), then B1 against Axon Server.
+
+**Session 6 (2026-10-19): C1, the aggregate fence (closes G6).** `es__events.aggregate_seq` + partial unique
+index `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq)`, added online by
+`AdvisoryLockedSchemaInitializer.applyAggregateFence` (script `db/upgrade/es-events-aggregate-seq.sql`). The
+story query reads the version in the same round trip (`KeyedAggregateStory.aggregateVersion`); the broker
+appends with `BrokerEventStore.appendAggregateEvent(..., version)`; a taken version →
+`AggregateFenceException`, answered to the caller as `AggregateConflictException` (evento-common; no automatic retry; keyed losers replay). Stale cached story (APES) → refetch.
+Tests: `AggregateFencePostgresIT` (12), new case in `IdempotentCommandPostgresIT` (runs on CPES and APES;
+fails with 8 stored events when the fence is disabled). Docker Desktop is available on the dev host now, so
+the JDBC ITs run locally (`EVENTO_RUN_JDBC_IT=true`). Docs: CHANGELOG (upgrade note: schema change; lockless
+concurrent commands now fail instead of forking), ARCHITECTURE §4.6, CLUSTER-READINESS G6, evento-doc
+"Upgrading to 2.6". Next: B1 (benchmark against Axon Server); a server-side retry on fence conflict would let
+the per-aggregate lock go (WAN round trips), to weigh with B1.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
