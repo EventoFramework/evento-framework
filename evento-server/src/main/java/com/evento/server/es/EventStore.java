@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-public class EventStore implements BrokerEventStore {
+public class EventStore implements BrokerEventStore, AutoCloseable {
 
     private static final Logger logger = LoggerFactory.getLogger(EventStore.class);
 
@@ -294,6 +294,11 @@ public class EventStore implements BrokerEventStore {
     /** Cached lists are never mutated after being cached: readers copy before appending. */
     private final ExpiringLruCache<String, List<EventStoreEntry>> eventsCache;
 
+    /** Group commit of aggregate appends ({@link AppendBatcher}); 0 writers turns it off. */
+    private volatile int appendWriters = -1;
+    private volatile int appendMaxBatch = 256;
+    private volatile AppendBatcher appendBatcher;
+
 
     public EventStore(EventStoreRepository repository,
                       SnapshotRepository snapshotRepository,
@@ -330,6 +335,55 @@ public class EventStore implements BrokerEventStore {
 
     }
 
+
+    /**
+     * Group commit of aggregate appends ({@link AppendBatcher}).
+     *
+     * @param writers  batches written at once; 0 turns group commit off (one statement and one
+     *                 commit per append, as before), a negative value picks the mode's default
+     *                 (CPES 2: one commits while the next waits for {@code es-lock}; APES 4)
+     * @param maxBatch the most appends in one batch
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void configureAppendBatching(@Value("${evento.es.append.batch.writers:-1}") int writers,
+                                        @Value("${evento.es.append.batch.max-size:256}") int maxBatch) {
+        this.appendWriters = writers;
+        this.appendMaxBatch = maxBatch;
+    }
+
+    /** The running batcher, started on the first append; {@code null} when group commit is off. */
+    private AppendBatcher appendBatcher() {
+        var batcher = appendBatcher;
+        if (batcher != null) return batcher;
+        int writers = appendWriters < 0 ? (MODE == EventStoreMode.CPES ? 2 : 4) : appendWriters;
+        if (writers == 0) return null;
+        synchronized (this) {
+            if (appendBatcher == null) {
+                appendBatcher = new AppendBatcher(jdbcTemplate, MODE == EventStoreMode.CPES, snowflake::nextId,
+                        writers, appendMaxBatch);
+                logger.info("event=append_batching_started mode={} writers={} maxBatch={}", MODE, writers, appendMaxBatch);
+            }
+            return appendBatcher;
+        }
+    }
+
+    /** Batches written by group commit (each one commit), for metrics and tests. */
+    public long appendBatchCount() {
+        var batcher = appendBatcher;
+        return batcher == null ? 0 : batcher.batchCount();
+    }
+
+    /** Aggregate appends written by group commit. */
+    public long batchedAppendCount() {
+        var batcher = appendBatcher;
+        return batcher == null ? 0 : batcher.appendCount();
+    }
+
+    @Override
+    public void close() {
+        var batcher = appendBatcher;
+        if (batcher != null) batcher.close();
+    }
 
     public Page<EventStoreEntry> searchEvents(String aggregateIdentifier,
                                               String eventName, String context,
@@ -597,6 +651,26 @@ public class EventStore implements BrokerEventStore {
         }
         String name = eventMessage.getEventName();
         String context = eventMessage.getContext();
+        // Group commit needs the key columns (on every schema that has the fence, unless an
+        // externally managed one dropped them): without them, one statement per append.
+        var batcher = idempotencySupported() ? appendBatcher() : null;
+        if (batcher != null) {
+            try {
+                long seq = batcher.append(aggregateId, json, name, context, version,
+                        keyed ? idempotencyKey : null, keyed ? commandType : null);
+                if (seq >= 0) return seq;
+                // Kept out by a conflicting row: its key, or else its version (the fence). A new
+                // statement sees the row that won, committed (the batch waited for it).
+                if (keyed && Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                        "SELECT EXISTS (SELECT 1 FROM es__events WHERE idempotency_key = ?)", Boolean.class,
+                        idempotencyKey))) {
+                    throw new IdempotencyKeyConflictException(idempotencyKey);
+                }
+                throw fenceConflict(aggregateId, expectedVersion, commandType);
+            } catch (AppendBatcher.BatchFailedException failed) {
+                // Not a conflict: append alone, where every schema fallback below applies.
+            }
+        }
         try {
             if (MODE == EventStoreMode.APES) {
                 long id = snowflake.nextId();
@@ -617,19 +691,28 @@ public class EventStore implements BrokerEventStore {
         } catch (DataAccessException e) {
             if (UNIQUE_VIOLATION.equals(sqlState(e)) && String.valueOf(e.getMostSpecificCause().getMessage())
                     .contains(AGGREGATE_SEQ_INDEX)) {
-                // The story this event was computed from is stale: drop what this server cached.
-                snapshotCache.remove(aggregateId);
-                eventsCache.remove(aggregateId);
-                logger.warn("event=aggregate_fence_conflict aggregateId={} expectedVersion={} commandType={} "
-                        + "reason=\"another append from the same version committed first; nothing stored\"",
-                        aggregateId, expectedVersion, commandType);
-                throw new AggregateFenceException(aggregateId, expectedVersion);
+                throw fenceConflict(aggregateId, expectedVersion, commandType);
             }
             if (fenceLost(e) || (keyed && schemaLost(e, "fenced_append"))) {
                 return appendAggregateEvent(eventMessage, aggregateId, idempotencyKey, commandType, expectedVersion);
             }
             throw e;
         }
+    }
+
+    /** The story this event was computed from is stale: drop what this server cached. */
+    private AggregateFenceException fenceConflict(String aggregateId, long expectedVersion, String commandType) {
+        snapshotCache.remove(aggregateId);
+        eventsCache.remove(aggregateId);
+        logger.debug("event=aggregate_fence_conflict aggregateId={} expectedVersion={} commandType={} "
+                        + "reason=\"another append from the same version committed first; nothing stored\"",
+                aggregateId, expectedVersion, commandType);
+        return new AggregateFenceException(aggregateId, expectedVersion);
+    }
+
+    @Override
+    public boolean fencesAggregates() {
+        return fenceSupported();
     }
 
     /**

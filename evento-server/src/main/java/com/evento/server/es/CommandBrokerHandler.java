@@ -143,6 +143,13 @@ public class CommandBrokerHandler implements MeterBinder {
     private final AtomicLong idempotencyMismatches = new AtomicLong();
     private final AtomicLong idempotencyInProgress = new AtomicLong();
     private final AtomicLong fenceConflicts = new AtomicLong();
+    private final AtomicLong fenceRetries = new AtomicLong();
+    private final AtomicLong optimisticCommands = new AtomicLong();
+    /** Aggregate commands run without their lock when the store fences them (see {@link #executeAggregateCommand}). */
+    private volatile boolean optimisticConcurrency = true;
+    /** The most runs of one aggregate command that loses the fence (the first included). */
+    private static final int MAX_AGGREGATE_ATTEMPTS = 5;
+    private final AggregateContention contention = new AggregateContention(2_000);
     private final AtomicLong idempotencyUnsupportedWarned = new AtomicLong();
     /** Prefix of every claim owner of this broker instance: one id per process, then a counter. */
     private final String claimOwnerPrefix = java.util.UUID.randomUUID() + ":";
@@ -198,6 +205,21 @@ public class CommandBrokerHandler implements MeterBinder {
                           org.springframework.beans.factory.ObjectProvider<io.opentelemetry.api.OpenTelemetry> openTelemetry) {
         tracing = enabled ? CommandTracing.of(openTelemetry.getIfAvailable(io.opentelemetry.api.GlobalOpenTelemetry::get))
                 : CommandTracing.OFF;
+    }
+
+    /**
+     * {@code evento.server.commands.optimistic} (default {@code true}): aggregate commands run
+     * without the aggregate lock when the event store fences their appends; {@code false} takes
+     * the lock for every one, as before 2.6.
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureConcurrency(@org.springframework.beans.factory.annotation.Value("${evento.server.commands.optimistic:true}") boolean optimistic) {
+        this.optimisticConcurrency = optimistic;
+    }
+
+    /** See {@code evento.server.commands.optimistic}. For servers built without Spring and for tests. */
+    public void setOptimisticConcurrency(boolean optimistic) {
+        this.optimisticConcurrency = optimistic;
     }
 
     /** Trace executed commands with {@code openTelemetry}; null turns the spans off. For servers built without Spring. */
@@ -356,6 +378,16 @@ public class CommandBrokerHandler implements MeterBinder {
         return fenceConflicts.get();
     }
 
+    /** Runs of aggregate commands that lost the fence and were run again on the new story. */
+    public long fenceRetryCount() {
+        return fenceRetries.get();
+    }
+
+    /** Aggregate commands that started without the aggregate lock. */
+    public long optimisticCommandCount() {
+        return optimisticCommands.get();
+    }
+
     @Override
     public void bindTo(MeterRegistry registry) {
         FunctionCounter.builder("evento.server.commands.idempotent.replayed", this,
@@ -373,7 +405,15 @@ public class CommandBrokerHandler implements MeterBinder {
         FunctionCounter.builder("evento.server.commands.fence.conflicts", this,
                         CommandBrokerHandler::fenceConflictCount)
                 .description("Aggregate commands refused because another append from the same aggregate version "
-                        + "committed first (lost or missing aggregate lock); nothing was stored")
+                        + "committed first and running them again did not succeed; nothing was stored")
+                .register(registry);
+        FunctionCounter.builder("evento.server.commands.fence.retries", this,
+                        CommandBrokerHandler::fenceRetryCount)
+                .description("Aggregate command runs that lost the aggregate fence and were run again on the new story")
+                .register(registry);
+        FunctionCounter.builder("evento.server.commands.optimistic", this,
+                        CommandBrokerHandler::optimisticCommandCount)
+                .description("Aggregate commands started without the aggregate lock (optimistic concurrency)")
                 .register(registry);
         phaseMetrics.bindTo(registry);
     }
@@ -438,12 +478,85 @@ public class CommandBrokerHandler implements MeterBinder {
      * <p>A keyed command whose deadline passes while it waits for the aggregate lock may be
      * waiting behind an execution of its own key, which can still commit: it is answered
      * {@code IdempotencyKeyInProgressException} (indeterminate), not the determinate "expired".
+     *
+     * <p><b>Optimistic concurrency (2.6).</b> When the store fences appends, a command that locks
+     * its own aggregate (the default {@code getLockId()}) runs without the lock: story, handler,
+     * fenced append. The lock cost three round trips to the event-store primary per command
+     * (acquire, verify, release) and a lock-pool connection for the whole run, which capped one
+     * server at lock pool / run time (10 / 7.5 ms, about 1300 commands a second in B1) and cost
+     * three WAN round trips per command in a remote cell. Correctness does not depend on the lock:
+     * the fence is in the database, so it holds across servers, cells and failovers, and nothing
+     * here needs servers to coordinate. A run that loses the fence changed nothing (aggregate
+     * handlers are pure) and is run again on the new story, now under the lock, up to
+     * {@value #MAX_AGGREGATE_ATTEMPTS} runs within the deadline: the caller sees
+     * {@code AggregateConflictException} only when that does not succeed. A command whose
+     * aggregate is contended ({@link AggregateContention}: another command for it running on this
+     * server, or a conflict on it in the last 2 s, which also catches other servers) takes the
+     * lock from the start, so a hot aggregate queues on the lock as before instead of losing
+     * races. A command naming another lock keeps it: that lock may guard more than the aggregate.
+     * A command with no lock at all ({@code getLockId()} null) is retried under its aggregate lock.
      */
     private byte[] executeAggregateCommand(String commandPayloadType, EventoRequest eventoRequest,
                                            DomainCommandMessage cmd, String key,
                                            NodeAddress originator, long deadlineMs,
                                            CommandPhaseMetrics.Clock clock) throws Exception {
-        String lockKey = cmd.getLockId() != null ? RESOURCE_LOCK_PREFIX + cmd.getLockId() : null;
+        String aggregateId = cmd.getAggregateId();
+        if (aggregateId == null) {
+            return attemptAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs, clock,
+                    cmd.getLockId(), false, false);
+        }
+        boolean busy = contention.enter(aggregateId);
+        try {
+            boolean ownLock = cmd.getLockId() == null || cmd.getLockId().equals(aggregateId);
+            boolean optimistic = optimisticConcurrency && ownLock && !busy
+                    && !contention.recentlyConflicted(aggregateId) && eventStore.fencesAggregates();
+            if (optimistic) optimisticCommands.incrementAndGet();
+            for (int attempt = 1; ; attempt++) {
+                String lockId = optimistic ? null
+                        : cmd.getLockId() != null ? cmd.getLockId() : attempt > 1 ? aggregateId : null;
+                try {
+                    return attemptAggregateCommand(commandPayloadType, eventoRequest, cmd, key, originator, deadlineMs,
+                            clock, lockId, optimistic, attempt < MAX_AGGREGATE_ATTEMPTS);
+                } catch (RequestExpiredException expired) {
+                    // Without the lock, a duplicate of a keyed command may be running elsewhere
+                    // and still commit: "expired, not executed" would be determinate when it is
+                    // not (what the lock wait used to answer: in progress).
+                    if (key == null || !optimistic) throw expired;
+                    var late = answerRecorded(key, commandPayloadType, aggregateId, eventoRequest, REPLAY_AFTER_EXPIRY);
+                    if (late != null) return late;
+                    return inProgress(key, commandPayloadType, eventoRequest,
+                            "the deadline passed while another execution of the same key may be in flight");
+                } catch (RunAgain again) {
+                    if (again.conflict) {
+                        contention.conflicted(aggregateId);
+                        fenceRetries.incrementAndGet();
+                    }
+                    optimistic = false;
+                }
+            }
+        } finally {
+            contention.exit(aggregateId);
+        }
+    }
+
+    /** The run lost the fence (or found no fence to run optimistically with): run it again, under the lock. */
+    private static final class RunAgain extends RuntimeException {
+        static final RunAgain CONFLICT = new RunAgain(true);
+        static final RunAgain UNFENCED = new RunAgain(false);
+        final boolean conflict;
+
+        private RunAgain(boolean conflict) {
+            super(null, null, false, false);
+            this.conflict = conflict;
+        }
+    }
+
+    private byte[] attemptAggregateCommand(String commandPayloadType, EventoRequest eventoRequest,
+                                           DomainCommandMessage cmd, String key,
+                                           NodeAddress originator, long deadlineMs,
+                                           CommandPhaseMetrics.Clock clock, String lockId, boolean optimistic,
+                                           boolean mayRunAgain) throws Exception {
+        String lockKey = lockId != null ? RESOURCE_LOCK_PREFIX + lockId : null;
         boolean lockAcquired = false;
         try {
             if (lockKey != null) {
@@ -474,6 +587,8 @@ public class CommandBrokerHandler implements MeterBinder {
                         eventoRequest, REPLAY_WITH_STORY);
                 if (recorded != null) return recorded;
             }
+            // No version, no fence (the schema lost it since it was probed): not without the lock.
+            if (optimistic && keyed.aggregateVersion() == null) throw RunAgain.UNFENCED;
             var story = keyed.story();
 
             var decorated = new DecoratedDomainCommandMessage();
@@ -529,7 +644,10 @@ public class CommandBrokerHandler implements MeterBinder {
             // may already be appending from the same story. The fence (C1) refuses that append
             // in the database whatever the timing; this check only spares the round trip of an
             // append that would lose, and keeps the guard for a store without the fence.
-            if (lockAcquired) {
+            // A fenced append on the aggregate's own lock needs no check: a lost lock only means
+            // that the fence decides, which it does anyway.
+            if (lockAcquired && !(keyed.aggregateVersion() != null
+                    && lockKey.equals(RESOURCE_LOCK_PREFIX + cmd.getAggregateId()))) {
                 distributedLock.verifyHeld(lockKey);
                 clock.lap(CommandPhaseMetrics.Phase.VERIFY);
             }
@@ -552,7 +670,11 @@ public class CommandBrokerHandler implements MeterBinder {
                         : answerRecorded(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
                         REPLAY_APPEND_CONFLICT);
                 if (recorded != null) return recorded;
+                if (mayRunAgain && BusLifecycle.monotonicMillis() < deadlineMs) throw RunAgain.CONFLICT;
                 fenceConflicts.incrementAndGet();
+                log.warn("event=aggregate_fence_conflict payloadType={} aggregateId={} correlationId={} "
+                                + "reason=\"the aggregate kept moving while the command ran; nothing stored\"",
+                        commandPayloadType, cmd.getAggregateId(), eventoRequest.getCorrelationId());
                 return exceptionResponse(eventoRequest.getCorrelationId(),
                         new com.evento.common.modeling.exceptions.AggregateConflictException(fenced.getMessage()));
             } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {

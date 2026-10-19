@@ -203,6 +203,16 @@ public interface BrokerEventStore {
     }
 
     /**
+     * Whether aggregate appends are fenced now, so that an aggregate command may run without its
+     * lock (optimistic concurrency): two commands from one story cannot both append, the loser
+     * is told so ({@link AggregateFenceException}) and the broker runs it again on the new story.
+     * A store that cannot fence answers {@code false}, and every aggregate command takes its lock.
+     */
+    default boolean fencesAggregates() {
+        return false;
+    }
+
+    /**
      * A story with the record of the command's key, read together.
      *
      * @param aggregateVersion the aggregate's version the story ends at (0 for an aggregate with
