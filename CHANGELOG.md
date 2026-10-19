@@ -225,6 +225,12 @@ a revised payload needs a 2.6 broker.
 
 ### Fixed
 
+- **The server stopped answering under load.** Responses from bundles ran on the bounded bus business executor
+  (8 threads per CPU), behind the requests waiting for them: with as many commands in flight as threads, all of
+  them holding a thread while waiting for the aggregate lock or for the handler bundle, no response was ever
+  processed and every command expired after 30 s (a 4-CPU server stopped at 128 commands in flight, or 32 on one
+  aggregate). Responses now run on virtual threads of their own (`evento-transport-netty`), in servers and
+  bundles alike. Found by the Axon comparison benchmark (`benchmarks/axon-comparison`).
 - The web console logged the user out on any 403: a user without `ADMIN` (normal with OIDC groups) who tried a
   dead-event action was sent back to the login page. Only 401 signs out now; a refused action shows "This
   action needs the ADMIN role.", and the retry toggle flips back.

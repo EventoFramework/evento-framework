@@ -19,6 +19,15 @@ import java.util.function.Consumer;
  * + raw bytes) to the application listener on a business {@link Executor}
  * (virtual threads by default) so the event loop is never blocked by user logic.
  *
+ * <p>{@link Response}s do not go to the business executor: each runs on a virtual thread of its
+ * own ({@link #RESPONSES}). A request handler that waits for the response to a request of its
+ * own (the broker forwarding a command; a bundle handler sending a nested command) holds a
+ * business thread while it waits. With a bounded business executor (the server's: 8 threads per
+ * CPU) and as many such handlers in flight as threads, the responses that would release them
+ * were queued behind them and never ran: every command waited until it expired. Responses need
+ * no bound of their own: each answers a request this side sent, so there are never more than
+ * the requests in flight.
+ *
  * <p>Also tracks the last-inbound timestamp for failure detection at the
  * application layer, and holds the disconnect transition until the responses already
  * read have reached the listener ({@link InboundDeliveries}).
@@ -26,6 +35,10 @@ import java.util.function.Consumer;
 final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
 
     private static final Logger log = LoggerFactory.getLogger(MessageInboundHandler.class);
+
+    /** Where responses run: never behind the requests that wait for them. */
+    private static final Executor RESPONSES = java.util.concurrent.Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("evento-response-", 0).factory());
 
     private final Consumer<Frame> listener;
     private final Executor businessExecutor;
@@ -51,8 +64,9 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
         var deliveries = frame.message() instanceof Response ? InboundDeliveries.of(ctx.channel()) : null;
         if (deliveries != null) deliveries.begin();
         // A stream's frames must keep their order: one lane per channel. Everything else
-        // runs concurrently, each frame on its own thread.
-        Executor executor = frame.message() instanceof StreamData ? streamLane : businessExecutor;
+        // runs concurrently, each frame on its own thread; responses off the business executor.
+        Executor executor = frame.message() instanceof StreamData ? streamLane
+                : deliveries != null ? RESPONSES : businessExecutor;
         try {
             executor.execute(() -> {
                 try {
