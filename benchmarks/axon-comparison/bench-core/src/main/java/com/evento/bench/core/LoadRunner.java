@@ -103,7 +103,13 @@ public final class LoadRunner {
                         ok.increment();
                         recorder.recordValue(Math.max(1, (answered - sent) / 1_000));
                     } else {
-                        errors.computeIfAbsent(name(failure), k -> new LongAdder()).increment();
+                        Throwable seen = failure;
+                        errors.computeIfAbsent(name(failure), k -> {
+                            // The first of each kind, so a refusal can be told from a bug.
+                            System.err.println("first " + k + ": " + seen);
+                            seen.printStackTrace();
+                            return new LongAdder();
+                        }).increment();
                     }
                 }
             }));

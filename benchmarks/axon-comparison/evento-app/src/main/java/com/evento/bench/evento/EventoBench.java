@@ -51,8 +51,14 @@ public final class EventoBench {
                 return gateway.send(new AddItem(orderId, sku, quantity));
             }
         };
-        awaitHandler(commands);
-        new LoadRunner(BenchConfig.fromEnvironment(), commands).runAll();
+        try {
+            awaitHandler(commands);
+            new LoadRunner(BenchConfig.fromEnvironment(), commands).runAll();
+        } catch (Throwable e) {
+            // The bundle's threads would keep the JVM, and the run, alive.
+            e.printStackTrace();
+            System.exit(1);
+        }
         System.exit(0);
     }
 
