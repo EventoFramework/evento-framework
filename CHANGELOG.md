@@ -49,6 +49,16 @@ a revised payload needs a 2.6 broker.
   beans with it declares the dependency itself.
 - **Removing a bundle from the catalog (`DELETE /api/bundle/{id}`) needs the `ADMIN` role**, like the other
   console writes; it needed only `WEB`. A script calling it with a WEB-only user gets 403.
+- **Schema change: `es__events.aggregate_seq`** (nullable `bigint`) and the partial unique index
+  `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq)`. With `spring.sql.init.mode=always` the first 2.6
+  server adds them online at boot (catalog-only column, index built `CONCURRENTLY`); a schema managed outside the
+  server applies `classpath:db/upgrade/es-events-aggregate-seq.sql`, and until then aggregate events are appended
+  unfenced, as in 2.5 (`event=aggregate_fence_unsupported`). Existing events keep a null version. The fence holds
+  once every server runs 2.6: a 2.5 server appends without a version.
+- **Concurrent commands on one aggregate without a lock now fail instead of forking it.** A `DomainCommand` whose
+  `getLockId()` returns `null` used to let two commands decide from the same story and both store their event;
+  now the second one fails with `AggregateConflictException` (new, `evento-common`: "aggregate ... changed while
+  the command ran", nothing stored) and can be sent again. Commands that keep the default lock are not affected.
 
 ### Added
 
@@ -87,6 +97,13 @@ a revised payload needs a 2.6 broker.
   requires. Before, a bundle built with `EventoBundle.Builder` could not present one.
 - `EventoBundle.stop(Duration)`: leave the server's routing, stop the consumer engines, close the connection.
 - `EventoBundle.Builder.setBasePackageName(String)`, for when no `Package` object is at hand.
+- **Aggregate fence.** Every event of an aggregate command carries the aggregate's version
+  (`es__events.aggregate_seq`: 1, 2, 3...) under a unique index. The story is read together with the version it
+  ends at (one more branch of the same query, no extra round trip) and the event is appended as the next version,
+  so a second append from the same story is refused by the database: a server that lost the aggregate lock (a
+  dead lock session, a failover) or a command without a lock can no longer fork an aggregate. Closes G6. Refusals
+  log `event=aggregate_fence_conflict` and count in `evento.server.commands.fence.conflicts`; a keyed command that
+  loses this way is answered with the stored event, as before.
 - **Pluggable sign-in for the web console**: `evento.server.web.auth` (`EVENTO_SERVER_WEB_AUTH`, default
   `basic`) names the sign-in; a `ConsoleSignIn` bean of that mode adds its flow to the security chain, Basic
   stays for machine clients, and the server refuses to start if no sign-in provides the mode. The GUI asks

@@ -10,6 +10,7 @@ import com.evento.common.messaging.gateway.CommandGatewayImpl;
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.modeling.bundle.types.PayloadType;
+import com.evento.common.modeling.exceptions.AggregateConflictException;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.exceptions.IdempotencyKeyInProgressException;
 import com.evento.common.modeling.exceptions.IdempotencyKeyMismatchException;
@@ -307,6 +308,53 @@ class IdempotentCommandPostgresIT {
         assertThat(eventsOf(orderId)).isEqualTo(1);
         assertThat(replayed(CommandBrokerHandler.REPLAY_APPEND_CONFLICT) - conflictsBefore)
                 .as("the 7 losing appends conflicted and replayed").isEqualTo(7);
+    }
+
+    @Test
+    void withoutAnAggregateLockOrAKeyTheFenceStoresOneEventAndRefusesTheRest() throws Exception {
+        // C1: a command whose getLockId() is null, sent 8 times with no key. Every handler runs
+        // from the empty story (they wait for each other) and creates the order. Before the fence
+        // all 8 events were stored: 8 creations of one order, a forked aggregate without any
+        // fault. Now the first append takes version 1 and the database refuses the other 7.
+        var orderId = "order-unfenced-" + UUID.randomUUID();
+        barriers.put(orderId, new CountDownLatch(8));
+        long conflictsBefore = fenceConflicts();
+        var go = new CountDownLatch(1);
+        var futures = new ArrayList<CompletableFuture<?>>();
+        for (int i = 0; i < 8; i++) {
+            var server = i % 2 == 0 ? serverA : serverB;
+            futures.add(CompletableFuture.supplyAsync(() -> {
+                try {
+                    go.await();
+                    var cmd = new IdemCmd(orderId);
+                    cmd.lockless = true;
+                    return gateway(server).send(cmd).get(30, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }, clientExecutor));
+        }
+        go.countDown();
+        var outcomes = futures.stream().map(f -> {
+            try {
+                f.get(40, TimeUnit.SECONDS);
+                return "ok";
+            } catch (ExecutionException e) {
+                // supplyAsync wraps the gateway's ExecutionException in an IllegalStateException.
+                var cause = e.getCause().getCause() instanceof ExecutionException sent ? sent.getCause() : e.getCause();
+                return cause.getClass().getSimpleName();
+            } catch (Exception e) {
+                return e.getClass().getSimpleName();
+            }
+        }).toList();
+        assertThat(aggregateCalls).as("every command ran the pure handler").hasValue(8);
+        assertThat(outcomes).filteredOn("ok"::equals).hasSize(1);
+        assertThat(outcomes).filteredOn(o -> !o.equals("ok")).hasSize(7)
+                .allMatch(AggregateConflictException.class.getSimpleName()::equals);
+        assertThat(eventsOf(orderId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select aggregate_seq from es__events where aggregate_id = ?", Long.class,
+                orderId)).isEqualTo(1);
+        assertThat(fenceConflicts() - conflictsBefore).as("the 7 losing appends hit the fence").isEqualTo(7);
     }
 
     @Test
@@ -731,6 +779,10 @@ class IdempotentCommandPostgresIT {
         return serverA.broker().idempotentReplayedCount(stage) + serverB.broker().idempotentReplayedCount(stage);
     }
 
+    private long fenceConflicts() {
+        return serverA.broker().fenceConflictCount() + serverB.broker().fenceConflictCount();
+    }
+
     private long mismatches() {
         return serverA.broker().idempotencyMismatchCount() + serverB.broker().idempotencyMismatchCount();
     }
@@ -984,6 +1036,13 @@ class IdempotentCommandPostgresIT {
                                                       String owner, long leaseMs) {
             claims.incrementAndGet();
             return delegate.claimOrFindIdempotencyKey(idempotencyKey, commandType, aggregateId, owner, leaseMs);
+        }
+
+        @Override
+        public long appendAggregateEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                                         String commandType, Long expectedVersion) {
+            return delegate.appendAggregateEvent(eventMessage, aggregateId, supported ? idempotencyKey : null,
+                    commandType, expectedVersion);
         }
 
         @Override

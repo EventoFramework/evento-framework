@@ -107,6 +107,55 @@ public class EventStore implements BrokerEventStore {
                     "idempotency_command) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?)" + IDEMPOTENCY_CONFLICT;
 
+    /** Name of the partial unique index on {@code es__events (aggregate_id, aggregate_seq)} (C1). */
+    public static final String AGGREGATE_SEQ_INDEX =
+            com.evento.server.config.AdvisoryLockedSchemaInitializer.ES_EVENTS_AGGREGATE_SEQ_INDEX;
+
+    /**
+     * The fenced appends of aggregate events (C1): the statements above with one more column,
+     * {@code aggregate_seq}, the aggregate's version after this event. A version already taken
+     * violates {@link #AGGREGATE_SEQ_INDEX}, which is not an {@code ON CONFLICT} arbiter: the
+     * statement fails (23505) and nothing is stored. Under CPES the writer that took the version
+     * committed before this one got {@code es-lock}, so the check never waits; under APES it waits
+     * for a writer still in flight and then fails if that one committed.
+     */
+    static final String CPES_FENCED_APPEND_SQL =
+            "WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) " +
+                    "INSERT INTO es__events " +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, aggregate_seq) " +
+                    "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ?, ? FROM es_lock " +
+                    "RETURNING event_sequence_number";
+
+    static final String CPES_FENCED_KEYED_APPEND_SQL =
+            "WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) " +
+                    "INSERT INTO es__events " +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, aggregate_seq, " +
+                    "idempotency_key, idempotency_command) " +
+                    "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ?, ?, ?, ? FROM es_lock" +
+                    IDEMPOTENCY_CONFLICT +
+                    " RETURNING event_sequence_number";
+
+    static final String APES_FENCED_APPEND_SQL =
+            "INSERT INTO es__events " +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, aggregate_seq) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)";
+
+    static final String APES_FENCED_KEYED_APPEND_SQL =
+            "INSERT INTO es__events " +
+                    "(event_sequence_number, aggregate_id, event_message, event_name, context, aggregate_seq, " +
+                    "idempotency_key, idempotency_command) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)" + IDEMPOTENCY_CONFLICT;
+
+    /**
+     * The story's version row (kind 2), a branch of the story query, so the version is read in
+     * the same snapshot as the events and costs no round trip: the aggregate's newest fenced
+     * event, its sequence number (column 2) and version (column 3, as text to fit the union).
+     * One backward step of {@link #AGGREGATE_SEQ_INDEX}. One more parameter: the aggregate id.
+     */
+    private static final String STORY_VERSION_ROW =
+            " UNION ALL (SELECT 2, event_sequence_number, aggregate_seq::text%s FROM es__events " +
+                    "WHERE aggregate_id = ? AND aggregate_seq IS NOT NULL ORDER BY aggregate_seq DESC LIMIT 1)";
+
     /** Claims table of in-flight (and event-less completed) keyed service commands. */
     public static final String IDEMPOTENCY_CLAIMS_TABLE =
             com.evento.server.config.AdvisoryLockedSchemaInitializer.IDEMPOTENCY_CLAIMS_TABLE;
@@ -210,8 +259,7 @@ public class EventStore implements BrokerEventStore {
                     "c.idempotency_key IS NOT NULL " +
                     "FROM (SELECT 1) q " +
                     "LEFT JOIN es__events e ON e.idempotency_key = ? " +
-                    "LEFT JOIN " + IDEMPOTENCY_CLAIMS_TABLE + " c ON c.idempotency_key = ? " +
-                    "ORDER BY 1, 2";
+                    "LEFT JOIN " + IDEMPOTENCY_CLAIMS_TABLE + " c ON c.idempotency_key = ?";
 
     /** SQLSTATEs meaning "the schema lacks what keys need" (dropped index, column or table). */
     private static final java.util.Set<String> MISSING_SCHEMA_STATES = java.util.Set.of(
@@ -222,8 +270,11 @@ public class EventStore implements BrokerEventStore {
 
     /** How long a "no idempotency support" answer is trusted before the catalog is asked again. */
     private static final long IDEMPOTENCY_PROBE_INTERVAL_MS = 60_000;
+    private static final String UNIQUE_VIOLATION = "23505";
     private volatile boolean idempotencySupported;
     private volatile long idempotencyProbeAt;
+    private volatile boolean fenceSupported;
+    private volatile long fenceProbeAt;
     /** {@code null} until known; {@code false} on a database other than PostgreSQL (for good). */
     private volatile Boolean postgres;
 
@@ -521,6 +572,128 @@ public class EventStore implements BrokerEventStore {
     }
 
     /**
+     * The fenced append of an aggregate event (C1): version {@code expectedVersion + 1}, and the
+     * key when there is one, in the mode's single statement. Without the fence (a schema that
+     * lacks it, no version read with the story) it is the plain keyed append. A schema that lost
+     * the column or the idempotency index since it was probed turns that support off, and the
+     * event is appended with what is left rather than not at all.
+     */
+    @Override
+    public long appendAggregateEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                                     String commandType, Long expectedVersion) {
+        if (expectedVersion == null || aggregateId == null || !fenceSupported()) {
+            return publishEvent(eventMessage, aggregateId, idempotencyKey, commandType);
+        }
+        boolean keyed = idempotencyKey != null && idempotencySupported();
+        long version = expectedVersion + 1;
+        String json;
+        try {
+            json = mapper.writeValueAsString(eventMessage);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+        String name = eventMessage.getEventName();
+        String context = eventMessage.getContext();
+        try {
+            if (MODE == EventStoreMode.APES) {
+                long id = snowflake.nextId();
+                int inserted = keyed
+                        ? jdbcTemplate.update(APES_FENCED_KEYED_APPEND_SQL, id, aggregateId, json, name, context, version,
+                        idempotencyKey, commandType)
+                        : jdbcTemplate.update(APES_FENCED_APPEND_SQL, id, aggregateId, json, name, context, version);
+                if (inserted == 0) throw new IdempotencyKeyConflictException(idempotencyKey);
+                return id;
+            }
+            List<Long> seq = keyed
+                    ? jdbcTemplate.queryForList(CPES_FENCED_KEYED_APPEND_SQL, Long.class, aggregateId, json, name,
+                    context, version, idempotencyKey, commandType)
+                    : jdbcTemplate.queryForList(CPES_FENCED_APPEND_SQL, Long.class, aggregateId, json, name, context,
+                    version);
+            if (seq.isEmpty()) throw new IdempotencyKeyConflictException(idempotencyKey);
+            return seq.getFirst();
+        } catch (DataAccessException e) {
+            if (UNIQUE_VIOLATION.equals(sqlState(e)) && String.valueOf(e.getMostSpecificCause().getMessage())
+                    .contains(AGGREGATE_SEQ_INDEX)) {
+                // The story this event was computed from is stale: drop what this server cached.
+                snapshotCache.remove(aggregateId);
+                eventsCache.remove(aggregateId);
+                logger.warn("event=aggregate_fence_conflict aggregateId={} expectedVersion={} commandType={} "
+                        + "reason=\"another append from the same version committed first; nothing stored\"",
+                        aggregateId, expectedVersion, commandType);
+                throw new AggregateFenceException(aggregateId, expectedVersion);
+            }
+            if (fenceLost(e) || (keyed && schemaLost(e, "fenced_append"))) {
+                return appendAggregateEvent(eventMessage, aggregateId, idempotencyKey, commandType, expectedVersion);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Whether {@code e} says {@code aggregate_seq} is gone; if so, the fence is turned off
+     * (re-probed after {@value #IDEMPOTENCY_PROBE_INTERVAL_MS} ms) with a warning.
+     */
+    private boolean fenceLost(DataAccessException e) {
+        if (!"42703".equals(sqlState(e)) || !String.valueOf(e.getMostSpecificCause().getMessage())
+                .contains("aggregate_seq")) return false;
+        synchronized (this) {
+            fenceSupported = false;
+            fenceProbeAt = System.currentTimeMillis() + IDEMPOTENCY_PROBE_INTERVAL_MS;
+        }
+        logger.warn("event=aggregate_fence_unsupported reason=\"es__events.aggregate_seq is gone; aggregate "
+                + "events are appended unfenced until it is back\" error=\"{}\"", e.getMostSpecificCause().getMessage());
+        return true;
+    }
+
+    /**
+     * Whether aggregate appends can be fenced (C1): a PostgreSQL {@code es__events} (as
+     * {@code search_path} resolves it) with an {@code aggregate_seq} column and a valid unique
+     * {@value #AGGREGATE_SEQ_INDEX}. Without them aggregate events are appended unfenced, as
+     * before C1, and this logs {@code event=aggregate_fence_unsupported}: a schema managed outside
+     * the server that has not applied {@code db/upgrade/es-events-aggregate-seq.sql} yet. A
+     * negative answer is re-checked every minute, like {@link #idempotencySupported()}.
+     */
+    public boolean fenceSupported() {
+        if (fenceSupported) return true;
+        if (Boolean.FALSE.equals(postgres)) return false;
+        long now = System.currentTimeMillis();
+        if (now < fenceProbeAt) return false;
+        synchronized (this) {
+            if (fenceSupported) return true;
+            if (now < fenceProbeAt) return false;
+            if (!detectPostgres()) {
+                logger.warn("event=aggregate_fence_unsupported reason=\"the aggregate fence needs PostgreSQL; "
+                        + "aggregate events are appended unfenced\"");
+                return false;
+            }
+            Boolean ready = jdbcTemplate.queryForObject(
+                    "SELECT coalesce((SELECT i.indisvalid AND i.indisunique FROM pg_index i " +
+                            "JOIN pg_class c ON c.oid = i.indexrelid " +
+                            "WHERE i.indrelid = to_regclass('es__events') AND c.relname = ?), false) " +
+                            "AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('es__events') " +
+                            "AND attname = 'aggregate_seq' AND NOT attisdropped)",
+                    Boolean.class, AGGREGATE_SEQ_INDEX);
+            fenceSupported = Boolean.TRUE.equals(ready);
+            if (!fenceSupported) {
+                fenceProbeAt = now + IDEMPOTENCY_PROBE_INTERVAL_MS;
+                logger.warn("event=aggregate_fence_unsupported index={} reason=\"no aggregate_seq column or valid "
+                        + "index; aggregate events are appended unfenced until they exist\" "
+                        + "script=classpath:db/upgrade/es-events-aggregate-seq.sql", AGGREGATE_SEQ_INDEX);
+            }
+            return fenceSupported;
+        }
+    }
+
+    /** Whether the database is PostgreSQL; asked once (call holding the monitor). */
+    private boolean detectPostgres() {
+        if (postgres == null) {
+            String product = jdbcTemplate.execute((ConnectionCallback<String>) c -> c.getMetaData().getDatabaseProductName());
+            postgres = product != null && product.toLowerCase(java.util.Locale.ROOT).contains("postgresql");
+        }
+        return postgres;
+    }
+
+    /**
      * Claims the key or reports what is recorded for it, in one round trip
      * ({@link #CLAIM_OR_FIND_SQL}).
      */
@@ -666,14 +839,10 @@ public class EventStore implements BrokerEventStore {
         synchronized (this) {
             if (idempotencySupported) return true;
             if (now < idempotencyProbeAt) return false;
-            if (postgres == null) {
-                String product = jdbcTemplate.execute((ConnectionCallback<String>) c -> c.getMetaData().getDatabaseProductName());
-                postgres = product != null && product.toLowerCase(java.util.Locale.ROOT).contains("postgresql");
-                if (!postgres) {
-                    logger.warn("event=idempotency_key_unsupported database=\"{}\" reason=\"idempotency keys need "
-                            + "PostgreSQL; keyed commands run without exactly-once\"", product);
-                    return false;
-                }
+            if (!detectPostgres()) {
+                logger.warn("event=idempotency_key_unsupported reason=\"idempotency keys need "
+                        + "PostgreSQL; keyed commands run without exactly-once\"");
+                return false;
             }
             Boolean ready = jdbcTemplate.queryForObject(
                     "SELECT coalesce((SELECT i.indisvalid AND i.indisunique FROM pg_index i " +
@@ -750,19 +919,31 @@ public class EventStore implements BrokerEventStore {
      * ({@link #STORY_RECORD_ROW}), so a keyed aggregate command costs exactly the round trips of
      * an unkeyed one. Before, it paid two more lookups (one before the aggregate lock, one under
      * it), each a round trip to the event-store primary: from a remote cell, one or two WAN RTTs
-     * per command.
+     * per command. The aggregate's version (C1) is one more branch ({@link #STORY_VERSION_ROW}).
      */
     @Override
     public KeyedAggregateStory fetchAggregateStory(String aggregateId, boolean invalidateCaches,
                                                    boolean invalidateSnapshot, String idempotencyKey) {
+        boolean fenced = fenceSupported();
         if (idempotencyKey == null || !idempotencySupported()) {
-            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, null);
+            return fencedStory(aggregateId, invalidateCaches, invalidateSnapshot, null, fenced);
         }
         try {
-            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, idempotencyKey);
+            return fencedStory(aggregateId, invalidateCaches, invalidateSnapshot, idempotencyKey, fenced);
         } catch (DataAccessException e) {
             if (!schemaLost(e, "story_lookup")) throw e;
-            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, null);
+            return fencedStory(aggregateId, invalidateCaches, invalidateSnapshot, null, fenced);
+        }
+    }
+
+    private KeyedAggregateStory fencedStory(String aggregateId, boolean invalidateCaches, boolean invalidateSnapshot,
+                                            String idempotencyKey, boolean fenced) {
+        if (!fenced) return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, idempotencyKey, false);
+        try {
+            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, idempotencyKey, true);
+        } catch (DataAccessException e) {
+            if (!fenceLost(e)) throw e;
+            return fetchStory(aggregateId, invalidateCaches, invalidateSnapshot, idempotencyKey, false);
         }
     }
 
@@ -770,6 +951,21 @@ public class EventStore implements BrokerEventStore {
                                            boolean invalidateAggregateCaches,
                                            boolean invalidateAggregateSnapshot,
                                            String idempotencyKey) {
+        return fetchStory(aggregateId, invalidateAggregateCaches, invalidateAggregateSnapshot, idempotencyKey, false);
+    }
+
+    /**
+     * @param withVersion also read the aggregate's version ({@link #STORY_VERSION_ROW}). The
+     *                    version is only returned when the story holds the event that set it (or
+     *                    the snapshot covers it): a story assembled from this server's cache that
+     *                    missed an event (an APES id below the cached range) is fetched again
+     *                    without the cache, rather than fenced at a version it does not end at.
+     */
+    private KeyedAggregateStory fetchStory(String aggregateId,
+                                           boolean invalidateAggregateCaches,
+                                           boolean invalidateAggregateSnapshot,
+                                           String idempotencyKey,
+                                           boolean withVersion) {
         Assert.isTrue(aggregateId != null, "Fetching aggregate state without an aggregate Id");
         if (invalidateAggregateCaches) {
             snapshotCache.remove(aggregateId);
@@ -813,24 +1009,34 @@ public class EventStore implements BrokerEventStore {
                 params = new Object[]{aggregateId, max};
             }
         }
-        String sql;
-        if (idempotencyKey == null) {
-            sql = "select 0, event_sequence_number, event_message from es__events " + where
-                    + "order by event_sequence_number";
-        } else {
-            sql = "select 0, event_sequence_number, event_message" + STORY_ROW_RECORD_COLUMNS
-                    + "from es__events " + where + STORY_RECORD_ROW;
+        String recordColumns = idempotencyKey == null ? " " : STORY_ROW_RECORD_COLUMNS;
+        String sql = "select 0, event_sequence_number, event_message" + recordColumns + "from es__events " + where;
+        if (idempotencyKey != null) {
+            sql += STORY_RECORD_ROW;
             params = java.util.Arrays.copyOf(params, params.length + 2);
             params[params.length - 2] = idempotencyKey;
             params[params.length - 1] = idempotencyKey;
         }
+        if (withVersion) {
+            sql += STORY_VERSION_ROW.formatted(recordColumns.stripTrailing());
+            params = java.util.Arrays.copyOf(params, params.length + 1);
+            params[params.length - 1] = aggregateId;
+        }
+        sql += idempotencyKey == null && !withVersion ? "order by event_sequence_number" : " ORDER BY 1, 2";
 
         final long fetchedAfter = max;
         var record = new IdempotencyRecord[1];
         var inserted = new int[1];
+        // {sequence number of the newest fenced event, its version}; none yet: {-1, 0}.
+        var newest = new long[]{-1, 0};
         jdbcTemplate.query(sql, (java.sql.ResultSet rs) -> {
             if (rs.getInt(1) == 1) {
                 record[0] = readRecord(rs, 2);
+                return;
+            }
+            if (rs.getInt(1) == 2) {
+                newest[0] = rs.getLong(2);
+                newest[1] = Long.parseLong(rs.getString(3));
                 return;
             }
             try {
@@ -848,12 +1054,28 @@ public class EventStore implements BrokerEventStore {
         }, params);
         eventsCache.put(aggregateId, events);
         final Snapshot base = snapshot;
+        Long version = null;
+        if (withVersion) {
+            boolean holdsNewest = newest[0] < 0
+                    || (base != null && newest[0] <= base.getEventSequenceNumber())
+                    || events.stream().anyMatch(e -> e.getEventSequenceNumber() == newest[0]);
+            if (!holdsNewest) {
+                if (invalidateAggregateCaches && invalidateAggregateSnapshot) {
+                    throw new IllegalStateException("aggregate '" + aggregateId + "': the event at version "
+                            + newest[1] + " (seq " + newest[0] + ") is missing from its story read from the database");
+                }
+                logger.warn("event=aggregate_story_stale aggregateId={} version={} seq={} action=refetch",
+                        aggregateId, newest[1], newest[0]);
+                return fetchStory(aggregateId, true, true, idempotencyKey, true);
+            }
+            version = newest[1];
+        }
         return new KeyedAggregateStory(new AggregateStory(
                 base == null ? new SerializedAggregateState<>(null) : base.getAggregateState(),
                 events.stream()
                         .filter(e -> base == null || e.getEventSequenceNumber() > base.getEventSequenceNumber())
                         .map(e -> (DomainEventMessage) e.getEventMessage())
                         .toList()
-        ), record[0]);
+        ), record[0], version);
     }
 }

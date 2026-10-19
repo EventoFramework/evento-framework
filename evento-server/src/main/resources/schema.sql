@@ -128,7 +128,13 @@ CREATE TABLE IF NOT EXISTS es__events
     idempotency_key       varchar(255)          DEFAULT NULL,
     -- The payload type of that command: with aggregate_id, the identity a retry must match
     -- (a key presented by another command is refused, never answered with this event).
-    idempotency_command   varchar(255)          DEFAULT NULL
+    idempotency_command   varchar(255)          DEFAULT NULL,
+    -- The aggregate's version after this event (C1): 1, 2, 3... per aggregate_id, NULL for
+    -- events of service commands and of servers before the fence. The partial UNIQUE index
+    -- es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq), from
+    -- AdvisoryLockedSchemaInitializer like the idempotency index, refuses a second append
+    -- from the same story: the fence behind the aggregate lock.
+    aggregate_seq         bigint                DEFAULT NULL
 );
 
 -- Idempotency claims (G5): one row per keyed service command while it executes (owner and a

@@ -142,6 +142,7 @@ public class CommandBrokerHandler implements MeterBinder {
             new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicLong idempotencyMismatches = new AtomicLong();
     private final AtomicLong idempotencyInProgress = new AtomicLong();
+    private final AtomicLong fenceConflicts = new AtomicLong();
     private final AtomicLong idempotencyUnsupportedWarned = new AtomicLong();
     /** Prefix of every claim owner of this broker instance: one id per process, then a counter. */
     private final String claimOwnerPrefix = java.util.UUID.randomUUID() + ":";
@@ -350,6 +351,11 @@ public class CommandBrokerHandler implements MeterBinder {
         return idempotencyInProgress.get();
     }
 
+    /** Aggregate commands refused because their aggregate moved on while they ran (C1). */
+    public long fenceConflictCount() {
+        return fenceConflicts.get();
+    }
+
     @Override
     public void bindTo(MeterRegistry registry) {
         FunctionCounter.builder("evento.server.commands.idempotent.replayed", this,
@@ -363,6 +369,11 @@ public class CommandBrokerHandler implements MeterBinder {
         FunctionCounter.builder("evento.server.commands.idempotent.in_progress", this,
                         CommandBrokerHandler::idempotencyInProgressCount)
                 .description("Keyed commands answered 'in progress' while another execution of the key was in flight")
+                .register(registry);
+        FunctionCounter.builder("evento.server.commands.fence.conflicts", this,
+                        CommandBrokerHandler::fenceConflictCount)
+                .description("Aggregate commands refused because another append from the same aggregate version "
+                        + "committed first (lost or missing aggregate lock); nothing was stored")
                 .register(registry);
         phaseMetrics.bindTo(registry);
     }
@@ -417,6 +428,12 @@ public class CommandBrokerHandler implements MeterBinder {
      * lock wait of a replay, the rare case. Without a lock, or with a lost one, the unique index
      * is the fence: the losing append replays. Aggregate handlers are pure, so a handler run whose
      * append then loses changes nothing.
+     *
+     * <p>Unkeyed commands have the aggregate fence (C1): the story is read with the aggregate's
+     * version and the event is appended as the next version, under a unique index. A lost lock,
+     * or a command whose {@code getLockId()} is {@code null}, can no longer append a second event
+     * from the same story: nothing is stored and the caller gets
+     * {@code AggregateConflictException} (definite: sending again runs on the new story).
      *
      * <p>A keyed command whose deadline passes while it waits for the aggregate lock may be
      * waiting behind an execution of its own key, which can still commit: it is answered
@@ -509,9 +526,9 @@ public class CommandBrokerHandler implements MeterBinder {
 
             // The bundle computed the event from the story fetched under the lock. If the
             // session owning the lock died meanwhile (failover, socket timeout), another server
-            // may already be appending from the same story: refuse to commit a fork. The window
-            // between this check and the INSERT stays open; closing it needs a DB-level fence
-            // (aggregate_seq, see CLUSTER-READINESS G6).
+            // may already be appending from the same story. The fence (C1) refuses that append
+            // in the database whatever the timing; this check only spares the round trip of an
+            // append that would lose, and keeps the guard for a store without the fence.
             if (lockAcquired) {
                 distributedLock.verifyHeld(lockKey);
                 clock.lap(CommandPhaseMetrics.Phase.VERIFY);
@@ -524,9 +541,20 @@ public class CommandBrokerHandler implements MeterBinder {
             clock.skip();
             long seqNum;
             try {
-                seqNum = eventStore.publishEvent(eventMessage, cmd.getAggregateId(), key, commandPayloadType);
+                seqNum = eventStore.appendAggregateEvent(eventMessage, cmd.getAggregateId(), key, commandPayloadType,
+                        keyed.aggregateVersion());
                 clock.lap(CommandPhaseMetrics.Phase.APPEND);
                 clock.appended = true;
+            } catch (BrokerEventStore.AggregateFenceException fenced) {
+                // A duplicate of a keyed command may lose on the aggregate index rather than on
+                // the key's (APES, both in flight): then it is a replay, not a conflict.
+                var recorded = key == null ? null
+                        : answerRecorded(key, commandPayloadType, cmd.getAggregateId(), eventoRequest,
+                        REPLAY_APPEND_CONFLICT);
+                if (recorded != null) return recorded;
+                fenceConflicts.incrementAndGet();
+                return exceptionResponse(eventoRequest.getCorrelationId(),
+                        new com.evento.common.modeling.exceptions.AggregateConflictException(fenced.getMessage()));
             } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {
                 // A duplicate on another server (or without the lock) appended first. This
                 // handler run was pure; answer with what was stored (or refuse, if the key

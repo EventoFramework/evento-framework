@@ -50,6 +50,9 @@ import java.sql.SQLException;
  * <p><b>Idempotency keys (G5).</b> {@code es__events.idempotency_key} and its partial unique
  * index are added the same way, online and only when missing ({@link #applyIdempotencyKey}).
  *
+ * <p><b>The aggregate fence (C1).</b> {@code es__events.aggregate_seq} and the partial unique
+ * index on {@code (aggregate_id, aggregate_seq)} too ({@link #applyAggregateFence}).
+ *
  * <p><b>Why the catalog migration is here.</b> Catalogs created before components were keyed per
  * bundle have {@code core__component.component_name} as primary key, referenced by
  * {@code core__handler.component_component_name} and {@code core__consumer.component_component_name}.
@@ -100,6 +103,12 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
     /** Classpath upgrade script for externally managed schemas: the idempotency key column + index (G5). */
     public static final String ES_EVENTS_IDEMPOTENCY_UPGRADE_SCRIPT = "db/upgrade/es-events-idempotency-key.sql";
 
+    /** Classpath upgrade script for externally managed schemas: the aggregate fence column + index (C1). */
+    public static final String ES_EVENTS_AGGREGATE_SEQ_UPGRADE_SCRIPT = "db/upgrade/es-events-aggregate-seq.sql";
+
+    /** Partial unique index on {@code es__events (aggregate_id, aggregate_seq)}; the name the event store probes for. */
+    public static final String ES_EVENTS_AGGREGATE_SEQ_INDEX = "es__events_aggregate_seq_uidx";
+
     /** Partial unique index on {@code es__events.idempotency_key}; the name the event store probes for. */
     public static final String ES_EVENTS_IDEMPOTENCY_INDEX = "es__events_idempotency_key_uidx";
 
@@ -132,6 +141,7 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                     migrateComponentIdentity(lockConnection);
                     applyEventStoreConstraints(lockConnection);
                     applyIdempotencyKey(lockConnection);
+                    applyAggregateFence(lockConnection);
                 } else {
                     checkExternallyManagedSchema(lockConnection);
                 }
@@ -190,6 +200,13 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                     + "run without exactly-once\" script=classpath:{}",
                     ES_EVENTS_IDEMPOTENCY_UPGRADE_SCRIPT);
         }
+        if (tableExists(connection, "es__events")
+                && (!validIndexExists(connection, ES_EVENTS_AGGREGATE_SEQ_INDEX)
+                || !columnExists(connection, "es__events", "aggregate_seq"))) {
+            log.warn("event=es_events_aggregate_fence_missing reason=\"spring.sql.init.mode is not 'always', "
+                    + "so the server does not add the aggregate_seq column and index; aggregate events are "
+                    + "appended unfenced\" script=classpath:{}", ES_EVENTS_AGGREGATE_SEQ_UPGRADE_SCRIPT);
+        }
     }
 
     /**
@@ -232,6 +249,33 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
         }
         log.info("event=es_events_idempotency_index_built index={} durationMs={}",
                 ES_EVENTS_IDEMPOTENCY_INDEX, (System.nanoTime() - started) / 1_000_000);
+    }
+
+    /**
+     * Adds {@code es__events.aggregate_seq} and the partial unique index on
+     * {@code (aggregate_id, aggregate_seq)} (C1) when missing, online, exactly like
+     * {@link #applyIdempotencyKey}: a catalog-only column under a short lock timeout, then the
+     * index built {@code CONCURRENTLY}. Existing rows (and later service events) have no version
+     * and stay outside the index, so the build cannot fail on old data.
+     */
+    private void applyAggregateFence(Connection connection) throws SQLException {
+        if (!columnExists(connection, "es__events", "aggregate_seq")) {
+            runWithLockTimeout(connection, "ALTER TABLE es__events ADD COLUMN IF NOT EXISTS aggregate_seq bigint",
+                    "es_events_aggregate_seq_column");
+            log.info("event=es_events_aggregate_seq_column_added");
+        }
+        dropInvalidIndex(connection, ES_EVENTS_AGGREGATE_SEQ_INDEX);
+        if (validIndexExists(connection, ES_EVENTS_AGGREGATE_SEQ_INDEX)) return;
+        long started = System.nanoTime();
+        try {
+            execute(connection, "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS " + ES_EVENTS_AGGREGATE_SEQ_INDEX
+                    + " ON es__events (aggregate_id, aggregate_seq) WHERE aggregate_seq IS NOT NULL");
+        } catch (SQLException e) {
+            dropInvalidIndex(connection, ES_EVENTS_AGGREGATE_SEQ_INDEX);
+            throw e;
+        }
+        log.info("event=es_events_aggregate_seq_index_built index={} durationMs={}",
+                ES_EVENTS_AGGREGATE_SEQ_INDEX, (System.nanoTime() - started) / 1_000_000);
     }
 
     /**

@@ -376,8 +376,32 @@ and service `CommandHandler` payload type.
 2. `BrokerEventStore.fetchAggregateStory(aggregateId)` → event stream + optional snapshot
 3. Wrap `DomainCommandMessage` → `DecoratedDomainCommandMessage` (state + event stream attached)
 4. `BusLifecycle.forward(...)` to aggregate bundle
-5. `BrokerEventStore.publishEvent(DomainEventMessage)`  ± `saveSnapshot`
+5. `BrokerEventStore.appendAggregateEvent(event, aggregateId, key, type, version)`  ± `saveSnapshot`
 6. Return stored event to caller
+
+**Aggregate fence (C1, closes G6).** `es__events.aggregate_seq` is the aggregate's version after
+the event (1, 2, 3... per `aggregate_id`; null for service events and pre-2.6 rows), under the
+partial unique index `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq) WHERE
+aggregate_seq IS NOT NULL`. The story query has one more `UNION ALL` branch (kind 2: the newest
+fenced row, one backward index step) so the version comes from the same snapshot as the events,
+in the same round trip (`KeyedAggregateStory.aggregateVersion`). The append writes version + 1 in
+the mode's single statement; the index is not an `ON CONFLICT` arbiter, so a taken version fails
+the statement (23505 on that index → `BrokerEventStore.AggregateFenceException`, caches of the
+aggregate dropped, `event=aggregate_fence_conflict`, `evento.server.commands.fence.conflicts`).
+Nothing is retried: the caller gets `AggregateConflictException` (evento-common, definite) and may
+send again (aggregate handlers are pure). A keyed loser is
+looked up first and replayed (under APES it may lose on this index rather than the key's).
+The lock is still how commands *wait* for each other; the fence is what makes a lost lock (dead
+session after `verifyHeld`) or a command with `getLockId() == null` unable to store a fork.
+A story assembled from this server's cache that misses the newest fenced event (an APES id inside
+the cached range) is refetched without caches (`event=aggregate_story_stale`) instead of being
+fenced at a version it does not end at. Schema: added online by `AdvisoryLockedSchemaInitializer`
+(`applyAggregateFence`), `db/upgrade/es-events-aggregate-seq.sql` for external schemas;
+`EventStore.fenceSupported()` probes it like `idempotencySupported()` (re-probed every minute,
+a vanished column → unfenced with a WARN). Mixed 2.5/2.6 servers: 2.5 appends without a version,
+so the fence holds once all servers run 2.6. Tests: `AggregateFencePostgresIT` (store level, CPES
+and APES), `IdempotentCommandPostgresIT.withoutAnAggregateLockOrAKeyTheFenceStoresOneEventAndRefusesTheRest`
+(8 lockless commands on two servers: 1 stored, 7 refused; 8 stored without the fence).
 
 **Service command path:** same flow, no decoration, stores `ServiceEventMessage`.
 
