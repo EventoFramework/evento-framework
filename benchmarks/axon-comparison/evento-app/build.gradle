@@ -1,0 +1,13 @@
+plugins { id 'application' }
+
+dependencies {
+    implementation project(':bench-core')
+    // Substituted by the working tree's evento-bundle (composite build, see settings.gradle).
+    implementation 'com.eventoframework:evento-bundle:2.5.2'
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+}
+
+application {
+    mainClass = 'com.evento.bench.evento.EventoBench'
+    applicationName = 'evento-app'
+}

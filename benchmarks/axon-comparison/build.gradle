@@ -1,0 +1,16 @@
+subprojects {
+    apply plugin: 'java'
+
+    group = 'com.evento.bench'
+    version = '1.0'
+
+    repositories { mavenCentral() }
+
+    java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.release = 21
+        options.compilerArgs << '-parameters'
+    }
+}
