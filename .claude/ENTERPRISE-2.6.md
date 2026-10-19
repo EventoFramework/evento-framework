@@ -313,8 +313,10 @@ Le dipendenze sono indicate con `←`.
       `hibernate-validator` rimosso: nessun codice usava la bean validation
 - [ ] O2 Metrica di lag dei consumer
 - [x] B1 Benchmark del tetto di append/s per cella (`benchmarks/axon-comparison`, risultati in
-      `results/REPORT.md`): una cella su un i7-6700K regge ~430 cmd/s in CPES (lock globale) e ~1300 in
-      APES, ~50 cmd/s su un aggregato conteso, senza rifiuti e senza collasso fino a 128 in volo. Axon
+      `results/REPORT.md`). Dopo concorrenza ottimistica + group commit + executor 32/CPU (2026-10-20):
+      una cella su un i7-6700K regge ~3900 cmd/s in CPES e in APES (create, 128 in volo, p99 ~60 ms;
+      prima 430 e 1300), ~2300-2500 su spread, ~50 cmd/s su un aggregato conteso, senza rifiuti e senza
+      collasso. CPES diventa il default anche nel codice. Axon
       Framework 5.4 open source (JPA, pool di default) collassa da 32 in volo e su spread/hot è 5-15× sotto
       (nessuno snapshot: ricarica la storia). Il confronto con **Axon Server** è stato misurato ma i risultati
       restano fuori dal repository (ToS Axoniq, `results-private/`, git-ignored). Ha trovato due bug, corretti:

@@ -372,7 +372,8 @@ and registers `LocalRequestHandler` instances in `BusLifecycle` for each `Aggreg
 and service `CommandHandler` payload type.
 
 **Aggregate command path:**
-1. Acquire optional distributed lock (`lockId ?? aggregateId`)
+1. Optimistic (2.6, default) when the store fences (`fencesAggregates()`), the command locks its own
+   aggregate and the aggregate is not contended: no lock. Otherwise the distributed lock (`lockId`)
 2. `BrokerEventStore.fetchAggregateStory(aggregateId)` → event stream + optional snapshot
 3. Wrap `DomainCommandMessage` → `DecoratedDomainCommandMessage` (state + event stream attached)
 4. `BusLifecycle.forward(...)` to aggregate bundle
@@ -388,11 +389,34 @@ in the same round trip (`KeyedAggregateStory.aggregateVersion`). The append writ
 the mode's single statement; the index is not an `ON CONFLICT` arbiter, so a taken version fails
 the statement (23505 on that index → `BrokerEventStore.AggregateFenceException`, caches of the
 aggregate dropped, `event=aggregate_fence_conflict`, `evento.server.commands.fence.conflicts`).
-Nothing is retried: the caller gets `AggregateConflictException` (evento-common, definite) and may
-send again (aggregate handlers are pure). A keyed loser is
-looked up first and replayed (under APES it may lose on this index rather than the key's).
-The lock is still how commands *wait* for each other; the fence is what makes a lost lock (dead
-session after `verifyHeld`) or a command with `getLockId() == null` unable to store a fork.
+A keyed loser is looked up first and replayed (under APES it may lose on this index rather than
+the key's). Otherwise the run is thrown away (aggregate handlers are pure) and the command runs
+again on the new story, under the aggregate lock, up to 5 runs within the deadline
+(`evento.server.commands.fence.retries`); only then the caller gets `AggregateConflictException`
+(evento-common, definite).
+
+**Optimistic concurrency (2.6).** Correctness rests on the fence, in the database, so the lock is
+only an optimisation for contended aggregates: `executeAggregateCommand` runs a command without it
+when `evento.server.commands.optimistic` (default true), the store fences, `getLockId()` is the
+aggregate id (or null) and `AggregateContention` sees no contention (another command for the
+aggregate running on this server, or a fence conflict on it in the last 2 s, which also catches
+other servers). The lock cost 3 round trips per command (acquire, `verifyHeld`, release) and a
+lock-pool connection for the run: 10 connections / 7.5 ms capped a server at ~1300 cmd/s (B1).
+`verifyHeld` is skipped before any fenced append on the aggregate's own lock (a lost lock only
+means the fence decides). A keyed command that expires while running optimistically is answered
+in progress, never "expired, not executed": a duplicate may be running elsewhere. Nothing needs
+servers to coordinate: contention memory is local and only picks the cheaper path.
+
+**Group commit (2.6, `AppendBatcher`).** `appendAggregateEvent` queues the row; `writers` virtual
+threads (CPES 2, APES 4: `evento.es.append.batch.writers`, 0 = off) each drain up to 256 rows and
+write them in one statement: `unnest` arrays, `ON CONFLICT DO NOTHING` (any unique index), and a
+report of which rows went in. CPES: `es-lock` (materialised CTE) then `nextval` in input order, so
+one batch = one transaction = consecutive numbers committed together; sequence order is still
+commit order (`GroupCommitPostgresIT` checks xmin is sorted by sequence across two servers). A row
+kept out is a key conflict when its key is stored (a separate statement sees the winner) and a
+fence conflict otherwise; any other failure hands every row back to its caller to append alone. No
+timer: under load the rows queued behind a running batch form the next one. CPES went from one
+durable commit per event under the global lock (~430 events/s) to one per batch.
 A story assembled from this server's cache that misses the newest fenced event (an APES id inside
 the cached range) is refetched without caches (`event=aggregate_story_stale`) instead of being
 fenced at a version it does not end at. Schema: added online by `AdvisoryLockedSchemaInitializer`
@@ -400,8 +424,9 @@ fenced at a version it does not end at. Schema: added online by `AdvisoryLockedS
 `EventStore.fenceSupported()` probes it like `idempotencySupported()` (re-probed every minute,
 a vanished column → unfenced with a WARN). Mixed 2.5/2.6 servers: 2.5 appends without a version,
 so the fence holds once all servers run 2.6. Tests: `AggregateFencePostgresIT` (store level, CPES
-and APES), `IdempotentCommandPostgresIT.withoutAnAggregateLockOrAKeyTheFenceStoresOneEventAndRefusesTheRest`
-(8 lockless commands on two servers: 1 stored, 7 refused; 8 stored without the fence).
+and APES), `GroupCommitPostgresIT`, `IdempotentCommandPostgresIT.withoutAnAggregateLockOrAKeyTheFenceStoresOneEventAndRunsTheRestAgain`
+(8 lockless commands on two servers: 1 stored, 7 run again and refused by the domain; 8 stored
+without the fence) and `concurrentCommandsOnOneAggregateFromTwoServersAllApplyOneVersionEach`.
 
 **Service command path:** same flow, no decoration, stores `ServiceEventMessage`.
 
@@ -501,7 +526,7 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `evento.lock.acquire.timeout.ms` (`EVENTO_LOCK_ACQUIRE_TIMEOUT_MS`; `-D` system property as fallback) | 60000 | Bound on any lock wait |
 | `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7). Not independent: boot fails when stale-after <= heartbeat and warns below 3 x heartbeat; the heartbeat has its own scheduler thread (`spring.task.scheduling.pool.size=2`) so the hourly telemetry sweep cannot delay it |
 | `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
-| `evento.es.mode` | `APES` in code, `CPES` shipped | Use CPES with several servers |
+| `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit; APES only on one server |
 
 Bundle side (`EventoBundle.Builder`): `EventoServerMessageBusConfiguration` with several
 `ClusterNodeAddress`es (ordered failover, G2; fail-back to the first once it has been healthy for
@@ -1041,7 +1066,7 @@ lock and does not consume a pool connection per held lock.
 **Request capacity (the other sizing axis).** The consume path is bounded by consumer
 executors; the *request* path is bounded by the bus business executor. Three limits sit in
 series and a request is capped by the smallest: `evento.server.bus.business-executor-max-size`
-(default `cores × 8`), `…-queue-capacity` (default 256), and `evento.es.fetch.concurrency`
+(default `cores × 32`), `…-queue-capacity` (default 256), and `evento.es.fetch.concurrency`
 (default **4**, a fair semaphore in `EventStoreRequestHandlerBridge` — usually the binding
 constraint on a consumer-heavy cluster, since no number of bus threads raises it).
 

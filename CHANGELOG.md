@@ -55,10 +55,24 @@ a revised payload needs a 2.6 broker.
   server applies `classpath:db/upgrade/es-events-aggregate-seq.sql`, and until then aggregate events are appended
   unfenced, as in 2.5 (`event=aggregate_fence_unsupported`). Existing events keep a null version. The fence holds
   once every server runs 2.6: a 2.5 server appends without a version.
-- **Concurrent commands on one aggregate without a lock now fail instead of forking it.** A `DomainCommand` whose
+- **Concurrent commands on one aggregate without a lock no longer fork it.** A `DomainCommand` whose
   `getLockId()` returns `null` used to let two commands decide from the same story and both store their event;
-  now the second one fails with `AggregateConflictException` (new, `evento-common`: "aggregate ... changed while
-  the command ran", nothing stored) and can be sent again. Commands that keep the default lock are not affected.
+  now the second one loses the aggregate fence, nothing of it is stored, and the broker runs it again on the new
+  story under the aggregate lock (see optimistic concurrency below): its caller gets the answer computed on the
+  current state, which may be a refusal by the domain. `AggregateConflictException` (new, `evento-common`) is
+  answered only when 5 runs within the deadline all lost.
+- **Aggregate commands run without the aggregate lock by default** when the event store fences their appends
+  (PostgreSQL with the 2.6 schema): `evento.server.commands.optimistic=true`. The handler of a command that loses
+  the fence runs again, so an aggregate handler must be pure (compute its event from the story and the command,
+  no side effects): the documented contract, now relied upon. A duplicate of a keyed command can run the handler
+  on another server while the first is in flight; still only one event is stored. `false` takes the lock for
+  every command, as in 2.5. A command naming another lock than its aggregate (`getLockId()`) keeps it.
+- **`evento.server.bus.business-executor-max-size` defaults to 32 threads per CPU** (was 8): the threads mostly
+  wait on the event store and the handler bundles, and the old bound capped a 4-CPU server below what its CPU and
+  database could do.
+- **`evento.es.mode` defaults to `CPES` in the code too**, as the shipped `application.properties` already set it.
+  Only a server started without that file (embedded) changes; an existing APES event store must keep
+  `evento.es.mode=APES` (its Snowflake ids are above anything the CPES sequence would give).
 
 ### Added
 
@@ -104,6 +118,22 @@ a revised payload needs a 2.6 broker.
   dead lock session, a failover) or a command without a lock can no longer fork an aggregate. Closes G6. Refusals
   log `event=aggregate_fence_conflict` and count in `evento.server.commands.fence.conflicts`; a keyed command that
   loses this way is answered with the stored event, as before.
+- **Optimistic concurrency for aggregate commands.** A command runs without the aggregate lock: story, handler,
+  fenced append. The lock cost three round trips to the event-store primary per command (acquire, verify,
+  release), three WAN round trips from a remote cell, and a lock-pool connection for the whole run, which capped a
+  server at about 1300 commands a second. A run that loses the fence is run again on the new story under the lock;
+  an aggregate that is contended (another command for it running on the server, or a conflict on it in the last
+  2 s) takes the lock from the start, so a hot aggregate queues as before instead of losing races. Correctness
+  rests on the database fence, so it holds across servers and cells with no coordination between servers. The
+  lock check before a fenced append (`verifyHeld`) is gone too. Metrics: `evento.server.commands.optimistic`,
+  `evento.server.commands.fence.retries`.
+- **Group commit of aggregate appends.** Appends that arrive together are written in one statement and one
+  transaction (`AppendBatcher`): under CPES the batch takes `es-lock` once and its events get consecutive
+  sequence numbers committed together, so the commit order is still the sequence order. CPES appended one event
+  per durable commit under the global lock, about 430 a second on a 4-core machine and one per round trip to a
+  synchronous standby; now a batch per commit. A conflict (aggregate version, idempotency key) fails only its own
+  append. Without load a batch is one append. `evento.es.append.batch.writers` (default 2 under CPES, 4 under
+  APES; 0 turns it off), `evento.es.append.batch.max-size` (256).
 - **Pluggable sign-in for the web console**: `evento.server.web.auth` (`EVENTO_SERVER_WEB_AUTH`, default
   `basic`) names the sign-in; a `ConsoleSignIn` bean of that mode adds its flow to the security chain, Basic
   stays for machine clients, and the server refuses to start if no sign-in provides the mode. The GUI asks

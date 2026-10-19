@@ -1,6 +1,6 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-19.
+Last updated: 2026-10-20.
 
 ## Enterprise readiness vs Axon 5 (branch `enterprise/2.6-readiness`, 2026-10-16)
 
@@ -85,6 +85,18 @@ steps back (APES refused a few commands a minute on WSL2). Results vs Axon JPA: 
 never refuses; Axon JPA leads slightly at 8 in flight on create, collapses from 32 (pool exhausted), is
 5-15× slower on spread/hot. Next: the user weighs D2 (b) / a server-side retry against the private Axon
 Server numbers; CI on PR #281.
+
+**Session 7 (2026-10-19/20): optimistic concurrency, group commit, B2.** User: "implementa percorso
+ottimistico e group commit, poi rifai B1; CPES e APES sceglibili, performance al massimo; sempre facilmente
+clusterizzabile; se CPES è migliore usalo come default". Profiling (phase timers from /actuator/prometheus,
+container CPU, pg_stat) showed concurrency limits, not hardware: lock pool 10 / 7.5 ms (~1300 cmd/s), CPES one
+fsync per event under es-lock (~430), then the 32-thread bus executor (~2500). Done: optimistic aggregate
+commands on the fence with retries under the lock and local contention detection (`AggregateContention`),
+group commit (`AppendBatcher`, one statement per batch, CPES consecutive numbers under one es-lock), bus executor
+32/CPU, CPES code default. B1 create @128: CPES 3907, APES 3852 cmd/s (Axon Server private numbers: below).
+Keyed duplicate expiring optimistically -> in progress (G5 contract), found by the IT. Next: B2, the HA multi-AZ
+benchmark (`docker/compose.ha.yaml`, `scripts/run-ha.sh`, `report-ha.py`): primary + synchronous standby, two
+servers in two AZs, toxiproxy RTT, shared aggregates across servers; decides whether APES is still worth it.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
