@@ -12,6 +12,15 @@ Come usarlo: ogni punto ha un id (`L*` licenza, `S*` sicurezza, `C*` correttezza
 punto è chiuso e scrivi accanto commit/PR. Le decisioni `D1..D10` hanno uno stato: **da decidere**,
 **decisa** (con data e scelta), **rimandata**.
 
+## Stato al 2026-10-19 (sessione 5)
+
+Decise dall'utente: **D9 (a)** tutto il branch esce come 2.6.0; **D8 (a)** nessuna migrazione da Axon;
+**D10 (b)** l'hub resta com'è (l'evoluzione possibile è annotata sotto D10). Risposte: nessun cliente
+con licenza commerciale, nessun codice di terzi, **le funzioni enterprise della GUI sotto licenza
+commerciale** (vedi L4), obiettivo di scrittura sull'event store: **pari o migliore di Axon Server**
+(vedi B1). Da decidere: D2. Pushati `evento-doc` (`docs/enterprise-2.6`) ed `evento-www`
+(`licensing/apache-client-libraries`); il branch del framework no, finché non è risolto L4.
+
 ## Stato al 2026-10-16 (sessione 2)
 
 Decise dall'utente: **D1 (b)**, **D3 (b)**, **D4**, **D5**, **D6** (OpenTelemetry attivabile, zero
@@ -128,9 +137,10 @@ XL (più mesi o non tecnico).
 - **Raccomandazione:** (b), più `LICENSE.txt` riscritto come AGPL-3.0 testuale con offerta
   commerciale separata, SPDX nei POM, CLA o DCO con cessione dei diritti.
 - **Domande aperte:**
-  - [ ] Ci sono clienti con licenza commerciale e il contratto cita i moduli?
-  - [ ] È mai entrato codice di terzi (non Dependabot)?
-  - [ ] La GUI resta tutta AGPL o ha una parte commerciale?
+  - [x] Ci sono clienti con licenza commerciale e il contratto cita i moduli? No (2026-10-19).
+  - [x] È mai entrato codice di terzi (non Dependabot)? No, unico sviluppatore (2026-10-19).
+  - [x] La GUI resta tutta AGPL o ha una parte commerciale? Le funzioni enterprise (OIDC/SSO, audit,
+        RBAC fine) sotto licenza commerciale (2026-10-19). Conseguenza: L4.
 
 ### D2 Consistenza e scala — da decidere
 
@@ -153,7 +163,8 @@ XL (più mesi o non tecnico).
   benchmark del tetto per cella (B1); (b) come spike di ricerca per la 3.0 (capitolo di tesi);
   (c) mai come default.
 - **Domanda aperta:**
-  - [ ] Quanti append/s per cella deve reggere il cliente tipo?
+  - [x] Quanti append/s per cella deve reggere il cliente tipo? Pari o meglio di Axon Server sullo
+        stesso hardware (2026-10-19): B1 diventa un benchmark comparativo.
 
 ### D3 Baseline Java — decisa 2026-10-16: (b)
 
@@ -203,7 +214,10 @@ XL (più mesi o non tecnico).
 - **Pubblicazione:** `evento-test` Apache-2.0 con le sole fixture pure; `evento-test-broker` a parte
   (incapsula `BusLifecycle` + `InMemoryTransport`, dipende dal server: va deciso con D1).
 
-### D8 Migrazione da Axon 4 — da decidere
+### D8 Migrazione da Axon 4 — decisa 2026-10-19: (a) nessuna
+
+Evento non punta a chi migra da Axon: niente guida, importatore o compat layer. F8 esce dalla roadmap.
+F9 (più eventi per comando) resta, per merito suo. Analisi originale:
 
 - **Somiglianze:** `@Aggregate`, `@EventSourcingHandler`, `@CommandHandler`, `@QueryHandler`,
   `@Saga`, `@EventHandler`, gateway: vocabolario comune all'80%.
@@ -214,7 +228,10 @@ XL (più mesi o non tecnico).
   di mapping + **importatore della `domain_event_entry`** di Axon (con upcaster dei payload
   XStream/Jackson) + F9 in roadmap.
 
-### D9 Release e supporto — da decidere
+### D9 Release e supporto — decisa 2026-10-19: (a) tutto nella 2.6.0
+
+Il branch `enterprise/2.6-readiness` esce come 2.6.0 insieme a quanto già su `main`. Regole confermate
+come sotto (semver sul filo, matrice N/N-1, prima i server; LTS solo commerciale).
 
 - **Subito:** rilasciare 2.6.0 (#255, #256, #257) prima dei cambi di default.
 - **Semver sul filo:** in 2.x solo campi e capability nuove (`stream:1`, `revision:1` provano il
@@ -223,7 +240,11 @@ XL (più mesi o non tecnico).
 - **LTS:** solo nel contratto commerciale (ultima minor di ogni major, 18 mesi); nella community,
   patch solo per la minor corrente.
 
-### D10 Architettura hub-and-spoke — da decidere
+### D10 Architettura hub-and-spoke — decisa 2026-10-19: (b) resta com'è
+
+Nessun lavoro pianificato. **Nota per il futuro:** se servono meno round trip per comando, l'evoluzione
+incrementale qui sotto (cache degli aggregati nel bundle + routing affine, dopo C1) è additiva e non
+richiede di cambiare architettura. Analisi originale:
 
 - **Valutazione:** non è un limite strutturale per team medi. I costi misurati vengono da `es-lock` e
   dai round trip WAN (7-9 per comando), non dall'hub.
@@ -274,7 +295,12 @@ Le dipendenze sono indicate con `←`.
       sostituita da ClassGraph (`ComponentScan`, stessa semantica), `javassist` dichiarata.
       `hibernate-validator` rimosso: nessun codice usava la bean validation
 - [ ] O2 Metrica di lag dei consumer
-- [ ] B1 Benchmark del tetto di append/s per cella, pubblicato ← C1
+- [ ] B1 Benchmark del tetto di append/s per cella, pubblicato, **confrontato con Axon Server** sullo
+      stesso hardware (obiettivo: pari o meglio) ← C1
+- [ ] L4 Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit sono nel codice del server,
+      cioè AGPL nel repository pubblico. Va scelto dove vivono (modulo o repository privato,
+      attivazione con chiave di licenza) prima di pushare il branch: una volta pubblicati in AGPL, quella
+      versione resta AGPL
 - [x] Q1 Test di autenticazione web: `WebSecurityTest` (MockMvc, Basic e OIDC), `OidcRolesTest`;
       `ConsoleApiTest`: tutti i controller della console con la catena di sicurezza vera e i servizi
       mock (ruoli per endpoint, risposte, audit). Ha trovato un 500 al posto di 400 (pagine > 1000)
@@ -309,7 +335,7 @@ Le dipendenze sono indicate con `←`.
       `evento.audit` (il record durevole, da mandare al SIEM) e `/actuator/auditevents` solo ADMIN.
       La rimozione di un bundle richiede ADMIN; la GUI non fa più logout su 403.
       **Poi**: tabella di audit su database quando c'è Flyway (F4)
-- [ ] F8 Guida di mapping Axon 4 + importatore `domain_event_entry` (D8)
+- [-] F8 Guida di mapping Axon 4 + importatore `domain_event_entry`: fuori roadmap (D8 a)
 - [ ] F9 Più eventi per comando
 - [ ] F11 Retention di chiavi di idempotenza ed esiti
 - [ ] F1 Scarto lato bundle delle richieste scadute + admission control
@@ -319,7 +345,8 @@ Le dipendenze sono indicate con `←`.
 
 - [ ] Default `prod` (D4)
 - [ ] F5 Deadline e scheduling
-- [ ] Cache degli aggregati lato bundle + routing affine ← C1 (D10)
+- [-] Cache degli aggregati lato bundle + routing affine ← C1: non pianificato (D10 b), resta come
+      evoluzione possibile
 - [ ] Spike: lettura con watermark sui transaction id, append senza `es-lock` ← C1 (D2 b)
 - [ ] F10 Crypto-shredding
 - [ ] F6 Multi-tenancy, solo se un cliente la paga
