@@ -127,7 +127,7 @@ Fonte: [`application.properties`](../../evento-server/src/main/resources/applica
 | `evento.lock.pool.maximum-size` | `EVENTO_LOCK_POOL_MAXIMUM_SIZE` | 10 | connessioni del lock pool (G3): lock tenuti contemporaneamente |
 | `evento.lock.pool.connection-timeout-ms` | `EVENTO_LOCK_POOL_CONNECTION_TIMEOUT_MS` | 1000 | attesa di una connessione del lock pool |
 | `evento.lock.acquire.timeout.ms` | `EVENTO_LOCK_ACQUIRE_TIMEOUT_MS` | 60000 | limite di ogni attesa di lock distribuito (o la deadline del comando) |
-| `evento.es.mode` | `EVENTO_ES_MODE` | `CPES` in `application.properties` (`APES` nel codice) | **CPES** obbligatorio con più server |
+| `evento.es.mode` | `EVENTO_ES_MODE` | `CPES` (codice e `application.properties`, dalla 2.6) | **CPES** obbligatorio con più server |
 | `evento.es.fetch.max.age.ms` | `EVENTO_ES_FETCH_MAX_AGE_MS` | 30000 | gate di staleness dei fetch; ≤ 0 lo disattiva (S15) |
 | `evento.es.fetch.concurrency` | `EVENTO_ES_FETCH_CONCURRENCY` | 4 | fetch concorrenti per server |
 | `evento.es.fetch.delay` | `EVENTO_ES_FETCH_DELAY` | 69 | finestra di lettura APES (ms) |

@@ -4,7 +4,7 @@ Synthesized from 6 read-only research reports. I re-checked the conflicting clai
 
 - `PgDistributedLock.java` is 222 lines. The correct line refs are `:18` (the one pinned `lockCon`), `:20` (static semaphore map), `:28-31` (reconnect on `isValid`), `:80` (lock) and `:147` (unlock). One reader's `:196`/`:257` refs are wrong.
 - `DomainCommand.getLockId()` returns `getAggregateId()` (`DomainCommand.java:40-42`). So aggregate commands **are** locked per aggregate by default. Only `ServiceCommand` returns `null` (`ServiceCommand.java:12-14`).
-- Shipped `evento.es.mode=CPES` (`application.properties:51`). The code default is APES (`EventStore.java:73`).
+- Shipped `evento.es.mode=CPES` (`application.properties`). Since 2.6 the code default is CPES too.
 - All Spring modules use Spring Boot plugin **4.1.0**, not the 3.5.5 that CLAUDE.md states.
 
 ---

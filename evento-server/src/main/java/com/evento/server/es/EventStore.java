@@ -314,7 +314,7 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
                       int aggregateEventsCacheExpiry,
                       @Value("${evento.es.fetch.delay:69}")
                       int fetchDelay,
-                      @Value("${evento.es.mode:APES}")
+                      @Value("${evento.es.mode:CPES}")
                       EventStoreMode mode) throws SQLException {
         this.eventStoreRepository = repository;
         this.snapshotRepository = snapshotRepository;

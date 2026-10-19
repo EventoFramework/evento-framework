@@ -86,7 +86,7 @@ stesse variabili; cambiano solo nomi host e valori.
       SPRING_DATASOURCE_URL: jdbc:postgresql://pg:5432/evento?tcpKeepAlive=true&connectTimeout=10
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: secret
-      EVENTO_ES_MODE: CPES                      # il default del codice è APES; application.properties spedisce CPES
+      EVENTO_ES_MODE: CPES                      # il default (dalla 2.6 anche nel codice)
       EVENTO_CLUSTER_NAME: evento-l0            # annunciato nel Welcome; il default "evento-server" va cambiato
       EVENTO_CLUSTER_NODE_SERVER_ID: evento-1   # diventa evento.server.bus.server-instance-id (Welcome.serverInstanceId)
       EVENTO_SERVER_INSTANCE_ID: evento-1       # evento.server.instance.id (default "server-0")
