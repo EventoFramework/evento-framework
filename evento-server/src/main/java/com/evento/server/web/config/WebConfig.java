@@ -72,6 +72,8 @@ public class WebConfig implements WebMvcConfigurer {
 				.httpBasic(b -> b.authenticationEntryPoint(UNAUTHORIZED))
 				.authorizeHttpRequests(r -> r
 						.requestMatchers("/actuator/health/**", "/actuator/info", "/api/auth/mode").permitAll()
+						// Who did what in the console: for admins only (the audit trail of Evento Enterprise).
+						.requestMatchers("/actuator/auditevents/**").hasRole("ADMIN")
 						.requestMatchers("/api/**", "/actuator/**").authenticated()
 						.anyRequest().permitAll()); // static GUI assets + SPA fallback
 		var signIn = ConsoleSignIn.select(authMode, signIns.orderedStream());

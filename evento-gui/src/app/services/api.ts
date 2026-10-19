@@ -10,8 +10,9 @@ import {environment} from '../../environments/environment';
  *   HttpOnly cookie the browser sends by itself; writes carry the CSRF token of the `XSRF-TOKEN`
  *   cookie in an `X-XSRF-TOKEN` header. No credential or token is stored here.
  *
- * On 401/403 the stored credential is dropped and the app navigates to /login (hard redirect on
- * purpose: it also aborts any in-flight polling).
+ * On 401 the stored credential is dropped and the app navigates to /login (hard redirect on
+ * purpose: it also aborts any in-flight polling). A 403 is a signed-in user without the role an
+ * action needs (ADMIN): the caller reports it, the session stays (see `apiWrite`).
  */
 
 export type AuthMode = 'basic' | 'oidc';
@@ -85,9 +86,31 @@ export function authHeaders(init?: RequestInit): Headers {
 export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(environment.eventoServerUrl + path, {...init, headers: authHeaders(init), credentials: 'same-origin'})
     .then(res => {
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         onUnauthorized();
       }
       return res;
     });
+}
+
+/** Thrown by `apiWrite` when the server refuses or fails an action. */
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
+
+/**
+ * A state-changing call (the console's ADMIN actions): resolves to the JSON body, or rejects with
+ * an `ApiError` whose message can be shown to the user as it is.
+ */
+export async function apiWrite(path: string, init: RequestInit): Promise<any> {
+  const res = await apiFetch(path, init);
+  if (res.ok) {
+    return res.status === 204 || res.headers.get('content-length') === '0' ? null : res.json();
+  }
+  if (res.status === 403) {
+    throw new ApiError(403, 'This action needs the ADMIN role.');
+  }
+  throw new ApiError(res.status, `The server could not complete the action (HTTP ${res.status}).`);
 }
