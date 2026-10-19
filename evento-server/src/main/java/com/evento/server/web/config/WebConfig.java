@@ -1,7 +1,10 @@
 package com.evento.server.web.config;
 
+import com.evento.server.web.spi.ConsoleSignIn;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -11,6 +14,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -32,6 +36,10 @@ import java.util.List;
  * {@code WEB} and {@code ADMIN} roles the controllers' {@code @Secured} annotations require).
  * This replaces the previous JWT/Bearer scheme entirely: no token minting, no {@code /auth}
  * endpoint — credentials are validated on every request.
+ *
+ * <p>With {@code evento.server.web.auth} set to another mode, the {@link ConsoleSignIn} bean of
+ * that mode adds its sign-in to the chain (single sign-on with OpenID Connect is part of Evento
+ * Enterprise); HTTP Basic stays available for machine clients such as a Prometheus scrape.
  */
 @Configuration
 @EnableWebMvc
@@ -43,25 +51,38 @@ public class WebConfig implements WebMvcConfigurer {
 	 * Allowed CORS origins, from {@code evento.server.web.cors.allowed-origins} (comma-separated).
 	 * Defaults to {@code *} to preserve existing behaviour; set explicit origins to lock the API down.
 	 */
-	@org.springframework.beans.factory.annotation.Value("${evento.server.web.cors.allowed-origins:*}")
+	@Value("${evento.server.web.cors.allowed-origins:*}")
 	private List<String> allowedOrigins;
 
+	/** {@code basic} (default), or the mode of a {@link ConsoleSignIn} bean. */
+	@Value("${evento.server.web.auth:basic}")
+	private String authMode;
+
+	/**
+	 * Plain 401 without a WWW-Authenticate header: the GUI has its own login page, and the header
+	 * would trigger the browser's native credentials popup on top of it.
+	 */
+	private static final AuthenticationEntryPoint UNAUTHORIZED =
+			(request, response, ex) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+
 	@Bean
-	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain filterChain(HttpSecurity http, ObjectProvider<ConsoleSignIn> signIns) throws Exception {
 		http
 				.cors(Customizer.withDefaults())
-				.csrf(AbstractHttpConfigurer::disable)
-				// Basic auth carries the credential on every request; no server session needed
-				// (and no JSESSIONID cookie to leak).
-				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				// Plain 401 without a WWW-Authenticate header: the GUI has its own login page,
-				// and the header would trigger the browser's native credentials popup on top of it.
-				.httpBasic(b -> b.authenticationEntryPoint(
-						(request, response, ex) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
+				.httpBasic(b -> b.authenticationEntryPoint(UNAUTHORIZED))
 				.authorizeHttpRequests(r -> r
-						.requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+						.requestMatchers("/actuator/health/**", "/actuator/info", "/api/auth/mode").permitAll()
 						.requestMatchers("/api/**", "/actuator/**").authenticated()
 						.anyRequest().permitAll()); // static GUI assets + SPA fallback
+		var signIn = ConsoleSignIn.select(authMode, signIns.orderedStream());
+		if (signIn.isPresent()) {
+			signIn.get().configure(http);
+		} else {
+			// Basic auth carries the credential on every request: no server session (no JSESSIONID
+			// cookie to leak) and no ambient credential to forge requests with.
+			http.csrf(AbstractHttpConfigurer::disable)
+					.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+		}
 		return http.build();
 	}
 

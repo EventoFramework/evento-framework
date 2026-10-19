@@ -3,9 +3,10 @@ import {CanActivateFn, Router} from '@angular/router';
 import {AuthService} from './auth.service';
 
 /** Redirects unauthenticated users to /login, remembering the requested URL. */
-export const authGuard: CanActivateFn = (route, state) => {
+export const authGuard: CanActivateFn = async (route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  await auth.ready();
   if (auth.authenticated()) {
     return true;
   }

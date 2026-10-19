@@ -1,15 +1,32 @@
 import {environment} from '../../environments/environment';
 
 /**
- * Centralized API access with HTTP Basic auth.
+ * Centralized API access.
  *
- * Replaces the old window.fetch monkey-patch (prompt() + Bearer token). Services call
- * {@link apiFetch} with an API path; the stored credential is attached as an
- * `Authorization: Basic …` header. On 401/403 the credential is dropped and the app
- * navigates to /login (hard redirect on purpose: it also aborts any in-flight polling).
+ * Two ways to authenticate, chosen by the server (`GET /api/auth/mode`):
+ *
+ * - `basic` (default): the stored credential goes in an `Authorization: Basic …` header.
+ * - `oidc`: the server signed the user in with the identity provider and keeps the session in an
+ *   HttpOnly cookie the browser sends by itself; writes carry the CSRF token of the `XSRF-TOKEN`
+ *   cookie in an `X-XSRF-TOKEN` header. No credential or token is stored here.
+ *
+ * On 401/403 the stored credential is dropped and the app navigates to /login (hard redirect on
+ * purpose: it also aborts any in-flight polling).
  */
 
+export type AuthMode = 'basic' | 'oidc';
+
 const STORAGE_KEY = 'evento_basic_auth';
+
+let authMode: AuthMode = 'basic';
+
+export function getAuthMode(): AuthMode {
+  return authMode;
+}
+
+export function setAuthMode(mode: AuthMode): void {
+  authMode = mode;
+}
 
 export function getBasicAuth(): string | null {
   return localStorage.getItem(STORAGE_KEY);
@@ -28,6 +45,12 @@ export function encodeBasicAuth(username: string, password: string): string {
   return btoa(unescape(encodeURIComponent(username + ':' + password)));
 }
 
+/** The CSRF token the server put in the `XSRF-TOKEN` cookie (OIDC mode). */
+export function csrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function onUnauthorized(): void {
   clearBasicAuth();
   if (!window.location.pathname.startsWith('/login')) {
@@ -35,22 +58,36 @@ function onUnauthorized(): void {
   }
 }
 
+/** The request headers for the current auth mode. */
+export function authHeaders(init?: RequestInit): Headers {
+  const headers = new Headers(init?.headers);
+  if (authMode === 'oidc') {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const token = csrfToken();
+    if (token && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+      headers.set('X-XSRF-TOKEN', token);
+    }
+  } else {
+    const auth = getBasicAuth();
+    if (auth) {
+      headers.set('Authorization', 'Basic ' + auth);
+    }
+  }
+  return headers;
+}
+
 /**
- * Fetch an API resource with the Basic credential attached.
+ * Fetch an API resource with the current credential attached.
  *
  * @param path path relative to the server root (e.g. `/api/dashboard`)
  * @param init standard fetch init
  */
 export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const headers = new Headers(init?.headers);
-  const auth = getBasicAuth();
-  if (auth) {
-    headers.set('Authorization', 'Basic ' + auth);
-  }
-  return fetch(environment.eventoServerUrl + path, {...init, headers}).then(res => {
-    if (res.status === 401 || res.status === 403) {
-      onUnauthorized();
-    }
-    return res;
-  });
+  return fetch(environment.eventoServerUrl + path, {...init, headers: authHeaders(init), credentials: 'same-origin'})
+    .then(res => {
+      if (res.status === 401 || res.status === 403) {
+        onUnauthorized();
+      }
+      return res;
+    });
 }
