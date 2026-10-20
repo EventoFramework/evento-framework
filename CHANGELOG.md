@@ -373,6 +373,9 @@ a revised payload needs a 3.0 broker.
 
 ### Fixed
 
+- **CSRF protection stays on with Basic authentication.** It used to be switched off for the whole API; now only
+  requests that carry their credential in the `Authorization` header (which another site cannot make a browser add)
+  skip the token check. The console and machine clients send that header and see no change.
 - **A bundle stopped during a fail-back stayed registered, and a server back from a pause wiped live consumers.** A
   Hello handled after its connection had closed registered a node on the dead channel, where it stayed (in the
   view, the presence table, the routes). Now such a Hello touches nothing, and the catalog claims an instance only

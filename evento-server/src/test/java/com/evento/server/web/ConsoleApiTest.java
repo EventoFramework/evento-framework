@@ -10,10 +10,10 @@ import com.evento.server.domain.repository.core.HandlerRepository;
 import com.evento.server.domain.repository.core.PayloadRepository;
 import com.evento.server.es.EventStore;
 import com.evento.server.service.BundleService;
+import com.evento.server.web.config.WebConfig;
 import com.evento.server.service.HandlerService;
 import com.evento.server.service.discovery.ConsumerService;
 import com.evento.server.service.performance.PerformanceStoreService;
-import com.evento.server.web.config.WebConfig;
 import com.evento.server.web.spi.AdminActionListener;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -168,6 +168,17 @@ class ConsoleApiTest {
     }
 
     // --- writes --------------------------------------------------------------------------------
+
+    @Test
+    void aWriteWithoutItsOwnCredentialIsRefusedByTheCsrfCheck() throws Exception {
+        // What a forged cross-site form post looks like: no Authorization header. Refused before
+        // anything runs (a Basic request carries its credential and needs no token).
+        mvc.perform(post("/api/consumer/orders-consumer/consume-dead-queue")
+                        .header("Origin", "https://evil.example"))
+                .andExpect(status().isForbidden());
+        verify(consumerService, never()).consumeDeadQueue(anyString(), any());
+        // The same write with Basic credentials and no token goes through: see the next test.
+    }
 
     @Test
     void consumingTheDeadQueueNeedsTheAdminRole() throws Exception {

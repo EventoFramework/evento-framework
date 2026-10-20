@@ -1,6 +1,7 @@
 package com.evento.server.web.config;
 
 import com.evento.server.web.spi.ConsoleSignIn;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.ObjectProvider;
@@ -9,10 +10,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -80,12 +81,20 @@ public class WebConfig implements WebMvcConfigurer {
 		if (signIn.isPresent()) {
 			signIn.get().configure(http);
 		} else {
-			// Basic auth carries the credential on every request: no server session (no JSESSIONID
-			// cookie to leak) and no ambient credential to forge requests with.
-			http.csrf(AbstractHttpConfigurer::disable)
+			// Basic auth carries the credential in the Authorization header of every request, which
+			// another site cannot make a browser add: such a request cannot be forged, and is exempt
+			// from the CSRF check. Any other write (no credential header, so nothing a forged request
+			// could ride on) still needs a CSRF token. No server session, no JSESSIONID cookie.
+			http.csrf(c -> c.ignoringRequestMatchers(WebConfig::carriesItsCredential))
 					.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 		}
 		return http.build();
+	}
+
+	/** Whether the request brings its own credential (Basic or bearer), not an ambient one. */
+	static boolean carriesItsCredential(HttpServletRequest request) {
+		var authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+		return authorization != null && !authorization.isBlank();
 	}
 
 
