@@ -165,6 +165,7 @@ The documentation of Evento Framework includes:
 
 - [Contributing guide](CONTRIBUTING.md) — environment setup, tests, branching, commits, and PR process.
 - [Security policy](SECURITY.md) — supported versions and responsible disclosure process.
+- [Adopters](ADOPTERS.md) — who uses Evento; add your organisation with a pull request.
 - [Compatibility policy](COMPATIBILITY.md) — semantic versioning, which server and bundle versions work together, upgrade order, deprecation and support.
 - [Support guide](SUPPORT.md) — where to ask questions, report bugs, and ask for commercial authorisations.
 - [Governance](GOVERNANCE.md) and [maintainers](MAINTAINERS.md) — project roles, decisions, releases, and ownership.

@@ -38,6 +38,7 @@ load-bearing docs live in [`.claude/`](.claude/):
     :evento-lab:test \
     :evento-lab-microservices:evento-lab-ms-it:test \
     :evento-test:test \
+    :evento-test-broker:test \
     :evento-opentelemetry:test \
     :evento-spring-boot-starter:test \
     :evento-spring-boot-starter:boot3Test

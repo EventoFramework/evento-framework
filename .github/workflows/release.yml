@@ -82,7 +82,8 @@ jobs:
         id: artifact
         run: |
           mkdir -p release
-          jar="$(find evento-server/build/libs -name '*.jar' ! -name '*-plain.jar' | head -n1)"
+          # The boot jar; evento-server-library-*.jar is the library publication.
+          jar="$(find evento-server/build/libs -name 'evento-server-[0-9]*.jar' ! -name '*-plain.jar' | head -n1)"
           name="evento-server-${{ steps.version.outputs.version }}.jar"
           cp "$jar" "release/$name"
           ( cd release && sha256sum "$name" > "$name.sha256" )

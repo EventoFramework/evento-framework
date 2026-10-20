@@ -394,8 +394,8 @@ Le dipendenze sono indicate con `←`.
       di un `HealthIndicator`, che ha package diversi nelle due versioni
 - [x] F2 `evento-test`: `AggregateFixture`, `SagaFixture`, `ProjectorFixture`, `ServiceFixture`,
       `RecordingCommandGateway`, `StubQueryGateway` (D7).
-      **Resta**: `evento-test-broker` (dipende dalla pubblicazione del server, A2, ancora non fatta;
-      il vincolo di licenza di D1 non c'è più)
+      Poi (2026-10-20, A2): `evento-test-broker` (`EventoTestBroker`, broker in-process con event store
+      in memoria) ed `EventoServerContainer` in `evento-test` (immagine vera con Testcontainers)
 - [x] O1 `evento-opentelemetry` (`OpenTelemetryTracingAgent`, OTel API 1.66.0): span per handler, W3C nei
       metadati, `linkingConsumers()`; `CorrelatingGateways` per i gateway usati dal codice applicativo, solo
       se l'agente non è quello no-op. Nessuna modifica al filo (D6).
@@ -429,7 +429,11 @@ Le dipendenze sono indicate con `←`.
       "not executed"); `setMaxInboundRequests` (default 0, nessun limite) rifiuta subito oltre il limite;
       nessuna delle due risposte entra nelle cache exactly-once (bundle e broker), quindi un retry gira.
       Test: `InboundDeadlineAndAdmissionTest`
-- [ ] L3 Prime case study e adopter con nome
+- [x] A2 Server pubblicato come libreria (`com.eventoframework:evento-server`, jar plain con nome
+      `evento-server-library`, il boot jar delle release invariato) e `evento-test-broker` (2026-10-20).
+      Test: `EventoTestBrokerTest` (3), `EventoServerContainerIT` (immagine vera + Postgres)
+- [ ] L3 Prime case study e adopter con nome. Preparato `ADOPTERS.md` (vuoto, per PR) il 2026-10-20;
+      gli adopter vanno trovati, non si possono scrivere
 
 ### Fase 3 — competizione (3.0)
 

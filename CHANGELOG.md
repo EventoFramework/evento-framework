@@ -158,6 +158,13 @@ a revised payload needs a 2.6 broker.
   schema; the online steps (catalog re-key, primary key, idempotency key, aggregate fence) are V2-V5, outside
   a transaction (`CREATE INDEX CONCURRENTLY`), and one that failed half way runs again on the next boot
   instead of blocking it. Later schema changes are new versions.
+- **Integration testing with a broker (A2).** `evento-test-broker` (new, `com.eventoframework:evento-test-broker`):
+  `EventoTestBroker`, the server's broker and aggregate command handling in the test's JVM on a free port, with an
+  in-memory event store (`events()`, `publish(event, aggregateId)`); commands, events, consumers and queries work
+  as against a server, without a database (Java 25, like the server). `EventoServerContainer` in `evento-test`: the
+  real server image on Testcontainers, on a PostgreSQL of the test, for applications on Java 21 or another Spring
+  Boot version. The server is also published as a library, `com.eventoframework:evento-server` (the plain jar; the
+  boot jar of releases is unchanged).
 - **Request timers on the broker (O3)**: `evento.server.request`, tagged `kind` (`query`, `service_command`,
   `aggregate_command`, `invocation`, `other`, learnt from the handlers the bundles declare), `payload` and
   `outcome` (`ok` / `error`): the time from a request reaching the broker to its answer leaving it, for the

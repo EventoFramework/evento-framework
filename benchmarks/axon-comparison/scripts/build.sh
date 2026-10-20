@@ -19,7 +19,7 @@ image() {
 }
 
 # The jar just built (build/libs may still hold jars of older versions).
-image evento-server "$(ls -t "$root"/evento-server/build/libs/evento-server-*.jar | grep -v plain | head -1)"
+image evento-server "$(ls -t "$root"/evento-server/build/libs/evento-server-[0-9]*.jar | grep -v plain | head -1)"
 image evento-app "$here/evento-app/build/install/evento-app/lib"
 image axon-app "$here/axon-app/build/libs/axon-app.jar"
 image axon-server-app "$here/axon-server-app/build/libs/axon-server-app.jar"

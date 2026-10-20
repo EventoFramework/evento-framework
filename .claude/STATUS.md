@@ -137,7 +137,20 @@ point to the old objects (filter-repo translated those in commit messages). Old 
 through `refs/pull/*` (read-only) and in the local `refs/remotes/pr/*`, local-only branches (`backup/*`,
 `cluster/*`, worktrees); the mirror backup was deleted at the user's request, and
 `EventoFramework/evento-server-enterprise` archived on GitHub (private, read-only). Renaming does not change
-ownership of that code. Docs updated (ARCHITECTURE §4.6 "Choosing
+ownership of that code.
+
+**Readiness items (2026-10-20).** User: "fai F4 e O2, poi R2", then the list O3, F11, F1, A2, L3. Done, each
+verified: F4 Flyway (`evento_es_schema_history`, V1 = 2.6.0 schema, V2-V5 the online steps as Java migrations,
+baseline 0 for older databases, session lock because Flyway's transactional lock hung CREATE INDEX CONCURRENTLY,
+failed steps repaired on the next boot, V3-V5 re-checked every boot; lab: an after-versioning database migrated
+in place); O2 `ConsumerLagMetrics` (lab: stopped projector 80 events behind, back to 0); R2 `COMPATIBILITY.md`;
+O3 `evento.server.request{kind,payload,outcome}`; F1 bundle-side expiry and optional `maxInboundRequests`, not
+cached by either exactly-once cache; F11 `evento.es.idempotency.retention` (off by default) + bundle outcome
+retention; A2 server published as library (`evento-server-library-*.jar`, release lookup made exact),
+`evento-test-broker` (`EventoTestBroker`, in-process broker + in-memory store) and `EventoServerContainer` in
+`evento-test` (real image, IT passed against a local build). L3: only `ADOPTERS.md` (empty); adopters cannot be
+written, they must be found. Commits 3b674a16, 670ad6de and the A2 one; evento-doc 99e9ea5, f92eea7, 1f88c1d,
+e1f934b. Left for the minimum: R1 (merge PR #281, tag 2.6.0). Docs updated (ARCHITECTURE §4.6 "Choosing
 CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
 (unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
 

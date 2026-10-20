@@ -4,6 +4,10 @@ apply from: rootProject.file('gradle/evento-library.gradle')
 
 dependencies {
     api project(':evento-bundle')
+    // EventoServerContainer: the applications that use it bring Testcontainers to their tests.
+    compileOnly "org.testcontainers:testcontainers:${testcontainersVersion}"
+    testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+    testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
 
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
@@ -12,4 +16,18 @@ dependencies {
     testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.26.1'
     testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
     testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+}
+
+processResources {
+    filesMatching('evento-test.properties') {
+        filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: [version: eventoVersion])
+    }
+}
+
+test {
+    // EventoServerContainerIT (EVENTO_RUN_JDBC_IT=true): the same Docker settings as the JDBC ITs.
+    def dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
+    environment "DOCKER_HOST", dockerHost
+    environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+    systemProperty "api.version", System.getProperty("api.version") ?: "1.40"
 }

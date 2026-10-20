@@ -2,6 +2,8 @@ plugins {
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'java'
+	id 'maven-publish'
+	id 'signing'
 }
 
 group = 'com.evento'
@@ -10,6 +12,88 @@ java {
 	toolchain {
 		languageVersion = javaLanguageVersion
 	}
+	withSourcesJar()
+	withJavadocJar()
+}
+
+// A2: the server is also published as a library, com.eventoframework:evento-server, for what runs
+// it in process (evento-test-broker). Its jar is the plain one, under its own file name so nothing
+// that looks for the boot jar (release workflow, image, scripts) picks it up; the boot jar keeps
+// evento-server-<version>.jar.
+tasks.named('jar') {
+	archiveBaseName = 'evento-server-library'
+	archiveClassifier = ''
+	from(rootProject.file('licenses/Apache-2.0.txt')) { into 'META-INF'; rename { 'LICENSE.txt' } }
+	from(rootProject.file('licenses/Commons-Clause-1.0.txt')) { into 'META-INF' }
+	from(rootProject.file('NOTICE.txt')) { into 'META-INF' }
+}
+tasks.named('sourcesJar') { archiveBaseName = 'evento-server-library' }
+tasks.named('javadocJar') { archiveBaseName = 'evento-server-library' }
+javadoc {
+	options.addBooleanOption("html5", true)
+	options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+publishing {
+	publications {
+		serverLibrary(MavenPublication) {
+			groupId = 'com.eventoframework'
+			artifactId = 'evento-server'
+			version = project.version
+			from components.java
+			pom {
+				name = 'Evento Server'
+				description = 'The Evento server (broker, event store, web console) as a library, to run it in process.'
+				url = "https://www.eventoframework.com/"
+				licenses {
+					license {
+						name = "Apache-2.0 with the Commons Clause 1.0 (no selling Evento without written authorisation)"
+						url = "https://github.com/EventoFramework/evento-framework/blob/main/evento-server/LICENSE.txt"
+						distribution = "repo"
+					}
+				}
+				developers {
+					developer {
+						id = "gaborgalazzo"
+						name = "Gabor Galazzo"
+						email = "gabor.galazzo@gmail.com"
+					}
+				}
+				scm {
+					connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+					developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+					url = "https://github.com/EventoFramework/evento-framework/tree/main/evento-server"
+				}
+			}
+		}
+	}
+	repositories {
+		maven {
+			name = 'ossrh-staging-api'
+			url = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
+			credentials {
+				username = project.findProperty("mavenCentralUsername") ?: System.getenv("MAVEN_CENTRAL_USERNAME")
+				password = project.findProperty("mavenCentralPassword") ?: System.getenv("MAVEN_CENTRAL_PASSWORD")
+			}
+		}
+		maven {
+			name = 'GitHubPackages'
+			url = "https://maven.pkg.github.com/EventoFramework/evento-framework"
+			credentials {
+				username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+				password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+			}
+		}
+	}
+}
+
+signing {
+	required = false
+	def signingKey = System.getenv("SIGNING_KEY")
+	if (signingKey) {
+		useInMemoryPgpKeys(signingKey, System.getenv("SIGNING_PASSWORD"))
+	}
+	sign publishing.publications.serverLibrary
 }
 
 
