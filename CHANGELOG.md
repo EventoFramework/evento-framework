@@ -372,6 +372,14 @@ a revised payload needs a 3.0 broker.
 
 ### Fixed
 
+- **A bundle stopped during a fail-back stayed registered, and a server back from a pause wiped live consumers.** A
+  Hello handled after its connection had closed registered a node on the dead channel, where it stayed (in the
+  view, the presence table, the routes). Now such a Hello touches nothing, and the catalog claims an instance only
+  when its session sends its first message after the Hello (`BusEvent.NodeEstablished`), not when it joins: on a
+  server resuming from a pause, the fail-back attempts that the bundles had already given up on claimed instances
+  live on another server, and the server's stale sessions of those instances then deleted their consumer rows
+  (lab scenario S04, 3 runs out of 4 on the first fix, 4 out of 4 clean after this one). A session that closes
+  before its first message leaves with reason `handshake_aborted`, and the catalog only releases its presence.
 - **The server stopped answering under load.** Responses from bundles ran on the bounded bus business executor
   (8 threads per CPU), behind the requests waiting for them: with as many commands in flight as threads, all of
   them holding a thread while waiting for the aggregate lock or for the handler bundle, no response was ever

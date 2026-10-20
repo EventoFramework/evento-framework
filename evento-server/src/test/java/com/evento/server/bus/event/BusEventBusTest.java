@@ -97,6 +97,7 @@ class BusEventBusTest {
         bus.subscribe(e -> {
             switch (e) {
                 case BusEvent.NodeJoined j -> handled.add("join:" + j.node().instanceId());
+                case BusEvent.NodeEstablished ignored -> {}
                 case BusEvent.BundleRegistered ignored -> {}
                 case BusEvent.BundleDiscovered ignored -> {}
                 case BusEvent.NodeLeft l -> handled.add("leave:" + l.node().instanceId());

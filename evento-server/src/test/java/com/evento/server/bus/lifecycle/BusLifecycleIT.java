@@ -420,10 +420,48 @@ class BusLifecycleIT {
         // The Hello may be handled on a dispatch thread: give it time, then the node must not be there.
         await().pollDelay(Duration.ofMillis(300)).atMost(Duration.ofSeconds(3)).untilAsserted(() ->
                 assertThat(lifecycle.view()).as("no phantom node").noneMatch(a -> a.instanceId().equals("late-1")));
-        assertThat(seenEvents).noneMatch(e -> e instanceof BusEvent.NodeJoined joined
-                && joined.node().instanceId().equals("late-1")
-                && seenEvents.stream().noneMatch(l -> l instanceof BusEvent.NodeLeft left
-                        && left.node().instanceId().equals("late-1")));
+        // Not even a join and a leave: their presence claim and release wiped the catalog rows
+        // of the same instance, live on another server (S04 on the lab, 3 runs out of 4).
+        assertThat(seenEvents).as("a Hello from a closed connection publishes no membership event")
+                .noneMatch(e -> (e instanceof BusEvent.NodeJoined j && j.node().instanceId().equals("late-1"))
+                        || (e instanceof BusEvent.NodeLeft l && l.node().instanceId().equals("late-1")));
+    }
+
+    /**
+     * A session that closes before the bundle sent anything after its Hello (a fail-back attempt
+     * given up on) registered nothing: its departure says so, and the catalog leaves the rows of
+     * the instance alone. One that sent something leaves as before.
+     */
+    @Test
+    void aSessionClosedBeforeItsFirstMessageLeavesAsAnAbortedHandshake() {
+        var aborted = new ScriptedTransport();
+        lifecycle.acceptConnection(aborted);
+        aborted.deliver(new Hello(UUID.randomUUID(), HandshakeProtocol.PROTOCOL_VERSION,
+                "probe-bundle", "probe-1", "100", Set.of(), null, System.currentTimeMillis()));
+        await().atMost(Duration.ofSeconds(3)).until(() ->
+                lifecycle.view().stream().anyMatch(a -> a.instanceId().equals("probe-1")));
+        aborted.closeNow();
+
+        var established = new ScriptedTransport();
+        lifecycle.acceptConnection(established);
+        established.deliver(new Hello(UUID.randomUUID(), HandshakeProtocol.PROTOCOL_VERSION,
+                "probe-bundle", "probe-2", "100", Set.of(), null, System.currentTimeMillis()));
+        await().atMost(Duration.ofSeconds(3)).until(() ->
+                lifecycle.view().stream().anyMatch(a -> a.instanceId().equals("probe-2")));
+        established.deliver(new Notification(UUID.randomUUID(), BusLifecycle.NOTIFY_ENABLE, new byte[0],
+                System.currentTimeMillis()));
+        await().atMost(Duration.ofSeconds(3)).until(() ->
+                lifecycle.availableView().stream().anyMatch(a -> a.instanceId().equals("probe-2")));
+        established.closeNow();
+
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> assertThat(seenEvents)
+                .filteredOn(e -> e instanceof BusEvent.NodeLeft)
+                .extracting(e -> ((BusEvent.NodeLeft) e).node().instanceId() + ":" + ((BusEvent.NodeLeft) e).reason())
+                .contains("probe-1:" + BusLifecycle.LEFT_HANDSHAKE_ABORTED, "probe-2:transport_disconnected"));
+        // Only the session that spoke after its Hello is established (and claims its instance).
+        assertThat(seenEvents).filteredOn(e -> e instanceof BusEvent.NodeEstablished)
+                .extracting(e -> ((BusEvent.NodeEstablished) e).node().instanceId())
+                .containsExactly("probe-2");
     }
 
     /** A transport whose close and inbound messages the test orders by hand. */

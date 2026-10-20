@@ -61,6 +61,11 @@ import java.util.function.Consumer;
  * {@link #subscribe(Consumer)} for cluster-event observers.
  */
 public final class BusLifecycle {
+    /**
+     * Reason of the NodeLeft of a session that closed before the bundle sent anything after its
+     * Hello (or while the Hello was being handled): it registered nothing in the catalog.
+     */
+    public static final String LEFT_HANDSHAKE_ABORTED = "handshake_aborted";
 
     private static final Logger log = LoggerFactory.getLogger(BusLifecycle.class);
 
@@ -666,6 +671,15 @@ public final class BusLifecycle {
                     .whenComplete((outcome, ex) -> session.transport().close());
             return;
         }
+        if (session.disconnected()) {
+            // The connection is already closed (a fail-back attempt the bundle gave up on, a
+            // Hello read from a socket that was paused): touch no shared state. Registering
+            // it published NodeJoined then NodeLeft, whose presence claim and release wiped
+            // the catalog rows of the same instance, live on another server (G7 again).
+            log.info("event=hello_after_disconnect node={} token={} registered=false",
+                    hello.instanceId(), session.connectionToken());
+            return;
+        }
         // Bind + register synchronously, BEFORE sending Welcome. Otherwise the client
         // can receive Welcome and immediately fire follow-up notifications (enable,
         // register-handlers, even a Request) that arrive on the server before
@@ -686,8 +700,11 @@ public final class BusLifecycle {
             // The connection closed while this Hello was being handled: its disconnect found no
             // address yet and cleaned up nothing, so the registration above would stay behind for
             // a dead channel (a bundle stopped mid-handshake left a phantom node, Q4).
-            log.info("event=hello_after_disconnect node={} token={}", address.instanceId(), session.connectionToken());
-            onTransportDisconnected(session);
+            // Its NodeLeft says so: the session never completed, so the catalog releases the
+            // presence it claimed and keeps every row (see AutoDiscoveryService.onNodeLeave).
+            log.info("event=hello_after_disconnect node={} token={} registered=true",
+                    address.instanceId(), session.connectionToken());
+            onTransportDisconnected(session, LEFT_HANDSHAKE_ABORTED);
             return;
         }
         handshakeHandler.reply(hello, session.transport(), verdict).whenComplete((outcome, ex) -> {
@@ -706,6 +723,7 @@ public final class BusLifecycle {
             log.warn("event=notification_before_handshake type={}", notification.payloadType());
             return;
         }
+        establish(session);
         switch (notification.payloadType()) {
             case BundleRegistrationInfo.PAYLOAD_TYPE -> {
                 var info = payloadCodec.decode(notification.payload(), BundleRegistrationInfo.class);
@@ -749,6 +767,7 @@ public final class BusLifecycle {
                     new IllegalStateException("handshake required before requests"));
             return;
         }
+        establish(session);
         // The caller's deadline, measured from when the frame reached this broker (before
         // it queued for a dispatch thread): a request nobody waits for any more is not
         // routed, so a saturated broker stops executing commands whose callers already
@@ -1034,7 +1053,22 @@ public final class BusLifecycle {
         }
     }
 
+    /** The first message after the Hello: the session is live (see {@link BusEvent.NodeEstablished}). */
+    private void establish(BundleSession session) {
+        if (session.markEstablished()) {
+            eventBus.publish(new BusEvent.NodeEstablished(session.address(), Instant.now()));
+        }
+    }
+
     private void onTransportDisconnected(BundleSession session) {
+        // A session closed before the bundle sent anything after its Hello registered nothing:
+        // its departure must not clean up rows that a live session of the same instance, on
+        // another server, wrote (the S04 lab run: fail-back attempts given up while this server
+        // was paused, handled when it resumed).
+        onTransportDisconnected(session, session.established() ? "transport_disconnected" : LEFT_HANDSHAKE_ABORTED);
+    }
+
+    private void onTransportDisconnected(BundleSession session, String reason) {
         // First, so a Hello being handled right now sees it after registering (see onHello).
         session.markDisconnected();
         sessionsByTransport.remove(session.transport());
@@ -1050,7 +1084,7 @@ public final class BusLifecycle {
         }
         if (!session.claimCleanup()) return;  // the disconnect and a late Hello both got here
         session.transitionTo(BundleSession.Phase.CLOSED);
-        var removedConn = connectionRegistry.unregister(address, session.connectionToken(), "transport_disconnected");
+        var removedConn = connectionRegistry.unregister(address, session.connectionToken(), reason);
         if (removedConn.isEmpty()) {
             // Token mismatch: this session was already superseded by a newer connection
             // for the same NodeAddress. The new session owns the cluster-registry and

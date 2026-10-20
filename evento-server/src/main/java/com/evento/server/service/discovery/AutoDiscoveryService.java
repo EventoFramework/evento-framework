@@ -73,9 +73,9 @@ public class AutoDiscoveryService {
         this.pgDistributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
         busFacade.subscribe(event -> {
             switch (event) {
-                case BusEvent.NodeJoined joined -> onSessionOpened(joined.node());
+                case BusEvent.NodeEstablished established -> onSessionOpened(established.node());
                 case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
-                case BusEvent.NodeLeft left -> onNodeLeave(left.node());
+                case BusEvent.NodeLeft left -> onNodeLeave(left.node(), left.reason());
                 default -> { /* ignore other event types */ }
             }
         });
@@ -84,10 +84,13 @@ public class AutoDiscoveryService {
     /**
      * Claims the instance's session for this server before anything else about the
      * instance is written: the claim is what tells a server that still holds a stale
-     * session of the same instance to keep its hands off on the eventual NodeLeft.
+     * session of the same instance to keep its hands off on the eventual NodeLeft. It runs on
+     * {@link BusEvent.NodeEstablished}, the session's first message after its Hello: a session
+     * that never got that far (a fail-back attempt given up on) must not claim an instance that is
+     * live on another server.
      *
      * <p>A leave of the same instance on this server can still race the claim: a
-     * superseded session's NodeLeft precedes the replacement's NodeJoined, but a
+     * superseded session's NodeLeft precedes the replacement's first message, but a
      * session closed by its channel publishes NodeLeft on that channel's event loop,
      * possibly after the replacement (on another event loop) has already claimed.
      * {@link #onNodeLeave} therefore re-checks the local view after releasing and
@@ -414,6 +417,17 @@ public class AutoDiscoveryService {
      * @param node The address of the leaving node.
      */
     public void onNodeLeave(NodeAddress node) {
+        onNodeLeave(node, null);
+    }
+
+    /**
+     * As {@link #onNodeLeave(NodeAddress)}; a session whose handshake was aborted
+     * ({@link com.evento.server.bus.lifecycle.BusLifecycle#LEFT_HANDSHAKE_ABORTED}) only
+     * releases the presence its join claimed: it never registered anything, and the same
+     * instance may be live on another server, whose heartbeat re-creates its presence row.
+     */
+    public void onNodeLeave(NodeAddress node, String reason) {
+        boolean aborted = com.evento.server.bus.lifecycle.BusLifecycle.LEFT_HANDSHAKE_ABORTED.equals(reason);
         try {
             // Same lock key family as onNodeJoin ("DISCOVERY:" + bundleId): join and
             // leave both touch bundle-scoped rows (components, handlers, the bundle
@@ -438,15 +452,20 @@ public class AutoDiscoveryService {
                 // A newer session of the same instance may already be registered here: a
                 // superseded session's NodeLeft is published after the replacement is in
                 // the view, and a channel-close NodeLeft (published on the old channel's
-                // event loop) can land after the replacement's NodeJoined claim, in which
+                // event loop) can land after the replacement's claim, in which
                 // case the release above just deleted the live session's row. Checking
                 // the view after the release covers both orders: a replacement that
-                // enters the view later claims again when its NodeJoined is published
+                // enters the view later claims again when it is established
                 // (waiting on this transaction's row lock). Its consumer rows are left
                 // alone too: its own registration, serialized with us by the lock, owns them.
                 if (busFacade.currentView().contains(node)) {
                     presence.claim(node);
                     logger.info("Skipping leave cleanup of instance %s (bundle %s): a newer session of it is connected here"
+                            .formatted(node.instanceId(), node.bundleId()));
+                    return;
+                }
+                if (aborted) {
+                    logger.info("Skipping leave cleanup of instance %s (bundle %s): its handshake was aborted"
                             .formatted(node.instanceId(), node.bundleId()));
                     return;
                 }

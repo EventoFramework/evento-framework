@@ -81,4 +81,14 @@ public final class BundleSession {
 
     /** True for the one caller that should clean up the registered session. */
     public boolean claimCleanup() { return cleanedUp.compareAndSet(false, true); }
+
+    /**
+     * Set by the first message after the Hello: before it the bundle has not even read the
+     * Welcome, so it has registered nothing (catalog, consumers) through this session.
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean established = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** @return true the first time only */
+    public boolean markEstablished() { return established.compareAndSet(false, true); }
+    public boolean established() { return established.get(); }
 }

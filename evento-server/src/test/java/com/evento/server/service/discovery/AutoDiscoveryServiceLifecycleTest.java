@@ -134,10 +134,19 @@ class AutoDiscoveryServiceLifecycleTest {
     }
 
     @Test
-    void sessionOpenClaimsTheInstanceForThisServer() {
-        subscriber.accept(new BusEvent.NodeJoined(node("inst-1"), Instant.now()));
+    void anEstablishedSessionClaimsTheInstanceForThisServer() {
+        subscriber.accept(new BusEvent.NodeEstablished(node("inst-1"), Instant.now()));
 
         verify(presence).claim(node("inst-1"));
+    }
+
+    @Test
+    void aJoinAloneClaimsNothing() {
+        // A session that never sends anything after its Hello (a fail-back attempt given up
+        // on) must not take the instance from the server where it is live (S04 on the lab).
+        subscriber.accept(new BusEvent.NodeJoined(node("inst-1"), Instant.now()));
+
+        verify(presence, never()).claim(any());
     }
 
     @Test
@@ -151,6 +160,21 @@ class AutoDiscoveryServiceLifecycleTest {
 
         subscriber.accept(new BusEvent.NodeLeft(node("inst-1"), "read_idle", Instant.now()));
 
+        verify(consumerService, never()).clearInstance(any());
+        verify(bundleService, never()).removeBundle(any());
+    }
+
+    @Test
+    void anAbortedHandshakeReleasesItsPresenceAndKeepsTheInstancesRows() {
+        // S04 on the lab: a fail-back attempt given up on, handled by a resumed server, claimed
+        // the instance live on another server; its leave then wiped that instance's consumers.
+        when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("inst-1")));
+        when(busFacade.currentView()).thenReturn(Set.of());
+
+        subscriber.accept(new BusEvent.NodeLeft(node("inst-1"),
+                com.evento.server.bus.lifecycle.BusLifecycle.LEFT_HANDSHAKE_ABORTED, Instant.now()));
+
+        verify(presence).release(node("inst-1"));
         verify(consumerService, never()).clearInstance(any());
         verify(bundleService, never()).removeBundle(any());
     }
