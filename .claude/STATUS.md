@@ -125,8 +125,18 @@ authorisation agreement, `TRADEMARKS.md` (draft), CLA, README/CONTRIBUTING/SUPPO
 CHANGELOG, ARCHITECTURE, ENTERPRISE-2.6 L5, CII sheet (`floss_license` now unmet for the server). evento-doc
 15860a3 (licensing page, GUI auth, upgrade §9), evento-www 1d8cf79 on `licensing/apache-client-libraries` (not
 deployed), evento-server-enterprise README marked retired (6a11437; archiving the GitHub repo is the user's
-call). Open: lawyer review (licence reading, TRADEMARKS, CLA), trademark registration, 11 early commits under an
-employer address (check ownership). Docs updated (ARCHITECTURE §4.6 "Choosing
+call). The new terms apply from 2.6.0; 2.5.x and earlier keep their licences (LICENSE.txt, README, CHANGELOG,
+evento-doc, site). Open: lawyer review (licence reading, TRADEMARKS, CLA), trademark registration.
+
+**History rewrite (2026-10-20, asked by the user).** The 11 commits (2022, 2025) authored and committed under the
+user's former employer address now carry `Gabor Galazzo <gabor.galazzo@gmail.com>` (git filter-repo mailmap on a
+mirror; trees identical on all 60 branches/tags). Force-pushed every branch and tag; `main` through a temporary
+`allow_force_pushes=true` on its classic protection, restored at once (protection compared equal before/after).
+Every commit hash and tag changed: hashes quoted in older notes above and in commit messages before the rewrite
+point to the old objects (filter-repo translated those in commit messages). Old objects stay reachable on GitHub
+through `refs/pull/*` (read-only) and in the local `refs/remotes/pr/*`, local-only branches (`backup/*`,
+`cluster/*`, worktrees) and the mirror backup `../evento-history-backup-2026-10-20.git`. Renaming does not change
+ownership of that code. Docs updated (ARCHITECTURE §4.6 "Choosing
 CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
 (unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
 
