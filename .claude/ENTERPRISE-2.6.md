@@ -512,7 +512,7 @@ No, non come funzionalità del framework. Tre modi di avere più tenant, e cosa 
 
 La 3 è la sola che il framework potrebbe aggiungere, costa molto e serve solo a chi vende Evento come
 piattaforma multi-cliente, cioè proprio l'uso che la licenza riserva. Resta in "Cosa non fare" finché un
-cliente non la paga; nel frattempo una pagina di documentazione sui modi 1 e 2 basta (da scrivere).
+cliente non la paga; nel frattempo basta la pagina di documentazione sui modi 1 e 2 (evento-doc `evento-framework/multi-tenancy.md`).
 
 ### Cosa manca (2026-10-20, sessione 8)
 
@@ -538,7 +538,7 @@ cliente non la paga; nel frattempo una pagina di documentazione sui modi 1 e 2 b
 framework; payload annidati documentati come limite permanente; p99 di APES non più rilevante. Restano:
 
 7. **Spike D2 (b)** append senza `es-lock` (vedi punto 6).
-8. **Pagina di documentazione sulla multi-tenancy** (modi 1 e 2 dell'analisi F6).
+8. ~~Pagina di documentazione sulla multi-tenancy~~: fatta (evento-doc `multi-tenancy.md`).
 9. Evoluzioni possibili di F10: rotazione delle chiavi, componenti di record e getter, soggetto diverso
    per oggetti annidati.
 

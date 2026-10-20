@@ -165,8 +165,8 @@ transaction holding es-lock), F10 crypto-shredding (`com.evento.common.personald
 instead of a null payload). evento-doc: nested payloads limit, `scheduling-with-quartz.md`, upgrade guide
 renamed `upgrading-to-3-0.md`, aggregate command handler (several events), `personal-data.md`. F6: not in the
 framework (analysis in ENTERPRISE-2.6.md: tenant as domain concept or silo; server-enforced isolation is costly
-and is the use the licence reserves). Next: R1 (merge PR #281, tag v3.0.0) when the user asks; multi-tenancy
-doc page; spike D2 (b). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
+and is the use the licence reserves). Multi-tenancy doc page written (evento-doc `multi-tenancy.md`). Next: R1 (merge PR #281, tag v3.0.0) when the
+user asks; spike D2 (b). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
