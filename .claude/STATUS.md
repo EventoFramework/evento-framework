@@ -135,7 +135,8 @@ mirror; trees identical on all 60 branches/tags). Force-pushed every branch and 
 Every commit hash and tag changed: hashes quoted in older notes above and in commit messages before the rewrite
 point to the old objects (filter-repo translated those in commit messages). Old objects stay reachable on GitHub
 through `refs/pull/*` (read-only) and in the local `refs/remotes/pr/*`, local-only branches (`backup/*`,
-`cluster/*`, worktrees) and the mirror backup `../evento-history-backup-2026-10-20.git`. Renaming does not change
+`cluster/*`, worktrees); the mirror backup was deleted at the user's request, and
+`EventoFramework/evento-server-enterprise` archived on GitHub (private, read-only). Renaming does not change
 ownership of that code. Docs updated (ARCHITECTURE §4.6 "Choosing
 CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
 (unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
