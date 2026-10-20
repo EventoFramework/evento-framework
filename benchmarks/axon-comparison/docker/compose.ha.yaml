@@ -1,0 +1,239 @@
+# B2: the same workload on a highly available, multi-AZ deployment, simulated on one machine.
+#
+#   AZ a: pg-a (primary)              evento-a  handler-a  load-a     axon-a
+#   AZ b: pg-b (synchronous standby)  evento-b  handler-b  load-b     axon-b
+#
+# Every commit on pg-a waits for pg-b (synchronous_commit=on, FIRST 1 (pg_b)): no acknowledged
+# event is lost if AZ a goes down. Everything that crosses AZs goes through toxiproxy, which adds
+# HA_RTT_MS of round trip (half each way): the replication stream pg-b -> pg-a, and the database
+# connections of the AZ b servers. Bundles and loads talk to the server of their own AZ (the cell
+# model). The two loads share the spread and hot orders (BENCH_LOADERS=2), so commands for one
+# aggregate arrive through both servers.
+#
+# Same CPU budget as B1: infrastructure (both PostgreSQL, both servers, toxiproxy) on CPUs 0-3,
+# applications on 4-7. One machine cannot show what more hardware gives; it shows what the
+# replication and the AZ latency cost each design.
+#
+# Profiles: evento | axon. scripts/run-ha.sh starts one at a time on fresh volumes.
+name: bench-ha
+
+x-pg-command: &pg-command
+  - postgres
+  - -c
+  - max_connections=400
+  - -c
+  - wal_level=replica
+  - -c
+  - max_wal_senders=10
+  - -c
+  - wal_keep_size=512MB
+  - -c
+  - hot_standby=on
+  - -c
+  - synchronous_commit=on
+
+x-pg-healthcheck: &pg-healthcheck
+  test: ["CMD", "sh", "/pg/healthcheck.sh"]
+  interval: 2s
+  timeout: 5s
+  retries: 60
+
+x-app: &app
+  cpuset: "4-7"
+  mem_limit: 1536m
+
+x-bench-env: &bench-env
+  BENCH_SCENARIO: ${BENCH_SCENARIO:-spread}
+  BENCH_CONCURRENCY: ${BENCH_CONCURRENCY:-4,16,64}
+  BENCH_WARMUP_S: ${BENCH_WARMUP_S:-15}
+  BENCH_DURATION_S: ${BENCH_DURATION_S:-45}
+  BENCH_AGGREGATES: ${BENCH_AGGREGATES:-1000}
+  BENCH_RUN: ${BENCH_RUN:-r}
+  BENCH_LOADERS: "2"
+  BENCH_OUT: /results/results-ha.jsonl
+
+x-server: &server
+  image: bench/evento-server
+  profiles: [evento]
+  cpuset: "0-3"
+  mem_limit: 2g
+  healthcheck:
+    test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/3030'"]
+    interval: 2s
+    retries: 90
+
+services:
+  pg-a:
+    image: postgres:16.10
+    profiles: [evento, axon]
+    cpuset: "0-3"
+    mem_limit: 3g
+    command: *pg-command
+    healthcheck: *pg-healthcheck
+    shm_size: 256m
+    environment:
+      POSTGRES_DB: evento
+      POSTGRES_PASSWORD: secret
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+      SYNC_STANDBY_NAMES: FIRST 1 (pg_b)
+      EXTRA_DATABASES: axon
+    volumes:
+      - pga:/var/lib/postgresql/data
+      - ./pg:/pg:ro
+      - ./pg/primary-init.sh:/docker-entrypoint-initdb.d/10-replication.sh:ro
+
+  pg-b:
+    image: postgres:16.10
+    profiles: [evento, axon]
+    cpuset: "0-3"
+    mem_limit: 3g
+    entrypoint: ["sh", "/pg/replica-entrypoint.sh"]
+    command: *pg-command
+    healthcheck: *pg-healthcheck
+    shm_size: 256m
+    environment:
+      POSTGRES_PASSWORD: secret
+      PRIMARY_HOST: toxiproxy
+      PRIMARY_PORT: "21002"
+      STANDBY_NAME: pg_b
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+    # Its own "disk": on one machine a standby on the same disk as the primary competes with it
+    # for every fsync, which no multi-AZ deployment does. tmpfs makes the standby's fsync free;
+    # the real one (~1 ms on cloud SSD) is within the RTTs measured.
+    tmpfs:
+      - /var/lib/postgresql/data:size=1800m,uid=999,gid=999,mode=0700
+    volumes:
+      - ./pg:/pg:ro
+    depends_on:
+      pg-a: {condition: service_healthy}
+      toxiproxy-init: {condition: service_completed_successfully}
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    profiles: [evento, axon]
+    cpuset: "0-3"
+    mem_limit: 512m
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy/toxiproxy-ha.json:/config/toxiproxy.json:ro
+
+  # Adds HA_RTT_MS of round trip on every cross-AZ proxy (0: none).
+  toxiproxy-init:
+    image: curlimages/curl:8.11.1
+    profiles: [evento, axon]
+    depends_on: [toxiproxy]
+    environment:
+      HA_RTT_MS: ${HA_RTT_MS:-0}
+    volumes:
+      - ./toxiproxy/apply-ha-latency.sh:/apply.sh:ro
+    entrypoint: ["sh", "/apply.sh"]
+
+  evento-a:
+    <<: *server
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pg-a:5432/evento
+      SPRING_DATASOURCE_PASSWORD: secret
+      EVENTO_ES_MODE: ${EVENTO_ES_MODE:-CPES}
+      EVENTO_CLUSTER_NODE_SERVER_ID: evento-a
+      EVENTO_SERVER_INSTANCE_ID: evento-a
+      JAVA_OPTS: "-XX:MaxRAMPercentage=60"
+    depends_on:
+      pg-b: {condition: service_healthy}
+
+  evento-b:
+    <<: *server
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://toxiproxy:21001/evento
+      SPRING_DATASOURCE_PASSWORD: secret
+      EVENTO_ES_MODE: ${EVENTO_ES_MODE:-CPES}
+      EVENTO_CLUSTER_NODE_SERVER_ID: evento-b
+      EVENTO_SERVER_INSTANCE_ID: evento-b
+      JAVA_OPTS: "-XX:MaxRAMPercentage=60"
+    depends_on:
+      # One server initialises the schema first.
+      evento-a: {condition: service_healthy}
+
+  handler-a:
+    <<: *app
+    image: bench/evento-app
+    profiles: [evento]
+    depends_on:
+      evento-a: {condition: service_healthy}
+    environment:
+      MAIN: com.evento.bench.evento.EventoBench
+      BENCH_ROLE: handler
+      EVENTO_HOST: evento-a
+
+  handler-b:
+    <<: *app
+    image: bench/evento-app
+    profiles: [evento]
+    depends_on:
+      evento-b: {condition: service_healthy}
+    environment:
+      MAIN: com.evento.bench.evento.EventoBench
+      BENCH_ROLE: handler
+      EVENTO_HOST: evento-b
+
+  load-a:
+    <<: *app
+    image: bench/evento-app
+    profiles: [evento-load]
+    environment:
+      <<: *bench-env
+      MAIN: com.evento.bench.evento.EventoBench
+      BENCH_ROLE: load
+      EVENTO_HOST: evento-a
+      BENCH_LOADER: "0"
+      BENCH_SYSTEM: evento-${EVENTO_ES_MODE:-CPES}@rtt${HA_RTT_MS:-0}#0
+    volumes:
+      - ../results:/results
+
+  load-b:
+    <<: *app
+    image: bench/evento-app
+    profiles: [evento-load]
+    environment:
+      <<: *bench-env
+      MAIN: com.evento.bench.evento.EventoBench
+      BENCH_ROLE: load
+      EVENTO_HOST: evento-b
+      BENCH_LOADER: "1"
+      BENCH_SYSTEM: evento-${EVENTO_ES_MODE:-CPES}@rtt${HA_RTT_MS:-0}#1
+    volumes:
+      - ../results:/results
+
+  # Axon Framework 5.4 open source, two instances (one per AZ) on the same database: handler
+  # and load in each JVM, 64 connections each (the default 10 collapses, see B1).
+  axon-a:
+    <<: *app
+    image: bench/axon-app
+    profiles: [axon-load]
+    environment:
+      <<: *bench-env
+      SPRING_PROFILES_ACTIVE: handler,load
+      DB_URL: jdbc:postgresql://pg-a:5432/axon
+      DB_POOL: "64"
+      BENCH_LOADER: "0"
+      BENCH_SYSTEM: axon5-jpa-pool64@rtt${HA_RTT_MS:-0}#0
+    volumes:
+      - ../results:/results
+
+  axon-b:
+    <<: *app
+    image: bench/axon-app
+    profiles: [axon-load]
+    environment:
+      <<: *bench-env
+      SPRING_PROFILES_ACTIVE: handler,load
+      DB_URL: jdbc:postgresql://toxiproxy:21003/axon
+      DB_POOL: "64"
+      BENCH_LOADER: "1"
+      BENCH_SYSTEM: axon5-jpa-pool64@rtt${HA_RTT_MS:-0}#1
+    volumes:
+      - ../results:/results
+
+volumes:
+  pga:

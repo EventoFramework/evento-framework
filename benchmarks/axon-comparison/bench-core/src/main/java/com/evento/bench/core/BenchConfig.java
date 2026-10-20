@@ -17,10 +17,14 @@ import java.util.Map;
  * BENCH_TIMEOUT_MS   how long a caller waits for one reply (default 30000)
  * BENCH_OUT          JSON-lines file the results are appended to (default results/results.jsonl)
  * BENCH_RUN          id prefixed to every order id (default: start time)
+ * BENCH_LOADERS      loaders driving one cluster together (default 1); with more than one, the
+ *                    spread and hot orders are shared by all of them (same BENCH_RUN)
+ * BENCH_LOADER       this loader's index, 0..BENCH_LOADERS-1
  * </pre>
  */
 public record BenchConfig(String system, String scenario, List<Integer> concurrencyLevels, int warmupSeconds,
-                          int durationSeconds, int aggregates, long timeoutMs, Path output, String runId) {
+                          int durationSeconds, int aggregates, long timeoutMs, Path output, String runId,
+                          int loaders, int loader) {
 
     public static BenchConfig fromEnvironment() {
         Map<String, String> env = System.getenv();
@@ -34,6 +38,8 @@ public record BenchConfig(String system, String scenario, List<Integer> concurre
                 Integer.parseInt(env.getOrDefault("BENCH_AGGREGATES", "1000")),
                 Long.parseLong(env.getOrDefault("BENCH_TIMEOUT_MS", "30000")),
                 Path.of(env.getOrDefault("BENCH_OUT", "results/results.jsonl")),
-                env.getOrDefault("BENCH_RUN", Long.toString(System.currentTimeMillis(), 36)));
+                env.getOrDefault("BENCH_RUN", Long.toString(System.currentTimeMillis(), 36)),
+                Integer.parseInt(env.getOrDefault("BENCH_LOADERS", "1")),
+                Integer.parseInt(env.getOrDefault("BENCH_LOADER", "0")));
     }
 }

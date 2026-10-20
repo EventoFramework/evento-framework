@@ -71,3 +71,25 @@ defaults (see `docker/compose.yaml`).
 
 See [`results/REPORT.md`](results/REPORT.md) (in Italian: machine, date and commit in its header,
 units and how to read the tables first).
+
+## B2: high availability across two AZs
+
+The same workload on a highly available deployment, simulated on one machine
+(`docker/compose.ha.yaml`): PostgreSQL primary in AZ a, a **synchronous** standby in AZ b (every
+commit waits for it), one server (or Axon instance) with its bundle and load in each AZ, and
+toxiproxy adding a round trip between the AZs (replication stream and the AZ b database
+connections). The two loads share the spread and hot aggregates, so commands for one aggregate
+arrive through both servers.
+
+```
+scripts/run-ha.sh evento-cpes 2           # one system at 2 ms between AZs, all scenarios
+python scripts/report-ha.py results/results-ha.jsonl > results/REPORT-HA.md
+```
+
+Results: [`results/REPORT-HA.md`](results/REPORT-HA.md) (Italian; throughput split per AZ).
+Caveats: one machine, so it measures what replication and AZ latency cost each design, not
+what more hardware gives; the standby writes to tmpfs (its own fsync, ~1 ms on cloud SSD, is not
+modelled); Axon at 128 in flight on spread still saw "Entity was missing" errors in AZ b, whose
+load ran ahead of the AZ a load that creates the shared aggregates (a harness artefact, counted
+among its refusals). B2 found and led to the fix of a lock starvation between servers (see the
+changelog).

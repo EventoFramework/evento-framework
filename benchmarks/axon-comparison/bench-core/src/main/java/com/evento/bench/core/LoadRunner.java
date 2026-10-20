@@ -85,7 +85,7 @@ public final class LoadRunner {
                     long sent = System.nanoTime();
                     if (sent >= measureTo) return;
                     CompletableFuture<?> reply = switch (config.scenario()) {
-                        case "create" -> commands.create(prefix + created.incrementAndGet());
+                        case "create" -> commands.create(prefix + "L" + config.loader() + "-" + created.incrementAndGet());
                         default -> commands.addItem(orders.get(random.nextInt(orders.size())),
                                 "sku-" + random.nextInt(1000), 1 + random.nextInt(5));
                     };
@@ -126,16 +126,29 @@ public final class LoadRunner {
                 histogram.getMaxValue() / 1000.0, histogram.getMean() / 1000.0, Instant.now().toString());
     }
 
-    /** Creates {@code n} orders, 16 at a time, retrying refused ones; not measured. */
+    /**
+     * Creates {@code n} orders, 16 at a time; not measured. With several loaders (one per
+     * server of a cluster) the orders are shared: the same ids for every loader, so commands from
+     * different servers meet on the same aggregates. Loader 0 creates them all and the others
+     * wait: a loader behind a slow server finishes a level late, and orders it had to create for
+     * the next level were missing for the others (B2, Axon at 2 ms: "Entity was missing").
+     */
     private List<String> setUp(String prefix, int n) throws Exception {
         var ids = new ArrayList<String>();
-        for (int i = 0; i < n; i++) ids.add(prefix + i + "-" + UUID.randomUUID().toString().substring(0, 8));
+        boolean shared = config.loaders() > 1;
+        for (int i = 0; i < n; i++) {
+            ids.add(shared ? prefix + i : prefix + i + "-" + UUID.randomUUID().toString().substring(0, 8));
+        }
+        var mine = new ArrayList<String>();
+        if (!shared || config.loader() == 0) mine.addAll(ids);
         int batch = 16;
-        for (int from = 0; from < n; from += batch) {
+        for (int from = 0; from < mine.size(); from += batch) {
             var pending = new ArrayList<CompletableFuture<?>>();
-            for (int i = from; i < Math.min(n, from + batch); i++) pending.add(commands.create(ids.get(i)));
+            for (int i = from; i < Math.min(mine.size(), from + batch); i++) pending.add(commands.create(mine.get(i)));
             for (var f : pending) f.get(config.timeoutMs(), TimeUnit.MILLISECONDS);
         }
+        // Loader 0, next to the primary, creates 1000 orders in about a second.
+        if (shared && config.loader() != 0) Thread.sleep(3_000);
         return ids;
     }
 
