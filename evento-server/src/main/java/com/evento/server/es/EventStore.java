@@ -74,6 +74,32 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
                     "SELECT nextval('event_sequence_number_serial'), ?, ?, ?, ? FROM es_lock " +
                     "RETURNING event_sequence_number";
 
+    private static final String ES_LOCK_CTE = "WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))) ";
+
+    /**
+     * A CPES single-statement append whose wait for {@code es-lock} is bounded by the current
+     * {@link AppendDeadline} (N15): {@code sql} with a first parameter, the statement's
+     * {@code lock_timeout}, and {@code args} after it. Without a deadline, {@code sql} as it is.
+     */
+    private <T> List<T> cpesAppend(String sql, Class<T> type, Object... args) {
+        long deadline = AppendDeadline.current();
+        if (deadline == Long.MAX_VALUE) return jdbcTemplate.queryForList(sql, type, args);
+        if (AppendDeadline.passed(deadline)) throw AppendDeadline.expired("before its append");
+        if (!sql.startsWith(ES_LOCK_CTE)) throw new IllegalStateException("not a CPES append: " + sql);
+        String bounded = "WITH cfg AS MATERIALIZED (SELECT set_config('lock_timeout', ?, true)), "
+                + "es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock')) FROM cfg) "
+                + sql.substring(ES_LOCK_CTE.length());
+        var all = new Object[args.length + 1];
+        all[0] = AppendDeadline.lockTimeout(deadline);
+        System.arraycopy(args, 0, all, 1, args.length);
+        try {
+            return jdbcTemplate.queryForList(bounded, type, all);
+        } catch (RuntimeException e) {
+            if (AppendDeadline.lockTimedOut(e)) throw AppendDeadline.expired("while it waited for es-lock");
+            throw e;
+        }
+    }
+
     /** Name of the partial unique index on {@code es__events.idempotency_key} (G5). */
     public static final String IDEMPOTENCY_KEY_INDEX =
             com.evento.server.config.AdvisoryLockedSchemaInitializer.ES_EVENTS_IDEMPOTENCY_INDEX;
@@ -547,7 +573,7 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
                         eventMessage.getContext()
                 );
             } else {
-                Long seq = jdbcTemplate.queryForObject(
+                var appended = cpesAppend(
                         CPES_APPEND_SQL,
                         Long.class,
                         aggregateId,
@@ -555,6 +581,7 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
                         eventMessage.getEventName(),
                         eventMessage.getContext()
                 );
+                Long seq = appended.isEmpty() ? null : appended.getFirst();
                 if (seq == null) {
                     throw new IllegalStateException("Failed to retrieve next event sequence number.");
                 }
@@ -619,7 +646,7 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
                 return id;
             }
             List<Long> seq = claimOwner == null
-                    ? jdbcTemplate.queryForList(CPES_KEYED_APPEND_SQL, Long.class, aggregateId, json,
+                    ? cpesAppend(CPES_KEYED_APPEND_SQL, Long.class, aggregateId, json,
                     eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType)
                     : jdbcTemplate.queryForList(completingClaim(CPES_KEYED_APPEND_SQL), Long.class, aggregateId, json,
                     eventMessage.getEventName(), eventMessage.getContext(), idempotencyKey, commandType,
@@ -686,9 +713,9 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
                 return id;
             }
             List<Long> seq = keyed
-                    ? jdbcTemplate.queryForList(CPES_FENCED_KEYED_APPEND_SQL, Long.class, aggregateId, json, name,
+                    ? cpesAppend(CPES_FENCED_KEYED_APPEND_SQL, Long.class, aggregateId, json, name,
                     context, version, idempotencyKey, commandType)
-                    : jdbcTemplate.queryForList(CPES_FENCED_APPEND_SQL, Long.class, aggregateId, json, name, context,
+                    : cpesAppend(CPES_FENCED_APPEND_SQL, Long.class, aggregateId, json, name, context,
                     version);
             if (seq.isEmpty()) throw new IdempotencyKeyConflictException(idempotencyKey);
             return seq.getFirst();

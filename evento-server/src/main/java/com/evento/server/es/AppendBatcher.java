@@ -58,11 +58,14 @@ final class AppendBatcher implements AutoCloseable {
                     + "LEFT JOIN ins i ON i.event_sequence_number = n.seq ORDER BY n.ord";
 
     /**
-     * CPES: {@code es-lock} first (a materialised CTE every later one reads), then the sequence
-     * numbers in input order, then the rows. The {@code seq} input column is unused (nulls).
+     * CPES: the {@code lock_timeout} of this statement (the first parameter: what is left of the
+     * earliest deadline in the batch, N15), {@code es-lock} (a materialised CTE every later one
+     * reads), then the sequence numbers in input order, then the rows. The {@code seq} input
+     * column is unused (nulls).
      */
     static final String CPES_BATCH_SQL =
-            "WITH es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock'))), " + INPUT + ", "
+            "WITH cfg AS MATERIALIZED (SELECT set_config('lock_timeout', ?, true)), "
+                    + "es_lock AS (SELECT pg_advisory_xact_lock(hashtext('es-lock')) FROM cfg), " + INPUT + ", "
                     + "numbered AS (SELECT input.ord, nextval('event_sequence_number_serial') AS seq, input.aggregate_id, "
                     + "input.event_message, input.event_name, input.context, input.aggregate_seq, input.idempotency_key, "
                     + "input.idempotency_command FROM es_lock, input ORDER BY input.ord), " + INSERT_AND_REPORT;
@@ -73,7 +76,7 @@ final class AppendBatcher implements AutoCloseable {
 
     /** One queued append. {@code result}: the sequence number, or -1 when not inserted (a conflict). */
     record Pending(String aggregateId, String eventMessage, String eventName, String context, long aggregateSeq,
-                   String idempotencyKey, String idempotencyCommand, CompletableFuture<Long> result) {
+                   String idempotencyKey, String idempotencyCommand, long deadlineMs, CompletableFuture<Long> result) {
     }
 
     /** The batch failed for another reason than a conflict: the caller appends alone. */
@@ -117,7 +120,7 @@ final class AppendBatcher implements AutoCloseable {
                 String idempotencyKey, String idempotencyCommand) {
         if (closed) throw new BatchFailedException(new IllegalStateException("the append batcher is closed"));
         var pending = new Pending(aggregateId, eventMessage, eventName, context, aggregateSeq, idempotencyKey,
-                idempotencyCommand, new CompletableFuture<>());
+                idempotencyCommand, AppendDeadline.current(), new CompletableFuture<>());
         queue.add(pending);
         try {
             return pending.result().join();
@@ -163,7 +166,21 @@ final class AppendBatcher implements AutoCloseable {
         }
     }
 
-    private void writeBatch(List<Pending> batch) {
+    private void writeBatch(List<Pending> all) {
+        // N15: a caller whose deadline passed while its row queued is not written; the others wait
+        // for es-lock no longer than the earliest deadline among them.
+        var batch = new ArrayList<Pending>(all.size());
+        long earliest = Long.MAX_VALUE;
+        for (var p : all) {
+            if (AppendDeadline.passed(p.deadlineMs())) {
+                p.result().completeExceptionally(AppendDeadline.expired("while its append queued"));
+            } else {
+                batch.add(p);
+                earliest = Math.min(earliest, p.deadlineMs());
+            }
+        }
+        if (batch.isEmpty()) return;
+        String lockTimeout = AppendDeadline.lockTimeout(earliest);
         int n = batch.size();
         var seqs = new Long[n];
         var aggregateIds = new String[n];
@@ -188,14 +205,16 @@ final class AppendBatcher implements AutoCloseable {
         try {
             jdbcTemplate.execute((ConnectionCallback<Void>) c -> {
                 try (var ps = c.prepareStatement(cpes ? CPES_BATCH_SQL : APES_BATCH_SQL)) {
-                    ps.setArray(1, array(c, "bigint", seqs));
-                    ps.setArray(2, array(c, "text", aggregateIds));
-                    ps.setArray(3, array(c, "text", messages));
-                    ps.setArray(4, array(c, "text", names));
-                    ps.setArray(5, array(c, "text", contexts));
-                    ps.setArray(6, array(c, "bigint", versions));
-                    ps.setArray(7, array(c, "text", keys));
-                    ps.setArray(8, array(c, "text", commands));
+                    int i = 1;
+                    if (cpes) ps.setString(i++, lockTimeout);
+                    ps.setArray(i++, array(c, "bigint", seqs));
+                    ps.setArray(i++, array(c, "text", aggregateIds));
+                    ps.setArray(i++, array(c, "text", messages));
+                    ps.setArray(i++, array(c, "text", names));
+                    ps.setArray(i++, array(c, "text", contexts));
+                    ps.setArray(i++, array(c, "bigint", versions));
+                    ps.setArray(i++, array(c, "text", keys));
+                    ps.setArray(i, array(c, "text", commands));
                     try (var rs = ps.executeQuery()) {
                         while (rs.next()) {
                             int ord = rs.getInt(1) - 1;
@@ -206,6 +225,17 @@ final class AppendBatcher implements AutoCloseable {
                 return null;
             });
         } catch (RuntimeException e) {
+            if (AppendDeadline.lockTimedOut(e)) {
+                // es-lock was not free before the earliest deadline: nothing was stored. Those whose
+                // deadline has passed are told so; the others append alone, each with its own bound.
+                log.info("event=append_batch_lock_timeout size={} lock_timeout={}", n, lockTimeout);
+                var failed = new BatchFailedException(e);
+                for (var p : batch) {
+                    p.result().completeExceptionally(AppendDeadline.passed(p.deadlineMs())
+                            ? AppendDeadline.expired("while it waited for es-lock") : failed);
+                }
+                return;
+            }
             log.warn("event=append_batch_failed size={} action=append_alone error=\"{}\"", n, e.getMessage());
             var failed = new BatchFailedException(e);
             for (var p : batch) p.result().completeExceptionally(failed);

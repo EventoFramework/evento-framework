@@ -659,8 +659,9 @@ public class CommandBrokerHandler implements MeterBinder {
             clock.skip();
             long seqNum;
             try {
-                seqNum = eventStore.appendAggregateEvent(eventMessage, cmd.getAggregateId(), key, commandPayloadType,
-                        keyed.aggregateVersion());
+                // N15: waits for es-lock no longer than the caller's deadline.
+                seqNum = AppendDeadline.within(deadlineMs, () -> eventStore.appendAggregateEvent(
+                        eventMessage, cmd.getAggregateId(), key, commandPayloadType, keyed.aggregateVersion()));
                 clock.lap(CommandPhaseMetrics.Phase.APPEND);
                 clock.appended = true;
             } catch (BrokerEventStore.AggregateFenceException fenced) {
@@ -677,6 +678,10 @@ public class CommandBrokerHandler implements MeterBinder {
                         commandPayloadType, cmd.getAggregateId(), eventoRequest.getCorrelationId());
                 return exceptionResponse(eventoRequest.getCorrelationId(),
                         new com.evento.common.modeling.exceptions.AggregateConflictException(fenced.getMessage()));
+            } catch (com.evento.transport.RequestExpiredException expired) {
+                // The deadline passed while the append waited: nothing was stored (N15).
+                throw lifecycle.expiredDrop(BusLifecycle.EXPIRED_STAGE_APPEND_WAIT, commandPayloadType,
+                        eventoRequest.getCorrelationId(), deadlineMs);
             } catch (BrokerEventStore.IdempotencyKeyConflictException conflict) {
                 // A duplicate on another server (or without the lock) appended first. This
                 // handler run was pure; answer with what was stored (or refuse, if the key

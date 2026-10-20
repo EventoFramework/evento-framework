@@ -238,4 +238,36 @@ class GroupCommitPostgresIT {
                     .isEqualTo(before);
         }
     }
+
+    /**
+     * N15: an aggregate append waits for es-lock no longer than its command's deadline, and then
+     * stores nothing (lab S06: 31 commands stored after their caller's timeout). Another session
+     * holds es-lock; the append, grouped or alone, gives up as expired near its deadline.
+     */
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {-1, 0})
+    void anAppendWaitsForEsLockNoLongerThanItsDeadline(int writers) throws Exception {
+        try (var store = store(serverA, EventStoreMode.CPES, 13);
+             var holder = serverB.getConnection()) {
+            store.configureAppendBatching(writers, 256);
+            var order = "order-" + UUID.randomUUID();
+            try (var st = holder.createStatement()) {
+                st.execute("select pg_advisory_lock(hashtext('es-lock'))");
+            }
+            long started = System.nanoTime();
+            long deadline = com.evento.server.bus.lifecycle.BusLifecycle.monotonicMillis() + 300;
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> com.evento.server.es.AppendDeadline.within(deadline,
+                            () -> store.appendAggregateEvent(event("late"), order, null, COMMAND, 0L)))
+                    .isInstanceOf(com.evento.transport.RequestExpiredException.class)
+                    .hasMessageContaining("not stored");
+            assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)).isBetween(250L, 3_000L);
+            try (var st = holder.createStatement()) {
+                st.execute("select pg_advisory_unlock(hashtext('es-lock'))");
+            }
+            assertThat(jdbc.queryForObject("select count(*) from es__events where aggregate_id = ?", Integer.class, order))
+                    .as("nothing stored").isZero();
+            // Without a deadline (a service command's event) it waits and stores, as before.
+            assertThat(store.appendAggregateEvent(event("on time"), order, null, COMMAND, 0L)).isPositive();
+        }
+    }
 }

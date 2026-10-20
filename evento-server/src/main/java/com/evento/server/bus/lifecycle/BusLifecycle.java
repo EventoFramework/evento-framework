@@ -244,9 +244,15 @@ public final class BusLifecycle {
      */
     public static final String EXPIRED_STAGE_BEFORE_APPEND = "before_append";
     /** Every stage label, for metrics binding. */
+    /**
+     * Stage label (N15): the deadline passed while the event's append waited (in the group
+     * commit queue or for {@code es-lock}); nothing was stored.
+     */
+    public static final String EXPIRED_STAGE_APPEND_WAIT = "append_wait";
+
     public static final java.util.List<String> EXPIRED_STAGES = java.util.List.of(
             EXPIRED_STAGE_QUEUED, EXPIRED_STAGE_LOCK_WAIT, EXPIRED_STAGE_BEFORE_FORWARD,
-            EXPIRED_STAGE_BEFORE_APPEND);
+            EXPIRED_STAGE_BEFORE_APPEND, EXPIRED_STAGE_APPEND_WAIT);
 
     private final ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong> expiredDropped =
             new ConcurrentHashMap<>();
