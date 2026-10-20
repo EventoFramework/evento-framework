@@ -38,6 +38,13 @@ MySQL 8.4, immagine del server costruita dal branch) 1091 test verdi; GUI build 
 lab su immagini `v3`. Trovata e corretta una regressione introdotta dal fix Q4 (S04: righe consumer cancellate
 dopo la ripresa di un server in pausa), `2d688350`; riepilogo in `evento-lab-cluster/results/V3-SUMMARY.md`.
 
+Revisione pre-rilascio (2026-10-20, notte): compatibilità 2.5.2/3.0 sul lab (server prima, bundle prima,
+aggiornamento a rotazione su un database della 2.5.2) tutta come prevista; dipendenze npm di produzione della GUI
+senza vulnerabilità note; bump di patch delle librerie; guida di upgrade completata; demo pubblica fissata alla
+2.5.2; PR #281 riscritta per la 3.0.0. Decisioni rimaste all'utente: finestra di supporto della 2.5.x in
+`SECURITY.md`, passaggio della demo alla 3.0, major di Dependabot (classgraph 6, ionic 9), alert CSRF di CodeQL
+(falso positivo) da chiudere.
+
 Verifica a fine sessione (2026-10-20): branch `enterprise/2.6-readiness` a `7f194a2e`, pulito e allineato
 all'origin; **CI della PR #281 tutta verde** su questo commit (build-and-test, jdbc-integration-tests,
 client-libraries-jdk21, gui-build, CodeQL); suite completa locale con gli IT Postgres 997 test, 0 falliti.

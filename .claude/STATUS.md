@@ -174,7 +174,18 @@ built from the branch) 1088 green; GUI build + lint green (no specs); the 19 cha
 the Q4 fix: fixed in 2d688350 by claiming presence on the new `BusEvent.NodeEstablished` (first message after
 the Hello) instead of NodeJoined, and making a closed connection's Hello touch nothing; S04 4/4 clean, S00,
 S02, S03, S07, S13 unchanged; suite 1091 green. Summary `evento-lab-cluster/results/V3-SUMMARY.md` (5cd40ad4).
-S14 inconclusive at kills 150/500/1000/3000 ms (window too short in 3.0; S18 covers it). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
+S14 inconclusive at kills 150/500/1000/3000 ms (window too short in 3.0; S18 covers it).
+Pre-release review ("anything that would force a patch right away"): mixed versions on the lab with images
+built against v2.5.2 (servers first, bundles first, rolling upgrade on a 2.5.2 database) all as expected
+(5ae42a6b); GUI: unused mermaid/KaTeX/Karma removed, npm audit fix, 0 known vulnerabilities in production deps
+(the 43 Scorecard advisories were all npm, GUI tooling); Dependabot patch bumps taken (PG JDBC, SLF4J, Flyway,
+ASM); V1 migration header said 2.6.0 (fixed while no released server has applied it); upgrade guide completed
+(client dependencies, features needing 3.0 servers, events:1, ADMIN, `latest` images); doc/site snippets set
+the dev profile and name 3.0.0; the public demo (evento-www docker-compose.prod.yml) pinned to server 2.5.2,
+since `latest` 3.0 would not start there; PR #281 title/body rewritten for 3.0.0; publication dry run of the
+10 libraries OK. Suite 1091 green. Open for the user: SECURITY.md support window for 2.5.x, moving the demo to
+3.0, Dependabot majors (classgraph 6, ionic 9) and GitHub Actions bumps on main, dismissing the CodeQL CSRF
+alert (false positive: Basic is stateless, OIDC has CSRF). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
