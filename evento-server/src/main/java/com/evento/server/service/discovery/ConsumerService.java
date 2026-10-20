@@ -1,5 +1,9 @@
 package com.evento.server.service.discovery;
 
+import com.evento.server.bus.NodeAddress;
+
+import java.util.Optional;
+
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.messaging.message.internal.EventoRequest;
@@ -69,6 +73,74 @@ public class ConsumerService {
         // The shared, pool-backed lock (DistributedLockConfiguration); null = JVM-local only
         // (embedded brokers and unit tests).
         this.distributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
+    }
+
+    /** The console's actions on consumers in other servers' hands (G17); null in unit tests. */
+    private AdminRelay relay;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAdminRelay(AdminRelay relay) {
+        this.relay = relay;
+        // What this server does with an action another server relayed here: run it locally.
+        relay.serve((consumerId, body, bus) -> {
+            var consumers = consumerRepository.findAllByConsumerId(consumerId);
+            var local = localInstance(consumers, bus);
+            if (local.isEmpty()) {
+                return CompletableFuture.failedFuture(new java.util.NoSuchElementException(
+                        "no instance of consumer " + consumerId + " is connected to this server any more"));
+            }
+            return forward(local.get(), body, java.io.Serializable.class, bus);
+        });
+    }
+
+    private static Optional<NodeAddress> localInstance(List<Consumer> consumers, BusFacade busFacade) {
+        var instances = consumers.stream().map(Consumer::getInstanceId).collect(Collectors.toSet());
+        return busFacade.currentView().stream().filter(n -> instances.contains(n.instanceId())).findFirst();
+    }
+
+    /**
+     * Sends a console action to the consumer: to its instance over the bus when it is connected to
+     * this server, otherwise through the server it is connected to (G17, {@link AdminRelay}).
+     */
+    private <T extends java.io.Serializable> CompletableFuture<T> toConsumer(String consumerId, List<Consumer> consumers,
+                                                                             java.io.Serializable body, Class<T> type,
+                                                                             BusFacade busFacade) {
+        var local = localInstance(consumers, busFacade);
+        if (local.isPresent()) return forward(local.get(), body, type, busFacade);
+        var instances = consumers.stream().map(Consumer::getInstanceId).collect(Collectors.toSet());
+        var owner = relay == null ? Optional.<String>empty() : relay.ownerOf(instances);
+        if (owner.isEmpty()) {
+            return CompletableFuture.failedFuture(new java.util.NoSuchElementException(
+                    "no instance of consumer " + consumerId + " is connected to any server"));
+        }
+        return relay.send(owner.get(), consumerId, body).thenApply(answer -> {
+            if (type.isInstance(answer)) return type.cast(answer);
+            throw new IllegalStateException("unexpected answer to a relayed " + body.getClass().getSimpleName()
+                    + ": " + (answer == null ? null : answer.getClass().getName()));
+        });
+    }
+
+    private <T extends java.io.Serializable> CompletableFuture<T> forward(NodeAddress address, java.io.Serializable body,
+                                                                          Class<T> type, BusFacade busFacade) {
+        var request = new EventoRequest();
+        request.setCorrelationId(UUID.randomUUID().toString());
+        request.setTimestamp(System.currentTimeMillis());
+        request.setSourceBundleId("evento-server");
+        request.setSourceInstanceId(eventoServerInstanceId);
+        request.setSourceBundleVersion(0);
+        request.setBody(body);
+        var future = new CompletableFuture<T>();
+        busFacade.forward(address, request, (c) -> {
+            if (type.isInstance(c.getBody())) {
+                future.complete(type.cast(c.getBody()));
+            } else if (c.getBody() instanceof ExceptionWrapper e) {
+                future.completeExceptionally(e.toException());
+            } else {
+                future.completeExceptionally(new RuntimeException("Invalid response from the consumer to "
+                        + body.getClass().getSimpleName()));
+            }
+        });
+        return future;
     }
 
     /**
@@ -201,30 +273,7 @@ public class ConsumerService {
      */
     public CompletableFuture<ConsumerFetchStatusResponseMessage> getConsumerStatusFromNodes(String consumerId, BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
-        var instances = consumers.stream()
-                .map(Consumer::getInstanceId)
-                .collect(Collectors.toSet());
-        var address =  busFacade.currentView().stream().filter(n ->
-                instances.contains(n.instanceId())).findFirst()
-                .orElseThrow();
-        var request  = new EventoRequest();
-        request.setCorrelationId(UUID.randomUUID().toString());
-        request.setTimestamp(System.currentTimeMillis());
-        request.setSourceBundleId("evento-server");
-        request.setSourceInstanceId(eventoServerInstanceId);
-        request.setSourceBundleVersion(0);
-        request.setBody(new ConsumerFetchStatusRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
-        var future = new CompletableFuture<ConsumerFetchStatusResponseMessage>();
-        busFacade.forward(address, request, (c) -> {
-            if(c.getBody() instanceof ConsumerFetchStatusResponseMessage resp){
-                future.complete(resp);
-            } else if (c.getBody() instanceof ExceptionWrapper e) {
-                future.completeExceptionally(e.toException());
-            }else{
-                future.completeExceptionally(new RuntimeException("Invalid response from component while fetching for consumer status"));
-            }
-        });
-        return future;
+        return toConsumer(consumerId, consumers, new ConsumerFetchStatusRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()), ConsumerFetchStatusResponseMessage.class, busFacade);
 
     }
 
@@ -258,31 +307,8 @@ public class ConsumerService {
      */
     public CompletableFuture<ConsumerResponseMessage> setRetryForConsumerEvent(String consumerId, long eventSequenceNumber, boolean retry, BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
-        var instances = consumers.stream()
-                .map(Consumer::getInstanceId)
-                .collect(Collectors.toSet());
-        var address =  busFacade.currentView().stream().filter(n ->
-                        instances.contains(n.instanceId())).findFirst()
-                .orElseThrow();
-        var request  = new EventoRequest();
-        request.setCorrelationId(UUID.randomUUID().toString());
-        request.setTimestamp(System.currentTimeMillis());
-        request.setSourceBundleId("evento-server");
-        request.setSourceInstanceId(eventoServerInstanceId);
-        request.setSourceBundleVersion(0);
-        request.setBody(new ConsumerSetEventRetryRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
-                eventSequenceNumber, retry));
-        var future = new CompletableFuture<ConsumerResponseMessage>();
-        busFacade.forward(address, request, (c) -> {
-            if(c.getBody() instanceof ConsumerResponseMessage resp){
-                future.complete(resp);
-            } else if (c.getBody() instanceof ExceptionWrapper e) {
-                future.completeExceptionally(e.toException());
-            }else{
-                future.completeExceptionally(new RuntimeException("Invalid response from component while set retry to consumer"));
-            }
-        });
-        return future;
+        return toConsumer(consumerId, consumers, new ConsumerSetEventRetryRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
+                eventSequenceNumber, retry), ConsumerResponseMessage.class, busFacade);
     }
 
     /**
@@ -296,30 +322,7 @@ public class ConsumerService {
      */
     public CompletableFuture<ConsumerResponseMessage> consumeDeadQueue(String consumerId, BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
-        var instances = consumers.stream()
-                .map(Consumer::getInstanceId)
-                .collect(Collectors.toSet());
-        var address =  busFacade.currentView().stream().filter(n ->
-                        instances.contains(n.instanceId())).findFirst()
-                .orElseThrow();
-        var request  = new EventoRequest();
-        request.setCorrelationId(UUID.randomUUID().toString());
-        request.setTimestamp(System.currentTimeMillis());
-        request.setSourceBundleId("evento-server");
-        request.setSourceInstanceId(eventoServerInstanceId);
-        request.setSourceBundleVersion(0);
-        request.setBody(new ConsumerProcessDeadQueueRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()));
-        var future = new CompletableFuture<ConsumerResponseMessage>();
-        busFacade.forward(address, request, (c) -> {
-            if(c.getBody() instanceof ConsumerResponseMessage resp){
-                future.complete(resp);
-            } else if (c.getBody() instanceof ExceptionWrapper e) {
-                future.completeExceptionally(e.toException());
-            }else{
-                future.completeExceptionally(new RuntimeException("Invalid response from component while consuming dead queue"));
-            }
-        });
-        return future;
+        return toConsumer(consumerId, consumers, new ConsumerProcessDeadQueueRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType()), ConsumerResponseMessage.class, busFacade);
     }
 
     /**
@@ -341,30 +344,7 @@ public class ConsumerService {
             long eventSequenceNumber,
             BusFacade busFacade) throws Exception {
         var consumers =  consumerRepository.findAllByConsumerId(consumerId);
-        var instances = consumers.stream()
-                .map(Consumer::getInstanceId)
-                .collect(Collectors.toSet());
-        var address =  busFacade.currentView().stream().filter(n ->
-                        instances.contains(n.instanceId())).findFirst()
-                .orElseThrow();
-        var request  = new EventoRequest();
-        request.setCorrelationId(UUID.randomUUID().toString());
-        request.setTimestamp(System.currentTimeMillis());
-        request.setSourceBundleId("evento-server");
-        request.setSourceInstanceId(eventoServerInstanceId);
-        request.setSourceBundleVersion(0);
-        request.setBody(new ConsumerDeleteDeadEventRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
-                eventSequenceNumber));
-        var future = new CompletableFuture<ConsumerResponseMessage>();
-        busFacade.forward(address, request, (c) -> {
-            if(c.getBody() instanceof ConsumerResponseMessage resp){
-                future.complete(resp);
-            } else if (c.getBody() instanceof ExceptionWrapper e) {
-                future.completeExceptionally(e.toException());
-            }else{
-                future.completeExceptionally(new RuntimeException("Invalid response from component while deleting dead event from consumer"));
-            }
-        });
-        return future;
+        return toConsumer(consumerId, consumers, new ConsumerDeleteDeadEventRequestMessage(consumerId, consumers.getFirst().getComponent().getComponentType(),
+                eventSequenceNumber), ConsumerResponseMessage.class, busFacade);
     }
 }

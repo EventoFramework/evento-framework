@@ -111,6 +111,16 @@ public class BundlePresence {
     }
 
     /**
+     * Instances connected to any server of the cluster (a fresh presence row), and their distinct
+     * bundles: {@code [instances, bundles]} (G17: the dashboard shows the cluster, not this server).
+     */
+    public long[] clusterCounts() {
+        return jdbc.queryForObject("select count(*), count(distinct bundle_id) from core__bundle_instance "
+                        + "where updated_at > now() - make_interval(secs => ?)",
+                (rs, i) -> new long[]{rs.getLong(1), rs.getLong(2)}, staleAfterSeconds);
+    }
+
+    /**
      * A freshly started server holds no session at all, so any row still naming it is a
      * leftover from its previous life (a crash never ran the NodeLeft cleanup). Without
      * this purge those rows would count as live instances until they go stale.
