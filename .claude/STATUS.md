@@ -166,7 +166,8 @@ instead of a null payload). evento-doc: nested payloads limit, `scheduling-with-
 renamed `upgrading-to-3-0.md`, aggregate command handler (several events), `personal-data.md`. F6: not in the
 framework (analysis in ENTERPRISE-2.6.md: tenant as domain concept or silo; server-enforced isolation is costly
 and is the use the licence reserves). Multi-tenancy doc page written (evento-doc `multi-tenancy.md`). Next: R1 (merge PR #281, tag v3.0.0) when the
-user asks; spike D2 (b). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
+user asks; spike D2 (b). End of session: CI of PR #281 green on 7f194a2e (all jobs), PR mergeable, review required;
+ENTERPRISE-2.6.md checklists brought up to date (R1 as 3.0.0, F9, nested payloads, gap tables). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 

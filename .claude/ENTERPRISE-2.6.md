@@ -30,7 +30,15 @@ resta retrocompatibile con la 2.5. Fatti in questa sessione, tutti su `enterpris
 - **F10** crypto-shredding (`@PersonalData`, chiavi per soggetto nel DB del server).
 - **Payload annidati**: non si correggeranno; documentato in evento-doc (`payload-and-messages`).
 - **APES p99**: chiuso senza indagine, APES è deprecato (si rimuove in 4.0).
-- **F6 multi-tenancy**: analizzata, non si fa nel framework (sotto, "F6: ha senso?").
+- **F6 multi-tenancy**: analizzata, non si fa nel framework (sotto, "F6: ha senso?"); pagina evento-doc
+  `multi-tenancy.md` sui due modi che funzionano già (tenant nel dominio, un'installazione per tenant).
+
+Verifica a fine sessione (2026-10-20): branch `enterprise/2.6-readiness` a `7f194a2e`, pulito e allineato
+all'origin; **CI della PR #281 tutta verde** su questo commit (build-and-test, jdbc-integration-tests,
+client-libraries-jdk21, gui-build, CodeQL); suite completa locale con gli IT Postgres 997 test, 0 falliti.
+PR #281 aperta, mergeable, in attesa di review. Versione ancora `2.5.2` in `build.gradle`, ultimo tag
+`v2.5.2`. evento-doc `docs/enterprise-2.6` a `fde4c6d`, evento-www `licensing/apache-client-libraries` a
+`76f582b`: pushati, non mergiati né pubblicati.
 
 ## Stato al 2026-10-20, fine sessione 7
 
@@ -135,11 +143,11 @@ XL (più mesi o non tecnico).
 | F2 | Test fixture | ✅ | `EmbeddedBroker` in `evento-lab/src/test`, dipende da classi interne del server (`BusLifecycle`), non pubblicato | M |
 | F3 | Starter Spring Boot | ✅ | Nessuna autoconfigurazione | M |
 | F4 | Flyway per l'event store | ✅ | `evento-server/build.gradle:59` esclude Flyway; `schema.sql` + `AdvisoryLockedSchemaInitializer` + `db/upgrade`. Lo store dei consumer usa Flyway | M |
-| F5 | Deadline / scheduling | ✅ | Nessuna implementazione | L |
-| F6 | Multi-tenancy | ✅ | Javadoc di `DomainCommand.java:19`: il tenant è un campo ordinario del comando | L-XL |
+| F5 | Deadline / scheduling | ✅ | Nessuna implementazione. **2026-10-20: fuori dal framework**, guida Quartz | L |
+| F6 | Multi-tenancy | ✅ | Javadoc di `DomainCommand.java:19`: il tenant è un campo ordinario del comando. **2026-10-20: fuori dal framework**, pagina evento-doc | L-XL |
 | F7 | Lock globale di append (N5) | ✅ | `EventStore.java:70-71`: `pg_advisory_xact_lock(hashtext('es-lock'))` | XL per toglierlo |
 | F8 | Migrazione da Axon 4 | ✅ | Nulla | M guida, L importatore |
-| F9 | Più eventi per comando | ✅ (nuovo) | Il bundle restituisce un solo `DomainEventMessage` (`CommandBrokerHandler.java:478`); Axon permette più `apply()` | M-L |
+| F9 | Più eventi per comando (**chiuso 2026-10-20**) | ✅ (nuovo) | Il bundle restituisce un solo `DomainEventMessage` (`CommandBrokerHandler.java:478`); Axon permette più `apply()` | M-L |
 
 ### Già coperti nella 2.6 (non rilasciati)
 
@@ -155,12 +163,12 @@ XL (più mesi o non tecnico).
 |---|---|---|---|
 | A1 | Il bundle impone dipendenze all'applicazione | `log4j-core`/`log4j-api` come `implementation` (`evento-bundle/build.gradle:41-42`), in conflitto con Logback/SLF4J di Spring Boot; `reflections 0.10.2` (abbandonata) sovrapposta a classgraph e asm; okhttp; `hibernate-validator` esposto come `api` | S-M |
 | A2 | Server non pubblicato come libreria | Solo jar boot e immagine; blocca un broker embedded per i test (F2) | S-M |
-| F10 | Diritto alla cancellazione (GDPR) | Nessun crypto-shredding nell'event store | M-L |
+| F10 | Diritto alla cancellazione (GDPR) (**chiuso 2026-10-20**) | Nessun crypto-shredding nell'event store | M-L |
 | F11 | Chiavi di idempotenza ed esiti senza scadenza | L5, G5: indice e tabella dei claim crescono soltanto | S-M |
 | Q1 | Nessun test REST e autenticazione | `ENTERPRISE-PLAN.md` item 12 | M |
-| Q2 | Shutdown del trasporto senza deadline | `ENTERPRISE-PLAN.md` item 10 | S |
-| Q4 | `BundleClientFailbackIT.stopDuringAFailbackLeavesNothingRunning` fallisce a volte in CI (riga 649: un bundle fermato risulta registrato sul broker A) | Rosso su `39f72560` e `508e5ca2`, verde nei 5 run in mezzo e in locale. Test instabile o race vera tra `stop()` e lo switch di failback (N16) | S-M |
-| Q3 | Limiti di cluster aperti | L5: G21 datasource di lettura, N4 affinità della lane `ALL`, N15 `lock_timeout` legato alla deadline, gate di staleness dipendente dagli orologi (S15), G17 dashboard locale | M ciascuno |
+| Q2 | Shutdown del trasporto senza deadline (**chiuso 2026-10-20**) | `ENTERPRISE-PLAN.md` item 10 | S |
+| Q4 | (**chiuso 2026-10-20**: race nel server) `BundleClientFailbackIT.stopDuringAFailbackLeavesNothingRunning` fallisce a volte in CI (riga 649: un bundle fermato risulta registrato sul broker A) | Rosso su `39f72560` e `508e5ca2`, verde nei 5 run in mezzo e in locale. Test instabile o race vera tra `stop()` e lo switch di failback (N16) | S-M |
+| Q3 | Limiti di cluster aperti (**chiusi 2026-10-20**) | L5: G21 datasource di lettura, N4 affinità della lane `ALL`, N15 `lock_timeout` legato alla deadline, gate di staleness dipendente dagli orologi (S15), G17 dashboard locale | M ciascuno |
 | B1 | Manca il tetto misurato del modello a celle | Ci sono le latenze (8 in volo = 19 ms in coda su `es-lock`, `command-latency.md`), non gli append/s sostenibili sotto `es-lock` | S-M |
 
 ---
@@ -169,7 +177,7 @@ XL (più mesi o non tecnico).
 
 ### D1 Licenza — decisa 2026-10-16: (b); superata il 2026-10-20 da L5
 
-Dalla 2.6.0: client Apache-2.0, il resto Apache-2.0 + Commons Clause (nessuna edizione chiusa; vendere
+Dalla 3.0.0 (era "2.6.0" prima del cambio di numero): client Apache-2.0, il resto Apache-2.0 + Commons Clause (nessuna edizione chiusa; vendere
 Evento stesso richiede autorizzazione). È l'opzione (c) source-available, senza conversione a scadenza.
 Il testo sotto resta come storia della decisione.
 
@@ -286,7 +294,10 @@ F9 (più eventi per comando) resta, per merito suo. Analisi originale:
   di mapping + **importatore della `domain_event_entry`** di Axon (con upcaster dei payload
   XStream/Jackson) + F9 in roadmap.
 
-### D9 Release e supporto — decisa 2026-10-19: (a) tutto nella 2.6.0
+### D9 Release e supporto — decisa 2026-10-19: (a) tutto nella 2.6.0; il 2026-10-20 la release diventa 3.0.0
+
+Aggiornamento 2026-10-20: stesso contenuto, numero **3.0.0**, perché il default `prod` (D4) rompe chi
+avviava il server senza configurazione. "2.6.0" sotto va letto come 3.0.0.
 
 Il branch `enterprise/2.6-readiness` esce come 2.6.0 insieme a quanto già su `main`. Regole confermate
 come sotto (semver sul filo, matrice N/N-1, prima i server; LTS solo commerciale).
@@ -329,9 +340,9 @@ richiede di cambiare architettura. Analisi originale:
 
 Le dipendenze sono indicate con `←`.
 
-### Fase 1 — fiducia (2.6.0 → 2.7)
+### Fase 1 — fiducia (3.0.0 → 3.1)
 
-- [ ] R1 Rilascio 2.6.0 (D9)
+- [ ] R1 Rilascio 3.0.0 (D9): CI verde e PR #281 mergeable il 2026-10-20; mancano review, merge e tag
 - [x] R2 Politica di compatibilità scritta (2026-10-20): `COMPATIBILITY.md` (semver per tutto il
       framework, cosa può cambiare in patch/minor/major, filo solo con capability, schema additivo e
       rollback del server alla minor precedente, matrice server N con bundle N e N-1, prima i server,
@@ -450,13 +461,14 @@ Le dipendenze sono indicate con `←`.
       La rimozione di un bundle richiede ADMIN; la GUI non fa più logout su 403.
       **Poi**: tabella di audit su database quando c'è Flyway (F4)
 - [-] F8 Guida di mapping Axon 4 + importatore `domain_event_entry`: fuori roadmap (D8 a)
-- [ ] F9 Più eventi per comando
+- [x] F9 Più eventi per comando (2026-10-20, `44814c10`, dettagli in fase 3)
 - [x] F11 Retention di chiavi di idempotenza ed esiti (2026-10-20): `evento.es.idempotency.retention`
       (spenta di default: le chiavi restano come prima), job orario su un solo server (try-lock),
       chiavi tolte dagli eventi (che restano) e claim concluse o abbandonate cancellate a blocchi di 1000;
       lato bundle `setServiceOutcomeRetention` sullo store degli esiti. Test: `IdempotencyRetentionPostgresIT`
-- [ ] Payload annidati non instradabili (`Message.getPayloadName` prende l'ultima parte dopo il punto,
-      `Outer$Inner`): da documentare o correggere (trovato in sessione 2, ancora aperto)
+- [-] Payload annidati non instradabili (`Message.getPayloadName` prende l'ultima parte dopo il punto,
+      `Outer$Inner`): **non si correggerà** (decisione 2026-10-20); documentato in evento-doc
+      (`payload-and-messages`: classi top-level con nome semplice univoco) e nelle fixture
 - [x] F1 Scarto lato bundle delle richieste scadute + admission control (2026-10-20): una richiesta la
       cui scadenza è passata mentre aspettava sul bundle non esegue l'handler (`RequestExpiredException`,
       "not executed"); `setMaxInboundRequests` (default 0, nessun limite) rifiuta subito oltre il limite;
