@@ -9,9 +9,9 @@ import com.evento.transport.HandshakeProtocol;
 import java.util.function.BooleanSupplier;
 
 /**
- * Refuses to hand a payload of a revised class to a broker that would drop its revision (2.6).
+ * Refuses to hand a payload of a revised class to a broker that would drop its revision (3.0).
  *
- * <p>A broker older than 2.6 decodes the envelope of a command, a query or a stored event with
+ * <p>A broker older than 3.0 decodes the envelope of a command, a query or a stored event with
  * classes that have no revision, and encodes it again without one. A payload written at revision
  * 2 would be stored as revision 0, and every later read would upcast it from 0: the upcasters
  * would run on a shape they were not written for, silently. Failing the one message that would
@@ -49,7 +49,7 @@ public final class RevisionGuard {
         if (payload == null || payload.getRevision() == 0 || brokerKeepsRevisions.getAsBoolean()) return;
         throw new IllegalStateException("cannot " + action + " " + Revisions.payloadName(payload.getObjectClass())
                 + " (revision " + payload.getRevision() + "): the broker of this session does not keep payload "
-                + "revisions (no " + HandshakeProtocol.CAPABILITY_REVISION + ", older than 2.6) and would record it "
-                + "as revision 0. Upgrade the brokers to 2.6 before deploying revised payload classes.");
+                + "revisions (no " + HandshakeProtocol.CAPABILITY_REVISION + ", older than 3.0) and would record it "
+                + "as revision 0. Upgrade the brokers to 3.0 before deploying revised payload classes.");
     }
 }

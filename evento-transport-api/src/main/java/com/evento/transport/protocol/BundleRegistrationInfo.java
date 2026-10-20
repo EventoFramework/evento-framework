@@ -16,7 +16,7 @@ import java.util.List;
  * notification that the bundle sends after {@code evento:enable}, so that the
  * lean registration frame stays small and never hits the Netty frame-length limit.
  *
- * <p>{@code queryPayloadTypes} (additive, 2.6) is the subset of
+ * <p>{@code queryPayloadTypes} (additive, 3.0) is the subset of
  * {@code handlerPayloadTypes} answered by read-only, idempotent handlers
  * ({@code @QueryHandler}s). The broker routes them "straight": no exactly-once
  * dedup slot, no cached response, no reconnect buffering — a query that is lost
@@ -43,7 +43,7 @@ public record BundleRegistrationInfo(
         this.queryPayloadTypes = queryPayloadTypes == null ? List.of() : List.copyOf(queryPayloadTypes);
     }
 
-    /** Pre-2.6 shape: no payload type is declared idempotent. */
+    /** Pre-3.0 shape: no payload type is declared idempotent. */
     public BundleRegistrationInfo(long bundleVersion, List<String> handlerPayloadTypes) {
         this(bundleVersion, handlerPayloadTypes, null);
     }

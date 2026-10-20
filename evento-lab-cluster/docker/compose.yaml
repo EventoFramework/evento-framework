@@ -106,6 +106,8 @@ x-server: &server
     start_period: 240s
 
 x-server-env: &server-env
+  # A lab, not production: the 3.0 default (prod) would refuse to start without TLS and the rest.
+  EVENTO_SERVER_SECURITY_PROFILE: dev
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_DATASOURCE_PASSWORD: secret
   # Application pool for the work (story fetch, append, catalog). Held locks never take from it:

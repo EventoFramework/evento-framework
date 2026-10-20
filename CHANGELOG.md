@@ -9,43 +9,54 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Version 3.0: a major release, because one default changes (the server's security profile is `prod`:
+it does not start unhardened, see the first upgrade note). Everything else is backward compatible, and
+2.5 bundles and servers interoperate with 3.0. Also: the code is all public under a new licence, the
+server keeps its schema with Flyway, aggregate commands run without the lock with group commit, the
+console works across servers, and APES is deprecated.
+
 Query-path release: queries no longer cost the broker memory, large answers stream with flow
 control (through the broker or bundle to bundle), a bundle answers its own queries without the
 broker, and a query can require to see a write. Payloads can be versioned: a class records its
 revision and upcasters read older shapes. Wire changes are additive and negotiated (`stream:1`,
 `revision:1` capabilities); 2.5 bundles and servers interoperate with it in any mix, except that
-a revised payload needs a 2.6 broker.
+a revised payload needs a 3.0 broker.
 
 ### Upgrade notes
 
+- **Breaking: the server refuses to start unhardened.** `evento.server.security.profile` defaults to `prod`
+  (was `dev`): without a bus auth token, bus TLS, a payload allowlist, non-default web console and database
+  passwords and explicit CORS origins the server does not start, and lists what is missing. Set them, or set
+  `EVENTO_SERVER_SECURITY_PROFILE=dev` for development, tests and demos (the shipped compose files, the lab and
+  `EventoServerContainer` do).
 - **The server schema is migrated by Flyway** (with `spring.sql.init.mode=always`, the shipped value). The
-  first 2.6 server creates the history table `evento_es_schema_history`, baselines an existing database at
+  first 3.0 server creates the history table `evento_es_schema_history`, baselines an existing database at
   version 0 and runs the migrations V1-V5, which find what is already there and add what is missing (the
-  primary key, idempotency key and aggregate fence of 2.5 and 2.6, online as before). Nothing to do; give the
+  primary key, idempotency key and aggregate fence of 2.5 and 3.0, online as before). Nothing to do; give the
   server's database user the right to create that table. With `spring.sql.init.mode=never` nothing changes:
   the server touches no schema and the scripts in `db/upgrade/` stay the way to apply it.
 - **Lock waiters may hold a lock-pool connection.** A command waiting for an aggregate held by another server now
   queues in PostgreSQL on a connection of the dedicated lock pool (at most half of it; the rest poll as before),
   so servers take turns on a hot aggregate. Size `evento.lock.pool.maximum-size` for the locks held at once plus
   the contended keys waiting.
-- **Queries are routed "straight" by a 2.6 broker** when a 2.6 handler bundle declares them
+- **Queries are routed "straight" by a 3.0 broker** when a 3.0 handler bundle declares them
   (`BundleRegistrationInfo.queryPayloadTypes`): no exactly-once slot, no cached reply, no
-  reconnect buffering. A 2.6 caller asks a query again on its next session when it lost it; a
+  reconnect buffering. A 3.0 caller asks a query again on its next session when it lost it; a
   2.5 caller that loses its session while a query is in flight now waits for its timeout
   instead of getting the buffered reply. Upgrade callers along with handlers.
 - **Broker memory is bounded in bytes**, not only in entries: new properties
   `evento.server.bus.dedup.max-retained-bytes` (128 MiB), `evento.server.bus.dedup.max-response-bytes`
   (1 MiB), `evento.server.bus.reconnect-buffer.max-bytes` (256 MiB),
   `evento.server.bus.compression.threshold-bytes` (32 KiB).
-- **Upgrade the brokers before deploying a class with `@Revision`.** A 2.6 bundle refuses to send
-  or store a revised payload through a broker older than 2.6 (no `revision:1` capability), which
+- **Upgrade the brokers before deploying a class with `@Revision`.** A 3.0 bundle refuses to send
+  or store a revised payload through a broker older than 3.0 (no `revision:1` capability), which
   would record it as revision 0. Unrevised payloads, the default, flow through any broker.
-- Every 2.6 bundle advertises `stream:1` and `revision:1` in its Hello. Code that asserts the exact capability set
+- Every 3.0 bundle advertises `stream:1` and `revision:1` in its Hello. Code that asserts the exact capability set
   of a Hello must expect it.
 - **Licence: the client libraries are now Apache-2.0** (`evento-transport-api`, `evento-transport-netty`,
   `evento-common`, `evento-bundle`, `evento-consumer-state-store-jdbc` and the new starter, OpenTelemetry and
   test modules).
-- **Licence: from 2.6.0 the server, the web console and the rest are Apache-2.0 with the Commons Clause**
+- **Licence: from 3.0.0 the server, the web console and the rest are Apache-2.0 with the Commons Clause**
   (were AGPL-3.0 or commercial; 2.5.x and earlier keep the licences they were released with), and there is no closed edition any more: single sign-on and the audit trail, until
   now in a commercial module, are part of the server. Using, changing and running Evento, also commercially and
   in production, needs no licence; selling Evento itself (hosting it for others, reselling it, selling
@@ -67,11 +78,11 @@ a revised payload needs a 2.6 broker.
 - **Removing a bundle from the catalog (`DELETE /api/bundle/{id}`) needs the `ADMIN` role**, like the other
   console writes; it needed only `WEB`. A script calling it with a WEB-only user gets 403.
 - **Schema change: `es__events.aggregate_seq`** (nullable `bigint`) and the partial unique index
-  `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq)`. With `spring.sql.init.mode=always` the first 2.6
+  `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq)`. With `spring.sql.init.mode=always` the first 3.0
   server adds them online at boot (catalog-only column, index built `CONCURRENTLY`); a schema managed outside the
   server applies `classpath:db/upgrade/es-events-aggregate-seq.sql`, and until then aggregate events are appended
   unfenced, as in 2.5 (`event=aggregate_fence_unsupported`). Existing events keep a null version. The fence holds
-  once every server runs 2.6: a 2.5 server appends without a version.
+  once every server runs 3.0: a 2.5 server appends without a version.
 - **Concurrent commands on one aggregate without a lock no longer fork it.** A `DomainCommand` whose
   `getLockId()` returns `null` used to let two commands decide from the same story and both store their event;
   now the second one loses the aggregate fence, nothing of it is stored, and the broker runs it again on the new
@@ -79,7 +90,7 @@ a revised payload needs a 2.6 broker.
   current state, which may be a refusal by the domain. `AggregateConflictException` (new, `evento-common`) is
   answered only when 5 runs within the deadline all lost.
 - **Aggregate commands run without the aggregate lock by default** when the event store fences their appends
-  (PostgreSQL with the 2.6 schema): `evento.server.commands.optimistic=true`. The handler of a command that loses
+  (PostgreSQL with the 3.0 schema): `evento.server.commands.optimistic=true`. The handler of a command that loses
   the fence runs again, so an aggregate handler must be pure (compute its event from the story and the command,
   no side effects): the documented contract, now relied upon. A duplicate of a keyed command can run the handler
   on another server while the first is in flight; still only one event is stored. `false` takes the lock for
@@ -117,9 +128,10 @@ a revised payload needs a 2.6 broker.
   handlers with no broker or database; `RecordingCommandGateway` and `StubQueryGateway` for the commands and
   queries handlers send. Payloads compare by `equals`, else field by field.
 - **Security profile on the server.** `evento.server.security.profile` (`EVENTO_SERVER_SECURITY_PROFILE`):
-  `dev`, the default, lists at startup the hardening that is off (`event=security_profile_dev`); `prod` refuses
+  `prod`, the default, refuses
   to start, before the bus port opens, until the bus token, bus TLS, the deserialization allowlist, a web
-  console and a database password other than the shipped `secret`, and explicit CORS origins are all set.
+  console and a database password other than the shipped `secret`, and explicit CORS origins are all set;
+  `dev` lists at startup the hardening that is off (`event=security_profile_dev`) and starts.
 - **TLS and mutual TLS on the bus from properties**: `evento.server.bus.tls.enabled`, `cert-chain`,
   `private-key` (PEM, PKCS#8), `private-key-password`, `trust-certs`, `client-auth=none|optional|require`,
   `protocols` (default TLSv1.3, TLSv1.2), also as `EVENTO_SERVER_BUS_TLS_*`. Before, TLS on the server needed
@@ -154,7 +166,7 @@ a revised payload needs a 2.6 broker.
   rollback of a server to the previous minor, platforms, and the support window.
 - **Versioned schema migrations with Flyway (F4).** The event store and catalog schema is a sequence of
   Flyway migrations (`classpath:db/migration/evento-server`, history `evento_es_schema_history`), run at boot
-  under the schema advisory lock, so several servers starting together still migrate once. V1 is the 2.6.0
+  under the schema advisory lock, so several servers starting together still migrate once. V1 is the 3.0.0
   schema; the online steps (catalog re-key, primary key, idempotency key, aggregate fence) are V2-V5, outside
   a transaction (`CREATE INDEX CONCURRENTLY`), and one that failed half way runs again on the next boot
   instead of blocking it. Later schema changes are new versions.

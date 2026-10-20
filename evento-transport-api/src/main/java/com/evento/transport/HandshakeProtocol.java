@@ -22,7 +22,7 @@ public final class HandshakeProtocol {
 
     /**
      * The peer exchanges streamed replies ({@code StreamData}, {@code StreamCredit},
-     * {@code StreamCancel}, {@code StreamRedirect}, 2.6). Stream messages are only sent to
+     * {@code StreamCancel}, {@code StreamRedirect}, 3.0). Stream messages are only sent to
      * a peer that negotiated it: one that did not cannot decode them. A broker accepts it
      * from every bundle that offers it; a bundle streams only on a session where it was
      * accepted.
@@ -30,7 +30,7 @@ public final class HandshakeProtocol {
     public static final String CAPABILITY_STREAM = "stream:1";
 
     /**
-     * The broker keeps the revision of every payload it stores or forwards (2.6). An older
+     * The broker keeps the revision of every payload it stores or forwards (3.0). An older
      * broker decodes a payload envelope with classes that have no revision and re-encodes it
      * without one: a payload written at a later revision would then be stored as revision 0
      * and upcast again on every read. A bundle sends payloads of a revised class only on a

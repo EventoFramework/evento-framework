@@ -316,7 +316,7 @@ class IdempotentCommandPostgresIT {
         // from the empty story (they wait for each other) and creates the order. Before the fence
         // all 8 events were stored: 8 creations of one order, a forked aggregate without any
         // fault. Now the first append takes version 1 and the database refuses the other 7; the
-        // broker runs those again on the new story (2.6), under the aggregate lock, where the
+        // broker runs those again on the new story (3.0), under the aggregate lock, where the
         // domain refuses a second creation: the callers get the domain's answer, not a conflict.
         var orderId = "order-unfenced-" + UUID.randomUUID();
         barriers.put(orderId, new CountDownLatch(8));
@@ -363,7 +363,7 @@ class IdempotentCommandPostgresIT {
 
     @Test
     void concurrentCommandsOnOneAggregateFromTwoServersAllApplyOneVersionEach() throws Exception {
-        // Optimistic concurrency (2.6): no aggregate lock up front. 16 commands that each add to
+        // Optimistic concurrency (3.0): no aggregate lock up front. 16 commands that each add to
         // the same order, half through each server, released together: every one must succeed,
         // each on the story that holds all the earlier ones (versions 1..16, no gap, no fork).
         // Losers of the fence ran again; contended commands queued on the lock.
@@ -565,7 +565,7 @@ class IdempotentCommandPostgresIT {
         assertThat(retried.nonce).isEqualTo(stored.nonce);
         assertThat(serviceCalls).hasValue(1);
 
-        // The aggregate path. Optimistically (2.6) the duplicate on the other server takes no lock:
+        // The aggregate path. Optimistically (3.0) the duplicate on the other server takes no lock:
         // it runs the pure handler from the story without the original's event, and its deadline
         // passes before its append. It is answered in progress too, never "expired, not executed".
         var orderId = "order-inflight-" + UUID.randomUUID();

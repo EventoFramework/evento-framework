@@ -37,7 +37,7 @@ export class AuthService {
     try {
       const res = await fetch(environment.eventoServerUrl + '/api/auth/mode', {credentials: 'same-origin'});
       if (!res.ok) {
-        return; // a server before 2.6: Basic
+        return; // a server before 3.0: Basic
       }
       const body = await res.json();
       if (body.mode !== 'oidc') {

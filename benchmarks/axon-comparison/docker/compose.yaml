@@ -45,6 +45,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/evento
       SPRING_DATASOURCE_PASSWORD: secret
+      EVENTO_SERVER_SECURITY_PROFILE: dev
       EVENTO_ES_MODE: ${EVENTO_ES_MODE:-CPES}
       JAVA_OPTS: "-XX:MaxRAMPercentage=60"
     healthcheck:

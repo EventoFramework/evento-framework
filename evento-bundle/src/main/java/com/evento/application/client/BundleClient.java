@@ -410,7 +410,7 @@ public final class BundleClient implements AutoCloseable {
     }
 
     /**
-     * Whether the broker of the current session keeps payload revisions (2.6): payloads of a
+     * Whether the broker of the current session keeps payload revisions (3.0): payloads of a
      * revised class may only be sent when it does.
      */
     public boolean revisionsAccepted() {

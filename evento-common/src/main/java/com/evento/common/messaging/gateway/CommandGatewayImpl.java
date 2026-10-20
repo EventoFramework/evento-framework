@@ -62,7 +62,7 @@ public class CommandGatewayImpl implements CommandGateway {
 
 	/**
 	 * Like {@link #send(Command, Metadata, Message, long, TimeUnit, String)}, also reporting where
-	 * the broker stored the command's event (it says so from 2.6; an older broker answers
+	 * the broker stored the command's event (it says so from 3.0; an older broker answers
 	 * {@link com.evento.common.modeling.messaging.query.ConsistencyToken#NONE}).
 	 */
 	@Override

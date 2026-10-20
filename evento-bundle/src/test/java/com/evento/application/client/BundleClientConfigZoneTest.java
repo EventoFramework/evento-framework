@@ -46,7 +46,7 @@ class BundleClientConfigZoneTest {
     void aBlankZoneIsNone() {
         var cfg = base().zone("  ").build();
         assertThat(cfg.zone()).isNull();
-        // No zone capability; only those every 2.6 bundle offers (a Set: no order).
+        // No zone capability; only those every 3.0 bundle offers (a Set: no order).
         assertThat(cfg.capabilities()).containsExactlyInAnyOrder("stream:1", "revision:1");
     }
 }

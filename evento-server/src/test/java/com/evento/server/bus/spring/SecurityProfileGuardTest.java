@@ -32,15 +32,17 @@ class SecurityProfileGuardTest {
     }
 
     @Test
-    void theShippedConfigurationFailsEveryCheck() {
+    void theShippedConfigurationFailsEveryCheckAndProdIsTheDefault() {
         var guard = SecurityProfileGuard.evaluate(shipped(), TLS_OFF, false);
-        assertThat(guard.profile()).isEqualTo(SecurityProfileGuard.Profile.DEV);
+        assertThat(guard.profile()).as("3.0: prod by default").isEqualTo(SecurityProfileGuard.Profile.PROD);
         assertThat(guard.violations()).hasSize(6);
+        org.assertj.core.api.Assertions.assertThatThrownBy(guard::apply).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void devStartsWithFailingChecks() {
-        SecurityProfileGuard.evaluate(shipped(), TLS_OFF, false).apply();
+        SecurityProfileGuard.evaluate(shipped().withProperty(SecurityProfileGuard.PROPERTY, "dev"), TLS_OFF, false)
+                .apply();
     }
 
     @Test

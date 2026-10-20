@@ -356,7 +356,7 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
             continueSequenceAboveApesIds();
         } else {
             logger.info("Mode: APES - Fetch Delay: {}", fetchDelay);
-            logger.warn("event=es_mode_deprecated mode=APES reason=\"APES is deprecated since 2.6: with more than "
+            logger.warn("event=es_mode_deprecated mode=APES reason=\"APES is deprecated since 3.0: with more than "
                     + "one server its consumers can skip events, and on one server CPES is as fast; an existing "
                     + "APES store switches to CPES by restarting every server with evento.es.mode=CPES\"");
         }

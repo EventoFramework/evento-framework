@@ -23,7 +23,7 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 	private String objectClass;
 	/**
 	 * The {@link com.evento.common.versioning.Revision} of the class when the object was
-	 * serialized (2.6); 0, and absent from the JSON, for an unrevised class and for everything
+	 * serialized (3.0); 0, and absent from the JSON, for an unrevised class and for everything
 	 * written before revisions existed.
 	 */
 	@JsonInclude(JsonInclude.Include.NON_DEFAULT)

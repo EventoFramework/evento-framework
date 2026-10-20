@@ -210,7 +210,7 @@ public class CommandBrokerHandler implements MeterBinder {
     /**
      * {@code evento.server.commands.optimistic} (default {@code true}): aggregate commands run
      * without the aggregate lock when the event store fences their appends; {@code false} takes
-     * the lock for every one, as before 2.6.
+     * the lock for every one, as before 3.0.
      */
     @org.springframework.beans.factory.annotation.Autowired
     void configureConcurrency(@org.springframework.beans.factory.annotation.Value("${evento.server.commands.optimistic:true}") boolean optimistic) {
@@ -479,7 +479,7 @@ public class CommandBrokerHandler implements MeterBinder {
      * waiting behind an execution of its own key, which can still commit: it is answered
      * {@code IdempotencyKeyInProgressException} (indeterminate), not the determinate "expired".
      *
-     * <p><b>Optimistic concurrency (2.6).</b> When the store fences appends, a command that locks
+     * <p><b>Optimistic concurrency (3.0).</b> When the store fences appends, a command that locks
      * its own aggregate (the default {@code getLockId()}) runs without the lock: story, handler,
      * fenced append. The lock cost three round trips to the event-store primary per command
      * (acquire, verify, release) and a lock-pool connection for the whole run, which capped one

@@ -944,7 +944,7 @@ public final class BusLifecycle {
         }
     }
 
-    // ---- streamed replies (2.6) ----
+    // ---- streamed replies (3.0) ----
 
     private final java.util.concurrent.atomic.AtomicLong streamsOpened = new java.util.concurrent.atomic.AtomicLong();
     private final java.util.concurrent.atomic.AtomicLong streamFramesRelayed = new java.util.concurrent.atomic.AtomicLong();

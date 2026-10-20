@@ -1,7 +1,7 @@
 # Evento Framework — Compatibility Policy
 
 What a new Evento version may change, which versions work together, in which order to upgrade, and
-how long a version is supported. It applies from **2.6.0**. Each release's upgrade guide
+how long a version is supported. It applies from **3.0.0**. Each release's upgrade guide
 ([docs](https://docs.eventoframework.com/evento-server/evento-server-cluster)) lists the details of
 that release; this page is the rule they follow.
 
@@ -12,9 +12,9 @@ client libraries together: one version number for everything released at once.
 
 | Release | May contain | Must not contain |
 |---|---|---|
-| **Patch** (2.6.0 → 2.6.1) | Bug and security fixes | New features, new configuration, schema changes, changed defaults |
-| **Minor** (2.6 → 2.7) | New features, new optional configuration, additive wire messages and fields, additive schema migrations, deprecations | Removals, incompatible wire changes, schema changes an older server cannot run on, changed defaults that alter behaviour or security |
-| **Major** (2.x → 3.0) | Removals of what was deprecated, incompatible wire or API changes, changed defaults (such as the `prod` security profile in 3.0) | — |
+| **Patch** (3.0.0 → 3.0.1) | Bug and security fixes | New features, new configuration, schema changes, changed defaults |
+| **Minor** (3.0 → 3.1) | New features, new optional configuration, additive wire messages and fields, additive schema migrations, deprecations | Removals, incompatible wire changes, schema changes an older server cannot run on, changed defaults that alter behaviour or security |
+| **Major** (3.x → 4.0) | Removals of what was deprecated, incompatible wire or API changes, changed defaults (as 3.0 did with the `prod` security profile) | — |
 
 ## 2. What stays compatible within a major version
 
@@ -43,15 +43,15 @@ client libraries together: one version number for everything released at once.
 |---|---|---|---|
 | **Servers N** | Supported | Supported | Not supported |
 
-N is a minor version (2.6, 2.7, ...); patch versions of the same minor always mix.
+N is a minor version (3.0, 3.1, ...); patch versions of the same minor always mix.
 
 - **Servers of two versions in one cluster** (N and N-1, sharing the database) are supported only
   for the length of a rolling upgrade. A feature that needs every server (the aggregate fence and
-  idempotency keys in 2.6, for example) takes full effect once the last server is upgraded; the
+  idempotency keys in 3.0, for example) takes full effect once the last server is upgraded; the
   upgrade guide says which.
 - **Bundles newer than their server** often work, since new behaviour is negotiated, but this is not
   tested and not supported: a bundle feature may need the server of its version (a `@Revision`
-  payload needs a 2.6 server).
+  payload needs a 3.0 server).
 
 ## 4. Upgrade order
 
@@ -83,8 +83,8 @@ the previous minor.
 A feature, API or property to be removed is first **deprecated in a minor release**: marked
 `@Deprecated` or documented as deprecated, logged as a warning when used (`event=..._deprecated`),
 listed under *Deprecated* in the changelog with what replaces it. It is removed **no earlier than the
-next major**. Example: APES (`evento.es.mode=APES`) is deprecated in 2.6, with a way to move a store to
-CPES, and may be removed in 3.0.
+next major**. Example: APES (`evento.es.mode=APES`) is deprecated in 3.0, with a way to move a store to
+CPES, and may be removed in 4.0.
 
 ## 7. Support
 

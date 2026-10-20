@@ -20,8 +20,8 @@ import java.sql.SQLException;
  * The server's schema on PostgreSQL, with {@code spring.sql.init.mode=always}: Flyway migrations
  * (F4) run under a PostgreSQL session advisory lock.
  *
- * <p><b>Flyway (2.6).</b> History in {@value #HISTORY_TABLE}, migrations in
- * {@value #MIGRATIONS}: {@code V1__baseline_schema.sql} is the 2.6.0 schema (the old
+ * <p><b>Flyway (3.0).</b> History in {@value #HISTORY_TABLE}, migrations in
+ * {@value #MIGRATIONS}: {@code V1__baseline_schema.sql} is the 3.0.0 schema (the old
  * {@code schema.sql}, idempotent); V2-V5 are the online, conditional steps described below, as Java
  * migrations ({@link V2__Catalog_component_identity}, {@link V3__Es_events_primary_key},
  * {@link V4__Es_events_idempotency_key}, {@link V5__Es_events_aggregate_fence}); every later schema
@@ -164,7 +164,7 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                     return false;
                 }
                 migrate();
-                // V3-V5 run once, but what they add is checked again on every boot, as before 2.6
+                // V3-V5 run once, but what they add is checked again on every boot, as before 3.0
                 // (a query or two when it is all there): the primary key skipped with
                 // evento.es.schema.enforce-primary-key=false is added once the property is true again,
                 // and an index or column removed by hand comes back.
@@ -191,11 +191,11 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
                 .dataSource(getDataSource())
                 .locations(MIGRATIONS)
                 .table(HISTORY_TABLE)
-                // A database of a server before 2.6 has the tables but no history: version 0, so
+                // A database of a server before 3.0 has the tables but no history: version 0, so
                 // V1 (idempotent) and V2-V5 (conditional) still run on it.
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
-                .baselineDescription("schema of a server before 2.6")
+                .baselineDescription("schema of a server before 3.0")
                 .placeholderReplacement(false)
                 // Flyway's default lock keeps a transaction open for the whole run, and
                 // CREATE INDEX CONCURRENTLY (V3-V5) waits for it to end: it would wait for itself.

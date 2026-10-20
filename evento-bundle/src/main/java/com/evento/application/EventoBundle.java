@@ -517,7 +517,7 @@ public class EventoBundle {
         private boolean acceptCompressedReplies = true;
 
         /**
-         * Offer this bundle's streamed query answers on direct connections (2.6), for
+         * Offer this bundle's streamed query answers on direct connections (3.0), for
          * callers that ask for it ({@code QueryOptions.direct()}): the broker routes the
          * query and the data flows bundle to bundle. Null (default): streams go through
          * the broker, which relays them with flow control.
@@ -549,7 +549,7 @@ public class EventoBundle {
         private Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors = new HashMap<>();
 
         /**
-         * The history of this bundle's payload classes (2.6): each {@link com.evento.common.versioning.Upcaster}
+         * The history of this bundle's payload classes (3.0): each {@link com.evento.common.versioning.Upcaster}
          * turns a payload stored or sent with an older shape into the next one, before it is
          * deserialized. They apply to the events projectors, sagas and observers read (dead-event
          * retries included), to the events and snapshot an aggregate is rebuilt from, and to the
@@ -598,7 +598,7 @@ public class EventoBundle {
          * emit events in the caller's context has to copy it from a command field
          * into the event itself.
          */
-        /** Adds steps to {@link #upcasters} (2.6). */
+        /** Adds steps to {@link #upcasters} (3.0). */
         public Builder addUpcasters(com.evento.common.versioning.Upcaster... steps) {
             var all = new ArrayList<>(upcasters);
             all.addAll(Arrays.asList(steps));

@@ -58,7 +58,7 @@ public final class InboundDispatcher {
     /** Whether inbound replies may be compressed (this bundle asked for it), and are decoded. */
     private final boolean decodeReplies;
 
-    // ---- streamed replies (2.6) ----
+    // ---- streamed replies (3.0) ----
     /** Streams this bundle is receiving, by correlation id. */
     private final java.util.concurrent.ConcurrentHashMap<java.util.UUID, InboundStream> inboundStreams =
             new java.util.concurrent.ConcurrentHashMap<>();
@@ -70,7 +70,7 @@ public final class InboundDispatcher {
     /** Where streams are offered on direct connections; null when this bundle offers none. */
     private volatile com.evento.application.client.stream.DirectStreamServer directServer;
 
-    // ---- deadlines and admission (F1, 2.6) ----
+    // ---- deadlines and admission (F1, 3.0) ----
     /** Requests being handled at most at once; beyond it they are refused at once. 0 = no bound. */
     private volatile int maxInboundRequests;
     private final java.util.concurrent.atomic.AtomicLong expiredBeforeHandler = new java.util.concurrent.atomic.AtomicLong();

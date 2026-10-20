@@ -1,6 +1,6 @@
 # Evento vs Axon Framework 5: command write throughput
 
-B1 of `.claude/ENTERPRISE-2.6.md`: how many aggregate commands per second one Evento cell
+B1 of `.claude/ENTERPRISE-3.0.md`: how many aggregate commands per second one Evento cell
 sustains, next to Axon Framework 5.4 on the same machine, with the same workload and the same
 CPUs. A standalone Gradle build, outside the main build and its CI.
 
@@ -95,7 +95,7 @@ concurrency or 10 ms between AZs (create, 8 in flight: 286 vs 91 cmd/s) and even
 128 in flight, where CPES keeps the better p99 on spread. B2 measures commands only: APES with
 more than one server remains unsafe for consumers (they read behind a 69 ms window and skip a
 later commit; several clocks; MAC-derived node ids), so CPES stays the default and the cluster
-mode, and APES is deprecated since 2.6. On a hot aggregate both modes now serve the two AZs evenly (29/29 cmd/s at 0 ms); Axon
+mode, and APES is deprecated since 3.0. On a hot aggregate both modes now serve the two AZs evenly (29/29 cmd/s at 0 ms); Axon
 Framework (JPA) collapses on shared aggregates (spread ~300 cmd/s, hot <= 7 with refusals).
 Caveats: one machine, so it measures what replication and AZ latency cost each design, not
 what more hardware gives; the standby writes to tmpfs (its own fsync, ~1 ms on cloud SSD, is not

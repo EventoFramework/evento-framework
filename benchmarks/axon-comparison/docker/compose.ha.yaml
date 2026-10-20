@@ -135,6 +135,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://pg-a:5432/evento
       SPRING_DATASOURCE_PASSWORD: secret
+      EVENTO_SERVER_SECURITY_PROFILE: dev
       EVENTO_ES_MODE: ${EVENTO_ES_MODE:-CPES}
       EVENTO_CLUSTER_NODE_SERVER_ID: evento-a
       EVENTO_SERVER_INSTANCE_ID: evento-a
@@ -147,6 +148,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://toxiproxy:21001/evento
       SPRING_DATASOURCE_PASSWORD: secret
+      EVENTO_SERVER_SECURITY_PROFILE: dev
       EVENTO_ES_MODE: ${EVENTO_ES_MODE:-CPES}
       EVENTO_CLUSTER_NODE_SERVER_ID: evento-b
       EVENTO_SERVER_INSTANCE_ID: evento-b

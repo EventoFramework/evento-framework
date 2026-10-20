@@ -108,7 +108,7 @@ MessageInboundHandler   ← dispatches Frame on virtual-thread executor
 
 `ChunkReassembler` buffers chunks per stream UUID and fires downstream only on the last chunk.
 The `maxFrameLength` parameter controls per-chunk memory, not message size — there is no hard limit
-on message size. Since 2.6 nothing on this path copies a message more than once: the reassembler
+on message size. Since 3.0 nothing on this path copies a message more than once: the reassembler
 holds retained slices in a `CompositeByteBuf`, `ChunkingEncoder` composes headers with slices,
 `CborMessageEncoder` wraps the codec's array. A large answer should still be **streamed**
 (§4.9), not chunked: a chunked message is reassembled whole on every hop.
@@ -124,19 +124,19 @@ Message (sealed interface)
   ├── Request    (correlationId, payloadType: String, payload: byte[])
   ├── Response   (correlationId, payload: byte[], failure: ResponseError)
   ├── Notification (payloadType: String, payload: byte[])
-  ├── StreamData     (correlationId, seq, payload, last, failure)   ← 2.6, "SDA"
-  ├── StreamCredit   (correlationId, credits)                       ← 2.6, "SCR"
-  ├── StreamCancel   (correlationId, reason)                        ← 2.6, "SCN"
-  └── StreamRedirect (correlationId, host, port, ticket, expiresAtMs) ← 2.6, "SRD"
+  ├── StreamData     (correlationId, seq, payload, last, failure)   ← 3.0, "SDA"
+  ├── StreamCredit   (correlationId, credits)                       ← 3.0, "SCR"
+  ├── StreamCancel   (correlationId, reason)                        ← 3.0, "SCN"
+  └── StreamRedirect (correlationId, host, port, ticket, expiresAtMs) ← 3.0, "SRD"
 ```
 
-`Request` gained three additive fields (2.6), all off the wire when unset and all carried end to
+`Request` gained three additive fields (3.0), all off the wire when unset and all carried end to
 end by the broker's raw forward: `acceptEncodings` (reply compression the caller decodes),
 `streamWindow` (> 0 = streamed reply, the initial credit), `streamDirect` (the caller can take
 the stream on a direct connection). The four stream messages are sent **only** to a peer that
 negotiated `HandshakeProtocol.CAPABILITY_STREAM` (`stream:1`): an older peer cannot decode
-them and would close the channel. Every 2.6 bundle offers it; `BusLifecycle` always accepts it.
-Same for `CAPABILITY_REVISION` (`revision:1`, 2.6): the broker keeps payload revisions (§4.10).
+them and would close the channel. Every 3.0 bundle offers it; `BusLifecycle` always accepts it.
+Same for `CAPABILITY_REVISION` (`revision:1`, 3.0): the broker keeps payload revisions (§4.10).
 
 Adding a new wire type: extend `Message` permits + register a byte tag in `MessageTypeRegistry`.
 The compiler enforces exhaustive dispatch everywhere.
@@ -170,7 +170,7 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 | `NettyClientTransport` | netty | Client-side Netty channel + reconnect |
 | `NettyServerTransport` | netty | Server-side accept loop; each accepted channel → `ServerChildTransport` |
 | `MessageInboundHandler` | netty | Terminal pipeline handler: hands every inbound `Frame` to the business executor (virtual threads), never the event loop; `StreamData` frames go through the channel's `SerialLane` instead, so a stream's frames keep their order |
-| `SerialLane` | netty | Runs tasks one at a time in submission order on the shared executor, holding no thread between bursts (2.6) |
+| `SerialLane` | netty | Runs tasks one at a time in submission order on the shared executor, holding no thread between bursts (3.0) |
 | `InboundDeliveries` | netty | Per-channel count of `Response` frames read but not yet delivered; the `DISCONNECTED` transition (channel inactive, server-child and client close listeners) waits for them, bounded by 2 s (`event=disconnect_after_delivery_grace`). See §6 decision 14 |
 | `NettyTransportConfig` | netty | Optional `SslContext` (prepends `SslHandler` when set) |
 
@@ -200,7 +200,7 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 2-minute TTL, bounded by `setReconnectBufferMaxBytes`, 256 MiB: a reply over it is not buffered,
 `event=reconnect_buffer_full`). `onHello` calls `deliverPendingResponses` on re-handshake.
 
-**Straight payload types (2.6).** Reads are routed without any of that: no dedup slot, no
+**Straight payload types (3.0).** Reads are routed without any of that: no dedup slot, no
 cached reply, no reconnect buffering (`event=straight_response_dropped_originator_away`).
 Bundles declare their `@QueryHandler` types in `BundleRegistrationInfo.queryPayloadTypes`;
 server-local reads (`EventFetchRequest`, `EventLastSequenceNumberRequest`) are registered by
@@ -208,7 +208,7 @@ server-local reads (`EventFetchRequest`, `EventLastSequenceNumberRequest`) are r
 (`BundleCorrelationTracker.resendSentBefore`, §4.3). The broker's own replies are DEFLATE-compressed
 for callers that accept it (`setResponseCompressionThreshold`, 32 KiB).
 
-**Stream relay (2.6, `BusLifecycle.onStream`).** `StreamData`/`StreamRedirect` from the
+**Stream relay (3.0, `BusLifecycle.onStream`).** `StreamData`/`StreamRedirect` from the
 destination go to the originator, `StreamCredit`/`StreamCancel` from the originator to the
 destination, each as the raw frame (zero copy), only between sessions that negotiated
 `stream:1` (`BundleSession.supportsStreams`); a frame from any other session is dropped
@@ -237,9 +237,9 @@ reconnected bundle.
 | `EventoServerAdapter` | Implements `EventoServer` (the gateway SPI) over `BundleClient` |
 | `BundleInboundDispatcher` | Bridges `HandlerRegistry.RequestHandler` ↔ v2 CBOR byte-array contract for `@CommandHandler` / `@QueryHandler` annotated classes |
 | `BundleAdminRequestHandler` | Handles `evento:server-admin-request` — decodes `EventoRequest`, dispatches consumer ops, encodes `EventoResponse` |
-| `stream.InboundStream` / `stream.OutboundStream` | The caller's and the handler's end of a streamed reply: ordered frames and credit returned by half-windows / frames sent only against credit, cancel on idle timeout (2.6, §4.9) |
+| `stream.InboundStream` / `stream.OutboundStream` | The caller's and the handler's end of a streamed reply: ordered frames and credit returned by half-windows / frames sent only against credit, cancel on idle timeout (3.0, §4.9) |
 | `stream.FrameQueryStream` | `QueryStream<V>` over an `InboundStream`: decodes batches, whole answers and `ExceptionWrapper` frames |
-| `stream.DirectStreamServer` / `DirectStreamClient` / `DirectStreamConfig` | Bundle-to-bundle streams: ticketed endpoint, redirect follower with broker fallback (2.6, §4.9) |
+| `stream.DirectStreamServer` / `DirectStreamClient` / `DirectStreamConfig` | Bundle-to-bundle streams: ticketed endpoint, redirect follower with broker fallback (3.0, §4.9) |
 
 **Fail-back to the preferred endpoint (N16).** While a session is READY on any endpoint but 0
 and `BundleClientConfig.failbackActive()` (enabled, default true, and 2+ endpoints), a virtual
@@ -373,7 +373,7 @@ and registers `LocalRequestHandler` instances in `BusLifecycle` for each `Aggreg
 and service `CommandHandler` payload type.
 
 **Aggregate command path:**
-1. Optimistic (2.6, default) when the store fences (`fencesAggregates()`), the command locks its own
+1. Optimistic (3.0, default) when the store fences (`fencesAggregates()`), the command locks its own
    aggregate and the aggregate is not contended: no lock. Otherwise the distributed lock (`lockId`)
 2. `BrokerEventStore.fetchAggregateStory(aggregateId)` → event stream + optional snapshot
 3. Wrap `DomainCommandMessage` → `DecoratedDomainCommandMessage` (state + event stream attached)
@@ -382,7 +382,7 @@ and service `CommandHandler` payload type.
 6. Return stored event to caller
 
 **Aggregate fence (C1, closes G6).** `es__events.aggregate_seq` is the aggregate's version after
-the event (1, 2, 3... per `aggregate_id`; null for service events and pre-2.6 rows), under the
+the event (1, 2, 3... per `aggregate_id`; null for service events and pre-3.0 rows), under the
 partial unique index `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq) WHERE
 aggregate_seq IS NOT NULL`. The story query has one more `UNION ALL` branch (kind 2: the newest
 fenced row, one backward index step) so the version comes from the same snapshot as the events,
@@ -396,7 +396,7 @@ again on the new story, under the aggregate lock, up to 5 runs within the deadli
 (`evento.server.commands.fence.retries`); only then the caller gets `AggregateConflictException`
 (evento-common, definite).
 
-**Optimistic concurrency (2.6).** Correctness rests on the fence, in the database, so the lock is
+**Optimistic concurrency (3.0).** Correctness rests on the fence, in the database, so the lock is
 only an optimisation for contended aggregates: `executeAggregateCommand` runs a command without it
 when `evento.server.commands.optimistic` (default true), the store fences, `getLockId()` is the
 aggregate id (or null) and `AggregateContention` sees no contention (another command for the
@@ -408,7 +408,7 @@ means the fence decides). A keyed command that expires while running optimistica
 in progress, never "expired, not executed": a duplicate may be running elsewhere. Nothing needs
 servers to coordinate: contention memory is local and only picks the cheaper path.
 
-**Group commit (2.6, `AppendBatcher`).** `appendAggregateEvent` queues the row; `writers` virtual
+**Group commit (3.0, `AppendBatcher`).** `appendAggregateEvent` queues the row; `writers` virtual
 threads (CPES 2, APES 4: `evento.es.append.batch.writers`, 0 = off) each drain up to 256 rows and
 write them in one statement: `unnest` arrays, `ON CONFLICT DO NOTHING` (any unique index), and a
 report of which rows went in. CPES: `es-lock` (materialised CTE) then `nextval` in input order, so
@@ -423,8 +423,8 @@ the cached range) is refetched without caches (`event=aggregate_story_stale`) in
 fenced at a version it does not end at. Schema: added online by `AdvisoryLockedSchemaInitializer`
 (`applyAggregateFence`), `db/upgrade/es-events-aggregate-seq.sql` for external schemas;
 `EventStore.fenceSupported()` probes it like `idempotencySupported()` (re-probed every minute,
-a vanished column → unfenced with a WARN). Mixed 2.5/2.6 servers: 2.5 appends without a version,
-so the fence holds once all servers run 2.6. Tests: `AggregateFencePostgresIT` (store level, CPES
+a vanished column → unfenced with a WARN). Mixed 2.5/3.0 servers: 2.5 appends without a version,
+so the fence holds once all servers run 3.0. Tests: `AggregateFencePostgresIT` (store level, CPES
 and APES), `GroupCommitPostgresIT`, `IdempotentCommandPostgresIT.withoutAnAggregateLockOrAKeyTheFenceStoresOneEventAndRunsTheRestAgain`
 (8 lockless commands on two servers: 1 stored, 7 run again and refused by the domain; 8 stored
 without the fence) and `concurrentCommandsOnOneAggregateFromTwoServersAllApplyOneVersionEach`.
@@ -441,7 +441,7 @@ speed is not free: its consumers read only ids older than `evento.es.fetch.delay
 **skip** an event committed later than that after its id was taken, and with more than one
 server the ids come from several clocks and MAC-derived node ids (G20). B2 measured commands,
 not consumers. Where APES is safe (one server) it is no faster, and where it is faster (several
-servers) it is unsafe, so **APES is deprecated since 2.6** (`EventStoreMode.APES`, WARN
+servers) it is unsafe, so **APES is deprecated since 3.0** (`EventStoreMode.APES`, WARN
 `event=es_mode_deprecated` at boot). An APES store switches to CPES when every server restarts
 in CPES: `EventStore.continueSequenceAboveApesIds` moves the sequence above the newest stored
 number under `es-lock` (`CONTINUE_SEQUENCE_SQL`, a no-op once the sequence is ahead), so new
@@ -539,9 +539,9 @@ different contexts lists every lane and a leaving instance removes only its own
 `AdvisoryLockedSchemaInitializer` (one transaction under the schema lock,
 `event=catalog_component_rekeyed`) when the server manages the schema (`spring.sql.init.mode=always`).
 
-**Schema migrations (F4, 2.6).** On PostgreSQL with `spring.sql.init.mode=always` the schema is
+**Schema migrations (F4, 3.0).** On PostgreSQL with `spring.sql.init.mode=always` the schema is
 Flyway's: history in `evento_es_schema_history`, `db/migration/evento-server/V1__baseline_schema.sql`
-(the 2.6.0 schema, idempotent; never edited, Flyway checks its checksum), then V2-V5 as Java
+(the 3.0.0 schema, idempotent; never edited, Flyway checks its checksum), then V2-V5 as Java
 migrations inside `AdvisoryLockedSchemaInitializer` (catalog re-key, `es__events` primary key,
 idempotency key, aggregate fence: the online, conditional steps, outside a transaction). A
 database of an earlier server has no history and is baselined at version 0, so V1-V5 run on it and
@@ -577,7 +577,7 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `spring.sql.init.mode` | `always` (shipped) | `always`: the server migrates the schema with Flyway (`evento_es_schema_history`); `never`: the schema is the DBA's (`db/upgrade/*.sql`), the server only checks |
 | `evento.consumer.lag.expiry` | PT15M | Consumer lag series not fetched for this long are dropped (O2) |
 | `evento.es.idempotency.retention` / `-interval` | unset (keys for ever) / PT1H | F11: clear keys of older events, delete finished or abandoned claims (`IdempotencyRetention`, one server per round under a try-lock) |
-| `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: **deprecated** (§4.6 "Choosing CPES or APES"); an APES store switches by restarting every server in CPES |
+| `evento.es.mode` | `CPES` (code and shipped, since 3.0) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: **deprecated** (§4.6 "Choosing CPES or APES"); an APES store switches by restarting every server in CPES |
 | `evento.es.fetch.delay` | 69 | APES only: consumers read ids older than this (ms); must exceed the worst id-to-commit time plus clock skew |
 | `evento.server.commands.optimistic` | true | Aggregate commands run without the lock on a fencing store, under it after a conflict (§4.6) |
 | `evento.es.append.batch.writers` / `evento.es.append.batch.max-size` | -1 (auto: CPES 2, APES 4; 0 = off) / 256 | Group commit (§4.6) |
@@ -596,7 +596,7 @@ consumer engine per context** (own consumer id, checkpoint, lock); no contexts =
 `Context.WILDCARD` (`"*"`). A context literally named `"ALL"` is an ordinary context; the
 deprecated `Context.ALL` constant is the wildcard, not `"ALL"`.
 
-### 4.9 Query Path (2.6): straight reads, streams, local answers, read-your-writes
+### 4.9 Query Path (3.0): straight reads, streams, local answers, read-your-writes
 
 | Concern | Where | How |
 |---|---|---|
@@ -609,23 +609,23 @@ deprecated `Context.ALL` constant is the wildcard, not `"ALL"`.
 | Read-your-writes | `EventoResponse.eventSequenceNumber/eventContext` (broker) → `EventoServerAdapter.recordWrite` (`ownWrites`, `EventMessage.storedAt`) → `QueryMessage.consistency` → `ProjectorConsistencyGate` → `ProjectorEngine.awaitPosition` | Per-context positions; the gate waits for the projectors of those contexts (wildcard: the highest), by `ConsumerProcessor.knownCheckpoint` or the store's checkpoint (another instance's lane, read at most every 50 ms), wakes the consume loop, and throws `ConsistencyTimeoutException` at the caller's deadline less a margin (a tenth, ≤ 250 ms) |
 | Compression | `PayloadEncoding` | Per request (`acceptEncodings`), end to end, marker `0xFF 'E' 'Z' 0x01` + zlib; ≥ 32 KiB and ≥ 1/8 saved |
 
-### 4.10 Payload Versioning (2.6): revisions and upcasters (`com.evento.common.versioning`)
+### 4.10 Payload Versioning (3.0): revisions and upcasters (`com.evento.common.versioning`)
 
 A payload is stored as JSON `["binary.ClassName", { fields }]` (default typing) inside a
 `SerializedObject`, and events are routed by simple class name, so a class that changes shape,
-moves or is renamed can no longer read its history. 2.6 versions payloads the way Axon does
+moves or is renamed can no longer read its history. 3.0 versions payloads the way Axon does
 (revision + upcaster chain, read-time, history never rewritten), with the rename ("make a V2
 class") as a first-class step.
 
 | Concern | Where | How |
 |---|---|---|
 | Revision of a class | `@Revision(n)`, `Revisions.of` | Not inherited; none = 0. Raise it only for changes Jackson cannot absorb (rename/split/move/meaning); added or removed fields need none |
-| Revision of a payload | `SerializedObject.revision` | Written from the class at serialization, `NON_DEFAULT` (absent when 0, so pre-2.6 payloads read as 0); stored in `event_message` / `es__snapshot` JSON, no schema change |
+| Revision of a payload | `SerializedObject.revision` | Written from the class at serialization, `NON_DEFAULT` (absent when 0, so pre-3.0 payloads read as 0); stored in `event_message` / `es__snapshot` JSON, no schema change |
 | A step | `Upcaster.from(name\|class, rev).to(rev, json -> ...)` / `.to(NewClass.class, rev[, json -> ...])` | Revision step: same class, revision must rise. Rename: rewrites the type id, `objectClass` and the routed name; the old class may be deleted (named by its simple name) |
 | The chain | `Upcasters` | One step per (name, revision); loops refused at build; applied until no step starts where the last ended; works on a JSON tree with exact decimals (`STRIP_TRAILING_BIGDECIMAL_ZEROES` off, `USE_BIG_DECIMAL_FOR_FLOATS`); `UpcastException` names payload + revision |
 | Where it runs (bundle) | `ConsumerProcessor.fetchEvents` + dead-event retries; `BundleInboundDispatcher.upcast` (command/query on arrival; for an aggregate command also its event stream and snapshot) | Projectors, sagas, observers, aggregates and handlers only ever see current shapes. A failing upcaster stops its consumer at that event (logged `event=upcast_failed`) instead of dead-lettering every old event |
 | Old names still sent | `Upcasters.aliasesOf` → `EventoBundle` adds `RegisteredHandler.forPayload(alias)` + routing type | A renamed command/query keeps its handler under the former name: the broker decorates/straightens it like the current one, the dispatcher upcasts it |
-| Old brokers | `RevisionGuard` (`EventoServerAdapter` outgoing, dispatcher replies) + `CAPABILITY_REVISION` | A pre-2.6 broker re-encodes envelopes without the revision: a revised payload is refused on such a session instead of being stored as revision 0 |
+| Old brokers | `RevisionGuard` (`EventoServerAdapter` outgoing, dispatcher replies) + `CAPABILITY_REVISION` | A pre-3.0 broker re-encodes envelopes without the revision: a revised payload is refused on such a session instead of being stored as revision 0 |
 | Registration | `EventoBundle.Builder.addUpcasters(...)` / `setUpcasters(List)` | Validated at start (before connecting) |
 
 Not covered (by design or yet): downcasting for older readers (tolerant reader instead:
@@ -731,52 +731,52 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     not delay cleanup. Do not move the state transition back onto the close listener directly;
     `NettyTransportIT.aResponseReadBeforeThePeerClosesIsDeliveredBeforeTheDisconnect` pins it.
 
-15. **Reads are straight; exactly-once is for writes (2.6).** A query is idempotent: caching its
+15. **Reads are straight; exactly-once is for writes (3.0).** A query is idempotent: caching its
     reply for replay or buffering it for an absent caller spends the broker's heap on the
     largest payloads of the bus to avoid a re-execution that costs nothing. Reads bypass both,
     and the caller re-asks what it lost. Do not route a payload type with side effects as
     straight.
 
-16. **Large answers stream with credit, never chunk (2.6).** Chunking bounds frame size, not
+16. **Large answers stream with credit, never chunk (3.0).** Chunking bounds frame size, not
     memory: every hop reassembles the whole message. A stream bounds memory by the caller's
     window on every hop, because the handler produces only against credit the caller returns as
     it consumes. Ordering is per connection (`SerialLane`), not a reorder buffer: frames of one
     stream always arrive on one connection.
 
-17. **Stream messages only to peers that negotiated them (2.6).** Decoding an unknown `@t` closes
+17. **Stream messages only to peers that negotiated them (3.0).** Decoding an unknown `@t` closes
     the channel, so `stream:1` gates every `StreamData`/`StreamCredit`/`StreamCancel`/
     `StreamRedirect`; a side that cannot stream answers whole and the other side iterates it.
-    That keeps 2.5 and 2.6 peers interoperable in any mix.
+    That keeps 2.5 and 3.0 peers interoperable in any mix.
 
-18. **A local answer takes the remote path minus the network (2.6).** The short-circuit runs the
+18. **A local answer takes the remote path minus the network (3.0).** The short-circuit runs the
     request bytes through the same codec and handler path a remote query takes, rather than
     calling the projection with objects: tracing, interceptors and metrics see it as before, a
     view that does not serialize fails here as it would remotely, and the caller cannot share
     mutable state with the projection.
 
-19. **Consistency tokens are per context (2.6).** A projector reads only its contexts; one global
+19. **Consistency tokens are per context (3.0).** A projector reads only its contexts; one global
     sequence number could make it wait for an event it will never see. The token says, per
     context, what must have been processed; the wildcard projector takes the highest.
 
-20. **Direct streams are ticketed by the broker, and optional (2.6).** The broker keeps routing,
+20. **Direct streams are ticketed by the broker, and optional (3.0).** The broker keeps routing,
     locality, deadlines and authentication; it only stops carrying the data. A random,
     single-use, short-lived ticket bound to one correlation id carries its decision to the
     direct connection. A caller that cannot connect falls back to the broker on its own, so the
     feature can be enabled without knowing every caller's network.
 
-21. **Payloads are upcast on read, never migrated (2.6).** The event store is the history: an
+21. **Payloads are upcast on read, never migrated (3.0).** The event store is the history: an
     upcaster that turns out wrong is fixed and applies to every read after, while a rewritten
     store cannot be un-rewritten. Read-time cost is one JSON tree pass, and only for payloads a
     step starts from. Upcasting runs in the bundle, where the classes are; the broker stays
     payload-agnostic.
 
-22. **A revision per class, a rename as a step (2.6).** A new `XxxV2` class for every change
+22. **A revision per class, a rename as a step (3.0).** A new `XxxV2` class for every change
     makes every consumer handle every version forever and leaks versions into routing names.
     The class keeps its name and gains a revision for shape changes; a rename (`OrderPlaced` →
     `OrderPlacedV2`) is still possible, as one more step, for when the meaning changes. Then only
     the new class has handlers, and callers still sending the old name are routed to them.
 
-23. **Refuse rather than corrupt with an older broker (2.6).** A 2.5 broker re-encodes payload
+23. **Refuse rather than corrupt with an older broker (3.0).** A 2.5 broker re-encodes payload
     envelopes with classes that have no revision, so a revised payload would be stored as
     revision 0 and upcast again on every read, silently. The bundle refuses to send a revised
     payload on a session without `revision:1`; the remedy, upgrading brokers first, is the
@@ -802,10 +802,12 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
 ## 7. Security Model
 
 - **Security profile (server):** `evento.server.security.profile=dev|prod`
-  (`SecurityProfileGuard`, bean created before the transport config). `dev` (2.x default) logs the
-  failing checks once (`event=security_profile_dev`); `prod` refuses to start, before the bus port
-  opens, unless: bus auth token set, bus TLS on, deserialization allowlist set, GUI and datasource
-  passwords not the shipped `secret`, CORS origins explicit. 3.0 plans `prod` as default.
+  (`SecurityProfileGuard`, bean created before the transport config). `prod` (the default since
+  3.0) refuses to start, before the bus port opens, unless: bus auth token set, bus TLS on,
+  deserialization allowlist set, GUI and datasource passwords not the shipped `secret`, CORS origins
+  explicit; `dev` logs the failing checks once (`event=security_profile_dev`) and starts. The
+  development compose files, the lab, the benchmarks, `MultiServerCatalogIT` and
+  `EventoServerContainer` set `dev`.
 
 - **Authentication:** `Hello.authToken: String`. `HandshakeHandler` → `TokenValidator.validate(token)`.
   Built-in impls: `acceptAll()` (default) and `sharedSecret(token)` (constant-time compare).
@@ -820,7 +822,7 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
   Bundle: `setTransportConfig(NettyTransportConfig.defaults().withSslContext(...))`, or the starter's
   `evento.bundle.tls.*`.
 
-- **Web console (2.6):** `evento.server.web.auth` (`WebConfig`): `basic` (default, stateless, no
+- **Web console (3.0):** `evento.server.web.auth` (`WebConfig`): `basic` (default, stateless, no
   CSRF) or the mode of a `ConsoleSignIn` bean (`com.evento.server.web.spi`), which adds its flow,
   session and CSRF to the chain after the URL rules; Basic kept for machine clients; unknown mode →
   startup fails. `AuthController`: `GET /api/auth/mode` (public: mode + `loginUrl`), `GET /api/auth/me`.
@@ -863,7 +865,7 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
 | **Bundle handler side** | `ProcessedRequestCache` — `resolveOrClaim` returns `Claimed / InFlight / Replay`. Handler runs at most once per `correlationId` |
 | **Reconnect delivery** | `reconnectBuffer` on `BusLifecycle` buffers responses for disconnected originators (2-minute TTL, 256 MiB). `deliverPendingResponses` replays on reconnect |
 
-None of the three applies to **straight** payload types (queries, event fetches, 2.6): they are
+None of the three applies to **straight** payload types (queries, event fetches, 3.0): they are
 idempotent, so the caller asks them again instead (§4.2, decision 15).
 
 A caller bundle can retry with the same `correlationId` and receive exactly one side-effect plus
@@ -994,15 +996,15 @@ These are the user-facing APIs — changing signatures requires a major version 
 - **Bundle bootstrap**: `EventoBundle.Builder` (fluent builder returned by `EventoBundle.builder()`)
 - **Modeling types**: `AggregateState`, `Event`, `Command`, `Query`, `DomainCommandMessage`,
   `DomainEventMessage`, `ServiceCommandMessage`, `ServiceEventMessage`, `DecoratedDomainCommandMessage`
-- **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5; `sendTracked` → `Tracked<R>`, 2.6),
+- **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5; `sendTracked` → `Tracked<R>`, 3.0),
   `QueryGateway` (injected into components; `queryWith(query, QueryOptions)`, `stream(query[, options])`
-  → `QueryStream<V>`, 2.6)
-- **Query model (2.6)**: `Single`, `Multiple`, `Page` + `PageRequest`, `Streamed`; `ConsistencyToken`,
+  → `QueryStream<V>`, 3.0)
+- **Query model (3.0)**: `Single`, `Multiple`, `Page` + `PageRequest`, `Streamed`; `ConsistencyToken`,
   `QueryOptions`, `ConsistencyTimeoutException`, `QueryStream.QueryStreamException`
-- **Bundle builder options (2.6)**: `setLocalQueryShortCircuit`, `setCompressionThreshold`,
+- **Bundle builder options (3.0)**: `setLocalQueryShortCircuit`, `setCompressionThreshold`,
   `setAcceptCompressedReplies`, `setDirectStreamConfig(DirectStreamConfig)`, `setStreamFrameBytes`,
   `addUpcasters` / `setUpcasters`
-- **Payload versioning (2.6)**: `@Revision`, `Upcaster` (`from(..).to(..)`), `Upcasters`,
+- **Payload versioning (3.0)**: `@Revision`, `Upcaster` (`from(..).to(..)`), `Upcasters`,
   `UpcastException`, `Revisions`
 - **Service outcome SPI** (G5 inbox): `ServiceCommandOutcomeStore`, `ServiceCommandOutcomes`
   (injectable into service handlers), `EventoBundle.Builder.setServiceCommandOutcomeStore`
@@ -1283,7 +1285,7 @@ explorative read-only pivot.)
 - **Structured logging:** SLF4J. Key=value on every bus lifecycle transition. `event=disconnect_superseded_skip` etc.
 - **Zero-copy counters**: `BusLifecycle.forwardedRawCount` / `forwardedReencodedCount` — every
   Netty-to-Netty forward must use the raw path; tests pin this contract.
-- **Query path (2.6)**: broker `evento.server.streams.active`, `evento.server.streams.opened`,
+- **Query path (3.0)**: broker `evento.server.streams.active`, `evento.server.streams.opened`,
   `evento.server.stream.frames`, `evento.server.stream.bytes`,
   `evento.server.reconnect.buffer.bytes`, `evento.server.dedup.retained.bytes` (Micrometer, bound
   by `BusMetricsBinder`); bundle `BundleClient.localQueries()`, `inboundStreams()`,

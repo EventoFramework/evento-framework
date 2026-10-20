@@ -1185,7 +1185,7 @@ public final class ConsumerProcessor {
 
     /**
      * The upcasters applied to every event before dispatch, fetched or retried from the
-     * dead-event queue (2.6); none by default. The bundle sets those registered on it.
+     * dead-event queue (3.0); none by default. The bundle sets those registered on it.
      */
     public void setUpcasters(com.evento.common.versioning.Upcasters upcasters) {
         this.upcasters = upcasters == null ? com.evento.common.versioning.Upcasters.NONE : upcasters;

@@ -24,7 +24,7 @@ import java.time.Duration;
  * the claims completed, or abandoned (lease expired), before it. The events stay; only their key
  * goes. After that, a command sent again with one of those keys runs again: choose a retention
  * longer than any caller can retry, including consumers that replay from a rewound checkpoint.
- * Unset, the default, keeps keys for ever, as before 2.6.
+ * Unset, the default, keeps keys for ever, as before 3.0.
  *
  * <p>The service bundles' outcome store has its own retention
  * ({@code EventoBundle.Builder#setServiceOutcomeRetention}); keep it at least as long as this one.

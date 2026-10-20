@@ -52,6 +52,9 @@ public class EventoServerContainer extends GenericContainer<EventoServerContaine
     public EventoServerContainer(String image) {
         super(DockerImageName.parse(image));
         withExposedPorts(BUS_PORT, HTTP_PORT);
+        // A test server: 3.0 defaults to prod, which refuses to start without bus TLS, a token and
+        // the rest. withSecurityProfile("prod") tests the hardened configuration.
+        withEnv("EVENTO_SERVER_SECURITY_PROFILE", "dev");
         waitingFor(Wait.forHttp("/actuator/health").forPort(HTTP_PORT).forStatusCode(200)
                 .withStartupTimeout(Duration.ofMinutes(3)));
     }
@@ -62,6 +65,11 @@ public class EventoServerContainer extends GenericContainer<EventoServerContaine
         withEnv("SPRING_DATASOURCE_USERNAME", username);
         withEnv("SPRING_DATASOURCE_PASSWORD", password);
         return self();
+    }
+
+    /** {@code dev} (this container's default) or {@code prod} ({@code evento.server.security.profile}). */
+    public EventoServerContainer withSecurityProfile(String profile) {
+        return withEnv("EVENTO_SERVER_SECURITY_PROFILE", profile);
     }
 
     /** The shared secret bundles must present ({@code evento.server.bus.auth-token}). */

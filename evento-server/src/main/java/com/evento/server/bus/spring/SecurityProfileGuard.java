@@ -15,15 +15,15 @@ import java.util.Locale;
  * ({@code EVENTO_SERVER_SECURITY_PROFILE}).
  *
  * <ul>
- *   <li>{@code dev} (the 2.x default): every check that fails is listed once at startup
- *       ({@code event=security_profile_dev}), and the server starts.</li>
- *   <li>{@code prod}: the server refuses to start while any check fails, before the bus port
- *       opens, and the exception lists all of them.</li>
+ *   <li>{@code prod} (the default since 3.0): the server refuses to start while any check fails,
+ *       before the bus port opens, and the exception lists all of them.</li>
+ *   <li>{@code dev} (set it for development, tests and demos): every check that fails is listed
+ *       once at startup ({@code event=security_profile_dev}), and the server starts.</li>
  * </ul>
  *
  * <p>The checks: a bundle auth token; TLS on the bus; a deserialization allowlist; a web console
  * password other than the shipped {@code secret}; explicit CORS origins; a database password other
- * than the shipped {@code secret}. 3.0 makes {@code prod} the default.
+ * than the shipped {@code secret}.
  */
 public final class SecurityProfileGuard {
 
@@ -50,7 +50,7 @@ public final class SecurityProfileGuard {
     }
 
     static SecurityProfileGuard evaluate(Environment env, BusTlsProperties tls, boolean allowlistConfigured) {
-        var raw = env.getProperty(PROPERTY, "dev").trim().toUpperCase(Locale.ROOT);
+        var raw = env.getProperty(PROPERTY, "prod").trim().toUpperCase(Locale.ROOT);
         Profile profile;
         try {
             profile = Profile.valueOf(raw);

@@ -21,7 +21,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * The upcasters of a bundle, chained (2.6). A payload read with an older shape (from the event
+ * The upcasters of a bundle, chained (3.0). A payload read with an older shape (from the event
  * store, an aggregate snapshot, a dead-event queue, or sent by a bundle not yet upgraded) goes
  * through every step that starts where the previous one ended, then is deserialized into the
  * class the last step names. Stored payloads are never rewritten: upcasting happens on each

@@ -82,7 +82,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
 
     private volatile PublishedEvent lastConsumedEvent = null;
 
-    // ---- read-your-writes (2.6) ----
+    // ---- read-your-writes (3.0) ----
     /** Signalled after every consume cycle: a query waiting for a position re-checks. */
     private final java.util.concurrent.locks.ReentrantLock progressLock = new java.util.concurrent.locks.ReentrantLock();
     private final java.util.concurrent.locks.Condition progressed = progressLock.newCondition();

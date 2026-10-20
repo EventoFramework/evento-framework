@@ -97,7 +97,7 @@ public class RegisteredHandler implements Serializable {
 
     /**
      * This handler declared for another payload name: a former name that an upcaster renames to
-     * the one this handler takes (2.6), so the broker routes and treats it the same way.
+     * the one this handler takes (3.0), so the broker routes and treats it the same way.
      */
     public RegisteredHandler forPayload(String payloadName) {
         var copy = new RegisteredHandler();

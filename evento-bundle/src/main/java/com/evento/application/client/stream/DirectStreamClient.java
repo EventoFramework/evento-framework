@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * The caller's side of streams taken on a direct connection (2.6): follows a
+ * The caller's side of streams taken on a direct connection (3.0): follows a
  * {@link StreamRedirect} to the answering bundle's endpoint and feeds the frames it reads
  * there into the same {@link InboundStream} the application is reading.
  *

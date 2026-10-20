@@ -15,13 +15,13 @@ public enum EventStoreMode {
      * only ids older than {@code evento.es.fetch.delay} and skip an event committed later than
      * that after its id was taken.
      *
-     * @deprecated since 2.6. On one server CPES is as fast (benchmark B1, with group commit);
+     * @deprecated since 3.0. On one server CPES is as fast (benchmark B1, with group commit);
      * with several servers APES consumers can skip events (several clocks, MAC-derived node ids,
      * a commit slower than the fetch delay), and its only measured advantage, parallel commits
      * under synchronous replication (B2), needs that. An APES store switches to CPES when every
      * server is restarted with {@code evento.es.mode=CPES}: the sequence goes on above the last
      * APES id. To be removed in a later major version.
      */
-    @Deprecated(since = "2.6")
+    @Deprecated(since = "3.0")
     APES
 }

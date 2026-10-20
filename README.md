@@ -109,7 +109,7 @@ Alert on `evento.server.bus.executor.saturated`, watch `…queue.depth` as the e
 
 See [Throughput and Capacity](https://docs.eventoframework.com/evento-server/setup-evento-server/throughput-and-capacity) for the sizing arithmetic and the detection playbook.
 
-## Streamed Queries and Read-Your-Writes (2.6)
+## Streamed Queries and Read-Your-Writes (3.0)
 
 A large query answer no longer has to travel, and sit, whole in the Evento Server. Any query can be consumed as a stream, pulled with flow control so that no hop holds more than a window of it; a projection can produce it lazily from a cursor, and the views can even skip the server and flow bundle to bundle:
 
@@ -128,7 +128,7 @@ The server keeps no query answers any more (on a 64 MiB answer: nothing retained
 
 See [Streamed and Paged Queries](https://docs.eventoframework.com/evento-framework/component/projection/streaming-and-paged-queries) and [Read Your Writes](https://docs.eventoframework.com/evento-framework/component/projection/read-your-writes).
 
-## Payload Versioning (2.6)
+## Payload Versioning (3.0)
 
 Payload classes can change shape or name without losing the history written with the old one. A class declares its revision, and upcasters registered on the bundle turn older payloads into the current shape when they are read; the event store is never rewritten:
 
@@ -141,9 +141,9 @@ public class ItemAdded extends DomainEvent { String itemId; String title; int qu
     Upcaster.from("ItemRenamed", 0).to(ItemRenamedV2.class, 0))   // the old class can be deleted
 ```
 
-Upcasting covers projectors, sagas, observers, aggregates (events and snapshots), commands and queries; a renamed command or query is still routed under its former name. Upgrade the servers to 2.6 before deploying the first `@Revision`.
+Upcasting covers projectors, sagas, observers, aggregates (events and snapshots), commands and queries; a renamed command or query is still routed under its former name. Upgrade the servers to 3.0 before deploying the first `@Revision`.
 
-See [Payload Versioning and Upcasting](https://docs.eventoframework.com/evento-framework/payload-and-messages/payload-versioning) and [Upgrading to 2.6](https://docs.eventoframework.com/evento-server/evento-server-cluster/upgrading-to-2-6).
+See [Payload Versioning and Upcasting](https://docs.eventoframework.com/evento-framework/payload-and-messages/payload-versioning) and [Upgrading to 3.0](https://docs.eventoframework.com/evento-server/evento-server-cluster/upgrading-to-3-0).
 
 ## Getting Started
 
@@ -184,7 +184,7 @@ By joining forces, we can make Evento a valuable tool for building the next gene
 ## License
 Copyright 2020-2026 © Gabor Galazzo.
 
-From **2.6.0** everything is public, every feature included (single sign-on and audit trail of the
+From **3.0.0** everything is public, every feature included (single sign-on and audit trail of the
 console too): there is no closed edition. Versions up to 2.5.x keep the licences they were released
 with.
 

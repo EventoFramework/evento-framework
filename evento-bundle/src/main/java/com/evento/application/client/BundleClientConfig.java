@@ -128,7 +128,7 @@ public record BundleClientConfig(
          */
         boolean localQueryShortCircuit,
         /**
-         * Where this bundle offers its streamed answers on direct connections (2.6), for
+         * Where this bundle offers its streamed answers on direct connections (3.0), for
          * callers that ask for it; null (default) streams through the broker only.
          */
         com.evento.application.client.stream.DirectStreamConfig directStreams
@@ -333,7 +333,7 @@ public record BundleClientConfig(
 
         public BundleClientConfig build() {
             Set<String> caps = capabilities == null ? Set.of() : capabilities;
-            // Every 2.6 bundle can take and give streamed replies; the broker decides per
+            // Every 3.0 bundle can take and give streamed replies; the broker decides per
             // session whether they flow (Welcome.acceptedCapabilities).
             // Likewise payload revisions: the bundle always writes them, and sends a revised
             // payload only where the broker keeps them.

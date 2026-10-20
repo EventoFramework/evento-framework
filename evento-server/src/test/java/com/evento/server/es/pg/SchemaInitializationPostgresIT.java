@@ -115,7 +115,7 @@ class SchemaInitializationPostgresIT {
         PostgresItSupport.createDatabase(POSTGRES, "schema_baseline");
         try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_baseline"), 2)) {
             var jdbc = new JdbcTemplate(ds);
-            // What a 2.5 server leaves: the catalog and an es__events without the 2.6 columns.
+            // What a 2.5 server leaves: the catalog and an es__events without the 3.0 columns.
             createPreN1Catalog(jdbc);
             jdbc.execute("""
                     CREATE TABLE es__events (

@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * table records the originator address keyed by the same {@code correlationId}
  * that travels end-to-end with the request.
  *
- * <p><b>Streams (2.6).</b> A request that asked for a streamed reply keeps its entry
+ * <p><b>Streams (3.0).</b> A request that asked for a streamed reply keeps its entry
  * for the whole stream: every frame is relayed by looking the entry up, not resolving
  * it, and refreshes its activity; the entry goes with the last frame, a cancel, or a
  * reply that ended it. A stream lives as long as it moves, so it is pruned by
