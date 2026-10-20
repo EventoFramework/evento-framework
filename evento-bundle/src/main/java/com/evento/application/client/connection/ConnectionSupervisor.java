@@ -118,6 +118,7 @@ public final class ConnectionSupervisor implements AutoCloseable {
     private final AtomicReference<NettyClientTransport> currentTransport = new AtomicReference<>();
     private final CopyOnWriteArrayList<BiConsumer<BundleClientState, BundleClientState>> stateListeners = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<UUID, CompletableFuture<Welcome>> pendingHellos = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, CompletableFuture<Void>> pendingBarriers = new ConcurrentHashMap<>();
 
     /** Where inbound non-handshake messages (Request, Response, Notification, Reject) are routed. */
     private volatile Consumer<Message> inboundSink = m -> {};
@@ -976,17 +977,10 @@ public final class ConnectionSupervisor implements AutoCloseable {
                 System.currentTimeMillis()))
                 .get(config.registrationTimeout().toMillis(), TimeUnit.MILLISECONDS);
 
-        // Step 2: enable if configured for auto-enable, or if the application has
-        // already called enable() at least once (reconnect after initial enable).
-        boolean enable = config.autoEnable() || enabledOnce.get();
-        if (enable) {
-            transport.send(new Notification(UUID.randomUUID(),
-                    ProtocolNotifications.ENABLE, new byte[0],
-                    System.currentTimeMillis()))
-                    .get(config.registrationTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        }
-
-        // Step 3: rich discovery — may be large; sent after routing is live
+        // Step 2: rich discovery, before "enable": the broker registers its handling of this
+        // bundle's commands (decoration, event store) when it reads it, and handles a session's
+        // notifications in order. Enabled first, the bundle was routed commands the broker did
+        // not handle yet, which reached it undecorated and failed.
         var discovery = new BundleDiscoveryInfo(
                 parseVersion(config.bundleVersion()),
                 config.description(),
@@ -1000,7 +994,53 @@ public final class ConnectionSupervisor implements AutoCloseable {
                 payloadCodec.encode(discovery),
                 System.currentTimeMillis()))
                 .get(config.registrationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+
+        // Step 3: enable if configured for auto-enable, or if the application has
+        // already called enable() at least once (reconnect after initial enable).
+        boolean enable = config.autoEnable() || enabledOnce.get();
+        if (enable) {
+            transport.send(new Notification(UUID.randomUUID(),
+                    ProtocolNotifications.ENABLE, new byte[0],
+                    System.currentTimeMillis()))
+                    .get(config.registrationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        // Step 4: wait until the server has handled all of the above, so that the bundle is
+        // ready (routed to, its commands handled) when the caller of start() goes on.
+        barrier(transport).get(config.registrationTimeout().toMillis() + 1_000, TimeUnit.MILLISECONDS);
         return enable;
+    }
+
+    /**
+     * A barrier on the current session (see {@link #barrier(NettyClientTransport)}); completes at
+     * once when there is none (the next session's registration ends with its own).
+     */
+    public CompletableFuture<Void> barrier() {
+        var t = currentTransport.get();
+        return t == null ? CompletableFuture.completedFuture(null) : barrier(t);
+    }
+
+    /**
+     * Completes when the server has handled every notification sent before it on this session
+     * ({@link com.evento.transport.protocol.ProtocolPayloadTypes#BARRIER}), or after the
+     * registration timeout: a barrier makes startup deterministic, it never fails it.
+     */
+    private CompletableFuture<Void> barrier(NettyClientTransport transport) {
+        var id = UUID.randomUUID();
+        var done = new CompletableFuture<Void>();
+        pendingBarriers.put(id, done);
+        long timeoutMs = config.registrationTimeout().toMillis();
+        try {
+            transport.send(new Request(id, config.bundleId(), config.instanceId(), config.bundleVersion(),
+                    com.evento.transport.protocol.ProtocolPayloadTypes.BARRIER, new byte[0], timeoutMs,
+                    System.currentTimeMillis()));
+        } catch (RuntimeException e) {
+            pendingBarriers.remove(id);
+            log.debug("event=barrier_not_sent cause={}", e.toString());
+            return CompletableFuture.completedFuture(null);
+        }
+        return done.completeOnTimeout(null, timeoutMs, TimeUnit.MILLISECONDS)
+                .whenComplete((v, t) -> pendingBarriers.remove(id));
     }
 
     private long parseVersion(String version) {
@@ -1013,6 +1053,12 @@ public final class ConnectionSupervisor implements AutoCloseable {
             case Welcome w -> {
                 var f = pendingHellos.remove(w.correlationId());
                 if (f != null) f.complete(w);
+            }
+            case com.evento.transport.message.Response r when pendingBarriers.containsKey(r.correlationId()) -> {
+                // Answered, or refused by a server that does not know barriers (2.5): either way
+                // it handled what came before.
+                var f = pendingBarriers.remove(r.correlationId());
+                if (f != null) f.complete(null);
             }
             case Reject r -> {
                 var f = pendingHellos.remove(r.correlationId());

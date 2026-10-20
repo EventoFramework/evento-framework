@@ -373,6 +373,14 @@ a revised payload needs a 3.0 broker.
 
 ### Fixed
 
+- **A command sent right after a bundle started could fail.** The bundle announced itself with three notifications
+  (registration, "enable", discovery) that the transport handled concurrently, and its `start()` returned before the
+  server had handled any of them: a command sent at once got "no handler", or reached the bundle before the broker
+  had registered its command handling and failed undecorated (found under load, in `EventoTestBrokerTest`). Now a
+  connection's notifications are handled in order, a 3.0 bundle sends its discovery before "enable", and it waits
+  for the new `evento:barrier` request, which the server answers after the notifications sent before it: `start()`
+  and `enable()` return when the bundle is routed to and its commands are handled. With a 2.5 server the barrier is
+  answered "no handler" and the bundle goes on as before; a 2.5 bundle keeps the old startup window.
 - **CSRF protection stays on with Basic authentication.** It used to be switched off for the whole API; now only
   requests that carry their credential in the `Authorization` header (which another site cannot make a browser add)
   skip the token check. The console and machine clients send that header and see no change.

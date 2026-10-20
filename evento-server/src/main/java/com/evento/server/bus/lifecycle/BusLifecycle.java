@@ -417,6 +417,9 @@ public final class BusLifecycle {
                 this::onStream);
         transportServer.onConnection(this::acceptConnection);
         transportServer.setPreSessionReadiness(() -> probeReadiness.getAsBoolean());
+        // The transport runs it after the bundle's earlier notifications: answering is the point.
+        registerLocalHandler(com.evento.transport.protocol.ProtocolPayloadTypes.BARRIER, payload -> new byte[0]);
+        registerStraightPayloadType(com.evento.transport.protocol.ProtocolPayloadTypes.BARRIER);
     }
 
     /**

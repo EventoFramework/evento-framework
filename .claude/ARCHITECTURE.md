@@ -137,6 +137,14 @@ the stream on a direct connection). The four stream messages are sent **only** t
 negotiated `HandshakeProtocol.CAPABILITY_STREAM` (`stream:1`): an older peer cannot decode
 them and would close the channel. Every 3.0 bundle offers it; `BusLifecycle` always accepts it.
 Same for `CAPABILITY_REVISION` (`revision:1`, 3.0): the broker keeps payload revisions (§4.10).
+Inbound ordering (`MessageInboundHandler`): requests run concurrently on the business executor,
+responses on their own virtual threads, while a channel's stream frames and its **notifications**
+each go through a `SerialLane` (handled in the order read). A 3.0 bundle registers with
+registration → discovery → enable, then sends `ProtocolPayloadTypes.BARRIER` (`evento:barrier`),
+which the transport queues on the notification lane and the broker answers empty: `start()` and
+`enable()` return only once the broker routes to the bundle and has registered its command
+handling. Old servers answer "no handler"; the bundle treats any answer, or the registration
+timeout, as done.
 And `CAPABILITY_EVENTS` (`events:1`, 3.0): the broker stores several events per aggregate command
 (`DomainCommandResponseMessage.precedingEventMessages`, `EventStore.appendAggregateEvents`: one
 transaction holding `es-lock` to the commit, versions `expected+1..`, key on the last event);

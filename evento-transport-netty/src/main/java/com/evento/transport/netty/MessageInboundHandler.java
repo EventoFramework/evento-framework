@@ -1,6 +1,8 @@
 package com.evento.transport.netty;
 
 import com.evento.transport.Frame;
+import com.evento.transport.message.Notification;
+import com.evento.transport.message.Request;
 import com.evento.transport.message.Response;
 import com.evento.transport.message.StreamData;
 import com.evento.transport.state.ConnectionState;
@@ -46,6 +48,13 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
     private final ConnectionStateMachine state;
     /** The frames of streamed replies of this channel, in the order they were read. */
     private final SerialLane streamLane;
+    /**
+     * The notifications of this channel, in the order they were read. A bundle announces itself
+     * with several (registration, discovery, enable): handled concurrently, "enable" could make it
+     * available before the broker had read its discovery, and a command sent in that window was
+     * forwarded without the broker's command handling.
+     */
+    private final SerialLane notificationLane;
 
     MessageInboundHandler(Consumer<Frame> listener,
                           Executor businessExecutor,
@@ -56,6 +65,7 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
         this.lastInboundMs = lastInboundMs;
         this.state = state;
         this.streamLane = new SerialLane(businessExecutor);
+        this.notificationLane = new SerialLane(businessExecutor);
     }
 
     @Override
@@ -63,9 +73,15 @@ final class MessageInboundHandler extends SimpleChannelInboundHandler<Frame> {
         lastInboundMs.set(System.currentTimeMillis());
         var deliveries = frame.message() instanceof Response ? InboundDeliveries.of(ctx.channel()) : null;
         if (deliveries != null) deliveries.begin();
-        // A stream's frames must keep their order: one lane per channel. Everything else
-        // runs concurrently, each frame on its own thread; responses off the business executor.
+        // A stream's frames and the notifications must keep their order: one lane each per
+        // channel. Requests run concurrently, each on its own thread; responses off the
+        // business executor.
         Executor executor = frame.message() instanceof StreamData ? streamLane
+                : frame.message() instanceof Notification ? notificationLane
+                // A barrier is answered after the notifications read before it.
+                : frame.message() instanceof Request r
+                        && com.evento.transport.protocol.ProtocolPayloadTypes.BARRIER.equals(r.payloadType())
+                        ? notificationLane
                 : deliveries != null ? RESPONSES : businessExecutor;
         try {
             executor.execute(() -> {

@@ -487,6 +487,8 @@ public final class BundleClient implements AutoCloseable {
         try {
             return supervisor.send(new Notification(UUID.randomUUID(),
                     ProtocolNotifications.ENABLE, new byte[0], System.currentTimeMillis()))
+                    // Done when the server has handled it: the bundle is routed to from then on.
+                    .thenCompose(v -> supervisor.barrier())
                     .exceptionally(t -> {
                         log.info("event=enable_deferred reason=write_failed cause={} "
                                 + "- sent by the next session's registration", t.toString());
