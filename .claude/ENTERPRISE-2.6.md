@@ -12,6 +12,17 @@ Come usarlo: ogni punto ha un id (`L*` licenza, `S*` sicurezza, `C*` correttezza
 punto è chiuso e scrivi accanto commit/PR. Le decisioni `D1..D10` hanno uno stato: **da decidere**,
 **decisa** (con data e scelta), **rimandata**.
 
+## Stato al 2026-10-20 (verifica sul codice, sessione 7)
+
+Branch `enterprise/2.6-readiness` (PR #281, aperta, mergeable; CI in corso sull'ultimo push), versione
+ancora `2.5.2`, nessun tag `v2.6.0`. Dalla sessione 5: concorrenza ottimistica e group commit (B1 rifatto),
+B2 HA multi-AZ, lock equo tra server, APES deprecato con passaggio a CPES, **L5** (tutto pubblico,
+Apache-2.0 + Commons Clause dalla 2.6.0, OIDC e audit nel server, `TRADEMARKS.md`, repo enterprise
+archiviato), autore dei commit riscritto su tutta la storia (hash nuovi). **D1 superata da L5.**
+
+Minimo indispensabile (sezione in fondo): fatti C1, S1-S3, Q1, B1, J1, O1; L1/L2 fatti ma senza
+revisione legale; **mancano R1, R2, F4, O2**.
+
 ## Stato al 2026-10-19 (sessione 5)
 
 Decise dall'utente: **D9 (a)** tutto il branch esce come 2.6.0; **D8 (a)** nessuna migrazione da Axon;
@@ -124,7 +135,11 @@ XL (più mesi o non tecnico).
 
 ## 2. Decision record
 
-### D1 Licenza — decisa 2026-10-16: (b)
+### D1 Licenza — decisa 2026-10-16: (b); superata il 2026-10-20 da L5
+
+Dalla 2.6.0: client Apache-2.0, il resto Apache-2.0 + Commons Clause (nessuna edizione chiusa; vendere
+Evento stesso richiede autorizzazione). È l'opzione (c) source-available, senza conversione a scadenza.
+Il testo sotto resta come storia della decisione.
 
 - **Opzioni:**
   - (a) tutto AGPL + commerciale, come oggi ma con un testo corretto;
@@ -249,7 +264,8 @@ come sotto (semver sul filo, matrice N/N-1, prima i server; LTS solo commerciale
   meccanismo); il byte `PROTOCOL_VERSION` (`HandshakeProtocol.java:14`) cambia solo in un major.
   Matrice documentata: server N con bundle N e N-1; upgrade prima i server, poi i bundle (come G5).
 - **LTS:** solo nel contratto commerciale (ultima minor di ogni major, 18 mesi); nella community,
-  patch solo per la minor corrente.
+  patch solo per la minor corrente. Dopo L5 il contratto commerciale è un'autorizzazione a vendere, non
+  una licenza d'uso: l'LTS a pagamento va riformulato come servizio di supporto (da decidere).
 
 ### D10 Architettura hub-and-spoke — decisa 2026-10-19: (b) resta com'è
 
@@ -287,17 +303,17 @@ Le dipendenze sono indicate con `←`.
       canonici in `licenses/`, `LICENSE.txt` per modulo, `NOTICE.txt`, SPDX nei POM, LICENSE/NOTICE nei
       jar, ambito di `LICENSE-COMMERCIAL.txt` ristretto ai componenti AGPL, README e CONTRIBUTING (D1).
       Sito (`evento-www`, branch `licensing/apache-client-libraries`) ed evento-doc (branch
-      `docs/enterprise-2.6`, pagina Licensing) aggiornati in locale: **resta** push e deploy (decisione dell'utente)
+      `docs/enterprise-2.6`, pagina Licensing) pushati, non pubblicati. Superato da L5 per il server
 - [x] L2 `CLA.md` (bozza su modello ICLA Apache + diritto di rilicenziare), richiesto da CONTRIBUTING (D1).
       **Resta**: revisione di un legale prima del primo contributo esterno
 - [ ] F4 Flyway sull'event store, con baseline dei database esistenti
 - [x] C1 Fence `aggregate_seq`, obbligatoria anche senza lock (2026-10-19). Colonna nullable e
       indice unico parziale `(aggregate_id, aggregate_seq)` online come G5 (F4 non serviva), script
       `db/upgrade/es-events-aggregate-seq.sql`; versione letta nella stessa query della storia,
-      append alla versione successiva, il chiamante perdente riceve `AggregateConflictException` (nessun retry
-      automatico). Test: `AggregateFencePostgresIT` (12, CPES e APES) e il caso senza lock su due
-      server (8 comandi: prima 8 eventi salvati, ora 1). Resta: un retry automatico lato server, che
-      permetterebbe di togliere il lock per aggregato (round trip WAN), da valutare con B1
+      append alla versione successiva. Test: `AggregateFencePostgresIT` (CPES e APES) e il caso senza lock
+      su due server (8 comandi: prima 8 eventi salvati, ora 1). Poi (2026-10-20): retry automatico lato
+      server e comandi senza lock per default (`evento.server.commands.optimistic`), fino a 5 tentativi,
+      `AggregateConflictException` solo dopo; group commit (`AppendBatcher`)
 - [x] S1 + S2 `evento.server.security.profile=dev|prod` (`SecurityProfileGuard`, 6 controlli, in `prod` il
       server non parte); TLS/mTLS del bus da properties (`evento.server.bus.tls.*`, `BusTlsProperties`);
       `EventoBundle.Builder.setAuthToken`. Test: `SecurityProfileGuardTest`, `BusTlsPropertiesIT` (mTLS su TCP) (D4)
@@ -340,16 +356,15 @@ Le dipendenze sono indicate con `←`.
       autorizzazione scritta), client ancora Apache-2.0, `TRADEMARKS.md` per i nomi Evento e RECQ
       (le idee RECQ non sono proteggibili), `LICENSE-COMMERCIAL.txt` diventa accordo di
       autorizzazione, CLA aggiornato. Non più OSI per il server (source-available): il badge OpenSSF
-      Best Practices (`floss_license`) non è più raggiungibile per il server. **Resta**: revisione del
-      legale (licenza, marchi, CLA), registrazione dei marchi, archiviare il repo privato,
-      sito ed evento-doc
+      Best Practices (`floss_license`) non è più raggiungibile per il server. Fatti anche: evento-doc e
+      sito pushati (sito non pubblicato), repo privato archiviato, termini validi dalla 2.6.0, autore dei
+      commit riscritto. **Resta**: revisione del legale (licenza, marchi, CLA), registrazione dei marchi
 - [x] L4 (superata da L5) Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit nel repository privato
       `evento-server-enterprise` (Spring Boot autoconfigurazione, build inclusa `../evento`, boot jar
       distribuibile). Nel server pubblico solo i punti di estensione `ConsoleSignIn` e
       `AdminActionListener`; con `evento.server.web.auth=oidc` senza il modulo il server non parte.
       Verificato col jar avviato su PostgreSQL. `LICENSE.txt` e `LICENSE-COMMERCIAL.txt` lo citano
-      (da far rivedere al legale con L2). **Resta**: chiave di licenza, immagine container e workflow
-      di release del modulo
+      (da far rivedere al legale con L2). Modulo archiviato il 2026-10-20: nulla resta
 - [x] Q1 Test di autenticazione web: `WebSecurityTest` (MockMvc, Basic e OIDC), `OidcRolesTest`;
       `ConsoleApiTest`: tutti i controller della console con la catena di sicurezza vera e i servizi
       mock (ruoli per endpoint, risposte, audit). Ha trovato un 500 al posto di 400 (pagine > 1000)
@@ -365,7 +380,8 @@ Le dipendenze sono indicate con `←`.
       di un `HealthIndicator`, che ha package diversi nelle due versioni
 - [x] F2 `evento-test`: `AggregateFixture`, `SagaFixture`, `ProjectorFixture`, `ServiceFixture`,
       `RecordingCommandGateway`, `StubQueryGateway` (D7).
-      **Resta**: `evento-test-broker` (dipende dalla pubblicazione del server, A2)
+      **Resta**: `evento-test-broker` (dipende dalla pubblicazione del server, A2, ancora non fatta;
+      il vincolo di licenza di D1 non c'è più)
 - [x] O1 `evento-opentelemetry` (`OpenTelemetryTracingAgent`, OTel API 1.66.0): span per handler, W3C nei
       metadati, `linkingConsumers()`; `CorrelatingGateways` per i gateway usati dal codice applicativo, solo
       se l'agente non è quello no-op. Nessuna modifica al filo (D6).
@@ -387,6 +403,8 @@ Le dipendenze sono indicate con `←`.
 - [-] F8 Guida di mapping Axon 4 + importatore `domain_event_entry`: fuori roadmap (D8 a)
 - [ ] F9 Più eventi per comando
 - [ ] F11 Retention di chiavi di idempotenza ed esiti
+- [ ] Payload annidati non instradabili (`Message.getPayloadName` prende l'ultima parte dopo il punto,
+      `Outer$Inner`): da documentare o correggere (trovato in sessione 2, ancora aperto)
 - [ ] F1 Scarto lato bundle delle richieste scadute + admission control
 - [ ] L3 Prime case study e adopter con nome
 
