@@ -33,8 +33,9 @@ a revised payload needs a 3.0 broker.
   `EventoServerContainer` do).
 - **The server schema is migrated by Flyway** (with `spring.sql.init.mode=always`, the shipped value). The
   first 3.0 server creates the history table `evento_es_schema_history`, baselines an existing database at
-  version 0 and runs the migrations V1-V5, which find what is already there and add what is missing (the
-  primary key, idempotency key and aggregate fence of 2.5 and 3.0, online as before). Nothing to do; give the
+  version 0 and runs the migrations V1-V7, which find what is already there and add what is missing (the
+  primary key, idempotency key and aggregate fence of 2.5 and 3.0, online as before; V6 and V7 add the tables
+  `core__admin_relay` and `es__subject_keys`). Nothing to do; give the
   server's database user the right to create that table. With `spring.sql.init.mode=never` nothing changes:
   the server touches no schema and the scripts in `db/upgrade/` stay the way to apply it.
 - **Lock waiters may hold a lock-pool connection.** A command waiting for an aggregate held by another server now
