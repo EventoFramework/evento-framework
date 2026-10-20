@@ -21,7 +21,9 @@ load-bearing docs live in [`.claude/`](.claude/):
 - Java baselines: the client libraries (the `clientLibraries` list in the root `build.gradle`,
   Apache-2.0) compile with `--release 21`; the server and the labs target 25. `-PtestJdk=21` runs the
   client tests on a JDK 21 (CI job `client-libraries-jdk21`).
-- Licences: client libraries Apache-2.0, everything else AGPL-3.0 or commercial (`LICENSE.txt`). A new
+- Licences: client libraries Apache-2.0, everything else Apache-2.0 with the Commons Clause (no selling
+  Evento itself without written authorisation; names in `TRADEMARKS.md`), see `LICENSE.txt`. No closed
+  edition: OIDC sign-in and audit trail live in `evento-server`. A new
   published library goes in `clientLibraries`, in section 1 of `LICENSE.txt`, and applies
   `gradle/evento-library.gradle`.
 - Full test command:

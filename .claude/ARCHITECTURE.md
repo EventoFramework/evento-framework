@@ -63,7 +63,8 @@ evento-framework/
 **Licences and Java baselines.** The client libraries (`clientLibraries` in the root `build.gradle`:
 transport-api, transport-netty, common, bundle, consumer-state-store-jdbc, spring-boot-starter,
 opentelemetry, test) are **Apache-2.0** and compile with **`--release 21`**; the server, the GUI and
-the labs are **AGPL-3.0 or commercial** and target 25 (`LICENSE.txt`). New published libraries apply
+the labs are **Apache-2.0 with the Commons Clause** (no selling Evento itself without written
+authorisation, `LICENSE-COMMERCIAL.txt`; names in `TRADEMARKS.md`) and target 25 (`LICENSE.txt`). New published libraries apply
 `gradle/evento-library.gradle` (publication, POM licence, LICENSE/NOTICE in the jar).
 `-PtestJdk=21` runs the client tests on JDK 21 (CI job `client-libraries-jdk21`). Libraries log through
 SLF4J only and ship no logging configuration.
@@ -760,11 +761,14 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     payload on a session without `revision:1`; the remedy, upgrading brokers first, is the
     normal order.
 
-24. **The client libraries are Apache-2.0 and Java 21; the server is AGPL/commercial and Java 25
-    (2026-10).** Applications link only the libraries, so they carry no copyleft and run on the
-    LTS enterprises use; the server ships as an image, so its licence and JVM are Evento's choice.
-    The split is the `clientLibraries` list. Contributions go through a CLA (`CLA.md`) so the
-    commercial licence stays possible.
+24. **The client libraries are Apache-2.0 and Java 21; the server is Apache-2.0 with the Commons
+    Clause and Java 25 (2026-10).** Applications link only the libraries, so they carry no
+    obligation and run on the LTS enterprises use; the server ships as an image, so its licence and
+    JVM are Evento's choice. The split is the `clientLibraries` list. Until 2026-10-20 the server was
+    AGPL-3.0 or commercial, with OIDC and audit in a closed module; now every feature is public and
+    the one reserved right is selling Evento itself (hosting it for others, reselling it, consulting
+    or training about it), plus the names (`TRADEMARKS.md`). Contributions go through a CLA
+    (`CLA.md`) so those authorisations stay possible.
 
 25. **Integrations are optional modules, not core dependencies (2026-10).** Spring
     (`evento-spring-boot-starter`), OpenTelemetry (`evento-opentelemetry`) and the test fixtures
@@ -805,11 +809,17 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
   (Basic, plugged sign-in, unknown mode), `AdminActionsTest`, `ConsoleApiTest` (every console
   controller, real security chain, services mocked).
 
-- **Evento Enterprise (commercial, private repository `evento-server-enterprise`):** OIDC sign-in
-  (`OidcSignIn`, `OidcRoles`) and the audit trail (`LoggingAuditEventRepository`, `AuditedAdminActions`,
-  authentication/authorization listeners) as a Spring Boot auto-configuration on those two extension
-  points. Its build includes this repository (`includeBuild('../evento')`) and produces the
-  distributable boot jar. Nothing here refers to it: keep the SPI stable and backward compatible.
+- **OIDC sign-in and audit trail (`com.evento.server.web.oidc`, `com.evento.server.web.audit`; a
+  closed "Evento Enterprise" module until 2026-10-20, now part of the server):** `OidcConfiguration`
+  (`evento.server.web.auth=oidc`: `OidcSignIn`, `OidcRoles` mapping the provider's groups or nested
+  claims to `WEB`/`ADMIN`; authorization code with PKCE, HttpOnly session, CSRF from the
+  `XSRF-TOKEN` cookie, 401 on `/api/**`), `AuditConfiguration` (on unless
+  `management.auditevents.enabled=false`: `LoggingAuditEventRepository`, one `key=value` line per
+  event on the `evento.audit` logger plus the latest `evento.server.audit.capacity` in memory for
+  `/actuator/auditevents`, ADMIN only; `AuditedAdminActions` on the `AdminActionListener` SPI;
+  authentication/authorization listeners). Both are component-scanned configurations on the two
+  extension points, which stay for other sign-ins. Tests: `OidcSignInTest`, `OidcRolesTest`,
+  `AuditTrailTest`, `LoggingAuditEventRepositoryTest`.
 
 - **Payload deserialization:** `PayloadTypeAllowlist` builds a *live* validator for the polymorphic
   payload mappers: open (any `Serializable`, warned once) until restricted by

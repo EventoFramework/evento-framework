@@ -333,7 +333,17 @@ Le dipendenze sono indicate con `←`.
       i comandi): CPES resta il default e la modalità per il cluster. Da valutare: dare a CPES il
       commit parallelo senza perdere l'ordine. Ha trovato la starvation del lock tra server su un
       aggregato conteso (corretta: chi aspetta si mette in coda in PostgreSQL)
-- [x] L4 Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit nel repository privato
+- [x] L5 (2026-10-20, decisione dell'utente: "fai tutto open source, l'unico vincolo è che nessuno può
+      rivendere Evento senza autorizzazione") Tutto pubblico: OIDC e audit tornano in `evento-server`
+      (`com.evento.server.web.oidc` / `.audit`), server, GUI e resto sotto **Apache-2.0 + Commons
+      Clause** (niente SaaS di Evento, rivendita, consulenze/supporto/formazione su Evento senza
+      autorizzazione scritta), client ancora Apache-2.0, `TRADEMARKS.md` per i nomi Evento e RECQ
+      (le idee RECQ non sono proteggibili), `LICENSE-COMMERCIAL.txt` diventa accordo di
+      autorizzazione, CLA aggiornato. Non più OSI per il server (source-available): il badge OpenSSF
+      Best Practices (`floss_license`) non è più raggiungibile per il server. **Resta**: revisione del
+      legale (licenza, marchi, CLA), registrazione dei marchi, archiviare il repo privato,
+      sito ed evento-doc
+- [x] L4 (superata da L5) Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit nel repository privato
       `evento-server-enterprise` (Spring Boot autoconfigurazione, build inclusa `../evento`, boot jar
       distribuibile). Nel server pubblico solo i punti di estensione `ConsoleSignIn` e
       `AdminActionListener`; con `evento.server.web.auth=oidc` senza il modulo il server non parte.
@@ -365,7 +375,7 @@ Le dipendenze sono indicate con `←`.
       risposta), nuovo hook `TracingAgent.traceSend`; l'IT verifica richiesta → send → server → aggregato
       → projector
 - [ ] O3 Timer su query e service command
-- [x] S4 (in Evento Enterprise dal 2026-10-19, vedi L4) OIDC per la console: `evento.server.web.auth=oidc`, authorization code con PKCE gestito dal
+- [x] S4 (in Evento Enterprise dal 2026-10-19, di nuovo nel server dal 2026-10-20, vedi L5) OIDC per la console: `evento.server.web.auth=oidc`, authorization code con PKCE gestito dal
       server (sessione HttpOnly, CSRF da cookie, nessun token nel browser), gruppi → `WEB`/`ADMIN`
       (`OidcRoles`, claim annidati), Basic resta per i client macchina; GUI: `/api/auth/mode`, bottone
       "Sign in with your organisation". Testato con MockMvc, **non** contro un identity provider reale (D4).

@@ -186,10 +186,11 @@ the PR description so maintainers can prioritize review.
 ## Licensing
 
 Each module keeps the licence in its own `LICENSE.txt` ([overview](LICENSE.txt)): the client
-libraries are Apache-2.0, the server, the web console and the rest are AGPL-3.0 with a commercial
-alternative. A contribution is licensed under the licence of the module it changes.
+libraries are Apache-2.0, the server, the web console and the rest are Apache-2.0 with the Commons
+Clause (no selling Evento itself without authorisation). A contribution is licensed under the licence
+of the module it changes.
 
-Because the AGPL components are also offered under a commercial licence, every contributor signs the
+Because the maintainer also gives commercial authorisations (LICENSE-COMMERCIAL.txt), every contributor signs the
 [Contributor License Agreement](CLA.md) once, before the first pull request is merged: you keep the
 copyright, and grant the maintainer the right to distribute your contribution under the project's
 licences. Add a line to the pull request description:

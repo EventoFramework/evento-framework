@@ -2,9 +2,11 @@ Evento Framework — Licensing
 
 Copyright (c) 2023–2026 Gabor Galazzo.
 
-Evento Framework is made of two kinds of components, under two licences. Each
-module directory carries its own LICENSE.txt with the full text that applies
-to it; the full texts are also in the licenses/ directory.
+All of Evento Framework is public, in this repository, with every feature: the
+server, the web console with single sign-on (OpenID Connect) and the audit
+trail, the client libraries, the labs. There is no closed edition. Two licences
+apply. Each module directory carries its own LICENSE.txt with the full text
+that applies to it; the full texts are also in the licenses/ directory.
 
 ────────────────────────────────────────────────────────────────────────────
 1. Client libraries — Apache License 2.0
@@ -23,46 +25,74 @@ The libraries an application links against:
 
 are licensed under the Apache License, Version 2.0 (SPDX: Apache-2.0); see
 licenses/Apache-2.0.txt and NOTICE.txt. Using them in an application, open
-or closed source, places no obligation on that application beyond the terms
-of the Apache License 2.0.
+or closed source, free or sold, places no obligation on that application
+beyond the terms of the Apache License 2.0.
 
 Any module added later that is published as a library for applications to
 depend on is under the Apache License 2.0 as well, and is listed here.
 
 ────────────────────────────────────────────────────────────────────────────
-2. Server and everything else — GNU AGPL v3.0, or a commercial licence
+2. Server and everything else — Apache License 2.0 with the Commons Clause
 ────────────────────────────────────────────────────────────────────────────
 
-The Evento server (evento-server), the web console (evento-gui) and every
-other file in this repository not listed in section 1 (lab and integration
-test modules, scripts, Docker files) are licensed under the GNU Affero
-General Public License, version 3 (SPDX: AGPL-3.0-only); see
-licenses/AGPL-3.0.txt.
+The Evento server (evento-server, single sign-on and audit trail included),
+the web console (evento-gui) and every other file in this repository not
+listed in section 1 (lab and integration test modules, benchmarks, scripts,
+Docker files) are licensed under the Apache License, Version 2.0, with the
+"Commons Clause" License Condition v1.0 (SPDX: LicenseRef-Commons-Clause-1.0
+AND Apache-2.0); see licenses/Apache-2.0.txt and
+licenses/Commons-Clause-1.0.txt.
 
-Running an unmodified server, and connecting applications to it over the
-network, does not make those applications subject to the AGPL: they talk to
-the server through the Apache-licensed client libraries. The AGPL applies to
-the server itself: if you modify it and let users interact with the modified
-version over a network, you must offer them its source code.
+The source is open to read, change and run; the Commons Clause takes away one
+right: to Sell the software, that is to provide it, or a service whose
+value derives entirely or substantially from it, to third parties for a fee or
+other consideration. In the Licensor's reading:
 
-The same components are also available under a commercial licence, for
-organisations that cannot or do not want to accept the AGPL terms, or that
-want warranties, indemnification or support. See LICENSE-COMMERCIAL.txt, or
-contact the copyright holder:
+  Allowed, free of charge, without asking:
+    - running the server, modified or not, for your own applications, in
+      production, in any organisation, commercial or not;
+    - building and selling your own products and services on top of it (an
+      online shop, a bank, a SaaS product of your own), when what you sell is
+      your application and not Evento;
+    - changing it, and sharing your changes for free under the same terms;
+    - teaching, studying, writing and talking about it.
+
+  Not allowed without the Licensor's written authorisation:
+    - offering the Evento server, or the web console, as a hosted or managed
+      service to third parties (Evento as a service);
+    - selling, renting or licensing the software, or a distribution or fork
+      of it, to third parties;
+    - selling consulting, support, training or integration services whose
+      value derives substantially from Evento: services sold as being about
+      Evento.
+
+Where you are unsure, ask: authorisations are given case by case, see
+LICENSE-COMMERCIAL.txt. Contact:
 
   Gabor Galazzo
   Website: https://www.eventoframework.com/licensing
   Email  : gabor.galazzo@gmail.com
 
-Evento Enterprise (single sign-on and audit trail for the web console) is a
-separate, proprietary module, not part of this repository and available only
-under the commercial licence. The server's extension points it uses
-(com.evento.server.web.spi) are part of the AGPL server like everything else
-in section 2.
+The Commons Clause makes these components source-available rather than open
+source in the sense of the Open Source Definition. The client libraries of
+section 1 are not affected by it.
+
+────────────────────────────────────────────────────────────────────────────
+3. The names Evento and RECQ
+────────────────────────────────────────────────────────────────────────────
+
+Software licences cover the code, not the names, and not ideas such as the
+RECQ architecture, which anyone may study and apply. The names "Evento",
+"Evento Framework" and "RECQ", and the logos, are covered by TRADEMARKS.md:
+in short, they may be used to refer to the project, but not in the name or
+the marketing of a commercial product or service (hosting, consulting,
+training, certification, architecture services) without written
+authorisation.
 
 ────────────────────────────────────────────────────────────────────────────
 Contributions
 ────────────────────────────────────────────────────────────────────────────
 
 Contributions are accepted under the Contributor License Agreement in CLA.md,
-which keeps both licences above possible. See CONTRIBUTING.md.
+which keeps the licences above and the authorisations of
+LICENSE-COMMERCIAL.txt possible. See CONTRIBUTING.md.

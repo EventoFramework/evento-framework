@@ -33,10 +33,13 @@ Open a bug report using the [GitHub issue template](https://github.com/EventoFra
 Do not open public issues for vulnerabilities. Follow [SECURITY.md](SECURITY.md) for the
 responsible disclosure process.
 
-## Commercial Support
+## Commercial Authorisations
 
-For proprietary use, enterprise support, or commercial licensing:
+Using Evento, also commercially and in production, needs no licence. To sell Evento itself (hosting
+it for others, reselling it, consulting, support or training about it) or to use the names Evento and
+RECQ in a commercial offering, ask for an authorisation:
 
-- Visit [www.eventoframework.com](https://www.eventoframework.com/) for licensing information.
-- Review [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) for commercial licence terms.
+- Visit [www.eventoframework.com](https://www.eventoframework.com/licensing) for licensing information.
+- Review [LICENSE.txt](LICENSE.txt), [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) and
+  [TRADEMARKS.md](TRADEMARKS.md).
 - Contact the maintainer directly — see [MAINTAINERS.md](MAINTAINERS.md).

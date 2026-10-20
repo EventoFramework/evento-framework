@@ -2,7 +2,7 @@
 
 # [Evento Framework](https://www.eventoframework.com/)
 
-[![License: client libraries](https://img.shields.io/badge/client%20libraries-Apache%202.0-blue.svg)](LICENSE.txt) [![License: server](https://img.shields.io/badge/server-AGPL%203.0%20%2F%20Commercial-blue.svg)](LICENSE.txt)
+[![License: client libraries](https://img.shields.io/badge/client%20libraries-Apache%202.0-blue.svg)](LICENSE.txt) [![License: server](https://img.shields.io/badge/server-Apache%202.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE.txt)
 [![CI](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/EventoFramework/evento-framework/badge)](https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework)
@@ -161,11 +161,11 @@ The documentation of Evento Framework includes:
 - [Evento Server Cluster](https://docs.eventoframework.com/evento-server/evento-server-cluster)
 - [Evento GUI](https://docs.eventoframework.com/evento-gui/explore-recq-systems-visually)
 
-## Enterprise Repository Resources
+## Repository Resources
 
 - [Contributing guide](CONTRIBUTING.md) — environment setup, tests, branching, commits, and PR process.
 - [Security policy](SECURITY.md) — supported versions and responsible disclosure process.
-- [Support guide](SUPPORT.md) — where to ask questions, report bugs, and request commercial support.
+- [Support guide](SUPPORT.md) — where to ask questions, report bugs, and ask for commercial authorisations.
 - [Governance](GOVERNANCE.md) and [maintainers](MAINTAINERS.md) — project roles, decisions, releases, and ownership.
 - [Agent notes](CLAUDE.md) — repository orientation for developer agents and maintainers.
 
@@ -182,12 +182,19 @@ By joining forces, we can make Evento a valuable tool for building the next gene
 ## License
 Copyright 2020-2026 © Gabor Galazzo.
 
+Everything is public, every feature included (single sign-on and audit trail of the console too):
+there is no closed edition.
+
 - **Client libraries — Apache-2.0.** `evento-transport-api`, `evento-transport-netty`, `evento-common`,
-  `evento-bundle` and `evento-consumer-state-store-jdbc`: the jars your application links against
-  carry no copyleft obligation.
-- **Server and web console — AGPL-3.0 or commercial licence.** `evento-server` and `evento-gui`
-  (and the rest of this repository). Running the server unmodified does not put your applications under
-  the AGPL. For warranties, support or to avoid the AGPL on the server, see
-  [`LICENSE-COMMERCIAL.txt`](LICENSE-COMMERCIAL.txt).
+  `evento-bundle`, `evento-consumer-state-store-jdbc`, `evento-spring-boot-starter`,
+  `evento-opentelemetry`, `evento-test`: the jars your application links against, with no obligation
+  on it.
+- **Server, web console and the rest — Apache-2.0 with the Commons Clause.** Use, change and run
+  `evento-server` and `evento-gui` freely, in production, for your own applications, also to sell
+  your own products built on them. What needs a written authorisation is **selling Evento itself**:
+  offering it as a hosted service, reselling it, or selling consulting, support or training about it
+  ([`LICENSE-COMMERCIAL.txt`](LICENSE-COMMERCIAL.txt)).
+- **The names Evento and RECQ** are not for commercial offerings without authorisation
+  ([`TRADEMARKS.md`](TRADEMARKS.md)); the RECQ ideas are free for anyone to apply.
 
 Details in [`LICENSE.txt`](LICENSE.txt); contributions go through the [CLA](CLA.md).

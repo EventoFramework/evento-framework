@@ -1,125 +1,95 @@
-Evento Framework — Commercial License Agreement
+Evento Framework — Commercial Authorisation Agreement
 
 Copyright (c) 2023–2026 Gabor Galazzo ("Licensor"). All rights reserved.
 
-This Commercial License Agreement ("Agreement") is entered into between
+Evento Framework is public and free to use (LICENSE.txt). This Agreement is
+needed only to do what the Commons Clause of LICENSE.txt section 2 reserves,
+or to use the names of TRADEMARKS.md commercially. It is entered into between
 Gabor Galazzo ("Licensor") and the entity or individual identified in the
-purchase order or license certificate ("Licensee").
+written authorisation ("Licensee").
 
 ────────────────────────────────────────────────────────────────────────────
 1. DEFINITIONS
 ────────────────────────────────────────────────────────────────────────────
 
 "Software" means the Evento Framework components that LICENSE.txt places
-under the GNU AGPL v3.0 (section 2 of LICENSE.txt: the Evento server, the web
-console and the other files listed there), in source and compiled form, with
-their documentation. This Agreement is an alternative to the AGPL v3.0 for
-those components only. Where the purchase order or license certificate says
-so, the Software also includes Evento Enterprise, the proprietary module that
-adds features to the Evento server and is available only under this
-Agreement.
+under the Apache License 2.0 with the Commons Clause (section 2 of
+LICENSE.txt: the Evento server, the web console and the other files listed
+there), in source and compiled form, with their documentation.
 
 The client libraries listed in section 1 of LICENSE.txt are licensed to
-everyone under the Apache License 2.0 and need no commercial licence. Nothing
-in this Agreement restricts the rights the Apache License 2.0 grants on them.
+everyone under the Apache License 2.0 and need no authorisation. Nothing in
+this Agreement restricts the rights the Apache License 2.0 grants on them.
 
-"Deployment" means installing, executing, hosting, or operating the Software
-or any product that incorporates the Software in a production, staging, or
-development environment for commercial purposes.
+"Sell" has the meaning the Commons Clause gives it: providing to third
+parties, for a fee or other consideration, a product or service whose value
+derives entirely or substantially from the functionality of the Software,
+including hosting it for them and consulting, support or training services
+related to it.
 
-"Commercial Use" means any use by a for-profit entity, any use that
-generates revenue (directly or indirectly), or any internal deployment by an
-organisation with annual revenue exceeding USD 50,000.
+"Marks" means the names and logos listed in TRADEMARKS.md, including
+"Evento", "Evento Framework" and "RECQ".
 
-"Authorized Users" means employees, contractors, and agents of the Licensee
-who are authorized by the Licensee to use the Software solely on behalf of
-and for the benefit of the Licensee.
-
-────────────────────────────────────────────────────────────────────────────
-2. GRANT OF LICENSE
-────────────────────────────────────────────────────────────────────────────
-
-Subject to the terms of this Agreement and timely payment of applicable
-license fees, the Licensor grants the Licensee a non-exclusive,
-non-transferable, worldwide license to:
-
-  a) Use, reproduce, and modify the Software for internal development
-     purposes.
-
-  b) Deploy the Software in production and non-production environments
-     operated by or for the Licensee.
-
-  c) Distribute the Software solely as incorporated into Licensee's own
-     products or services, provided that the Software is not distributed as
-     a standalone framework or development toolkit.
-
-This license does not grant the Licensee the right to sublicense the
-Software to third parties as a standalone product or framework.
+"Authorisation" means the written document (letter, signed order or
+contract) issued by the Licensor that names the Licensee and describes the
+activity authorised, its scope, its duration and any fees.
 
 ────────────────────────────────────────────────────────────────────────────
-3. RESTRICTIONS
+2. GRANT
+────────────────────────────────────────────────────────────────────────────
+
+Subject to this Agreement, to the Authorisation and to the timely payment of
+any fees it sets, the Licensor grants the Licensee a non-exclusive,
+non-transferable right, within the scope of the Authorisation, to:
+
+  a) Sell the Software, notwithstanding the Commons Clause: for example offer
+     it as a hosted or managed service, distribute it or a modified version
+     of it for a fee, or sell consulting, support, integration or training
+     services about it;
+
+  b) use the Marks in the name or the marketing of the authorised products
+     or services, as the Authorisation describes.
+
+Everything LICENSE.txt allows without an Authorisation stays allowed and
+needs none.
+
+────────────────────────────────────────────────────────────────────────────
+3. CONDITIONS
 ────────────────────────────────────────────────────────────────────────────
 
 The Licensee shall not:
 
-  a) Remove, alter, or obscure any copyright, trademark, or proprietary
-     notice contained in the Software.
+  a) Remove, alter, or obscure any copyright, trademark, or licence notice
+     contained in the Software.
 
-  b) Use the Software to build a competing framework, event bus library, or
-     developer toolkit intended for distribution to third parties.
+  b) Present the authorised products or services as made, endorsed or
+     supported by the Licensor beyond what the Authorisation states.
 
-  c) Sublicense, resell, rent, lease, or otherwise transfer rights in the
-     Software to any third party except as expressly permitted in Section 2.
+  c) Transfer or sublicense the Authorisation to any third party.
 
-  d) Use the Software outside the scope described in the applicable license
-     certificate or purchase order.
+  d) Act outside the scope, the territory or the term of the Authorisation.
 
 ────────────────────────────────────────────────────────────────────────────
-4. LICENSE TIERS
+4. FEES
 ────────────────────────────────────────────────────────────────────────────
 
-Licenses are issued per deployment scope. The Licensor offers (indicatively):
-
-  Startup License     — Up to 5 production services, revenue < USD 1M/yr
-  Business License    — Up to 25 production services, revenue < USD 10M/yr
-  Enterprise License  — Unlimited services, unlimited revenue, OEM rights
-
-Exact pricing, scope, and terms are defined in the signed purchase order or
-license certificate provided at time of purchase. Contact the Licensor for
-a quote.
+Fees, if any, are those set in the Authorisation. Failure to pay them within
+30 days of the due date may result in the suspension of the Authorisation.
+All fees are non-refundable unless otherwise agreed in writing.
 
 ────────────────────────────────────────────────────────────────────────────
-5. FEES AND PAYMENT
+5. INTELLECTUAL PROPERTY, TERM AND TERMINATION
 ────────────────────────────────────────────────────────────────────────────
 
-License fees are due as specified in the applicable purchase order. Failure
-to pay fees within 30 days of the due date may result in suspension of the
-license. All fees are non-refundable unless otherwise agreed in writing.
+The Licensor retains all intellectual property rights in the Software and the
+Marks. This Agreement is effective from the date of the Authorisation for the
+term it states. The Licensor may terminate it upon written notice if the
+Licensee materially breaches any term and fails to cure the breach within 30
+days of notice; the Licensee must then stop the authorised activity. Rights
+the Licensee has under LICENSE.txt are not affected.
 
 ────────────────────────────────────────────────────────────────────────────
-6. INTELLECTUAL PROPERTY
-────────────────────────────────────────────────────────────────────────────
-
-The Licensor retains all intellectual property rights in the Software.
-Nothing in this Agreement transfers ownership of the Software or any part
-thereof to the Licensee. The Licensee acquires only the limited license
-rights expressly stated in this Agreement.
-
-────────────────────────────────────────────────────────────────────────────
-7. TERM AND TERMINATION
-────────────────────────────────────────────────────────────────────────────
-
-This Agreement is effective from the date of license issuance and continues
-for the term specified in the purchase order (typically perpetual for the
-licensed version, with optional annual subscriptions for updates).
-
-The Licensor may terminate this Agreement immediately upon written notice if
-the Licensee materially breaches any term and fails to cure the breach within
-30 days of notice. Upon termination, the Licensee must cease all use and
-Deployment of the Software and destroy all copies in its possession.
-
-────────────────────────────────────────────────────────────────────────────
-8. WARRANTY DISCLAIMER
+6. WARRANTY DISCLAIMER
 ────────────────────────────────────────────────────────────────────────────
 
 THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. THE LICENSOR
@@ -128,7 +98,7 @@ LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
 AND NON-INFRINGEMENT.
 
 ────────────────────────────────────────────────────────────────────────────
-9. LIMITATION OF LIABILITY
+7. LIMITATION OF LIABILITY
 ────────────────────────────────────────────────────────────────────────────
 
 IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
@@ -136,10 +106,10 @@ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO
 LOSS OF PROFITS, LOSS OF DATA, OR BUSINESS INTERRUPTION) ARISING OUT OF OR
 IN CONNECTION WITH THIS AGREEMENT, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGES. THE LICENSOR'S TOTAL LIABILITY SHALL NOT EXCEED THE FEES PAID
-BY THE LICENSEE IN THE 12 MONTHS PRECEDING THE CLAIM.
+BY THE LICENSEE UNDER THIS AGREEMENT IN THE 12 MONTHS PRECEDING THE CLAIM.
 
 ────────────────────────────────────────────────────────────────────────────
-10. GOVERNING LAW AND JURISDICTION
+8. GOVERNING LAW AND JURISDICTION
 ────────────────────────────────────────────────────────────────────────────
 
 This Agreement shall be governed by and construed in accordance with the
@@ -155,11 +125,11 @@ to seek urgent injunctive or other interim relief before any court of
 competent jurisdiction within the European Union.
 
 ────────────────────────────────────────────────────────────────────────────
-CONTACT — OBTAIN A COMMERCIAL LICENSE
+CONTACT — ASK FOR AN AUTHORISATION
 ────────────────────────────────────────────────────────────────────────────
 
-To purchase a Commercial License, request a quote, or ask licensing
-questions, visit:
+To ask for an authorisation, request a quote, or ask licensing questions,
+visit:
 
   https://www.eventoframework.com/licensing
 

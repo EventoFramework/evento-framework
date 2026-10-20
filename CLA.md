@@ -1,6 +1,7 @@
-<!-- Draft written 2026-10-16 for the Apache-2.0 / AGPL-3.0 split. Have a lawyer review it before
-     the first external contribution is merged under it. Modelled on the Apache Software Foundation
-     Individual CLA, plus an explicit right to relicense (needed for the commercial licence). -->
+<!-- Draft written 2026-10-16, updated 2026-10-20 for the move from AGPL-3.0 to Apache-2.0 with the
+     Commons Clause. Have a lawyer review it before the first external contribution is merged under
+     it. Modelled on the Apache Software Foundation Individual CLA, plus an explicit right to
+     relicense (needed for the commercial authorisations of LICENSE-COMMERCIAL.txt). -->
 
 # Evento Framework — Contributor License Agreement
 
@@ -26,8 +27,8 @@ ownership.
 You grant the Maintainer, and recipients of software distributed by the Maintainer, a perpetual,
 worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright licence to reproduce,
 prepare derivative works of, publicly display, publicly perform, sublicense and distribute Your
-Contributions and such derivative works, **under any licence terms, including the Apache License 2.0,
-the GNU AGPL v3.0, and proprietary or commercial licences.**
+Contributions and such derivative works, **under any licence terms, including the Apache License 2.0
+with or without the Commons Clause, and commercial authorisations or licences.**
 
 ## 4. Patent licence
 
@@ -52,9 +53,9 @@ under this agreement end on the date the litigation is filed.
 
 ## 6. The Maintainer's commitment
 
-Every Contribution included in Evento Framework stays available under the open-source licence of the
-module it was made to (Apache License 2.0 or GNU AGPL v3.0), as listed in [LICENSE.txt](LICENSE.txt)
-at the time it was merged.
+Every Contribution included in Evento Framework stays publicly available under the licence of the
+module it was made to (Apache License 2.0, or Apache License 2.0 with the Commons Clause), as listed in
+[LICENSE.txt](LICENSE.txt) at the time it was merged, or under a more permissive one.
 
 ## 7. No warranty, no obligation
 

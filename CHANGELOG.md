@@ -38,8 +38,15 @@ a revised payload needs a 2.6 broker.
   of a Hello must expect it.
 - **Licence: the client libraries are now Apache-2.0** (`evento-transport-api`, `evento-transport-netty`,
   `evento-common`, `evento-bundle`, `evento-consumer-state-store-jdbc` and the new starter, OpenTelemetry and
-  test modules). The server and the web console stay AGPL-3.0 or commercial. See `LICENSE.txt`; contributions
-  go through the CLA (`CLA.md`).
+  test modules).
+- **Licence: the server, the web console and the rest are now Apache-2.0 with the Commons Clause** (were
+  AGPL-3.0 or commercial), and there is no closed edition any more: single sign-on and the audit trail, until
+  now in a commercial module, are part of the server. Using, changing and running Evento, also commercially and
+  in production, needs no licence; selling Evento itself (hosting it for others, reselling it, selling
+  consulting, support or training about it) needs a written authorisation (`LICENSE-COMMERCIAL.txt`), and the
+  names Evento and RECQ are covered by `TRADEMARKS.md`. The Commons Clause makes these components
+  source-available rather than OSI open source; the client libraries are not affected. See `LICENSE.txt`;
+  contributions go through the CLA (`CLA.md`).
 - **The client libraries run on Java 21+** (compiled with `--release 21`; the server stays on 25). On JDK 21–23
   a virtual thread blocked inside `synchronized` pins its carrier: Evento's own critical sections are short,
   but a handler that blocks inside `synchronized` belongs on `ConsumerExecutors.pooled(...)`.
@@ -146,7 +153,14 @@ a revised payload needs a 2.6 broker.
   `basic`) names the sign-in; a `ConsoleSignIn` bean of that mode adds its flow to the security chain, Basic
   stays for machine clients, and the server refuses to start if no sign-in provides the mode. The GUI asks
   `GET /api/auth/mode` and shows "Sign in with your organisation" for a server-side sign-in; `GET /api/auth/me`
-  tells who is signed in. Single sign-on with OpenID Connect is part of **Evento Enterprise** (commercial).
+  tells who is signed in.
+- **Single sign-on for the web console with OpenID Connect**: `evento.server.web.auth=oidc` and a client
+  registration `spring.security.oauth2.client.registration.evento.*`. The server runs the authorization-code
+  flow with PKCE, keeps the session in an HttpOnly cookie, protects writes with a CSRF token from the
+  `XSRF-TOKEN` cookie, and maps the provider's groups to `WEB` / `ADMIN`:
+  `evento.server.web.oidc.{registration-id,roles-claim,web-role,admin-role}` (defaults `evento`, `groups`,
+  `evento-web`, `evento-admin`; `roles-claim` may be a dotted path such as `realm_access.roles`). No token
+  reaches the browser; Basic stays for machine clients.
 - **Server spans for commands**: with the OpenTelemetry Java agent on the server (or an `OpenTelemetry` bean),
   each executed command gets a span `evento command <payload>` with its phase times as attributes
   (`evento.phase.lock.ms`, `.story.ms`, `.append.ms`, …), child of the caller's span; the aggregate's span is
@@ -155,8 +169,12 @@ a revised payload needs a 2.6 broker.
   the projector's repository) and `ServiceFixture` (`when(command)`, `expectEvent` / `expectNoEvent`).
 - **Admin action hook**: every console write (retry, delete or replay dead events, remove a bundle) runs
   through `AdminActions`, which tells the `AdminActionListener` beans when it starts and when it ends, with
-  the real outcome (after the bundle's answer). The audit trail of **Evento Enterprise** (commercial) is
-  such a listener.
+  the real outcome (after the bundle's answer).
+- **Audit trail of the web console**, on by default (`management.auditevents.enabled=false` turns it off): every
+  admin action with who, what, from where and the real outcome, failed sign-ins, OIDC sign-in and sign-out, and
+  refused actions of signed-in users. One `key=value` line per event on the `evento.audit` logger (the durable
+  record: route it to the SIEM; values are quoted so a crafted name cannot forge a line), and the latest
+  `evento.server.audit.capacity` (1000) at `/actuator/auditevents`, ADMIN only.
 - **A span per command and query sent**: `OpenTelemetryTracingAgent` wraps every send (from a handler or from
   the application's gateways) in a `CLIENT` span `send <Command>` / `query <Query>` that lasts until the reply,
   with the error when the reply fails; the broker's and the handler's spans are its children. New hook

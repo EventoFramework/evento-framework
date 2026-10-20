@@ -111,7 +111,22 @@ an id is from the last minute: APES server maybe still running), tested in `Grou
 39f72560, subject amended without the "!" at the user's request, force-pushed with lease). evento-doc
 (`docs/enterprise-2.6`, 7789266): event store modes page rewritten (APES deprecated, how to switch), upgrading
 to 2.6 sections 6-8 (lockless aggregate commands, capacity defaults, APES), advanced options, cluster pages,
-getLockId. Docs updated (ARCHITECTURE §4.6 "Choosing
+getLockId.
+
+**Licence change (2026-10-20).** User: "fanculo la enterprise mode, fai tutto open source, l'unico vincolo è che
+nessuno può rivendere Evento senza autorizzazione (niente SaaS del server, niente consulenze che citano Evento),
+anche le architetture RECQ; rendi open anche le feature di evento-server-enterprise". Choices (asked): Apache-2.0
++ Commons Clause for server/GUI/rest, client libraries stay Apache-2.0, RECQ via a trademark policy (ideas are not
+protectable by a code licence), OIDC/audit inside evento-server. Done: `com.evento.server.web.oidc` / `.audit`
+with their tests (oauth2-client dependency; boot verified on Postgres in basic and oidc mode, audit line and
+`/actuator/auditevents` checked), `LICENSE.txt` rewritten (what is allowed / needs authorisation),
+`licenses/Commons-Clause-1.0.txt`, AGPL text removed, module LICENSE files, `LICENSE-COMMERCIAL.txt` now an
+authorisation agreement, `TRADEMARKS.md` (draft), CLA, README/CONTRIBUTING/SUPPORT/MAINTAINERS/CLAUDE.md,
+CHANGELOG, ARCHITECTURE, ENTERPRISE-2.6 L5, CII sheet (`floss_license` now unmet for the server). evento-doc
+15860a3 (licensing page, GUI auth, upgrade §9), evento-www 1d8cf79 on `licensing/apache-client-libraries` (not
+deployed), evento-server-enterprise README marked retired (6a11437; archiving the GitHub repo is the user's
+call). Open: lawyer review (licence reading, TRADEMARKS, CLA), trademark registration, 11 early commits under an
+employer address (check ownership). Docs updated (ARCHITECTURE §4.6 "Choosing
 CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
 (unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
 
