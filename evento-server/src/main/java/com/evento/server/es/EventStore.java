@@ -327,8 +327,12 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
         logger.info("Initializing EventStore");
         if (mode == EventStoreMode.CPES) {
             logger.info("Mode: CPES");
+            continueSequenceAboveApesIds();
         } else {
             logger.info("Mode: APES - Fetch Delay: {}", fetchDelay);
+            logger.warn("event=es_mode_deprecated mode=APES reason=\"APES is deprecated since 2.6: with more than "
+                    + "one server its consumers can skip events, and on one server CPES is as fast; an existing "
+                    + "APES store switches to CPES by restarting every server with evento.es.mode=CPES\"");
         }
         logger.info("Aggregate Snapshot Cache Size: {} - TTL: {}", aggregateSnapshotCacheSize, aggregateEventsCacheExpiry);
         logger.info("Aggregate Story Cache Size: {} - TTL: {}", aggregateEventsCacheSize, aggregateEventsCacheExpiry);
@@ -767,6 +771,46 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
                         + "script=classpath:db/upgrade/es-events-aggregate-seq.sql", AGGREGATE_SEQ_INDEX);
             }
             return fenceSupported;
+        }
+    }
+
+    /**
+     * Moves the CPES sequence above the newest stored number when it is behind it, under
+     * {@code es-lock}; returns that number, or {@code null} when the sequence was already ahead.
+     * It is behind only on a store that APES wrote (Snowflake ids, far above any count of
+     * events), which is how such a store becomes CPES: numbering goes on above the last APES id,
+     * so every consumer checkpoint stays below every new event.
+     */
+    static final String CONTINUE_SEQUENCE_SQL =
+            "WITH es_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext('es-lock'))), "
+                    + "top AS MATERIALIZED (SELECT max(event_sequence_number) AS m FROM es__events, es_lock) "
+                    + "SELECT setval('event_sequence_number_serial', top.m) FROM top "
+                    + "WHERE top.m > (SELECT last_value FROM event_sequence_number_serial)";
+
+    /**
+     * The switch from APES to CPES ({@link #CONTINUE_SEQUENCE_SQL}). Every APES server must be
+     * stopped first: an APES server still writing takes ids from its clock, millions above the
+     * numbers CPES now gives, and a CPES consumer that read one of them skips the CPES events
+     * committed below it. An id from the last minute is reported as that hazard. A no-op on a
+     * store CPES has always numbered, and on a database other than PostgreSQL.
+     */
+    private void continueSequenceAboveApesIds() {
+        try {
+            synchronized (this) {
+                if (!detectPostgres()) return;
+            }
+            var continued = jdbcTemplate.query(CONTINUE_SEQUENCE_SQL, (rs, i) -> rs.getLong(1));
+            if (continued.isEmpty()) return;
+            long last = continued.getFirst();
+            logger.warn("event=es_mode_switched from=APES to=CPES sequence={} reason=\"the newest stored number is "
+                    + "above the CPES sequence: numbering goes on above it\"", last);
+            if (last >= snowflake.forInstant(Instant.now().minus(1, ChronoUnit.MINUTES))) {
+                logger.error("event=es_mode_switch_while_apes_active newest={} reason=\"an APES id from the last "
+                        + "minute: if an APES server is still running, stop it and restart every server with "
+                        + "evento.es.mode=CPES, or CPES consumers can skip events\"", last);
+            }
+        } catch (RuntimeException e) {
+            logger.warn("event=es_sequence_check_failed error=\"{}\"", e.getMessage());
         }
     }
 

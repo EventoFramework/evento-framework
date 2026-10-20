@@ -4,7 +4,7 @@ Synthesized from 6 read-only research reports. I re-checked the conflicting clai
 
 - `PgDistributedLock.java` is 222 lines. The correct line refs are `:18` (the one pinned `lockCon`), `:20` (static semaphore map), `:28-31` (reconnect on `isValid`), `:80` (lock) and `:147` (unlock). One reader's `:196`/`:257` refs are wrong.
 - `DomainCommand.getLockId()` returns `getAggregateId()` (`DomainCommand.java:40-42`). So aggregate commands **are** locked per aggregate by default. Only `ServiceCommand` returns `null` (`ServiceCommand.java:12-14`).
-- Shipped `evento.es.mode=CPES` (`application.properties`). Since 2.6 the code default is CPES too.
+- Shipped `evento.es.mode=CPES` (`application.properties`). Since 2.6 the code default is CPES too, and APES is deprecated (an APES store switches to CPES by restarting every server in CPES).
 - All Spring modules use Spring Boot plugin **4.1.0**, not the 3.5.5 that CLAUDE.md states.
 
 ---
@@ -38,7 +38,7 @@ What the servers do share correctly through Postgres:
 | Bundle config listing 3 addresses for failover | **No** | Addresses 2 and 3 are silently ignored (`EventoBundle.java:607`). |
 | Pure event consumers (projectors, observers) on any server | **Yes** | Fetch is served from the shared DB. Replicas with the same bundleId+context compete via `JdbcConsumerLock`. |
 | Server datasource on a hot standby or behind pgbouncer (transaction mode) | **No** | Writes and advisory locks fail on a standby. Session advisory locks are meaningless behind a transaction pooler. Use a multi-host URL with `targetServerType=primary`. |
-| APES mode with 3 servers | **Unsafe** | Snowflake ids come from 3 clocks and MAC-derived node ids. The 69 ms read window (`evento.es.fetch.delay`) is smaller than WAN commit latency, so events are skipped. (`recordAbsent` was G10, fixed.) **Use CPES.** B2 (2026-10-20) measured what this costs: with a synchronous standby across AZs APES appends 2-3x faster than CPES at low concurrency or 10 ms between AZs, because CPES holds `es-lock` through the replication wait; it does not make APES safe for consumers (B2 measured commands only). |
+| APES mode with 3 servers | **Unsafe** | Snowflake ids come from 3 clocks and MAC-derived node ids. The 69 ms read window (`evento.es.fetch.delay`) is smaller than WAN commit latency, so events are skipped. (`recordAbsent` was G10, fixed.) **Use CPES.** B2 (2026-10-20) measured what this costs: with a synchronous standby across AZs APES appends 2-3x faster than CPES at low concurrency or 10 ms between AZs, because CPES holds `es-lock` through the replication wait; it does not make APES safe for consumers (B2 measured commands only). APES is deprecated since 2.6. |
 | Cold start of 3 servers at once | **Flaky** | Every server runs `schema.sql` concurrently (`spring.sql.init.mode=always`, `application.properties:32`), which risks `pg_type_typname_nsp_index` or `tuple concurrently updated` errors. Stagger startup with `depends_on: service_healthy` chains. |
 | Three servers with default identity | **Misleading** | All announce `iris-evento-server` (`application.properties:7,44`), and all use `evento.server.instance.id=server-0` (`:37`). Set unique `EVENTO_CLUSTER_NODE_SERVER_ID` and `EVENTO_SERVER_INSTANCE_ID` per server. |
 
@@ -96,7 +96,7 @@ design choice (below).
 | G17 views and admin are local | Medium | **Partly fixed** | Presence table gives cluster-wide ownership; dashboard and consumer admin still act on the local view |
 | G18 discovery on the bus thread | Medium | **Open** (DOC) | |
 | G19 `ExpiringLruCache` | Medium | **Fixed** | Synchronised, TTL-aware reads. `ExpiringLruCacheTest`. Cross-server invalidation after `deleteAggregate` open |
-| G20 Snowflake node id from MAC | Medium | **Open** (DOC) | Use CPES |
+| G20 Snowflake node id from MAC | Medium | **Open** (DOC), moot once APES is removed | Use CPES (APES deprecated in 2.6) |
 | G21 no read datasource | Medium | **Open** (DOC) | |
 | G22 transport settings not in the builder | Medium | **Fixed** | `setTransportConfig`, `setDefaultRequestTimeout`, `setMaxInFlightRequests`, heartbeat overrides |
 | G23 commands carry no context | Medium | **Documented** | `DomainCommand` / `setComponentContexts` javadoc; by design |

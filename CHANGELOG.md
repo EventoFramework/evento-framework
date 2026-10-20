@@ -22,10 +22,6 @@ a revised payload needs a 2.6 broker.
   queues in PostgreSQL on a connection of the dedicated lock pool (at most half of it; the rest poll as before),
   so servers take turns on a hot aggregate. Size `evento.lock.pool.maximum-size` for the locks held at once plus
   the contended keys waiting.
-- **APES vs CPES under synchronous replication.** Benchmark B2: with a synchronous standby in another AZ, APES
-  appends 2-3x faster than CPES at low concurrency, because CPES holds its global lock through the replication
-  wait. APES is still not safe with more than one server (consumers read behind `evento.es.fetch.delay` and skip
-  later commits); CPES remains the default and the mode for clusters.
 - **Queries are routed "straight" by a 2.6 broker** when a 2.6 handler bundle declares them
   (`BundleRegistrationInfo.queryPayloadTypes`): no exactly-once slot, no cached reply, no
   reconnect buffering. A 2.6 caller asks a query again on its next session when it lost it; a
@@ -79,8 +75,12 @@ a revised payload needs a 2.6 broker.
   wait on the event store and the handler bundles, and the old bound capped a 4-CPU server below what its CPU and
   database could do.
 - **`evento.es.mode` defaults to `CPES` in the code too**, as the shipped `application.properties` already set it.
-  Only a server started without that file (embedded) changes; an existing APES event store must keep
-  `evento.es.mode=APES` (its Snowflake ids are above anything the CPES sequence would give).
+  Only a server started without that file (embedded) changes.
+- **APES is deprecated; an APES event store can now switch to CPES.** Stop every server, then start them with
+  `evento.es.mode=CPES`: the first one moves the CPES sequence above the newest APES id (under `es-lock`, logged
+  `event=es_mode_switched`), so new events sort after every old one and consumer checkpoints stay valid. Do not
+  run APES and CPES servers together: an id from the last minute at the switch is logged as
+  `event=es_mode_switch_while_apes_active` (ERROR). A server still started in APES logs `event=es_mode_deprecated`.
 
 ### Added
 
@@ -260,6 +260,15 @@ a revised payload needs a 2.6 broker.
 - Component scanning uses ClassGraph instead of Reflections (unmaintained since 2021): same semantics, annotated
   classes and their subclasses within the base package. The component managers' `parse` methods take a
   `ComponentScan`; `javassist` (invoker proxies) is now a direct dependency.
+
+### Deprecated
+
+- **APES (`evento.es.mode=APES`).** On one server CPES is as fast since group commit (benchmark B1: 3907 vs 3852
+  cmd/s at 128 in flight); with several servers APES consumers can skip events (several clocks, MAC-derived node
+  ids, a commit slower than `evento.es.fetch.delay`). Its one measured advantage, parallel commits under
+  synchronous replication across AZs (B2: 2-3x CPES at low concurrency, because CPES holds `es-lock` through the
+  replication wait), needs several servers to matter, where it is unsafe. Still works; switch with the upgrade
+  note above; to be removed in a later major version.
 
 ### Fixed
 

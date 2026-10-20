@@ -203,4 +203,39 @@ class GroupCommitPostgresIT {
         assertThat(xids).hasSize(4 * APPENDS).isSorted();
         assertThat(xids.stream().distinct().count()).as("transactions").isLessThan(4L * APPENDS);
     }
+
+    /**
+     * APES is deprecated; a store it wrote becomes CPES when the servers restart in CPES. Its
+     * Snowflake ids are far above anything the sequence gave, so a CPES server first moves the
+     * sequence above the newest id: new events still sort after every old one, and a consumer
+     * whose checkpoint is an APES id misses none of them.
+     */
+    @SuppressWarnings("deprecation")
+    @org.junit.jupiter.api.Test
+    void aStoreApesWroteContinuesAboveItsNewestIdOnceACpesServerStarts() throws Exception {
+        long newestApes;
+        try (var apes = store(serverA, EventStoreMode.APES, 9)) {
+            newestApes = apes.appendAggregateEvent(event("apes"), "order-" + UUID.randomUUID(), null, COMMAND, 0L);
+        }
+        assertThat(jdbc.queryForObject("select last_value from event_sequence_number_serial", Long.class))
+                .as("APES does not use the sequence").isLessThan(newestApes);
+
+        try (var a = store(serverA, EventStoreMode.CPES, 10); var b = store(serverB, EventStoreMode.CPES, 11)) {
+            var tasks = new ArrayList<Callable<Long>>();
+            for (int i = 0; i < APPENDS; i++) {
+                var store = i % 2 == 0 ? a : b;
+                var order = "order-" + UUID.randomUUID();
+                tasks.add(() -> store.appendAggregateEvent(event("cpes"), order, null, COMMAND, 0L));
+            }
+            var outcomes = together(tasks);
+            assertThat(outcomes).allMatch(o -> o instanceof Long && (Long) o > newestApes);
+            assertThat(outcomes).doesNotHaveDuplicates();
+        }
+        // A second start finds the sequence ahead and leaves it alone.
+        long before = jdbc.queryForObject("select last_value from event_sequence_number_serial", Long.class);
+        try (var again = store(serverA, EventStoreMode.CPES, 12)) {
+            assertThat(jdbc.queryForObject("select last_value from event_sequence_number_serial", Long.class))
+                    .isEqualTo(before);
+        }
+    }
 }

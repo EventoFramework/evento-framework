@@ -439,11 +439,15 @@ and 128 in flight they are even and CPES keeps the better p99 on spread (195 vs 
 speed is not free: its consumers read only ids older than `evento.es.fetch.delay` (69 ms) and
 **skip** an event committed later than that after its id was taken, and with more than one
 server the ids come from several clocks and MAC-derived node ids (G20). B2 measured commands,
-not consumers. So: CPES for any cluster; APES on one server, or on several only with a fetch
-delay above the worst id-to-commit time plus clock skew (replication wait included) and unique
-node ids, at the price of that delay on every consumer. Ways to give CPES the parallel commit
-without losing its order (sequence taken without the lock, consumers reading behind the oldest
-in-flight transaction) are open design work.
+not consumers. Where APES is safe (one server) it is no faster, and where it is faster (several
+servers) it is unsafe, so **APES is deprecated since 2.6** (`EventStoreMode.APES`, WARN
+`event=es_mode_deprecated` at boot). An APES store switches to CPES when every server restarts
+in CPES: `EventStore.continueSequenceAboveApesIds` moves the sequence above the newest stored
+number under `es-lock` (`CONTINUE_SEQUENCE_SQL`, a no-op once the sequence is ahead), so new
+events sort after every APES id and consumer checkpoints stay valid; an id from the last minute
+is logged as an APES server possibly still running (`GroupCommitPostgresIT.aStoreApesWroteContinuesAboveItsNewestIdOnceACpesServerStarts`).
+Ways to give CPES the parallel commit without losing its order (sequence taken without the lock,
+consumers reading behind the oldest in-flight transaction) are open design work.
 
 **Service command path:** same flow, no decoration, stores `ServiceEventMessage`.
 
@@ -551,7 +555,7 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `evento.lock.acquire.timeout.ms` (`EVENTO_LOCK_ACQUIRE_TIMEOUT_MS`; `-D` system property as fallback) | 60000 | Bound on any lock wait |
 | `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7). Not independent: boot fails when stale-after <= heartbeat and warns below 3 x heartbeat; the heartbeat has its own scheduler thread (`spring.task.scheduling.pool.size=2`) so the hourly telemetry sweep cannot delay it |
 | `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
-| `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: parallel commits, 2-3x CPES under synchronous replication across AZs (B2), but consumers trail by `evento.es.fetch.delay` and skip later commits: one server, or see §4.6 "Choosing CPES or APES". An existing APES store stays APES |
+| `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: **deprecated** (§4.6 "Choosing CPES or APES"); an APES store switches by restarting every server in CPES |
 | `evento.es.fetch.delay` | 69 | APES only: consumers read ids older than this (ms); must exceed the worst id-to-commit time plus clock skew |
 | `evento.server.commands.optimistic` | true | Aggregate commands run without the lock on a fencing store, under it after a conflict (§4.6) |
 | `evento.es.append.batch.writers` / `evento.es.append.batch.max-size` | -1 (auto: CPES 2, APES 4; 0 = off) / 256 | Group commit (§4.6) |

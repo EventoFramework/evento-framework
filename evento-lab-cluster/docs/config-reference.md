@@ -127,13 +127,13 @@ Fonte: [`application.properties`](../../evento-server/src/main/resources/applica
 | `evento.lock.pool.maximum-size` | `EVENTO_LOCK_POOL_MAXIMUM_SIZE` | 10 | connessioni del lock pool (G3): lock tenuti contemporaneamente, più fino a metà pool di attese in coda in PostgreSQL (dalla 2.6: i server si alternano su un aggregato conteso) |
 | `evento.lock.pool.connection-timeout-ms` | `EVENTO_LOCK_POOL_CONNECTION_TIMEOUT_MS` | 1000 | attesa di una connessione del lock pool |
 | `evento.lock.acquire.timeout.ms` | `EVENTO_LOCK_ACQUIRE_TIMEOUT_MS` | 60000 | limite di ogni attesa di lock distribuito (o la deadline del comando) |
-| `evento.es.mode` | `EVENTO_ES_MODE` | `CPES` (codice e `application.properties`, dalla 2.6) | **CPES** obbligatorio con più server. APES fa commit in parallelo (con replica sincrona tra AZ 2-3× CPES, benchmark B2) ma i consumer leggono con `evento.es.fetch.delay` di ritardo e saltano un evento che arriva al commit più tardi: solo con un server, o vedi sotto |
+| `evento.es.mode` | `EVENTO_ES_MODE` | `CPES` (codice e `application.properties`, dalla 2.6) | **CPES**. APES è **deprecato** dalla 2.6: su un server non è più veloce (B1), con più server i consumer possono saltare eventi (finestra `evento.es.fetch.delay`, più orologi, G20). Un database APES passa a CPES fermando tutti i server e riavviandoli in CPES: la sequenza riparte sopra l'ultimo id |
 | `evento.server.commands.optimistic` | `EVENTO_SERVER_COMMANDS_OPTIMISTIC` | `true` | comandi aggregato senza lock, protetti dalla fence; dopo un conflitto rieseguiti sotto lock |
 | `evento.es.append.batch.writers` | `EVENTO_ES_APPEND_BATCH_WRITERS` | -1 (auto: CPES 2, APES 4) | group commit: thread che scrivono i batch; 0 lo disattiva |
 | `evento.es.append.batch.max-size` | `EVENTO_ES_APPEND_BATCH_MAX_SIZE` | 256 | righe massime per batch |
 | `evento.es.fetch.max.age.ms` | `EVENTO_ES_FETCH_MAX_AGE_MS` | 30000 | gate di staleness dei fetch; ≤ 0 lo disattiva (S15) |
 | `evento.es.fetch.concurrency` | `EVENTO_ES_FETCH_CONCURRENCY` | 4 | fetch concorrenti per server |
-| `evento.es.fetch.delay` | `EVENTO_ES_FETCH_DELAY` | 69 | finestra di lettura APES (ms): deve superare il tempo peggiore tra id e commit (attesa della replica sincrona inclusa) più lo skew degli orologi |
+| `evento.es.fetch.delay` | `EVENTO_ES_FETCH_DELAY` | 69 | finestra di lettura APES, deprecato (ms): deve superare il tempo peggiore tra id e commit (attesa della replica sincrona inclusa) più lo skew degli orologi |
 | `evento.es.aggregate.{state,events}.cache.size` / `.expiry` | – | 1024 / 150000 | cache per server, non invalidate tra server (G19) |
 | `evento.es.schema.enforce-primary-key` | `EVENTO_ES_SCHEMA_ENFORCE_PRIMARY_KEY` | `true` | PK su `es__events` aggiunta all'avvio (G6) |
 | `spring.sql.init.mode` | – | `always` | `schema.sql` a ogni avvio, sotto advisory lock dopo G14 |
