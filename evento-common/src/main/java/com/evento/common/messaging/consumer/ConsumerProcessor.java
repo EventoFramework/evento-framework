@@ -560,6 +560,18 @@ public final class ConsumerProcessor {
         }
     }
 
+    /**
+     * Releases every consumer lock this processor holds (a JDBC lock keeps a lane between cycles,
+     * N4), so another replica takes over at once when this bundle stops. Call after the engines stopped.
+     */
+    public void releaseLocks() {
+        try {
+            lock.close();
+        } catch (Exception e) {
+            logger.warn("Releasing the consumer locks failed: {}", e.toString());
+        }
+    }
+
     /** Tasks dispatched by this consumer that have not yet finished. */
     public int inFlightCount(String consumerId) {
         var tracker = inFlight.get(consumerId);

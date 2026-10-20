@@ -1025,6 +1025,7 @@ public class EventoBundle {
                     dispatchContext, consumerExecutors,
                     componentName -> componentCheckpointModes.getOrDefault(componentName, checkpointMode));
             final ConsumerEngineConfig engineConfigForLater = engineConfig;
+            eventoBundle.get().consumerProcessor = engineConfig.processor();
             final var consumerExecutorsForLater = consumerExecutors;
             var startThread = new Thread(() -> {
                 try {
@@ -1266,6 +1267,8 @@ public class EventoBundle {
      * elapses.
      */
     private volatile ConsumerStatsPublisher consumerStatsPublisher;
+    /** The consumer engines' processor, whose locks are released on stop. */
+    private volatile com.evento.common.messaging.consumer.ConsumerProcessor consumerProcessor;
 
     void startConsumerStatsPublisher(ConsumerStatsPublisher publisher) {
         this.consumerStatsPublisher = publisher;
@@ -1322,6 +1325,10 @@ public class EventoBundle {
         }
         if (engineSupervisor != null) {
             engineSupervisor.stop(deadline);
+        }
+        // The engines are stopped: give the lanes they kept between cycles to another replica now.
+        if (consumerProcessor != null) {
+            consumerProcessor.releaseLocks();
         }
     }
 }

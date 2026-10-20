@@ -354,6 +354,55 @@ abstract class AbstractJdbcConsumerStateStoreIT {
         h2.close();
     }
 
+    /**
+     * N4: a replica keeps the lane between its cycles; the others find it held. Two lock instances
+     * stand for two replicas.
+     */
+    @Test
+    void aReplicaKeepsItsLaneBetweenCycles() {
+        try (var a = new JdbcConsumerLock(dataSource, dialect());
+             var b = new JdbcConsumerLock(dataSource, dialect())) {
+            a.tryAcquire("lane").orElseThrow().close();          // a's cycle ends
+            assertThat(b.tryAcquire("lane")).as("b, between a's cycles").isEmpty();
+            var again = a.tryAcquire("lane");
+            assertThat(again).as("a's next cycle").isPresent();
+            again.get().close();
+        }
+    }
+
+    @Test
+    void aReplicaThatStopsConsumingLetsAnotherTakeOverAfterTheAffinity() throws Exception {
+        try (var a = new JdbcConsumerLock(dataSource, dialect(), java.time.Duration.ofMillis(300));
+             var b = new JdbcConsumerLock(dataSource, dialect(), java.time.Duration.ofMillis(300))) {
+            a.tryAcquire("lane").orElseThrow().close();
+            assertThat(b.tryAcquire("lane")).isEmpty();
+            Thread.sleep(900);
+            var taken = b.tryAcquire("lane");
+            assertThat(taken).as("a stopped asking; b takes the lane").isPresent();
+            taken.get().close();
+            assertThat(a.tryAcquire("lane")).as("now b keeps it").isEmpty();
+        }
+    }
+
+    @Test
+    void closingTheLockReleasesAtOnceAndZeroAffinityIsTheOldBehaviour() {
+        var a = new JdbcConsumerLock(dataSource, dialect());
+        try (var b = new JdbcConsumerLock(dataSource, dialect(), java.time.Duration.ZERO)) {
+            a.tryAcquire("lane").orElseThrow().close();
+            a.close();                                             // a's bundle stops
+            var h = b.tryAcquire("lane");
+            assertThat(h).isPresent();
+            h.get().close();
+            try (var c = new JdbcConsumerLock(dataSource, dialect(), java.time.Duration.ZERO)) {
+                var hc = c.tryAcquire("lane");
+                assertThat(hc).as("b released at the end of its cycle").isPresent();
+                hc.get().close();
+            }
+        } finally {
+            a.close();
+        }
+    }
+
     // --- SagaStateStore -----------------------------------------------------
 
     @Test
