@@ -32,7 +32,7 @@ dependencies {
     implementation 'io.github.classgraph:classgraph:4.8.194'
     // Invoker proxies (EventoBundle.getInvoker); it used to come in through reflections.
     implementation 'org.javassist:javassist:3.33.0-GA'
-    implementation 'org.ow2.asm:asm:9.10.1'
+    implementation 'org.ow2.asm:asm:9.11'
 
     api project(':evento-common')
     api project(':evento-transport-api')

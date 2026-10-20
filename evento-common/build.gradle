@@ -30,7 +30,7 @@ dependencies {
     api "com.fasterxml.jackson.module:jackson-module-jsonSchema:${jacksonVersion}"
 
     // Logging through the SLF4J facade only: the application picks the backend.
-    api 'org.slf4j:slf4j-api:2.0.16'
+    api 'org.slf4j:slf4j-api:2.0.20'
     testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
     testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.26.1'
 }
