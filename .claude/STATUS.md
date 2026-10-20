@@ -101,8 +101,11 @@ B2 done (2f499bd0, `results/REPORT-HA.md`). Run 1 showed AZ b starved on the hot
 never caught the key between the other server's back-to-back holds): fixed in 95cb2eb7, waiters queue in
 PostgreSQL (`pg_advisory_lock` under `lock_timeout`, at most half the lock pool), now 29/29 cmd/s. Run 2: under
 synchronous replication CPES pays the RTT under es-lock, APES 2-3x faster at low concurrency or 10 ms RTT,
-equal at 0 ms/128 in flight; CPES better p99 on spread@128. Verdict: keep APES, recommend it for synchronous
-multi-AZ; CPES stays default. Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
+equal at 0 ms/128 in flight; CPES better p99 on spread@128. Verdict (corrected after checking
+CLUSTER-READINESS): APES stays selectable and is faster under synchronous multi-AZ, but with more than one
+server it is still unsafe for consumers (69 ms read window vs id-to-commit time, several clocks, G20), and B2
+measured commands only; CPES stays the default and the cluster mode. Docs updated (ARCHITECTURE §4.6 "Choosing
+CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
 (unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)

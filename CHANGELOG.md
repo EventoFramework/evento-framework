@@ -18,6 +18,14 @@ a revised payload needs a 2.6 broker.
 
 ### Upgrade notes
 
+- **Lock waiters may hold a lock-pool connection.** A command waiting for an aggregate held by another server now
+  queues in PostgreSQL on a connection of the dedicated lock pool (at most half of it; the rest poll as before),
+  so servers take turns on a hot aggregate. Size `evento.lock.pool.maximum-size` for the locks held at once plus
+  the contended keys waiting.
+- **APES vs CPES under synchronous replication.** Benchmark B2: with a synchronous standby in another AZ, APES
+  appends 2-3x faster than CPES at low concurrency, because CPES holds its global lock through the replication
+  wait. APES is still not safe with more than one server (consumers read behind `evento.es.fetch.delay` and skip
+  later commits); CPES remains the default and the mode for clusters.
 - **Queries are routed "straight" by a 2.6 broker** when a 2.6 handler bundle declares them
   (`BundleRegistrationInfo.queryPayloadTypes`): no exactly-once slot, no cached reply, no
   reconnect buffering. A 2.6 caller asks a query again on its next session when it lost it; a

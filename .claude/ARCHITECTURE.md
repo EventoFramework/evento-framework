@@ -428,6 +428,23 @@ and APES), `GroupCommitPostgresIT`, `IdempotentCommandPostgresIT.withoutAnAggreg
 (8 lockless commands on two servers: 1 stored, 7 run again and refused by the domain; 8 stored
 without the fence) and `concurrentCommandsOnOneAggregateFromTwoServersAllApplyOneVersionEach`.
 
+**Choosing CPES or APES (benchmarks B1, B2).** One server (B1, i7-6700K, create at 128 in flight):
+CPES 3907, APES 3852 cmd/s; CPES has the better p99 on spread and its consumers read at once, so
+it is the default. Synchronous replication across AZs (B2: standby with `synchronous_commit=on`,
+one server per AZ, 0/2/10 ms between AZs) changes the cost: PostgreSQL releases a transaction's
+locks only after the standby confirms, so under CPES every batch holds `es-lock` for the local
+fsync **plus** the replication round trip, and batches queue on it. APES commits in parallel:
+at 10 ms, create 286 vs 91 cmd/s at 8 in flight, 958 vs 359 at 32, 1986 vs 1181 at 128; at 0 ms
+and 128 in flight they are even and CPES keeps the better p99 on spread (195 vs 1059 ms). APES'
+speed is not free: its consumers read only ids older than `evento.es.fetch.delay` (69 ms) and
+**skip** an event committed later than that after its id was taken, and with more than one
+server the ids come from several clocks and MAC-derived node ids (G20). B2 measured commands,
+not consumers. So: CPES for any cluster; APES on one server, or on several only with a fetch
+delay above the worst id-to-commit time plus clock skew (replication wait included) and unique
+node ids, at the price of that delay on every consumer. Ways to give CPES the parallel commit
+without losing its order (sequence taken without the lock, consumers reading behind the oldest
+in-flight transaction) are open design work.
+
 **Service command path:** same flow, no decoration, stores `ServiceEventMessage`.
 
 `BrokerEventStore` interface (4 methods) decouples `CommandBrokerHandler` from the concrete
@@ -471,8 +488,16 @@ single-JVM/embedded scenarios like integration tests). With a `DataSource` (prod
 one shared Spring bean (`DistributedLockConfiguration`) over a **dedicated Hikari pool**
 (`evento.lock.pool.maximum-size`, default 10; `evento.lock.pool.connection-timeout-ms`, default
 1000): each *held* lock owns one pooled connection from acquire to release, so holders never pin
-the connections their own work needs, and a waiter polls `pg_try_advisory_lock` with jittered
-backoff holding no connection between attempts. The lock keeps one permit per pool connection
+the connections their own work needs. Within a JVM only one thread per key reaches the
+database (a local semaphore); it **queues in PostgreSQL** (`pg_advisory_lock` under a
+`lock_timeout` set in the same statement, at most 5 s per wait, re-queued until the deadline) on a
+lock connection of its own, as long as at most half the dedicated pool is queued. PostgreSQL grants
+a released lock to the first session in line and refuses a `pg_try_advisory_lock` that would jump
+it, so servers take turns on a hot key: polling alone let the holder's next local command retake
+the key before the other server's next poll (B2: 50 cmd/s through one server, 0-20 through the
+other; now 29/29). Beyond half the pool, and on a shared pool, a waiter polls
+`pg_try_advisory_lock` with jittered backoff holding no connection between attempts
+(`PgDistributedLockIT.aKeyThatAnotherServerKeepsTakingAgainIsStillGrantedHereInTurn`). The lock keeps one permit per pool connection
 and takes it before borrowing, so an exhausted pool never costs the pool's connection timeout:
 `tryAcquire` (telemetry) fails at once, `acquire(key, maxWait)` waits at most `maxWait`. Waits
 are bounded (`evento.lock.acquire.timeout.ms`, a Spring property, 60 s, or `acquire(key, maxWait)`)
@@ -522,11 +547,15 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `evento.cluster.name` (`EVENTO_CLUSTER_NAME`) | `evento-server` (shipped properties; empty = not announced) | Announced in `Welcome.clusterName`; bundles may require it (`withExpectedClusterName`) instead of one server id (G13). Set it per deployment: every stock server announces `evento-server`, so requiring that value protects nothing (`event=cluster_name_shipped_default` WARN at boot) |
 | `evento.server.bus.pick-strategy` | `random` | `random`, `first`, `locality-preferred` (§6 decision 11) |
 | `spring.datasource.hikari.maximum-pool-size` / `minimum-idle` | 20 / 5 | Application pool |
-| `evento.lock.pool.maximum-size` / `evento.lock.pool.connection-timeout-ms` | 10 / 1000 | Dedicated lock pool (§4.6) |
+| `evento.lock.pool.maximum-size` / `evento.lock.pool.connection-timeout-ms` | 10 / 1000 | Dedicated lock pool (§4.6): held locks plus up to half of it queued waiters |
 | `evento.lock.acquire.timeout.ms` (`EVENTO_LOCK_ACQUIRE_TIMEOUT_MS`; `-D` system property as fallback) | 60000 | Bound on any lock wait |
 | `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7). Not independent: boot fails when stale-after <= heartbeat and warns below 3 x heartbeat; the heartbeat has its own scheduler thread (`spring.task.scheduling.pool.size=2`) so the hourly telemetry sweep cannot delay it |
 | `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
-| `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit; APES only on one server |
+| `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: parallel commits, 2-3x CPES under synchronous replication across AZs (B2), but consumers trail by `evento.es.fetch.delay` and skip later commits: one server, or see §4.6 "Choosing CPES or APES". An existing APES store stays APES |
+| `evento.es.fetch.delay` | 69 | APES only: consumers read ids older than this (ms); must exceed the worst id-to-commit time plus clock skew |
+| `evento.server.commands.optimistic` | true | Aggregate commands run without the lock on a fencing store, under it after a conflict (§4.6) |
+| `evento.es.append.batch.writers` / `evento.es.append.batch.max-size` | -1 (auto: CPES 2, APES 4; 0 = off) / 256 | Group commit (§4.6) |
+| `evento.server.bus.business-executor-max-size` | CPUs x 32 | Request executor; at 8 per CPU it capped a 4-CPU server near 2500 cmd/s (B1) |
 
 Bundle side (`EventoBundle.Builder`): `EventoServerMessageBusConfiguration` with several
 `ClusterNodeAddress`es (ordered failover, G2; fail-back to the first once it has been healthy for
