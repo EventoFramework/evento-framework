@@ -107,7 +107,11 @@ server it is still unsafe for consumers (69 ms read window vs id-to-commit time,
 measured commands only; CPES stays the default and the cluster mode. User: "depreca APES se non porta più
 vantaggi" -> done: `EventStoreMode.APES` @Deprecated(since 2.6), boot WARN `es_mode_deprecated`, and a way out:
 a CPES boot moves the sequence above the newest APES id under es-lock (`continueSequenceAboveApesIds`, ERROR if
-an id is from the last minute: APES server maybe still running), tested in `GroupCommitPostgresIT`. Docs updated (ARCHITECTURE §4.6 "Choosing
+an id is from the last minute: APES server maybe still running), tested in `GroupCommitPostgresIT` (commit
+39f72560, subject amended without the "!" at the user's request, force-pushed with lease). evento-doc
+(`docs/enterprise-2.6`, 7789266): event store modes page rewritten (APES deprecated, how to switch), upgrading
+to 2.6 sections 6-8 (lockless aggregate commands, capacity defaults, APES), advanced options, cluster pages,
+getLockId. Docs updated (ARCHITECTURE §4.6 "Choosing
 CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
 (unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
 
