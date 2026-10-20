@@ -537,6 +537,13 @@ public final class BundleClient implements AutoCloseable {
     public com.evento.application.client.metrics.BundleLatencies latencies() { return latencies; }
     public int processedRequestCacheSize() { return processedRequestCache.size(); }
 
+    /** Bounds the requests this bundle handles at once; see {@link InboundDispatcher#setMaxInboundRequests}. */
+    public void setMaxInboundRequests(int max) { inboundDispatcher.setMaxInboundRequests(max); }
+    /** Inbound requests whose caller's deadline passed before their handler ran (not executed). */
+    public long inboundExpiredCount() { return inboundDispatcher.expiredBeforeHandlerCount(); }
+    /** Inbound requests refused because the bundle was handling its maximum (not executed). */
+    public long inboundRefusedCount() { return inboundDispatcher.refusedBusyCount(); }
+
     /**
      * Test-only accessor — returns the live {@code NettyClientTransport} the
      * supervisor is currently using. Useful for forcing a disconnect from

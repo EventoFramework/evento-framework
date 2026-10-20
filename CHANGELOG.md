@@ -158,6 +158,25 @@ a revised payload needs a 2.6 broker.
   schema; the online steps (catalog re-key, primary key, idempotency key, aggregate fence) are V2-V5, outside
   a transaction (`CREATE INDEX CONCURRENTLY`), and one that failed half way runs again on the next boot
   instead of blocking it. Later schema changes are new versions.
+- **Request timers on the broker (O3)**: `evento.server.request`, tagged `kind` (`query`, `service_command`,
+  `aggregate_command`, `invocation`, `other`, learnt from the handlers the bundles declare), `payload` and
+  `outcome` (`ok` / `error`): the time from a request reaching the broker to its answer leaving it, for the
+  requests it answers itself and those it forwards. Fixed buckets (1 ms to 30 s), so one series set per
+  payload type stays affordable. Queries a bundle answers itself are timed by the bundle's
+  `evento.bundle.request`.
+- **Expired requests are not run on the bundle, and an optional bound on the requests it handles (F1).** A
+  request whose caller's deadline passed while it queued on the handler bundle is answered
+  `RequestExpiredException` ("not executed") without running its handler (`event=request_expired_before_handler`).
+  `EventoBundle.Builder.setMaxInboundRequests(n)` (starter: `evento.bundle.max-inbound-requests`, default 0 =
+  no bound) refuses one more at once with `TooManyPendingRequestsException` instead of queueing it. Neither answer
+  is cached by the bundle's or the broker's exactly-once cache, so a retry of the same request runs. Counter
+  `evento.bundle.inbound.not.executed{reason=expired|busy}` (starter).
+- **Retention of idempotency keys (F11)**, off by default (keys kept for ever, as before): with
+  `evento.es.idempotency.retention` (e.g. `P30D`) one server an hour clears the keys of older events (the events
+  stay) and deletes finished or abandoned claims, in batches; `evento.es.idempotency.retention.cleared{what}`.
+  Service bundles keep outcomes the same way with `EventoBundle.Builder.setServiceOutcomeRetention`. After the
+  retention a command sent again with an old key runs again: choose it longer than any retry, consumer replays
+  included.
 - **Consumer lag metrics (O2)**, from the server's answer to every consumer fetch, tagged
   `bundle,component,context`: `evento.consumer.lag.seconds` (age of the oldest event not processed yet,
   growing while a consumer is stuck: the one to alert on), `evento.consumer.lag.events` (CPES: newest

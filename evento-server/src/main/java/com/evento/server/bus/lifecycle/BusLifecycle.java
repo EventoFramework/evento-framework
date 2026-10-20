@@ -504,6 +504,42 @@ public final class BusLifecycle {
     /** instanceId → zone, for every connected node that advertised one. */
     public java.util.Map<String, String> zones() { return clusterRegistry.zones(); }
     public void subscribe(Consumer<BusEvent> listener) { eventBus.subscribe(listener); }
+
+    /** Whether a handler's answer says it did not run the request (F1): expired or refused as busy. */
+    static boolean notExecuted(Response response) {
+        if (!response.isError() || response.error() == null) return false;
+        String type = response.error().exceptionClassName();
+        return com.evento.transport.RequestExpiredException.class.getName().equals(type)
+                || com.evento.transport.TooManyPendingRequestsException.class.getName().equals(type);
+    }
+
+    /**
+     * Told when the broker has answered a request: the time from its frame reaching this broker
+     * to the answer leaving it, for requests it handles itself (aggregate and service commands,
+     * event fetches) and for those it forwards to a bundle (queries, invocations). Streamed
+     * replies and requests refused before routing (expired on arrival, duplicates) are not
+     * reported. Called on I/O and dispatch threads: keep it cheap.
+     */
+    @FunctionalInterface
+    public interface RequestObserver {
+        RequestObserver NONE = (payloadType, nanos, ok) -> { };
+
+        void answered(String payloadType, long nanos, boolean ok);
+    }
+
+    private volatile RequestObserver requestObserver = RequestObserver.NONE;
+
+    public void setRequestObserver(RequestObserver observer) {
+        this.requestObserver = observer == null ? RequestObserver.NONE : observer;
+    }
+
+    private void observe(String payloadType, long receivedAtNanos, boolean ok) {
+        try {
+            requestObserver.answered(payloadType, System.nanoTime() - receivedAtNanos, ok);
+        } catch (RuntimeException e) {
+            log.debug("event=request_observer_failed payloadType={} error=\"{}\"", payloadType, e.getMessage());
+        }
+    }
     public int boundPort() { return transportServer.boundPort(); }
 
     /**
@@ -730,11 +766,11 @@ public final class BusLifecycle {
             }
         }
 
+        long receivedAtNanos = frame == null ? System.nanoTime() : frame.receivedAtNanos();
         var localHandler = localHandlers.get(request.payloadType());
         if (localHandler != null) {
             try {
-                var timing = new RequestTiming(frame == null ? System.nanoTime() : frame.receivedAtNanos(),
-                        System.nanoTime());
+                var timing = new RequestTiming(receivedAtNanos, System.nanoTime());
                 byte[] result = localHandler.handle(request.payload(), session.address(), deadlineMs, timing);
                 if (request.accepts(PayloadEncoding.DEFLATE)) {
                     result = PayloadEncoding.deflateIfWorthwhile(result, responseCompressionThreshold);
@@ -747,16 +783,19 @@ public final class BusLifecycle {
                         if (writeFailure == null) timing.replyWritten(System.nanoTime());
                     });
                 }
+                observe(request.payloadType(), receivedAtNanos, true);
             } catch (com.evento.transport.RequestExpiredException expired) {
                 // Already logged as event=request_expired_dropped where it was refused.
                 dedupCache.invalidate(request.correlationId());
                 replyWithError(session.transport(), request.correlationId(), expired);
+                observe(request.payloadType(), receivedAtNanos, false);
             } catch (Throwable t) {
                 FatalErrors.escalateIfFatal(t);
                 log.warn("event=local_handler_threw payloadType={} correlationId={}",
                         request.payloadType(), request.correlationId(), t);
                 dedupCache.invalidate(request.correlationId());
                 replyWithError(session.transport(), request.correlationId(), t);
+                observe(request.payloadType(), receivedAtNanos, false);
             }
             return;
         }
@@ -767,6 +806,7 @@ public final class BusLifecycle {
             dedupCache.invalidate(request.correlationId());  // don't cache routing-side failures
             replyWithError(session.transport(), request.correlationId(),
                     new IllegalStateException("no handler for " + request.payloadType()));
+            observe(request.payloadType(), receivedAtNanos, false);
             return;
         }
         var destAddress = destination.get();
@@ -775,6 +815,7 @@ public final class BusLifecycle {
             dedupCache.invalidate(request.correlationId());
             replyWithError(session.transport(), request.correlationId(),
                     new IllegalStateException("handler vanished: " + destAddress.instanceId()));
+            observe(request.payloadType(), receivedAtNanos, false);
             return;
         }
         if (request.isStreamed() && !session.supportsStreams()) {
@@ -786,7 +827,7 @@ public final class BusLifecycle {
         }
         if (request.isStreamed()) streamsOpened.incrementAndGet();
         forwardingTable.track(request.correlationId(), session.address(), destAddress, request.payloadType(),
-                request.isStreamed());
+                request.isStreamed(), receivedAtNanos);
         // Zero-copy forward: the broker doesn't re-encode the Request — it writes
         // the exact bytes that arrived on the wire to the destination's channel.
         // Saves one CBOR pass + one byte[] allocation on every hop. Fall back to
@@ -796,6 +837,7 @@ public final class BusLifecycle {
             forwardingTable.resolve(request.correlationId());
             dedupCache.invalidate(request.correlationId());
             replyWithError(session.transport(), request.correlationId(), t);
+            if (!request.isStreamed()) observe(request.payloadType(), receivedAtNanos, false);
             return null;
         });
     }
@@ -813,9 +855,17 @@ public final class BusLifecycle {
             return;
         }
         boolean straight = isStraight(entry.get().payloadType());
+        if (!entry.get().streamed()) {
+            observe(entry.get().payloadType(), entry.get().receivedAtNanos(), !response.isError());
+        }
         // Cache the response so duplicate requests on the way get a replay; a read is
-        // never cached, a duplicate of it is simply answered again.
-        if (!straight) dedupCache.recordResponse(response.correlationId(), response);
+        // never cached, a duplicate of it is simply answered again. A bundle's answer that it
+        // did not run the request (expired while queued there, or refused as busy) is not
+        // cached either: a duplicate is a retry, and it should run.
+        if (!straight) {
+            if (notExecuted(response)) dedupCache.invalidate(response.correlationId());
+            else dedupCache.recordResponse(response.correlationId(), response);
+        }
         var originator = entry.get().originator();
         var originatorConn = connectionRegistry.lookup(originator);
         if (originatorConn.isEmpty()) {

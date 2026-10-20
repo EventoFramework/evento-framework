@@ -116,6 +116,7 @@ public class EventoBundleLifecycle implements SmartLifecycle {
                 .setEventoServerMessageBusConfiguration(busConfiguration())
                 .setAuthToken(blankToNull(properties.getAuthToken()))
                 .setDefaultRequestTimeout(properties.getDefaultRequestTimeout())
+                .setMaxInboundRequests(properties.getMaxInboundRequests())
                 .setRestrictPayloadTypes(properties.getSerialization().isRestrict())
                 .setAllowedPayloadPackages(List.copyOf(properties.getSerialization().getAllowedPackages()))
                 .setInjector(type -> beanFactory.getBeanProvider(type).getIfAvailable());

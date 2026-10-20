@@ -317,6 +317,43 @@ class BusLifecycleIT {
         assertThat(decoded.value()).isEqualTo(42L);
     }
 
+    /** O3: every request the broker answers is timed by kind, payload and outcome. */
+    @Test
+    void theBrokerTimesEachAnsweredRequestByKindPayloadAndOutcome() throws Exception {
+        var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        new com.evento.server.bus.spring.RequestMetrics(lifecycle, registry);
+        var caller = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        var handler = new MockBundle("bundle-B", "inst-B1", lifecycle, transportServer);
+        completeHandshake(caller);
+        completeHandshake(handler);
+        handler.registerHandlers(payloadCodec, List.of("com.FindDemo"));
+        handler.clientSide.send(new Notification(UUID.randomUUID(), BundleDiscoveryInfo.PAYLOAD_TYPE,
+                payloadCodec.encode(new BundleDiscoveryInfo(100L, "", "", "", "L",
+                        List.of(new com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler(
+                                com.evento.common.modeling.bundle.types.ComponentType.Projection, "DemoProjection",
+                                com.evento.common.modeling.bundle.types.HandlerType.QueryHandler,
+                                com.evento.common.modeling.bundle.types.PayloadType.Query,
+                                "com.FindDemo", "DemoView", false, null)),
+                        Map.of())),
+                System.currentTimeMillis()));
+        handler.enable();
+        caller.enable();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2
+                && seenEvents.stream().anyMatch(e -> e instanceof BusEvent.BundleDiscovered));
+        handler.requestHandler = req -> handler.replyToRequest(req, new byte[0], "DemoView");
+
+        assertThat(caller.sendRequest("com.FindDemo", new byte[0]).get(3, TimeUnit.SECONDS).isError()).isFalse();
+        assertThat(caller.sendRequest("com.NobodyHandlesThis", new byte[0]).get(3, TimeUnit.SECONDS).isError()).isTrue();
+
+        var query = registry.get("evento.server.request")
+                .tags("kind", "query", "payload", "com.FindDemo", "outcome", "ok").timer();
+        assertThat(query.count()).isEqualTo(1);
+        assertThat(query.totalTime(TimeUnit.NANOSECONDS)).isPositive();
+        assertThat(registry.get("evento.server.request")
+                .tags("kind", "other", "payload", "com.NobodyHandlesThis", "outcome", "error").timer().count())
+                .isEqualTo(1);
+    }
+
     @Test
     void requestForUnknownPayloadTypeRepliesWithError() throws Exception {
         var bundleA = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);

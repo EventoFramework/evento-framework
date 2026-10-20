@@ -55,6 +55,12 @@ public class EventoProperties {
     /** Timeout of gateway calls without an explicit one. */
     private Duration defaultRequestTimeout = Duration.ofSeconds(30);
 
+    /**
+     * Requests this bundle handles at once; one more is refused at once and not executed
+     * (admission control). 0, the default, sets no bound.
+     */
+    private int maxInboundRequests = 0;
+
     /** Start the bundle with the application context; false leaves it to {@link EventoBundleLifecycle#start()}. */
     private boolean autoStartup = true;
 
@@ -158,6 +164,8 @@ public class EventoProperties {
     public void setExpectedClusterName(String expectedClusterName) { this.expectedClusterName = expectedClusterName; }
     public String getZone() { return zone; }
     public void setZone(String zone) { this.zone = zone; }
+    public int getMaxInboundRequests() { return maxInboundRequests; }
+    public void setMaxInboundRequests(int maxInboundRequests) { this.maxInboundRequests = maxInboundRequests; }
     public Duration getDefaultRequestTimeout() { return defaultRequestTimeout; }
     public void setDefaultRequestTimeout(Duration defaultRequestTimeout) { this.defaultRequestTimeout = defaultRequestTimeout; }
     public boolean isAutoStartup() { return autoStartup; }

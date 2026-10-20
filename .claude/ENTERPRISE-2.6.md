@@ -404,7 +404,9 @@ Le dipendenze sono indicate con `←`.
       Poi: span `CLIENT` per ogni comando e query inviati (`send <Command>` / `query <Query>`, fino alla
       risposta), nuovo hook `TracingAgent.traceSend`; l'IT verifica richiesta → send → server → aggregato
       → projector
-- [ ] O3 Timer su query e service command
+- [x] O3 Timer su query e service command (2026-10-20): `evento.server.request{kind,payload,outcome}`
+      sul broker, dall'arrivo del frame alla risposta, per richieste locali e inoltrate; tipo dal catalogo.
+      Test: `BusLifecycleIT`
 - [x] S4 (in Evento Enterprise dal 2026-10-19, di nuovo nel server dal 2026-10-20, vedi L5) OIDC per la console: `evento.server.web.auth=oidc`, authorization code con PKCE gestito dal
       server (sessione HttpOnly, CSRF da cookie, nessun token nel browser), gruppi → `WEB`/`ADMIN`
       (`OidcRoles`, claim annidati), Basic resta per i client macchina; GUI: `/api/auth/mode`, bottone
@@ -416,10 +418,17 @@ Le dipendenze sono indicate con `←`.
       **Poi**: tabella di audit su database quando c'è Flyway (F4)
 - [-] F8 Guida di mapping Axon 4 + importatore `domain_event_entry`: fuori roadmap (D8 a)
 - [ ] F9 Più eventi per comando
-- [ ] F11 Retention di chiavi di idempotenza ed esiti
+- [x] F11 Retention di chiavi di idempotenza ed esiti (2026-10-20): `evento.es.idempotency.retention`
+      (spenta di default: le chiavi restano come prima), job orario su un solo server (try-lock),
+      chiavi tolte dagli eventi (che restano) e claim concluse o abbandonate cancellate a blocchi di 1000;
+      lato bundle `setServiceOutcomeRetention` sullo store degli esiti. Test: `IdempotencyRetentionPostgresIT`
 - [ ] Payload annidati non instradabili (`Message.getPayloadName` prende l'ultima parte dopo il punto,
       `Outer$Inner`): da documentare o correggere (trovato in sessione 2, ancora aperto)
-- [ ] F1 Scarto lato bundle delle richieste scadute + admission control
+- [x] F1 Scarto lato bundle delle richieste scadute + admission control (2026-10-20): una richiesta la
+      cui scadenza è passata mentre aspettava sul bundle non esegue l'handler (`RequestExpiredException`,
+      "not executed"); `setMaxInboundRequests` (default 0, nessun limite) rifiuta subito oltre il limite;
+      nessuna delle due risposte entra nelle cache exactly-once (bundle e broker), quindi un retry gira.
+      Test: `InboundDeadlineAndAdmissionTest`
 - [ ] L3 Prime case study e adopter con nome
 
 ### Fase 3 — competizione (3.0)

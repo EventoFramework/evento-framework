@@ -97,6 +97,17 @@ public class EventoBundle {
     }
 
     /**
+     * Inbound requests this bundle answered without running them: {@code [expired, refused]}
+     * (their caller's deadline had passed when the handler would have started; the bundle was
+     * handling its {@code maxInboundRequests}). {@code null} when the bundle does not run over the
+     * v2 {@code BundleClient}.
+     */
+    public long[] getInboundNotExecuted() {
+        return eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter
+                ? new long[]{adapter.client().inboundExpiredCount(), adapter.client().inboundRefusedCount()} : null;
+    }
+
+    /**
      * The state of the connection to the server ({@code READY} when requests can flow), or
      * {@code null} when the bundle does not run over the v2 {@code BundleClient}.
      */
@@ -387,6 +398,16 @@ public class EventoBundle {
          */
         private com.evento.common.messaging.outcome.ServiceCommandOutcomeStore serviceCommandOutcomeStore;
 
+        /**
+         * How long the outcomes of keyed service commands are kept (F11): every hour the bundle
+         * deletes from {@link #serviceCommandOutcomeStore} those recorded longer ago. Null (the
+         * default) keeps them for ever. Keep it at least as long as the server's
+         * {@code evento.es.idempotency.retention}, and longer than any caller can retry: after
+         * it, a command sent again with the same key runs again. Every instance sweeping the same
+         * store is harmless.
+         */
+        private Duration serviceOutcomeRetention;
+
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
@@ -440,6 +461,14 @@ public class EventoBundle {
 
         /** Cap on outstanding requests from this bundle; 0 disables the bound. */
         private int maxInFlightRequests = 2048;
+
+        /**
+         * Cap on the requests this bundle handles at once (admission control, F1): one more is
+         * refused at once, not executed, instead of queueing behind work that may outlast its
+         * caller. 0 (the default) disables the bound. A request whose caller's deadline passed
+         * while it waited here is never run, whatever this is.
+         */
+        private int maxInboundRequests = 0;
 
         /**
          * Fail-back to the first address of {@link #eventoServerMessageBusConfiguration}
@@ -913,6 +942,7 @@ public class EventoBundle {
                     // @Projector(waitForHeadReached = true) has caught up to the head.
                     .autoEnable(false)
                     .build();
+            bundleClient.setMaxInboundRequests(maxInboundRequests);
 
             var dispatcher = new BundleInboundDispatcher(adminCodec,
                     aggregateManager, serviceManager, projectionManager,
@@ -962,6 +992,11 @@ public class EventoBundle {
                     serviceManager, projectorManager, observerManager, tracingAgent,
                     eventoServer,
                     supervisor));
+
+            if (serviceCommandOutcomeStore != null && serviceOutcomeRetention != null
+                    && !serviceOutcomeRetention.isZero() && !serviceOutcomeRetention.isNegative()) {
+                eventoBundle.get().startOutcomeSweeper(serviceCommandOutcomeStore, serviceOutcomeRetention);
+            }
 
             // Wire shutdown hook to stop v2 engines gracefully
             Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().unstarted(() -> {
@@ -1237,6 +1272,27 @@ public class EventoBundle {
         publisher.start();
     }
 
+    /** Deletes service command outcomes older than the retention, hourly (F11). */
+    private volatile java.util.concurrent.ScheduledExecutorService outcomeSweeper;
+
+    void startOutcomeSweeper(com.evento.common.messaging.outcome.ServiceCommandOutcomeStore store, Duration retention) {
+        var sweeper = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            var t = new Thread(r, "evento-outcome-retention");
+            t.setDaemon(true);
+            return t;
+        });
+        sweeper.scheduleWithFixedDelay(() -> {
+            try {
+                int n = store.sweepBefore(Instant.now().minus(retention));
+                if (n > 0) logger.info("event=service_outcome_retention_swept deleted={} retention={}", n, retention);
+            } catch (RuntimeException e) {
+                logger.warn("event=service_outcome_retention_failed error=\"{}\"", e.getMessage());
+            }
+        }, 1, 60, java.util.concurrent.TimeUnit.MINUTES);
+        this.outcomeSweeper = sweeper;
+        logger.info("event=service_outcome_retention_enabled retention={}", retention);
+    }
+
     /**
      * Graceful stop: leave the server's routing (no new requests reach this bundle), stop the
      * consumer engines within {@code deadline}, close the connection. For containers that own the
@@ -1260,6 +1316,9 @@ public class EventoBundle {
     public void stopV2Engines(Duration deadline) {
         if (consumerStatsPublisher != null) {
             consumerStatsPublisher.close();
+        }
+        if (outcomeSweeper != null) {
+            outcomeSweeper.shutdownNow();
         }
         if (engineSupervisor != null) {
             engineSupervisor.stop(deadline);

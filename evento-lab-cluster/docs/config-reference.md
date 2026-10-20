@@ -137,6 +137,7 @@ Fonte: [`application.properties`](../../evento-server/src/main/resources/applica
 | `evento.es.aggregate.{state,events}.cache.size` / `.expiry` | – | 1024 / 150000 | cache per server, non invalidate tra server (G19) |
 | `evento.es.schema.enforce-primary-key` | `EVENTO_ES_SCHEMA_ENFORCE_PRIMARY_KEY` | `true` | PK su `es__events` aggiunta all'avvio (G6) |
 | `spring.sql.init.mode` | – | `always` | `always`: migrazioni Flyway a ogni avvio (`evento_es_schema_history`, F4), sotto advisory lock (G14); `never`: schema del DBA (`db/upgrade/`) |
+| `evento.es.idempotency.retention` | `EVENTO_ES_IDEMPOTENCY_RETENTION` | non impostata | F11: dopo quanto si tolgono le chiavi di idempotenza dagli eventi e si cancellano le claim (es. `P30D`); non impostata = per sempre |
 | `evento.consumer.lag.expiry` | `EVENTO_CONSUMER_LAG_EXPIRY` | `PT15M` | dopo quanto sparisce la serie di lag di un consumer che non fa più fetch su questo server (O2) |
 | `evento.cluster.name` | `EVENTO_CLUSTER_NAME` | `evento-server` | annunciato in `Welcome.clusterName` (G13); cambialo |
 | `evento.cluster.node.server.id` | `EVENTO_CLUSTER_NODE_SERVER_ID` | `iris-evento-server` | diventa `evento.server.bus.server-instance-id`; **univoco** per server (G4, G7) |

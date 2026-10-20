@@ -54,6 +54,18 @@ public class EventoBundleMetrics implements ApplicationListener<EventoBundleStar
                 .description("1 while the bundle's connection to the server is READY")
                 .tags(tags)
                 .register(registry);
+        if (bundle.getInboundNotExecuted() != null) {
+            io.micrometer.core.instrument.FunctionCounter.builder("evento.bundle.inbound.not.executed", bundle,
+                            b -> b.getInboundNotExecuted()[0])
+                    .description("Requests answered without running their handler: the caller's deadline had passed")
+                    .tags(tags).tag("reason", "expired")
+                    .register(registry);
+            io.micrometer.core.instrument.FunctionCounter.builder("evento.bundle.inbound.not.executed", bundle,
+                            b -> b.getInboundNotExecuted()[1])
+                    .description("Requests refused because the bundle was handling evento.bundle.max-inbound-requests")
+                    .tags(tags).tag("reason", "busy")
+                    .register(registry);
+        }
         if (bundle.getLatencies() == null) return;
         bindNew(bundle, tags);
         var s = Executors.newSingleThreadScheduledExecutor(r -> {

@@ -70,6 +70,12 @@ public final class InboundDispatcher {
     /** Where streams are offered on direct connections; null when this bundle offers none. */
     private volatile com.evento.application.client.stream.DirectStreamServer directServer;
 
+    // ---- deadlines and admission (F1, 2.6) ----
+    /** Requests being handled at most at once; beyond it they are refused at once. 0 = no bound. */
+    private volatile int maxInboundRequests;
+    private final java.util.concurrent.atomic.AtomicLong expiredBeforeHandler = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong refusedBusy = new java.util.concurrent.atomic.AtomicLong();
+
     public InboundDispatcher(BundleCorrelationTracker correlationTracker,
                               ProcessedRequestCache dedupCache,
                               HandlerRegistry handlerRegistry,
@@ -160,7 +166,52 @@ public final class InboundDispatcher {
         }
     }
 
+    /**
+     * Bounds the requests this bundle handles at once (admission control): one more is refused
+     * at once with {@link com.evento.transport.TooManyPendingRequestsException}, not queued behind
+     * work that may outlast its caller's deadline. Nothing ran for it, so the caller may send it
+     * again. {@code 0} (the default) sets no bound.
+     */
+    public void setMaxInboundRequests(int max) {
+        this.maxInboundRequests = Math.max(0, max);
+    }
+
+    /** Requests whose caller's deadline passed while they waited here, answered without running. */
+    public long expiredBeforeHandlerCount() {
+        return expiredBeforeHandler.get();
+    }
+
+    /** Requests refused because {@link #setMaxInboundRequests} were already being handled. */
+    public long refusedBusyCount() {
+        return refusedBusy.get();
+    }
+
+    private static long monotonicMillis() {
+        return System.nanoTime() / 1_000_000;
+    }
+
+    /** Whether {@code response} says the request was not executed: a retry runs it for the first time. */
+    static boolean notExecuted(Response response) {
+        if (response == null || !response.isError() || response.error() == null) return false;
+        String type = response.error().exceptionClassName();
+        return com.evento.transport.RequestExpiredException.class.getName().equals(type)
+                || com.evento.transport.TooManyPendingRequestsException.class.getName().equals(type);
+    }
+
     private void dispatchRequest(Request req) {
+        // The caller's deadline, from when the request reached this bundle (the broker forwards
+        // the time the caller had left; measured from the arrival it errs late, never early).
+        long deadlineMs = req.deadlineFrom(monotonicMillis());
+        int max = maxInboundRequests;
+        if (max > 0 && inFlight.get() >= max) {
+            refusedBusy.incrementAndGet();
+            log.warn("event=request_refused_busy correlationId={} payloadType={} inFlight={} max={}",
+                    req.correlationId(), req.payloadType(), inFlight.get(), max);
+            trySend(Response.failure(req.correlationId(), ResponseError.of(
+                    new com.evento.transport.TooManyPendingRequestsException("refusing " + req.payloadType()
+                            + ": this bundle is already handling " + max + " requests; not executed"))));
+            return;
+        }
         if (req.isStreamed() && streamsAccepted.getAsBoolean()
                 && handlerRegistry.requestHandlerFor(req.payloadType())
                         instanceof HandlerRegistry.StreamingRequestHandler streaming) {
@@ -177,7 +228,7 @@ public final class InboundDispatcher {
         if (dedupExemptPayloadTypes.contains(req.payloadType())) {
             // Idempotent request (query): run it directly, never touch the dedup
             // cache — so its response is not retained in memory after sending.
-            runCounted(() -> trySend(computeResponse(req)));
+            runCounted(() -> trySend(computeResponse(req, deadlineMs)));
             return;
         }
         var outcome = dedupCache.resolveOrClaim(req.correlationId());
@@ -192,8 +243,10 @@ public final class InboundDispatcher {
                     log.info("event=request_inflight_duplicate_dropped correlationId={}",
                             req.correlationId());
             case ProcessedRequestCache.Outcome.Claimed ignored -> runCounted(() -> {
-                var response = computeResponse(req);
-                dedupCache.recordResponse(req.correlationId(), response);
+                var response = computeResponse(req, deadlineMs);
+                // A request that did not run is not answered from the cache: a retry runs it.
+                if (notExecuted(response)) dedupCache.forget(req.correlationId());
+                else dedupCache.recordResponse(req.correlationId(), response);
                 return trySend(response);
             });
         }
@@ -238,7 +291,17 @@ public final class InboundDispatcher {
         }
     }
 
-    private Response computeResponse(Request req) {
+    private Response computeResponse(Request req, long deadlineMs) {
+        long now = monotonicMillis();
+        if (now >= deadlineMs) {
+            // Its caller stopped waiting while it queued here: running it now would do the work
+            // for nobody, and a retry may be on its way.
+            expiredBeforeHandler.incrementAndGet();
+            log.info("event=request_expired_before_handler correlationId={} payloadType={} lateMs={}",
+                    req.correlationId(), req.payloadType(), now - deadlineMs);
+            return Response.failure(req.correlationId(), ResponseError.of(new com.evento.transport.RequestExpiredException(
+                    req.payloadType() + " expired before its handler ran on this bundle; not executed")));
+        }
         var handler = handlerRegistry.requestHandlerFor(req.payloadType());
         if (handler == null) {
             return Response.failure(req.correlationId(),
@@ -270,10 +333,12 @@ public final class InboundDispatcher {
      */
     public java.util.concurrent.CompletableFuture<Response> answerLocally(Request req, java.time.Duration timeout) {
         var reply = new java.util.concurrent.CompletableFuture<Response>();
+        long deadlineMs = timeout == null || timeout.isZero() || timeout.isNegative()
+                ? Long.MAX_VALUE : monotonicMillis() + timeout.toMillis();
         try {
             businessExecutor.execute(() -> {
                 try {
-                    reply.complete(computeResponse(req));
+                    reply.complete(computeResponse(req, deadlineMs));
                 } catch (Throwable t) {
                     reply.complete(Response.failure(req.correlationId(), ResponseError.of(t)));
                 }

@@ -576,6 +576,7 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
 | `spring.sql.init.mode` | `always` (shipped) | `always`: the server migrates the schema with Flyway (`evento_es_schema_history`); `never`: the schema is the DBA's (`db/upgrade/*.sql`), the server only checks |
 | `evento.consumer.lag.expiry` | PT15M | Consumer lag series not fetched for this long are dropped (O2) |
+| `evento.es.idempotency.retention` / `-interval` | unset (keys for ever) / PT1H | F11: clear keys of older events, delete finished or abandoned claims (`IdempotencyRetention`, one server per round under a try-lock) |
 | `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: **deprecated** (§4.6 "Choosing CPES or APES"); an APES store switches by restarting every server in CPES |
 | `evento.es.fetch.delay` | 69 | APES only: consumers read ids older than this (ms); must exceed the worst id-to-commit time plus clock skew |
 | `evento.server.commands.optimistic` | true | Aggregate commands run without the lock on a fencing store, under it after a conflict (§4.6) |
@@ -1254,6 +1255,13 @@ explorative read-only pivot.)
     — tagged `bundle,instance,consumer,component`.
   - Meters are removed on `BusEvent.NodeLeft`, so rolling restarts do not leak a series per
     dead instance. Bundles with no consumer executor push nothing at all.
+- **Request timers (O3)** — `RequestMetrics` (`com.evento.server.bus.spring`) on the
+  `BusLifecycle.RequestObserver` hook: `evento.server.request{kind,payload,outcome}`, frame
+  received → answer sent, for local handlers (aggregate/service commands, fetches) and forwarded
+  requests (`ForwardingTable.Entry.receivedAtNanos`, timed in `onResponse`; streamed replies and
+  requests refused before routing as expired or duplicate are not timed, "no handler" is an
+  error). `kind` from `BundleDiscovered` handler types. SLO buckets (15) instead of a percentile
+  histogram. Test: `BusLifecycleIT.theBrokerTimesEachAnsweredRequestByKindPayloadAndOutcome`.
 - **Consumer lag (O2)** — `ConsumerLagMetrics` (`com.evento.server.es`), fed by the answer to
   every `EventFetchRequest` (`EventStoreRequestHandlerBridge`), tagged `bundle,component,context`:
   - `evento.consumer.lag.seconds`: age of the oldest unprocessed event (the first one the last
