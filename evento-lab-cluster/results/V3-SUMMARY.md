@@ -49,3 +49,20 @@ noticed, so the claim, not the departure, was the problem. The fix in `2d688350`
 closed connection touch nothing. Four S04 runs clean, S00, S02, S03, S07, S13 as before.
 
 Raw logs of the runs were kept out of the repository.
+
+## Mixed versions: 2.5.2 and 3.0
+
+Images built against tag `v2.5.2` (`FRAMEWORK_REF=v2.5.2 LAB_TAG=v252`), mixed with `v3`:
+
+| Run | Servers | Bundles | Result |
+|---|---|---|---|
+| M1 servers first | 3.0 | 2.5.2 | S00 9, S17 8, S03 12 AS_EXPECTED |
+| M2 bundles first (wrong order) | 2.5.2 | 3.0 | S00 9 AS_EXPECTED |
+| M3-0 rolling upgrade, start | 2.5.2 | 2.5.2 | S00 9 AS_EXPECTED (database created by 2.5.2) |
+| M3-1 one server upgraded | eu 3.0, am/apac 2.5.2 | 2.5.2 | S00 9 AS_EXPECTED; the 3.0 server baselined the 2.5.2 database and ran V1-V7 online while the others served |
+| M3-2 all servers upgraded | 3.0 | 2.5.2 | S00 9 AS_EXPECTED |
+| M3-3 bundles upgraded one by one | 3.0 | 3.0 | S00 9, S03 11 AS_EXPECTED + 1 INCONCLUSIVE (same as pure 3.0) |
+
+Each server and each of the 22 bundle containers was replaced in the running stack
+(`docker compose up --no-deps` with an image override), as a rolling upgrade does.
+
