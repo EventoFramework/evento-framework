@@ -39,8 +39,8 @@ a revised payload needs a 2.6 broker.
 - **Licence: the client libraries are now Apache-2.0** (`evento-transport-api`, `evento-transport-netty`,
   `evento-common`, `evento-bundle`, `evento-consumer-state-store-jdbc` and the new starter, OpenTelemetry and
   test modules).
-- **Licence: the server, the web console and the rest are now Apache-2.0 with the Commons Clause** (were
-  AGPL-3.0 or commercial), and there is no closed edition any more: single sign-on and the audit trail, until
+- **Licence: from 2.6.0 the server, the web console and the rest are Apache-2.0 with the Commons Clause**
+  (were AGPL-3.0 or commercial; 2.5.x and earlier keep the licences they were released with), and there is no closed edition any more: single sign-on and the audit trail, until
   now in a commercial module, are part of the server. Using, changing and running Evento, also commercially and
   in production, needs no licence; selling Evento itself (hosting it for others, reselling it, selling
   consulting, support or training about it) needs a written authorisation (`LICENSE-COMMERCIAL.txt`), and the

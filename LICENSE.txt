@@ -5,7 +5,10 @@ Copyright (c) 2023–2026 Gabor Galazzo.
 All of Evento Framework is public, in this repository, with every feature: the
 server, the web console with single sign-on (OpenID Connect) and the audit
 trail, the client libraries, the labs. There is no closed edition. Two licences
-apply. Each module directory carries its own LICENSE.txt with the full text
+apply.
+
+These terms apply from Evento 2.6.0. Versions up to 2.5.x stay under the
+licences they were published with. Each module directory carries its own LICENSE.txt with the full text
 that applies to it; the full texts are also in the licenses/ directory.
 
 ────────────────────────────────────────────────────────────────────────────

@@ -182,8 +182,9 @@ By joining forces, we can make Evento a valuable tool for building the next gene
 ## License
 Copyright 2020-2026 © Gabor Galazzo.
 
-Everything is public, every feature included (single sign-on and audit trail of the console too):
-there is no closed edition.
+From **2.6.0** everything is public, every feature included (single sign-on and audit trail of the
+console too): there is no closed edition. Versions up to 2.5.x keep the licences they were released
+with.
 
 - **Client libraries — Apache-2.0.** `evento-transport-api`, `evento-transport-netty`, `evento-common`,
   `evento-bundle`, `evento-consumer-state-store-jdbc`, `evento-spring-boot-starter`,
