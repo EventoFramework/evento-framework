@@ -1,4 +1,4 @@
--- Evento server schema, version 1 (Evento 2.6.0): the schema.sql of 2.6.0, idempotent so that it also
+-- Evento server schema, version 1 (Evento 3.0.0): the schema.sql of 3.0.0, idempotent so that it also
 -- adopts databases created by earlier servers (baselined at version 0). Never edit this file: Flyway
 -- checks its checksum. A schema change is a new migration (V6__..., after the Java migrations V2-V5 in
 -- AdvisoryLockedSchemaInitializer).
