@@ -167,7 +167,14 @@ renamed `upgrading-to-3-0.md`, aggregate command handler (several events), `pers
 framework (analysis in ENTERPRISE-2.6.md: tenant as domain concept or silo; server-enforced isolation is costly
 and is the use the licence reserves). Multi-tenancy doc page written (evento-doc `multi-tenancy.md`). Next: R1 (merge PR #281, tag v3.0.0) when the
 user asks; spike D2 (b). End of session: CI of PR #281 green on 7f194a2e (all jobs), PR mergeable, review required;
-ENTERPRISE-2.6.md checklists brought up to date (R1 as 3.0.0, F9, nested payloads, gap tables). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
+ENTERPRISE-2.6.md checklists brought up to date (R1 as 3.0.0, F9, nested payloads, gap tables).
+Then, asked for "every possible test": whole Gradle build with every IT (PG 16/17, MySQL 8.4, server image
+built from the branch) 1088 green; GUI build + lint green (no specs); the 19 chaos scenarios on the lab with
+`LAB_TAG=v3`. S04 regressed (consumer rows wiped after a server resumed from a pause, 3/4 runs), caused by
+the Q4 fix: fixed in 2d688350 by claiming presence on the new `BusEvent.NodeEstablished` (first message after
+the Hello) instead of NodeJoined, and making a closed connection's Hello touch nothing; S04 4/4 clean, S00,
+S02, S03, S07, S13 unchanged; suite 1091 green. Summary `evento-lab-cluster/results/V3-SUMMARY.md` (5cd40ad4).
+S14 inconclusive at kills 150/500/1000/3000 ms (window too short in 3.0; S18 covers it). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 

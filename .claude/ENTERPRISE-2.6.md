@@ -33,6 +33,11 @@ resta retrocompatibile con la 2.5. Fatti in questa sessione, tutti su `enterpris
 - **F6 multi-tenancy**: analizzata, non si fa nel framework (sotto, "F6: ha senso?"); pagina evento-doc
   `multi-tenancy.md` sui due modi che funzionano già (tenant nel dominio, un'installazione per tenant).
 
+Campagna di test completa (2026-10-20, sera): build Gradle intera con tutti gli IT (PostgreSQL 16/17,
+MySQL 8.4, immagine del server costruita dal branch) 1091 test verdi; GUI build e lint; i 19 scenari chaos del
+lab su immagini `v3`. Trovata e corretta una regressione introdotta dal fix Q4 (S04: righe consumer cancellate
+dopo la ripresa di un server in pausa), `2d688350`; riepilogo in `evento-lab-cluster/results/V3-SUMMARY.md`.
+
 Verifica a fine sessione (2026-10-20): branch `enterprise/2.6-readiness` a `7f194a2e`, pulito e allineato
 all'origin; **CI della PR #281 tutta verde** su questo commit (build-and-test, jdbc-integration-tests,
 client-libraries-jdk21, gui-build, CodeQL); suite completa locale con gli IT Postgres 997 test, 0 falliti.
