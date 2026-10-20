@@ -203,6 +203,23 @@ public interface BrokerEventStore {
     }
 
     /**
+     * Appends the events of one aggregate command (F9) as {@link #appendAggregateEvent} appends
+     * one, all of them or none: versions {@code expectedVersion + 1} onwards, consecutive in the
+     * store, the key on the last one.
+     *
+     * @return the sequence number of the last event
+     * @throws UnsupportedOperationException when this store cannot append several events atomically
+     */
+    default long appendAggregateEvents(java.util.List<? extends EventMessage<?>> events, String aggregateId,
+                                       String idempotencyKey, String commandType, Long expectedVersion) {
+        if (events.size() == 1) {
+            return appendAggregateEvent(events.getFirst(), aggregateId, idempotencyKey, commandType, expectedVersion);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName()
+                + " cannot append several events of one command atomically");
+    }
+
+    /**
      * Whether aggregate appends are fenced now, so that an aggregate command may run without its
      * lock (optimistic concurrency): two commands from one story cannot both append, the loser
      * is told so ({@link AggregateFenceException}) and the broker runs it again on the new story.

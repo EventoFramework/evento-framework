@@ -820,6 +820,113 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
         }
     }
 
+    private static final String APES_APPEND_SQL =
+            "INSERT INTO es__events (event_sequence_number, aggregate_id, event_message, event_name, context) "
+                    + "VALUES (?, ?, ?, ?, ?)";
+
+    /**
+     * The events of one aggregate command (F9), in one transaction: all of them or none. Under
+     * CPES the transaction takes {@code es-lock} first (bounded by the {@link AppendDeadline}) and
+     * keeps it to the commit, so the events get consecutive sequence numbers and no other event
+     * falls between them. With the fence they take versions {@code expectedVersion + 1},
+     * {@code + 2}...: one taken version refuses all of them. The idempotency key goes on the last
+     * event, the one the caller is answered with, so a replay answers with it too.
+     *
+     * <p>Not through the group commit: several events from one command are rare, and a
+     * transaction of their own keeps the batch statement single-row.
+     */
+    @Override
+    public long appendAggregateEvents(List<? extends EventMessage<?>> events, String aggregateId,
+                                      String idempotencyKey, String commandType, Long expectedVersion) {
+        if (events.size() == 1) {
+            return appendAggregateEvent(events.getFirst(), aggregateId, idempotencyKey, commandType, expectedVersion);
+        }
+        boolean fenced = expectedVersion != null && aggregateId != null && fenceSupported();
+        boolean keyed = idempotencyKey != null && idempotencySupported();
+        var json = new ArrayList<String>(events.size());
+        for (var event : events) {
+            try {
+                json.add(mapper.writeValueAsString(event));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        long deadline = AppendDeadline.current();
+        if (AppendDeadline.passed(deadline)) throw AppendDeadline.expired("before its append");
+        try {
+            Long last = jdbcTemplate.execute((ConnectionCallback<Long>) c -> {
+                boolean own = c.getAutoCommit();
+                if (own) c.setAutoCommit(false);
+                try {
+                    if (MODE != EventStoreMode.APES) lockEsLock(c, deadline);
+                    long seq = -1;
+                    for (int i = 0; i < events.size(); i++) {
+                        var event = events.get(i);
+                        boolean withKey = keyed && i == events.size() - 1;
+                        var args = new ArrayList<Object>();
+                        if (MODE == EventStoreMode.APES) {
+                            seq = snowflake.nextId();
+                            args.add(seq);
+                        }
+                        args.add(aggregateId);
+                        args.add(json.get(i));
+                        args.add(event.getEventName());
+                        args.add(event.getContext());
+                        if (fenced) args.add(expectedVersion + 1 + i);
+                        if (withKey) {
+                            args.add(idempotencyKey);
+                            args.add(commandType);
+                        }
+                        String sql = MODE == EventStoreMode.APES
+                                ? (fenced ? (withKey ? APES_FENCED_KEYED_APPEND_SQL : APES_FENCED_APPEND_SQL)
+                                : (withKey ? APES_KEYED_APPEND_SQL : APES_APPEND_SQL))
+                                : (fenced ? (withKey ? CPES_FENCED_KEYED_APPEND_SQL : CPES_FENCED_APPEND_SQL)
+                                : (withKey ? CPES_KEYED_APPEND_SQL : CPES_APPEND_SQL));
+                        try (var ps = c.prepareStatement(sql)) {
+                            for (int a = 0; a < args.size(); a++) ps.setObject(a + 1, args.get(a));
+                            if (MODE == EventStoreMode.APES) {
+                                if (ps.executeUpdate() == 0) throw new IdempotencyKeyConflictException(idempotencyKey);
+                            } else {
+                                try (var rs = ps.executeQuery()) {
+                                    if (!rs.next()) throw new IdempotencyKeyConflictException(idempotencyKey);
+                                    seq = rs.getLong(1);
+                                }
+                            }
+                        }
+                    }
+                    if (own) c.commit();
+                    return seq;
+                } catch (SQLException | RuntimeException e) {
+                    if (own) c.rollback();
+                    throw e;
+                } finally {
+                    if (own) c.setAutoCommit(true);
+                }
+            });
+            return last == null ? -1 : last;
+        } catch (DataAccessException e) {
+            if (AppendDeadline.lockTimedOut(e)) throw AppendDeadline.expired("while it waited for es-lock");
+            if (fenced && UNIQUE_VIOLATION.equals(sqlState(e)) && String.valueOf(e.getMostSpecificCause().getMessage())
+                    .contains(AGGREGATE_SEQ_INDEX)) {
+                throw fenceConflict(aggregateId, expectedVersion, commandType);
+            }
+            throw e;
+        }
+    }
+
+    /** Takes {@code es-lock} for the connection's transaction, waiting no longer than {@code deadline}. */
+    private static void lockEsLock(java.sql.Connection c, long deadline) throws SQLException {
+        if (deadline != Long.MAX_VALUE) {
+            try (var ps = c.prepareStatement("SELECT set_config('lock_timeout', ?, true)")) {
+                ps.setString(1, AppendDeadline.lockTimeout(deadline));
+                ps.execute();
+            }
+        }
+        try (var st = c.createStatement()) {
+            st.execute("SELECT pg_advisory_xact_lock(hashtext('es-lock'))");
+        }
+    }
+
     /** The story this event was computed from is stale: drop what this server cached. */
     private AggregateFenceException fenceConflict(String aggregateId, long expectedVersion, String commandType) {
         snapshotCache.remove(aggregateId);

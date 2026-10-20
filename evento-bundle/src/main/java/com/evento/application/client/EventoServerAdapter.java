@@ -71,7 +71,7 @@ public final class EventoServerAdapter implements EventoServer {
         this.bundleId = bundleId;
         this.instanceId = instanceId;
         this.bundleVersion = bundleVersion;
-        this.revisionGuard = new RevisionGuard(client::revisionsAccepted);
+        this.revisionGuard = new RevisionGuard(client::revisionsAccepted, client::eventListsAccepted);
     }
 
     @Override

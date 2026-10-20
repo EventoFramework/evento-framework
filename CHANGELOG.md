@@ -51,8 +51,11 @@ a revised payload needs a 3.0 broker.
 - **Upgrade the brokers before deploying a class with `@Revision`.** A 3.0 bundle refuses to send
   or store a revised payload through a broker older than 3.0 (no `revision:1` capability), which
   would record it as revision 0. Unrevised payloads, the default, flow through any broker.
-- Every 3.0 bundle advertises `stream:1` and `revision:1` in its Hello. Code that asserts the exact capability set
-  of a Hello must expect it.
+- **Upgrade the brokers before deploying a handler that returns `DomainEvents`.** A 3.0 bundle refuses to answer
+  a command with several events through a broker older than 3.0 (no `events:1` capability), which would store
+  the last one alone.
+- Every 3.0 bundle advertises `stream:1`, `revision:1` and `events:1` in its Hello. Code that asserts the exact
+  capability set of a Hello must expect it.
 - **Licence: the client libraries are now Apache-2.0** (`evento-transport-api`, `evento-transport-netty`,
   `evento-common`, `evento-bundle`, `evento-consumer-state-store-jdbc` and the new starter, OpenTelemetry and
   test modules).
@@ -108,6 +111,13 @@ a revised payload needs a 3.0 broker.
 
 ### Added
 
+- **Several events from one aggregate command.** An `@AggregateCommandHandler` may return
+  `DomainEvents.of(e1, e2, ...)`, declaring them in `produces`: the events are applied in order and stored in one
+  transaction, all or none, with consecutive sequence numbers and aggregate versions (the fence refuses all of
+  them when one version is taken); the idempotency key goes on the last event, which is also what the caller is
+  answered with. Negotiated with the additive `events:1` capability (`DomainCommandResponseMessage.precedingEventMessages`).
+  `AggregateResult.events()` and `expectEvents(...)` in `evento-test`; `expectEvent` on a result with several events
+  fails and says so.
 - **Spring Boot starter (`evento-spring-boot-starter`).** With `evento.bundle.id` set, the bundle is built from
   `evento.bundle.*` properties (servers, auth token, TLS and mutual TLS, zone, payload allowlist, consumer state,
   tracing), started after the context is ready and stopped gracefully on shutdown; `CommandGateway` and

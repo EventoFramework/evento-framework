@@ -101,12 +101,12 @@ public final class AggregateFixture<A> {
         var envelope = new AggregateStateEnvelope(snapshot);
         var stream = history.stream().map(DomainEventMessage::new).toList();
         try {
-            var event = reference.invoke(message, envelope, stream,
+            var events = reference.invokeAll(message, envelope, stream,
                     commandGateway, queryGateway, new MessageHandlerInterceptor() {
                     });
-            return new AggregateResult(event, envelope.getAggregateState(), null, commandGateway.sent());
+            return new AggregateResult(events, envelope.getAggregateState(), null, commandGateway.sent());
         } catch (Throwable t) {
-            return new AggregateResult(null, envelope.getAggregateState(), t, commandGateway.sent());
+            return new AggregateResult(List.of(), envelope.getAggregateState(), t, commandGateway.sent());
         }
     }
 }

@@ -19,6 +19,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -251,5 +252,66 @@ class AggregateFencePostgresIT {
             assertThatThrownBy(() -> after.appendAggregateEvent(event("fork"), order, null, COMMAND, 0L))
                     .isInstanceOf(BrokerEventStore.AggregateFenceException.class);
         }
+    }
+
+    // ---- several events from one command (F9) ----
+
+    @ParameterizedTest
+    @EnumSource(EventStoreMode.class)
+    void theEventsOfOneCommandTakeTheNextVersionsTogether(EventStoreMode mode) throws Exception {
+        var a = store(serverA, mode, 1);
+        var order = newAggregate();
+        a.appendAggregateEvent(event("created"), order, null, COMMAND, 0L);
+        long last = a.appendAggregateEvents(List.of(event("pen"), event("ink"), event("paper")), order, null,
+                COMMAND, 1L);
+
+        var rows = jdbc.queryForList("select event_sequence_number, aggregate_seq from es__events "
+                + "where aggregate_id = ? order by event_sequence_number", order);
+        assertThat(rows).extracting(r -> ((Number) r.get("aggregate_seq")).longValue()).containsExactly(1L, 2L, 3L, 4L);
+        assertThat(((Number) rows.getLast().get("event_sequence_number")).longValue())
+                .as("the caller is answered with the last event").isEqualTo(last);
+        if (mode == EventStoreMode.CPES) {
+            var seqs = rows.stream().map(r -> ((Number) r.get("event_sequence_number")).longValue()).toList();
+            assertThat(seqs.get(3) - seqs.get(1)).as("consecutive: nothing in between").isEqualTo(2);
+        }
+        var story = story(store(serverB, mode, 2), order);
+        assertThat(story.aggregateVersion()).isEqualTo(4);
+        assertThat(story.story().events()).extracting(e -> ((OrderEvent) e.getPayload()).note)
+                .containsExactly("created", "pen", "ink", "paper");
+    }
+
+    @ParameterizedTest
+    @EnumSource(EventStoreMode.class)
+    void oneTakenVersionRefusesEveryEventOfTheCommand(EventStoreMode mode) throws Exception {
+        var a = store(serverA, mode, 1);
+        var order = newAggregate();
+        a.appendAggregateEvent(event("created"), order, null, COMMAND, 0L);
+        a.appendAggregateEvent(event("moved on"), order, null, COMMAND, 1L);
+        // Decided from version 1: its first event would take version 2, which is taken.
+        assertThatThrownBy(() -> a.appendAggregateEvents(List.of(event("stale 1"), event("stale 2")), order, null,
+                COMMAND, 1L))
+                .isInstanceOf(BrokerEventStore.AggregateFenceException.class);
+        assertThat(jdbc.queryForObject("select count(*) from es__events where aggregate_id = ?", Long.class, order))
+                .as("none of them stored").isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @EnumSource(EventStoreMode.class)
+    void theKeyGoesOnTheLastEventAndARetryStoresNothing(EventStoreMode mode) throws Exception {
+        var a = store(serverA, mode, 1);
+        var order = newAggregate();
+        String key = "pair-" + UUID.randomUUID();
+        a.appendAggregateEvent(event("created"), order, null, COMMAND, 0L);
+        a.appendAggregateEvents(List.of(event("pen"), event("ink")), order, key, COMMAND, 1L);
+        assertThat(jdbc.queryForObject("select aggregate_seq from es__events where idempotency_key = ?",
+                Long.class, key)).isEqualTo(3);
+
+        // The retry, decided from the story that already holds them: refused by the key.
+        var b = store(serverB, mode, 2);
+        assertThatThrownBy(() -> b.appendAggregateEvents(List.of(event("pen"), event("ink")), order, key, COMMAND,
+                story(b, order).aggregateVersion()))
+                .isInstanceOf(BrokerEventStore.IdempotencyKeyConflictException.class);
+        assertThat(jdbc.queryForObject("select count(*) from es__events where aggregate_id = ?", Long.class, order))
+                .as("the retry's first event rolled back with its last").isEqualTo(3);
     }
 }

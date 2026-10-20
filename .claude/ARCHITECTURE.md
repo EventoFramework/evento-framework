@@ -137,6 +137,10 @@ the stream on a direct connection). The four stream messages are sent **only** t
 negotiated `HandshakeProtocol.CAPABILITY_STREAM` (`stream:1`): an older peer cannot decode
 them and would close the channel. Every 3.0 bundle offers it; `BusLifecycle` always accepts it.
 Same for `CAPABILITY_REVISION` (`revision:1`, 3.0): the broker keeps payload revisions (§4.10).
+And `CAPABILITY_EVENTS` (`events:1`, 3.0): the broker stores several events per aggregate command
+(`DomainCommandResponseMessage.precedingEventMessages`, `EventStore.appendAggregateEvents`: one
+transaction holding `es-lock` to the commit, versions `expected+1..`, key on the last event);
+`RevisionGuard` refuses such a reply on a session without it.
 
 Adding a new wire type: extend `Message` permits + register a byte tag in `MessageTypeRegistry`.
 The compiler enforces exhaustive dispatch everywhere.

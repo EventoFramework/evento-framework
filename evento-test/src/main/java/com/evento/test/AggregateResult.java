@@ -15,21 +15,31 @@ import java.util.function.Consumer;
  */
 public final class AggregateResult {
 
+    private final List<DomainEvent> events;
     private final DomainEvent event;
     private final AggregateState state;
     private final Throwable exception;
     private final List<Command> commandsSent;
 
-    AggregateResult(DomainEvent event, AggregateState state, Throwable exception, List<Command> commandsSent) {
-        this.event = event;
+    AggregateResult(List<DomainEvent> events, AggregateState state, Throwable exception, List<Command> commandsSent) {
+        this.events = List.copyOf(events);
+        this.event = events.isEmpty() ? null : events.getLast();
         this.state = state;
         this.exception = exception;
         this.commandsSent = commandsSent;
     }
 
-    /** The event the command handler returned, or null when it threw. */
+    /**
+     * The event the command handler returned, or null when it threw. For a handler that returned
+     * {@code DomainEvents}, the last one, the event its caller is answered with.
+     */
     public DomainEvent event() {
         return event;
+    }
+
+    /** Every event the command handler returned, in order (empty when it threw). */
+    public List<DomainEvent> events() {
+        return events;
     }
 
     /** The state after the event (or as rebuilt from the history, when the handler threw). */
@@ -47,9 +57,24 @@ public final class AggregateResult {
         return commandsSent;
     }
 
+    /**
+     * The handler returned exactly these events, in this order, each equal (by {@code equals},
+     * else field by field) to the one expected: for a handler that returns {@code DomainEvents}.
+     */
+    public AggregateResult expectEvents(DomainEvent... expected) {
+        requireEvent();
+        boolean same = expected.length == events.size();
+        for (int i = 0; same && i < expected.length; i++) same = Payloads.same(expected[i], events.get(i));
+        if (!same) {
+            throw new AssertionError("expected events " + describe(List.of(expected)) + " but were " + describe(events));
+        }
+        return this;
+    }
+
     /** The handler returned an event equal to {@code expected} (by {@code equals}, else field by field). */
     public AggregateResult expectEvent(DomainEvent expected) {
         requireEvent();
+        requireOneEvent();
         if (!Payloads.same(expected, event)) {
             throw new AssertionError("expected event " + Payloads.describe(expected) + " but was " + Payloads.describe(event));
         }
@@ -59,6 +84,7 @@ public final class AggregateResult {
     /** The handler returned an event of {@code type} that passes {@code check}. */
     public <E extends DomainEvent> AggregateResult expectEvent(Class<E> type, Consumer<E> check) {
         requireEvent();
+        requireOneEvent();
         if (!type.isInstance(event)) {
             throw new AssertionError("expected a " + type.getSimpleName() + " but was " + Payloads.describe(event));
         }
@@ -108,6 +134,17 @@ public final class AggregateResult {
     public AggregateResult expectCommandsSent(Command... expected) {
         Expectations.sameCommands(List.of(expected), commandsSent);
         return this;
+    }
+
+    private void requireOneEvent() {
+        if (events.size() != 1) {
+            throw new AssertionError("the command produced " + events.size() + " events, " + describe(events)
+                    + ": check them with expectEvents");
+        }
+    }
+
+    private static String describe(List<? extends DomainEvent> list) {
+        return list.stream().map(Payloads::describe).toList().toString();
     }
 
     private void requireEvent() {

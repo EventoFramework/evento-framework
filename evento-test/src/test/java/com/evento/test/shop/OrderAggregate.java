@@ -3,6 +3,7 @@ package com.evento.test.shop;
 import com.evento.common.modeling.annotations.component.Aggregate;
 import com.evento.common.modeling.annotations.handler.AggregateCommandHandler;
 import com.evento.common.modeling.annotations.handler.EventSourcingHandler;
+import com.evento.common.modeling.messaging.payload.DomainEvents;
 
 @Aggregate
 public class OrderAggregate {
@@ -40,5 +41,16 @@ public class OrderAggregate {
     @EventSourcingHandler
     void on(OrderDeleted e, OrderState state) {
         state.setDeleted(true);
+    }
+
+    @AggregateCommandHandler(produces = ItemAdded.class)
+    DomainEvents handle(AddPair c, OrderState state) {
+        if (state.spent + 2 * c.price > state.budget) throw new IllegalStateException("over budget");
+        return DomainEvents.of(new ItemAdded(c.orderId, c.first, c.price), new ItemAdded(c.orderId, c.second, c.price));
+    }
+
+    @AggregateCommandHandler(produces = {OrderDeleted.class, ItemAdded.class})
+    DomainEvents handle(DeleteThenAdd c, OrderState state) {
+        return DomainEvents.of(new OrderDeleted(c.orderId), new ItemAdded(c.orderId, "late", 1));
     }
 }

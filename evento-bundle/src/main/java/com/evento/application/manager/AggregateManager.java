@@ -82,7 +82,7 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                 handler.getComponentName(),
                 null,
                 () -> {
-                    var event = handler.invoke(
+                    var events = handler.invokeAll(
                             c.getCommandMessage(),
                             envelope,
                             c.getEventStream(),
@@ -90,14 +90,20 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                             proxy,
                             getMessageHandlerInterceptor()
                     );
-                    var em = new DomainEventMessage(event);
-                    getTracingAgent().correlate(c.getCommandMessage(), em);
+                    var messages = new java.util.ArrayList<DomainEventMessage>(events.size());
+                    for (var event : events) {
+                        var m = new DomainEventMessage(event);
+                        getTracingAgent().correlate(c.getCommandMessage(), m);
+                        messages.add(m);
+                    }
+                    var em = messages.removeLast();
                     var resp = new DomainCommandResponseMessage(em,
                             (handler.getSnapshotFrequency() >= 0 & handler.getSnapshotFrequency() <= c.getEventStream().size()) ?
                                     new SerializedAggregateState<>(envelope.getAggregateState()) : null,
                             envelope.getAggregateState() != null
                                     && envelope.getAggregateState().isDeleted()
                     );
+                    resp.setPrecedingEventMessages(messages);
                     proxy.sendInvocationsMetric();
                     return resp;
                 });

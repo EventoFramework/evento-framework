@@ -398,6 +398,8 @@ public final class BusLifecycle {
         capabilities.add(HandshakeProtocol.CAPABILITY_STREAM);
         // So is keeping payload revisions: this broker's envelope classes carry them.
         capabilities.add(HandshakeProtocol.CAPABILITY_REVISION);
+        // And storing several events from one command, atomically (F9).
+        capabilities.add(HandshakeProtocol.CAPABILITY_EVENTS);
         this.handshakeHandler = new HandshakeHandler(
                 serverInstanceId,
                 capabilities,

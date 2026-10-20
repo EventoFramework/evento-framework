@@ -336,12 +336,14 @@ public record BundleClientConfig(
             // Every 3.0 bundle can take and give streamed replies; the broker decides per
             // session whether they flow (Welcome.acceptedCapabilities).
             // Likewise payload revisions: the bundle always writes them, and sends a revised
-            // payload only where the broker keeps them.
+            // payload only where the broker keeps them. And several events per command.
             if (!caps.contains(HandshakeProtocol.CAPABILITY_STREAM)
-                    || !caps.contains(HandshakeProtocol.CAPABILITY_REVISION)) {
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_REVISION)
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_EVENTS)) {
                 var withStream = new java.util.LinkedHashSet<>(caps);
                 withStream.add(HandshakeProtocol.CAPABILITY_STREAM);
                 withStream.add(HandshakeProtocol.CAPABILITY_REVISION);
+                withStream.add(HandshakeProtocol.CAPABILITY_EVENTS);
                 caps = withStream;
             }
             if (zone != null && !zone.isBlank()) {

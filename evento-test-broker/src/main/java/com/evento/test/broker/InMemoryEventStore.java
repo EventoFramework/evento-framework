@@ -47,6 +47,15 @@ final class InMemoryEventStore implements BrokerEventStore {
         return event.getEventSequenceNumber();
     }
 
+    /** The events of one command, together: appends are serialised, so nothing falls between them. */
+    @Override
+    public synchronized long appendAggregateEvents(List<? extends EventMessage<?>> eventMessages, String aggregateId,
+                                                   String idempotencyKey, String commandType, Long expectedVersion) {
+        long seq = -1;
+        for (var eventMessage : eventMessages) seq = publishEvent(eventMessage, aggregateId);
+        return seq;
+    }
+
     @Override
     public void saveSnapshot(String aggregateId, Long seqNum, SerializedAggregateState<?> state) {
         snapshots.put(aggregateId, state);

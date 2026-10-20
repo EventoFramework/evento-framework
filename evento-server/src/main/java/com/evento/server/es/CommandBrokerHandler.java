@@ -638,6 +638,8 @@ public class CommandBrokerHandler implements MeterBinder {
 
             var cmdResponse = (DomainCommandResponseMessage) eventoResponse.getBody();
             var eventMessage = cmdResponse.getDomainEventMessage();
+            // F9: several events from one command, stored together; the caller gets the last.
+            var eventMessages = cmdResponse.allEventMessages();
 
             // The bundle computed the event from the story fetched under the lock. If the
             // session owning the lock died meanwhile (failover, socket timeout), another server
@@ -660,8 +662,11 @@ public class CommandBrokerHandler implements MeterBinder {
             long seqNum;
             try {
                 // N15: waits for es-lock no longer than the caller's deadline.
-                seqNum = AppendDeadline.within(deadlineMs, () -> eventStore.appendAggregateEvent(
-                        eventMessage, cmd.getAggregateId(), key, commandPayloadType, keyed.aggregateVersion()));
+                seqNum = AppendDeadline.within(deadlineMs, () -> eventMessages.size() == 1
+                        ? eventStore.appendAggregateEvent(
+                        eventMessage, cmd.getAggregateId(), key, commandPayloadType, keyed.aggregateVersion())
+                        : eventStore.appendAggregateEvents(
+                        eventMessages, cmd.getAggregateId(), key, commandPayloadType, keyed.aggregateVersion()));
                 clock.lap(CommandPhaseMetrics.Phase.APPEND);
                 clock.appended = true;
             } catch (BrokerEventStore.AggregateFenceException fenced) {

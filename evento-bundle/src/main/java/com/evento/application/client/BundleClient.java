@@ -417,6 +417,14 @@ public final class BundleClient implements AutoCloseable {
         return supervisor.accepted(HandshakeProtocol.CAPABILITY_REVISION);
     }
 
+    /**
+     * Whether the broker of the current session stores several events from one command (3.0):
+     * a handler may answer with more than one only when it does.
+     */
+    public boolean eventListsAccepted() {
+        return supervisor.accepted(HandshakeProtocol.CAPABILITY_EVENTS);
+    }
+
     /** Streams this bundle is receiving through the broker now. */
     public int inboundStreams() {
         return inboundDispatcher.inboundStreams();

@@ -951,7 +951,8 @@ public class EventoBundle {
             // bundle's projectors (bound to the engines once they exist, below).
             dispatcher.setStreamFrameBytes(streamFrameBytes);
             dispatcher.setUpcasters(upcasterChain);
-            dispatcher.setRevisionGuard(new com.evento.application.client.RevisionGuard(bundleClient::revisionsAccepted));
+            dispatcher.setRevisionGuard(new com.evento.application.client.RevisionGuard(bundleClient::revisionsAccepted,
+                    bundleClient::eventListsAccepted));
             final var enginesForGate = new AtomicReference<EngineSupervisor>();
             dispatcher.setConsistencyGate(new com.evento.application.consumer.ProjectorConsistencyGate(enginesForGate::get));
             bundleClient.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, adminHandler);

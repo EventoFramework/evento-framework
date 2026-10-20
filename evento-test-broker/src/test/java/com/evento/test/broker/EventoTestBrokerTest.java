@@ -5,6 +5,8 @@ import com.evento.application.consumer.ConsumerEngineConfig;
 import com.evento.common.modeling.messaging.query.Single;
 import com.evento.test.broker.demo.CountOrders;
 import com.evento.test.broker.demo.CreateOrder;
+import com.evento.test.broker.demo.NoteAdded;
+import com.evento.test.broker.demo.OpenOrder;
 import com.evento.test.broker.demo.OrderAggregate;
 import com.evento.test.broker.demo.OrderCount;
 import com.evento.test.broker.demo.OrderCreated;
@@ -76,5 +78,18 @@ class EventoTestBrokerTest {
         var second = bundle.getCommandGateway().send(new CreateOrder("o-2"));
         assertThat(second).failsWithin(10, TimeUnit.SECONDS);
         assertThat(broker.events()).hasSize(1);
+    }
+
+    @Test
+    void theEventsOfOneCommandAreStoredTogetherAndTheCallerGetsTheLast() throws Exception {
+        Object answer = bundle.getCommandGateway().send(new OpenOrder("o-3", "fragile")).get(10, TimeUnit.SECONDS);
+
+        assertThat(answer).isInstanceOf(NoteAdded.class);
+        assertThat(broker.events()).extracting(e -> e.getEventName()).containsExactly("OrderCreated", "NoteAdded");
+        assertThat(broker.events()).extracting(e -> e.getEventSequenceNumber()).containsExactly(1L, 2L);
+        await().atMost(10, TimeUnit.SECONDS).until(() -> Orders.SEEN.containsAll(java.util.List.of("o-3", "o-3:fragile")));
+
+        // The aggregate exists: both events are its story.
+        assertThat(bundle.getCommandGateway().send(new CreateOrder("o-3"))).failsWithin(10, TimeUnit.SECONDS);
     }
 }

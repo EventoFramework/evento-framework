@@ -4,6 +4,8 @@ import com.evento.common.modeling.state.AggregateState;
 import com.evento.common.modeling.state.SerializedAggregateState;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The DomainCommandResponseMessage class represents a response message for a domain command.
@@ -15,6 +17,14 @@ public class DomainCommandResponseMessage implements Serializable {
 	private SerializedAggregateState<AggregateState> serializedAggregateState;
 
 	private boolean aggregateDeleted;
+
+	/**
+	 * The events the command produced before {@link #domainEventMessage}, in order, when it
+	 * produced several (3.0, {@code DomainEvents}); null when it produced one. Only sent to a
+	 * broker that negotiated {@code events:1}: an older one would ignore the field and store the
+	 * last event alone.
+	 */
+	private List<DomainEventMessage> precedingEventMessages;
 
 	/**
 	 * The DomainCommandResponseMessage class represents a response message for a domain command.
@@ -82,6 +92,26 @@ public class DomainCommandResponseMessage implements Serializable {
 	 *
 	 * @return true if the aggregate is deleted, false otherwise.
 	 */
+	/** The events before the last one, or null when the command produced one. */
+	public List<DomainEventMessage> getPrecedingEventMessages() {
+		return precedingEventMessages;
+	}
+
+	public void setPrecedingEventMessages(List<DomainEventMessage> precedingEventMessages) {
+		this.precedingEventMessages = precedingEventMessages == null || precedingEventMessages.isEmpty()
+				? null : new ArrayList<>(precedingEventMessages);
+	}
+
+	/** Every event the command produced, in order: the preceding ones, then {@link #getDomainEventMessage()}. */
+	public List<DomainEventMessage> allEventMessages() {
+		if (precedingEventMessages == null) {
+			return domainEventMessage == null ? List.of() : List.of(domainEventMessage);
+		}
+		var all = new ArrayList<>(precedingEventMessages);
+		all.add(domainEventMessage);
+		return all;
+	}
+
 	public boolean isAggregateDeleted() {
 		return aggregateDeleted;
 	}
@@ -101,6 +131,7 @@ public class DomainCommandResponseMessage implements Serializable {
 				"domainEventMessage=" + domainEventMessage +
 				", serializedAggregateState=" + serializedAggregateState +
 				", aggregateDeleted=" + aggregateDeleted +
+				(precedingEventMessages == null ? "" : ", precedingEventMessages=" + precedingEventMessages) +
 				'}';
 	}
 }

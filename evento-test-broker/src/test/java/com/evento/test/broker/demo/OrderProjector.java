@@ -9,4 +9,9 @@ public class OrderProjector {
     void on(OrderCreated e) {
         Orders.SEEN.add(e.orderId());
     }
+
+    @EventHandler
+    void on(NoteAdded e) {
+        Orders.SEEN.add(e.orderId() + ":" + e.note());
+    }
 }

@@ -3,6 +3,8 @@ package com.evento.test;
 import com.evento.common.modeling.exceptions.AggregateInitializedError;
 import com.evento.common.modeling.exceptions.AggregateNotInitializedError;
 import com.evento.test.shop.AddItem;
+import com.evento.test.shop.AddPair;
+import com.evento.test.shop.DeleteThenAdd;
 import com.evento.test.shop.CreateOrder;
 import com.evento.test.shop.DeleteOrder;
 import com.evento.test.shop.ItemAdded;
@@ -53,6 +55,34 @@ class AggregateFixtureTest {
                 .given(new OrderCreated("o1", 100))
                 .when(new CreateOrder("o1", 100))
                 .expectException(AggregateInitializedError.class);
+    }
+
+    @Test
+    void severalEventsAreAppliedInOrder() {
+        var result = AggregateFixture.of(new OrderAggregate())
+                .given(new OrderCreated("o1", 100))
+                .when(new AddPair("o1", "pen", "ink", 20))
+                .expectEvents(new ItemAdded("o1", "pen", 20), new ItemAdded("o1", "ink", 20))
+                .expectState(OrderState.class, s -> {
+                    assertThat(s.items()).containsExactly("pen", "ink");
+                    assertThat(s.spent()).isEqualTo(40);
+                });
+        assertThat(result.event()).as("the caller's answer: the last event").isEqualTo(result.events().getLast());
+        assertThatThrownBy(() -> result.expectEvent(new ItemAdded("o1", "ink", 20)))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("2 events");
+        assertThatThrownBy(() -> result.expectEvents(new ItemAdded("o1", "ink", 20), new ItemAdded("o1", "pen", 20)))
+                .as("order matters")
+                .isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    void noEventMayFollowTheOneThatDeletesTheAggregate() {
+        AggregateFixture.of(new OrderAggregate())
+                .given(new OrderCreated("o1", 100))
+                .when(new DeleteThenAdd("o1"))
+                .expectException(IllegalStateException.class,
+                        e -> assertThat(e).hasMessageContaining("OrderDeleted, which deleted the aggregate"));
     }
 
     @Test

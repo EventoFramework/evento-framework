@@ -39,6 +39,14 @@ public final class HandshakeProtocol {
     public static final String CAPABILITY_REVISION = "revision:1";
 
     /**
+     * The broker stores several events from one aggregate command, atomically (3.0,
+     * {@code DomainEvents}). An older broker would ignore the events before the last one and
+     * store that one alone: a bundle answers with several events only on a session where this
+     * was accepted. A broker accepts it from every bundle that offers it.
+     */
+    public static final String CAPABILITY_EVENTS = "events:1";
+
+    /**
      * Prefix of the capability a bundle uses to say where it runs:
      * {@code "zone:EU"}. It rides in {@code Hello.capabilities} rather than a
      * field of its own so that no wire type changes and a peer that knows
