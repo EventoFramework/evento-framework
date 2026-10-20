@@ -120,6 +120,9 @@ class InboundDeadlineAndAdmissionTest {
 
         gate.countDown();
         assertThat(reply().isError()).isFalse(); // the first one
+        // The reply is handed over before the request stops counting as in flight.
+        long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (dispatcher.inFlightRequests() > 0 && System.nanoTime() < until) Thread.sleep(5);
         dispatcher.asMessageSink().accept(request(second, "Cmd", 5_000));
         assertThat(reply().isError()).as("the retry runs").isFalse();
         assertThat(runs).hasValue(2);

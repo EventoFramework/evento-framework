@@ -12,6 +12,17 @@ Come usarlo: ogni punto ha un id (`L*` licenza, `S*` sicurezza, `C*` correttezza
 punto è chiuso e scrivi accanto commit/PR. Le decisioni `D1..D10` hanno uno stato: **da decidere**,
 **decisa** (con data e scelta), **rimandata**.
 
+## Stato al 2026-10-20, fine sessione 7
+
+Fatti oggi, oltre a quanto sotto: F4 (Flyway), O2 (lag dei consumer), R2 (`COMPATIBILITY.md`), O3 (timer
+delle richieste sul broker), F1 (scadenze e limite delle richieste lato bundle), F11 (retention delle
+chiavi, spenta di default), A2 (server pubblicato come libreria, `evento-test-broker`,
+`EventoServerContainer`), `ADOPTERS.md` per L3. Commit `3b674a16`, `670ad6de`, `508e5ca2` sul branch;
+suite completa con gli IT Postgres verde in locale. CI della PR #281 su `508e5ca2`: due test rossi,
+`InboundDeadlineAndAdmissionTest` (race del test, corretta dopo) e `BundleClientFailbackIT.
+stopDuringAFailbackLeavesNothingRunning` (instabile da prima, vedi Q4). **Del minimo indispensabile manca solo
+R1.** L'elenco completo di ciò che manca è nella sezione "Cosa manca" in fondo.
+
 ## Stato al 2026-10-20 (verifica sul codice, sessione 7)
 
 Branch `enterprise/2.6-readiness` (PR #281, aperta, mergeable; CI in corso sull'ultimo push), versione
@@ -128,6 +139,7 @@ XL (più mesi o non tecnico).
 | F11 | Chiavi di idempotenza ed esiti senza scadenza | L5, G5: indice e tabella dei claim crescono soltanto | S-M |
 | Q1 | Nessun test REST e autenticazione | `ENTERPRISE-PLAN.md` item 12 | M |
 | Q2 | Shutdown del trasporto senza deadline | `ENTERPRISE-PLAN.md` item 10 | S |
+| Q4 | `BundleClientFailbackIT.stopDuringAFailbackLeavesNothingRunning` fallisce a volte in CI (riga 649: un bundle fermato risulta registrato sul broker A) | Rosso su `39f72560` e `508e5ca2`, verde nei 5 run in mezzo e in locale. Test instabile o race vera tra `stop()` e lo switch di failback (N16) | S-M |
 | Q3 | Limiti di cluster aperti | L5: G21 datasource di lettura, N4 affinità della lane `ALL`, N15 `lock_timeout` legato alla deadline, gate di staleness dipendente dagli orologi (S15), G17 dashboard locale | M ciascuno |
 | B1 | Manca il tetto misurato del modello a celle | Ci sono le latenze (8 in volo = 19 ms in coda su `es-lock`, `command-latency.md`), non gli append/s sostenibili sotto `es-lock` | S-M |
 
@@ -287,7 +299,8 @@ richiede di cambiare architettura. Analisi originale:
 
 ### Domande aperte trasversali
 
-- [ ] Quanto fattura oggi la licenza commerciale e quale ricavo ti aspetti tra licenza, supporto e GUI?
+- [ ] Dopo L5 il ricavo possibile è nelle autorizzazioni a vendere (hosting, consulenza, formazione) e nel
+      supporto: quale offerta e a che prezzo? (La domanda di prima, sulla licenza commerciale, è superata.)
 - [x] La tesi ha una scadenza che deve guidare l'ordine (per esempio lo spike D2 b)? No (2026-10-19).
 
 ---
@@ -450,6 +463,42 @@ Le dipendenze sono indicate con `←`.
 Licenza pulita (L1, L2) · G6 chiuso (C1) · default sicuri attivabili e coperti da test (S1-S3, Q1) ·
 2.6 rilasciata con politica di compatibilità (R1, R2) · tetto per cella pubblicato (B1) · client su
 Java 21 (J1) · Flyway (F4) · lag (O2) e tracing propagato (O1).
+
+### Cosa manca (2026-10-20)
+
+**Per il minimo indispensabile** (sopra):
+
+1. **R1 Rilascio 2.6.0.** CI verde sulla PR #281 (Q4 da sistemare o da isolare), review e merge su `main`,
+   versione `2.6.0` in `build.gradle` / `version.json`, tag `v2.6.0`: il workflow pubblica jar firmato,
+   immagine GHCR/Docker Hub e librerie. Prima volta su Maven Central per `evento-server` ed
+   `evento-test-broker`: da controllare. Sito ed evento-doc: merge e pubblicazione dei loro branch.
+
+**Non tecnici, tuoi** (non li posso fare io):
+
+2. **Revisione legale** di `LICENSE.txt` (la lettura di cosa è permesso con la Commons Clause),
+   `LICENSE-COMMERCIAL.txt`, `TRADEMARKS.md`, `CLA.md` (L1, L2, L5), prima del primo contributo esterno.
+3. **Registrazione dei marchi** "Evento" e "RECQ" (es. EUIPO): senza, `TRADEMARKS.md` vale poco.
+4. **L3 adopter con nome** e una case study: `ADOPTERS.md` è pronto ma vuoto.
+5. **Offerta commerciale** dopo L5 (domande aperte trasversali): cosa vendi (supporto, autorizzazioni),
+   e l'LTS di D9 riformulato come supporto.
+6. **D2 (b)**: se aprire lo spike "append senza `es-lock`" alla luce del confronto privato con Axon Server
+   e di B2 (CPES paga il RTT della replica sincrona sotto il lock).
+
+**Tecnici, dopo il minimo** (fase 2 e 3 della roadmap):
+
+7. **Q4** test di failback instabile (sopra): prima di R1, perché tiene rossa la CI.
+8. **Payload annidati** non instradabili (`Outer$Inner`): documentato nelle fixture, da correggere o
+   documentare anche nella guida dei payload.
+9. **F9** più eventi per comando.
+10. **Q2** shutdown del trasporto senza deadline (`NettyServerTransport.stop` aspetta `shutdownGracefully`
+    senza limite).
+11. **Q3** limiti di cluster aperti: datasource di lettura (G21), affinità della lane `ALL` (N4),
+    `lock_timeout` legato alla deadline (N15), gate di staleness legato agli orologi (S15), dashboard
+    locale (G17).
+12. **APES**: p99 di ~1 s su spread a 128 in volo, mai spiegata (diventa irrilevante quando APES sarà
+    rimosso).
+13. **Fase 3**: default `prod` in 3.0 (D4), F5 deadline e scheduling, F10 crypto-shredding, spike D2 (b),
+    F6 multi-tenancy solo se pagata.
 
 ### Cosa non fare
 
