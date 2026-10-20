@@ -674,6 +674,14 @@ public final class BusLifecycle {
         // after the registration and tagged with this session's token, so the teardown of
         // the session this one replaces can no longer erase it (see onTransportDisconnected).
         clusterRegistry.setZone(address, session.connectionToken(), HandshakeProtocol.zoneOf(hello.capabilities()));
+        if (session.disconnected()) {
+            // The connection closed while this Hello was being handled: its disconnect found no
+            // address yet and cleaned up nothing, so the registration above would stay behind for
+            // a dead channel (a bundle stopped mid-handshake left a phantom node, Q4).
+            log.info("event=hello_after_disconnect node={} token={}", address.instanceId(), session.connectionToken());
+            onTransportDisconnected(session);
+            return;
+        }
         handshakeHandler.reply(hello, session.transport(), verdict).whenComplete((outcome, ex) -> {
             if (ex != null) {
                 log.error("event=handshake_send_failed", ex);
@@ -1019,6 +1027,8 @@ public final class BusLifecycle {
     }
 
     private void onTransportDisconnected(BundleSession session) {
+        // First, so a Hello being handled right now sees it after registering (see onHello).
+        session.markDisconnected();
         sessionsByTransport.remove(session.transport());
         var address = session.address();
         if (address == null) {
@@ -1030,6 +1040,7 @@ public final class BusLifecycle {
             }
             return;
         }
+        if (!session.claimCleanup()) return;  // the disconnect and a late Hello both got here
         session.transitionTo(BundleSession.Phase.CLOSED);
         var removedConn = connectionRegistry.unregister(address, session.connectionToken(), "transport_disconnected");
         if (removedConn.isEmpty()) {

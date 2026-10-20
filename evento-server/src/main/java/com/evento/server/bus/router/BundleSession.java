@@ -70,4 +70,15 @@ public final class BundleSession {
      * only pinged — a bundle's fail-back probe — which is logged at DEBUG.
      */
     public boolean framesReceived() { return framesReceived; }
+
+    /** Set by the transport's disconnect, before anything else looks at the session. */
+    private volatile boolean disconnected;
+    /** The registered session's cleanup runs once, whichever of disconnect and Hello sees it last. */
+    private final java.util.concurrent.atomic.AtomicBoolean cleanedUp = new java.util.concurrent.atomic.AtomicBoolean();
+
+    public void markDisconnected() { disconnected = true; }
+    public boolean disconnected() { return disconnected; }
+
+    /** True for the one caller that should clean up the registered session. */
+    public boolean claimCleanup() { return cleanedUp.compareAndSet(false, true); }
 }

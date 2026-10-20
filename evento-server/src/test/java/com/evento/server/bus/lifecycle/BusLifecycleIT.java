@@ -368,6 +368,56 @@ class BusLifecycleIT {
         assertThat(response.error().message()).contains("no handler for com.NobodyHandlesThis");
     }
 
+    /**
+     * Q4: a connection that closes while its Hello is still being handled. Its disconnect found
+     * no address and cleaned up nothing; the Hello then registered the node on a dead channel,
+     * which stayed in the broker's view for good (a bundle stopped mid-failback stayed
+     * "registered" on the broker it was switching to).
+     */
+    @Test
+    void aHelloHandledAfterItsConnectionClosedLeavesNoNodeBehind() {
+        var transport = new ScriptedTransport();
+        lifecycle.acceptConnection(transport);
+        transport.closeNow();
+        transport.deliver(new Hello(UUID.randomUUID(), HandshakeProtocol.PROTOCOL_VERSION,
+                "late-bundle", "late-1", "100", Set.of(), null, System.currentTimeMillis()));
+
+        // The Hello may be handled on a dispatch thread: give it time, then the node must not be there.
+        await().pollDelay(Duration.ofMillis(300)).atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                assertThat(lifecycle.view()).as("no phantom node").noneMatch(a -> a.instanceId().equals("late-1")));
+        assertThat(seenEvents).noneMatch(e -> e instanceof BusEvent.NodeJoined joined
+                && joined.node().instanceId().equals("late-1")
+                && seenEvents.stream().noneMatch(l -> l instanceof BusEvent.NodeLeft left
+                        && left.node().instanceId().equals("late-1")));
+    }
+
+    /** A transport whose close and inbound messages the test orders by hand. */
+    static final class ScriptedTransport implements Transport {
+        private Consumer<Message> inbound = m -> { };
+        private java.util.function.BiConsumer<com.evento.transport.state.ConnectionState,
+                com.evento.transport.state.ConnectionState> stateListener = (a, b) -> { };
+        private volatile com.evento.transport.state.ConnectionState state =
+                com.evento.transport.state.ConnectionState.CONNECTED;
+
+        void closeNow() { close(); }
+
+        void deliver(Message message) { inbound.accept(message); }
+
+        @Override public String remoteId() { return "scripted"; }
+        @Override public com.evento.transport.state.ConnectionState state() { return state; }
+        @Override public CompletableFuture<Void> connect() { return CompletableFuture.completedFuture(null); }
+        @Override public CompletableFuture<Void> send(Message message) { return CompletableFuture.completedFuture(null); }
+        @Override public void onMessage(Consumer<Message> handler) { inbound = handler; }
+        @Override public void onStateChange(java.util.function.BiConsumer<com.evento.transport.state.ConnectionState,
+                com.evento.transport.state.ConnectionState> listener) { stateListener = listener; }
+        @Override public long lastInboundMs() { return System.currentTimeMillis(); }
+        @Override public void close() {
+            var before = state;
+            state = com.evento.transport.state.ConnectionState.CLOSED;
+            stateListener.accept(before, state);
+        }
+    }
+
     @Test
     void requestBeforeHandshakeIsRejected() throws Exception {
         var pair = InMemoryTransport.pair("rogue-client", "rogue-server");
