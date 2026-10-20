@@ -369,6 +369,41 @@ class BusLifecycleIT {
     }
 
     /**
+     * S15: a consumer whose clock runs 40 s behind the server still gets its events. The fetch's
+     * staleness gate used to compare the consumer's timestamp with the server's clock and drop
+     * every fetch of such a consumer; it now measures the time the fetch spent on this server.
+     */
+    @Test
+    void aFetchFromAConsumerWhoseClockIsBehindIsServed() throws Exception {
+        var store = org.mockito.Mockito.mock(com.evento.server.es.EventStore.class);
+        org.mockito.Mockito.when(store.fetchEvents(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of());
+        var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        new com.evento.server.es.EventStoreRequestHandlerBridge(lifecycle, store,
+                new com.evento.server.es.ConsumerLagMetrics(registry, store,
+                        com.evento.server.es.EventStoreMode.CPES, Duration.ofMinutes(15)),
+                4, 30_000);
+        var consumer = new MockBundle("projector-bundle", "proj-1", lifecycle, transportServer);
+        completeHandshake(consumer);
+        consumer.enable();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.isBundleAvailable("projector-bundle"));
+
+        var codec = new com.evento.common.admin.AdminPayloadCodec();
+        var request = new com.evento.common.modeling.messaging.message.internal.EventoRequest();
+        request.setCorrelationId(UUID.randomUUID().toString());
+        request.setSourceBundleId("projector-bundle");
+        request.setBody(new com.evento.common.messaging.consumer.EventFetchRequest("default", 0, 10, "OrderProjector"));
+        request.setTimestamp(System.currentTimeMillis() - 40_000);  // the consumer's clock, 40 s behind
+
+        Response response = consumer.sendRequest("EventFetchRequest", codec.encodeRequest(request))
+                .get(5, TimeUnit.SECONDS);
+        assertThat(response.isError()).as("%s", response.error()).isFalse();
+        assertThat(codec.decodeResponse(response.payload()).getBody())
+                .isInstanceOf(com.evento.common.messaging.consumer.EventFetchResponse.class);
+    }
+
+    /**
      * Q4: a connection that closes while its Hello is still being handled. Its disconnect found
      * no address and cleaned up nothing; the Hello then registered the node on a dead channel,
      * which stayed in the broker's view for good (a bundle stopped mid-failback stayed
