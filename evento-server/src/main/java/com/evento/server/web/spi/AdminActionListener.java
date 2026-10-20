@@ -4,7 +4,7 @@ import java.util.Map;
 
 /**
  * Told about every state-changing action of the web console (retrying, deleting or replaying dead
- * events, removing a bundle), for example to keep an audit trail, as Evento Enterprise does.
+ * events, removing a bundle), for example to keep an audit trail, as {@link com.evento.server.web.audit.AuditedAdminActions} does.
  * {@link com.evento.server.web.AdminActions} calls {@link #started} on the request thread, where
  * the security context and the request are still available, and {@link Completion#finished} when
  * the action has ended, after the bundle has answered for the asynchronous ones.

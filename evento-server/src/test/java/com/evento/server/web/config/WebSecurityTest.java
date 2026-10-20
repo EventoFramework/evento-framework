@@ -178,11 +178,11 @@ class WebSecurityTest {
             context.setServletContext(new MockServletContext());
             context.register(Context.class);
             context.getEnvironment().getPropertySources().addFirst(
-                    new org.springframework.core.env.MapPropertySource("test", Map.of("evento.server.web.auth", "oidc")));
+                    new org.springframework.core.env.MapPropertySource("test", Map.of("evento.server.web.auth", "saml")));
             assertThatThrownBy(context::refresh).rootCause()
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("evento.server.web.auth=oidc")
-                    .hasMessageContaining("Evento Enterprise");
+                    .hasMessageContaining("evento.server.web.auth=saml")
+                    .hasMessageContaining("basic and oidc");
         }
     }
 

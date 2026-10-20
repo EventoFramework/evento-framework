@@ -38,8 +38,8 @@ import java.util.List;
  * endpoint — credentials are validated on every request.
  *
  * <p>With {@code evento.server.web.auth} set to another mode, the {@link ConsoleSignIn} bean of
- * that mode adds its sign-in to the chain (single sign-on with OpenID Connect is part of Evento
- * Enterprise); HTTP Basic stays available for machine clients such as a Prometheus scrape.
+ * that mode adds its sign-in to the chain (single sign-on with OpenID Connect: mode {@code oidc},
+ * {@link com.evento.server.web.oidc.OidcSignIn}); HTTP Basic stays available for machine clients such as a Prometheus scrape.
  */
 @Configuration
 @EnableWebMvc
@@ -72,7 +72,7 @@ public class WebConfig implements WebMvcConfigurer {
 				.httpBasic(b -> b.authenticationEntryPoint(UNAUTHORIZED))
 				.authorizeHttpRequests(r -> r
 						.requestMatchers("/actuator/health/**", "/actuator/info", "/api/auth/mode").permitAll()
-						// Who did what in the console: for admins only (the audit trail of Evento Enterprise).
+						// Who did what in the console: for admins only (the audit trail, com.evento.server.web.audit).
 						.requestMatchers("/actuator/auditevents/**").hasRole("ADMIN")
 						.requestMatchers("/api/**", "/actuator/**").authenticated()
 						.anyRequest().permitAll()); // static GUI assets + SPA fallback

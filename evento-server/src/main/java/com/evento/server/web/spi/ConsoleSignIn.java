@@ -6,8 +6,8 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * A sign-in for the web console other than HTTP Basic, such as the OpenID Connect sign-in of Evento
- * Enterprise. With {@code evento.server.web.auth} set to anything but {@code basic}, the server uses
+ * A sign-in for the web console other than HTTP Basic, such as the OpenID Connect sign-in
+ * ({@link com.evento.server.web.oidc.OidcSignIn}, mode {@code oidc}). With {@code evento.server.web.auth} set to anything but {@code basic}, the server uses
  * the bean whose {@link #mode()} matches and refuses to start if there is none.
  *
  * <p>Before {@link #configure} runs, the server has set CORS, HTTP Basic (kept for machine clients
@@ -37,7 +37,7 @@ public interface ConsoleSignIn {
         if (wanted.equalsIgnoreCase("basic")) return Optional.empty();
         return Optional.of(available.filter(s -> s.mode().equalsIgnoreCase(wanted)).findFirst()
                 .orElseThrow(() -> new IllegalStateException("evento.server.web.auth=" + wanted
-                        + ": no sign-in on the classpath provides this mode. Single sign-on (oidc) is part"
-                        + " of Evento Enterprise; without it use basic.")));
+                        + ": no sign-in provides this mode. The server provides basic and oidc (single"
+                        + " sign-on, with a client registration spring.security.oauth2.client.registration.*).")));
     }
 }
