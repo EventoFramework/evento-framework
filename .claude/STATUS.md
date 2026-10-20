@@ -1,6 +1,6 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-20.
+Last updated: 2026-10-20 (session 8).
 
 ## Enterprise readiness vs Axon 5 (branch `enterprise/2.6-readiness`, 2026-10-16)
 
@@ -153,6 +153,20 @@ written, they must be found. Commits 3b674a16, 670ad6de and the A2 one; evento-d
 e1f934b. Left for the minimum: R1 (merge PR #281, tag 2.6.0). Docs updated (ARCHITECTURE §4.6 "Choosing
 CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
 (unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
+
+**Session 8 (2026-10-20): the release becomes 3.0.0; the "Cosa manca" list.** User: points 7 (Q4), 10 (Q2),
+11 (Q3) yes; 8 (nested payloads) won't be fixed, say so; 12 (APES p99) not needed, APES deprecated; release is
+3.0; deadlines/scheduling delegated to Quartz in the domain (no scheduled events or deadline manager); F10 yes;
+F6 multi-tenancy to analyse. Done: Q2 761dd0c1, Q4 d9df035c (server race: Hello after disconnect), S15 b7c822ce,
+N15 f857228e, N4 821300de, G21 d7c1cbae, G17 40fd63fb (V6 admin relay), 3.0 + D4 prod default 0b837814 (feat!),
+F9 several events per command 44814c10 (`DomainEvents`, `produces`, capability `events:1`, atomic append in one
+transaction holding es-lock), F10 crypto-shredding (`com.evento.common.personaldata`, `es__subject_keys` V7,
+`SubjectKeyRequestHandlers`, `PersonalDataController`; `SerializedObject` now throws on a serialization failure
+instead of a null payload). evento-doc: nested payloads limit, `scheduling-with-quartz.md`, upgrade guide
+renamed `upgrading-to-3-0.md`, aggregate command handler (several events), `personal-data.md`. F6: not in the
+framework (analysis in ENTERPRISE-2.6.md: tenant as domain concept or silo; server-enforced isolation is costly
+and is the use the licence reserves). Next: R1 (merge PR #281, tag v3.0.0) when the user asks; multi-tenancy
+doc page; spike D2 (b). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 

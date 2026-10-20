@@ -49,6 +49,9 @@ public final class AggregateFixture<A> {
 
     /** A fixture around an instance of the aggregate, built as the bundle would (any injected collaborators included). */
     public static <A> AggregateFixture<A> of(A aggregate) {
+        // @PersonalData payloads are written and read with keys in memory, unless the test installed others.
+        com.evento.common.personaldata.SubjectKeys.installIfAbsent(
+                new com.evento.common.personaldata.InMemorySubjectKeyProvider());
         return new AggregateFixture<>(aggregate);
     }
 

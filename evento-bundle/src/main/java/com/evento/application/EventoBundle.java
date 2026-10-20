@@ -408,6 +408,14 @@ public class EventoBundle {
          */
         private Duration serviceOutcomeRetention;
 
+        /**
+         * How long this bundle keeps the key of a data subject it got from the server (3.0,
+         * {@code @PersonalData}): reading a stream of events asks once per subject and period,
+         * not once per event. A subject forgotten through another bundle or the console stays
+         * readable here until its cached key expires. Default one minute; zero asks every time.
+         */
+        private Duration subjectKeyCacheTtl = Duration.ofMinutes(1);
+
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
@@ -963,6 +971,10 @@ public class EventoBundle {
 
             var eventoServer = new EventoServerAdapter(
                     bundleClient, bundleId, instanceId, bundleVersion, adminCodec);
+            // @PersonalData: the payload mapper encrypts with the keys the servers keep.
+            var subjectKeys = new com.evento.application.client.ServerSubjectKeyProvider(eventoServer,
+                    subjectKeyCacheTtl);
+            com.evento.common.personaldata.SubjectKeys.install(subjectKeys);
 
             if (commandGateway == null) {
                 commandGateway = commandGatewayBuilder.apply(eventoServer);
@@ -994,6 +1006,7 @@ public class EventoBundle {
                     eventoServer,
                     supervisor));
 
+            eventoBundle.get().subjectKeys = subjectKeys;
             if (serviceCommandOutcomeStore != null && serviceOutcomeRetention != null
                     && !serviceOutcomeRetention.isZero() && !serviceOutcomeRetention.isNegative()) {
                 eventoBundle.get().startOutcomeSweeper(serviceCommandOutcomeStore, serviceOutcomeRetention);
@@ -1278,6 +1291,7 @@ public class EventoBundle {
 
     /** Deletes service command outcomes older than the retention, hourly (F11). */
     private volatile java.util.concurrent.ScheduledExecutorService outcomeSweeper;
+    private volatile com.evento.common.personaldata.SubjectKeyProvider subjectKeys;
 
     void startOutcomeSweeper(com.evento.common.messaging.outcome.ServiceCommandOutcomeStore store, Duration retention) {
         var sweeper = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
@@ -1312,6 +1326,9 @@ public class EventoBundle {
             }
         }
         stopV2Engines(deadline);
+        if (subjectKeys != null) {
+            com.evento.common.personaldata.SubjectKeys.uninstall(subjectKeys);
+        }
         if (eventoServer instanceof EventoServerAdapter adapter) {
             adapter.close();
         }

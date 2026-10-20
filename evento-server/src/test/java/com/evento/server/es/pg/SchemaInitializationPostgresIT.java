@@ -99,10 +99,10 @@ class SchemaInitializationPostgresIT {
         try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_flyway"), 2)) {
             PostgresItSupport.initializer(ds, true).initializeDatabase();
             var jdbc = new JdbcTemplate(ds);
-            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5", "6");
+            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5", "6", "7");
 
             PostgresItSupport.initializer(ds, true).initializeDatabase();
-            assertThat(appliedVersions(jdbc)).as("nothing applied twice").containsExactly("1", "2", "3", "4", "5", "6");
+            assertThat(appliedVersions(jdbc)).as("nothing applied twice").containsExactly("1", "2", "3", "4", "5", "6", "7");
         }
     }
 
@@ -132,7 +132,7 @@ class SchemaInitializationPostgresIT {
 
             assertThat(jdbc.queryForList("select version from " + HISTORY + " where type = 'BASELINE'", String.class))
                     .containsExactly("0");
-            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5", "6");
+            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5", "6", "7");
             assertThat(primaryKeyColumns(jdbc)).containsExactly("event_sequence_number");
             assertThat(jdbc.queryForObject("select count(*) from information_schema.columns "
                     + "where table_name = 'es__events' and column_name = 'aggregate_seq'", Integer.class)).isEqualTo(1);
@@ -169,7 +169,7 @@ class SchemaInitializationPostgresIT {
 
             jdbc.update("delete from es__events where ctid = (select min(ctid) from es__events where event_sequence_number = 7)");
             PostgresItSupport.initializer(ds, true).initializeDatabase();
-            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5", "6");
+            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5", "6", "7");
             assertThat(primaryKeyColumns(jdbc)).containsExactly("event_sequence_number");
         }
     }

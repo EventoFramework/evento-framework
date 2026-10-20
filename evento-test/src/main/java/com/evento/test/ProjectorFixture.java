@@ -48,6 +48,9 @@ public final class ProjectorFixture<P> {
 
     /** A fixture around an instance of the projector. */
     public static <P> ProjectorFixture<P> of(P projector) {
+        // @PersonalData payloads are written and read with keys in memory, unless the test installed others.
+        com.evento.common.personaldata.SubjectKeys.installIfAbsent(
+                new com.evento.common.personaldata.InMemorySubjectKeyProvider());
         return new ProjectorFixture<>(projector);
     }
 

@@ -24,6 +24,8 @@ a revised payload needs a 3.0 broker.
 
 ### Upgrade notes
 
+- **A payload that cannot be serialized now fails the send** (`IllegalArgumentException` from
+  `SerializedObject`): it used to be logged and sent with a null payload.
 - **Breaking: the server refuses to start unhardened.** `evento.server.security.profile` defaults to `prod`
   (was `dev`): without a bus auth token, bus TLS, a payload allowlist, non-default web console and database
   passwords and explicit CORS origins the server does not start, and lists what is missing. Set them, or set
@@ -111,6 +113,15 @@ a revised payload needs a 3.0 broker.
 
 ### Added
 
+- **Personal data and the right to erasure (crypto-shredding).** Fields marked `@PersonalData` are stored
+  encrypted (AES-256-GCM) with a key of their subject, the object's `@DataSubject` field, in events, commands,
+  snapshots and saga state alike. The keys live in the event store's database (`es__subject_keys`, Flyway V7;
+  `db/upgrade/subject-keys.sql` for schemas managed outside the server), optionally wrapped with
+  `evento.server.personal-data.master-key`; bundles get them over the bus and cache them
+  (`EventoBundle.Builder.setSubjectKeyCacheTtl`, one minute). `SubjectKeys.forget(subject)` from a bundle, or
+  `DELETE /api/personal-data/subjects/{subject}` (admin, audited), deletes the key: every copy of that subject's
+  personal data, backups of the event store included, reads as `null` from then on, and the events stay.
+  `evento-test` fixtures and the test broker keep keys in memory.
 - **Several events from one aggregate command.** An `@AggregateCommandHandler` may return
   `DomainEvents.of(e1, e2, ...)`, declaring them in `produces`: the events are applied in order and stored in one
   transaction, all or none, with consecutive sequence numbers and aggregate versions (the fence refuses all of

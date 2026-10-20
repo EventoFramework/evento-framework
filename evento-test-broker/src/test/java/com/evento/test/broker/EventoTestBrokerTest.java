@@ -5,6 +5,9 @@ import com.evento.application.consumer.ConsumerEngineConfig;
 import com.evento.common.modeling.messaging.query.Single;
 import com.evento.test.broker.demo.CountOrders;
 import com.evento.test.broker.demo.CreateOrder;
+import com.evento.test.broker.demo.CustomerGreeted;
+import com.evento.test.broker.demo.GreetCustomer;
+import com.evento.test.broker.demo.RegisterCustomer;
 import com.evento.test.broker.demo.NoteAdded;
 import com.evento.test.broker.demo.OpenOrder;
 import com.evento.test.broker.demo.OrderAggregate;
@@ -91,5 +94,23 @@ class EventoTestBrokerTest {
 
         // The aggregate exists: both events are its story.
         assertThat(bundle.getCommandGateway().send(new CreateOrder("o-3"))).failsWithin(10, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void personalDataIsStoredEncryptedAndForgettingTheSubjectErasesIt() throws Exception {
+        bundle.getCommandGateway().send(new RegisterCustomer("c-1", "Ada Lovelace")).get(10, TimeUnit.SECONDS);
+
+        var stored = broker.events().getLast().getEventMessage().getSerializedPayload().getSerializedObject();
+        assertThat(stored).contains("c-1").doesNotContain("Ada");
+        await().atMost(10, TimeUnit.SECONDS).until(() -> Orders.SEEN.contains("c-1:Ada Lovelace"));
+        var before = (CustomerGreeted) bundle.getCommandGateway().send(new GreetCustomer("c-1")).get(10, TimeUnit.SECONDS);
+        assertThat(before.knownName()).isEqualTo("Ada Lovelace");
+
+        assertThat(com.evento.common.personaldata.SubjectKeys.forget("c-1")).isTrue();
+
+        // The aggregate reads its story again: the event is there, the name is not.
+        var after = (CustomerGreeted) bundle.getCommandGateway().send(new GreetCustomer("c-1")).get(10, TimeUnit.SECONDS);
+        assertThat(after.knownName()).isNull();
+        assertThat(broker.events()).hasSize(3);
     }
 }

@@ -33,6 +33,9 @@ public final class ServiceFixture<S> {
 
     /** A fixture around an instance of the service. */
     public static <S> ServiceFixture<S> of(S service) {
+        // @PersonalData payloads are written and read with keys in memory, unless the test installed others.
+        com.evento.common.personaldata.SubjectKeys.installIfAbsent(
+                new com.evento.common.personaldata.InMemorySubjectKeyProvider());
         return new ServiceFixture<>(service);
     }
 

@@ -55,6 +55,8 @@ public final class EventoTestBroker implements AutoCloseable {
     private final BusLifecycle lifecycle;
     private final BusEventBus eventBus;
     private final InMemoryEventStore store = new InMemoryEventStore();
+    private final com.evento.common.personaldata.InMemorySubjectKeyProvider subjectKeys =
+            new com.evento.common.personaldata.InMemorySubjectKeyProvider();
     private final int port;
 
     private EventoTestBroker(int port) {
@@ -85,8 +87,31 @@ public final class EventoTestBroker implements AutoCloseable {
             response.setTimestamp(System.currentTimeMillis());
             return codec.encodeResponse(response);
         });
+        // The keys of data subjects (@PersonalData), in memory as the server keeps them in its database.
+        lifecycle.registerLocalHandler(com.evento.common.personaldata.SubjectKeyRequest.class.getSimpleName(), payload -> {
+            var request = codec.decodeRequest(payload);
+            var ask = (com.evento.common.personaldata.SubjectKeyRequest) request.getBody();
+            var response = new EventoResponse();
+            response.setCorrelationId(request.getCorrelationId());
+            response.setBody(new com.evento.common.personaldata.SubjectKeyResponse(
+                    subjectKeys.key(ask.getSubject(), ask.isCreate()).orElse(null)));
+            response.setTimestamp(System.currentTimeMillis());
+            return codec.encodeResponse(response);
+        });
+        lifecycle.registerLocalHandler(com.evento.common.personaldata.ForgetSubjectRequest.class.getSimpleName(), payload -> {
+            var request = codec.decodeRequest(payload);
+            var forget = (com.evento.common.personaldata.ForgetSubjectRequest) request.getBody();
+            var response = new EventoResponse();
+            response.setCorrelationId(request.getCorrelationId());
+            response.setBody(new com.evento.common.personaldata.ForgetSubjectResponse(
+                    subjectKeys.forget(forget.getSubject())));
+            response.setTimestamp(System.currentTimeMillis());
+            return codec.encodeResponse(response);
+        });
         lifecycle.registerStraightPayloadType(EventFetchRequest.class.getSimpleName());
         lifecycle.registerStraightPayloadType(EventLastSequenceNumberRequest.class.getSimpleName());
+        lifecycle.registerStraightPayloadType(com.evento.common.personaldata.SubjectKeyRequest.class.getSimpleName());
+        lifecycle.registerStraightPayloadType(com.evento.common.personaldata.ForgetSubjectRequest.class.getSimpleName());
         try {
             // No DataSource: the aggregate locks are JVM-local, which is all one broker needs.
             new CommandBrokerHandler(lifecycle, cluster, store, null);

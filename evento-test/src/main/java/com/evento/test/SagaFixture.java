@@ -45,6 +45,9 @@ public final class SagaFixture<S> {
 
     /** A fixture around an instance of the saga. */
     public static <S> SagaFixture<S> of(S saga) {
+        // @PersonalData payloads are written and read with keys in memory, unless the test installed others.
+        com.evento.common.personaldata.SubjectKeys.installIfAbsent(
+                new com.evento.common.personaldata.InMemorySubjectKeyProvider());
         return new SagaFixture<>(saga);
     }
 

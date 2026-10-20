@@ -14,4 +14,9 @@ public class OrderProjector {
     void on(NoteAdded e) {
         Orders.SEEN.add(e.orderId() + ":" + e.note());
     }
+
+    @EventHandler
+    void on(CustomerRegistered e) {
+        Orders.SEEN.add(e.customerId() + ":" + e.name());
+    }
 }

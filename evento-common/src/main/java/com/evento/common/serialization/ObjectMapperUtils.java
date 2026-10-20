@@ -27,6 +27,8 @@ public class ObjectMapperUtils {
 
 			var om = new ObjectMapper();
 			om.registerModule(new JavaTimeModule());
+			// @PersonalData fields, encrypted per data subject (3.0, crypto-shredding).
+			om.registerModule(new com.evento.common.personaldata.PersonalDataModule());
 			om.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 			om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 			om.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);

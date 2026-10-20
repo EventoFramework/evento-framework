@@ -636,6 +636,28 @@ Not covered (by design or yet): downcasting for older readers (tolerant reader i
 `FAIL_ON_UNKNOWN_PROPERTIES` off), splitting one event into several, upcasting saga state and
 query answers (views), metadata changes.
 
+### 4.11 Personal Data (3.0): crypto-shredding (`com.evento.common.personaldata`)
+
+`@PersonalData` fields of any payload the payload mapper writes (events, commands, snapshots,
+saga state) are encrypted per data subject, the object's `@DataSubject` field.
+`PersonalDataModule` (registered in `ObjectMapperUtils`) is an annotation introspector giving those
+fields a contextual serializer/deserializer around the type's own: the value is written as it would
+be (type id included) into a `TokenBuffer`, then AES-256-GCM (`PersonalDataCipher`, subject as AAD)
+as the string `evento-pd:1:<subject b64url>:<nonce+ct b64>`. The subject travels in the value, so
+reading needs no sibling field. A key that is gone (or a new key after a forget: GCM tag fails)
+reads as the field's null value; an unencrypted value (written before the annotation) reads as is.
+`SerializedObject` now throws on a serialization failure instead of storing a null payload.
+
+| Piece | Where | Note |
+|---|---|---|
+| Keys | `es__subject_keys` (Flyway V7, `db/upgrade/subject-keys.sql`), `SubjectKeyStore` | `INSERT ... ON CONFLICT DO NOTHING` then read: servers racing on one subject agree. Wrapped with `evento.server.personal-data.master-key` (AES-GCM, subject AAD) when set |
+| Bundle access | `SubjectKeyRequest`/`ForgetSubjectRequest`, local handlers in `SubjectKeyRequestHandlers`, **straight** (no key in the dedup cache) | `ServerSubjectKeyProvider` caches keys for `subjectKeyCacheTtl` (1 min); absent keys not cached |
+| Provider | `SubjectKeys` (one per JVM, like the mapper) | `EventoBundle` installs the server's at start, uninstalls at stop; `evento-test` fixtures `installIfAbsent` an `InMemorySubjectKeyProvider`; the test broker answers from memory |
+| Erasure | `SubjectKeys.forget(subject)` (bus), `DELETE /api/personal-data/subjects/{subject}` (ADMIN, audited `personal_data.forget`) | Other bundles may read for their cache TTL; read models that copied data in clear are the application's |
+
+Not covered: getters/record components (fields only), a subject per nested object other than its
+own `@DataSubject`, key rotation.
+
 ---
 
 ## 5. Handshake & Registration Protocol
@@ -1180,6 +1202,7 @@ All controllers are under `com.evento.server.web.*` and depend on `BusFacade`.
 | `ArtifactController` | `/api/artifact` | Bundle artifact upload |
 | `FlowsController` | `/api/flows` | Handler flow visualization |
 | `SystemStateStoreController` | `/api/system-state-store` | Aggregate snapshots |
+| `PersonalDataController` | `/api/personal-data` | `DELETE /subjects/{subject}`: forget a data subject (ADMIN, audited) |
 
 Auth is **HTTP Basic** against the static Spring Boot in-memory user
 (`spring.security.user.name/password/roles=WEB,ADMIN` in `application.properties`,

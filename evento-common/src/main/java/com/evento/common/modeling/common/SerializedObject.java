@@ -44,8 +44,11 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 			}
 		} catch (JsonProcessingException e)
 		{
-			logger.error("Serialization failed", e);
-			this.serializedObject = null;
+			// Failing here, not storing a null payload: an event or a command that cannot be
+			// written (a @PersonalData field without its subject or key, a broken serializer)
+			// must not reach the broker as an empty message.
+			throw new IllegalArgumentException("cannot serialize " + object.getClass().getName() + ": "
+					+ e.getOriginalMessage(), e);
 		}
 	}
 

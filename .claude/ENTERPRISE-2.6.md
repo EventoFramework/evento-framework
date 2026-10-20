@@ -12,6 +12,26 @@ Come usarlo: ogni punto ha un id (`L*` licenza, `S*` sicurezza, `C*` correttezza
 punto è chiuso e scrivi accanto commit/PR. Le decisioni `D1..D10` hanno uno stato: **da decidere**,
 **decisa** (con data e scelta), **rimandata**.
 
+## Stato al 2026-10-20, sessione 8: la release diventa 3.0.0
+
+Decisione dell'utente: la prossima release è la **3.0.0** (non più 2.6.0), perché il default del profilo
+di sicurezza passa a `prod` (D4) e questo rompe chi avviava il server senza configurazione. Tutto il resto
+resta retrocompatibile con la 2.5. Fatti in questa sessione, tutti su `enterprise/2.6-readiness`:
+
+- **Q2** shutdown del trasporto con deadline (`761dd0c1`). **Q4** failback instabile: era una race nel
+  server (Hello gestito dopo la chiusura della connessione lasciava un nodo fantasma), corretta con test
+  deterministico (`d9df035c`).
+- **Q3** limiti di cluster: S15 (`b7c822ce`), N15 (`f857228e`), N4 (`821300de`), G21 (`d7c1cbae`),
+  G17 (`40fd63fb`).
+- **3.0 + D4** default `prod` (`0b837814`, `feat!`).
+- **F5** non nel framework: scadenze e scheduling nel dominio con Quartz, guida in evento-doc
+  (`scheduling-with-quartz.md`). Niente scheduled event né deadline manager (decisione dell'utente).
+- **F9** più eventi per comando (`44814c10`).
+- **F10** crypto-shredding (`@PersonalData`, chiavi per soggetto nel DB del server).
+- **Payload annidati**: non si correggeranno; documentato in evento-doc (`payload-and-messages`).
+- **APES p99**: chiuso senza indagine, APES è deprecato (si rimuove in 4.0).
+- **F6 multi-tenancy**: analizzata, non si fa nel framework (sotto, "F6: ha senso?").
+
 ## Stato al 2026-10-20, fine sessione 7
 
 Fatti oggi, oltre a quanto sotto: F4 (Flyway), O2 (lag dei consumer), R2 (`COMPATIBILITY.md`), O3 (timer
@@ -450,13 +470,22 @@ Le dipendenze sono indicate con `←`.
 
 ### Fase 3 — competizione (3.0)
 
-- [ ] Default `prod` (D4)
-- [ ] F5 Deadline e scheduling
+- [x] Default `prod` (D4), 2026-10-20 (`0b837814`): la release diventa 3.0.0
+- [-] F5 Deadline e scheduling: **non nel framework** (decisione 2026-10-20). Le scadenze sono regole di
+      dominio: una saga programma un job Quartz con chiave derivata dall'identità di business, il job manda
+      il comando con `sendIdempotent`, l'aggregato decide. Guida `evento-framework/scheduling-with-quartz.md`
 - [-] Cache degli aggregati lato bundle + routing affine ← C1: non pianificato (D10 b), resta come
       evoluzione possibile
 - [ ] Spike: lettura con watermark sui transaction id, append senza `es-lock` ← C1 (D2 b)
-- [ ] F10 Crypto-shredding
-- [ ] F6 Multi-tenancy, solo se un cliente la paga
+- [x] F9 Più eventi per comando (2026-10-20, `44814c10`): `DomainEvents.of(...)` +
+      `@AggregateCommandHandler(produces = ...)`, append atomico (una transazione con `es-lock`, versioni
+      consecutive, chiave sull'ultimo), capability `events:1`. Test: `AggregateFencePostgresIT` (CPES+APES),
+      `EventoTestBrokerTest`, fixture
+- [x] F10 Crypto-shredding (2026-10-20): `@PersonalData`/`@DataSubject`, AES-256-GCM per soggetto nel mapper
+      dei payload, chiavi in `es__subject_keys` (V7, master key opzionale), richieste bus straight,
+      `SubjectKeys.forget` e `DELETE /api/personal-data/subjects/{subject}` (audit). Test:
+      `PersonalDataModuleTest`, `SubjectKeyStorePostgresIT`, `EventoTestBrokerTest`
+- [-] F6 Multi-tenancy: non nel framework (analisi sotto)
 
 ### Minimo indispensabile per dire "production ready per enterprise"
 
@@ -464,14 +493,35 @@ Licenza pulita (L1, L2) · G6 chiuso (C1) · default sicuri attivabili e coperti
 2.6 rilasciata con politica di compatibilità (R1, R2) · tetto per cella pubblicato (B1) · client su
 Java 21 (J1) · Flyway (F4) · lag (O2) e tracing propagato (O1).
 
-### Cosa manca (2026-10-20)
+### F6: ha senso la multi-tenancy nel framework? (analisi 2026-10-20)
+
+No, non come funzionalità del framework. Tre modi di avere più tenant, e cosa servirebbe:
+
+1. **Tenant come concetto di dominio** (un'unica applicazione SaaS): `tenantId` nell'id dell'aggregato e
+   negli eventi, nei metadata dei messaggi, nei read model; i `context` degli eventi e i consumer per
+   contesto (`setComponentContexts`) separano i consumer per tenant quando serve. Funziona già oggi, senza
+   modifiche: è la scelta giusta per la maggior parte dei casi.
+2. **Silo** (isolamento forte, clienti regolamentati): un'installazione per tenant, server + database (o
+   schema) propri. Funziona già oggi; i server sono leggeri e il costo è operativo, non di codice.
+3. **Server condivisi con isolamento imposto dal server**: il server dovrebbe autenticare i bundle per
+   tenant, filtrare ogni fetch, verificare ogni comando e query, separare catalogo, consumer, lock, chiavi
+   di idempotenza e console per tenant. È un confine di sicurezza dentro un componente pensato per bundle
+   fidati della stessa applicazione (un token di bus), e tocca ogni percorso; oppure un datasource per
+   tenant, che rompe il modello "correttezza in un solo database" su cui si basa il cluster
+   (`es-lock`, sequenze, fence).
+
+La 3 è la sola che il framework potrebbe aggiungere, costa molto e serve solo a chi vende Evento come
+piattaforma multi-cliente, cioè proprio l'uso che la licenza riserva. Resta in "Cosa non fare" finché un
+cliente non la paga; nel frattempo una pagina di documentazione sui modi 1 e 2 basta (da scrivere).
+
+### Cosa manca (2026-10-20, sessione 8)
 
 **Per il minimo indispensabile** (sopra):
 
-1. **R1 Rilascio 2.6.0.** CI verde sulla PR #281 (Q4 da sistemare o da isolare), review e merge su `main`,
-   versione `2.6.0` in `build.gradle` / `version.json`, tag `v2.6.0`: il workflow pubblica jar firmato,
-   immagine GHCR/Docker Hub e librerie. Prima volta su Maven Central per `evento-server` ed
-   `evento-test-broker`: da controllare. Sito ed evento-doc: merge e pubblicazione dei loro branch.
+1. **R1 Rilascio 3.0.0.** CI verde sulla PR #281, review e merge su `main`, versione `3.0.0` in
+   `build.gradle` / `version.json`, tag `v3.0.0`: il workflow pubblica jar firmato, immagine GHCR/Docker
+   Hub e librerie. Prima volta su Maven Central per `evento-server` ed `evento-test-broker`: da
+   controllare. Sito ed evento-doc: merge e pubblicazione dei loro branch.
 
 **Non tecnici, tuoi** (non li posso fare io):
 
@@ -484,21 +534,13 @@ Java 21 (J1) · Flyway (F4) · lag (O2) e tracing propagato (O1).
 6. **D2 (b)**: se aprire lo spike "append senza `es-lock`" alla luce del confronto privato con Axon Server
    e di B2 (CPES paga il RTT della replica sincrona sotto il lock).
 
-**Tecnici, dopo il minimo** (fase 2 e 3 della roadmap):
+**Tecnici, dopo il minimo**: chiusi nella sessione 8 Q2, Q3, Q4, F9, F10, D4; F5 e F6 decisi fuori dal
+framework; payload annidati documentati come limite permanente; p99 di APES non più rilevante. Restano:
 
-7. **Q4** test di failback instabile (sopra): prima di R1, perché tiene rossa la CI.
-8. **Payload annidati** non instradabili (`Outer$Inner`): documentato nelle fixture, da correggere o
-   documentare anche nella guida dei payload.
-9. **F9** più eventi per comando.
-10. **Q2** shutdown del trasporto senza deadline (`NettyServerTransport.stop` aspetta `shutdownGracefully`
-    senza limite).
-11. **Q3** limiti di cluster aperti: datasource di lettura (G21), affinità della lane `ALL` (N4),
-    `lock_timeout` legato alla deadline (N15), gate di staleness legato agli orologi (S15), dashboard
-    locale (G17).
-12. **APES**: p99 di ~1 s su spread a 128 in volo, mai spiegata (diventa irrilevante quando APES sarà
-    rimosso).
-13. **Fase 3**: default `prod` in 3.0 (D4), F5 deadline e scheduling, F10 crypto-shredding, spike D2 (b),
-    F6 multi-tenancy solo se pagata.
+7. **Spike D2 (b)** append senza `es-lock` (vedi punto 6).
+8. **Pagina di documentazione sulla multi-tenancy** (modi 1 e 2 dell'analisi F6).
+9. Evoluzioni possibili di F10: rotazione delle chiavi, componenti di record e getter, soggetto diverso
+   per oggetti annidati.
 
 ### Cosa non fare
 
