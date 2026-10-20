@@ -322,6 +322,14 @@ Le dipendenze sono indicate con `←`.
       restano fuori dal repository (ToS Axoniq, `results-private/`, git-ignored). Ha trovato due bug, corretti:
       deadlock del trasporto sotto carico e id Snowflake che fallivano quando l'orologio torna indietro.
       Da decidere (utente): se aprire D2 (b) alla luce del confronto privato
+- [x] B2 Benchmark HA su due AZ (`results/REPORT-HA.md`, 2026-10-20): primario + standby sincrono,
+      un server per AZ, RTT 0/2/10 ms tra le AZ, aggregati condivisi tra i server. Con la replica
+      sincrona CPES tiene `es-lock` anche durante l'attesa della replica: APES rende 2-3× a pochi
+      comandi in volo o con AZ lontane (10 ms, create: 286 contro 91 cmd/s a 8 in volo, 1986 contro
+      1181 a 128); CPES lo eguaglia a 0 ms con molto carico e su spread a 128 in volo ha p99 migliore.
+      Quindi APES resta: CPES default per un nodo o replica asincrona, APES consigliato con replica
+      sincrona multi-AZ. Ha trovato la starvation del lock tra server su un aggregato conteso
+      (corretta: chi aspetta si mette in coda in PostgreSQL)
 - [x] L4 Funzioni enterprise sotto licenza commerciale: OIDC/SSO e audit nel repository privato
       `evento-server-enterprise` (Spring Boot autoconfigurazione, build inclusa `../evento`, boot jar
       distribuibile). Nel server pubblico solo i punti di estensione `ConsoleSignIn` e

@@ -97,6 +97,13 @@ group commit (`AppendBatcher`, one statement per batch, CPES consecutive numbers
 Keyed duplicate expiring optimistically -> in progress (G5 contract), found by the IT. Next: B2, the HA multi-AZ
 benchmark (`docker/compose.ha.yaml`, `scripts/run-ha.sh`, `report-ha.py`): primary + synchronous standby, two
 servers in two AZs, toxiproxy RTT, shared aggregates across servers; decides whether APES is still worth it.
+B2 done (2f499bd0, `results/REPORT-HA.md`). Run 1 showed AZ b starved on the hot aggregate (polling waiters
+never caught the key between the other server's back-to-back holds): fixed in 95cb2eb7, waiters queue in
+PostgreSQL (`pg_advisory_lock` under `lock_timeout`, at most half the lock pool), now 29/29 cmd/s. Run 2: under
+synchronous replication CPES pays the RTT under es-lock, APES 2-3x faster at low concurrency or 10 ms RTT,
+equal at 0 ms/128 in flight; CPES better p99 on spread@128. Verdict: keep APES, recommend it for synchronous
+multi-AZ; CPES stays default. Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
+(unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
