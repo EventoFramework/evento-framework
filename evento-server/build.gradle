@@ -47,7 +47,9 @@ dependencies {
 	runtimeOnly 'com.h2database:h2'
 	runtimeOnly 'org.postgresql:postgresql'
 
-	testImplementation 'org.flywaydb:flyway-core'
+	// The server schema on PostgreSQL (AdvisoryLockedSchemaInitializer, F4).
+	implementation "org.flywaydb:flyway-core:${flywayVersion}"
+	implementation "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
 	implementation 'com.squareup.okhttp3:okhttp:5.5.0'
 
 

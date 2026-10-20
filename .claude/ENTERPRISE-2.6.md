@@ -20,8 +20,8 @@ B2 HA multi-AZ, lock equo tra server, APES deprecato con passaggio a CPES, **L5*
 Apache-2.0 + Commons Clause dalla 2.6.0, OIDC e audit nel server, `TRADEMARKS.md`, repo enterprise
 archiviato), autore dei commit riscritto su tutta la storia (hash nuovi). **D1 superata da L5.**
 
-Minimo indispensabile (sezione in fondo): fatti C1, S1-S3, Q1, B1, J1, O1; L1/L2 fatti ma senza
-revisione legale; **mancano R1, R2, F4, O2**.
+Minimo indispensabile (sezione in fondo): fatti C1, S1-S3, Q1, B1, J1, O1, e poi F4, O2, R2 (stesso
+giorno); L1/L2 fatti ma senza revisione legale; **manca solo R1**, il rilascio della 2.6.0.
 
 ## Stato al 2026-10-19 (sessione 5)
 
@@ -265,7 +265,8 @@ come sotto (semver sul filo, matrice N/N-1, prima i server; LTS solo commerciale
   Matrice documentata: server N con bundle N e N-1; upgrade prima i server, poi i bundle (come G5).
 - **LTS:** solo nel contratto commerciale (ultima minor di ogni major, 18 mesi); nella community,
   patch solo per la minor corrente. Dopo L5 il contratto commerciale è un'autorizzazione a vendere, non
-  una licenza d'uso: l'LTS a pagamento va riformulato come servizio di supporto (da decidere).
+  una licenza d'uso: l'LTS a pagamento va riformulato come servizio di supporto: `COMPATIBILITY.md` (R2) dice "supporto più
+  lungo su accordo", senza prezzi né durate.
 
 ### D10 Architettura hub-and-spoke — decisa 2026-10-19: (b) resta com'è
 
@@ -298,7 +299,11 @@ Le dipendenze sono indicate con `←`.
 ### Fase 1 — fiducia (2.6.0 → 2.7)
 
 - [ ] R1 Rilascio 2.6.0 (D9)
-- [ ] R2 Politica di compatibilità scritta: semver, matrice server/bundle, ordine di upgrade (D9)
+- [x] R2 Politica di compatibilità scritta (2026-10-20): `COMPATIBILITY.md` (semver per tutto il
+      framework, cosa può cambiare in patch/minor/major, filo solo con capability, schema additivo e
+      rollback del server alla minor precedente, matrice server N con bundle N e N-1, prima i server,
+      piattaforme, deprecazione prima della rimozione, supporto: patch sull'ultima minor, supporto più
+      lungo su accordo) e la stessa pagina in evento-doc (D9)
 - [x] L1 `LICENSE.txt` riscritto per modulo (client Apache-2.0, resto AGPL-3.0 o commerciale), testi
       canonici in `licenses/`, `LICENSE.txt` per modulo, `NOTICE.txt`, SPDX nei POM, LICENSE/NOTICE nei
       jar, ambito di `LICENSE-COMMERCIAL.txt` ristretto ai componenti AGPL, README e CONTRIBUTING (D1).
@@ -306,7 +311,12 @@ Le dipendenze sono indicate con `←`.
       `docs/enterprise-2.6`, pagina Licensing) pushati, non pubblicati. Superato da L5 per il server
 - [x] L2 `CLA.md` (bozza su modello ICLA Apache + diritto di rilicenziare), richiesto da CONTRIBUTING (D1).
       **Resta**: revisione di un legale prima del primo contributo esterno
-- [ ] F4 Flyway sull'event store, con baseline dei database esistenti
+- [x] F4 Flyway sull'event store, con baseline dei database esistenti (2026-10-20): storico
+      `evento_es_schema_history`, V1 = schema 2.6.0, V2-V5 le migrazioni online (Java, fuori transazione),
+      baseline a 0 per i database dei server precedenti, riparazione automatica di un passo fallito,
+      lock di Flyway di sessione (quello transazionale bloccava `CREATE INDEX CONCURRENTLY`). Test:
+      `SchemaInitializationPostgresIT` (10); verificato nel lab: database di un server `after-versioning`
+      con eventi preso in carico e migrato, bundle vecchi che scrivono dopo
 - [x] C1 Fence `aggregate_seq`, obbligatoria anche senza lock (2026-10-19). Colonna nullable e
       indice unico parziale `(aggregate_id, aggregate_seq)` online come G5 (F4 non serviva), script
       `db/upgrade/es-events-aggregate-seq.sql`; versione letta nella stessa query della storia,
@@ -327,7 +337,11 @@ Le dipendenze sono indicate con `←`.
 - [x] A1 Via `log4j-core` (e le config log4j nei jar) e `okhttp`; librerie solo su SLF4J; `reflections`
       sostituita da ClassGraph (`ComponentScan`, stessa semantica), `javassist` dichiarata.
       `hibernate-validator` rimosso: nessun codice usava la bean validation
-- [ ] O2 Metrica di lag dei consumer
+- [x] O2 Metrica di lag dei consumer (2026-10-20): `evento.consumer.lag.seconds`, `.lag.events`
+      (CPES), `.position`, `.fetch.age.seconds`, dal fetch servito dal server (`ConsumerLagMetrics`).
+      Test: `ConsumerLagMetricsTest` (7, ha trovato un overflow); nel lab: projector fermo → 80 eventi
+      indietro e fetch di 44 s fa, a 0 dopo il riavvio. Trovato col lab: due costruttori senza
+      `@Autowired` impedivano l'avvio
 - [x] B1 Benchmark del tetto di append/s per cella (`benchmarks/axon-comparison`, risultati in
       `results/REPORT.md`). Dopo concorrenza ottimistica + group commit + executor 32/CPU (2026-10-20):
       una cella su un i7-6700K regge ~3900 cmd/s in CPES e in APES (create, 128 in volo, p99 ~60 ms;

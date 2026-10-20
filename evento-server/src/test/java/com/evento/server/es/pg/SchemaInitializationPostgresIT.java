@@ -92,6 +92,95 @@ class SchemaInitializationPostgresIT {
         }
     }
 
+    /** F4: the schema is versioned by Flyway; a second boot applies nothing. */
+    @Test
+    void aFreshDatabaseIsAtTheLatestSchemaVersionInFlywaysHistory() throws Exception {
+        PostgresItSupport.createDatabase(POSTGRES, "schema_flyway");
+        try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_flyway"), 2)) {
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+            var jdbc = new JdbcTemplate(ds);
+            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5");
+
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+            assertThat(appliedVersions(jdbc)).as("nothing applied twice").containsExactly("1", "2", "3", "4", "5");
+        }
+    }
+
+    /**
+     * F4: a database an earlier server created (tables and events, no Flyway history) is baselined
+     * at version 0 and taken to the latest version in place, its events kept.
+     */
+    @Test
+    void aDatabaseOfAnEarlierServerIsBaselinedAndMigratedInPlace() throws Exception {
+        PostgresItSupport.createDatabase(POSTGRES, "schema_baseline");
+        try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_baseline"), 2)) {
+            var jdbc = new JdbcTemplate(ds);
+            // What a 2.5 server leaves: the catalog and an es__events without the 2.6 columns.
+            createPreN1Catalog(jdbc);
+            jdbc.execute("""
+                    CREATE TABLE es__events (
+                        event_sequence_number bigint NOT NULL,
+                        context varchar(100) DEFAULT 'default',
+                        aggregate_id varchar(100) DEFAULT NULL,
+                        event_name varchar(100) NOT NULL,
+                        created_at timestamp NOT NULL default (now() at time zone 'utc'),
+                        event_message text NOT NULL,
+                        deleted_at timestamp DEFAULT NULL)""");
+            jdbc.update("insert into es__events (event_sequence_number, event_name, event_message) values (1, 'E', '{}')");
+
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+
+            assertThat(jdbc.queryForList("select version from " + HISTORY + " where type = 'BASELINE'", String.class))
+                    .containsExactly("0");
+            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5");
+            assertThat(primaryKeyColumns(jdbc)).containsExactly("event_sequence_number");
+            assertThat(jdbc.queryForObject("select count(*) from information_schema.columns "
+                    + "where table_name = 'es__events' and column_name = 'aggregate_seq'", Integer.class)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select count(*) from es__events", Integer.class)).isEqualTo(1);
+        }
+    }
+
+    /**
+     * F4: V2-V5 run outside a transaction, so one that fails half way stays recorded as failed.
+     * Each checks the state before acting, so the next boot repairs the history and runs it again
+     * instead of refusing to start until an operator runs {@code flyway repair}.
+     */
+    @Test
+    void aStepThatFailedHalfWayRunsAgainOnTheNextBoot() throws Exception {
+        PostgresItSupport.createDatabase(POSTGRES, "schema_failed_step");
+        try (var ds = PostgresItSupport.dataSource(POSTGRES, PostgresItSupport.jdbcUrl(POSTGRES, "schema_failed_step"), 2)) {
+            var jdbc = new JdbcTemplate(ds);
+            jdbc.execute("""
+                    CREATE TABLE es__events (
+                        event_sequence_number bigint NOT NULL,
+                        context varchar(100) DEFAULT 'default',
+                        aggregate_id varchar(100) DEFAULT NULL,
+                        event_name varchar(100) NOT NULL,
+                        created_at timestamp NOT NULL default (now() at time zone 'utc'),
+                        event_message text NOT NULL,
+                        deleted_at timestamp DEFAULT NULL)""");
+            jdbc.update("insert into es__events (event_sequence_number, event_name, event_message) values (7, 'E', '{}')");
+            jdbc.update("insert into es__events (event_sequence_number, event_name, event_message) values (7, 'E', '{}')");
+
+            assertThatThrownBy(() -> PostgresItSupport.initializer(ds, true).initializeDatabase())
+                    .hasStackTraceContaining("1 sequence number(s) are duplicated");
+            assertThat(jdbc.queryForList("select version from " + HISTORY + " where not success", String.class))
+                    .containsExactly("3");
+
+            jdbc.update("delete from es__events where ctid = (select min(ctid) from es__events where event_sequence_number = 7)");
+            PostgresItSupport.initializer(ds, true).initializeDatabase();
+            assertThat(appliedVersions(jdbc)).containsExactly("1", "2", "3", "4", "5");
+            assertThat(primaryKeyColumns(jdbc)).containsExactly("event_sequence_number");
+        }
+    }
+
+    private static final String HISTORY = com.evento.server.config.AdvisoryLockedSchemaInitializer.HISTORY_TABLE;
+
+    private static List<String> appliedVersions(JdbcTemplate jdbc) {
+        return jdbc.queryForList("select version from " + HISTORY
+                + " where success and type <> 'BASELINE' order by installed_rank", String.class);
+    }
+
     /**
      * G5: an event store created before idempotency keys gets the column and its partial unique
      * index on the first boot of the new version, with its rows kept (all outside the index), and

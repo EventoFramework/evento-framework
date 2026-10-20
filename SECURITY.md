@@ -4,7 +4,8 @@ Project home: [www.eventoframework.com](https://www.eventoframework.com/)
 
 ## Supported Versions
 
-Security fixes are provided for the currently maintained major release line.
+Security fixes are provided for the currently maintained major release line, on its latest minor
+release. Which versions work together and how to upgrade: [COMPATIBILITY.md](COMPATIBILITY.md).
 
 | Version | Supported |
 |---|---|

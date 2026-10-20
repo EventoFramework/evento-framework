@@ -1,8 +1,14 @@
 package com.evento.server.config;
 
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationInfo;
+import org.flywaydb.core.api.MigrationState;
+import org.flywaydb.core.api.migration.BaseJavaMigration;
+import org.flywaydb.core.api.migration.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.jdbc.autoconfigure.ApplicationDataSourceScriptDatabaseInitializer;
+import org.springframework.boot.sql.init.DatabaseInitializationMode;
 import org.springframework.boot.sql.init.DatabaseInitializationSettings;
 import org.springframework.dao.DataAccessResourceFailureException;
 
@@ -11,9 +17,19 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * Spring's SQL initializer ({@code schema.sql}, {@code spring.sql.init.mode=always}) run under a
- * PostgreSQL session advisory lock, followed by the event-store constraints that plain
- * {@code schema.sql} cannot express idempotently.
+ * The server's schema on PostgreSQL, with {@code spring.sql.init.mode=always}: Flyway migrations
+ * (F4) run under a PostgreSQL session advisory lock.
+ *
+ * <p><b>Flyway (2.6).</b> History in {@value #HISTORY_TABLE}, migrations in
+ * {@value #MIGRATIONS}: {@code V1__baseline_schema.sql} is the 2.6.0 schema (the old
+ * {@code schema.sql}, idempotent); V2-V5 are the online, conditional steps described below, as Java
+ * migrations ({@link V2__Catalog_component_identity}, {@link V3__Es_events_primary_key},
+ * {@link V4__Es_events_idempotency_key}, {@link V5__Es_events_aggregate_fence}); every later schema
+ * change is a new version. A database of an earlier server has no history: Flyway baselines it at
+ * version 0 and runs V1-V5, which find what is already there and add what is missing. V2-V5 run
+ * outside a transaction ({@code CREATE INDEX CONCURRENTLY}); one that failed half way (a lock
+ * timeout, a duplicate) is recorded as failed, and since each of them checks the state before
+ * acting, the next boot repairs the history and runs it again instead of refusing to start.
  *
  * <p><b>Why the lock.</b> Every server runs {@code schema.sql} on boot. When several start at
  * once (a cluster rollout, a region restart) the concurrent {@code CREATE ... IF NOT EXISTS},
@@ -71,7 +87,7 @@ import java.sql.SQLException;
  * ({@code server_version_num}) or later and refuses to boot on an older one, instead of failing
  * later on a statement the old server cannot parse.
  *
- * <p>On a non-PostgreSQL database it defers to the plain initializer.
+ * <p>On a non-PostgreSQL database it defers to the plain initializer ({@code schema.sql}).
  */
 public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScriptDatabaseInitializer {
 
@@ -83,6 +99,11 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
      * {@code PgDistributedLock} key.
      */
     public static final long SCHEMA_LOCK_KEY = 0x4576656E746F5363L;
+
+    /** Flyway's history table for the server schema (the consumer state store has its own). */
+    public static final String HISTORY_TABLE = "evento_es_schema_history";
+    /** Where the SQL migrations are. */
+    public static final String MIGRATIONS = "classpath:db/migration/evento-server";
 
     /** Name of the unique index built concurrently and then promoted to the primary key. */
     static final String ES_EVENTS_SEQ_INDEX = "es__events_seq_uidx";
@@ -116,12 +137,14 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
     public static final String IDEMPOTENCY_CLAIMS_TABLE = "es__idempotency_claims";
 
     private final boolean enforcePrimaryKey;
+    private final DatabaseInitializationMode mode;
 
     public AdvisoryLockedSchemaInitializer(DataSource dataSource,
                                            DatabaseInitializationSettings settings,
                                            boolean enforcePrimaryKey) {
         super(dataSource, settings);
         this.enforcePrimaryKey = enforcePrimaryKey;
+        this.mode = settings.getMode();
     }
 
     @Override
@@ -136,16 +159,19 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
             awaitSchemaLock(lockConnection);
             log.info("event=schema_init_lock_acquired waitMs={}", (System.nanoTime() - started) / 1_000_000);
             try {
-                boolean applied = super.initializeDatabase();
-                if (applied) {
-                    migrateComponentIdentity(lockConnection);
-                    applyEventStoreConstraints(lockConnection);
-                    applyIdempotencyKey(lockConnection);
-                    applyAggregateFence(lockConnection);
-                } else {
+                if (mode != DatabaseInitializationMode.ALWAYS) {
                     checkExternallyManagedSchema(lockConnection);
+                    return false;
                 }
-                return applied;
+                migrate();
+                // V3-V5 run once, but what they add is checked again on every boot, as before 2.6
+                // (a query or two when it is all there): the primary key skipped with
+                // evento.es.schema.enforce-primary-key=false is added once the property is true again,
+                // and an index or column removed by hand comes back.
+                applyEventStoreConstraints(lockConnection);
+                applyIdempotencyKey(lockConnection);
+                applyAggregateFence(lockConnection);
+                return true;
             } finally {
                 try {
                     advisory(lockConnection, "SELECT pg_advisory_unlock(?)");
@@ -156,6 +182,96 @@ public class AdvisoryLockedSchemaInitializer extends ApplicationDataSourceScript
             }
         } catch (SQLException e) {
             throw new DataAccessResourceFailureException("Schema initialisation failed: " + e.getMessage(), e);
+        }
+    }
+
+    /** The Flyway of the server schema; package-private for the tests. */
+    Flyway flyway() {
+        return Flyway.configure(getClass().getClassLoader())
+                .dataSource(getDataSource())
+                .locations(MIGRATIONS)
+                .table(HISTORY_TABLE)
+                // A database of a server before 2.6 has the tables but no history: version 0, so
+                // V1 (idempotent) and V2-V5 (conditional) still run on it.
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
+                .baselineDescription("schema of a server before 2.6")
+                .placeholderReplacement(false)
+                // Flyway's default lock keeps a transaction open for the whole run, and
+                // CREATE INDEX CONCURRENTLY (V3-V5) waits for it to end: it would wait for itself.
+                .configuration(java.util.Map.of("flyway.postgresql.transactional.lock", "false"))
+                .javaMigrations(new V2__Catalog_component_identity(), new V3__Es_events_primary_key(),
+                        new V4__Es_events_idempotency_key(), new V5__Es_events_aggregate_fence())
+                .load();
+    }
+
+    private void migrate() {
+        var flyway = flyway();
+        boolean failedBefore = false;
+        for (MigrationInfo info : flyway.info().all()) {
+            if (info.getState() == MigrationState.FAILED) {
+                // Only V2-V5 can fail half way (outside a transaction), and they redo what is missing.
+                log.warn("event=schema_migration_failed_before version={} description=\"{}\" action=repair_and_retry",
+                        info.getVersion(), info.getDescription());
+                failedBefore = true;
+            }
+        }
+        if (failedBefore) flyway.repair();
+        var result = flyway.migrate();
+        var current = flyway.info().current();
+        log.info("event=schema_migrated version={} applied={} table={}",
+                current == null ? null : current.getVersion(), result.migrationsExecuted, HISTORY_TABLE);
+    }
+
+    /**
+     * A conditional, online step as a Flyway migration: outside a transaction (it builds indexes
+     * {@code CONCURRENTLY} or manages its own), safe to run again.
+     */
+    private abstract class OnlineStep extends BaseJavaMigration {
+        @Override
+        public boolean canExecuteInTransaction() {
+            return false;
+        }
+
+        @Override
+        public void migrate(Context context) throws Exception {
+            var connection = context.getConnection();
+            if (!connection.getAutoCommit()) connection.setAutoCommit(true);
+            apply(connection);
+        }
+
+        abstract void apply(Connection connection) throws SQLException;
+    }
+
+    /** The N1 catalog re-key ({@link #migrateComponentIdentity}). */
+    final class V2__Catalog_component_identity extends OnlineStep {
+        @Override
+        void apply(Connection connection) throws SQLException {
+            migrateComponentIdentity(connection);
+        }
+    }
+
+    /** The {@code es__events} primary key ({@link #applyEventStoreConstraints}). */
+    final class V3__Es_events_primary_key extends OnlineStep {
+        @Override
+        void apply(Connection connection) throws SQLException {
+            applyEventStoreConstraints(connection);
+        }
+    }
+
+    /** Idempotency keys, G5 ({@link #applyIdempotencyKey}). */
+    final class V4__Es_events_idempotency_key extends OnlineStep {
+        @Override
+        void apply(Connection connection) throws SQLException {
+            applyIdempotencyKey(connection);
+        }
+    }
+
+    /** The aggregate fence, C1 ({@link #applyAggregateFence}). */
+    final class V5__Es_events_aggregate_fence extends OnlineStep {
+        @Override
+        void apply(Connection connection) throws SQLException {
+            applyAggregateFence(connection);
         }
     }
 

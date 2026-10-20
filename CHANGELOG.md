@@ -18,6 +18,12 @@ a revised payload needs a 2.6 broker.
 
 ### Upgrade notes
 
+- **The server schema is migrated by Flyway** (with `spring.sql.init.mode=always`, the shipped value). The
+  first 2.6 server creates the history table `evento_es_schema_history`, baselines an existing database at
+  version 0 and runs the migrations V1-V5, which find what is already there and add what is missing (the
+  primary key, idempotency key and aggregate fence of 2.5 and 2.6, online as before). Nothing to do; give the
+  server's database user the right to create that table. With `spring.sql.init.mode=never` nothing changes:
+  the server touches no schema and the scripts in `db/upgrade/` stay the way to apply it.
 - **Lock waiters may hold a lock-pool connection.** A command waiting for an aggregate held by another server now
   queues in PostgreSQL on a connection of the dedicated lock pool (at most half of it; the rest poll as before),
   so servers take turns on a hot aggregate. Size `evento.lock.pool.maximum-size` for the locks held at once plus
@@ -142,6 +148,23 @@ a revised payload needs a 2.6 broker.
   rests on the database fence, so it holds across servers and cells with no coordination between servers. The
   lock check before a fenced append (`verifyHeld`) is gone too. Metrics: `evento.server.commands.optimistic`,
   `evento.server.commands.fence.retries`.
+- **Compatibility policy** ([`COMPATIBILITY.md`](COMPATIBILITY.md)): semantic versioning for the whole
+  framework, what a patch, minor and major may change (wire changes only behind capabilities, additive schema
+  migrations, deprecation before removal), servers N with bundles N and N-1, servers first then bundles,
+  rollback of a server to the previous minor, platforms, and the support window.
+- **Versioned schema migrations with Flyway (F4).** The event store and catalog schema is a sequence of
+  Flyway migrations (`classpath:db/migration/evento-server`, history `evento_es_schema_history`), run at boot
+  under the schema advisory lock, so several servers starting together still migrate once. V1 is the 2.6.0
+  schema; the online steps (catalog re-key, primary key, idempotency key, aggregate fence) are V2-V5, outside
+  a transaction (`CREATE INDEX CONCURRENTLY`), and one that failed half way runs again on the next boot
+  instead of blocking it. Later schema changes are new versions.
+- **Consumer lag metrics (O2)**, from the server's answer to every consumer fetch, tagged
+  `bundle,component,context`: `evento.consumer.lag.seconds` (age of the oldest event not processed yet,
+  growing while a consumer is stuck: the one to alert on), `evento.consumer.lag.events` (CPES: newest
+  sequence number minus the consumer's position), `evento.consumer.position` and
+  `evento.consumer.fetch.age.seconds` (a consumer that stopped). Series of consumers that no longer fetch
+  through the server go away after `evento.consumer.lag.expiry` (15 minutes); across servers, take the
+  `min by (bundle, component, context)`.
 - **Group commit of aggregate appends.** Appends that arrive together are written in one statement and one
   transaction (`AppendBatcher`): under CPES the batch takes `es-lock` once and its events get consecutive
   sequence numbers committed together, so the commit order is still the sequence order. CPES appended one event

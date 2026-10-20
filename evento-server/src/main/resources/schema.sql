@@ -1,3 +1,6 @@
+-- Only for databases other than PostgreSQL (Spring's plain SQL initializer). On PostgreSQL the schema is
+-- managed by Flyway: db/migration/evento-server. Frozen at 2.6.0 like V1__baseline_schema.sql.
+
 create table if not exists core__bundle
 (
     id                     varchar(255) not null

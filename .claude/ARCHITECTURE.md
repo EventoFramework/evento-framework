@@ -537,7 +537,25 @@ id is `bundleId_Component_version_context`, so one bundle id run by several inst
 different contexts lists every lane and a leaving instance removes only its own
 (`clearInstance`). Catalogs created before this are re-keyed in place, once, by
 `AdvisoryLockedSchemaInitializer` (one transaction under the schema lock,
-`event=catalog_component_rekeyed`) when Boot runs `schema.sql` (`spring.sql.init.mode=always`).
+`event=catalog_component_rekeyed`) when the server manages the schema (`spring.sql.init.mode=always`).
+
+**Schema migrations (F4, 2.6).** On PostgreSQL with `spring.sql.init.mode=always` the schema is
+Flyway's: history in `evento_es_schema_history`, `db/migration/evento-server/V1__baseline_schema.sql`
+(the 2.6.0 schema, idempotent; never edited, Flyway checks its checksum), then V2-V5 as Java
+migrations inside `AdvisoryLockedSchemaInitializer` (catalog re-key, `es__events` primary key,
+idempotency key, aggregate fence: the online, conditional steps, outside a transaction). A
+database of an earlier server has no history and is baselined at version 0, so V1-V5 run on it and
+add what is missing. Every later schema change is a new version (V6, ...). Details that matter:
+the run stays under the schema advisory lock (2.5 servers in a rolling upgrade take the same one);
+`flyway.postgresql.transactional.lock=false`, because Flyway's default lock keeps a transaction
+open and `CREATE INDEX CONCURRENTLY` would wait for it (a hang reproduced in the IT before the
+fix); a V2-V5 that failed half way is repaired and run again on the next boot instead of blocking
+it; `applyEventStoreConstraints` also runs after every migrate, so the primary key skipped with
+`evento.es.schema.enforce-primary-key=false` is added once the property is true again.
+`schema.sql` remains only for databases other than PostgreSQL. With `spring.sql.init.mode=never`
+the server changes nothing and only checks (`db/upgrade/*.sql` for DBAs). Tests:
+`SchemaInitializationPostgresIT` (fresh database at version 5, earlier server's database baselined
+and migrated in place, failed step run again, concurrency, duplicates, pre-N1 catalog).
 With the schema managed outside the server the boot fails on a pre-N1 catalog, naming the shipped
 script `classpath:db/upgrade/n1-component-id.sql`; a missing `es__events` primary key is only
 warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses PostgreSQL older than 12. REST/GUI identify a component by `componentId`;
@@ -556,6 +574,8 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `evento.lock.acquire.timeout.ms` (`EVENTO_LOCK_ACQUIRE_TIMEOUT_MS`; `-D` system property as fallback) | 60000 | Bound on any lock wait |
 | `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7). Not independent: boot fails when stale-after <= heartbeat and warns below 3 x heartbeat; the heartbeat has its own scheduler thread (`spring.task.scheduling.pool.size=2`) so the hourly telemetry sweep cannot delay it |
 | `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
+| `spring.sql.init.mode` | `always` (shipped) | `always`: the server migrates the schema with Flyway (`evento_es_schema_history`); `never`: the schema is the DBA's (`db/upgrade/*.sql`), the server only checks |
+| `evento.consumer.lag.expiry` | PT15M | Consumer lag series not fetched for this long are dropped (O2) |
 | `evento.es.mode` | `CPES` (code and shipped, since 2.6) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: **deprecated** (§4.6 "Choosing CPES or APES"); an APES store switches by restarting every server in CPES |
 | `evento.es.fetch.delay` | 69 | APES only: consumers read ids older than this (ms); must exceed the worst id-to-commit time plus clock skew |
 | `evento.server.commands.optimistic` | true | Aggregate commands run without the lock on a fencing store, under it after a conflict (§4.6) |
@@ -1234,6 +1254,19 @@ explorative read-only pivot.)
     — tagged `bundle,instance,consumer,component`.
   - Meters are removed on `BusEvent.NodeLeft`, so rolling restarts do not leak a series per
     dead instance. Bundles with no consumer executor push nothing at all.
+- **Consumer lag (O2)** — `ConsumerLagMetrics` (`com.evento.server.es`), fed by the answer to
+  every `EventFetchRequest` (`EventStoreRequestHandlerBridge`), tagged `bundle,component,context`:
+  - `evento.consumer.lag.seconds`: age of the oldest unprocessed event (the first one the last
+    fetch returned; 0 when it returned nothing), computed at scrape time so it grows while a
+    consumer is stuck. `created_at` is read as UTC wall time, whatever the JVM's zone.
+  - `evento.consumer.lag.events` (CPES only): store head (read at most once a second) minus the
+    position; counts every context, an upper bound for a one-context consumer.
+  - `evento.consumer.position`, `evento.consumer.fetch.age.seconds` (a consumer that stopped
+    after an empty fetch keeps `lag.seconds` at 0; this and `lag.events` show it).
+  - A series nobody fetched for `evento.consumer.lag.expiry` (15 min) reads NaN and is removed at
+    the next fetch. Across servers aggregate with `min by (bundle,component,context)`. Tests:
+    `ConsumerLagMetricsTest`; verified in the lab (projector stopped: fetch age and 80 events
+    behind, back to 0 after restart).
 - **Health** — `BusHealthIndicator` reports the bus bound-port + node counts on
   `/actuator/health`; liveness/readiness probes enabled. DataSource health via Actuator's
   built-in indicator.

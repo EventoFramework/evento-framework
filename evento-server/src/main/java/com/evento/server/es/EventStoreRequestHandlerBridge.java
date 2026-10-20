@@ -28,6 +28,7 @@ public class EventStoreRequestHandlerBridge {
 
     public EventStoreRequestHandlerBridge(BusLifecycle lifecycle,
                                           EventStore eventStore,
+                                          ConsumerLagMetrics lag,
                                           @Value("${evento.es.fetch.concurrency:4}")
                                           int fetchConcurrency,
                                           @Value("${evento.es.fetch.max.age.ms:30000}")
@@ -66,6 +67,8 @@ public class EventStoreRequestHandlerBridge {
                         fetchReq.getContext(),
                         fetchReq.getLastSequenceNumber(),
                         fetchReq.getLimit());
+                lag.fetched(eventoRequest.getSourceBundleId(), fetchReq.getComponentName(), fetchReq.getContext(),
+                        fetchReq.getLastSequenceNumber(), entries.isEmpty() ? null : entries.getFirst().getCreatedAt());
                 var published = entries.stream()
                         .map(com.evento.server.es.eventstore.EventStoreEntry::toPublishedEvent)
                         .collect(Collectors.toCollection(ArrayList::new));
