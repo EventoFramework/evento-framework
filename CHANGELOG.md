@@ -265,6 +265,12 @@ a revised payload needs a 2.6 broker.
   `IllegalStateException: Invalid System Clock!` whenever the system clock was a millisecond behind the last id
   (NTP, a virtual machine's time sync), and the command being stored failed. Ids now go on from the last one issued
   until the clock catches up. Found by the same benchmark (a few commands a minute on WSL2).
+- **A server could starve another one on a contended lock.** Waiting for a lock held by another server polled
+  `pg_try_advisory_lock` with a backoff of up to 200 ms, while the holder handed the key to its next local command
+  within a round trip: with two servers on one hot aggregate, one served ~50 commands a second and the other 0-20,
+  with waits up to the 30 s timeout. A waiter now queues in PostgreSQL (`pg_advisory_lock` under a `lock_timeout`),
+  which grants the key to the first in line, so servers take turns; at most half the dedicated lock pool queues at
+  once, the rest of the waiters poll as before. Found by the HA benchmark B2 (`benchmarks/axon-comparison`).
 - The web console logged the user out on any 403: a user without `ADMIN` (normal with OIDC groups) who tried a
   dead-event action was sent back to the login page. Only 401 signs out now; a refused action shows "This
   action needs the ADMIN role.", and the retry toggle flips back.
