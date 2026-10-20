@@ -381,6 +381,72 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
         this.appendMaxBatch = maxBatch;
     }
 
+    /**
+     * Where consumers' fetches read (G21): a PostgreSQL replica close to the server, configured with
+     * {@code evento.es.read.datasource.url} (and {@code .username}, {@code .password},
+     * {@code .maximum-pool-size}, default 10). Under CPES a replica holds a prefix of the commits in
+     * order and the sequence order is the commit order, so a consumer reading there never skips an
+     * event: it only sees them later, by the replication lag. Aggregate stories, keys, appends and
+     * the head stay on the primary (the fence must see the latest version). Under APES a replica is
+     * not used: an event the replica has not replayed yet, behind the fetch delay, would be skipped.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void configureReadDataSource(@Value("${evento.es.read.datasource.url:}") String url,
+                                        @Value("${evento.es.read.datasource.username:}") String username,
+                                        @Value("${evento.es.read.datasource.password:}") String password,
+                                        @Value("${evento.es.read.datasource.maximum-pool-size:10}") int poolSize) {
+        if (url == null || url.isBlank()) return;
+        if (MODE != EventStoreMode.CPES) {
+            logger.warn("event=read_datasource_ignored mode={} reason=\"under APES a replica behind the fetch "
+                    + "delay would make consumers skip events; fetches stay on the primary\"", MODE);
+            return;
+        }
+        var config = new com.zaxxer.hikari.HikariConfig();
+        config.setPoolName("evento-es-read");
+        config.setJdbcUrl(url);
+        if (username != null && !username.isBlank()) config.setUsername(username);
+        if (password != null && !password.isEmpty()) config.setPassword(password);
+        config.setMaximumPoolSize(Math.max(1, poolSize));
+        config.setMinimumIdle(Math.min(2, Math.max(1, poolSize)));
+        config.setReadOnly(true);
+        var pool = new com.zaxxer.hikari.HikariDataSource(config);
+        this.readPool = pool;
+        this.readJdbc = new JdbcTemplate(pool);
+        logger.info("event=read_datasource_configured url={} poolSize={}", url, poolSize);
+    }
+
+    private volatile com.zaxxer.hikari.HikariDataSource readPool;
+    private volatile JdbcTemplate readJdbc;
+
+    private static final String READ_FETCH_SQL =
+            "SELECT event_sequence_number, context, aggregate_id, created_at, event_message, event_name, deleted_at "
+                    + "FROM es__events WHERE context LIKE ? ESCAPE '!' AND event_sequence_number > ? "
+                    + "ORDER BY event_sequence_number LIMIT ?";
+    private static final String READ_FETCH_NAMES_SQL =
+            "SELECT event_sequence_number, context, aggregate_id, created_at, event_message, event_name, deleted_at "
+                    + "FROM es__events WHERE context LIKE ? ESCAPE '!' AND event_sequence_number > ? "
+                    + "AND event_name = ANY (?) ORDER BY event_sequence_number LIMIT ?";
+
+    private static final com.evento.server.config.JsonConverter EVENT_JSON = new com.evento.server.config.JsonConverter();
+
+    private static EventStoreEntry readEntry(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
+        var e = new EventStoreEntry();
+        e.setEventSequenceNumber(rs.getLong(1));
+        e.setContext(rs.getString(2));
+        e.setAggregateId(rs.getString(3));
+        e.setCreatedAt(rs.getTimestamp(4));
+        e.setEventMessage((com.evento.common.modeling.messaging.message.application.EventMessage<?>)
+                EVENT_JSON.convertToEntityAttribute(rs.getString(5)));
+        e.setEventName(rs.getString(6));
+        e.setDeletedAt(rs.getTimestamp(7));
+        return e;
+    }
+
+    /** Whether consumers' fetches read from a replica (G21). */
+    public boolean readsFromReplica() {
+        return readJdbc != null;
+    }
+
     /** The running batcher, started on the first append; {@code null} when group commit is off. */
     private AppendBatcher appendBatcher() {
         var batcher = appendBatcher;
@@ -413,6 +479,8 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
     public void close() {
         var batcher = appendBatcher;
         if (batcher != null) batcher.close();
+        var pool = readPool;
+        if (pool != null) pool.close();
     }
 
     public Page<EventStoreEntry> searchEvents(String aggregateIdentifier,
@@ -515,6 +583,10 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit) {
         if (seq == null) seq = -1L;
+        var replica = readJdbc;
+        if (replica != null) {
+            return replica.query(READ_FETCH_SQL, EventStore::readEntry, contextLikePattern(context), seq, limit);
+        }
         if (MODE == EventStoreMode.CPES) {
             return eventStoreRepository.fetchEvents(
                     contextLikePattern(context),
@@ -528,6 +600,23 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
 
     public List<EventStoreEntry> fetchEvents(String context, Long seq, int limit, List<String> eventNames) {
         if (seq == null) seq = -1L;
+        var replica = readJdbc;
+        if (replica != null) {
+            final long from = seq;
+            return replica.execute((org.springframework.jdbc.core.ConnectionCallback<List<EventStoreEntry>>) c -> {
+                try (var ps = c.prepareStatement(READ_FETCH_NAMES_SQL)) {
+                    ps.setString(1, contextLikePattern(context));
+                    ps.setLong(2, from);
+                    ps.setArray(3, c.createArrayOf("text", eventNames.toArray()));
+                    ps.setInt(4, limit);
+                    var out = new java.util.ArrayList<EventStoreEntry>();
+                    try (var rs = ps.executeQuery()) {
+                        while (rs.next()) out.add(readEntry(rs, out.size()));
+                    }
+                    return out;
+                }
+            });
+        }
         if (MODE == EventStoreMode.CPES) {
             return eventStoreRepository.fetchEvents(
                     contextLikePattern(context),
