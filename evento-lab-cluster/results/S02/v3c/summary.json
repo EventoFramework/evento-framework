@@ -1,0 +1,301 @@
+{
+  "scenario" : "S02",
+  "title" : "Kill one handler replica inside a cell",
+  "gaps" : [ "intra-server failover baseline" ],
+  "label" : "v3c",
+  "startedAt" : "2026-10-22T12:53:45.602604600Z",
+  "finishedAt" : "2026-10-22T12:55:21.872328600Z",
+  "durationSeconds" : 96,
+  "parameters" : {
+    "orderIdPrefix" : "s02-v3c-2deb82-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "load" : {
+      "regions" : [ "EUROPA", "AFRICA" ],
+      "ratePerMinutePerRegion" : 60.0,
+      "completeRatio" : 0.5,
+      "itemsPerOrder" : 2,
+      "durationSeconds" : 70
+    }
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 3
+  },
+  "observations" : [ {
+    "name" : "new commands go to the surviving replica",
+    "expected" : "commands sent >= 5 s after the kill are acknowledged (RANDOM pick among available nodes)",
+    "expectedBeforeFix" : null,
+    "observed" : "100,0% of 323 acknowledged; failures {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "in-flight commands on the killed replica",
+    "expected" : "fail promptly with 'peer disconnected' (the outcome is indeterminate)",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 2 failed, kinds {}, 0 only after > 25 s",
+    "verdict" : "AS_EXPECTED",
+    "note" : "A failure that surfaces only after ~30 s is the request-timeout path, not a disconnect notification."
+  }, {
+    "name" : "I1 holds for acknowledged orders",
+    "expected" : "no acknowledged command lost",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 496 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 496 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 140,
+      "acknowledgedOps" : 496,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 140 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 140,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "observed" : "0 foreign row(s) in 140",
+    "metrics" : {
+      "EU.rows" : 140,
+      "EU.byContext" : {
+        "AFRICA" : 70,
+        "EUROPA" : 70
+      },
+      "AM.rows" : 0,
+      "AM.byContext" : { },
+      "APAC.rows" : 0,
+      "APAC.byContext" : { },
+      "rows" : 140
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 140,
+      "regionalRows" : 140,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 120 s",
+    "observed" : "converged in 396 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.396,
+      "timeoutSeconds" : 120,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 600,
+      "checkpoints" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 28,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 21,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 28,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 21,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 10,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 10,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 0,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 0,
+        "EU/order-observer_NotificationObserver_1_*" : 600,
+        "EU/order-query_OrderProjector_1_*" : 600,
+        "EU/order-query_OrderProjector_1_AFRICA" : 600,
+        "EU/order-query_OrderProjector_1_EUROPA" : 599,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 600,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 599
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-am",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=496 ack=496 failed=0 p50=165ms p95=197ms p99=275ms max=310ms",
+    "metrics" : {
+      "AFRICA" : {
+        "count" : 251,
+        "acked" : 251,
+        "failed" : 0,
+        "p50" : 169,
+        "p95" : 199,
+        "p99" : 239,
+        "max" : 303,
+        "kinds" : { }
+      },
+      "EUROPA" : {
+        "count" : 245,
+        "acked" : 245,
+        "failed" : 0,
+        "p50" : 131,
+        "p95" : 195,
+        "p99" : 275,
+        "max" : 310,
+        "kinds" : { }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "inFlightAtKill" : 2,
+    "inFlightFailedKinds" : { },
+    "latencyAfterKill" : {
+      "count" : 323,
+      "acked" : 323,
+      "failed" : 0,
+      "p50" : 165,
+      "p95" : 190,
+      "p99" : 233,
+      "max" : 310,
+      "kinds" : { }
+    },
+    "latencyBeforeKill" : {
+      "count" : 135,
+      "acked" : 135,
+      "failed" : 0,
+      "p50" : 168,
+      "p95" : 208,
+      "p99" : 292,
+      "max" : 303,
+      "kinds" : { }
+    },
+    "failedRequestsByError" : { },
+    "consumerLagAfterConvergenceWait" : {
+      "esHead" : 600,
+      "lag" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 572,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 579,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 572,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 579,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 590,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 590,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 600,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 600,
+        "EU/order-observer_NotificationObserver_1_*" : 0,
+        "EU/order-query_OrderProjector_1_*" : 0,
+        "EU/order-query_OrderProjector_1_AFRICA" : 0,
+        "EU/order-query_OrderProjector_1_EUROPA" : 1,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 0,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 1
+      }
+    },
+    "logMarkers" : {
+      "evento-eu" : {
+        "Skipping unregister of bundle" : 1
+      },
+      "order-command-eu-b" : { }
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 8939,
+    "at" : "2026-10-22T12:53:54.542108700Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 9754,
+    "at" : "2026-10-22T12:53:55.357071300Z",
+    "event" : "order-command-eu-b ready=true"
+  }, {
+    "tMs" : 9757,
+    "at" : "2026-10-22T12:53:55.360072500Z",
+    "event" : "load start [EUROPA, AFRICA] @60.0/min for 70 s"
+  }, {
+    "tMs" : 30210,
+    "at" : "2026-10-22T12:54:15.813114300Z",
+    "event" : "killed order-command-eu"
+  }, {
+    "tMs" : 80645,
+    "at" : "2026-10-22T12:55:06.247826Z",
+    "event" : "load done: 496 requests"
+  }, {
+    "tMs" : 80653,
+    "at" : "2026-10-22T12:55:06.255826300Z",
+    "event" : "invariants: converging up to 120 s"
+  }, {
+    "tMs" : 81612,
+    "at" : "2026-10-22T12:55:07.215490600Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 96269,
+    "at" : "2026-10-22T12:55:21.871722100Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: evento-eu" : [ "20261022125415567 INFO  1 --- [evento-leave-cleanup                    ] AutoDiscoveryService                     : Skipping unregister of bundle order-command: another live instance is connected" ],
+    "stack actions" : [ "2026-10-22T12:53:54.547109600Z compose --profile replica up -d --no-deps order-command-eu-b", "2026-10-22T12:54:15.382702200Z docker kill order-command-eu", "2026-10-22T12:55:07.290484700Z docker start order-command-eu (restore)", "2026-10-22T12:55:18.694323Z compose rm -sf order-command-eu-b" ]
+  }
+}

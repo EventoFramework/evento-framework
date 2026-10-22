@@ -1,0 +1,85 @@
+{
+  "scenario" : "S01",
+  "title" : "Cross-cell routing miss",
+  "gaps" : [ "G1" ],
+  "label" : "v3e",
+  "startedAt" : "2026-10-22T15:50:50.291525200Z",
+  "finishedAt" : "2026-10-22T15:51:24.602747300Z",
+  "durationSeconds" : 34,
+  "parameters" : {
+    "orderIdPrefix" : "s01-v3e-aac993-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok"
+  },
+  "verdictCounts" : {
+    "KNOWN_DEFECT_REPRODUCED" : 1,
+    "AS_EXPECTED" : 2
+  },
+  "observations" : [ {
+    "name" : "AMERICA command with no handler in its cell",
+    "expected" : "routed to a live handler in EU or APAC and acknowledged (needs the G1 server mesh)",
+    "expectedBeforeFix" : "fails immediately with 'no handler for CreateOrderCommand'",
+    "observed" : "0/5 acknowledged; 5 no_handler; kinds {no_handler=5}",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : "The cell architecture exists because of this: every cell must host a full handler set."
+  }, {
+    "name" : "EUROPA control",
+    "expected" : "unaffected: all acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "5/5",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "failure is immediate",
+    "expected" : "a routing miss fails fast (< 2 s), not after a timeout",
+    "expectedBeforeFix" : null,
+    "observed" : "max latency 113 ms",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "americaKinds" : {
+      "no_handler" : 5
+    },
+    "americaErrors" : [ "no handler for CreateOrderCommand" ],
+    "americaMaxLatencyMs" : 113,
+    "logMarkers" : {
+      "evento-am" : { },
+      "gateway-america" : {
+        "no handler for" : 5,
+        "event=gateway_command_failed" : 5
+      }
+    },
+    "americaRecoveredAfterRestartSeconds" : 0.595
+  },
+  "timeline" : [ {
+    "tMs" : 8353,
+    "at" : "2026-10-22T15:50:58.645377700Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 9037,
+    "at" : "2026-10-22T15:50:59.329145Z",
+    "event" : "stopped order-command-am"
+  }, {
+    "tMs" : 20271,
+    "at" : "2026-10-22T15:51:10.562874900Z",
+    "event" : "sent 5 CreateOrder from AMERICA and EUROPA"
+  }, {
+    "tMs" : 20459,
+    "at" : "2026-10-22T15:51:10.750859900Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 34311,
+    "at" : "2026-10-22T15:51:24.602747300Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: gateway-america" : [ "2026-10-22T15:51:09.445Z  WARN 1 --- [order-gateway] [mcat-handler-46] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-v3e-aac993-america-1 region=AMERICA kind=no_handler latencyMs=25 idempotencyKey=2f0bc728-3050-4b94-9d76-144a5112c38b error=no handler for CreateOrderCommand", "2026-10-22T15:51:09.793Z  WARN 1 --- [order-gateway] [mcat-handler-47] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-v3e-aac993-america-3 region=AMERICA kind=no_handler latencyMs=3 idempotencyKey=cbed5f90-47bc-4984-be80-1abf1edceb45 error=no handler for CreateOrderCommand", "2026-10-22T15:51:10.050Z  WARN 1 --- [order-gateway] [mcat-handler-48] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-v3e-aac993-america-5 region=AMERICA kind=no_handler latencyMs=3 idempotencyKey=3b186d24-ed0d-49fe-a903-3057af6c52e0 error=no handler for CreateOrderCommand", "2026-10-22T15:51:09.445Z  WARN 1 --- [order-gateway] [mcat-handler-46] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-v3e-aac993-america-1 region=AMERICA kind=no_handler latencyMs=25 idempotencyKey=2f0bc728-3050-4b94-9d76-144a5112c38b error=no handler for CreateOrderCommand", "2026-10-22T15:51:09.793Z  WARN 1 --- [order-gateway] [mcat-handler-47] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-v3e-aac993-america-3 region=AMERICA kind=no_handler latencyMs=3 idempotencyKey=cbed5f90-47bc-4984-be80-1abf1edceb45 error=no handler for CreateOrderCommand", "2026-10-22T15:51:10.050Z  WARN 1 --- [order-gateway] [mcat-handler-48] c.e.l.c.gateway.OrderGatewayController   : event=gateway_command_failed op=create orderId=s01-v3e-aac993-america-5 region=AMERICA kind=no_handler latencyMs=3 idempotencyKey=3b186d24-ed0d-49fe-a903-3057af6c52e0 error=no handler for CreateOrderCommand" ],
+    "stack actions" : [ "2026-10-22T15:50:58.650374Z docker stop order-command-am", "2026-10-22T15:51:10.828803600Z docker start order-command-am (restore)" ]
+  }
+}

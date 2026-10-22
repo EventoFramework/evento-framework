@@ -1,0 +1,148 @@
+# S05: Concurrent same-aggregate commands from two cells
+
+- Label: `v3c`
+- Gaps exercised: G3, G6, G9
+- Started: 2026-10-22T13:08:00.335009700Z, finished: 2026-10-22T13:08:45.314177400Z (44 s)
+- Verdicts: {AS_EXPECTED=4}
+
+## Parameters
+
+- orderIdPrefix: `s05-v3c-fda5a3-`
+- composeFile: `D:\Gabor\DIDATTICA\UNI\TESI_MAGISTRALE\evento\evento-lab-cluster\docker\compose.yaml`
+- servicesNotReadyAtStart: `[]`
+- placementRestoredAtStart: `{}`
+- lbRoutingAtStart: `ok`
+- wanTowardsEsPrimary: `[am-to-es-pg-eu=[wan-latency-up{latency=40, jitter=5}, wan-latency-down{latency=40, jitter=5}], apac-to-es-pg-eu=[wan-latency-up{latency=75, jitter=5}, wan-latency-down{latency=75, jitter=5}]]`
+
+## Observed vs expected
+
+| Observation | Verdict | Expected (correct system) | Expected before fix | Observed |
+|---|---|---|---|---|
+| contended command latency | **AS_EXPECTED** | bounded by lock hand-off + WAN RTT: p99 well under 5 s | p99 ~ 30 s stalls (one pinned lock connection per server, G3), possibly a cross-server deadlock | n=120 ack=120 failed=0 p50=504ms p95=1964ms p99=3144ms max=6524ms |
+| cross-server advisory-lock deadlock | **AS_EXPECTED** | no deadlock: each lock waiter holds nothing else | all threads of a server share one pinned lock session (G3), so two servers can form a wait cycle on unrelated keys | 0 'deadlock detected' on the servers; failed commands {} |
+| no aggregate fork (I3) | **AS_EXPECTED** | every story is valid under the aggregate's rules; sequence numbers unique | a lost advisory lock lets two servers append from one story (G3 + G6) | 0 of 2 aggregates invalid |
+| items stored = items acknowledged (I1, I2) | **AS_EXPECTED** | no loss, no duplicate |  | 0 of 120 acknowledged ops missing; 0 unacknowledged ops were stored anyway \| no duplicates |
+
+- _cross-server advisory-lock deadlock_: Postgres breaks the cycle after deadlock_timeout (1 s) by failing one pg_advisory_lock: the command fails fast instead of stalling.
+
+## Invariants
+
+| Id | Invariant | Status | Expected | Observed |
+|---|---|---|---|---|
+| I1 | no lost events | **PASS** | every 2xx-acknowledged command has its event in es__events | 0 of 120 acknowledged ops missing; 0 unacknowledged ops were stored anyway |
+| I2 | no duplicate events or side effects | **PASS** | one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1 | no duplicates |
+| I3 | no aggregate fork | **PASS** | every story is valid under the aggregate's rules; sequence numbers unique | 0 of 2 aggregates invalid |
+| I4 | regional isolation | **PASS** | order_view of each cell database contains only that cell's contexts | 0 foreign row(s) in 2 |
+| I5 | global completeness | **PASS** | order_view_global = union of the cells' order_view (same ids, status, item count, context) | 0 missing in global, 0 missing regionally, 0 mismatched |
+| I6 | convergence | **PASS** | read models reach the event store's state within 120 s | converged in 486 ms |
+| I7 | catalog matches live bundles | **PASS** | core__bundle / core__handler / core__consumer list every live bundle, handler and consumer | 0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows |
+| I8 | command latency per region | **OBSERVED** | recorded as a baseline (p50/p95/p99), not a pass/fail | n=120 ack=120 failed=0 p50=504ms p95=1964ms p99=3144ms max=6524ms |
+
+## Metrics
+
+```json
+{
+  "latencyByRegion" : {
+    "CINA" : {
+      "count" : 60,
+      "acked" : 60,
+      "failed" : 0,
+      "p50" : 979,
+      "p95" : 1997,
+      "p99" : 6524,
+      "max" : 6524,
+      "kinds" : { }
+    },
+    "EUROPA" : {
+      "count" : 60,
+      "acked" : 60,
+      "failed" : 0,
+      "p50" : 237,
+      "p95" : 975,
+      "p99" : 1031,
+      "max" : 1031,
+      "kinds" : { }
+    }
+  },
+  "latencyAll" : {
+    "count" : 120,
+    "acked" : 120,
+    "failed" : 0,
+    "p50" : 504,
+    "p95" : 1964,
+    "p99" : 3144,
+    "max" : 6524,
+    "kinds" : { }
+  },
+  "maxAdvisoryLockWaiters" : 1,
+  "logMarkers" : {
+    "evento-eu" : { },
+    "evento-apac" : { }
+  },
+  "failedRequestsByError" : { },
+  "consumerLagAfterConvergenceWait" : {
+    "lag" : {
+      "AM/order-saga_PaymentSaga_1_AMERICA" : 135,
+      "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 135,
+      "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 135,
+      "APAC/order-saga_PaymentSaga_1_CINA" : 135,
+      "APAC/order-saga_PaymentSaga_1_INDIA" : 135,
+      "EU/order-observer_NotificationObserver_1_*" : 0,
+      "EU/order-query_OrderProjector_1_*" : 0,
+      "EU/order-query_OrderProjector_1_EUROPA" : 0,
+      "EU/order-saga_PaymentSaga_1_AFRICA" : 135,
+      "EU/order-saga_PaymentSaga_1_EUROPA" : 0
+    },
+    "esHead" : 135
+  }
+}
+```
+
+## Timeline
+
+- +8,8 s: scenario start
+- +9,5 s: hot orders [s05-v3c-fda5a3-hot-europa-1, s05-v3c-fda5a3-hot-europa-2]
+- +9,5 s: contention start: [EUROPA, CINA] x 2 workers x 30
+- +42,0 s: contention done: 120 commands
+- +42,2 s: invariants: converging up to 120 s
+- +43,1 s: cleanup start
+- +45,0 s: cleanup done
+
+### pg_locks samples (es-pg-eu)
+
+```
+2026-10-22T13:08:10.112149400Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:11.297663300Z granted/waiting/lockWaiters=5/1/1
+2026-10-22T13:08:12.508169500Z granted/waiting/lockWaiters=5/1/1
+2026-10-22T13:08:13.734746400Z granted/waiting/lockWaiters=6/1/1
+2026-10-22T13:08:15.009302Z granted/waiting/lockWaiters=6/0/0
+2026-10-22T13:08:16.235437600Z granted/waiting/lockWaiters=7/1/1
+2026-10-22T13:08:17.445508800Z granted/waiting/lockWaiters=9/1/1
+2026-10-22T13:08:18.721593700Z granted/waiting/lockWaiters=8/1/1
+2026-10-22T13:08:19.943901900Z granted/waiting/lockWaiters=8/1/1
+2026-10-22T13:08:21.123264900Z granted/waiting/lockWaiters=7/1/1
+2026-10-22T13:08:22.317841900Z granted/waiting/lockWaiters=6/0/0
+2026-10-22T13:08:23.468035300Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:24.670904900Z granted/waiting/lockWaiters=7/0/0
+2026-10-22T13:08:25.851296100Z granted/waiting/lockWaiters=3/0/0
+2026-10-22T13:08:27.028899200Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:28.217495100Z granted/waiting/lockWaiters=5/0/0
+2026-10-22T13:08:29.407113500Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:30.601880200Z granted/waiting/lockWaiters=7/0/0
+2026-10-22T13:08:31.775239600Z granted/waiting/lockWaiters=3/0/0
+2026-10-22T13:08:32.955282500Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:34.160304900Z granted/waiting/lockWaiters=3/0/0
+2026-10-22T13:08:35.349132700Z granted/waiting/lockWaiters=5/0/0
+2026-10-22T13:08:36.536650Z granted/waiting/lockWaiters=3/0/0
+2026-10-22T13:08:37.703501200Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:38.890380Z granted/waiting/lockWaiters=7/0/0
+2026-10-22T13:08:40.066591100Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:41.271672500Z granted/waiting/lockWaiters=4/0/0
+2026-10-22T13:08:42.370073500Z granted/waiting/lockWaiters=
+```
+
+### stack actions
+
+```
+```
+

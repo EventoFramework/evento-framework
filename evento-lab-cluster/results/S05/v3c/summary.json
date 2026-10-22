@@ -1,0 +1,298 @@
+{
+  "scenario" : "S05",
+  "title" : "Concurrent same-aggregate commands from two cells",
+  "gaps" : [ "G3", "G6", "G9" ],
+  "label" : "v3c",
+  "startedAt" : "2026-10-22T13:08:00.335009700Z",
+  "finishedAt" : "2026-10-22T13:08:45.314177400Z",
+  "durationSeconds" : 44,
+  "parameters" : {
+    "orderIdPrefix" : "s05-v3c-fda5a3-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "wanTowardsEsPrimary" : [ "am-to-es-pg-eu=[wan-latency-up{latency=40, jitter=5}, wan-latency-down{latency=40, jitter=5}]", "apac-to-es-pg-eu=[wan-latency-up{latency=75, jitter=5}, wan-latency-down{latency=75, jitter=5}]" ]
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 4
+  },
+  "observations" : [ {
+    "name" : "contended command latency",
+    "expected" : "bounded by lock hand-off + WAN RTT: p99 well under 5 s",
+    "expectedBeforeFix" : "p99 ~ 30 s stalls (one pinned lock connection per server, G3), possibly a cross-server deadlock",
+    "observed" : "n=120 ack=120 failed=0 p50=504ms p95=1964ms p99=3144ms max=6524ms",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "cross-server advisory-lock deadlock",
+    "expected" : "no deadlock: each lock waiter holds nothing else",
+    "expectedBeforeFix" : "all threads of a server share one pinned lock session (G3), so two servers can form a wait cycle on unrelated keys",
+    "observed" : "0 'deadlock detected' on the servers; failed commands {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : "Postgres breaks the cycle after deadlock_timeout (1 s) by failing one pg_advisory_lock: the command fails fast instead of stalling."
+  }, {
+    "name" : "no aggregate fork (I3)",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "expectedBeforeFix" : "a lost advisory lock lets two servers append from one story (G3 + G6)",
+    "observed" : "0 of 2 aggregates invalid",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "items stored = items acknowledged (I1, I2)",
+    "expected" : "no loss, no duplicate",
+    "expectedBeforeFix" : null,
+    "observed" : "0 of 120 acknowledged ops missing; 0 unacknowledged ops were stored anyway | no duplicates",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 120 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 2,
+      "acknowledgedOps" : 120,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 2 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 2,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "observed" : "0 foreign row(s) in 2",
+    "metrics" : {
+      "EU.rows" : 2,
+      "EU.byContext" : {
+        "EUROPA" : 2
+      },
+      "AM.rows" : 0,
+      "AM.byContext" : { },
+      "APAC.rows" : 0,
+      "APAC.byContext" : { },
+      "rows" : 2
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 2,
+      "regionalRows" : 2,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 120 s",
+    "observed" : "converged in 486 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.486,
+      "timeoutSeconds" : 120,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 135,
+      "checkpoints" : {
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 0,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 0,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 0,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 0,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 0,
+        "EU/order-observer_NotificationObserver_1_*" : 135,
+        "EU/order-query_OrderProjector_1_*" : 135,
+        "EU/order-query_OrderProjector_1_EUROPA" : 135,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 0,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 135
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=120 ack=120 failed=0 p50=504ms p95=1964ms p99=3144ms max=6524ms",
+    "metrics" : {
+      "CINA" : {
+        "count" : 60,
+        "acked" : 60,
+        "failed" : 0,
+        "p50" : 979,
+        "p95" : 1997,
+        "p99" : 6524,
+        "max" : 6524,
+        "kinds" : { }
+      },
+      "EUROPA" : {
+        "count" : 60,
+        "acked" : 60,
+        "failed" : 0,
+        "p50" : 237,
+        "p95" : 975,
+        "p99" : 1031,
+        "max" : 1031,
+        "kinds" : { }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "latencyByRegion" : {
+      "CINA" : {
+        "count" : 60,
+        "acked" : 60,
+        "failed" : 0,
+        "p50" : 979,
+        "p95" : 1997,
+        "p99" : 6524,
+        "max" : 6524,
+        "kinds" : { }
+      },
+      "EUROPA" : {
+        "count" : 60,
+        "acked" : 60,
+        "failed" : 0,
+        "p50" : 237,
+        "p95" : 975,
+        "p99" : 1031,
+        "max" : 1031,
+        "kinds" : { }
+      }
+    },
+    "latencyAll" : {
+      "count" : 120,
+      "acked" : 120,
+      "failed" : 0,
+      "p50" : 504,
+      "p95" : 1964,
+      "p99" : 3144,
+      "max" : 6524,
+      "kinds" : { }
+    },
+    "maxAdvisoryLockWaiters" : 1,
+    "logMarkers" : {
+      "evento-eu" : { },
+      "evento-apac" : { }
+    },
+    "failedRequestsByError" : { },
+    "consumerLagAfterConvergenceWait" : {
+      "lag" : {
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 135,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 135,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 135,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 135,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 135,
+        "EU/order-observer_NotificationObserver_1_*" : 0,
+        "EU/order-query_OrderProjector_1_*" : 0,
+        "EU/order-query_OrderProjector_1_EUROPA" : 0,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 135,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 0
+      },
+      "esHead" : 135
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 8839,
+    "at" : "2026-10-22T13:08:09.174146500Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 9470,
+    "at" : "2026-10-22T13:08:09.805225300Z",
+    "event" : "hot orders [s05-v3c-fda5a3-hot-europa-1, s05-v3c-fda5a3-hot-europa-2]"
+  }, {
+    "tMs" : 9475,
+    "at" : "2026-10-22T13:08:09.810220500Z",
+    "event" : "contention start: [EUROPA, CINA] x 2 workers x 30"
+  }, {
+    "tMs" : 42035,
+    "at" : "2026-10-22T13:08:42.370146400Z",
+    "event" : "contention done: 120 commands"
+  }, {
+    "tMs" : 42240,
+    "at" : "2026-10-22T13:08:42.575193600Z",
+    "event" : "invariants: converging up to 120 s"
+  }, {
+    "tMs" : 43060,
+    "at" : "2026-10-22T13:08:43.395503700Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 44979,
+    "at" : "2026-10-22T13:08:45.314177400Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "pg_locks samples (es-pg-eu)" : [ "2026-10-22T13:08:10.112149400Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:11.297663300Z granted/waiting/lockWaiters=5/1/1", "2026-10-22T13:08:12.508169500Z granted/waiting/lockWaiters=5/1/1", "2026-10-22T13:08:13.734746400Z granted/waiting/lockWaiters=6/1/1", "2026-10-22T13:08:15.009302Z granted/waiting/lockWaiters=6/0/0", "2026-10-22T13:08:16.235437600Z granted/waiting/lockWaiters=7/1/1", "2026-10-22T13:08:17.445508800Z granted/waiting/lockWaiters=9/1/1", "2026-10-22T13:08:18.721593700Z granted/waiting/lockWaiters=8/1/1", "2026-10-22T13:08:19.943901900Z granted/waiting/lockWaiters=8/1/1", "2026-10-22T13:08:21.123264900Z granted/waiting/lockWaiters=7/1/1", "2026-10-22T13:08:22.317841900Z granted/waiting/lockWaiters=6/0/0", "2026-10-22T13:08:23.468035300Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:24.670904900Z granted/waiting/lockWaiters=7/0/0", "2026-10-22T13:08:25.851296100Z granted/waiting/lockWaiters=3/0/0", "2026-10-22T13:08:27.028899200Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:28.217495100Z granted/waiting/lockWaiters=5/0/0", "2026-10-22T13:08:29.407113500Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:30.601880200Z granted/waiting/lockWaiters=7/0/0", "2026-10-22T13:08:31.775239600Z granted/waiting/lockWaiters=3/0/0", "2026-10-22T13:08:32.955282500Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:34.160304900Z granted/waiting/lockWaiters=3/0/0", "2026-10-22T13:08:35.349132700Z granted/waiting/lockWaiters=5/0/0", "2026-10-22T13:08:36.536650Z granted/waiting/lockWaiters=3/0/0", "2026-10-22T13:08:37.703501200Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:38.890380Z granted/waiting/lockWaiters=7/0/0", "2026-10-22T13:08:40.066591100Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:41.271672500Z granted/waiting/lockWaiters=4/0/0", "2026-10-22T13:08:42.370073500Z granted/waiting/lockWaiters=" ],
+    "stack actions" : [ ]
+  }
+}

@@ -1,0 +1,158 @@
+{
+  "scenario" : "S04",
+  "title" : "Server returns after failover",
+  "gaps" : [ "G7", "G17" ],
+  "label" : "v3c",
+  "startedAt" : "2026-10-22T12:59:23.235877900Z",
+  "finishedAt" : "2026-10-22T13:03:59.412637700Z",
+  "durationSeconds" : 276,
+  "parameters" : {
+    "orderIdPrefix" : "s04-v3c-d3edb6-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 3,
+    "KNOWN_DEFECT_REPRODUCED" : 1
+  },
+  "observations" : [ {
+    "name" : "A: catalog after the killed server returns",
+    "expected" : "every bundle, handler and consumer still registered (I7)",
+    "expectedBeforeFix" : "the returning/old server's NodeLeft clears the moved bundle's rows (G7)",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "A: APAC commands after the return",
+    "expected" : "acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "3/3 acknowledged {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "B: catalog after a half-closed socket heals",
+    "expected" : "every bundle, handler and consumer still registered (I7)",
+    "expectedBeforeFix" : "the stale session's NodeLeft wipes a bundle that reconnected elsewhere (G7)",
+    "observed" : "0 bundle(s), 0 handler(s), 3 consumer(s) missing; 0 bundle(s) without handler rows",
+    "verdict" : "KNOWN_DEFECT_REPRODUCED",
+    "note" : null
+  }, {
+    "name" : "B: APAC commands after unpause",
+    "expected" : "acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "3/3 acknowledged {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I7-A",
+    "name" : "catalog matches live bundles (variant A)",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7-B",
+    "name" : "catalog matches live bundles (variant B)",
+    "status" : "FAIL",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 3 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 14,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 3,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 3,
+    "violations" : [ "no core__consumer row for order-query_OrderProjector_1_CINA*", "no core__consumer row for order-query_OrderProjector_1_INDIA*", "no core__consumer row for order-query_OrderProjector_1_AUSTRALIA_NZ*" ]
+  } ],
+  "metrics" : {
+    "A.probesDuringOutage" : "3/3 acknowledged {}",
+    "B.probesDuringPause" : "3/3 acknowledged {}",
+    "logMarkers" : {
+      "evento-eu" : {
+        "Skipping unregister of bundle" : 4
+      },
+      "evento-am" : { },
+      "evento-apac" : { }
+    },
+    "unregisterCalls" : 0,
+    "skippedUnregisters" : 4
+  },
+  "timeline" : [ {
+    "tMs" : 8993,
+    "at" : "2026-10-22T12:59:32.229334400Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 9004,
+    "at" : "2026-10-22T12:59:32.240399200Z",
+    "event" : "variant A: kill + restart"
+  }, {
+    "tMs" : 55683,
+    "at" : "2026-10-22T13:00:18.919748800Z",
+    "event" : "probe A-outage: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 86648,
+    "at" : "2026-10-22T13:00:49.884574400Z",
+    "event" : "evento-apac back; settling 60 s (> 45 s read-idle)"
+  }, {
+    "tMs" : 149363,
+    "at" : "2026-10-22T13:01:52.599060600Z",
+    "event" : "probe A-after: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 149718,
+    "at" : "2026-10-22T13:01:52.953881700Z",
+    "event" : "variant B: pause 60 s"
+  }, {
+    "tMs" : 211070,
+    "at" : "2026-10-22T13:02:54.306000100Z",
+    "event" : "probe B-paused: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 211235,
+    "at" : "2026-10-22T13:02:54.470939200Z",
+    "event" : "unpaused; settling 60 s"
+  }, {
+    "tMs" : 273528,
+    "at" : "2026-10-22T13:03:56.764096900Z",
+    "event" : "probe B-after: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 274052,
+    "at" : "2026-10-22T13:03:57.288236800Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 276176,
+    "at" : "2026-10-22T13:03:59.412637700Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ "G17: the GUI/admin views of each server only show locally connected bundles; compare http://localhost:13000..13002 by hand when reading this result." ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: evento-eu" : [ "20261022130121618 INFO  1 --- [evento-leave-cleanup                    ] AutoDiscoveryService                     : Skipping unregister of bundle order-query: another live instance is connected", "20261022130121867 INFO  1 --- [evento-leave-cleanup                    ] AutoDiscoveryService                     : Skipping unregister of bundle order-command: another live instance is connected", "20261022130331671 INFO  1 --- [evento-leave-cleanup                    ] AutoDiscoveryService                     : Skipping unregister of bundle order-query: another live instance is connected" ],
+    "stack actions" : [ "2026-10-22T12:59:32.240933800Z docker kill evento-apac", "2026-10-22T13:00:18.919748800Z docker start evento-apac", "2026-10-22T13:01:52.953881700Z docker pause evento-apac", "2026-10-22T13:02:54.306000100Z docker unpause evento-apac" ]
+  }
+}

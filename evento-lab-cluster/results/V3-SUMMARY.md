@@ -66,3 +66,26 @@ Images built against tag `v2.5.2` (`FRAMEWORK_REF=v2.5.2 LAB_TAG=v252`), mixed w
 Each server and each of the 22 bundle containers was replaced in the running stack
 (`docker compose up --no-deps` with an image override), as a rolling upgrade does.
 
+
+## Second campaign after the consumer changes (`v3c`, `v3e`), 2026-10-22
+
+The consumer work that iris and the replica checks led to (head notices, coalesced checkpoints, lock bound,
+departure cleanup off the event loop) was run through the whole lab again.
+
+`v3c` found two regressions, both caused by the startup barrier added in b9b5a90c, not by the consumer work:
+
+- **S04 variant B** (and S03 in the rolling upgrade, `c-m3-3-all3`): consumer rows of an APAC instance missing
+  after a fail-back. The server left behind cleared the instance's rows (it still owned it), and the new server
+  re-created them only when the instance's consumer registration got the catalog lock, behind the discoveries
+  of the bundle's other instances: ~8.5 s each from APAC over the WAN, 26 s in all, past the scenario's check.
+  The barrier made it worse by holding the registration until the instance's own discovery was done.
+- **S07**: EU/AM commands acknowledged 62.5 % during the APAC partition (100 % in every earlier run): a session
+  reconnecting during the partition stayed in REGISTERING behind the barrier for up to 30 s and sent nothing.
+
+Fixes: the barrier is waited for only by `start()` and `enable()`, never by a reconnecting session; a
+departure's cleanup runs after a grace (`evento.server.leave.grace-ms`, 30 s) and leaves alone an instance
+another server has claimed meanwhile. Also found on the way: `OutboundStream.cancel` was not idempotent
+(semaphore overflow, `DirectStreamIT` under load).
+
+`v3e` (final code, all images rebuilt): every scenario has the verdicts of `v3`, S04 now AS_EXPECTED=4, S07
+100 % of 43; the mixed-version runs `e-*` all as expected (M1 S03 12/12, M3 S03 11 + the known inconclusive).

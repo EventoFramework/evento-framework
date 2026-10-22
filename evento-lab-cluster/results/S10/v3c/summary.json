@@ -1,0 +1,159 @@
+{
+  "scenario" : "S10",
+  "title" : "Cold start of 3 servers on an empty event store",
+  "gaps" : [ "G14" ],
+  "label" : "v3c",
+  "startedAt" : "2026-10-22T12:42:33.765065700Z",
+  "finishedAt" : "2026-10-22T12:45:46.367100900Z",
+  "durationSeconds" : 192,
+  "parameters" : {
+    "orderIdPrefix" : "s10-v3c-61a253-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "iterations" : 3
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 1
+  },
+  "observations" : [ {
+    "name" : "all three servers start, every time",
+    "expected" : "3/3 servers healthy on every iteration, no DDL race in the logs",
+    "expectedBeforeFix" : "occasional boot failures with pg_type_typname_nsp_index / tuple concurrently updated (G14)",
+    "observed" : "0/3 iterations with a failed server; 0 schema-race log lines",
+    "verdict" : "AS_EXPECTED",
+    "note" : "A clean run does not prove absence of the race; raise S10_ITERATIONS for evidence."
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "iterations" : [ {
+      "iteration" : 1,
+      "servers" : {
+        "evento-eu" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 27
+        },
+        "evento-am" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 20
+        },
+        "evento-apac" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 0
+        },
+        "allStarted" : true
+      }
+    }, {
+      "iteration" : 2,
+      "servers" : {
+        "evento-eu" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 48
+        },
+        "evento-am" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 0
+        },
+        "evento-apac" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 12
+        },
+        "allStarted" : true
+      }
+    }, {
+      "iteration" : 3,
+      "servers" : {
+        "evento-eu" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 22
+        },
+        "evento-am" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 9
+        },
+        "evento-apac" : {
+          "ready" : true,
+          "markers" : { },
+          "state" : "running",
+          "waitedSeconds" : 14
+        },
+        "allStarted" : true
+      }
+    } ]
+  },
+  "timeline" : [ {
+    "tMs" : 9689,
+    "at" : "2026-10-22T12:42:43.454445800Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 9695,
+    "at" : "2026-10-22T12:42:43.460450900Z",
+    "event" : "iteration 1: stop servers"
+  }, {
+    "tMs" : 11466,
+    "at" : "2026-10-22T12:42:45.231616Z",
+    "event" : "iteration 1: start the 3 servers together on an empty schema"
+  }, {
+    "tMs" : 60548,
+    "at" : "2026-10-22T12:43:34.313776800Z",
+    "event" : "iteration 1: allStarted=true"
+  }, {
+    "tMs" : 60549,
+    "at" : "2026-10-22T12:43:34.314781900Z",
+    "event" : "iteration 2: stop servers"
+  }, {
+    "tMs" : 62033,
+    "at" : "2026-10-22T12:43:35.798879100Z",
+    "event" : "iteration 2: start the 3 servers together on an empty schema"
+  }, {
+    "tMs" : 124514,
+    "at" : "2026-10-22T12:44:38.279627200Z",
+    "event" : "iteration 2: allStarted=true"
+  }, {
+    "tMs" : 124514,
+    "at" : "2026-10-22T12:44:38.279627200Z",
+    "event" : "iteration 3: stop servers"
+  }, {
+    "tMs" : 125790,
+    "at" : "2026-10-22T12:44:39.555563600Z",
+    "event" : "iteration 3: start the 3 servers together on an empty schema"
+  }, {
+    "tMs" : 173556,
+    "at" : "2026-10-22T12:45:27.321900500Z",
+    "event" : "iteration 3: allStarted=true"
+  }, {
+    "tMs" : 173562,
+    "at" : "2026-10-22T12:45:27.327900Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 173562,
+    "at" : "2026-10-22T12:45:27.327900Z",
+    "event" : "reset app state: stop app JVMs, truncate consumer state and read models, start again"
+  }, {
+    "tMs" : 192602,
+    "at" : "2026-10-22T12:45:46.367100900Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ "2026-10-22T12:42:43.461446800Z docker stop evento-am", "2026-10-22T12:42:43.461446800Z docker stop evento-apac", "2026-10-22T12:42:43.461446800Z docker stop evento-eu", "2026-10-22T12:42:44.885447600Z psql es-pg-eu/evento: DROP SCHEMA public CASCADE; CREATE SCHEMA public;", "2026-10-22T12:42:45.232672300Z docker start evento-am", "2026-10-22T12:42:45.232672300Z docker start evento-apac", "2026-10-22T12:42:45.232672300Z docker start evento-eu", "2026-10-22T12:43:34.314781900Z docker stop evento-am", "2026-10-22T12:43:34.314781900Z docker stop evento-apac", "2026-10-22T12:43:34.314781900Z docker stop evento-eu", "2026-10-22T12:43:35.493040600Z psql es-pg-eu/evento: DROP SCHEMA public CASCADE; CREATE SCHEMA public;", "2026-10-22T12:43:35.798884500Z docker start evento-am", "2026-10-22T12:43:35.799429800Z docker start evento-apac", "2026-10-22T12:43:35.799429800Z docker start evento-eu", "2026-10-22T12:44:38.279627200Z docker stop evento-am", "2026-10-22T12:44:38.280150600Z docker stop evento-apac", "2026-10-22T12:44:38.280150600Z docker stop evento-eu", "2026-10-22T12:44:39.208522Z psql es-pg-eu/evento: DROP SCHEMA public CASCADE; CREATE SCHEMA public;", "2026-10-22T12:44:39.555563600Z docker start evento-am", "2026-10-22T12:44:39.556075500Z docker start evento-apac", "2026-10-22T12:44:39.556075500Z docker start evento-eu", "2026-10-22T12:45:27.327900Z docker stop gateway-europa", "2026-10-22T12:45:27.327900Z docker stop order-command-am", "2026-10-22T12:45:27.327900Z docker stop order-command-apac", "2026-10-22T12:45:27.327900Z docker stop order-query-apac", "2026-10-22T12:45:27.327900Z docker stop order-query-cina", "2026-10-22T12:45:27.327900Z docker stop order-query-global-eu", "2026-10-22T12:45:27.327900Z docker stop order-query-wildcard", "2026-10-22T12:45:27.327900Z docker stop order-saga-am", "2026-10-22T12:45:27.328908400Z docker stop gateway-africa", "2026-10-22T12:45:27.328908400Z docker stop gateway-australia-nz", "2026-10-22T12:45:27.328908400Z docker stop gateway-india", "2026-10-22T12:45:27.328908400Z docker stop order-command-eu", "2026-10-22T12:45:27.328908400Z docker stop order-observer", "2026-10-22T12:45:27.328908400Z docker stop order-query-am", "2026-10-22T12:45:27.328908400Z docker stop order-query-eu", "2026-10-22T12:45:27.328908400Z docker stop order-saga-apac", "2026-10-22T12:45:27.328908400Z docker stop order-saga-eu", "2026-10-22T12:45:27.371028Z docker stop gateway-america", "2026-10-22T12:45:27.414208100Z docker stop gateway-sud-america", "2026-10-22T12:45:27.461499500Z docker stop order-query-global-apac", "2026-10-22T12:45:27.482402400Z docker stop gateway-cina", "2026-10-22T12:45:39.051964900Z docker start order-query-eu", "2026-10-22T12:45:39.052962200Z docker start order-command-eu", "2026-10-22T12:45:39.052962200Z docker start order-observer", "2026-10-22T12:45:39.052962200Z docker start order-query-wildcard", "2026-10-22T12:45:39.052962200Z docker start order-saga-eu", "2026-10-22T12:45:39.053967200Z docker start gateway-europa", "2026-10-22T12:45:39.056962200Z docker start order-query-global-eu", "2026-10-22T12:45:39.060964100Z docker start gateway-africa", "2026-10-22T12:45:39.064968200Z docker start order-query-am", "2026-10-22T12:45:39.072947900Z docker start order-command-am", "2026-10-22T12:45:39.078860Z docker start gateway-america", "2026-10-22T12:45:39.086163700Z docker start order-saga-am", "2026-10-22T12:45:39.093166Z docker start gateway-sud-america", "2026-10-22T12:45:39.101165700Z docker start order-query-apac", "2026-10-22T12:45:39.111164500Z docker start order-command-apac", "2026-10-22T12:45:39.120146800Z docker start order-query-global-apac", "2026-10-22T12:45:39.129104100Z docker start order-saga-apac", "2026-10-22T12:45:39.139822500Z docker start gateway-india", "2026-10-22T12:45:39.148420Z docker start gateway-australia-nz", "2026-10-22T12:45:39.157420600Z docker start gateway-cina", "2026-10-22T12:45:39.173282Z docker start order-query-cina" ]
+  }
+}

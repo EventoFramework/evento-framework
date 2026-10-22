@@ -225,7 +225,13 @@ notices now wake the other engines 500 ms late, coalesced; replicas sharing a po
 -> a kept lock also yields when HikariCP has no idle connection (9767e275, replica IT in AbstractJdbcConsumerIT
 on PG and MySQL). New scenario `MsHighAvailabilityConsumersIT` (evento-lab-ms-it, PG, EVENTO_RUN_JDBC_IT):
 3 contexts x 3 replicas, the lane holder (from pg_locks) killed twice per context mid-stream, every event once
-and in order per context (4b9378b6). Still to re-run: lab-cluster chaos S00-S18 and the 2.5.2 compat campaign.
+and in order per context (4b9378b6).
+Then (user: "testa e correggi") the whole lab again. v3c found S04 (and S03 in the rolling upgrade) missing
+consumer rows after a fail-back and S07 EU/AM slow during the APAC partition, both from the startup barrier
+inside every session's registration: fixed by waiting for it in start()/enable() only (13d0911c), plus a
+grace before a departure's cleanup, evento.server.leave.grace-ms 30 s (644d4ae1); OutboundStream.cancel made
+idempotent (semaphore overflow seen in DirectStreamIT). v3e on the final code: every scenario as in v3, S04
+4/4, S07 100 %, all mixed-version runs as expected (results/V3-SUMMARY.md). Gradle with every IT: 1130 green.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
