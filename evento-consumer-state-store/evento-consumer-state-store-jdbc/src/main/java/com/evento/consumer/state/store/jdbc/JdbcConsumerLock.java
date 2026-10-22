@@ -35,9 +35,18 @@ import java.util.concurrent.TimeUnit;
  * another replica takes over. {@link Duration#ZERO} restores the release after every cycle.
  *
  * <p>Sizing: budget one connection per consumer of this instance, held while the instance
- * consumes. With Hikari, the pool max must exceed the number of consumers.
+ * consumes, plus a few for the state writes. The locks never take more than the pool can spare:
+ * with a pool whose maximum size is known ({@code getMaximumPoolSize()}, as on HikariCP, or the
+ * {@code maxHeld} given to the constructor) they hold at most {@code max - max(2, max / 4)}
+ * connections. A consumer that needs a lock beyond that first ends the affinity of the lock kept
+ * idle the longest, or finds the lock busy and tries again on its next cycle: a pool sized for
+ * 2.x (one lock per cycle) works as it did, with less affinity, and a warning says so. Without
+ * that bound, the consumers that came first kept every connection (they poll more often than the
+ * affinity lasts) and the others waited for one forever.
  */
 public final class JdbcConsumerLock implements ConsumerLock {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JdbcConsumerLock.class);
 
     /** How long a lock is kept after a cycle released it, by default. */
     public static final Duration DEFAULT_AFFINITY = Duration.ofSeconds(5);
@@ -48,6 +57,11 @@ public final class JdbcConsumerLock implements ConsumerLock {
     /** Locks this instance holds: in use by a cycle, or kept for the affinity. */
     private final ConcurrentHashMap<String, Held> held = new ConcurrentHashMap<>();
     private final ScheduledExecutorService reaper;
+    /** The most locks (connections) this instance holds at once; {@link Integer#MAX_VALUE}: unbounded. */
+    private final int maxHeld;
+    /** One permit per connection a lock may hold; null when unbounded. */
+    private final java.util.concurrent.Semaphore slots;
+    private final java.util.concurrent.atomic.AtomicBoolean warnedBound = new java.util.concurrent.atomic.AtomicBoolean();
 
     public JdbcConsumerLock(DataSource dataSource, SqlDialect dialect) {
         this(dataSource, dialect, DEFAULT_AFFINITY);
@@ -55,6 +69,17 @@ public final class JdbcConsumerLock implements ConsumerLock {
 
     /** @param affinity how long the lock is kept after a cycle; {@link Duration#ZERO}: released at once */
     public JdbcConsumerLock(DataSource dataSource, SqlDialect dialect, Duration affinity) {
+        this(dataSource, dialect, affinity, locksThePoolCanSpare(dataSource));
+    }
+
+    /**
+     * @param affinity how long the lock is kept after a cycle; {@link Duration#ZERO}: released at once
+     * @param maxHeld  the most connections the locks may hold at once (see the class comment);
+     *                 0 or less: unbounded
+     */
+    public JdbcConsumerLock(DataSource dataSource, SqlDialect dialect, Duration affinity, int maxHeld) {
+        this.maxHeld = maxHeld <= 0 ? Integer.MAX_VALUE : maxHeld;
+        this.slots = maxHeld <= 0 ? null : new java.util.concurrent.Semaphore(maxHeld);
         this.dataSource = dataSource;
         this.dialect = dialect;
         this.affinityNanos = Math.max(0, affinity.toNanos());
@@ -100,9 +125,11 @@ public final class JdbcConsumerLock implements ConsumerLock {
                     kept.released = true;
                     held.remove(consumerId, kept);
                     safeClose(kept.conn);
+                    giveSlot();
                 }
             }
         }
+        if (!takeSlot()) return Optional.empty();
         Connection c = null;
         try {
             c = dataSource.getConnection();
@@ -112,21 +139,72 @@ public final class JdbcConsumerLock implements ConsumerLock {
             };
             if (!acquired) {
                 safeClose(c);
+                giveSlot();
                 return Optional.empty();
             }
             var fresh = new Held(c, consumerId);
             var previous = held.put(consumerId, fresh);
             if (previous != null) {
                 synchronized (previous) {
-                    previous.released = true;
-                    safeClose(previous.conn);
+                    if (!previous.released) {
+                        previous.released = true;
+                        safeClose(previous.conn);
+                        giveSlot();
+                    }
                 }
             }
             return Optional.of(new Handle(fresh));
-        } catch (SQLException e) {
+        } catch (SQLException | RuntimeException e) {
             safeClose(c);
+            giveSlot();
             throw new RuntimeException("failed to acquire consumer lock for '" + consumerId + "'", e);
         }
+    }
+
+    /**
+     * A permit for one more connection: free, or freed by ending the affinity of the lock kept idle
+     * the longest; false when every lock held is in a cycle (the caller finds this one busy).
+     */
+    private boolean takeSlot() {
+        if (slots == null) return true;
+        while (!slots.tryAcquire()) {
+            Held oldest = null;
+            for (var h : held.values()) {
+                if (!h.inUse && !h.released && (oldest == null || h.idleSince < oldest.idleSince)) oldest = h;
+            }
+            warnBound();
+            if (oldest == null) return false;
+            synchronized (oldest) {
+                if (!oldest.inUse && !oldest.released) release(oldest);
+            }
+        }
+        return true;
+    }
+
+    private void giveSlot() {
+        if (slots != null) slots.release();
+    }
+
+    private void warnBound() {
+        if (warnedBound.compareAndSet(false, true)) {
+            log.warn("event=consumer_lock_pool_bound maxHeld={} - this instance has more consumers than its "
+                    + "state-store pool can hold locks for: lock affinity is partly off and consumers take turns. "
+                    + "Raise the pool's maximum size above the number of consumers plus a few for the state writes.",
+                    maxHeld);
+        }
+    }
+
+    /** {@code max - max(2, max / 4)} of a pool that tells its maximum size, else unbounded (0). */
+    static int locksThePoolCanSpare(DataSource dataSource) {
+        try {
+            var m = dataSource.getClass().getMethod("getMaximumPoolSize");
+            if (m.invoke(dataSource) instanceof Integer max && max > 0) {
+                return Math.max(1, max - Math.max(2, max / 4));
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // A pool that does not tell: unbounded, as before.
+        }
+        return 0;
     }
 
     private static boolean tryAcquirePostgres(Connection c, String consumerId) throws SQLException {
@@ -188,6 +266,7 @@ public final class JdbcConsumerLock implements ConsumerLock {
     private void release(Held h) {
         h.released = true;
         held.remove(h.consumerId, h);
+        giveSlot();
         try {
             switch (dialect) {
                 case POSTGRES -> unlock(h.conn, "SELECT pg_advisory_unlock(hashtext(?))", h.consumerId);

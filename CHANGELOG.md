@@ -24,6 +24,13 @@ a revised payload needs a 3.0 broker.
 
 ### Upgrade notes
 
+- **Size the consumer state-store pool for the consumers.** A `JdbcConsumerLock` now keeps a consumer's lock,
+  and its connection, between fetch cycles (see Changed): budget one connection per consumer of the instance
+  plus a few for the state writes. A smaller pool still works: with a pool that tells its maximum size
+  (HikariCP) the locks take at most `max - max(2, max / 4)` connections and the consumers take turns, as in
+  2.x, after a warning `event=consumer_lock_pool_bound`. With another pool, pass the bound to the new
+  constructor `JdbcConsumerLock(dataSource, dialect, affinity, maxHeld)`, or `Duration.ZERO` as the affinity
+  for the 2.x behaviour.
 - **A payload that cannot be serialized now fails the send** (`IllegalArgumentException` from
   `SerializedObject`): it used to be logged and sent with a null payload.
 - **Breaking: the server refuses to start unhardened.** `evento.server.security.profile` defaults to `prod`
@@ -343,6 +350,13 @@ a revised payload needs a 3.0 broker.
 
 ### Changed
 
+- **A replica keeps its consumer lanes between cycles.** `JdbcConsumerLock` keeps a lock for 5 s
+  (`DEFAULT_AFFINITY`) after the cycle that took it, so the next cycle of the same replica takes it back and
+  the others find it held: a lane no longer hops between replicas (lab S16, a global lane written from two
+  regions: fan-out 10 s, now 2). A replica that stops consuming releases its locks when the affinity runs
+  out; one that dies loses them with its sessions. The locks never take more connections than the pool can
+  spare (see the upgrade note): found on iris, 17 consumers on a pool of 8, where the first 8 kept every
+  connection (they poll more often than the affinity lasts) and the other 9 never got one.
 - **Idempotent reads are asked again after a lost session.** Queries and the consumers' event
   fetches still pending when a bundle's session ends are re-sent on the next session (same
   correlation id, the time they have left), on whatever broker it is, instead of failing with
