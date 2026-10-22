@@ -64,10 +64,11 @@ class AutoDiscoveryServiceLifecycleTest {
         when(presence.release(any())).thenReturn(BundlePresence.Release.OWNED);
         // Null lock → a JVM-local PgDistributedLock (embedded/test mode);
         // null transaction manager → catalog passes run without a transaction.
-        new AutoDiscoveryService(busFacade, bundleRepository, handlerService,
+        var service = new AutoDiscoveryService(busFacade, bundleRepository, handlerService,
                 mock(PayloadRepository.class), bundleService,
                 mock(ComponentRepository.class), consumerService, null,
                 presence, mock(CatalogWriter.class), null);
+        service.setLeaveExecutor(Runnable::run);
         var captor = ArgumentCaptor.forClass(Consumer.class);
         verify(busFacade).subscribe(captor.capture());
         subscriber = captor.getValue();

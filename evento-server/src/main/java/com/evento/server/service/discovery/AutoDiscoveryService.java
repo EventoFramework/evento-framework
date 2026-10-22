@@ -75,8 +75,38 @@ public class AutoDiscoveryService {
             switch (event) {
                 case BusEvent.NodeEstablished established -> onSessionOpened(established.node());
                 case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
-                case BusEvent.NodeLeft left -> onNodeLeave(left.node(), left.reason());
+                // Published on the closing channel's event loop: the cleanup (transactions, the
+                // catalog, a sweep of every payload) must not run there.
+                case BusEvent.NodeLeft left -> leaveExecutor.execute(() -> onNodeLeave(left.node(), left.reason()));
                 default -> { /* ignore other event types */ }
+            }
+        });
+    }
+
+    /**
+     * Where departures are cleaned up: one at a time, off the transport's event loops. Run on the
+     * event loop that closed the channel, the cleanup of eleven bundles stopped together held ten
+     * event loops for seconds (each also sweeping every payload), and bundles connecting meanwhile
+     * timed out on their handshake.
+     */
+    private volatile java.util.concurrent.Executor leaveExecutor = java.util.concurrent.Executors
+            .newSingleThreadExecutor(Thread.ofVirtual().name("evento-leave-cleanup").factory());
+    /** A payload sweep is queued behind the pending departures: one sweep covers them all. */
+    private final java.util.concurrent.atomic.AtomicBoolean sweepQueued = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** Runs departures on {@code executor} instead (tests: {@code Runnable::run}). */
+    void setLeaveExecutor(java.util.concurrent.Executor executor) {
+        this.leaveExecutor = executor;
+    }
+
+    private void queueOrphanPayloadSweep() {
+        if (!sweepQueued.compareAndSet(false, true)) return;
+        leaveExecutor.execute(() -> {
+            sweepQueued.set(false);
+            try {
+                bundleService.sweepOrphanPayloads();
+            } catch (RuntimeException e) {
+                logger.error("Orphan payload sweep failed", e);
             }
         });
     }
@@ -500,7 +530,7 @@ public class AutoDiscoveryService {
             }));
             // Payload rows are shared across bundles, so their sweep runs after the commit,
             // one best-effort delete at a time (see BundleService#sweepOrphanPayloads).
-            if (removed.get()) bundleService.sweepOrphanPayloads();
+            if (removed.get()) queueOrphanPayloadSweep();
         }catch (Exception e){
             logger.error(e.getMessage(), e);
         }
