@@ -1,6 +1,6 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-20 (session 8).
+Last updated: 2026-10-22 (session 9).
 
 ## Enterprise readiness vs Axon 5 (branch `enterprise/2.6-readiness`, 2026-10-16)
 
@@ -186,6 +186,21 @@ since `latest` 3.0 would not start there; PR #281 title/body rewritten for 3.0.0
 10 libraries OK. Suite 1091 green. Open for the user: SECURITY.md support window for 2.5.x, moving the demo to
 3.0, Dependabot majors (classgraph 6, ionic 9) and GitHub Actions bumps on main, dismissing the CodeQL CSRF
 alert (false positive: Basic is stateless, OIDC has CSRF). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
+
+**Session 9 (2026-10-21/22): Dependabot + CSRF, then 3.0 tried on market.** Dependabot: Actions, Gradle 9.8.1,
+Netty 4.2.19 taken; ClassGraph 6 (needs JDK 25, client libs stay on 21, kept 4.8.199) and Ionic 9 (drops
+`IonicModule`, needs a standalone migration of the console) declined with a comment on the PRs. CSRF now on in
+Basic mode except for requests carrying `Authorization` (11b994f0). The re-test found a startup race (a command
+right after start() could get "no handler"): per-connection notification lane, discovery before enable,
+`evento:barrier` request (b9b5a90c). Whole Gradle build with every IT 1098 green, client libs on JDK 21 green; the
+chaos/compat re-run was killed by Claude Code's memory reaper and NOT re-run yet (do it only when asked, alone).
+Market (`D:\Gabor\SW_DEVELOPMENT\StartUps\market-evento3`, local branch `chore/evento-3.0-trial`, bc428ffb, not
+pushed): compiles on 3.0 with no code change, 1382 tests green; startup against a 3.0 server on an empty DB showed
+the barrier gave up at registrationTimeout (5 s) while the discovery of 670 handlers took 8.5 s, so the seeders
+failed: barrier now bounded by defaultRequestTimeout + `event=barrier_timeout` WARN + `SlowDiscoveryIT`
+(dde7f58f); re-checked with rc2: seeders and projections OK. Artifacts published from the `.evento-bisect`
+worktree (version edited to 3.0.0-rc2, uncommitted) to `scratchpad/m2-rc`. Possible follow-up: batch the
+catalog writes of a discovery (8.5 s for one bundle on a fresh catalog).
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
