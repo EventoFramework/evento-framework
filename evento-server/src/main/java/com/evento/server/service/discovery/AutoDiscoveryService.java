@@ -77,7 +77,7 @@ public class AutoDiscoveryService {
                 case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
                 // Published on the closing channel's event loop: the cleanup (transactions, the
                 // catalog, a sweep of every payload) must not run there.
-                case BusEvent.NodeLeft left -> leaveExecutor.execute(() -> onNodeLeave(left.node(), left.reason()));
+                case BusEvent.NodeLeft left -> scheduleLeave(left.node(), left.reason());
                 default -> { /* ignore other event types */ }
             }
         });
@@ -97,6 +97,39 @@ public class AutoDiscoveryService {
     /** Runs departures on {@code executor} instead (tests: {@code Runnable::run}). */
     void setLeaveExecutor(java.util.concurrent.Executor executor) {
         this.leaveExecutor = executor;
+    }
+
+    /**
+     * How long a departure waits before its cleanup runs; 0 runs it at once (the default of an
+     * instance built by hand, as in tests). An instance that leaves this server to join another
+     * (fail-back, failover, a restart) is claimed there within moments, and its cleanup here, run
+     * after the grace, finds it held elsewhere and touches nothing. Run at once, it cleared the
+     * instance's consumer rows, which came back only when the new server had registered them
+     * again: behind the discoveries of the bundle's other instances on the catalog lock, tens of
+     * seconds over a WAN, during which the instance's consumers were missing from the catalog
+     * (lab S04, S03). An instance that is really gone is cleaned up that much later.
+     */
+    private volatile long leaveGraceMs;
+    private final java.util.concurrent.ScheduledExecutorService leaveTimer =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                var t = new Thread(r, "evento-leave-grace");
+                t.setDaemon(true);
+                return t;
+            });
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setLeaveGraceMs(@org.springframework.beans.factory.annotation.Value("${evento.server.leave.grace-ms:30000}")
+                         long leaveGraceMs) {
+        this.leaveGraceMs = Math.max(0, leaveGraceMs);
+    }
+
+    private void scheduleLeave(NodeAddress node, String reason) {
+        Runnable cleanup = () -> leaveExecutor.execute(() -> onNodeLeave(node, reason));
+        if (leaveGraceMs > 0) {
+            leaveTimer.schedule(cleanup, leaveGraceMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } else {
+            cleanup.run();
+        }
     }
 
     private void queueOrphanPayloadSweep() {

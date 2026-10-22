@@ -410,6 +410,16 @@ a revised payload needs a 3.0 broker.
 
 ### Fixed
 
+- **An instance moving to another server keeps its consumer rows.** A departure's cleanup (presence, consumer
+  rows, an ephemeral bundle) now runs after a grace (`evento.server.leave.grace-ms`, 30 s; 0 runs it at once),
+  and its checks then find an instance that joined another server in the meantime held there, and touch
+  nothing. Run at once, a fail-back's cleanup on the server left behind cleared the instance's consumer rows,
+  and they came back only when the new server registered them again, tens of seconds later over a WAN (lab S04,
+  and S03 in a rolling upgrade). An instance that is really gone is cleaned up that much later.
+- **Cancelling a stream twice no longer breaks it.** `OutboundStream.cancel` released the wake-up permits on
+  every call; a stream cancelled twice (the caller closing while a send gave up waiting for credit) overflowed
+  the semaphore and the handler got `Error: Maximum permit count exceeded` instead of
+  `StreamCancelledException` (seen once in `DirectStreamIT` under load).
 - **A bundle leaving no longer stalls the broker's network threads.** Its cleanup (consumer rows, the catalog,
   a sweep of every payload) ran on the event loop of the channel that closed: eleven iris services stopped
   together held ten event loops for seconds, each sweeping the same payloads, and services starting meanwhile
@@ -426,7 +436,11 @@ a revised payload needs a 3.0 broker.
   waits up to `defaultRequestTimeout` (30 s), not the registration timeout (5 s): on a fresh catalog the server
   writes a large bundle's discovery one handler at a time (670 handlers: 8.5 s), and a barrier that gave up at 5 s
   let an application's startup seeders find no handler. If it still expires, the bundle logs
-  `event=barrier_timeout`. `BundleClient.Builder.registrationTimeout(Duration)` is new.
+  `event=barrier_timeout`. `BundleClient.Builder.registrationTimeout(Duration)` is new. Only `start()` and
+  `enable()` wait for the barrier: a reconnecting session is READY as soon as its registration is sent, so what
+  it sends on every session (its consumer registration, its requests) goes out at once. Held behind the barrier,
+  a session reconnecting during a region partition sent nothing for up to 30 s (lab S07), and a fail-back's
+  consumer registration queued behind the discoveries of the bundle's other instances (lab S04).
 - **CSRF protection stays on with Basic authentication.** It used to be switched off for the whole API; now only
   requests that carry their credential in the `Authorization` header (which another site cannot make a browser add)
   skip the token check. The console and machine clients send that header and see no change.

@@ -50,6 +50,7 @@ class AutoDiscoveryServiceLifecycleTest {
     private ConsumerService consumerService;
     private BundlePresence presence;
     private Consumer<BusEvent> subscriber;
+    private AutoDiscoveryService service;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -64,7 +65,7 @@ class AutoDiscoveryServiceLifecycleTest {
         when(presence.release(any())).thenReturn(BundlePresence.Release.OWNED);
         // Null lock → a JVM-local PgDistributedLock (embedded/test mode);
         // null transaction manager → catalog passes run without a transaction.
-        var service = new AutoDiscoveryService(busFacade, bundleRepository, handlerService,
+        service = new AutoDiscoveryService(busFacade, bundleRepository, handlerService,
                 mock(PayloadRepository.class), bundleService,
                 mock(ComponentRepository.class), consumerService, null,
                 presence, mock(CatalogWriter.class), null);
@@ -97,6 +98,43 @@ class AutoDiscoveryServiceLifecycleTest {
         var saved = ArgumentCaptor.forClass(Bundle.class);
         verify(bundleRepository).save(saved.capture());
         assertThat(saved.getValue().getInstanceId()).isEqualTo("new-instance");
+    }
+
+    /**
+     * A departure is cleaned up after a grace: an instance that left this server for another
+     * (a fail-back) is claimed there in the meantime, and its rows are never cleared here. Run
+     * at once, the cleanup found this server still the owner and cleared the consumer rows the
+     * new server re-created only tens of seconds later (lab S04).
+     */
+    @Test
+    void anInstanceClaimedElsewhereDuringTheGraceKeepsItsRows() throws Exception {
+        service.setLeaveGraceMs(300);
+        when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("moving")));
+        when(busFacade.currentView()).thenReturn(Set.of());
+
+        subscriber.accept(new BusEvent.NodeLeft(node("moving"), "failback", Instant.now()));
+        verify(consumerService, never()).clearInstance(any());
+        // The new server claims the instance before the grace runs out.
+        when(presence.release(any())).thenReturn(BundlePresence.Release.OWNED_ELSEWHERE);
+        when(presence.ownerOf("moving")).thenReturn(Optional.of("server-b"));
+
+        Thread.sleep(800);
+        verify(presence).release(node("moving"));
+        verify(consumerService, never()).clearInstance(any());
+        verify(bundleService, never()).removeBundle(any());
+    }
+
+    @Test
+    void anInstanceStillGoneAfterTheGraceIsCleanedUp() throws Exception {
+        service.setLeaveGraceMs(200);
+        when(bundleRepository.findById(BUNDLE)).thenReturn(Optional.of(ephemeralBundle("gone")));
+        when(busFacade.currentView()).thenReturn(Set.of());
+
+        subscriber.accept(new BusEvent.NodeLeft(node("gone"), "socket_closed", Instant.now()));
+        verify(consumerService, never()).clearInstance(any());
+
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(3))
+                .untilAsserted(() -> verify(consumerService).clearInstance("gone"));
     }
 
     @Test
