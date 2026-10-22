@@ -88,6 +88,18 @@ public final class TestEventStoreBundleClient implements AutoCloseable {
         return seq;
     }
 
+    /** Publish a service event into the in-memory store. Returns the assigned sequence number. */
+    public long publishService(com.evento.common.modeling.messaging.payload.ServiceEvent event) {
+        long seq = seqGen.incrementAndGet();
+        var pe = new PublishedEvent();
+        pe.setEventSequenceNumber(seq);
+        pe.setEventMessage(new ServiceEventMessage(event));
+        pe.setEventName(event.getClass().getSimpleName());
+        pe.setCreatedAt(System.currentTimeMillis());
+        store.add(pe);
+        return seq;
+    }
+
     /**
      * Publish a {@link PublishedEvent} whose {@link ServiceEventMessage} was constructed with a
      * null payload — simulating an old or corrupted DB record where {@code objectClass} was never

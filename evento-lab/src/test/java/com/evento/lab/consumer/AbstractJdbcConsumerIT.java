@@ -14,6 +14,10 @@ import com.evento.consumer.state.store.jdbc.JdbcSagaStateStore;
 import com.evento.consumer.state.store.jdbc.SqlDialect;
 import com.evento.lab.bundle.LabStore;
 import com.evento.lab.api.event.OrderCreatedEvent;
+import com.evento.lab.api.event.StressServiceCalledEvent;
+import com.evento.lab.api.event.StressServiceCreatedEvent;
+import com.evento.transport.HandshakeProtocol;
+import com.evento.transport.protocol.ProtocolNotifications;
 import com.evento.lab.support.EmbeddedBroker;
 import com.evento.lab.support.TestEventStoreBundleClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -252,6 +256,93 @@ abstract class AbstractJdbcConsumerIT {
                 }
             } finally {
                 bundle2.getEngineSupervisor().stop(Duration.ofSeconds(10));
+            }
+        }
+    }
+
+    // --- Replicas of one consumer, with head notices ------------------------------------------
+
+    /** Long enough that only a head notice explains a prompt delivery. */
+    private static final int REPLICA_FETCH_DELAY_MS = 20_000;
+
+    private EventoBundle startReplica(EmbeddedBroker broker, String bundleId) throws Exception {
+        return EventoBundle.Builder.builder()
+                .setBasePackage(com.evento.lab.bundle.consumer.LabProjector.class.getPackage())
+                .setBundleId(bundleId)
+                .setEventoServerMessageBusConfiguration(
+                        new EventoServerMessageBusConfiguration(new ClusterNodeAddress("127.0.0.1", broker.port())))
+                .setConsumerEngineConfigBuilder(this::jdbcEngineConfig)
+                .setSssFetchDelay(REPLICA_FETCH_DELAY_MS)
+                .start();
+    }
+
+    private static void announce(EmbeddedBroker broker, long head, String... eventNames) {
+        var names = String.join("\n", eventNames).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        broker.lifecycle().broadcast(HandshakeProtocol.CAPABILITY_HEAD, ProtocolNotifications.EVENTS_APPENDED,
+                java.nio.ByteBuffer.allocate(Long.BYTES + names.length).putLong(head).put(names).array());
+    }
+
+    private long storedPosition(String bundleId, String component) throws SQLException {
+        try (Connection c = dataSource.getConnection();
+             var ps = c.prepareStatement("SELECT last_sequence FROM evento_v2_consumer_state WHERE consumer_id = ?")) {
+            ps.setString(1, bundleId + "_" + component + "_1_*");
+            try (var rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : -1;
+            }
+        }
+    }
+
+    private static boolean eachAppliedOnce(String stressId, int from, int to) {
+        for (int i = from; i <= to; i++) {
+            if (LabStore.getStressCount(stressId + "_" + i) != 1) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Two replicas of a bundle consume the same lanes through one JDBC lock, with head notices.
+     * Each event is applied once, a notice about events a projector handles moves it at once, and
+     * a notice about events it does not handle still moves its stored position past them within
+     * the late wake-up: a read-your-writes query on the replica that does not hold the lane reads
+     * that position and cannot wake the holder, so it would otherwise wait the fetch delay. When
+     * the holder stops, the other replica takes the lane over.
+     */
+    @Test
+    void replicasApplyEachEventOnceAndMoveOnWithTheHeadNotices() throws Exception {
+        var bundleId = "lab-replicas";
+        try (var broker = new EmbeddedBroker("lab-broker", 0, java.util.Set.of(HandshakeProtocol.CAPABILITY_HEAD));
+             var eventStore = new TestEventStoreBundleClient(broker.port())) {
+            var r1 = startReplica(broker, bundleId);
+            var r2 = startReplica(broker, bundleId);
+            try {
+                await().atMost(30, TimeUnit.SECONDS).until(() -> broker.lifecycle().isBundleAvailable(bundleId));
+                Thread.sleep(1_500);  // both replicas past their first fetch, at the head
+
+                long head = 0;
+                for (int i = 1; i <= 20; i++) head = eventStore.publishService(new StressServiceCalledEvent("rep", i));
+                announce(broker, head, "StressServiceCalledEvent");
+                await().atMost(10, TimeUnit.SECONDS).until(() -> eachAppliedOnce("rep", 1, 20));
+
+                long other = eventStore.publishService(new StressServiceCreatedEvent("rep", 1));
+                announce(broker, other, "StressServiceCreatedEvent");
+                long t0 = System.nanoTime();
+                await().atMost(25, TimeUnit.SECONDS).pollInterval(Duration.ofMillis(50))
+                        .until(() -> storedPosition(bundleId, "LabStressProjector") >= other);
+                assertThat(Duration.ofNanos(System.nanoTime() - t0))
+                        .as("moved past an event it does not handle long before the %d ms fetch delay",
+                                REPLICA_FETCH_DELAY_MS)
+                        .isLessThan(Duration.ofSeconds(5));
+
+                r1.getEngineSupervisor().stop(Duration.ofSeconds(10));
+                for (int i = 21; i <= 25; i++) head = eventStore.publishService(new StressServiceCalledEvent("rep", i));
+                announce(broker, head, "StressServiceCalledEvent");
+                await().atMost(30, TimeUnit.SECONDS).until(() -> eachAppliedOnce("rep", 21, 25));
+
+                Thread.sleep(1_000);
+                assertThat(eachAppliedOnce("rep", 1, 25)).as("no event applied twice across the replicas").isTrue();
+            } finally {
+                r1.getEngineSupervisor().stop(Duration.ofSeconds(10));
+                r2.getEngineSupervisor().stop(Duration.ofSeconds(10));
             }
         }
     }

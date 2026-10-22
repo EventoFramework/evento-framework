@@ -20,20 +20,43 @@ import java.util.function.BooleanSupplier;
  * <p>Each engine registers its wake-up semaphore with the names of the events it handles. A notice
  * names the events appended since the last one, and releases the engines that handle one of them
  * (a notice that names none releases all): the others have nothing new to apply, and their fetch
- * would only queue on the broker in front of those that do. An event whose stored name no handler
- * declares (renamed through an upcaster) reaches its consumer at the next safety-net fetch. A
- * notice that arrives while an engine is fetching leaves its permit, so the next pause returns at
- * once: no append is missed between a fetch and the pause after it.
+ * would only queue on the broker in front of those that do. A notice that arrives while an engine
+ * is fetching leaves its permit, so the next pause returns at once: no append is missed between a
+ * fetch and the pause after it.
+ *
+ * <p>The other engines are woken too, but late and once per {@link #DEFAULT_LAZY_MS} however many
+ * notices come: their position must still move past the events they do not handle. Another replica
+ * of the consumer reads that position from the store for a read-your-writes query whose token is
+ * such an event, and cannot wake the replica that holds the lane; left to the fetch delay (which
+ * applications may have set high, as it used to apply only after errors) that query could wait
+ * seconds or time out. An event whose stored name no handler declares (renamed through an
+ * upcaster) reaches its consumer the same way.
  */
 public final class HeadSignal {
 
+    /** How late an engine is woken by notices about events it does not handle. */
+    public static final long DEFAULT_LAZY_MS = 500;
+
+    /** An engine's event names (empty: any) and whether a late wake-up is already scheduled for it. */
+    private record Registration(Set<String> eventNames, java.util.concurrent.atomic.AtomicBoolean lateQueued) {}
+
     private final BooleanSupplier notified;
-    /** Each engine's wake-up and the event names it handles (empty: any). */
-    private final java.util.Map<Semaphore, Set<String>> wakeups = new ConcurrentHashMap<>();
+    private final long lazyMs;
+    private final java.util.Map<Semaphore, Registration> wakeups = new ConcurrentHashMap<>();
+    private volatile java.util.concurrent.ScheduledExecutorService lateWakeups;
 
     /** @param notified whether the current session gets head notices */
     public HeadSignal(BooleanSupplier notified) {
+        this(notified, DEFAULT_LAZY_MS);
+    }
+
+    /**
+     * @param notified whether the current session gets head notices
+     * @param lazyMs   how late a notice about events an engine does not handle wakes it; 0: never
+     */
+    public HeadSignal(BooleanSupplier notified, long lazyMs) {
         this.notified = notified == null ? () -> false : notified;
+        this.lazyMs = Math.max(0, lazyMs);
     }
 
     /** Never notified: the consumers poll (engine tests, brokers without the capability). */
@@ -48,7 +71,8 @@ public final class HeadSignal {
 
     /** @param eventNames the events the engine handles; empty or null: woken by every notice */
     public void register(Semaphore wakeup, java.util.Collection<String> eventNames) {
-        wakeups.put(wakeup, eventNames == null ? Set.of() : Set.copyOf(eventNames));
+        wakeups.put(wakeup, new Registration(eventNames == null ? Set.of() : Set.copyOf(eventNames),
+                new java.util.concurrent.atomic.AtomicBoolean()));
     }
 
     /** Woken by every notice. */
@@ -71,11 +95,39 @@ public final class HeadSignal {
      */
     public void announce(java.util.Collection<String> eventNames) {
         for (var e : wakeups.entrySet()) {
-            if (eventNames.isEmpty() || e.getValue().isEmpty() || intersects(e.getValue(), eventNames)) {
-                var w = e.getKey();
-                if (w.availablePermits() == 0) w.release();
+            var w = e.getKey();
+            var r = e.getValue();
+            if (eventNames.isEmpty() || r.eventNames().isEmpty() || intersects(r.eventNames(), eventNames)) {
+                wake(w);
+            } else if (lazyMs > 0 && r.lateQueued().compareAndSet(false, true)) {
+                lateWakeups().schedule(() -> {
+                    r.lateQueued().set(false);
+                    if (wakeups.get(w) == r) wake(w);
+                }, lazyMs, TimeUnit.MILLISECONDS);
             }
         }
+    }
+
+    private static void wake(Semaphore w) {
+        if (w.availablePermits() == 0) w.release();
+    }
+
+    private java.util.concurrent.ScheduledExecutorService lateWakeups() {
+        var s = lateWakeups;
+        if (s == null) {
+            synchronized (this) {
+                s = lateWakeups;
+                if (s == null) {
+                    s = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                        var t = new Thread(r, "evento-head-late-wakeups");
+                        t.setDaemon(true);
+                        return t;
+                    });
+                    lateWakeups = s;
+                }
+            }
+        }
+        return s;
     }
 
     private static boolean intersects(Set<String> handled, java.util.Collection<String> appended) {

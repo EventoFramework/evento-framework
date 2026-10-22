@@ -32,6 +32,38 @@ class HeadSignalTest {
         assertThat(any.availablePermits()).as("a consumer with no names takes every notice").isEqualTo(1);
     }
 
+    /**
+     * Replicas: the position of a consumer must still move past events it does not handle, or a
+     * read-your-writes query on another replica (which reads that position from the store and
+     * cannot wake the lane's holder) waits out the fetch delay. Such notices wake it late, once.
+     */
+    @Test
+    void anEngineThatHandlesNoneOfTheEventsIsWokenLateAndOnceForAllTheNotices() throws Exception {
+        var signal = new HeadSignal(() -> true, 100);
+        var stock = new Semaphore(0);
+        signal.register(stock, Set.of("StockMovedEvent"));
+
+        signal.announce(List.of("OrderPaidEvent"));
+        signal.announce(List.of("OrderCreatedEvent"));
+        signal.announce(List.of("OrderPaidEvent"));
+        assertThat(stock.availablePermits()).as("not at once").isZero();
+
+        assertThat(stock.tryAcquire(2, java.util.concurrent.TimeUnit.SECONDS)).as("but later").isTrue();
+        Thread.sleep(300);
+        assertThat(stock.availablePermits()).as("one wake-up for the three notices").isZero();
+    }
+
+    @Test
+    void aLateWakeUpDoesNotReachAnUnregisteredEngine() throws Exception {
+        var signal = new HeadSignal(() -> true, 50);
+        var w = new Semaphore(0);
+        signal.register(w, Set.of("StockMovedEvent"));
+        signal.announce(List.of("OrderPaidEvent"));
+        signal.unregister(w);
+        Thread.sleep(250);
+        assertThat(w.availablePermits()).isZero();
+    }
+
     @Test
     void aNoticeThatNamesNothingWakesEveryone() {
         var signal = new HeadSignal(() -> true);

@@ -62,6 +62,8 @@ public final class JdbcConsumerLock implements ConsumerLock {
     private final int maxHeld;
     /** One permit per connection a lock may hold; null when unbounded. */
     private final java.util.concurrent.Semaphore slots;
+    /** Whether the pool has no idle connection left (HikariCP); never true for a pool that does not tell. */
+    private final java.util.function.BooleanSupplier poolExhausted;
     private final java.util.concurrent.atomic.AtomicBoolean warnedBound = new java.util.concurrent.atomic.AtomicBoolean();
 
     public JdbcConsumerLock(DataSource dataSource, SqlDialect dialect) {
@@ -81,6 +83,7 @@ public final class JdbcConsumerLock implements ConsumerLock {
     public JdbcConsumerLock(DataSource dataSource, SqlDialect dialect, Duration affinity, int maxHeld) {
         this.maxHeld = maxHeld <= 0 ? Integer.MAX_VALUE : maxHeld;
         this.slots = maxHeld <= 0 ? null : new java.util.concurrent.Semaphore(maxHeld);
+        this.poolExhausted = exhaustionProbe(dataSource);
         this.dataSource = dataSource;
         this.dialect = dialect;
         this.affinityNanos = Math.max(0, affinity.toNanos());
@@ -167,6 +170,10 @@ public final class JdbcConsumerLock implements ConsumerLock {
      * the longest; false when every lock held is in a cycle (the caller finds this one busy).
      */
     private boolean takeSlot() {
+        // A pool shared with others (other instances, the application) can run dry before this
+        // instance's own bound: an idle lock kept here would then make this consumer wait for a
+        // connection until the affinity ran out. Give one back first.
+        if (poolExhausted.getAsBoolean()) releaseOldestIdle();
         if (slots == null) return true;
         while (!slots.tryAcquire()) {
             Held oldest = null;
@@ -180,6 +187,40 @@ public final class JdbcConsumerLock implements ConsumerLock {
             }
         }
         return true;
+    }
+
+    private void releaseOldestIdle() {
+        Held oldest = null;
+        for (var h : held.values()) {
+            if (!h.inUse && !h.released && (oldest == null || h.idleSince < oldest.idleSince)) oldest = h;
+        }
+        if (oldest == null) return;
+        synchronized (oldest) {
+            if (!oldest.inUse && !oldest.released) release(oldest);
+        }
+    }
+
+    /**
+     * Reads HikariCP's idle-connection count through its MX bean, by reflection (the pool is the
+     * application's choice, not a dependency of this module).
+     */
+    static java.util.function.BooleanSupplier exhaustionProbe(DataSource dataSource) {
+        try {
+            var getBean = dataSource.getClass().getMethod("getHikariPoolMXBean");
+            var beanType = Class.forName("com.zaxxer.hikari.HikariPoolMXBean", false,
+                    dataSource.getClass().getClassLoader());
+            var getIdle = beanType.getMethod("getIdleConnections");
+            return () -> {
+                try {
+                    var bean = getBean.invoke(dataSource);
+                    return bean != null && (int) getIdle.invoke(bean) == 0;
+                } catch (ReflectiveOperationException | RuntimeException e) {
+                    return false;
+                }
+            };
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            return () -> false;
+        }
     }
 
     private void giveSlot() {
@@ -252,7 +293,8 @@ public final class JdbcConsumerLock implements ConsumerLock {
             h.idleSince = System.nanoTime();
             // No slot left: keeping this lock would only make the next consumer evict it, while its
             // connection is what the state writes of the cycles in progress are waiting for.
-            if (affinityNanos == 0 || (slots != null && slots.availablePermits() == 0)) release(h);
+            if (affinityNanos == 0 || (slots != null && slots.availablePermits() == 0)
+                    || poolExhausted.getAsBoolean()) release(h);
         }
     }
 

@@ -29,7 +29,8 @@ a revised payload needs a 3.0 broker.
   plus a few for the state writes. A smaller pool still works: with a pool that tells its maximum size
   (HikariCP) the locks take at most `max - max(2, max / 4)` connections and the consumers take turns, as in
   2.x, after a warning `event=consumer_lock_pool_bound`; while every slot is taken a cycle releases its lock at
-  its end, so the connections go back to the state writes. With another pool, pass the bound to the new
+  its end, so the connections go back to the state writes; and the same when the pool (HikariCP) has no idle
+  connection left, as a pool shared with other instances or the application can. With another pool, pass the bound to the new
   constructor `JdbcConsumerLock(dataSource, dialect, affinity, maxHeld)`, or `Duration.ZERO` as the affinity
   for the 2.x behaviour.
 - **A payload that cannot be serialized now fails the send** (`IllegalArgumentException` from
@@ -360,7 +361,10 @@ a revised payload needs a 3.0 broker.
   sends `evento:events-appended` to its bundles when it moved, with the names of the events appended since
   (one range scan of the primary key); a bundle wakes only the consumers that handle one of them, and they wait
   for it at the head up to their fetch delay as a safety net. Waking every consumer on every append made each
-  of them fetch, and those waves kept iris's projections minutes behind under its end-to-end suite. Reading the database keeps it right in a cluster: an event
+  of them fetch, and those waves kept iris's projections minutes behind under its end-to-end suite.
+  Consumers that handle none of the named events are woken too, late (500 ms) and once for any number of
+  notices, so that their stored position keeps moving: a read-your-writes query on another replica of the
+  consumer reads it and cannot wake the replica that holds the lane. Reading the database keeps it right in a cluster: an event
   appended through another server wakes these bundles too, and no server calls another. iris at rest: ~70
   transactions a second. With a 2.x broker, or a bundle older than 3.0, the consumers poll as before.
 - **One checkpoint write for the events a projector does not handle.** Every event still reaches the projector;
