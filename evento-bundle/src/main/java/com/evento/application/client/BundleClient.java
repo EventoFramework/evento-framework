@@ -425,6 +425,14 @@ public final class BundleClient implements AutoCloseable {
         return supervisor.accepted(HandshakeProtocol.CAPABILITY_EVENTS);
     }
 
+    /**
+     * Whether the broker of the current session tells when its event store has grown (3.0): the
+     * consumers at the head may then wait for it instead of polling.
+     */
+    public boolean headNoticesAccepted() {
+        return supervisor.accepted(HandshakeProtocol.CAPABILITY_HEAD);
+    }
+
     /** Streams this bundle is receiving through the broker now. */
     public int inboundStreams() {
         return inboundDispatcher.inboundStreams();

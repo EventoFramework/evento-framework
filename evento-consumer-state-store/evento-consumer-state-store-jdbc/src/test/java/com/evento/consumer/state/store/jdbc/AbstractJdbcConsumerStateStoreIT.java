@@ -417,7 +417,7 @@ abstract class AbstractJdbcConsumerStateStoreIT {
             var c = l.tryAcquire("turn-c");
             assertThat(c).as("a, idle the longest, gives way").isPresent();
             var b = l.tryAcquire("turn-b");
-            assertThat(b).as("b still kept: its next cycle takes it back").isPresent();
+            assertThat(b).as("b takes a slot again: a, idle, gives way").isPresent();
             assertThat(l.tryAcquire("turn-d")).as("both slots in a cycle: busy, not a wait for the pool").isEmpty();
             c.get().close();
             var d = l.tryAcquire("turn-d");

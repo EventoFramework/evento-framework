@@ -76,6 +76,41 @@ class ConsumerProcessorTest {
                 .isEqualTo(new ProjectorCheckpoint(3L));
     }
 
+    /**
+     * Events the projector has no handler for are still handed to it, but their position is
+     * written with the next handled event or at the end of the batch: one write, not one each
+     * (iris master-data: seventeen projectors, every event of the stream a write for each).
+     */
+    @Test
+    void theCheckpointOfUnhandledEventsIsWrittenWithTheNextOneOrAtTheEnd() throws Throwable {
+        server.nextFetch(TestEvents.event(1, "Other"), TestEvents.event(2, "Other"), TestEvents.event(3, "Mine"),
+                TestEvents.event(4, "Other"), TestEvents.event(5, "Other"));
+        List<Long> seen = new ArrayList<>();
+        var consumer = EventConsumer.of(e -> seen.add(e.getEventSequenceNumber()), java.util.Set.of("Mine"));
+
+        int consumed = processor.consumeEventsForProjector("c1", "ProjA", "ctx", consumer, 10);
+
+        assertThat(consumed).isEqualTo(5);
+        assertThat(seen).as("every event still reaches the consumer").containsExactly(1L, 2L, 3L, 4L, 5L);
+        var stored = stateStore.read("c1").orElseThrow();
+        assertThat(stored.checkpoint()).isEqualTo(new ProjectorCheckpoint(5L));
+        assertThat(stored.version()).as("two writes: event 3, then the end of the batch").isEqualTo(2L);
+    }
+
+    @Test
+    void aFailureWritesThePositionOfTheUnhandledEventsBeforeIt() throws Throwable {
+        server.nextFetch(TestEvents.event(1, "Other"), TestEvents.event(2, "Mine"));
+        var consumer = EventConsumer.of(e -> {
+            if (e.getEventSequenceNumber() == 2) throw new java.net.ConnectException("db down");
+        }, java.util.Set.of("Mine"));
+
+        assertThatThrownBy(() -> processor.consumeEventsForProjector("c1", "ProjA", "ctx", consumer, 10))
+                .isInstanceOf(TransientConsumerException.class);
+        assertThat(stateStore.read("c1").orElseThrow().checkpoint())
+                .as("event 2 failed and is fetched again; event 1 is behind")
+                .isEqualTo(new ProjectorCheckpoint(1L));
+    }
+
     @Test
     void projectorReturnsMinusOneWhenLockHeldByAnotherCaller() throws Throwable {
         var held = lock.tryAcquire("c1").orElseThrow();
@@ -155,6 +190,26 @@ class ConsumerProcessorTest {
     }
 
     // --- Saga --------------------------------------------------------------
+
+    @Test
+    void aSagaWritesTheCheckpointOfUnhandledEventsWithTheNextOneOrAtTheEnd() throws Throwable {
+        server.nextHead(0L);
+        server.nextFetch(TestEvents.event(1, "Other"), TestEvents.event(2, "OrderPlaced"),
+                TestEvents.event(3, "Other"), TestEvents.event(4, "Other"));
+        List<Long> seen = new ArrayList<>();
+        var consumer = SagaEventConsumer.of((fetcher, event) -> {
+            seen.add(event.getEventSequenceNumber());
+            return null;
+        }, java.util.Set.of("OrderPlaced"));
+
+        processor.consumeEventsForSaga("c1", "OrderSaga", "ctx", consumer, 10);
+
+        assertThat(seen).containsExactly(1L, 2L, 3L, 4L);
+        var stored = stateStore.read("c1").orElseThrow();
+        assertThat(stored.checkpoint()).isEqualTo(new SagaCheckpoint(4L));
+        // A saga with no checkpoint first seeds one at the head: a write of its own.
+        assertThat(stored.version()).as("seed, event 2, the end of the batch").isEqualTo(3L);
+    }
 
     @Test
     void sagaConsumeCreatesInstanceWhenLookupReturnsNothing() throws Throwable {

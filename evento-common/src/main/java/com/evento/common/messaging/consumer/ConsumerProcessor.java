@@ -189,6 +189,9 @@ public final class ConsumerProcessor {
 
             int consumed = 0;
             long currentVersion = cursor.version;
+            // The position of events nobody here handles, written with the next one (or at the
+            // end of the batch) rather than each on its own. Replaying them after a crash is a no-op.
+            long unwritten = -1;
             try {
                 for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
@@ -205,9 +208,12 @@ public final class ConsumerProcessor {
                     }
                     if (watermarking) {
                         tracker.recordDispatched(event.getEventSequenceNumber());
-                    } else {
+                    } else if (projectorEventConsumer.handles(event)) {
                         currentVersion = advanceCheckpoint(consumerId,
                                 new ProjectorCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                        unwritten = -1;
+                    } else {
+                        unwritten = event.getEventSequenceNumber();
                     }
                     consumed++;
                     recordMetric(projectorName, event, start);
@@ -248,14 +254,25 @@ public final class ConsumerProcessor {
                     // frontier and close their own gap in one step.
                     tracker.recordDispatched(event.getEventSequenceNumber());
                     tracker.recordCompleted(event.getEventSequenceNumber());
-                } else {
+                } else if (projectorEventConsumer.handles(event)) {
                     currentVersion = advanceCheckpoint(consumerId,
                             new ProjectorCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                    unwritten = -1;
+                } else {
+                    unwritten = event.getEventSequenceNumber();
                 }
                 consumed++;
                 recordMetric(projectorName, event, start);
                 }
             } finally {
+                if (unwritten >= 0) {
+                    try {
+                        currentVersion = advanceCheckpoint(consumerId, new ProjectorCheckpoint(unwritten), currentVersion);
+                    } catch (RuntimeException e) {
+                        // Only unhandled events behind it: the next cycle fetches them again.
+                        logger.warn("Checkpoint of projector {} at {} not written: {}", projectorName, unwritten, e.toString());
+                    }
+                }
                 // Every exit path commits what has actually completed: the normal end of
                 // batch, the saturated-executor early return, the consumer-disabled
                 // short-circuit, and a thrown TransientConsumerException. Skipping any of
@@ -450,6 +467,10 @@ public final class ConsumerProcessor {
             var resp = fetchEvents(context, lastSeq, fetchSize, sagaName);
 
             int consumed = 0;
+            // As for projectors: the position of events this saga does not handle is written with
+            // the next one it handles, or at the end of the batch.
+            long unwritten = -1;
+            try {
             for (PublishedEvent event : resp.getEvents()) {
                 var start = Instant.now();
                 AtomicReference<Long> sagaStateId = new AtomicReference<>();
@@ -476,9 +497,23 @@ public final class ConsumerProcessor {
                     logger.error("Event consumption error for saga {} event {} — moved to DLQ",
                             sagaName, event.getEventName(), e);
                 }
-                currentVersion = advanceCheckpoint(consumerId, new SagaCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                if (sagaEventConsumer.handles(event)) {
+                    currentVersion = advanceCheckpoint(consumerId, new SagaCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                    unwritten = -1;
+                } else {
+                    unwritten = event.getEventSequenceNumber();
+                }
                 consumed++;
                 recordMetric(sagaName, event, start);
+            }
+            } finally {
+                if (unwritten >= 0) {
+                    try {
+                        advanceCheckpoint(consumerId, new SagaCheckpoint(unwritten), currentVersion);
+                    } catch (RuntimeException e) {
+                        logger.warn("Checkpoint of saga {} at {} not written: {}", sagaName, unwritten, e.toString());
+                    }
+                }
             }
             return consumed;
         }

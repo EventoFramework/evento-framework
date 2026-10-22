@@ -28,7 +28,8 @@ a revised payload needs a 3.0 broker.
   and its connection, between fetch cycles (see Changed): budget one connection per consumer of the instance
   plus a few for the state writes. A smaller pool still works: with a pool that tells its maximum size
   (HikariCP) the locks take at most `max - max(2, max / 4)` connections and the consumers take turns, as in
-  2.x, after a warning `event=consumer_lock_pool_bound`. With another pool, pass the bound to the new
+  2.x, after a warning `event=consumer_lock_pool_bound`; while every slot is taken a cycle releases its lock at
+  its end, so the connections go back to the state writes. With another pool, pass the bound to the new
   constructor `JdbcConsumerLock(dataSource, dialect, affinity, maxHeld)`, or `Duration.ZERO` as the affinity
   for the 2.x behaviour.
 - **A payload that cannot be serialized now fails the send** (`IllegalArgumentException` from
@@ -350,6 +351,24 @@ a revised payload needs a 3.0 broker.
 
 ### Changed
 
+- **Consumers at the head wait for the broker instead of polling it** (capability `head:1`). A consumer that
+  found no new event fetched again after a few milliseconds (the room left in its batch, in ms; the fetch delay
+  applied only after an error), so every idle consumer queried the event store about twenty times a second: on
+  iris, about 100 consumers, ~730 event-store transactions a second at rest, and the fetches that did bring
+  events waited behind them on the broker (`evento.es.fetch.concurrency`), so projections fell behind under
+  load. Now each server reads its store's head every `evento.es.head.poll.ms` (50 ms; 0 turns it off) and
+  sends `evento:events-appended` to its bundles when it moved, with the names of the events appended since
+  (one range scan of the primary key); a bundle wakes only the consumers that handle one of them, and they wait
+  for it at the head up to their fetch delay as a safety net. Waking every consumer on every append made each
+  of them fetch, and those waves kept iris's projections minutes behind under its end-to-end suite. Reading the database keeps it right in a cluster: an event
+  appended through another server wakes these bundles too, and no server calls another. iris at rest: ~70
+  transactions a second. With a 2.x broker, or a bundle older than 3.0, the consumers poll as before.
+- **One checkpoint write for the events a projector does not handle.** Every event still reaches the projector;
+  the position of one it has no handler for is written with the next event it handles, or at the end of the
+  batch, instead of on its own: a projector sees every event of its context, so seventeen projectors in one
+  bundle (iris master-data) made every event of the stream seventeen state-store writes. Replaying such events
+  after a crash is a no-op. `EventConsumer.handles(event)` (default true) and `EventConsumer.of(consumer,
+  eventNames)` say which events a consumer handles.
 - **A replica keeps its consumer lanes between cycles.** `JdbcConsumerLock` keeps a lock for 5 s
   (`DEFAULT_AFFINITY`) after the cycle that took it, so the next cycle of the same replica takes it back and
   the others find it held: a lane no longer hops between replicas (lab S16, a global lane written from two
@@ -387,6 +406,11 @@ a revised payload needs a 3.0 broker.
 
 ### Fixed
 
+- **A bundle leaving no longer stalls the broker's network threads.** Its cleanup (consumer rows, the catalog,
+  a sweep of every payload) ran on the event loop of the channel that closed: eleven iris services stopped
+  together held ten event loops for seconds, each sweeping the same payloads, and services starting meanwhile
+  timed out on their handshake. Departures are now cleaned up one at a time on a thread of their own, and one
+  payload sweep follows a burst of them.
 - **A command sent right after a bundle started could fail.** The bundle announced itself with three notifications
   (registration, "enable", discovery) that the transport handled concurrently, and its `start()` returned before the
   server had handled any of them: a command sent at once got "no handler", or reached the bundle before the broker

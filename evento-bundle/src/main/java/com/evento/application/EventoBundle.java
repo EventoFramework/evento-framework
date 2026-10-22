@@ -964,6 +964,11 @@ public class EventoBundle {
             final var enginesForGate = new AtomicReference<EngineSupervisor>();
             dispatcher.setConsistencyGate(new com.evento.application.consumer.ProjectorConsistencyGate(enginesForGate::get));
             bundleClient.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, adminHandler);
+            // The consumers at the head wait for the broker's notice that its store has grown.
+            var headSignal = new com.evento.application.consumer.HeadSignal(bundleClient::headNoticesAccepted);
+            bundleClient.registerNotificationHandler(
+                    com.evento.transport.protocol.ProtocolNotifications.EVENTS_APPENDED,
+                    (payload, ctx) -> headSignal.announce(com.evento.application.consumer.HeadSignal.namesOf(payload)));
             for (String payloadType : handlerPayloadTypes) {
                 bundleClient.registerRequestHandler(payloadType, dispatcher);
             }
@@ -1021,7 +1026,8 @@ public class EventoBundle {
                     tracingAgent,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
                             performanceService, tracingAgent, c, p),
-                    messageHandlerInterceptor
+                    messageHandlerInterceptor,
+                    headSignal
             );
 
             logger.info("Starting projector consumers...");

@@ -194,8 +194,13 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
 
     @Override
     public void run() {
+        var handled = HeadSignal.handledBy(projectorMessageHandlers, projectorName);
+        dispatchContext.headSignal().register(wakeup, handled);
         var ps = new ProjectorStatus();
         ps.setHeadReached(false);
+        // Knows its events: the checkpoint of one it does not handle is written with the next.
+        var consumer = com.evento.common.messaging.consumer.EventConsumer.of(
+                publishedEvent -> dispatch(publishedEvent, ps), handled);
         var backoff = new ExponentialBackoffWithJitter(
                 Duration.ofMillis(sssFetchDelay), Duration.ofSeconds(30), 0.2,
                 ExponentialBackoffWithJitter.UNBOUNDED);
@@ -213,7 +218,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             consumerId,
                             projectorName,
                             context,
-                            publishedEvent -> dispatch(publishedEvent, ps),
+                            consumer,
                             sssFetchSize,
                             routing.resolver(),
                             checkpointMode);
@@ -252,8 +257,11 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                 Sleep.apply(delay);
             } else {
                 channelErrorAttempts = 0;
-                if (sssFetchSize - consumedEventCount > 10) {
+                if (consumedEventCount < 0) {
+                    // The lock is busy: no notice comes when it is free again, so poll for it.
                     idle(sssFetchSize - consumedEventCount);
+                } else if (sssFetchSize - consumedEventCount > 10) {
+                    dispatchContext.headSignal().pauseAtHead(wakeup, sssFetchSize - consumedEventCount, sssFetchDelay);
                 }
             }
 
@@ -281,6 +289,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                         now - lastConsumedEvent.getCreatedAt());
             }
         }
+        dispatchContext.headSignal().unregister(wakeup);
     }
 
     /** The pause between two fetches at the head, cut short by {@link #wakeup}. */

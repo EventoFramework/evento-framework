@@ -17,4 +17,24 @@ public interface SagaEventConsumer {
 	 * @throws Throwable if an error occurs during consumption
 	 */
     SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Throwable;
+
+    /** As {@link EventConsumer#handles}: whether this saga has a handler for {@code event} (default true). */
+    default boolean handles(PublishedEvent event) {
+        return true;
+    }
+
+    /** A saga consumer that {@link #handles} only the events of {@code eventNames}. */
+    static SagaEventConsumer of(SagaEventConsumer consumer, java.util.Set<String> eventNames) {
+        return new SagaEventConsumer() {
+            @Override
+            public SagaState consume(SagaStateFetcher sagaStateFetcher, PublishedEvent event) throws Throwable {
+                return consumer.consume(sagaStateFetcher, event);
+            }
+
+            @Override
+            public boolean handles(PublishedEvent event) {
+                return eventNames.contains(event.getEventName());
+            }
+        };
+    }
 }

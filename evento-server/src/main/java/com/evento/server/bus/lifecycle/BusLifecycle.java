@@ -517,6 +517,28 @@ public final class BusLifecycle {
     public Set<NodeAddress> view() { return connectionRegistry.view(); }
     public Set<NodeAddress> availableView() { return connectionRegistry.availableView(); }
     public boolean isBundleAvailable(String bundleId) { return connectionRegistry.isAvailable(bundleId); }
+
+    /**
+     * Sends {@code payloadType} with {@code body} to every established session that negotiated
+     * {@code capability}. Fire-and-forget: a session that cannot take it is skipped.
+     *
+     * @return how many sessions it was sent to
+     */
+    public int broadcast(String capability, String payloadType, byte[] body) {
+        int sent = 0;
+        for (var session : sessionsByTransport.values()) {
+            if (!session.established() || session.disconnected()
+                    || !session.capabilities().contains(capability)) continue;
+            try {
+                session.transport().send(new Notification(UUID.randomUUID(), payloadType, body,
+                        System.currentTimeMillis()));
+                sent++;
+            } catch (RuntimeException e) {
+                log.debug("event=broadcast_skipped payloadType={} cause={}", payloadType, e.toString());
+            }
+        }
+        return sent;
+    }
     /** instanceId → zone, for every connected node that advertised one. */
     public java.util.Map<String, String> zones() { return clusterRegistry.zones(); }
     public void subscribe(Consumer<BusEvent> listener) { eventBus.subscribe(listener); }

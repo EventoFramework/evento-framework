@@ -193,11 +193,16 @@ public class BusConfiguration {
                                      // The broker's own replies (event fetches) from this size are
                                      // compressed for callers that accept it; 0 never.
                                      @Value("${evento.server.bus.compression.threshold-bytes:32768}") int compressionThreshold,
+                                     // The head notifier (HeadNotifier) runs: the bundles may wait for it.
+                                     @Value("${evento.es.head.poll.ms:50}") long headPollMs,
                                      org.springframework.beans.factory.ObjectProvider<
                                              org.springframework.boot.availability.ApplicationAvailability> availability) {
         var lifecycle = new BusLifecycle(transportServer, connections, cluster, correlations,
                 forwarding, eventBus, props.serverInstanceId(),
-                Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec, tokenValidator,
+                com.evento.server.es.HeadNotifier.enabled(headPollMs)
+                        ? Set.of(HandshakeProtocol.CAPABILITY_PING_PONG, HandshakeProtocol.CAPABILITY_HEAD)
+                        : Set.of(HandshakeProtocol.CAPABILITY_PING_PONG),
+                payloadCodec, tokenValidator,
                 new com.evento.server.bus.correlation.ForwardingDedupCache(50_000, java.time.Duration.ofMinutes(5),
                         dedupMaxRetainedBytes, dedupMaxResponseBytes));
         lifecycle.setReconnectBufferMaxBytes(reconnectBufferMaxBytes);

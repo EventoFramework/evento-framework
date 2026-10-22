@@ -39,8 +39,9 @@ import java.util.concurrent.TimeUnit;
  * with a pool whose maximum size is known ({@code getMaximumPoolSize()}, as on HikariCP, or the
  * {@code maxHeld} given to the constructor) they hold at most {@code max - max(2, max / 4)}
  * connections. A consumer that needs a lock beyond that first ends the affinity of the lock kept
- * idle the longest, or finds the lock busy and tries again on its next cycle: a pool sized for
- * 2.x (one lock per cycle) works as it did, with less affinity, and a warning says so. Without
+ * idle the longest, or finds the lock busy and tries again on its next cycle; and while every slot
+ * is taken a cycle releases its lock at its end instead of keeping it. A pool sized for 2.x (one
+ * lock per cycle) thus works as it did, without the affinity, and a warning says so. Without
  * that bound, the consumers that came first kept every connection (they poll more often than the
  * affinity lasts) and the others waited for one forever.
  */
@@ -249,7 +250,9 @@ public final class JdbcConsumerLock implements ConsumerLock {
             if (h.released) return;
             h.inUse = false;
             h.idleSince = System.nanoTime();
-            if (affinityNanos == 0) release(h);
+            // No slot left: keeping this lock would only make the next consumer evict it, while its
+            // connection is what the state writes of the cycles in progress are waiting for.
+            if (affinityNanos == 0 || (slots != null && slots.availablePermits() == 0)) release(h);
         }
     }
 

@@ -640,6 +640,21 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
         snapshotCache.put(aggregateId, snapshot);
     }
 
+    /**
+     * How long after its append an event becomes visible to fetches: the fetch delay under
+     * APES (events younger than it are held back), 0 under CPES.
+     */
+    public long visibilityDelayMs() {
+        return MODE == EventStoreMode.APES ? DELAY : 0;
+    }
+
+    /** The names of the events appended after {@code after}, up to {@code upTo} (a range of the primary key). */
+    public List<String> eventNamesBetween(long after, long upTo) {
+        return jdbcTemplate.queryForList(
+                "select distinct event_name from es__events where event_sequence_number > ? and event_sequence_number <= ?",
+                String.class, after, upTo);
+    }
+
     public long getLastEventSequenceNumber() {
         var v = eventStoreRepository.getLastEventSequenceNumber();
         return v == null ? 0 : v;

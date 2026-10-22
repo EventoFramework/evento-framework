@@ -339,11 +339,13 @@ public record BundleClientConfig(
             // payload only where the broker keeps them. And several events per command.
             if (!caps.contains(HandshakeProtocol.CAPABILITY_STREAM)
                     || !caps.contains(HandshakeProtocol.CAPABILITY_REVISION)
-                    || !caps.contains(HandshakeProtocol.CAPABILITY_EVENTS)) {
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_EVENTS)
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_HEAD)) {
                 var withStream = new java.util.LinkedHashSet<>(caps);
                 withStream.add(HandshakeProtocol.CAPABILITY_STREAM);
                 withStream.add(HandshakeProtocol.CAPABILITY_REVISION);
                 withStream.add(HandshakeProtocol.CAPABILITY_EVENTS);
+                withStream.add(HandshakeProtocol.CAPABILITY_HEAD);
                 caps = withStream;
             }
             if (zone != null && !zone.isBlank()) {

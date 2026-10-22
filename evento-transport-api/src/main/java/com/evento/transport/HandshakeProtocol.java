@@ -47,6 +47,17 @@ public final class HandshakeProtocol {
     public static final String CAPABILITY_EVENTS = "events:1";
 
     /**
+     * The broker tells the bundle when its event store has grown
+     * ({@link com.evento.transport.protocol.ProtocolNotifications#EVENTS_APPENDED}, 3.0). A
+     * bundle's consumers at the head then wait for that notice, with their fetch delay as a
+     * safety net, instead of fetching again every few milliseconds: with a hundred consumers the
+     * empty fetches were thousands of event-store queries a second, and the fetches that had
+     * events queued behind them. Without it (an older broker, or one that does not watch its
+     * store) the consumers poll as before.
+     */
+    public static final String CAPABILITY_HEAD = "head:1";
+
+    /**
      * Prefix of the capability a bundle uses to say where it runs:
      * {@code "zone:EU"}. It rides in {@code Hello.capabilities} rather than a
      * field of its own so that no wire type changes and a peer that knows
