@@ -108,12 +108,23 @@ public final class OutboundStream implements HandlerRegistry.StreamSink {
 
     /** The caller consumed {@code n} frames: that many more may go. */
     public void grant(int n) {
-        if (n > 0) credits.release(n);
+        // After a cancel the credits no longer matter, and adding to the wake-up permits below
+        // could overflow the semaphore.
+        if (n > 0 && cancelled == null) credits.release(n);
     }
 
-    /** Stops the stream: the next {@link #send} throws, a send waiting for credit wakes up. */
+    /**
+     * Stops the stream: the next {@link #send} throws, a send waiting for credit wakes up.
+     * Idempotent: only the first call releases the wake-up permits. Each call used to, and a
+     * stream cancelled twice (the caller closing while a send gave up on credit) overflowed the
+     * semaphore: the handler saw {@code Error: Maximum permit count exceeded} instead of
+     * {@link HandlerRegistry.StreamCancelledException}.
+     */
     public void cancel(String reason) {
-        if (cancelled == null) cancelled = reason == null ? "cancelled" : reason;
+        synchronized (this) {
+            if (cancelled != null) return;
+            cancelled = reason == null ? "cancelled" : reason;
+        }
         credits.release(Integer.MAX_VALUE / 2);
     }
 

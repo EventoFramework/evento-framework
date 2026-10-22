@@ -130,12 +130,13 @@ public final class BundleClient implements AutoCloseable {
 
     /**
      * Open the connection and complete the handshake/registration. Returns when
-     * the bundle is READY (or when the first attempt fails).
+     * the bundle is READY and the server has handled its registration (the barrier:
+     * routed to, its commands handled), or when the first attempt fails.
      */
     public CompletableFuture<Void> start() {
         // Bound before the bundle registers: a direct stream may be asked of it at once.
         if (directServer != null) directServer.start();
-        return supervisor.start();
+        return supervisor.start().thenCompose(v -> supervisor.barrier());
     }
 
     /**

@@ -1004,10 +1004,12 @@ public final class ConnectionSupervisor implements AutoCloseable {
                     System.currentTimeMillis()))
                     .get(config.registrationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
-
-        // Step 4: wait until the server has handled all of the above, so that the bundle is
-        // ready (routed to, its commands handled) when the caller of start() goes on.
-        barrier(transport).get(barrierTimeoutMs() + 1_000, TimeUnit.MILLISECONDS);
+        // No barrier here: the session is READY as soon as the above is sent, so that what a
+        // bundle sends on every new session (its consumer registration) goes out at once. Held
+        // until the server has handled discovery, a fail-back's consumer registration queued on
+        // the catalog lock behind the discoveries of the bundle's other instances, and the rows
+        // the old server had cleared stayed missing for tens of seconds (lab S04). start() and
+        // enable() wait for the barrier instead (BundleClient).
         return enable;
     }
 
