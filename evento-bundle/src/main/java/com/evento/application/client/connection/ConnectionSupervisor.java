@@ -1007,7 +1007,7 @@ public final class ConnectionSupervisor implements AutoCloseable {
 
         // Step 4: wait until the server has handled all of the above, so that the bundle is
         // ready (routed to, its commands handled) when the caller of start() goes on.
-        barrier(transport).get(config.registrationTimeout().toMillis() + 1_000, TimeUnit.MILLISECONDS);
+        barrier(transport).get(barrierTimeoutMs() + 1_000, TimeUnit.MILLISECONDS);
         return enable;
     }
 
@@ -1022,14 +1022,14 @@ public final class ConnectionSupervisor implements AutoCloseable {
 
     /**
      * Completes when the server has handled every notification sent before it on this session
-     * ({@link com.evento.transport.protocol.ProtocolPayloadTypes#BARRIER}), or after the
-     * registration timeout: a barrier makes startup deterministic, it never fails it.
+     * ({@link com.evento.transport.protocol.ProtocolPayloadTypes#BARRIER}), or after
+     * {@link #barrierTimeoutMs()}: a barrier makes startup deterministic, it never fails it.
      */
     private CompletableFuture<Void> barrier(NettyClientTransport transport) {
         var id = UUID.randomUUID();
         var done = new CompletableFuture<Void>();
         pendingBarriers.put(id, done);
-        long timeoutMs = config.registrationTimeout().toMillis();
+        long timeoutMs = barrierTimeoutMs();
         try {
             transport.send(new Request(id, config.bundleId(), config.instanceId(), config.bundleVersion(),
                     com.evento.transport.protocol.ProtocolPayloadTypes.BARRIER, new byte[0], timeoutMs,
@@ -1039,8 +1039,22 @@ public final class ConnectionSupervisor implements AutoCloseable {
             log.debug("event=barrier_not_sent cause={}", e.toString());
             return CompletableFuture.completedFuture(null);
         }
-        return done.completeOnTimeout(null, timeoutMs, TimeUnit.MILLISECONDS)
+        return done.orTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .exceptionally(t -> {
+                    log.warn("event=barrier_timeout timeoutMs={} - the server is still handling this bundle's "
+                            + "registration; requests sent now may find no handler", timeoutMs);
+                    return null;
+                })
                 .whenComplete((v, t) -> pendingBarriers.remove(id));
+    }
+
+    /**
+     * How long a barrier waits: a request's deadline, not a single write's. Behind it the server
+     * writes the bundle's discovery to its catalog, one handler at a time on a fresh catalog: a
+     * bundle with 670 handlers took 8.5 s there, beyond the registration timeout.
+     */
+    private long barrierTimeoutMs() {
+        return Math.max(config.registrationTimeout().toMillis(), config.defaultRequestTimeout().toMillis());
     }
 
     private long parseVersion(String version) {

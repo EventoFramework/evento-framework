@@ -596,6 +596,8 @@ public final class BundleClient implements AutoCloseable {
         /** Advertise where this bundle runs ({@code zone:<ZONE>} in Hello); null clears it. */
         public Builder zone(String zone) { cfg.zone(zone); return this; }
         public Builder handshakeTimeout(Duration d) { cfg.handshakeTimeout(d); return this; }
+        /** Bound on each registration write; the closing barrier waits up to {@link #defaultRequestTimeout}. */
+        public Builder registrationTimeout(Duration d) { cfg.registrationTimeout(d); return this; }
         public Builder defaultRequestTimeout(Duration d) { cfg.defaultRequestTimeout(d); return this; }
         /** Cap on outstanding requests; 0 disables the bound. */
         public Builder maxInFlightRequests(int n) { cfg.maxInFlightRequests(n); return this; }

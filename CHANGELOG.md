@@ -380,7 +380,11 @@ a revised payload needs a 3.0 broker.
   connection's notifications are handled in order, a 3.0 bundle sends its discovery before "enable", and it waits
   for the new `evento:barrier` request, which the server answers after the notifications sent before it: `start()`
   and `enable()` return when the bundle is routed to and its commands are handled. With a 2.5 server the barrier is
-  answered "no handler" and the bundle goes on as before; a 2.5 bundle keeps the old startup window.
+  answered "no handler" and the bundle goes on as before; a 2.5 bundle keeps the old startup window. The barrier
+  waits up to `defaultRequestTimeout` (30 s), not the registration timeout (5 s): on a fresh catalog the server
+  writes a large bundle's discovery one handler at a time (670 handlers: 8.5 s), and a barrier that gave up at 5 s
+  let an application's startup seeders find no handler. If it still expires, the bundle logs
+  `event=barrier_timeout`. `BundleClient.Builder.registrationTimeout(Duration)` is new.
 - **CSRF protection stays on with Basic authentication.** It used to be switched off for the whole API; now only
   requests that carry their credential in the `Authorization` header (which another site cannot make a browser add)
   skip the token check. The console and machine clients send that header and see no change.
