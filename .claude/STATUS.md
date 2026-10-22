@@ -219,6 +219,13 @@ cycle end while the pool has no slot left. iris side (commits b8cf7d411, 275feea
 for the projection, microsecond timestamps (KPI projector, selection test), postgres `init: true`,
 master-data pool 24. Result: 153/153 on the first pass, empty databases, 4m39s. Published as 3.0.0-rc7 to
 scratchpad/m2-rc from the `.evento-bisect` worktree (uncommitted version edits).
+Replicated consumers checked afterwards (user): targeted notices left the lane holder's position behind on
+events it does not handle, so a read-your-writes query on another replica waited the fetch delay -> such
+notices now wake the other engines 500 ms late, coalesced; replicas sharing a pool ran it dry with kept locks
+-> a kept lock also yields when HikariCP has no idle connection (9767e275, replica IT in AbstractJdbcConsumerIT
+on PG and MySQL). New scenario `MsHighAvailabilityConsumersIT` (evento-lab-ms-it, PG, EVENTO_RUN_JDBC_IT):
+3 contexts x 3 replicas, the lane holder (from pg_locks) killed twice per context mid-stream, every event once
+and in order per context (4b9378b6). Still to re-run: lab-cluster chaos S00-S18 and the 2.5.2 compat campaign.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
