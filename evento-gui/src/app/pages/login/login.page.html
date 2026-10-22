@@ -5,6 +5,13 @@
         <img src="assets/img/logo.png" alt="Evento"/>
         <p>{{ 'evento.description' | translate }}</p>
       </div>
+      @if (auth.mode() === 'oidc') {
+        <div class="login-form">
+          <ion-button expand="block" (click)="signInWithProvider()">
+            {{ 'login.sso' | translate }}
+          </ion-button>
+        </div>
+      } @else {
       <form (ngSubmit)="submit()" class="login-form">
         <ion-input [(ngModel)]="username" name="username" fill="outline"
           labelPlacement="floating" [label]="'login.username' | translate"
@@ -27,6 +34,7 @@
           }
         </ion-button>
       </form>
+      }
     </div>
   </div>
 </ion-content>

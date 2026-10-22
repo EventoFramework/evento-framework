@@ -10,6 +10,7 @@ import com.evento.common.messaging.gateway.CommandGatewayImpl;
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.modeling.bundle.types.PayloadType;
+import com.evento.common.modeling.exceptions.AggregateConflictException;
 import com.evento.common.modeling.exceptions.ExceptionWrapper;
 import com.evento.common.modeling.exceptions.IdempotencyKeyInProgressException;
 import com.evento.common.modeling.exceptions.IdempotencyKeyMismatchException;
@@ -310,6 +311,95 @@ class IdempotentCommandPostgresIT {
     }
 
     @Test
+    void withoutAnAggregateLockOrAKeyTheFenceStoresOneEventAndRunsTheRestAgain() throws Exception {
+        // C1: a command whose getLockId() is null, sent 8 times with no key. Every handler runs
+        // from the empty story (they wait for each other) and creates the order. Before the fence
+        // all 8 events were stored: 8 creations of one order, a forked aggregate without any
+        // fault. Now the first append takes version 1 and the database refuses the other 7; the
+        // broker runs those again on the new story (3.0), under the aggregate lock, where the
+        // domain refuses a second creation: the callers get the domain's answer, not a conflict.
+        var orderId = "order-unfenced-" + UUID.randomUUID();
+        barriers.put(orderId, new CountDownLatch(8));
+        long conflictsBefore = fenceConflicts();
+        long retriesBefore = fenceRetries();
+        var go = new CountDownLatch(1);
+        var futures = new ArrayList<CompletableFuture<?>>();
+        for (int i = 0; i < 8; i++) {
+            var server = i % 2 == 0 ? serverA : serverB;
+            futures.add(CompletableFuture.supplyAsync(() -> {
+                try {
+                    go.await();
+                    var cmd = new IdemCmd(orderId);
+                    cmd.lockless = true;
+                    return gateway(server).send(cmd).get(30, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }, clientExecutor));
+        }
+        go.countDown();
+        var outcomes = futures.stream().map(f -> {
+            try {
+                f.get(40, TimeUnit.SECONDS);
+                return "ok";
+            } catch (ExecutionException e) {
+                // supplyAsync wraps the gateway's ExecutionException in an IllegalStateException.
+                var cause = e.getCause().getCause() instanceof ExecutionException sent ? sent.getCause() : e.getCause();
+                return cause.getClass().getSimpleName();
+            } catch (Exception e) {
+                return e.getClass().getSimpleName();
+            }
+        }).toList();
+        assertThat(aggregateCalls).as("8 runs from the empty story, 7 again from the new one").hasValue(15);
+        assertThat(outcomes).filteredOn("ok"::equals).hasSize(1);
+        assertThat(outcomes).filteredOn(o -> !o.equals("ok")).hasSize(7)
+                .noneMatch(AggregateConflictException.class.getSimpleName()::equals);
+        assertThat(eventsOf(orderId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select aggregate_seq from es__events where aggregate_id = ?", Long.class,
+                orderId)).isEqualTo(1);
+        assertThat(fenceRetries() - retriesBefore).as("the 7 losing appends hit the fence and ran again").isEqualTo(7);
+        assertThat(fenceConflicts() - conflictsBefore).as("none was refused as a conflict").isZero();
+    }
+
+    @Test
+    void concurrentCommandsOnOneAggregateFromTwoServersAllApplyOneVersionEach() throws Exception {
+        // Optimistic concurrency (3.0): no aggregate lock up front. 16 commands that each add to
+        // the same order, half through each server, released together: every one must succeed,
+        // each on the story that holds all the earlier ones (versions 1..16, no gap, no fork).
+        // Losers of the fence ran again; contended commands queued on the lock.
+        var orderId = "order-hot-" + UUID.randomUUID();
+        long conflictsBefore = fenceConflicts();
+        var answers = race(16, i -> {
+            var cmd = new IdemCmd(orderId);
+            cmd.append = true;
+            return (i % 2 == 0 ? gateway(serverA) : gateway(serverB)).<IdemEvt>send(cmd);
+        });
+        assertThat(answers).hasSize(16).allMatch(IdemEvt.class::isInstance);
+        assertThat(jdbc.queryForList("select aggregate_seq from es__events where aggregate_id = ? "
+                + "order by event_sequence_number", Long.class, orderId))
+                .containsExactlyElementsOf(java.util.stream.LongStream.rangeClosed(1, 16).boxed().toList());
+        assertThat(fenceConflicts() - conflictsBefore).isZero();
+    }
+
+    @Test
+    void anUncontendedAggregateCommandTakesNoLockAndThePessimisticSwitchBringsItBack() throws Exception {
+        var gw = gateway(serverA);
+        gw.send(new IdemCmd("warm-" + UUID.randomUUID())).get(10, TimeUnit.SECONDS);
+        long before = serverA.broker().optimisticCommandCount();
+        for (int i = 0; i < 5; i++) gw.send(new IdemCmd("opt-" + UUID.randomUUID())).get(10, TimeUnit.SECONDS);
+        assertThat(serverA.broker().optimisticCommandCount() - before).isEqualTo(5);
+
+        serverA.broker().setOptimisticConcurrency(false);
+        try {
+            before = serverA.broker().optimisticCommandCount();
+            for (int i = 0; i < 5; i++) gw.send(new IdemCmd("pes-" + UUID.randomUUID())).get(10, TimeUnit.SECONDS);
+            assertThat(serverA.broker().optimisticCommandCount() - before).isZero();
+        } finally {
+            serverA.broker().setOptimisticConcurrency(true);
+        }
+    }
+
+    @Test
     void theKeyedAppendConflictsInsteadOfStoringTwiceWhenCalledDirectly() {
         // Store level, for this mode's append statement (CPES single statement / APES insert).
         var store = serverA.store();
@@ -475,7 +565,9 @@ class IdempotentCommandPostgresIT {
         assertThat(retried.nonce).isEqualTo(stored.nonce);
         assertThat(serviceCalls).hasValue(1);
 
-        // The aggregate path: the duplicate waits for the aggregate lock the original holds.
+        // The aggregate path. Optimistically (3.0) the duplicate on the other server takes no lock:
+        // it runs the pure handler from the story without the original's event, and its deadline
+        // passes before its append. It is answered in progress too, never "expired, not executed".
         var orderId = "order-inflight-" + UUID.randomUUID();
         var orderKey = "create-" + orderId;
         delayMs.put(orderId, 3_000L);
@@ -489,7 +581,8 @@ class IdempotentCommandPostgresIT {
         IdemEvt createdEvt = created.get(10, TimeUnit.SECONDS);
         IdemEvt again = gateway(serverB).<IdemEvt>sendIdempotent(new IdemCmd(orderId), orderKey).get(10, TimeUnit.SECONDS);
         assertThat(again.nonce).isEqualTo(createdEvt.nonce);
-        assertThat(aggregateCalls).hasValue(1);
+        assertThat(aggregateCalls).as("the original, and the duplicate whose run stored nothing").hasValue(2);
+        assertThat(rowsWithKey(orderKey)).isEqualTo(1);
     }
 
     @Test
@@ -731,6 +824,14 @@ class IdempotentCommandPostgresIT {
         return serverA.broker().idempotentReplayedCount(stage) + serverB.broker().idempotentReplayedCount(stage);
     }
 
+    private long fenceConflicts() {
+        return serverA.broker().fenceConflictCount() + serverB.broker().fenceConflictCount();
+    }
+
+    private long fenceRetries() {
+        return serverA.broker().fenceRetryCount() + serverB.broker().fenceRetryCount();
+    }
+
     private long mismatches() {
         return serverA.broker().idempotencyMismatchCount() + serverB.broker().idempotencyMismatchCount();
     }
@@ -803,7 +904,7 @@ class IdempotentCommandPostgresIT {
             Thread.sleep(delayMs.getOrDefault(cmd.id, 0L));
             var reply = new EventoResponse();
             reply.setCorrelationId(request.getCorrelationId());
-            if (cmd.refuse || !decorated.getEventStream().isEmpty()) {
+            if (cmd.refuse || (!cmd.append && !decorated.getEventStream().isEmpty())) {
                 reply.setBody(new ExceptionWrapper(new IllegalStateException(
                         cmd.refuse ? "refused by the domain" : "order " + cmd.id + " already created")));
             } else {
@@ -937,6 +1038,11 @@ class IdempotentCommandPostgresIT {
         }
 
         @Override
+        public boolean fencesAggregates() {
+            return delegate.fencesAggregates();
+        }
+
+        @Override
         public Optional<IdempotencyRecord> findIdempotencyRecord(String idempotencyKey) {
             lookups.incrementAndGet();
             return delegate.findIdempotencyRecord(idempotencyKey);
@@ -987,6 +1093,13 @@ class IdempotentCommandPostgresIT {
         }
 
         @Override
+        public long appendAggregateEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                                         String commandType, Long expectedVersion) {
+            return delegate.appendAggregateEvent(eventMessage, aggregateId, supported ? idempotencyKey : null,
+                    commandType, expectedVersion);
+        }
+
+        @Override
         public long publishEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
                                  String commandType, String claimOwner) {
             return supported ? delegate.publishEvent(eventMessage, aggregateId, idempotencyKey, commandType, claimOwner)
@@ -1001,6 +1114,8 @@ class IdempotentCommandPostgresIT {
         public boolean refuse;
         /** No broker lock at all (a custom {@code getLockId} returning null). */
         public boolean lockless;
+        /** Appends an event whatever the story holds (an "add item"), instead of creating once. */
+        public boolean append;
 
         public IdemCmd() {
         }

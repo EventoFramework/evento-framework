@@ -16,8 +16,8 @@ import com.evento.common.utils.ProjectorStatus;
 import com.evento.common.utils.Sleep;
 import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
 import lombok.Getter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -42,7 +42,7 @@ import java.util.function.Supplier;
  */
 public final class ProjectorEngine implements Runnable, ConsumerHandle {
 
-    private static final Logger logger = LogManager.getLogger(ProjectorEngine.class);
+    private static final Logger logger = LoggerFactory.getLogger(ProjectorEngine.class);
 
     @Getter
     private final String bundleId;
@@ -82,7 +82,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
 
     private volatile PublishedEvent lastConsumedEvent = null;
 
-    // ---- read-your-writes (2.6) ----
+    // ---- read-your-writes (3.0) ----
     /** Signalled after every consume cycle: a query waiting for a position re-checks. */
     private final java.util.concurrent.locks.ReentrantLock progressLock = new java.util.concurrent.locks.ReentrantLock();
     private final java.util.concurrent.locks.Condition progressed = progressLock.newCondition();
@@ -194,8 +194,13 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
 
     @Override
     public void run() {
+        var handled = HeadSignal.handledBy(projectorMessageHandlers, projectorName);
+        dispatchContext.headSignal().register(wakeup, handled);
         var ps = new ProjectorStatus();
         ps.setHeadReached(false);
+        // Knows its events: the checkpoint of one it does not handle is written with the next.
+        var consumer = com.evento.common.messaging.consumer.EventConsumer.of(
+                publishedEvent -> dispatch(publishedEvent, ps), handled);
         var backoff = new ExponentialBackoffWithJitter(
                 Duration.ofMillis(sssFetchDelay), Duration.ofSeconds(30), 0.2,
                 ExponentialBackoffWithJitter.UNBOUNDED);
@@ -213,7 +218,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                             consumerId,
                             projectorName,
                             context,
-                            publishedEvent -> dispatch(publishedEvent, ps),
+                            consumer,
                             sssFetchSize,
                             routing.resolver(),
                             checkpointMode);
@@ -252,8 +257,11 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                 Sleep.apply(delay);
             } else {
                 channelErrorAttempts = 0;
-                if (sssFetchSize - consumedEventCount > 10) {
+                if (consumedEventCount < 0) {
+                    // The lock is busy: no notice comes when it is free again, so poll for it.
                     idle(sssFetchSize - consumedEventCount);
+                } else if (sssFetchSize - consumedEventCount > 10) {
+                    dispatchContext.headSignal().pauseAtHead(wakeup, sssFetchSize - consumedEventCount, sssFetchDelay);
                 }
             }
 
@@ -281,6 +289,7 @@ public final class ProjectorEngine implements Runnable, ConsumerHandle {
                         now - lastConsumedEvent.getCreatedAt());
             }
         }
+        dispatchContext.headSignal().unregister(wakeup);
     }
 
     /** The pause between two fetches at the head, cut short by {@link #wakeup}. */

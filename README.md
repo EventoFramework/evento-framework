@@ -2,7 +2,7 @@
 
 # [Evento Framework](https://www.eventoframework.com/)
 
-[![License](https://img.shields.io/badge/License-AGPL%203.0%20%2F%20Commercial-blue.svg)](LICENSE.txt)
+[![License: client libraries](https://img.shields.io/badge/client%20libraries-Apache%202.0-blue.svg)](LICENSE.txt) [![License: server](https://img.shields.io/badge/server-Apache%202.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE.txt)
 [![CI](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml/badge.svg)](https://github.com/EventoFramework/evento-framework/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/EventoFramework/evento-framework/badge)](https://securityscorecards.dev/viewer/?uri=github.com/EventoFramework/evento-framework)
@@ -101,7 +101,7 @@ See [Parallel Consumers](https://docs.eventoframework.com/evento-framework/event
 
 ## Throughput and Capacity (2.4.0)
 
-A server absorbs concurrent requests up to `evento.server.bus.business-executor-max-size` (default `cores × 8`); past that they queue, and past the queue they run on the calling event loop so pressure reaches the client over TCP.
+A server absorbs concurrent requests up to `evento.server.bus.business-executor-max-size` (default `cores × 32`); past that they queue, and past the queue they run on the calling event loop so pressure reaches the client over TCP.
 
 What makes exceeding capacity worse than merely slow is that every request carries a client deadline and **nothing cancels the work when it expires**. Beyond the limit the server keeps producing responses for callers that have already given up, so throughput collapses rather than degrading — CPU and databases look idle throughout, and client retries hold it there. Reducing *client* concurrency is what recovers it, and fewer concurrent clients often complete strictly more work.
 
@@ -109,7 +109,7 @@ Alert on `evento.server.bus.executor.saturated`, watch `…queue.depth` as the e
 
 See [Throughput and Capacity](https://docs.eventoframework.com/evento-server/setup-evento-server/throughput-and-capacity) for the sizing arithmetic and the detection playbook.
 
-## Streamed Queries and Read-Your-Writes (2.6)
+## Streamed Queries and Read-Your-Writes (3.0)
 
 A large query answer no longer has to travel, and sit, whole in the Evento Server. Any query can be consumed as a stream, pulled with flow control so that no hop holds more than a window of it; a projection can produce it lazily from a cursor, and the views can even skip the server and flow bundle to bundle:
 
@@ -128,7 +128,7 @@ The server keeps no query answers any more (on a 64 MiB answer: nothing retained
 
 See [Streamed and Paged Queries](https://docs.eventoframework.com/evento-framework/component/projection/streaming-and-paged-queries) and [Read Your Writes](https://docs.eventoframework.com/evento-framework/component/projection/read-your-writes).
 
-## Payload Versioning (2.6)
+## Payload Versioning (3.0)
 
 Payload classes can change shape or name without losing the history written with the old one. A class declares its revision, and upcasters registered on the bundle turn older payloads into the current shape when they are read; the event store is never rewritten:
 
@@ -141,9 +141,9 @@ public class ItemAdded extends DomainEvent { String itemId; String title; int qu
     Upcaster.from("ItemRenamed", 0).to(ItemRenamedV2.class, 0))   // the old class can be deleted
 ```
 
-Upcasting covers projectors, sagas, observers, aggregates (events and snapshots), commands and queries; a renamed command or query is still routed under its former name. Upgrade the servers to 2.6 before deploying the first `@Revision`.
+Upcasting covers projectors, sagas, observers, aggregates (events and snapshots), commands and queries; a renamed command or query is still routed under its former name. Upgrade the servers to 3.0 before deploying the first `@Revision`.
 
-See [Payload Versioning and Upcasting](https://docs.eventoframework.com/evento-framework/payload-and-messages/payload-versioning) and [Upgrading to 2.6](https://docs.eventoframework.com/evento-server/evento-server-cluster/upgrading-to-2-6).
+See [Payload Versioning and Upcasting](https://docs.eventoframework.com/evento-framework/payload-and-messages/payload-versioning) and [Upgrading to 3.0](https://docs.eventoframework.com/evento-server/evento-server-cluster/upgrading-to-3-0).
 
 ## Getting Started
 
@@ -161,11 +161,13 @@ The documentation of Evento Framework includes:
 - [Evento Server Cluster](https://docs.eventoframework.com/evento-server/evento-server-cluster)
 - [Evento GUI](https://docs.eventoframework.com/evento-gui/explore-recq-systems-visually)
 
-## Enterprise Repository Resources
+## Repository Resources
 
 - [Contributing guide](CONTRIBUTING.md) — environment setup, tests, branching, commits, and PR process.
 - [Security policy](SECURITY.md) — supported versions and responsible disclosure process.
-- [Support guide](SUPPORT.md) — where to ask questions, report bugs, and request commercial support.
+- [Adopters](ADOPTERS.md) — who uses Evento; add your organisation with a pull request.
+- [Compatibility policy](COMPATIBILITY.md) — semantic versioning, which server and bundle versions work together, upgrade order, deprecation and support.
+- [Support guide](SUPPORT.md) — where to ask questions, report bugs, and ask for commercial authorisations.
 - [Governance](GOVERNANCE.md) and [maintainers](MAINTAINERS.md) — project roles, decisions, releases, and ownership.
 - [Agent notes](CLAUDE.md) — repository orientation for developer agents and maintainers.
 
@@ -180,9 +182,22 @@ The Evento Framework is in its early stages, actively evolving with the contribu
 By joining forces, we can make Evento a valuable tool for building the next generation of distributed applications!
 
 ## License
-Copyright 2020-2026 © Gabor Galazzo. All rights reserved.
+Copyright 2020-2026 © Gabor Galazzo.
 
-Evento Framework v2.0 is dual-licensed:
+From **3.0.0** everything is public, every feature included (single sign-on and audit trail of the
+console too): there is no closed edition. Versions up to 2.5.x keep the licences they were released
+with.
 
-- **AGPL-3.0** — free for open-source projects. See [`LICENSE.txt`](LICENSE.txt).
-- **Commercial licence** — for proprietary / closed-source use. See [`LICENSE-COMMERCIAL.txt`](LICENSE-COMMERCIAL.txt) or contact the author.
+- **Client libraries — Apache-2.0.** `evento-transport-api`, `evento-transport-netty`, `evento-common`,
+  `evento-bundle`, `evento-consumer-state-store-jdbc`, `evento-spring-boot-starter`,
+  `evento-opentelemetry`, `evento-test`: the jars your application links against, with no obligation
+  on it.
+- **Server, web console and the rest — Apache-2.0 with the Commons Clause.** Use, change and run
+  `evento-server` and `evento-gui` freely, in production, for your own applications, also to sell
+  your own products built on them. What needs a written authorisation is **selling Evento itself**:
+  offering it as a hosted service, reselling it, or selling consulting, support or training about it
+  ([`LICENSE-COMMERCIAL.txt`](LICENSE-COMMERCIAL.txt)).
+- **The names Evento and RECQ** are not for commercial offerings without authorisation
+  ([`TRADEMARKS.md`](TRADEMARKS.md)); the RECQ ideas are free for anyone to apply.
+
+Details in [`LICENSE.txt`](LICENSE.txt); contributions go through the [CLA](CLA.md).

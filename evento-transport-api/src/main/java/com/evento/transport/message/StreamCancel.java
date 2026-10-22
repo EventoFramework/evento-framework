@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.UUID;
 
 /**
- * Stops a streamed reply before its end (2.6): sent by the caller when it closes the
+ * Stops a streamed reply before its end (3.0): sent by the caller when it closes the
  * stream early, and by the broker to the handler when the caller went away. The handler
  * stops producing and closes its source; frames already on their way are discarded.
  */

@@ -3,8 +3,8 @@ package com.evento.application.manager;
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.AggregateReference;
 import com.evento.application.reference.AggregateStateEnvelope;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Aggregate;
 import com.evento.common.modeling.exceptions.HandlerNotFoundException;
@@ -13,7 +13,6 @@ import com.evento.common.modeling.messaging.message.application.DomainCommandRes
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.state.SerializedAggregateState;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.BiFunction;
@@ -24,7 +23,7 @@ import java.util.function.Function;
  */
 public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCommandMessage, AggregateReference> {
 
-    private static final Logger logger = LogManager.getLogger(AggregateManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(AggregateManager.class);
 
     /**
      * Constructs an instance of AggregateManager.
@@ -43,15 +42,15 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
     /**
      * Parses and processes annotated aggregate classes.
      *
-     * @param reflections           The `Reflections` instance to discover annotated classes.
+     * @param scan                  The classes of the bundle's package.
      * @param findInjectableObject   A function to find injectable objects.
      * @throws InvocationTargetException If there is an issue with invoking a method.
      * @throws InstantiationException    If there is an issue with instantiating a class.
      * @throws IllegalAccessException    If there is an issue with accessing a class or its members.
      */
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
 
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Aggregate.class)) {
+        for (Class<?> aClass : scan.annotatedWith(Aggregate.class)) {
             var aggregateReference = new AggregateReference(createComponentInstance(aClass, findInjectableObject),
                     aClass.getAnnotation(Aggregate.class).snapshotFrequency());
             for (String command : aggregateReference.getRegisteredCommands()) {
@@ -83,7 +82,7 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                 handler.getComponentName(),
                 null,
                 () -> {
-                    var event = handler.invoke(
+                    var events = handler.invokeAll(
                             c.getCommandMessage(),
                             envelope,
                             c.getEventStream(),
@@ -91,14 +90,20 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                             proxy,
                             getMessageHandlerInterceptor()
                     );
-                    var em = new DomainEventMessage(event);
-                    getTracingAgent().correlate(c.getCommandMessage(), em);
+                    var messages = new java.util.ArrayList<DomainEventMessage>(events.size());
+                    for (var event : events) {
+                        var m = new DomainEventMessage(event);
+                        getTracingAgent().correlate(c.getCommandMessage(), m);
+                        messages.add(m);
+                    }
+                    var em = messages.removeLast();
                     var resp = new DomainCommandResponseMessage(em,
                             (handler.getSnapshotFrequency() >= 0 & handler.getSnapshotFrequency() <= c.getEventStream().size()) ?
                                     new SerializedAggregateState<>(envelope.getAggregateState()) : null,
                             envelope.getAggregateState() != null
                                     && envelope.getAggregateState().isDeleted()
                     );
+                    resp.setPrecedingEventMessages(messages);
                     proxy.sendInvocationsMetric();
                     return resp;
                 });

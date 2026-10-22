@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The broker's query-path meters (2.6) are bound next to the existing ones. */
+/** The broker's query-path meters (3.0) are bound next to the existing ones. */
 class BusMetricsBinderTest {
 
     @Test

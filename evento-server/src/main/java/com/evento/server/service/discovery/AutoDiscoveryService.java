@@ -4,8 +4,8 @@ import com.evento.common.utils.PgDistributedLock;
 import com.evento.server.domain.model.core.*;
 import com.evento.server.domain.repository.core.*;
 import com.evento.server.service.HandlerService;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.server.bus.BusFacade;
@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Service
 public class AutoDiscoveryService {
-    private static final Logger logger = LogManager.getLogger(AutoDiscoveryService.class);
+    private static final Logger logger = LoggerFactory.getLogger(AutoDiscoveryService.class);
     /** Total attempts of a discovery pass that loses a race with another server's catalog writes. */
     static final int MAX_DISCOVERY_ATTEMPTS = 3;
     private final BundleRepository bundleRepository;
@@ -73,10 +73,73 @@ public class AutoDiscoveryService {
         this.pgDistributedLock = distributedLock != null ? distributedLock : new PgDistributedLock(null);
         busFacade.subscribe(event -> {
             switch (event) {
-                case BusEvent.NodeJoined joined -> onSessionOpened(joined.node());
+                case BusEvent.NodeEstablished established -> onSessionOpened(established.node());
                 case BusEvent.BundleDiscovered disc -> onNodeJoin(disc.node(), disc.discovery());
-                case BusEvent.NodeLeft left -> onNodeLeave(left.node());
+                // Published on the closing channel's event loop: the cleanup (transactions, the
+                // catalog, a sweep of every payload) must not run there.
+                case BusEvent.NodeLeft left -> scheduleLeave(left.node(), left.reason());
                 default -> { /* ignore other event types */ }
+            }
+        });
+    }
+
+    /**
+     * Where departures are cleaned up: one at a time, off the transport's event loops. Run on the
+     * event loop that closed the channel, the cleanup of eleven bundles stopped together held ten
+     * event loops for seconds (each also sweeping every payload), and bundles connecting meanwhile
+     * timed out on their handshake.
+     */
+    private volatile java.util.concurrent.Executor leaveExecutor = java.util.concurrent.Executors
+            .newSingleThreadExecutor(Thread.ofVirtual().name("evento-leave-cleanup").factory());
+    /** A payload sweep is queued behind the pending departures: one sweep covers them all. */
+    private final java.util.concurrent.atomic.AtomicBoolean sweepQueued = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** Runs departures on {@code executor} instead (tests: {@code Runnable::run}). */
+    void setLeaveExecutor(java.util.concurrent.Executor executor) {
+        this.leaveExecutor = executor;
+    }
+
+    /**
+     * How long a departure waits before its cleanup runs; 0 runs it at once (the default of an
+     * instance built by hand, as in tests). An instance that leaves this server to join another
+     * (fail-back, failover, a restart) is claimed there within moments, and its cleanup here, run
+     * after the grace, finds it held elsewhere and touches nothing. Run at once, it cleared the
+     * instance's consumer rows, which came back only when the new server had registered them
+     * again: behind the discoveries of the bundle's other instances on the catalog lock, tens of
+     * seconds over a WAN, during which the instance's consumers were missing from the catalog
+     * (lab S04, S03). An instance that is really gone is cleaned up that much later.
+     */
+    private volatile long leaveGraceMs;
+    private final java.util.concurrent.ScheduledExecutorService leaveTimer =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                var t = new Thread(r, "evento-leave-grace");
+                t.setDaemon(true);
+                return t;
+            });
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setLeaveGraceMs(@org.springframework.beans.factory.annotation.Value("${evento.server.leave.grace-ms:30000}")
+                         long leaveGraceMs) {
+        this.leaveGraceMs = Math.max(0, leaveGraceMs);
+    }
+
+    private void scheduleLeave(NodeAddress node, String reason) {
+        Runnable cleanup = () -> leaveExecutor.execute(() -> onNodeLeave(node, reason));
+        if (leaveGraceMs > 0) {
+            leaveTimer.schedule(cleanup, leaveGraceMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } else {
+            cleanup.run();
+        }
+    }
+
+    private void queueOrphanPayloadSweep() {
+        if (!sweepQueued.compareAndSet(false, true)) return;
+        leaveExecutor.execute(() -> {
+            sweepQueued.set(false);
+            try {
+                bundleService.sweepOrphanPayloads();
+            } catch (RuntimeException e) {
+                logger.error("Orphan payload sweep failed", e);
             }
         });
     }
@@ -84,10 +147,13 @@ public class AutoDiscoveryService {
     /**
      * Claims the instance's session for this server before anything else about the
      * instance is written: the claim is what tells a server that still holds a stale
-     * session of the same instance to keep its hands off on the eventual NodeLeft.
+     * session of the same instance to keep its hands off on the eventual NodeLeft. It runs on
+     * {@link BusEvent.NodeEstablished}, the session's first message after its Hello: a session
+     * that never got that far (a fail-back attempt given up on) must not claim an instance that is
+     * live on another server.
      *
      * <p>A leave of the same instance on this server can still race the claim: a
-     * superseded session's NodeLeft precedes the replacement's NodeJoined, but a
+     * superseded session's NodeLeft precedes the replacement's first message, but a
      * session closed by its channel publishes NodeLeft on that channel's event loop,
      * possibly after the replacement (on another event loop) has already claimed.
      * {@link #onNodeLeave} therefore re-checks the local view after releasing and
@@ -414,6 +480,17 @@ public class AutoDiscoveryService {
      * @param node The address of the leaving node.
      */
     public void onNodeLeave(NodeAddress node) {
+        onNodeLeave(node, null);
+    }
+
+    /**
+     * As {@link #onNodeLeave(NodeAddress)}; a session whose handshake was aborted
+     * ({@link com.evento.server.bus.lifecycle.BusLifecycle#LEFT_HANDSHAKE_ABORTED}) only
+     * releases the presence its join claimed: it never registered anything, and the same
+     * instance may be live on another server, whose heartbeat re-creates its presence row.
+     */
+    public void onNodeLeave(NodeAddress node, String reason) {
+        boolean aborted = com.evento.server.bus.lifecycle.BusLifecycle.LEFT_HANDSHAKE_ABORTED.equals(reason);
         try {
             // Same lock key family as onNodeJoin ("DISCOVERY:" + bundleId): join and
             // leave both touch bundle-scoped rows (components, handlers, the bundle
@@ -438,15 +515,20 @@ public class AutoDiscoveryService {
                 // A newer session of the same instance may already be registered here: a
                 // superseded session's NodeLeft is published after the replacement is in
                 // the view, and a channel-close NodeLeft (published on the old channel's
-                // event loop) can land after the replacement's NodeJoined claim, in which
+                // event loop) can land after the replacement's claim, in which
                 // case the release above just deleted the live session's row. Checking
                 // the view after the release covers both orders: a replacement that
-                // enters the view later claims again when its NodeJoined is published
+                // enters the view later claims again when it is established
                 // (waiting on this transaction's row lock). Its consumer rows are left
                 // alone too: its own registration, serialized with us by the lock, owns them.
                 if (busFacade.currentView().contains(node)) {
                     presence.claim(node);
                     logger.info("Skipping leave cleanup of instance %s (bundle %s): a newer session of it is connected here"
+                            .formatted(node.instanceId(), node.bundleId()));
+                    return;
+                }
+                if (aborted) {
+                    logger.info("Skipping leave cleanup of instance %s (bundle %s): its handshake was aborted"
                             .formatted(node.instanceId(), node.bundleId()));
                     return;
                 }
@@ -481,7 +563,7 @@ public class AutoDiscoveryService {
             }));
             // Payload rows are shared across bundles, so their sweep runs after the commit,
             // one best-effort delete at a time (see BundleService#sweepOrphanPayloads).
-            if (removed.get()) bundleService.sweepOrphanPayloads();
+            if (removed.get()) queueOrphanPayloadSweep();
         }catch (Exception e){
             logger.error(e.getMessage(), e);
         }

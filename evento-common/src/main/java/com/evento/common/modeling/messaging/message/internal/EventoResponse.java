@@ -19,7 +19,7 @@ public class EventoResponse implements Serializable, Expirable {
 
     /**
      * Where the event a command produced was stored: its global sequence number and its
-     * context, set by the broker on a command's reply (2.6, additive: null from an older
+     * context, set by the broker on a command's reply (3.0, additive: null from an older
      * broker, and for commands that stored nothing). They let the caller ask a later query
      * to reflect this write ({@code ConsistencyToken}).
      */

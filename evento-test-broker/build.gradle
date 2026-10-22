@@ -1,0 +1,30 @@
+plugins {
+    // The server's Spring dependencies come without versions: the Spring Boot BOM gives them.
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+ext.libraryName = 'Evento Framework - Test Broker'
+ext.libraryDescription = 'An in-process Evento broker with an in-memory event store, for integration tests of bundles: commands, events, projectors, queries, no server, no database'
+ext.commonsClause = true
+apply from: rootProject.file('gradle/evento-library.gradle')
+
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.boot:spring-boot-dependencies:4.1.1'
+    }
+    dependencies {
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+    }
+}
+
+// It runs the server's broker in process, so like the server it needs Java 25 (the client
+// libraries need 21); applications whose tests run on 21 use EventoServerContainer in evento-test.
+dependencies {
+    api project(':evento-server')
+    api project(':evento-bundle')
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testImplementation 'org.awaitility:awaitility:4.3.0'
+}

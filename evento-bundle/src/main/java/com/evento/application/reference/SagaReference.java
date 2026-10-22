@@ -12,8 +12,8 @@ import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.payload.Event;
 import com.evento.common.modeling.state.SagaState;
 import com.evento.common.utils.Sleep;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -27,7 +27,7 @@ import java.util.Set;
  */
 public class SagaReference extends Reference {
 
-    private static final Logger logger = LogManager.getLogger(SagaReference.class);
+    private static final Logger logger = LoggerFactory.getLogger(SagaReference.class);
 
     private final HashMap<String, Method> sagaEventHandlerReferences = new HashMap<>();
 

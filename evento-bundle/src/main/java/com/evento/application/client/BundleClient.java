@@ -130,12 +130,13 @@ public final class BundleClient implements AutoCloseable {
 
     /**
      * Open the connection and complete the handshake/registration. Returns when
-     * the bundle is READY (or when the first attempt fails).
+     * the bundle is READY and the server has handled its registration (the barrier:
+     * routed to, its commands handled), or when the first attempt fails.
      */
     public CompletableFuture<Void> start() {
         // Bound before the bundle registers: a direct stream may be asked of it at once.
         if (directServer != null) directServer.start();
-        return supervisor.start();
+        return supervisor.start().thenCompose(v -> supervisor.barrier());
     }
 
     /**
@@ -410,11 +411,27 @@ public final class BundleClient implements AutoCloseable {
     }
 
     /**
-     * Whether the broker of the current session keeps payload revisions (2.6): payloads of a
+     * Whether the broker of the current session keeps payload revisions (3.0): payloads of a
      * revised class may only be sent when it does.
      */
     public boolean revisionsAccepted() {
         return supervisor.accepted(HandshakeProtocol.CAPABILITY_REVISION);
+    }
+
+    /**
+     * Whether the broker of the current session stores several events from one command (3.0):
+     * a handler may answer with more than one only when it does.
+     */
+    public boolean eventListsAccepted() {
+        return supervisor.accepted(HandshakeProtocol.CAPABILITY_EVENTS);
+    }
+
+    /**
+     * Whether the broker of the current session tells when its event store has grown (3.0): the
+     * consumers at the head may then wait for it instead of polling.
+     */
+    public boolean headNoticesAccepted() {
+        return supervisor.accepted(HandshakeProtocol.CAPABILITY_HEAD);
     }
 
     /** Streams this bundle is receiving through the broker now. */
@@ -479,6 +496,8 @@ public final class BundleClient implements AutoCloseable {
         try {
             return supervisor.send(new Notification(UUID.randomUUID(),
                     ProtocolNotifications.ENABLE, new byte[0], System.currentTimeMillis()))
+                    // Done when the server has handled it: the bundle is routed to from then on.
+                    .thenCompose(v -> supervisor.barrier())
                     .exceptionally(t -> {
                         log.info("event=enable_deferred reason=write_failed cause={} "
                                 + "- sent by the next session's registration", t.toString());
@@ -537,6 +556,13 @@ public final class BundleClient implements AutoCloseable {
     public com.evento.application.client.metrics.BundleLatencies latencies() { return latencies; }
     public int processedRequestCacheSize() { return processedRequestCache.size(); }
 
+    /** Bounds the requests this bundle handles at once; see {@link InboundDispatcher#setMaxInboundRequests}. */
+    public void setMaxInboundRequests(int max) { inboundDispatcher.setMaxInboundRequests(max); }
+    /** Inbound requests whose caller's deadline passed before their handler ran (not executed). */
+    public long inboundExpiredCount() { return inboundDispatcher.expiredBeforeHandlerCount(); }
+    /** Inbound requests refused because the bundle was handling its maximum (not executed). */
+    public long inboundRefusedCount() { return inboundDispatcher.refusedBusyCount(); }
+
     /**
      * Test-only accessor — returns the live {@code NettyClientTransport} the
      * supervisor is currently using. Useful for forcing a disconnect from
@@ -579,6 +605,8 @@ public final class BundleClient implements AutoCloseable {
         /** Advertise where this bundle runs ({@code zone:<ZONE>} in Hello); null clears it. */
         public Builder zone(String zone) { cfg.zone(zone); return this; }
         public Builder handshakeTimeout(Duration d) { cfg.handshakeTimeout(d); return this; }
+        /** Bound on each registration write; the closing barrier waits up to {@link #defaultRequestTimeout}. */
+        public Builder registrationTimeout(Duration d) { cfg.registrationTimeout(d); return this; }
         public Builder defaultRequestTimeout(Duration d) { cfg.defaultRequestTimeout(d); return this; }
         /** Cap on outstanding requests; 0 disables the bound. */
         public Builder maxInFlightRequests(int n) { cfg.maxInFlightRequests(n); return this; }

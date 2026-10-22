@@ -29,8 +29,10 @@ dependencies {
     api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
     api "com.fasterxml.jackson.module:jackson-module-jsonSchema:${jacksonVersion}"
 
-    api 'org.apache.logging.log4j:log4j-api:2.26.1'
-    api 'org.apache.logging.log4j:log4j-core:2.26.1'
+    // Logging through the SLF4J facade only: the application picks the backend.
+    api 'org.slf4j:slf4j-api:2.0.20'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.26.1'
 }
 
 java {
@@ -56,8 +58,9 @@ publishing {
 
                 licenses {
                     license {
-                        name = "Dual License: AGPL-3.0 or Commercial"
-                        url = "https://www.eventoframework.com/licensing"
+                        name = "Apache-2.0"
+                        url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        distribution = "repo"
                     }
                 }
 
@@ -113,4 +116,10 @@ javadoc{
         options.addBooleanOption("html5", true)
         options.addStringOption('Xdoclint:none', '-quiet')
     }
+}
+
+// Apache-2.0 §4: ship the licence and the NOTICE inside the jar.
+tasks.named('jar') {
+    from(file('LICENSE.txt')) { into 'META-INF' }
+    from(rootProject.file('NOTICE.txt')) { into 'META-INF' }
 }

@@ -7,7 +7,7 @@ import java.util.UUID;
 
 /**
  * The handler of a streamed reply offers it on a direct connection instead of through
- * the broker (2.6), handler → caller, relayed by the broker as is. Sent only to a caller
+ * the broker (3.0), handler → caller, relayed by the broker as is. Sent only to a caller
  * that asked for it ({@link Request#streamDirect()}).
  *
  * <p>The caller connects to {@code host:port} and presents {@code ticket} in its

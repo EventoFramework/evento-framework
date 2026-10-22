@@ -174,11 +174,11 @@ Tutti i comandi aggregate (create, add item, complete), con chiave, ms:
 | codec | 0.4 | 0.7 | 1.9 | 0.4 | 0.9 | 2.8 | 0.4 | 0.8 | 2.4 |
 | lock | 0.4 | 0.7 | 1.9 | 155.7 | 171.8 | 185.8 | 296.0 | 311.4 | 620.0 |
 | story | 1.2 | 3.8 | 7.5 | 98.7 | 336.0 | 341.3 | 298.4 | 612.3 | 621.8 |
-| forward | 2.6 | 8.3 | 25.6 | 2.8 | 11.0 | 20.6 | 2.6 | 11.2 | 20.7 |
+| forward | 3.0 | 8.3 | 25.6 | 2.8 | 11.0 | 20.6 | 3.0 | 11.2 | 20.7 |
 | verify | 0.7 | 1.8 | 3.3 | 80.8 | 88.4 | 93.6 | 151.4 | 157.9 | 160.1 |
 | append | 89.7 | 170.4 | 247.6 | 178.6 | 300.1 | 333.9 | 246.5 | 393.3 | 441.6 |
 | unlock | 0.2 | 0.5 | 2.1 | 81.0 | 87.9 | 90.6 | 151.0 | 157.6 | 160.3 |
-| reply | 0.2 | 0.5 | 2.6 | 0.3 | 1.2 | 4.3 | 0.3 | 0.9 | 2.3 |
+| reply | 0.2 | 0.5 | 3.0 | 0.3 | 1.2 | 4.3 | 0.3 | 0.9 | 2.3 |
 | **total server** | **96.8** | 176.3 | 252.4 | **643.9** | 913.6 | 999.2 | **1054.6** | 1549.1 | 1616.1 |
 | n | 339 | | | 340 | | | 498 | | |
 
@@ -194,7 +194,7 @@ Per tipo di comando (p50, ms):
 | APAC | add item | 164.9 | 157.2 | 151.5 | 244.9 | 151.2 | 1008.4 | 1013.8 / 1007.2 / 1010.9 |
 
 Il bundle aggregate (`order-command`) è irrilevante in ogni cella: handler p50 0.37–0.41 ms (p99
-4.5–9 ms), decode 0.2 ms, encode 0.1 ms. `forward` intero (rete in cella inclusa) 2.6–2.8 ms. La
+4.5–9 ms), decode 0.2 ms, encode 0.1 ms. `forward` intero (rete in cella inclusa) 3.0–2.8 ms. La
 latenza end-to-end vista dal gateway (`send` → evento decodificato) è il `total` del server più
 1–50 ms (Spring, gateway, rete in cella, decode; la differenza p50 in AM risente del mix fra i due
 gateway). Quella HTTP misurata dal driver di S00 sull'host, attraverso nginx, per regione (p50 /
@@ -238,7 +238,7 @@ create total 1171 ms (n=3; era 1462). Dati: [`phases-apac-hikari-bypass.md`](../
 | 3 | **Verify dentro l'append**: eseguire l'INSERT sulla connessione che possiede l'advisory lock (se la sessione è morta lo statement fallisce: è la verifica) | −1 RTT: −80 / −150 | elimina anche la finestra verify→INSERT (G6) per costruzione |
 | 4 | **Lock + story in un solo statement** sulla connessione del lock (`pg_try_advisory_lock` e la query degli eventi in un CTE) | −1 RTT: −80 / −150 | con 1–4 un comando remoto fa 2 RTT + replica: AM ≈ 240 ms, APAC ≈ 380 ms |
 | 5 | **Creazione senza lookup JPA dello snapshot**: leggere lo snapshot nella stessa query degli eventi (come già la chiave G5) | −2 RTT sulla create: −160 AM, −300 APAC | anche −0.4 ms in locale |
-| 6 | **Non tenere `es-lock` durante l'attesa della replica sincrona** (sequenza assegnata senza serializzare i commit, o APES) | coda dell'append: p95 EU 170 → ~90 ms, APAC 393 → ~250; throughput oltre il limite di ~1/RTT_replica (~12 append/s con standby a 80 ms; in locale 8 in volo: append 15 → 3 ms) | intervento di design (G9): l'ordine globale degli eventi oggi dipende da quel lock |
+| 6 | **Non tenere `es-lock` durante l'attesa della replica sincrona** (sequenza assegnata senza serializzare i commit, o APES) | coda dell'append: p95 EU 170 → ~90 ms, APAC 393 → ~250; throughput oltre il limite di ~1/RTT_replica (~12 append/s con standby a 80 ms; in locale 8 in volo: append 15 → 3 ms) | intervento di design (G9): l'ordine globale degli eventi oggi dipende da quel lock. Misurato in B2 (`benchmarks/axon-comparison`, standby sincrono, 10 ms tra le AZ): APES, che non lo tiene, fa 286 contro 91 cmd/s a 8 in volo e 1986 contro 1181 a 128; ma APES con più server non è sicuro per i consumer (finestra di 69 ms, G20) ed è deprecato dalla 3.0 |
 | 7 | Locale: `verify` (1.0 ms) costa il doppio di un `SELECT 1` (query su `pg_locks`); `codec` + `forward` della storia crescono con gli eventi (snapshot più frequenti) | < 1 ms | marginale |
 
 Il bundle (handler, decode, encode: < 0.5 ms p50) e la rete in cella (forward 2–3 ms) non sono

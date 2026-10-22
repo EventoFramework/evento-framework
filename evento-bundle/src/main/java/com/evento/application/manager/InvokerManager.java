@@ -1,15 +1,14 @@
 package com.evento.application.manager;
 
 import lombok.Getter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.common.modeling.annotations.component.Invoker;
 import com.evento.common.modeling.annotations.handler.InvocationHandler;
 import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
-import org.reflections.Reflections;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -23,19 +22,19 @@ import java.util.Map;
  */
 @Getter
 public class InvokerManager {
-    private static final Logger logger = LogManager.getLogger(InvokerManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(InvokerManager.class);
 
     private final List<RegisteredHandler> handlers = new ArrayList<>();
     private final Map<RegisteredHandler, Method> handlerMethods = new IdentityHashMap<>();
 
     /**
-     * Parses the given Reflections object to find class methods annotated with @Invoker and @InvocationHandler.
+     * Parses the scanned classes to find class methods annotated with @Invoker and @InvocationHandler.
      * Adds the found handlers to the handlers list.
      *
-     * @param reflections the Reflections object to parse
+     * @param scan the classes of the bundle's package
      */
-    public void parse(Reflections reflections){
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Invoker.class)) {
+    public void parse(ComponentScan scan){
+        for (Class<?> aClass : scan.annotatedWith(Invoker.class)) {
             for (Method declaredMethod : aClass.getDeclaredMethods()) {
                 if (declaredMethod.getAnnotation(InvocationHandler.class) != null) {
                     var payload = aClass.getSimpleName() + "::" + declaredMethod.getName();

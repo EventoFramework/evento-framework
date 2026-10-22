@@ -61,6 +61,11 @@ import java.util.function.Consumer;
  * {@link #subscribe(Consumer)} for cluster-event observers.
  */
 public final class BusLifecycle {
+    /**
+     * Reason of the NodeLeft of a session that closed before the bundle sent anything after its
+     * Hello (or while the Hello was being handled): it registered nothing in the catalog.
+     */
+    public static final String LEFT_HANDSHAKE_ABORTED = "handshake_aborted";
 
     private static final Logger log = LoggerFactory.getLogger(BusLifecycle.class);
 
@@ -244,9 +249,15 @@ public final class BusLifecycle {
      */
     public static final String EXPIRED_STAGE_BEFORE_APPEND = "before_append";
     /** Every stage label, for metrics binding. */
+    /**
+     * Stage label (N15): the deadline passed while the event's append waited (in the group
+     * commit queue or for {@code es-lock}); nothing was stored.
+     */
+    public static final String EXPIRED_STAGE_APPEND_WAIT = "append_wait";
+
     public static final java.util.List<String> EXPIRED_STAGES = java.util.List.of(
             EXPIRED_STAGE_QUEUED, EXPIRED_STAGE_LOCK_WAIT, EXPIRED_STAGE_BEFORE_FORWARD,
-            EXPIRED_STAGE_BEFORE_APPEND);
+            EXPIRED_STAGE_BEFORE_APPEND, EXPIRED_STAGE_APPEND_WAIT);
 
     private final ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong> expiredDropped =
             new ConcurrentHashMap<>();
@@ -392,6 +403,8 @@ public final class BusLifecycle {
         capabilities.add(HandshakeProtocol.CAPABILITY_STREAM);
         // So is keeping payload revisions: this broker's envelope classes carry them.
         capabilities.add(HandshakeProtocol.CAPABILITY_REVISION);
+        // And storing several events from one command, atomically (F9).
+        capabilities.add(HandshakeProtocol.CAPABILITY_EVENTS);
         this.handshakeHandler = new HandshakeHandler(
                 serverInstanceId,
                 capabilities,
@@ -404,6 +417,9 @@ public final class BusLifecycle {
                 this::onStream);
         transportServer.onConnection(this::acceptConnection);
         transportServer.setPreSessionReadiness(() -> probeReadiness.getAsBoolean());
+        // The transport runs it after the bundle's earlier notifications: answering is the point.
+        registerLocalHandler(com.evento.transport.protocol.ProtocolPayloadTypes.BARRIER, payload -> new byte[0]);
+        registerStraightPayloadType(com.evento.transport.protocol.ProtocolPayloadTypes.BARRIER);
     }
 
     /**
@@ -501,9 +517,67 @@ public final class BusLifecycle {
     public Set<NodeAddress> view() { return connectionRegistry.view(); }
     public Set<NodeAddress> availableView() { return connectionRegistry.availableView(); }
     public boolean isBundleAvailable(String bundleId) { return connectionRegistry.isAvailable(bundleId); }
+
+    /**
+     * Sends {@code payloadType} with {@code body} to every established session that negotiated
+     * {@code capability}. Fire-and-forget: a session that cannot take it is skipped.
+     *
+     * @return how many sessions it was sent to
+     */
+    public int broadcast(String capability, String payloadType, byte[] body) {
+        int sent = 0;
+        for (var session : sessionsByTransport.values()) {
+            if (!session.established() || session.disconnected()
+                    || !session.capabilities().contains(capability)) continue;
+            try {
+                session.transport().send(new Notification(UUID.randomUUID(), payloadType, body,
+                        System.currentTimeMillis()));
+                sent++;
+            } catch (RuntimeException e) {
+                log.debug("event=broadcast_skipped payloadType={} cause={}", payloadType, e.toString());
+            }
+        }
+        return sent;
+    }
     /** instanceId → zone, for every connected node that advertised one. */
     public java.util.Map<String, String> zones() { return clusterRegistry.zones(); }
     public void subscribe(Consumer<BusEvent> listener) { eventBus.subscribe(listener); }
+
+    /** Whether a handler's answer says it did not run the request (F1): expired or refused as busy. */
+    static boolean notExecuted(Response response) {
+        if (!response.isError() || response.error() == null) return false;
+        String type = response.error().exceptionClassName();
+        return com.evento.transport.RequestExpiredException.class.getName().equals(type)
+                || com.evento.transport.TooManyPendingRequestsException.class.getName().equals(type);
+    }
+
+    /**
+     * Told when the broker has answered a request: the time from its frame reaching this broker
+     * to the answer leaving it, for requests it handles itself (aggregate and service commands,
+     * event fetches) and for those it forwards to a bundle (queries, invocations). Streamed
+     * replies and requests refused before routing (expired on arrival, duplicates) are not
+     * reported. Called on I/O and dispatch threads: keep it cheap.
+     */
+    @FunctionalInterface
+    public interface RequestObserver {
+        RequestObserver NONE = (payloadType, nanos, ok) -> { };
+
+        void answered(String payloadType, long nanos, boolean ok);
+    }
+
+    private volatile RequestObserver requestObserver = RequestObserver.NONE;
+
+    public void setRequestObserver(RequestObserver observer) {
+        this.requestObserver = observer == null ? RequestObserver.NONE : observer;
+    }
+
+    private void observe(String payloadType, long receivedAtNanos, boolean ok) {
+        try {
+            requestObserver.answered(payloadType, System.nanoTime() - receivedAtNanos, ok);
+        } catch (RuntimeException e) {
+            log.debug("event=request_observer_failed payloadType={} error=\"{}\"", payloadType, e.getMessage());
+        }
+    }
     public int boundPort() { return transportServer.boundPort(); }
 
     /**
@@ -622,6 +696,15 @@ public final class BusLifecycle {
                     .whenComplete((outcome, ex) -> session.transport().close());
             return;
         }
+        if (session.disconnected()) {
+            // The connection is already closed (a fail-back attempt the bundle gave up on, a
+            // Hello read from a socket that was paused): touch no shared state. Registering
+            // it published NodeJoined then NodeLeft, whose presence claim and release wiped
+            // the catalog rows of the same instance, live on another server (G7 again).
+            log.info("event=hello_after_disconnect node={} token={} registered=false",
+                    hello.instanceId(), session.connectionToken());
+            return;
+        }
         // Bind + register synchronously, BEFORE sending Welcome. Otherwise the client
         // can receive Welcome and immediately fire follow-up notifications (enable,
         // register-handlers, even a Request) that arrive on the server before
@@ -638,6 +721,17 @@ public final class BusLifecycle {
         // after the registration and tagged with this session's token, so the teardown of
         // the session this one replaces can no longer erase it (see onTransportDisconnected).
         clusterRegistry.setZone(address, session.connectionToken(), HandshakeProtocol.zoneOf(hello.capabilities()));
+        if (session.disconnected()) {
+            // The connection closed while this Hello was being handled: its disconnect found no
+            // address yet and cleaned up nothing, so the registration above would stay behind for
+            // a dead channel (a bundle stopped mid-handshake left a phantom node, Q4).
+            // Its NodeLeft says so: the session never completed, so the catalog releases the
+            // presence it claimed and keeps every row (see AutoDiscoveryService.onNodeLeave).
+            log.info("event=hello_after_disconnect node={} token={} registered=true",
+                    address.instanceId(), session.connectionToken());
+            onTransportDisconnected(session, LEFT_HANDSHAKE_ABORTED);
+            return;
+        }
         handshakeHandler.reply(hello, session.transport(), verdict).whenComplete((outcome, ex) -> {
             if (ex != null) {
                 log.error("event=handshake_send_failed", ex);
@@ -654,6 +748,7 @@ public final class BusLifecycle {
             log.warn("event=notification_before_handshake type={}", notification.payloadType());
             return;
         }
+        establish(session);
         switch (notification.payloadType()) {
             case BundleRegistrationInfo.PAYLOAD_TYPE -> {
                 var info = payloadCodec.decode(notification.payload(), BundleRegistrationInfo.class);
@@ -697,6 +792,7 @@ public final class BusLifecycle {
                     new IllegalStateException("handshake required before requests"));
             return;
         }
+        establish(session);
         // The caller's deadline, measured from when the frame reached this broker (before
         // it queued for a dispatch thread): a request nobody waits for any more is not
         // routed, so a saturated broker stops executing commands whose callers already
@@ -730,11 +826,11 @@ public final class BusLifecycle {
             }
         }
 
+        long receivedAtNanos = frame == null ? System.nanoTime() : frame.receivedAtNanos();
         var localHandler = localHandlers.get(request.payloadType());
         if (localHandler != null) {
             try {
-                var timing = new RequestTiming(frame == null ? System.nanoTime() : frame.receivedAtNanos(),
-                        System.nanoTime());
+                var timing = new RequestTiming(receivedAtNanos, System.nanoTime());
                 byte[] result = localHandler.handle(request.payload(), session.address(), deadlineMs, timing);
                 if (request.accepts(PayloadEncoding.DEFLATE)) {
                     result = PayloadEncoding.deflateIfWorthwhile(result, responseCompressionThreshold);
@@ -747,16 +843,19 @@ public final class BusLifecycle {
                         if (writeFailure == null) timing.replyWritten(System.nanoTime());
                     });
                 }
+                observe(request.payloadType(), receivedAtNanos, true);
             } catch (com.evento.transport.RequestExpiredException expired) {
                 // Already logged as event=request_expired_dropped where it was refused.
                 dedupCache.invalidate(request.correlationId());
                 replyWithError(session.transport(), request.correlationId(), expired);
+                observe(request.payloadType(), receivedAtNanos, false);
             } catch (Throwable t) {
                 FatalErrors.escalateIfFatal(t);
                 log.warn("event=local_handler_threw payloadType={} correlationId={}",
                         request.payloadType(), request.correlationId(), t);
                 dedupCache.invalidate(request.correlationId());
                 replyWithError(session.transport(), request.correlationId(), t);
+                observe(request.payloadType(), receivedAtNanos, false);
             }
             return;
         }
@@ -767,6 +866,7 @@ public final class BusLifecycle {
             dedupCache.invalidate(request.correlationId());  // don't cache routing-side failures
             replyWithError(session.transport(), request.correlationId(),
                     new IllegalStateException("no handler for " + request.payloadType()));
+            observe(request.payloadType(), receivedAtNanos, false);
             return;
         }
         var destAddress = destination.get();
@@ -775,6 +875,7 @@ public final class BusLifecycle {
             dedupCache.invalidate(request.correlationId());
             replyWithError(session.transport(), request.correlationId(),
                     new IllegalStateException("handler vanished: " + destAddress.instanceId()));
+            observe(request.payloadType(), receivedAtNanos, false);
             return;
         }
         if (request.isStreamed() && !session.supportsStreams()) {
@@ -786,7 +887,7 @@ public final class BusLifecycle {
         }
         if (request.isStreamed()) streamsOpened.incrementAndGet();
         forwardingTable.track(request.correlationId(), session.address(), destAddress, request.payloadType(),
-                request.isStreamed());
+                request.isStreamed(), receivedAtNanos);
         // Zero-copy forward: the broker doesn't re-encode the Request — it writes
         // the exact bytes that arrived on the wire to the destination's channel.
         // Saves one CBOR pass + one byte[] allocation on every hop. Fall back to
@@ -796,6 +897,7 @@ public final class BusLifecycle {
             forwardingTable.resolve(request.correlationId());
             dedupCache.invalidate(request.correlationId());
             replyWithError(session.transport(), request.correlationId(), t);
+            if (!request.isStreamed()) observe(request.payloadType(), receivedAtNanos, false);
             return null;
         });
     }
@@ -813,9 +915,17 @@ public final class BusLifecycle {
             return;
         }
         boolean straight = isStraight(entry.get().payloadType());
+        if (!entry.get().streamed()) {
+            observe(entry.get().payloadType(), entry.get().receivedAtNanos(), !response.isError());
+        }
         // Cache the response so duplicate requests on the way get a replay; a read is
-        // never cached, a duplicate of it is simply answered again.
-        if (!straight) dedupCache.recordResponse(response.correlationId(), response);
+        // never cached, a duplicate of it is simply answered again. A bundle's answer that it
+        // did not run the request (expired while queued there, or refused as busy) is not
+        // cached either: a duplicate is a retry, and it should run.
+        if (!straight) {
+            if (notExecuted(response)) dedupCache.invalidate(response.correlationId());
+            else dedupCache.recordResponse(response.correlationId(), response);
+        }
         var originator = entry.get().originator();
         var originatorConn = connectionRegistry.lookup(originator);
         if (originatorConn.isEmpty()) {
@@ -880,7 +990,7 @@ public final class BusLifecycle {
         }
     }
 
-    // ---- streamed replies (2.6) ----
+    // ---- streamed replies (3.0) ----
 
     private final java.util.concurrent.atomic.AtomicLong streamsOpened = new java.util.concurrent.atomic.AtomicLong();
     private final java.util.concurrent.atomic.AtomicLong streamFramesRelayed = new java.util.concurrent.atomic.AtomicLong();
@@ -968,7 +1078,24 @@ public final class BusLifecycle {
         }
     }
 
+    /** The first message after the Hello: the session is live (see {@link BusEvent.NodeEstablished}). */
+    private void establish(BundleSession session) {
+        if (session.markEstablished()) {
+            eventBus.publish(new BusEvent.NodeEstablished(session.address(), Instant.now()));
+        }
+    }
+
     private void onTransportDisconnected(BundleSession session) {
+        // A session closed before the bundle sent anything after its Hello registered nothing:
+        // its departure must not clean up rows that a live session of the same instance, on
+        // another server, wrote (the S04 lab run: fail-back attempts given up while this server
+        // was paused, handled when it resumed).
+        onTransportDisconnected(session, session.established() ? "transport_disconnected" : LEFT_HANDSHAKE_ABORTED);
+    }
+
+    private void onTransportDisconnected(BundleSession session, String reason) {
+        // First, so a Hello being handled right now sees it after registering (see onHello).
+        session.markDisconnected();
         sessionsByTransport.remove(session.transport());
         var address = session.address();
         if (address == null) {
@@ -980,8 +1107,9 @@ public final class BusLifecycle {
             }
             return;
         }
+        if (!session.claimCleanup()) return;  // the disconnect and a late Hello both got here
         session.transitionTo(BundleSession.Phase.CLOSED);
-        var removedConn = connectionRegistry.unregister(address, session.connectionToken(), "transport_disconnected");
+        var removedConn = connectionRegistry.unregister(address, session.connectionToken(), reason);
         if (removedConn.isEmpty()) {
             // Token mismatch: this session was already superseded by a newer connection
             // for the same NodeAddress. The new session owns the cluster-registry and

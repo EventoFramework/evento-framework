@@ -13,11 +13,19 @@ load-bearing docs live in [`.claude/`](.claude/):
 
 ## Quick orientation
 
-- Active branch: **`main`** (latest release tagged: `v2.5.0`).
-- Toolchain: **JDK 25.0.3 or later**, Gradle 9.7.1, Spring Boot 4.1.1. Use
+- Active branch: **`main`** (latest release tagged: `v2.5.2`; next: `3.0.0`, PR #281).
+- Toolchain: **JDK 25.0.3 or later**, Gradle 9.8.1, Spring Boot 4.1.1. Use
   `/usr/libexec/java_home -v 25` on macOS; on the Windows dev host
   `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1`. Never 25.0.1/25.0.2: JDK-8370887 can stall
   virtual-thread timed waits for ~20 s (bundle handlers, consumer engines, flaky ITs).
+- Java baselines: the client libraries (the `clientLibraries` list in the root `build.gradle`,
+  Apache-2.0) compile with `--release 21`; the server and the labs target 25. `-PtestJdk=21` runs the
+  client tests on a JDK 21 (CI job `client-libraries-jdk21`).
+- Licences: client libraries Apache-2.0, everything else Apache-2.0 with the Commons Clause (no selling
+  Evento itself without written authorisation; names in `TRADEMARKS.md`), see `LICENSE.txt`. No closed
+  edition: OIDC sign-in and audit trail live in `evento-server`. A new
+  published library goes in `clientLibraries`, in section 1 of `LICENSE.txt`, and applies
+  `gradle/evento-library.gradle`.
 - Full test command:
   ```
   JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew \
@@ -28,7 +36,12 @@ load-bearing docs live in [`.claude/`](.claude/):
     :evento-bundle:test \
     :evento-consumer-state-store:evento-consumer-state-store-jdbc:test \
     :evento-lab:test \
-    :evento-lab-microservices:evento-lab-ms-it:test
+    :evento-lab-microservices:evento-lab-ms-it:test \
+    :evento-test:test \
+    :evento-test-broker:test \
+    :evento-opentelemetry:test \
+    :evento-spring-boot-starter:test \
+    :evento-spring-boot-starter:boot3Test
   ```
   The Testcontainers/Postgres ITs (e.g. `MultiServerCatalogIT`) are skipped unless
   `EVENTO_RUN_JDBC_IT=true` is set; prefix the command with it when touching the catalog.

@@ -1,7 +1,7 @@
 package com.evento.common.utils;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -53,13 +53,26 @@ import java.util.concurrent.atomic.AtomicInteger;
  * deadlock; such a key is locked under {@code hashtext(key || '#evento-lock')} instead
  * ({@link #KEY_EXPR}).
  *
- * <h2>Bounded wait</h2>
- * Waiting never blocks a connection inside PostgreSQL: {@link #acquire(String)} polls
- * {@code pg_try_advisory_lock} with jittered exponential backoff, borrowing a connection only
- * for the duration of each attempt, and gives up with {@link LockAcquisitionTimeoutException}
- * after the acquire timeout (default {@value #DEFAULT_ACQUIRE_TIMEOUT_MS} ms, overridable with the
- * {@code evento.lock.acquire.timeout.ms} system property or the constructor). A waiter therefore
- * never delays unrelated keys or releases.
+ * <h2>Bounded, fair wait</h2>
+ * {@link #acquire(String)} gives up with {@link LockAcquisitionTimeoutException} after the acquire
+ * timeout (default {@value #DEFAULT_ACQUIRE_TIMEOUT_MS} ms, overridable with the
+ * {@code evento.lock.acquire.timeout.ms} system property or the constructor). Within the JVM only
+ * one thread per key reaches the database (the local semaphore); that thread waits for another
+ * server in one of two ways:
+ * <ul>
+ *   <li>Queued in PostgreSQL ({@code pg_advisory_lock} under a {@code lock_timeout}), on a
+ *       connection of its own, when the pool is dedicated and at most half of it is already
+ *       queued ({@link #queuePermits}). PostgreSQL grants a released lock to the session queued
+ *       first, and refuses a {@code pg_try_advisory_lock} that would jump the queue, so servers
+ *       take turns. Polling alone starved the remote server: B2 (two servers, one hot
+ *       aggregate) measured 50 cmd/s through the server that held the key and 0-20 through the
+ *       other, which never polled in the microseconds between the holder's release and its next
+ *       local thread's acquire.</li>
+ *   <li>Polling {@code pg_try_advisory_lock} with jittered exponential backoff, borrowing a
+ *       connection only for each attempt: on a shared pool, or when half the dedicated one is
+ *       already queued, so waiters never take the connections holders and other keys need.</li>
+ * </ul>
+ * Either way a waiter never delays unrelated keys or releases.
  *
  * <h2>Lost locks</h2>
  * PostgreSQL releases a session lock when the session ends (connection reset, socket timeout,
@@ -73,7 +86,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class PgDistributedLock {
 
-    private static final Logger logger = LogManager.getLogger(PgDistributedLock.class);
+    private static final Logger logger = LoggerFactory.getLogger(PgDistributedLock.class);
 
     /** Default bound on how long {@link #acquire(String)} waits for a contended key. */
     public static final long DEFAULT_ACQUIRE_TIMEOUT_MS = 60_000L;
@@ -81,6 +94,13 @@ public class PgDistributedLock {
     private static final long INITIAL_BACKOFF_MS = 5;
     private static final long MAX_BACKOFF_MS = 200;
     private static final int VALIDATION_TIMEOUT_SECONDS = 3;
+    /**
+     * The longest one wait queued in PostgreSQL lasts before the waiter re-queues, so a waiter
+     * whose JVM shuts down is never parked in the database for the whole acquire timeout.
+     */
+    private static final long MAX_QUEUED_WAIT_MS = 5_000;
+    /** PostgreSQL's {@code lock_not_available}: the {@code lock_timeout} of a queued wait ran out. */
+    private static final String LOCK_NOT_AVAILABLE = "55P03";
 
     /** The event store's append lock key; see "Reserved key" above. */
     public static final String EVENT_STORE_LOCK_KEY = "es-lock";
@@ -107,10 +127,25 @@ public class PgDistributedLock {
             "AND pid = pg_backend_pid() AND objsubid = 1 " +
             "AND ((classid::bigint << 32) | objid::bigint) = " + KEY_EXPR + "::bigint)";
 
+    /**
+     * Waits in PostgreSQL's lock queue for at most the bound {@code lock_timeout}. The materialised
+     * CTE sets it before the lock is requested; on a timeout the failed statement's transaction
+     * reverts the setting, after a grant {@link #RESET_LOCK_TIMEOUT_SQL} does.
+     */
+    private static final String QUEUED_LOCK_SQL =
+            "WITH t AS MATERIALIZED (SELECT set_config('lock_timeout', ?, false)) " +
+            "SELECT pg_advisory_lock(" + KEY_EXPR + ") FROM t";
+    private static final String RESET_LOCK_TIMEOUT_SQL = "RESET lock_timeout";
+
     private final DataSource lockDatasource;
     private final Duration acquireTimeout;
     /** One permit per connection of a dedicated lock pool; {@code null} = unbounded (shared pool). */
     private final Semaphore connectionPermits;
+    /**
+     * How many waiters may queue in PostgreSQL at once, each on a lock connection: half the
+     * dedicated pool; {@code null} on a shared pool, where waiters only poll.
+     */
+    private final Semaphore queuePermits;
 
     private static final ConcurrentHashMap<String, LockWrapper> locks = new ConcurrentHashMap<>();
 
@@ -138,6 +173,7 @@ public class PgDistributedLock {
         this.lockDatasource = lockDatasource;
         this.acquireTimeout = acquireTimeout;
         this.connectionPermits = maxConnections > 0 ? new Semaphore(maxConnections) : null;
+        this.queuePermits = maxConnections > 1 ? new Semaphore(maxConnections / 2) : null;
     }
 
 
@@ -222,6 +258,13 @@ public class PgDistributedLock {
             long backoff = INITIAL_BACKOFF_MS;
             while (true) {
                 Connection owner = tryAdvisoryLock(key, Math.max(0L, deadline - System.nanoTime()));
+                if (owner == null && queuePermits != null && queuePermits.tryAcquire()) {
+                    try {
+                        owner = queuedAdvisoryLock(key, deadline);
+                    } finally {
+                        queuePermits.release();
+                    }
+                }
                 if (owner != null) {
                     lockWrapper.connection = owner;
                     return;
@@ -316,6 +359,52 @@ public class PgDistributedLock {
             // only on close(), which then finds the connection dead and evicts it.
             if (locked) discard(con);
             else giveBack(con);
+            throw t;
+        }
+        if (!locked) {
+            giveBack(con);
+            return null;
+        }
+        return con;
+    }
+
+    /**
+     * Waits for {@code key} in PostgreSQL's lock queue, until {@code deadline} or
+     * {@link #MAX_QUEUED_WAIT_MS}, on a freshly borrowed connection. Returns the connection (whose
+     * session now owns the lock, its {@code lock_timeout} back to the session default) on a grant;
+     * {@code null} when the wait timed out or no connection was free in time, with the connection
+     * back in the pool.
+     */
+    private Connection queuedAdvisoryLock(String key, long deadline) throws SQLException, InterruptedException {
+        long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+        if (remainingMs <= 0) return null;
+        Connection con = borrow(key, TimeUnit.MILLISECONDS.toNanos(remainingMs));
+        if (con == null) return null;
+        long waitMs = Math.min(TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()), MAX_QUEUED_WAIT_MS);
+        if (waitMs <= 0) {
+            giveBack(con);
+            return null;
+        }
+        boolean locked = false;
+        try {
+            if (!con.getAutoCommit()) con.setAutoCommit(true);
+            try (var stmt = con.prepareStatement(QUEUED_LOCK_SQL)) {
+                stmt.setString(1, waitMs + "ms");
+                bindKey(stmt, 2, key);
+                stmt.executeQuery().close();
+                locked = true;
+            } catch (SQLException e) {
+                if (!LOCK_NOT_AVAILABLE.equals(e.getSQLState())) throw e;
+            }
+            if (locked) {
+                try (var stmt = con.createStatement()) {
+                    stmt.execute(RESET_LOCK_TIMEOUT_SQL);
+                }
+            }
+        } catch (Throwable t) {
+            // A session that may own the lock never goes back to the pool (see tryAdvisoryLock);
+            // a wait that failed other than by timing out may have been granted first.
+            discard(con);
             throw t;
         }
         if (!locked) {

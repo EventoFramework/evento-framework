@@ -1,0 +1,5 @@
+plugins { id 'java-library' }
+
+dependencies {
+    api 'org.hdrhistogram:HdrHistogram:2.2.2'
+}

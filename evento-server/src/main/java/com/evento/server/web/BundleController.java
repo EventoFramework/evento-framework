@@ -10,6 +10,7 @@ import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * The {@code BundleController} class is a controller class that handles HTTP requests for inspecting bundles
@@ -22,16 +23,19 @@ public class BundleController {
 
     private final BundleService bundleService;
     private final HandlerService handlerService;
+    private final AdminActions actions;
 
     /**
      * Creates a new instance of the BundleController class.
      *
      * @param bundleService  the bundle service used to handle bundle operations
      * @param handlerService the handler service used to handle bundle handler operations
+     * @param actions        runs the removal and tells the admin action listeners
      */
-    public BundleController(BundleService bundleService, HandlerService handlerService) {
+    public BundleController(BundleService bundleService, HandlerService handlerService, AdminActions actions) {
         this.bundleService = bundleService;
         this.handlerService = handlerService;
+        this.actions = actions;
     }
 
 
@@ -67,17 +71,19 @@ public class BundleController {
 
     /**
      * Removes a bundle from the catalog by deleting it from the database.
-     * Only users with the "ROLE_WEB" role are allowed to access this endpoint.
+     * Only users with the "ROLE_ADMIN" role are allowed to access this endpoint.
      *
      * @param bundleId the ID of the bundle to unregister
      * @return a ResponseEntity indicating the success of the unregister process
      */
     @DeleteMapping(value = "/{bundleId}")
-    @Secured("ROLE_WEB")
+    @Secured("ROLE_ADMIN")
     public ResponseEntity<?> unregisterBundle(@PathVariable String bundleId) {
-        var bundle = bundleService.findById(bundleId);
-        Assert.isTrue(bundle != null, "error.bundle.is.null");
-        bundleService.unregister(bundleId);
+        actions.run("bundle.unregister", Map.of("bundleId", bundleId), () -> {
+            var bundle = bundleService.findById(bundleId);
+            Assert.isTrue(bundle != null, "error.bundle.is.null");
+            bundleService.unregister(bundleId);
+        });
         return ResponseEntity.ok().build();
     }
 }

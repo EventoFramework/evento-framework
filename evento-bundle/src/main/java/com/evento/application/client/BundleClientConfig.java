@@ -128,7 +128,7 @@ public record BundleClientConfig(
          */
         boolean localQueryShortCircuit,
         /**
-         * Where this bundle offers its streamed answers on direct connections (2.6), for
+         * Where this bundle offers its streamed answers on direct connections (3.0), for
          * callers that ask for it; null (default) streams through the broker only.
          */
         com.evento.application.client.stream.DirectStreamConfig directStreams
@@ -333,15 +333,19 @@ public record BundleClientConfig(
 
         public BundleClientConfig build() {
             Set<String> caps = capabilities == null ? Set.of() : capabilities;
-            // Every 2.6 bundle can take and give streamed replies; the broker decides per
+            // Every 3.0 bundle can take and give streamed replies; the broker decides per
             // session whether they flow (Welcome.acceptedCapabilities).
             // Likewise payload revisions: the bundle always writes them, and sends a revised
-            // payload only where the broker keeps them.
+            // payload only where the broker keeps them. And several events per command.
             if (!caps.contains(HandshakeProtocol.CAPABILITY_STREAM)
-                    || !caps.contains(HandshakeProtocol.CAPABILITY_REVISION)) {
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_REVISION)
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_EVENTS)
+                    || !caps.contains(HandshakeProtocol.CAPABILITY_HEAD)) {
                 var withStream = new java.util.LinkedHashSet<>(caps);
                 withStream.add(HandshakeProtocol.CAPABILITY_STREAM);
                 withStream.add(HandshakeProtocol.CAPABILITY_REVISION);
+                withStream.add(HandshakeProtocol.CAPABILITY_EVENTS);
+                withStream.add(HandshakeProtocol.CAPABILITY_HEAD);
                 caps = withStream;
             }
             if (zone != null && !zone.isBlank()) {

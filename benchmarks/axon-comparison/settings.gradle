@@ -1,0 +1,18 @@
+// Standalone build: not part of the main Evento build or its CI. The Evento client libraries
+// come from the repository two levels up (composite build), so the benchmark always runs the
+// working tree's code.
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'evento-axon-comparison'
+
+include 'bench-core'
+include 'evento-app'
+include 'axon-app'
+include 'axon-server-app'
+
+includeBuild('../..')

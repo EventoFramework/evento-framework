@@ -1,0 +1,59 @@
+{
+  "scenario" : "S15",
+  "title" : "Clock skew on one region JVM (optional)",
+  "gaps" : [ "fetch staleness gate (Low)", "G20" ],
+  "label" : "v3",
+  "startedAt" : "2026-10-20T15:57:59.661460900Z",
+  "finishedAt" : "2026-10-20T15:58:38.148251100Z",
+  "durationSeconds" : 38,
+  "parameters" : {
+    "orderIdPrefix" : "s15-v3-dde81e-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "skewEnv" : {
+      "LD_PRELOAD" : "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1",
+      "FAKETIME" : "-40s",
+      "FAKETIME_DONT_FAKE_MONOTONIC" : "1"
+    },
+    "skewImage" : "evento-lab-cluster/order-query:v3-faketime",
+    "skewedClockMinusHostSeconds" : "-40"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 1
+  },
+  "observations" : [ {
+    "name" : "skewed region consumer",
+    "expected" : "the AFRICA projector (skewed clock) still projects its orders within 60 s",
+    "expectedBeforeFix" : "the staleness gate drops the skewed consumer's fetches: the orders never appear",
+    "observed" : "all 5 orders projected",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "logMarkers" : {
+      "evento-eu" : { },
+      "order-query-eu" : { }
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 3317,
+    "at" : "2026-10-20T15:58:02.979179400Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 28354,
+    "at" : "2026-10-20T15:58:28.016387800Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 38486,
+    "at" : "2026-10-20T15:58:38.147722300Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ "2026-10-20T15:58:02.987181600Z compose up -d --no-deps --force-recreate order-query-eu with env {LD_PRELOAD=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1, FAKETIME=-40s, FAKETIME_DONT_FAKE_MONOTONIC=1} image evento-lab-cluster/order-query:v3-faketime", "2026-10-20T15:58:28.016387800Z compose up -d --no-deps --force-recreate order-query-eu (restore default)" ]
+  }
+}

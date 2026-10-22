@@ -66,9 +66,13 @@ public record BusProperties(
         if (businessExecutorCoreSize <= 0) {
             businessExecutorCoreSize = Math.max(8, Runtime.getRuntime().availableProcessors() * 2);
         }
+        // 32 per CPU: a command holds its thread mostly waiting (the event store, the handler
+        // bundle, a batch commit), not computing. At 8 per CPU the pool, not the CPU or the
+        // database, capped a 4-CPU server at about 2500 commands a second (B1, 3.0: 32 threads,
+        // ~13 ms per command); at 32 per CPU the CPU is the limit. Still a bound.
         if (businessExecutorMaxSize <= 0) {
             businessExecutorMaxSize = Math.max(businessExecutorCoreSize,
-                    Runtime.getRuntime().availableProcessors() * 8);
+                    Runtime.getRuntime().availableProcessors() * 32);
         }
         if (businessExecutorMaxSize < businessExecutorCoreSize) {
             businessExecutorMaxSize = businessExecutorCoreSize;

@@ -1,0 +1,2 @@
+# Shell scripts run inside Linux containers or Git Bash: keep LF on checkout.
+*.sh text eol=lf

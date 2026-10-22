@@ -6,7 +6,7 @@ The current maintainer contact for Evento Framework is:
 
 | Name | GitHub | Email | Responsibilities |
 |---|---|---|---|
-| Gabor Galazzo | [@ggalazzo](https://github.com/ggalazzo) | [gabor.galazzo@gmail.com](mailto:gabor.galazzo@gmail.com) | Project direction, releases, security reports, commercial licensing |
+| Gabor Galazzo | [@ggalazzo](https://github.com/ggalazzo) | [gabor.galazzo@gmail.com](mailto:gabor.galazzo@gmail.com) | Project direction, releases, security reports, commercial authorisations |
 
 ## Maintainer Duties
 

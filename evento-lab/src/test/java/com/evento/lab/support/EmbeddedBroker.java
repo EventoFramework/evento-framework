@@ -34,6 +34,11 @@ public final class EmbeddedBroker implements AutoCloseable {
      * servers in failover / fail-back tests.
      */
     public EmbeddedBroker(String instanceId, int port) {
+        this(instanceId, port, Set.of());
+    }
+
+    /** As {@link #EmbeddedBroker(String, int)}, also offering {@code capabilities} (e.g. head notices). */
+    public EmbeddedBroker(String instanceId, int port, Set<String> capabilities) {
         var eventBus = new BusEventBus();
         this.eventBus = eventBus;
         var connections = new ConnectionRegistry(eventBus);
@@ -44,8 +49,14 @@ public final class EmbeddedBroker implements AutoCloseable {
         lifecycle = new BusLifecycle(
                 server, connections, cluster, correlations, forwarding,
                 eventBus, instanceId,
-                Set.of(HandshakeProtocol.CAPABILITY_PING_PONG));
+                with(capabilities, HandshakeProtocol.CAPABILITY_PING_PONG));
         this.port = lifecycle.start(port);
+    }
+
+    private static Set<String> with(Set<String> capabilities, String more) {
+        var all = new java.util.HashSet<>(capabilities);
+        all.add(more);
+        return all;
     }
 
     /** The actual TCP port the broker is listening on. */

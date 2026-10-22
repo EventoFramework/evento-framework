@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,6 +29,7 @@ class PayloadTypeAllowlistTest {
     @AfterEach
     void clearProperty() {
         System.clearProperty(PayloadTypeAllowlist.PROPERTY);
+        PayloadTypeAllowlist.resetForTests();
     }
 
     private static ObjectMapper mapperWithCurrentAllowlist() {
@@ -77,5 +79,30 @@ class PayloadTypeAllowlistTest {
         list.add("a");
         byte[] jdkBytes = om.writeValueAsBytes(new Holder(list));
         assertThat(om.readValue(jdkBytes, Holder.class).value).isEqualTo(list);
+    }
+
+    @Test
+    void restrictToAppliesToMappersBuiltBefore() throws Exception {
+        var om = mapperWithCurrentAllowlist();
+        byte[] hostileBytes = om.writeValueAsBytes(new Holder(new HostilePayload("x")));
+        assertThat(PayloadTypeAllowlist.isRestricted()).isFalse();
+
+        PayloadTypeAllowlist.restrictTo(List.of("com.acme.app"));
+
+        assertThat(PayloadTypeAllowlist.isRestricted()).isTrue();
+        // The mapper built while open refuses it now.
+        assertThatThrownBy(() -> om.readValue(hostileBytes, Holder.class))
+                .isInstanceOf(JsonMappingException.class)
+                .hasMessageContaining("org.example.HostilePayload");
+    }
+
+    @Test
+    void restrictToAcceptsItsOwnPackagesAndAddsToTheConfiguredOnes() throws Exception {
+        System.setProperty(PayloadTypeAllowlist.PROPERTY, "com.acme.app");
+        PayloadTypeAllowlist.restrictTo(List.of("org.example"));
+        var om = mapperWithCurrentAllowlist();
+        byte[] bytes = om.writeValueAsBytes(new Holder(new HostilePayload("ok")));
+        assertThat(((HostilePayload) om.readValue(bytes, Holder.class).value).name).isEqualTo("ok");
+        assertThat(PayloadTypeAllowlist.applicationPackages()).containsExactly("com.acme.app", "org.example.");
     }
 }

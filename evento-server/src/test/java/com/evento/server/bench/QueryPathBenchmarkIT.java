@@ -41,7 +41,7 @@ import java.util.function.LongSupplier;
  *
  * <ul>
  *   <li>A — broker resources per answer: plain reply as 2.5.2 handled it (cached for replay),
- *       plain reply on 2.6 (straight), stream through the broker, direct stream.</li>
+ *       plain reply on 3.0 (straight), stream through the broker, direct stream.</li>
  *   <li>B — what the broker still holds after a burst of queries.</li>
  *   <li>C — the largest answer a broker with a 256 MiB heap survives, plain vs streamed.</li>
  *   <li>D — latency of a small query answered by the bundle itself vs through the broker.</li>
@@ -49,7 +49,7 @@ import java.util.function.LongSupplier;
  * </ul>
  *
  * <p>The "2.5.2" mode reproduces the cache behaviour of 2.5.2 (every reply retained for
- * replay, bounded by entries only) on the 2.6 transport: it does not include the copies
+ * replay, bounded by entries only) on the 3.0 transport: it does not include the copies
  * 2.5.2 also made while reassembling chunks, so it understates the old cost.
  */
 @EnabledIfEnvironmentVariable(named = "EVENTO_RUN_BENCH", matches = "true")
@@ -225,7 +225,7 @@ class QueryPathBenchmarkIT {
     // ------------------------------------------------------------------ operations
 
     private enum Mode {
-        PLAIN_252("plain reply, 2.5.2 cache"), PLAIN("plain reply, 2.6"), STREAM("stream via broker"),
+        PLAIN_252("plain reply, 2.5.2 cache"), PLAIN("plain reply, 3.0"), STREAM("stream via broker"),
         DIRECT("direct stream");
         final String label;
         Mode(String label) { this.label = label; }
@@ -287,7 +287,7 @@ class QueryPathBenchmarkIT {
 
     @Test
     void queryPath() throws Exception {
-        report.append("# Query path benchmark (evento 2.6)\n\n")
+        report.append("# Query path benchmark (evento 3.0)\n\n")
                 .append("Run ").append(LocalDateTime.now().withNano(0)).append(", JDK ")
                 .append(Runtime.version()).append(", ").append(Runtime.getRuntime().availableProcessors())
                 .append(" CPUs. Broker alone in its own JVM (G1); bundles in the test JVM; loopback TCP. ")
@@ -357,7 +357,7 @@ class QueryPathBenchmarkIT {
                         for (int i = 0; i < 25; i++) once(web, legacy ? Mode.PLAIN_252 : Mode.PLAIN, 4L * MB, false);
                         return 0L;
                     }));
-                    report.append("| ").append(legacy ? "2.5.2 cache (query replies retained 5 min)" : "2.6 (queries straight)")
+                    report.append("| ").append(legacy ? "2.5.2 cache (query replies retained 5 min)" : "3.0 (queries straight)")
                             .append(" | ").append(mib(sample.broker().get("dedup")))
                             .append(" | ").append(mib(Math.max(0, sample.broker().get("retained")))).append(" |\n");
                 }
@@ -432,7 +432,7 @@ class QueryPathBenchmarkIT {
                     }
                     var stats = broker.stats();
                     Arrays.sort(latencies);
-                    report.append("| ").append(local ? "answered by the bundle itself (2.6)" : "through the broker")
+                    report.append("| ").append(local ? "answered by the bundle itself (3.0)" : "through the broker")
                             .append(" | ").append(latencies[1500] / 1000)
                             .append(" | ").append(latencies[2850] / 1000)
                             .append(" | ").append(latencies[2970] / 1000)

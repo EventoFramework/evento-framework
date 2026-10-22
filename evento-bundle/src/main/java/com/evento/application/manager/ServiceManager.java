@@ -2,8 +2,8 @@ package com.evento.application.manager;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ServiceReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.messaging.outcome.DuplicateServiceOutcomeException;
 import com.evento.common.messaging.outcome.ServiceCommandOutcomeStore;
@@ -15,7 +15,6 @@ import com.evento.common.modeling.exceptions.HandlerNotFoundException;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.ServiceCommandMessage;
 import com.evento.common.modeling.messaging.message.application.ServiceEventMessage;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.BiFunction;
@@ -27,7 +26,7 @@ import java.util.function.Function;
  * and implements the required methods for parsing and handling the service commands.
  */
 public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessage, ServiceReference> {
-    private static final Logger logger = LogManager.getLogger(ServiceManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(ServiceManager.class);
 
     private volatile ServiceCommandOutcomeStore outcomeStore;
     private final java.util.concurrent.atomic.AtomicLong replayed = new java.util.concurrent.atomic.AtomicLong();
@@ -47,18 +46,18 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
     }
 
     /**
-     * Parses the classes annotated with @Service in the given Reflections object and registers their command handlers.
+     * Parses the classes annotated with @Service in the scanned classes and registers their command handlers.
      *
-     * @param reflections             the Reflections object containing the scanned classes
+     * @param scan             the classes of the bundle's package
      * @param findInjectableObject    a function that finds an instance of the specified class to be injected into the service objects
      * @throws InvocationTargetException if an error occurs while invoking a method or constructor
      * @throws InstantiationException    if an error occurs while creating an instance of a service object
      * @throws IllegalAccessException    if access to a class, method, or field is denied
      */
     @Override
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject)
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject)
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Service.class)) {
+        for (Class<?> aClass : scan.annotatedWith(Service.class)) {
             var serviceReference = new ServiceReference(createComponentInstance(aClass, findInjectableObject));
             for (String command : serviceReference.getRegisteredCommands()) {
                 getHandlers().put(command, serviceReference);

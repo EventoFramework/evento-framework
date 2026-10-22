@@ -43,6 +43,7 @@ Builds and serves the read model.
 - `OrderProjector` (`@Projector(version=1)`) — handles all order events; builds and updates `OrderViewStore` entries including the `items` list and `paymentStatus`
 - `OrderProjection` (`@Projection`) — handles `FindOrderByIdQuery` and `ListOrdersQuery`
 - `OrderViewStore` — static `ConcurrentHashMap`; the assertion surface in IT tests. `reset()` clears between tests; `getAll()` returns an unmodifiable snapshot.
+- `ConsumptionJournal` — the orders `OrderProjector` applied, per context, in the order it applied them (whichever replica did): what the high-availability scenario checks.
 
 ### `evento-lab-ms-saga`
 
@@ -89,7 +90,12 @@ JAVA_HOME=$(/usr/libexec/java_home -v 25) \
   ./gradlew :evento-lab-microservices:evento-lab-ms-it:test
 ```
 
-No Docker required. All 22 tests complete in under 120 seconds on a laptop.
+No Docker required for the in-memory tests. `MsHighAvailabilityConsumersIT` needs Docker (PostgreSQL
+through Testcontainers) and runs with `EVENTO_RUN_JDBC_IT=true`, like the other database ITs:
+
+```bash
+EVENTO_RUN_JDBC_IT=true ./gradlew :evento-lab-microservices:evento-lab-ms-it:test
+```
 
 ## Test inventory
 
@@ -157,6 +163,14 @@ Parallel context consumers with isolated checkpoints.
 |---|---|
 | `parallelContextConsumers_ITEventsOnlyReachITProjector` | Start IT and UK projector bundles. Publish 2 IT + 2 UK events. Each projector must project its own context's events; `OrderView.context` must match. |
 | `contextBundlesProcessEventsInParallel` | Interleave 3 IT + 3 UK events. Both context projectors must each receive exactly 3 events, all with the correct context tag. |
+
+### `MsHighAvailabilityConsumersIT` (1 test, PostgreSQL)
+
+Consumers split by context, each in three replicas, with head notices.
+
+| Test | Objective |
+|---|---|
+| `eachContextIsConsumedOnceAndInOrderWhileItsReplicasGoDown` | One consumer per context (`OrderProjector` bound to IT, UK, DE, a bundle each), three replicas of each with their own pool, one PostgreSQL for locks and checkpoints, a 15 s fetch delay so that only head notices move them. 90 rounds of events per context, interleaved with events nobody here handles; twice during the stream the replica **holding** each context's lane (found in `pg_locks`) goes down (engines stopped, pool closed). For every context the journal must hold each of its 90 events exactly once, in the order of the stream, and none of another context; the lane must have changed hands twice. |
 
 ### `MsRttIT` (3 tests)
 

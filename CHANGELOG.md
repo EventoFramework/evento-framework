@@ -9,31 +9,272 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Version 3.0: a major release, because one default changes (the server's security profile is `prod`:
+it does not start unhardened, see the first upgrade note). Everything else is backward compatible, and
+2.5 bundles and servers interoperate with 3.0. Also: the code is all public under a new licence, the
+server keeps its schema with Flyway, aggregate commands run without the lock with group commit, the
+console works across servers, and APES is deprecated.
+
 Query-path release: queries no longer cost the broker memory, large answers stream with flow
 control (through the broker or bundle to bundle), a bundle answers its own queries without the
 broker, and a query can require to see a write. Payloads can be versioned: a class records its
 revision and upcasters read older shapes. Wire changes are additive and negotiated (`stream:1`,
 `revision:1` capabilities); 2.5 bundles and servers interoperate with it in any mix, except that
-a revised payload needs a 2.6 broker.
+a revised payload needs a 3.0 broker.
 
 ### Upgrade notes
 
-- **Queries are routed "straight" by a 2.6 broker** when a 2.6 handler bundle declares them
+- **Size the consumer state-store pool for the consumers.** A `JdbcConsumerLock` now keeps a consumer's lock,
+  and its connection, between fetch cycles (see Changed): budget one connection per consumer of the instance
+  plus a few for the state writes. A smaller pool still works: with a pool that tells its maximum size
+  (HikariCP) the locks take at most `max - max(2, max / 4)` connections and the consumers take turns, as in
+  2.x, after a warning `event=consumer_lock_pool_bound`; while every slot is taken a cycle releases its lock at
+  its end, so the connections go back to the state writes; and the same when the pool (HikariCP) has no idle
+  connection left, as a pool shared with other instances or the application can. With another pool, pass the bound to the new
+  constructor `JdbcConsumerLock(dataSource, dialect, affinity, maxHeld)`, or `Duration.ZERO` as the affinity
+  for the 2.x behaviour.
+- **A payload that cannot be serialized now fails the send** (`IllegalArgumentException` from
+  `SerializedObject`): it used to be logged and sent with a null payload.
+- **Breaking: the server refuses to start unhardened.** `evento.server.security.profile` defaults to `prod`
+  (was `dev`): without a bus auth token, bus TLS, a payload allowlist, non-default web console and database
+  passwords and explicit CORS origins the server does not start, and lists what is missing. Set them, or set
+  `EVENTO_SERVER_SECURITY_PROFILE=dev` for development, tests and demos (the shipped compose files, the lab and
+  `EventoServerContainer` do).
+- **The server schema is migrated by Flyway** (with `spring.sql.init.mode=always`, the shipped value). The
+  first 3.0 server creates the history table `evento_es_schema_history`, baselines an existing database at
+  version 0 and runs the migrations V1-V7, which find what is already there and add what is missing (the
+  primary key, idempotency key and aggregate fence of 2.5 and 3.0, online as before; V6 and V7 add the tables
+  `core__admin_relay` and `es__subject_keys`). Nothing to do; give the
+  server's database user the right to create that table. With `spring.sql.init.mode=never` nothing changes:
+  the server touches no schema and the scripts in `db/upgrade/` stay the way to apply it.
+- **Lock waiters may hold a lock-pool connection.** A command waiting for an aggregate held by another server now
+  queues in PostgreSQL on a connection of the dedicated lock pool (at most half of it; the rest poll as before),
+  so servers take turns on a hot aggregate. Size `evento.lock.pool.maximum-size` for the locks held at once plus
+  the contended keys waiting.
+- **Queries are routed "straight" by a 3.0 broker** when a 3.0 handler bundle declares them
   (`BundleRegistrationInfo.queryPayloadTypes`): no exactly-once slot, no cached reply, no
-  reconnect buffering. A 2.6 caller asks a query again on its next session when it lost it; a
+  reconnect buffering. A 3.0 caller asks a query again on its next session when it lost it; a
   2.5 caller that loses its session while a query is in flight now waits for its timeout
   instead of getting the buffered reply. Upgrade callers along with handlers.
 - **Broker memory is bounded in bytes**, not only in entries: new properties
   `evento.server.bus.dedup.max-retained-bytes` (128 MiB), `evento.server.bus.dedup.max-response-bytes`
   (1 MiB), `evento.server.bus.reconnect-buffer.max-bytes` (256 MiB),
   `evento.server.bus.compression.threshold-bytes` (32 KiB).
-- **Upgrade the brokers before deploying a class with `@Revision`.** A 2.6 bundle refuses to send
-  or store a revised payload through a broker older than 2.6 (no `revision:1` capability), which
+- **Upgrade the brokers before deploying a class with `@Revision`.** A 3.0 bundle refuses to send
+  or store a revised payload through a broker older than 3.0 (no `revision:1` capability), which
   would record it as revision 0. Unrevised payloads, the default, flow through any broker.
-- Every 2.6 bundle advertises `stream:1` and `revision:1` in its Hello. Code that asserts the exact capability set
-  of a Hello must expect it.
+- **Upgrade the brokers before deploying a handler that returns `DomainEvents`.** A 3.0 bundle refuses to answer
+  a command with several events through a broker older than 3.0 (no `events:1` capability), which would store
+  the last one alone.
+- Every 3.0 bundle advertises `stream:1`, `revision:1` and `events:1` in its Hello. Code that asserts the exact
+  capability set of a Hello must expect it.
+- **Licence: the client libraries are now Apache-2.0** (`evento-transport-api`, `evento-transport-netty`,
+  `evento-common`, `evento-bundle`, `evento-consumer-state-store-jdbc` and the new starter, OpenTelemetry and
+  test modules).
+- **Licence: from 3.0.0 the server, the web console and the rest are Apache-2.0 with the Commons Clause**
+  (were AGPL-3.0 or commercial; 2.5.x and earlier keep the licences they were released with), and there is no closed edition any more: single sign-on and the audit trail, until
+  now in a commercial module, are part of the server. Using, changing and running Evento, also commercially and
+  in production, needs no licence; selling Evento itself (hosting it for others, reselling it, selling
+  consulting, support or training about it) needs a written authorisation (`LICENSE-COMMERCIAL.txt`), and the
+  names Evento and RECQ are covered by `TRADEMARKS.md`. The Commons Clause makes these components
+  source-available rather than OSI open source; the client libraries are not affected. See `LICENSE.txt`;
+  contributions go through the CLA (`CLA.md`).
+- **The client libraries run on Java 21+** (compiled with `--release 21`; the server stays on 25). On JDK 21–23
+  a virtual thread blocked inside `synchronized` pins its carrier: Evento's own critical sections are short,
+  but a handler that blocks inside `synchronized` belongs on `ConsumerExecutors.pooled(...)`.
+- **Logging goes through SLF4J only.** `evento-common` and `evento-bundle` no longer depend on `log4j-core`
+  and no longer ship `log4j2.properties` / `log4j2.xml`, which overrode the application's logging setup. Spring
+  Boot applications log Evento through their own configuration with no change; a plain Java application needs
+  an SLF4J binding (Logback, `log4j-slf4j2-impl` + `log4j-core`, …), or SLF4J prints a "no providers" warning
+  and drops the logs. The unused `okhttp` dependency of `evento-bundle` is gone.
+- **`evento-bundle` no longer brings `hibernate-validator`** (nor Jakarta Validation, Jakarta EL, JBoss Logging,
+  Classmate) onto the application's classpath: Evento never used it. An application that validates its own
+  beans with it declares the dependency itself.
+- **Removing a bundle from the catalog (`DELETE /api/bundle/{id}`) needs the `ADMIN` role**, like the other
+  console writes; it needed only `WEB`. A script calling it with a WEB-only user gets 403.
+- **Schema change: `es__events.aggregate_seq`** (nullable `bigint`) and the partial unique index
+  `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq)`. With `spring.sql.init.mode=always` the first 3.0
+  server adds them online at boot (catalog-only column, index built `CONCURRENTLY`); a schema managed outside the
+  server applies `classpath:db/upgrade/es-events-aggregate-seq.sql`, and until then aggregate events are appended
+  unfenced, as in 2.5 (`event=aggregate_fence_unsupported`). Existing events keep a null version. The fence holds
+  once every server runs 3.0: a 2.5 server appends without a version.
+- **Concurrent commands on one aggregate without a lock no longer fork it.** A `DomainCommand` whose
+  `getLockId()` returns `null` used to let two commands decide from the same story and both store their event;
+  now the second one loses the aggregate fence, nothing of it is stored, and the broker runs it again on the new
+  story under the aggregate lock (see optimistic concurrency below): its caller gets the answer computed on the
+  current state, which may be a refusal by the domain. `AggregateConflictException` (new, `evento-common`) is
+  answered only when 5 runs within the deadline all lost.
+- **Aggregate commands run without the aggregate lock by default** when the event store fences their appends
+  (PostgreSQL with the 3.0 schema): `evento.server.commands.optimistic=true`. The handler of a command that loses
+  the fence runs again, so an aggregate handler must be pure (compute its event from the story and the command,
+  no side effects): the documented contract, now relied upon. A duplicate of a keyed command can run the handler
+  on another server while the first is in flight; still only one event is stored. `false` takes the lock for
+  every command, as in 2.5. A command naming another lock than its aggregate (`getLockId()`) keeps it.
+- **`evento.server.bus.business-executor-max-size` defaults to 32 threads per CPU** (was 8): the threads mostly
+  wait on the event store and the handler bundles, and the old bound capped a 4-CPU server below what its CPU and
+  database could do.
+- **`evento.es.mode` defaults to `CPES` in the code too**, as the shipped `application.properties` already set it.
+  Only a server started without that file (embedded) changes.
+- **APES is deprecated; an APES event store can now switch to CPES.** Stop every server, then start them with
+  `evento.es.mode=CPES`: the first one moves the CPES sequence above the newest APES id (under `es-lock`, logged
+  `event=es_mode_switched`), so new events sort after every old one and consumer checkpoints stay valid. Do not
+  run APES and CPES servers together: an id from the last minute at the switch is logged as
+  `event=es_mode_switch_while_apes_active` (ERROR). A server still started in APES logs `event=es_mode_deprecated`.
 
 ### Added
+
+- **Personal data and the right to erasure (crypto-shredding).** Fields marked `@PersonalData` are stored
+  encrypted (AES-256-GCM) with a key of their subject, the object's `@DataSubject` field, in events, commands,
+  snapshots and saga state alike. The keys live in the event store's database (`es__subject_keys`, Flyway V7;
+  `db/upgrade/subject-keys.sql` for schemas managed outside the server), optionally wrapped with
+  `evento.server.personal-data.master-key`; bundles get them over the bus and cache them
+  (`EventoBundle.Builder.setSubjectKeyCacheTtl`, one minute). `SubjectKeys.forget(subject)` from a bundle, or
+  `DELETE /api/personal-data/subjects/{subject}` (admin, audited), deletes the key: every copy of that subject's
+  personal data, backups of the event store included, reads as `null` from then on, and the events stay.
+  `evento-test` fixtures and the test broker keep keys in memory.
+- **Several events from one aggregate command.** An `@AggregateCommandHandler` may return
+  `DomainEvents.of(e1, e2, ...)`, declaring them in `produces`: the events are applied in order and stored in one
+  transaction, all or none, with consecutive sequence numbers and aggregate versions (the fence refuses all of
+  them when one version is taken); the idempotency key goes on the last event, which is also what the caller is
+  answered with. Negotiated with the additive `events:1` capability (`DomainCommandResponseMessage.precedingEventMessages`).
+  `AggregateResult.events()` and `expectEvents(...)` in `evento-test`; `expectEvent` on a result with several events
+  fails and says so.
+- **Spring Boot starter (`evento-spring-boot-starter`).** With `evento.bundle.id` set, the bundle is built from
+  `evento.bundle.*` properties (servers, auth token, TLS and mutual TLS, zone, payload allowlist, consumer state,
+  tracing), started after the context is ready and stopped gracefully on shutdown; `CommandGateway` and
+  `QueryGateway` beans for application code; components get their constructor arguments from the context.
+  JDBC consumer state is used when `evento-consumer-state-store-jdbc` and a `DataSource` are present, tracing when
+  `evento-opentelemetry` and an `OpenTelemetry` bean are. `EventoBundleCustomizer` beans adjust the builder.
+  Compiled against the API Spring Boot 3 and 4 share, tested on 4.1 and 3.5; Evento itself still does not
+  depend on Spring.
+- **OpenTelemetry tracing (`evento-opentelemetry`), opt-in.** `OpenTelemetryTracingAgent`: a span per handler
+  (`SERVER` for commands, queries, invocations; `CONSUMER` for events) and the W3C `traceparent`/`tracestate` in
+  the metadata of everything a handler sends, through the server unchanged; `linkingConsumers()` starts consumer
+  traces with a link instead of a parent. The gateways `EventoBundle.getCommandGateway()`/`getQueryGateway()`
+  carry the trace of the calling code too (an HTTP request span). Depends on the OpenTelemetry API only; a
+  bundle without the agent keeps the no-op `TracingAgent` and its gateways unwrapped.
+- **Test fixtures (`evento-test`).** `AggregateFixture.of(aggregate).given(events).when(command)
+  .expectEvent(...)/expectException(...)/expectState(...)` and `SagaFixture.of(saga).given(events)
+  .whenEvent(event).expectCommands(...)/expectEnded()/expectAssociation(...)`, running the component's own
+  handlers with no broker or database; `RecordingCommandGateway` and `StubQueryGateway` for the commands and
+  queries handlers send. Payloads compare by `equals`, else field by field.
+- **Security profile on the server.** `evento.server.security.profile` (`EVENTO_SERVER_SECURITY_PROFILE`):
+  `prod`, the default, refuses
+  to start, before the bus port opens, until the bus token, bus TLS, the deserialization allowlist, a web
+  console and a database password other than the shipped `secret`, and explicit CORS origins are all set;
+  `dev` lists at startup the hardening that is off (`event=security_profile_dev`) and starts.
+- **TLS and mutual TLS on the bus from properties**: `evento.server.bus.tls.enabled`, `cert-chain`,
+  `private-key` (PEM, PKCS#8), `private-key-password`, `trust-certs`, `client-auth=none|optional|require`,
+  `protocols` (default TLSv1.3, TLSv1.2), also as `EVENTO_SERVER_BUS_TLS_*`. Before, TLS on the server needed
+  code. `evento.server.web.cors.allowed-origins` is now also `EVENTO_SERVER_WEB_CORS_ALLOWED_ORIGINS`.
+- **Payload allowlist from code**: `PayloadTypeAllowlist.restrictTo(packages)` and, on the bundle,
+  `EventoBundle.Builder.setRestrictPayloadTypes(true)` (the bundle's base package) and
+  `setAllowedPayloadPackages(...)`. The validator now reads the allowlist on every check, so mappers built
+  before the restriction apply it too.
+- `EventoBundle.Builder.setAuthToken(...)`: the shared secret a server with `evento.server.bus.auth-token`
+  requires. Before, a bundle built with `EventoBundle.Builder` could not present one.
+- `EventoBundle.stop(Duration)`: leave the server's routing, stop the consumer engines, close the connection.
+- `EventoBundle.Builder.setBasePackageName(String)`, for when no `Package` object is at hand.
+- **Aggregate fence.** Every event of an aggregate command carries the aggregate's version
+  (`es__events.aggregate_seq`: 1, 2, 3...) under a unique index. The story is read together with the version it
+  ends at (one more branch of the same query, no extra round trip) and the event is appended as the next version,
+  so a second append from the same story is refused by the database: a server that lost the aggregate lock (a
+  dead lock session, a failover) or a command without a lock can no longer fork an aggregate. Closes G6. Refusals
+  log `event=aggregate_fence_conflict` and count in `evento.server.commands.fence.conflicts`; a keyed command that
+  loses this way is answered with the stored event, as before.
+- **Optimistic concurrency for aggregate commands.** A command runs without the aggregate lock: story, handler,
+  fenced append. The lock cost three round trips to the event-store primary per command (acquire, verify,
+  release), three WAN round trips from a remote cell, and a lock-pool connection for the whole run, which capped a
+  server at about 1300 commands a second. A run that loses the fence is run again on the new story under the lock;
+  an aggregate that is contended (another command for it running on the server, or a conflict on it in the last
+  2 s) takes the lock from the start, so a hot aggregate queues as before instead of losing races. Correctness
+  rests on the database fence, so it holds across servers and cells with no coordination between servers. The
+  lock check before a fenced append (`verifyHeld`) is gone too. Metrics: `evento.server.commands.optimistic`,
+  `evento.server.commands.fence.retries`.
+- **Compatibility policy** ([`COMPATIBILITY.md`](COMPATIBILITY.md)): semantic versioning for the whole
+  framework, what a patch, minor and major may change (wire changes only behind capabilities, additive schema
+  migrations, deprecation before removal), servers N with bundles N and N-1, servers first then bundles,
+  rollback of a server to the previous minor, platforms, and the support window.
+- **Versioned schema migrations with Flyway (F4).** The event store and catalog schema is a sequence of
+  Flyway migrations (`classpath:db/migration/evento-server`, history `evento_es_schema_history`), run at boot
+  under the schema advisory lock, so several servers starting together still migrate once. V1 is the 3.0.0
+  schema; the online steps (catalog re-key, primary key, idempotency key, aggregate fence) are V2-V5, outside
+  a transaction (`CREATE INDEX CONCURRENTLY`), and one that failed half way runs again on the next boot
+  instead of blocking it. Later schema changes are new versions.
+- **Integration testing with a broker (A2).** `evento-test-broker` (new, `com.eventoframework:evento-test-broker`):
+  `EventoTestBroker`, the server's broker and aggregate command handling in the test's JVM on a free port, with an
+  in-memory event store (`events()`, `publish(event, aggregateId)`); commands, events, consumers and queries work
+  as against a server, without a database (Java 25, like the server). `EventoServerContainer` in `evento-test`: the
+  real server image on Testcontainers, on a PostgreSQL of the test, for applications on Java 21 or another Spring
+  Boot version. The server is also published as a library, `com.eventoframework:evento-server` (the plain jar; the
+  boot jar of releases is unchanged).
+- **Request timers on the broker (O3)**: `evento.server.request`, tagged `kind` (`query`, `service_command`,
+  `aggregate_command`, `invocation`, `other`, learnt from the handlers the bundles declare), `payload` and
+  `outcome` (`ok` / `error`): the time from a request reaching the broker to its answer leaving it, for the
+  requests it answers itself and those it forwards. Fixed buckets (1 ms to 30 s), so one series set per
+  payload type stays affordable. Queries a bundle answers itself are timed by the bundle's
+  `evento.bundle.request`.
+- **Expired requests are not run on the bundle, and an optional bound on the requests it handles (F1).** A
+  request whose caller's deadline passed while it queued on the handler bundle is answered
+  `RequestExpiredException` ("not executed") without running its handler (`event=request_expired_before_handler`).
+  `EventoBundle.Builder.setMaxInboundRequests(n)` (starter: `evento.bundle.max-inbound-requests`, default 0 =
+  no bound) refuses one more at once with `TooManyPendingRequestsException` instead of queueing it. Neither answer
+  is cached by the bundle's or the broker's exactly-once cache, so a retry of the same request runs. Counter
+  `evento.bundle.inbound.not.executed{reason=expired|busy}` (starter).
+- **Retention of idempotency keys (F11)**, off by default (keys kept for ever, as before): with
+  `evento.es.idempotency.retention` (e.g. `P30D`) one server an hour clears the keys of older events (the events
+  stay) and deletes finished or abandoned claims, in batches; `evento.es.idempotency.retention.cleared{what}`.
+  Service bundles keep outcomes the same way with `EventoBundle.Builder.setServiceOutcomeRetention`. After the
+  retention a command sent again with an old key runs again: choose it longer than any retry, consumer replays
+  included.
+- **Consumer lag metrics (O2)**, from the server's answer to every consumer fetch, tagged
+  `bundle,component,context`: `evento.consumer.lag.seconds` (age of the oldest event not processed yet,
+  growing while a consumer is stuck: the one to alert on), `evento.consumer.lag.events` (CPES: newest
+  sequence number minus the consumer's position), `evento.consumer.position` and
+  `evento.consumer.fetch.age.seconds` (a consumer that stopped). Series of consumers that no longer fetch
+  through the server go away after `evento.consumer.lag.expiry` (15 minutes); across servers, take the
+  `min by (bundle, component, context)`.
+- **Group commit of aggregate appends.** Appends that arrive together are written in one statement and one
+  transaction (`AppendBatcher`): under CPES the batch takes `es-lock` once and its events get consecutive
+  sequence numbers committed together, so the commit order is still the sequence order. CPES appended one event
+  per durable commit under the global lock, about 430 a second on a 4-core machine and one per round trip to a
+  synchronous standby; now a batch per commit. A conflict (aggregate version, idempotency key) fails only its own
+  append. Without load a batch is one append. `evento.es.append.batch.writers` (default 2 under CPES, 4 under
+  APES; 0 turns it off), `evento.es.append.batch.max-size` (256).
+- **Pluggable sign-in for the web console**: `evento.server.web.auth` (`EVENTO_SERVER_WEB_AUTH`, default
+  `basic`) names the sign-in; a `ConsoleSignIn` bean of that mode adds its flow to the security chain, Basic
+  stays for machine clients, and the server refuses to start if no sign-in provides the mode. The GUI asks
+  `GET /api/auth/mode` and shows "Sign in with your organisation" for a server-side sign-in; `GET /api/auth/me`
+  tells who is signed in.
+- **Single sign-on for the web console with OpenID Connect**: `evento.server.web.auth=oidc` and a client
+  registration `spring.security.oauth2.client.registration.evento.*`. The server runs the authorization-code
+  flow with PKCE, keeps the session in an HttpOnly cookie, protects writes with a CSRF token from the
+  `XSRF-TOKEN` cookie, and maps the provider's groups to `WEB` / `ADMIN`:
+  `evento.server.web.oidc.{registration-id,roles-claim,web-role,admin-role}` (defaults `evento`, `groups`,
+  `evento-web`, `evento-admin`; `roles-claim` may be a dotted path such as `realm_access.roles`). No token
+  reaches the browser; Basic stays for machine clients.
+- **Server spans for commands**: with the OpenTelemetry Java agent on the server (or an `OpenTelemetry` bean),
+  each executed command gets a span `evento command <payload>` with its phase times as attributes
+  (`evento.phase.lock.ms`, `.story.ms`, `.append.ms`, …), child of the caller's span; the aggregate's span is
+  its child. A no-op without an agent; `evento.server.tracing.enabled=false` turns it off.
+- **Fixtures for projectors and services**: `ProjectorFixture` (`given` / `whenEvent`, `replaying()`, asserts on
+  the projector's repository) and `ServiceFixture` (`when(command)`, `expectEvent` / `expectNoEvent`).
+- **Admin action hook**: every console write (retry, delete or replay dead events, remove a bundle) runs
+  through `AdminActions`, which tells the `AdminActionListener` beans when it starts and when it ends, with
+  the real outcome (after the bundle's answer).
+- **Audit trail of the web console**, on by default (`management.auditevents.enabled=false` turns it off): every
+  admin action with who, what, from where and the real outcome, failed sign-ins, OIDC sign-in and sign-out, and
+  refused actions of signed-in users. One `key=value` line per event on the `evento.audit` logger (the durable
+  record: route it to the SIEM; values are quoted so a crafted name cannot forge a line), and the latest
+  `evento.server.audit.capacity` (1000) at `/actuator/auditevents`, ADMIN only.
+- **A span per command and query sent**: `OpenTelemetryTracingAgent` wraps every send (from a handler or from
+  the application's gateways) in a `CLIENT` span `send <Command>` / `query <Query>` that lasts until the reply,
+  with the error when the reply fails; the broker's and the handler's spans are its children. New hook
+  `TracingAgent.traceSend(...)`, a plain send in the no-op base agent.
+- **Starter observability**: Micrometer meters `evento.bundle.connected`, `evento.bundle.request{payload}`,
+  `evento.bundle.handler{type}` (with `.p99` / `.max`); opt-in readiness that follows the connection
+  (`evento.bundle.connection-readiness=true`); `EventoBundleStartedEvent` when the server starts routing to the
+  bundle. `EventoBundle.getConnectionState()` / `onConnectionStateChange(...)`.
 
 - **Payload versioning (upcasting).** `@Revision(n)` on a payload class (event, command, query,
   aggregate state) records its revision in every payload written (`SerializedObject.revision`,
@@ -111,6 +352,34 @@ a revised payload needs a 2.6 broker.
 
 ### Changed
 
+- **Consumers at the head wait for the broker instead of polling it** (capability `head:1`). A consumer that
+  found no new event fetched again after a few milliseconds (the room left in its batch, in ms; the fetch delay
+  applied only after an error), so every idle consumer queried the event store about twenty times a second: on
+  iris, about 100 consumers, ~730 event-store transactions a second at rest, and the fetches that did bring
+  events waited behind them on the broker (`evento.es.fetch.concurrency`), so projections fell behind under
+  load. Now each server reads its store's head every `evento.es.head.poll.ms` (50 ms; 0 turns it off) and
+  sends `evento:events-appended` to its bundles when it moved, with the names of the events appended since
+  (one range scan of the primary key); a bundle wakes only the consumers that handle one of them, and they wait
+  for it at the head up to their fetch delay as a safety net. Waking every consumer on every append made each
+  of them fetch, and those waves kept iris's projections minutes behind under its end-to-end suite.
+  Consumers that handle none of the named events are woken too, late (500 ms) and once for any number of
+  notices, so that their stored position keeps moving: a read-your-writes query on another replica of the
+  consumer reads it and cannot wake the replica that holds the lane. Reading the database keeps it right in a cluster: an event
+  appended through another server wakes these bundles too, and no server calls another. iris at rest: ~70
+  transactions a second. With a 2.x broker, or a bundle older than 3.0, the consumers poll as before.
+- **One checkpoint write for the events a projector does not handle.** Every event still reaches the projector;
+  the position of one it has no handler for is written with the next event it handles, or at the end of the
+  batch, instead of on its own: a projector sees every event of its context, so seventeen projectors in one
+  bundle (iris master-data) made every event of the stream seventeen state-store writes. Replaying such events
+  after a crash is a no-op. `EventConsumer.handles(event)` (default true) and `EventConsumer.of(consumer,
+  eventNames)` say which events a consumer handles.
+- **A replica keeps its consumer lanes between cycles.** `JdbcConsumerLock` keeps a lock for 5 s
+  (`DEFAULT_AFFINITY`) after the cycle that took it, so the next cycle of the same replica takes it back and
+  the others find it held: a lane no longer hops between replicas (lab S16, a global lane written from two
+  regions: fan-out 10 s, now 2). A replica that stops consuming releases its locks when the affinity runs
+  out; one that dies loses them with its sessions. The locks never take more connections than the pool can
+  spare (see the upgrade note): found on iris, 17 consumers on a pool of 8, where the first 8 kept every
+  connection (they poll more often than the affinity lasts) and the other 9 never got one.
 - **Idempotent reads are asked again after a lost session.** Queries and the consumers' event
   fetches still pending when a bundle's session ends are re-sent on the next session (same
   correlation id, the time they have left), on whatever broker it is, instead of failing with
@@ -124,8 +393,88 @@ a revised payload needs a 2.6 broker.
   composite buffer instead of copying them into a growing array and copying that again; the
   encoder wraps the codec's array instead of copying it; chunking slices instead of copying.
 
+### Changed
+
+- Component scanning uses ClassGraph instead of Reflections (unmaintained since 2021): same semantics, annotated
+  classes and their subclasses within the base package. The component managers' `parse` methods take a
+  `ComponentScan`; `javassist` (invoker proxies) is now a direct dependency.
+
+### Deprecated
+
+- **APES (`evento.es.mode=APES`).** On one server CPES is as fast since group commit (benchmark B1: 3907 vs 3852
+  cmd/s at 128 in flight); with several servers APES consumers can skip events (several clocks, MAC-derived node
+  ids, a commit slower than `evento.es.fetch.delay`). Its one measured advantage, parallel commits under
+  synchronous replication across AZs (B2: 2-3x CPES at low concurrency, because CPES holds `es-lock` through the
+  replication wait), needs several servers to matter, where it is unsafe. Still works; switch with the upgrade
+  note above; to be removed in a later major version.
+
 ### Fixed
 
+- **An instance moving to another server keeps its consumer rows.** A departure's cleanup (presence, consumer
+  rows, an ephemeral bundle) now runs after a grace (`evento.server.leave.grace-ms`, 30 s; 0 runs it at once),
+  and its checks then find an instance that joined another server in the meantime held there, and touch
+  nothing. Run at once, a fail-back's cleanup on the server left behind cleared the instance's consumer rows,
+  and they came back only when the new server registered them again, tens of seconds later over a WAN (lab S04,
+  and S03 in a rolling upgrade). An instance that is really gone is cleaned up that much later.
+- **Cancelling a stream twice no longer breaks it.** `OutboundStream.cancel` released the wake-up permits on
+  every call; a stream cancelled twice (the caller closing while a send gave up waiting for credit) overflowed
+  the semaphore and the handler got `Error: Maximum permit count exceeded` instead of
+  `StreamCancelledException` (seen once in `DirectStreamIT` under load).
+- **A bundle leaving no longer stalls the broker's network threads.** Its cleanup (consumer rows, the catalog,
+  a sweep of every payload) ran on the event loop of the channel that closed: eleven iris services stopped
+  together held ten event loops for seconds, each sweeping the same payloads, and services starting meanwhile
+  timed out on their handshake. Departures are now cleaned up one at a time on a thread of their own, and one
+  payload sweep follows a burst of them.
+- **A command sent right after a bundle started could fail.** The bundle announced itself with three notifications
+  (registration, "enable", discovery) that the transport handled concurrently, and its `start()` returned before the
+  server had handled any of them: a command sent at once got "no handler", or reached the bundle before the broker
+  had registered its command handling and failed undecorated (found under load, in `EventoTestBrokerTest`). Now a
+  connection's notifications are handled in order, a 3.0 bundle sends its discovery before "enable", and it waits
+  for the new `evento:barrier` request, which the server answers after the notifications sent before it: `start()`
+  and `enable()` return when the bundle is routed to and its commands are handled. With a 2.5 server the barrier is
+  answered "no handler" and the bundle goes on as before; a 2.5 bundle keeps the old startup window. The barrier
+  waits up to `defaultRequestTimeout` (30 s), not the registration timeout (5 s): on a fresh catalog the server
+  writes a large bundle's discovery one handler at a time (670 handlers: 8.5 s), and a barrier that gave up at 5 s
+  let an application's startup seeders find no handler. If it still expires, the bundle logs
+  `event=barrier_timeout`. `BundleClient.Builder.registrationTimeout(Duration)` is new. Only `start()` and
+  `enable()` wait for the barrier: a reconnecting session is READY as soon as its registration is sent, so what
+  it sends on every session (its consumer registration, its requests) goes out at once. Held behind the barrier,
+  a session reconnecting during a region partition sent nothing for up to 30 s (lab S07), and a fail-back's
+  consumer registration queued behind the discoveries of the bundle's other instances (lab S04).
+- **CSRF protection stays on with Basic authentication.** It used to be switched off for the whole API; now only
+  requests that carry their credential in the `Authorization` header (which another site cannot make a browser add)
+  skip the token check. The console and machine clients send that header and see no change.
+- **A bundle stopped during a fail-back stayed registered, and a server back from a pause wiped live consumers.** A
+  Hello handled after its connection had closed registered a node on the dead channel, where it stayed (in the
+  view, the presence table, the routes). Now such a Hello touches nothing, and the catalog claims an instance only
+  when its session sends its first message after the Hello (`BusEvent.NodeEstablished`), not when it joins: on a
+  server resuming from a pause, the fail-back attempts that the bundles had already given up on claimed instances
+  live on another server, and the server's stale sessions of those instances then deleted their consumer rows
+  (lab scenario S04, 3 runs out of 4 on the first fix, 4 out of 4 clean after this one). A session that closes
+  before its first message leaves with reason `handshake_aborted`, and the catalog only releases its presence.
+- **The server stopped answering under load.** Responses from bundles ran on the bounded bus business executor
+  (8 threads per CPU), behind the requests waiting for them: with as many commands in flight as threads, all of
+  them holding a thread while waiting for the aggregate lock or for the handler bundle, no response was ever
+  processed and every command expired after 30 s (a 4-CPU server stopped at 128 commands in flight, or 32 on one
+  aggregate). Responses now run on virtual threads of their own (`evento-transport-netty`), in servers and
+  bundles alike. Found by the Axon comparison benchmark (`benchmarks/axon-comparison`).
+- **APES refused commands when the clock stepped back.** The Snowflake ids of APES events threw
+  `IllegalStateException: Invalid System Clock!` whenever the system clock was a millisecond behind the last id
+  (NTP, a virtual machine's time sync), and the command being stored failed. Ids now go on from the last one issued
+  until the clock catches up. Found by the same benchmark (a few commands a minute on WSL2).
+- **A server could starve another one on a contended lock.** Waiting for a lock held by another server polled
+  `pg_try_advisory_lock` with a backoff of up to 200 ms, while the holder handed the key to its next local command
+  within a round trip: with two servers on one hot aggregate, one served ~50 commands a second and the other 0-20,
+  with waits up to the 30 s timeout. A waiter now queues in PostgreSQL (`pg_advisory_lock` under a `lock_timeout`),
+  which grants the key to the first in line, so servers take turns; at most half the dedicated lock pool queues at
+  once, the rest of the waiters poll as before. Found by the HA benchmark B2 (`benchmarks/axon-comparison`).
+- The web console logged the user out on any 403: a user without `ADMIN` (normal with OIDC groups) who tried a
+  dead-event action was sent back to the login page. Only 401 signs out now; a refused action shows "This
+  action needs the ADMIN role.", and the retry toggle flips back.
+- A page size over 1000 on `/api/system-state-store/event` and `/snapshot` answered 500 (an unmapped Tomcat
+  exception); it answers 400.
+- `JdbcConsumerStateStore` held a monitor while it waited for the pool, the network and Flyway; it is a
+  `ReentrantLock` now, so a virtual thread waiting there does not pin its carrier on JDK 21–23.
 - A response over the reconnect buffer's byte budget is no longer buffered
   (`event=reconnect_buffer_full`): a burst of disconnects can no longer exhaust the broker's heap.
 

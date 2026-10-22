@@ -1,0 +1,6 @@
+build/
+.gradle/
+docker/context/
+# Axon Server results: Axoniq's Terms of Service forbid disclosing benchmark results of its
+# Services outside your organisation without Axoniq's written consent. Never commit them here.
+results-private/

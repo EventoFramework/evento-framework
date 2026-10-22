@@ -48,6 +48,31 @@ class RevisionGuardTest {
     }
 
     @Test
+    void aBrokerWithoutEventListsIsNotGivenSeveralEvents() {
+        var reply = new DomainCommandResponseMessage(new DomainEventMessage(new Unrevised()), null, false);
+        reply.setPrecedingEventMessages(java.util.List.of(new DomainEventMessage(new Unrevised())));
+
+        assertThatThrownBy(() -> new RevisionGuard(() -> true, () -> false).checkReply(reply))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("2 events")
+                .hasMessageContaining(HandshakeProtocol.CAPABILITY_EVENTS);
+        assertThatCode(() -> new RevisionGuard(() -> true, () -> true).checkReply(reply)).doesNotThrowAnyException();
+        // One event needs nothing from the broker.
+        assertThatCode(() -> new RevisionGuard(() -> true, () -> false).checkReply(
+                new DomainCommandResponseMessage(new DomainEventMessage(new Unrevised()), null, false)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void theRevisionOfEveryEventIsChecked() {
+        var reply = new DomainCommandResponseMessage(new DomainEventMessage(new Unrevised()), null, false);
+        reply.setPrecedingEventMessages(java.util.List.of(new DomainEventMessage(new Revised())));
+
+        assertThatThrownBy(() -> new RevisionGuard(() -> false, () -> true).checkReply(reply))
+                .hasMessageContaining("revision 2");
+    }
+
+    @Test
     void anOldBrokerIsNotGivenARevisedSnapshot() {
         var reply = new DomainCommandResponseMessage(new DomainEventMessage(new Unrevised()),
                 new SerializedAggregateState<>(new RevisedState()), false);

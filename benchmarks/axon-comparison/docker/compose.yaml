@@ -1,0 +1,137 @@
+# The benchmark stack. Same machine, same CPUs for every system:
+#   infrastructure (PostgreSQL, evento-server, Axon Server)  cpuset 0-3
+#   applications (handlers, load generators)                 cpuset 4-7
+# Profiles: evento | axon-jpa | axonserver. scripts/run.sh starts one profile at a time, on a
+# fresh volume, and runs the load container of that profile.
+name: bench
+
+x-app: &app
+  cpuset: "4-7"
+  mem_limit: 3g
+  environment: &bench-env
+    BENCH_SCENARIO: ${BENCH_SCENARIO:-spread}
+    BENCH_CONCURRENCY: ${BENCH_CONCURRENCY:-1,8,32,128}
+    BENCH_WARMUP_S: ${BENCH_WARMUP_S:-20}
+    BENCH_DURATION_S: ${BENCH_DURATION_S:-60}
+    BENCH_AGGREGATES: ${BENCH_AGGREGATES:-1000}
+    BENCH_RUN: ${BENCH_RUN:-r}
+
+services:
+  postgres:
+    image: postgres:16.10
+    profiles: [evento, axon-jpa]
+    cpuset: "0-3"
+    mem_limit: 4g
+    environment:
+      POSTGRES_DB: evento
+      POSTGRES_PASSWORD: secret
+    # Defaults otherwise (fsync, synchronous_commit on): durable commits for both systems.
+    command: ["postgres", "-c", "max_connections=300"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./pg-init.sql:/docker-entrypoint-initdb.d/pg-init.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      retries: 30
+
+  evento-server:
+    image: bench/evento-server
+    profiles: [evento]
+    cpuset: "0-3"
+    mem_limit: 3g
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/evento
+      SPRING_DATASOURCE_PASSWORD: secret
+      EVENTO_SERVER_SECURITY_PROFILE: dev
+      EVENTO_ES_MODE: ${EVENTO_ES_MODE:-CPES}
+      JAVA_OPTS: "-XX:MaxRAMPercentage=60"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/3030'"]
+      interval: 2s
+      retries: 60
+
+  evento-handler:
+    <<: *app
+    image: bench/evento-app
+    profiles: [evento]
+    depends_on:
+      evento-server: { condition: service_healthy }
+    environment:
+      MAIN: com.evento.bench.evento.EventoBench
+      BENCH_ROLE: handler
+      EVENTO_HOST: evento-server
+
+  evento-load:
+    <<: *app
+    image: bench/evento-app
+    profiles: [evento-load]
+    environment:
+      <<: *bench-env
+      MAIN: com.evento.bench.evento.EventoBench
+      BENCH_ROLE: load
+      EVENTO_HOST: evento-server
+      BENCH_SYSTEM: evento-${EVENTO_ES_MODE:-CPES}
+      BENCH_OUT: /results/results.jsonl
+    volumes:
+      - ../results:/results
+
+  # Axon Framework 5.4 open source, JPA engine: handler and load in one JVM (no distributed
+  # command bus in the open-source framework).
+  axon-jpa:
+    <<: *app
+    image: bench/axon-app
+    profiles: [axon-jpa-load]
+    environment:
+      <<: *bench-env
+      SPRING_PROFILES_ACTIVE: handler,load
+      DB_URL: jdbc:postgresql://postgres:5432/axon
+      # The Spring Boot default is 10 connections; axon-jpa-pool64 runs with 64.
+      DB_POOL: ${DB_POOL:-10}
+      BENCH_SYSTEM: ${AXON_SYSTEM:-axon5-jpa}
+      BENCH_OUT: /results/results.jsonl
+    volumes:
+      - ../results:/results
+
+  # Axon Server: results are internal only (Axoniq Terms of Service), see the README.
+  axonserver:
+    image: axoniq/axonserver:2026.1.7
+    profiles: [axonserver]
+    cpuset: "0-3"
+    mem_limit: 4g
+    environment:
+      AXONIQ_AXONSERVER_STANDALONE: "true"
+      # AF5 appends through the DCB API: the default context must be a DCB context.
+      AXONIQ_AXONSERVER_STANDALONE_DCB: "true"
+    volumes:
+      - axondata:/axonserver/data
+      - axonevents:/axonserver/events
+
+  axon-handler:
+    <<: *app
+    image: bench/axon-server-app
+    profiles: [axonserver]
+    depends_on: [axonserver]
+    environment:
+      SPRING_PROFILES_ACTIVE: handler
+      AXONSERVER: axonserver
+
+  axon-server-load:
+    <<: *app
+    image: bench/axon-server-app
+    profiles: [axonserver-load]
+    environment:
+      <<: *bench-env
+      SPRING_PROFILES_ACTIVE: load
+      AXONSERVER: axonserver
+      BENCH_SYSTEM: axon5-axonserver
+      BENCH_OUT: /results/results.jsonl
+    volumes:
+      - ../results-private:/results
+
+volumes:
+  pgdata:
+  axondata:
+  axonevents:

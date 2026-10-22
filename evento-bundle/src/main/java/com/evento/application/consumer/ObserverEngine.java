@@ -12,8 +12,8 @@ import com.evento.common.utils.ChannelErrors;
 import com.evento.common.utils.Sleep;
 import com.evento.transport.reconnect.ExponentialBackoffWithJitter;
 import lombok.Getter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  */
 public final class ObserverEngine implements Runnable, ConsumerHandle {
 
-    private static final Logger logger = LogManager.getLogger(ObserverEngine.class);
+    private static final Logger logger = LoggerFactory.getLogger(ObserverEngine.class);
 
     @Getter
     private final String bundleId;
@@ -50,6 +50,8 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
     private final DeadEventQueue deadEventQueue;
     private final HashMap<String, HashMap<String, ObserverReference>> observerMessageHandlers;
     private final DispatchContext dispatchContext;
+    /** Released by a head notice ({@link HeadSignal}). */
+    private final java.util.concurrent.Semaphore wakeup = new java.util.concurrent.Semaphore(0);
     @Getter
     private final int sssFetchSize;
     @Getter
@@ -107,6 +109,7 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
 
     @Override
     public void run() {
+        dispatchContext.headSignal().register(wakeup, HeadSignal.handledBy(observerMessageHandlers, observerName));
         var backoff = new ExponentialBackoffWithJitter(
                 Duration.ofMillis(sssFetchDelay), Duration.ofSeconds(30), 0.2,
                 ExponentialBackoffWithJitter.UNBOUNDED);
@@ -152,11 +155,15 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
                 Sleep.apply(delay);
             } else {
                 channelErrorAttempts = 0;
-                if (sssFetchSize - consumedEventCount > 10) {
-                    Sleep.apply(sssFetchSize - consumedEventCount);
+                if (consumedEventCount < 0) {
+                    // The lock is busy: no notice comes when it is free again, so poll for it.
+                    HeadSignal.await(wakeup, sssFetchSize - consumedEventCount);
+                } else if (sssFetchSize - consumedEventCount > 10) {
+                    dispatchContext.headSignal().pauseAtHead(wakeup, sssFetchSize - consumedEventCount, sssFetchDelay);
                 }
             }
         }
+        dispatchContext.headSignal().unregister(wakeup);
     }
 
     /**

@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.UUID;
 
 /**
- * One frame of a streamed reply (2.6), handler → caller, relayed by the broker as is.
+ * One frame of a streamed reply (3.0), handler → caller, relayed by the broker as is.
  *
  * <p>A request asks for a streamed reply with {@link Request#streamWindow()}: the handler
  * may send that many frames, and then one more for each credit the caller grants with

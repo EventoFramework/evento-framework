@@ -3,7 +3,7 @@ package com.evento.server.web;
 import com.evento.server.es.EventStore;
 import com.evento.server.web.dto.EventDTO;
 import com.evento.server.web.dto.SnapshotDTO;
-import org.apache.coyote.BadRequestException;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.annotation.Secured;
@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.Timestamp;
 
@@ -39,9 +40,9 @@ public class SystemStateStoreController {
             @RequestParam(defaultValue = "30") int size,
             @RequestParam(defaultValue = "DESC") Sort.Direction sortDirection,
             @RequestParam(defaultValue = "eventSequenceNumber") String sortProperty
-    ) throws BadRequestException {
+    ) {
         if(size > 1000){
-            throw new BadRequestException("size must be less than 1000");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "size must be at most 1000");
         }
         return eventStore.searchEvents(
                 aggregateIdentifier,
@@ -66,9 +67,9 @@ public class SystemStateStoreController {
             @RequestParam(defaultValue = "30") int size,
             @RequestParam(defaultValue = "DESC") Sort.Direction sortDirection,
             @RequestParam(defaultValue = "eventSequenceNumber") String sortProperty
-    ) throws BadRequestException {
+    ) {
         if(size > 1000){
-            throw new BadRequestException("size must be less than 1000");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "size must be at most 1000");
         }
         return eventStore.searchSnapshots(
                 aggregateIdentifier,

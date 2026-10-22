@@ -34,7 +34,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * The answering bundle's endpoint for streams taken on a direct connection (2.6).
+ * The answering bundle's endpoint for streams taken on a direct connection (3.0).
  *
  * <p>It serves streams, nothing else, and only to whoever holds a ticket:
  * <ol>

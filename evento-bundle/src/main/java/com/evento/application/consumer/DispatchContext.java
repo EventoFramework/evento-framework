@@ -11,8 +11,21 @@ import java.util.function.BiFunction;
 public record DispatchContext(
         TracingAgent tracingAgent,
         BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
-        MessageHandlerInterceptor messageHandlerInterceptor
+        MessageHandlerInterceptor messageHandlerInterceptor,
+        /** When the consumers at the head fetch again (head notices from the broker, or polling). */
+        HeadSignal headSignal
 ) {
+
+    public DispatchContext {
+        if (headSignal == null) headSignal = HeadSignal.polling();
+    }
+
+    /** Without head notices: the consumers poll. */
+    public DispatchContext(TracingAgent tracingAgent,
+                           BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
+                           MessageHandlerInterceptor messageHandlerInterceptor) {
+        this(tracingAgent, gatewayTelemetryProxy, messageHandlerInterceptor, HeadSignal.polling());
+    }
 
     /**
      * The gateway a consumer handler gets for one event: commands it sends without an explicit

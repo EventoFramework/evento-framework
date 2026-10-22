@@ -1,0 +1,5 @@
+[
+  {"name": "evento-b-to-pg-a", "listen": "0.0.0.0:21001", "upstream": "pg-a:5432", "enabled": true},
+  {"name": "pg-b-replication", "listen": "0.0.0.0:21002", "upstream": "pg-a:5432", "enabled": true},
+  {"name": "axon-b-to-pg-a", "listen": "0.0.0.0:21003", "upstream": "pg-a:5432", "enabled": true}
+]

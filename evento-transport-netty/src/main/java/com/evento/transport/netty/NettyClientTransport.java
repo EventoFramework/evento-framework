@@ -279,7 +279,9 @@ public final class NettyClientTransport implements Transport {
             }
         } finally {
             if (ownsWorkerGroup) {
-                workerGroup.shutdownGracefully();
+                // Bounded and quick (Netty's default quiet period is 2 s): Q2.
+                workerGroup.shutdownGracefully(NettyServerTransport.SHUTDOWN_QUIET_MS,
+                        NettyServerTransport.SHUTDOWN_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
             }
             state.forceTransition(ConnectionState.CLOSED, "closed");
             if (quietLifecycleLogging) {

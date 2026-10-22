@@ -1,0 +1,134 @@
+{
+  "scenario" : "S18",
+  "title" : "Residual window: the server loses the event store after the payment ran",
+  "gaps" : [ "G5" ],
+  "label" : "v3",
+  "startedAt" : "2026-10-20T15:55:40.560035400Z",
+  "finishedAt" : "2026-10-20T15:57:42.296036700Z",
+  "durationSeconds" : 121,
+  "parameters" : {
+    "orderIdPrefix" : "s18-v3-42c60f-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : {
+      "gateway-australia-nz" : "evento-eu",
+      "gateway-cina" : "evento-eu",
+      "gateway-india" : "evento-eu",
+      "order-command-apac" : "evento-eu",
+      "order-query-apac" : "evento-eu",
+      "order-query-cina" : "evento-eu",
+      "order-query-global-apac" : "evento-eu",
+      "order-saga-apac" : "evento-eu"
+    },
+    "lbRoutingAtStart" : "ok",
+    "orders" : 6,
+    "cutSeconds" : 20,
+    "regions" : [ "CINA", "INDIA", "AUSTRALIA_NZ" ],
+    "esLink" : "apac-to-es-pg-eu",
+    "outcomeStoreEnv" : "jdbc (default)"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 3
+  },
+  "observations" : [ {
+    "name" : "the residual window was hit",
+    "expected" : "at least one payment committed while its server could not store its event",
+    "expectedBeforeFix" : null,
+    "observed" : "3 of 3 payments committed before the cut had no event at the heal: [s18-v3-42c60f-slowpay-india-2, s18-v3-42c60f-slowpay-australia-nz-3, s18-v3-42c60f-slowpay-cina-1]",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "a payment whose event could not be stored is not executed again",
+    "expected" : "0 extra executions: the retry is answered from the outcome recorded with the payment (G5 inbox)",
+    "expectedBeforeFix" : "the saga's retry runs the payment again (G5 residual window): attempts = 2",
+    "observed" : "0 extra execution(s) among the 3 in the window; 0 overall; attempts {s18-v3-42c60f-slowpay-india-2=1, s18-v3-42c60f-slowpay-australia-nz-3=1, s18-v3-42c60f-slowpay-cina-1=1, s18-v3-42c60f-slowpay-india-5=1, s18-v3-42c60f-slowpay-australia-nz-6=1, s18-v3-42c60f-slowpay-cina-4=1}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "every payment is stored exactly once",
+    "expected" : "one PaymentProcessedEvent per order once the saga's retries are done",
+    "expectedBeforeFix" : null,
+    "observed" : "0 order(s) without the event after 300 s, 0 with two; events {s18-v3-42c60f-slowpay-cina-1=1, s18-v3-42c60f-slowpay-india-2=1, s18-v3-42c60f-slowpay-australia-nz-3=1, s18-v3-42c60f-slowpay-cina-4=1, s18-v3-42c60f-slowpay-india-5=1, s18-v3-42c60f-slowpay-australia-nz-6=1}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "paidBeforeCut" : 3,
+    "eventStoredBeforeCut" : 0,
+    "residualWindowHits" : 3,
+    "convergedSecondsAfterCut" : 35,
+    "paymentAttempts" : {
+      "s18-v3-42c60f-slowpay-india-2" : 1,
+      "s18-v3-42c60f-slowpay-australia-nz-3" : 1,
+      "s18-v3-42c60f-slowpay-cina-1" : 1,
+      "s18-v3-42c60f-slowpay-india-5" : 1,
+      "s18-v3-42c60f-slowpay-australia-nz-6" : 1,
+      "s18-v3-42c60f-slowpay-cina-4" : 1
+    },
+    "paymentEvents" : {
+      "s18-v3-42c60f-slowpay-cina-1" : 1,
+      "s18-v3-42c60f-slowpay-india-2" : 1,
+      "s18-v3-42c60f-slowpay-australia-nz-3" : 1,
+      "s18-v3-42c60f-slowpay-cina-4" : 1,
+      "s18-v3-42c60f-slowpay-india-5" : 1,
+      "s18-v3-42c60f-slowpay-australia-nz-6" : 1
+    },
+    "duplicatePaymentExecutions" : 0,
+    "duplicatePaymentExecutionsInWindow" : 0,
+    "logMarkers" : {
+      "evento-apac" : { },
+      "evento-eu" : { },
+      "evento-am" : { },
+      "order-command-apac" : {
+        "event=service_outcome_replayed" : 3
+      },
+      "order-command-eu" : { },
+      "order-command-am" : { }
+    },
+    "serviceOutcomeReplayed" : 3
+  },
+  "timeline" : [ {
+    "tMs" : 7664,
+    "at" : "2026-10-20T15:55:48.225025200Z",
+    "event" : "placement: 8 JVM(s) on a remote server, restarting them: {gateway-australia-nz=evento-eu, gateway-cina=evento-eu, gateway-india=evento-eu, order-command-apac=evento-eu, order-query-apac=evento-eu, order-query-cina=evento-eu, order-query-global-apac=evento-eu, order-saga-apac=evento-eu}"
+  }, {
+    "tMs" : 67473,
+    "at" : "2026-10-20T15:56:48.033306700Z",
+    "event" : "placement restored, ready={gateway-australia-nz=true, gateway-cina=true, gateway-india=true, order-command-apac=true, order-query-apac=true, order-query-cina=true, order-query-global-apac=true, order-saga-apac=true}"
+  }, {
+    "tMs" : 67543,
+    "at" : "2026-10-20T15:56:48.103229300Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 75817,
+    "at" : "2026-10-20T15:56:56.377219Z",
+    "event" : "created 6 orders with an item in [CINA, INDIA, AUSTRALIA_NZ]"
+  }, {
+    "tMs" : 76497,
+    "at" : "2026-10-20T15:56:57.057843400Z",
+    "event" : "completed them: the saga pays each one (the handler answers 4000 ms after its commit)"
+  }, {
+    "tMs" : 78129,
+    "at" : "2026-10-20T15:56:58.689416600Z",
+    "event" : "cut apac-to-es-pg-eu with 3 of 6 payments committed, 3 of them still answering: [s18-v3-42c60f-slowpay-india-2, s18-v3-42c60f-slowpay-australia-nz-3, s18-v3-42c60f-slowpay-cina-1]"
+  }, {
+    "tMs" : 98495,
+    "at" : "2026-10-20T15:57:19.055916600Z",
+    "event" : "healed apac-to-es-pg-eu after 20 s"
+  }, {
+    "tMs" : 119623,
+    "at" : "2026-10-20T15:57:40.183395100Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 121736,
+    "at" : "2026-10-20T15:57:42.296036700Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: order-command-apac" : [ "2026-10-20T15:57:25.328Z  INFO 1 --- [order-command] [    virtual-135] c.e.application.manager.ServiceManager   : event=service_outcome_replayed bundle=order-command commandType=ProcessPaymentCommand idempotencyKey=evento:order-saga_PaymentSaga_1_INDIA:55:ProcessPaymentCommand:0 stage=before_handler recordedAt=2026-10-20T15:56:58.428898Z", "2026-10-20T15:57:25.437Z  INFO 1 --- [order-command] [    virtual-137] c.e.application.manager.ServiceManager   : event=service_outcome_replayed bundle=order-command commandType=ProcessPaymentCommand idempotencyKey=evento:order-saga_PaymentSaga_1_AUSTRALIA_NZ:56:ProcessPaymentCommand:0 stage=before_handler recordedAt=2026-10-20T15:56:58.429331Z", "2026-10-20T15:57:26.031Z  INFO 1 --- [order-command] [    virtual-139] c.e.application.manager.ServiceManager   : event=service_outcome_replayed bundle=order-command commandType=ProcessPaymentCommand idempotencyKey=evento:order-saga_PaymentSaga_1_CINA:54:ProcessPaymentCommand:0 stage=before_handler recordedAt=2026-10-20T15:56:58.493849Z" ],
+    "stack actions" : [ "2026-10-20T15:55:48.228161300Z docker restart gateway-australia-nz gateway-cina gateway-india order-command-apac order-query-apac order-query-cina order-query-global-apac order-saga-apac", "2026-10-20T15:56:58.665613100Z disable apac-to-es-pg-eu", "2026-10-20T15:57:19.007523300Z enable apac-to-es-pg-eu", "2026-10-20T15:57:40.183395100Z enable apac-to-es-pg-eu" ]
+  }
+}

@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * The revision of a payload's shape (2.6). Every serialized payload records the revision of its
+ * The revision of a payload's shape (3.0). Every serialized payload records the revision of its
  * class when it was written; an {@link Upcaster} turns a stored or received payload of an older
  * revision into the shape the current class expects, before it is deserialized.
  *

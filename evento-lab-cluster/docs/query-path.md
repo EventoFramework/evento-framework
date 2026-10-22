@@ -1,7 +1,7 @@
-# Percorso delle query: quanto costa all'evento-server (benchmark 2.6)
+# Percorso delle query: quanto costa all'evento-server (benchmark 3.0)
 
 Misura di cosa spende un evento-server per portare la risposta di una query, per dimensione
-della risposta e per modalità: risposta classica come in 2.5.2, risposta classica in 2.6
+della risposta e per modalità: risposta classica come in 2.5.2, risposta classica in 3.0
 (query "straight"), stream attraverso il broker, stream diretto tra bundle. Più due misure
 collaterali: latenza della query servita dal bundle stesso e compressione.
 
@@ -26,7 +26,7 @@ EVENTO_RUN_BENCH=true ./gradlew :evento-server:test --tests '*QueryPathBenchmark
   completi a distanza hanno dato numeri entro pochi punti percentuali.
 - Dati incomprimibili (casuali) negli scenari A–C, per isolare il trasporto dalla compressione.
 - **"2.5.2"** riproduce il comportamento della cache di 2.5.2 (ogni risposta trattenuta per il
-  replay, limite solo in numero di voci) sul trasporto 2.6. Non include le copie in più che
+  replay, limite solo in numero di voci) sul trasporto 3.0. Non include le copie in più che
   2.5.2 faceva nel riassemblaggio dei chunk: **sottostima** il costo reale di 2.5.2.
 
 ## A. Risorse del broker per risposta
@@ -37,10 +37,10 @@ EVENTO_RUN_BENCH=true ./gradlew :evento-server:test --tests '*QueryPathBenchmark
 | 8 MiB | classica, cache 2.5.2 | 97 | 82 | 37 | 32,1 | 47 | 9 |
 | 32 MiB | classica, cache 2.5.2 | 345 | 93 | 137 | 128,1 | 172 | 33 |
 | 64 MiB | classica, cache 2.5.2 | 634 | 101 | 271 | 256,2 | 266 | **65** |
-| 1 MiB | classica, 2.6 | 13 | 78 | 8 | 4,1 | 16 | 0 |
-| 8 MiB | classica, 2.6 | 69 | 116 | 37 | 32,0 | 47 | 0 |
-| 32 MiB | classica, 2.6 | 275 | 116 | 137 | 128,1 | 188 | 0 |
-| 64 MiB | classica, 2.6 | 602 | 106 | 272 | 256,2 | 281 | **1** |
+| 1 MiB | classica, 3.0 | 13 | 78 | 8 | 4,1 | 16 | 0 |
+| 8 MiB | classica, 3.0 | 69 | 116 | 37 | 32,0 | 47 | 0 |
+| 32 MiB | classica, 3.0 | 275 | 116 | 137 | 128,1 | 188 | 0 |
+| 64 MiB | classica, 3.0 | 602 | 106 | 272 | 256,2 | 281 | **1** |
 | 1 MiB | stream via broker | 10 | 101 | 5 | 4,1 | 31 | 0 |
 | 8 MiB | stream via broker | 41 | 195 | 37 | 32,7 | 109 | 1 |
 | 32 MiB | stream via broker | 127 | 252 | 138 | 130,8 | 297 | 1 |
@@ -53,7 +53,7 @@ EVENTO_RUN_BENCH=true ./gradlew :evento-server:test --tests '*QueryPathBenchmark
 Lettura:
 
 - **Trattenuto**: in 2.5.2 ogni risposta resta nel broker (65 MiB dopo una sola query da
-  64 MiB, per 5 minuti); in 2.6 non resta nulla.
+  64 MiB, per 5 minuti); in 3.0 non resta nulla.
 - **Stream via broker**: tempo 2,5 volte minore della risposta classica a 64 MiB (243 contro
   602 ms). Il broker inoltra un frame appena arriva invece di aspettare il messaggio intero, e
   chi chiede consuma mentre il resto viaggia.
@@ -74,7 +74,7 @@ Lettura:
 | Broker | Cache dedup MiB | Heap trattenuto dopo GC MiB |
 |---|---|---|
 | cache 2.5.2 (risposte delle query trattenute 5 min) | 100,0 | 125,4 |
-| 2.6 (query straight) | **0,0** | **0,1** |
+| 3.0 (query straight) | **0,0** | **0,1** |
 
 In 2.5.2 la memoria trattenuta cresce linearmente con il traffico di query fino al limite di
 50 000 voci: con risposte da 4 MiB sarebbero fino a ~195 GiB teorici, cioè un OOM ben prima.
@@ -83,14 +83,14 @@ In 2.5.2 la memoria trattenuta cresce linearmente con il traffico di query fino 
 
 | Heap broker | Risposta | Modalità | Esito | Picco heap MiB |
 |---|---|---|---|---|
-| 256 MiB | 32 MiB | classica, 2.6 | consegnata | 122 |
-| 256 MiB | 64 MiB | classica, 2.6 | consegnata | 211 |
-| 256 MiB | 96 MiB | classica, 2.6 | **broker morto, OutOfMemoryError** | – |
-| 256 MiB | 128 MiB | classica, 2.6 | **broker morto, OutOfMemoryError** | – |
+| 256 MiB | 32 MiB | classica, 3.0 | consegnata | 122 |
+| 256 MiB | 64 MiB | classica, 3.0 | consegnata | 211 |
+| 256 MiB | 96 MiB | classica, 3.0 | **broker morto, OutOfMemoryError** | – |
+| 256 MiB | 128 MiB | classica, 3.0 | **broker morto, OutOfMemoryError** | – |
 | 256 MiB | **1024 MiB** | stream via broker | **consegnata** | 151 |
-| 64 MiB | 8 MiB | classica, 2.6 | consegnata | 37 |
-| 64 MiB | 16 MiB | classica, 2.6 | **broker morto, OutOfMemoryError** | – |
-| 64 MiB | 32 MiB | classica, 2.6 | **broker morto, OutOfMemoryError** | – |
+| 64 MiB | 8 MiB | classica, 3.0 | consegnata | 37 |
+| 64 MiB | 16 MiB | classica, 3.0 | **broker morto, OutOfMemoryError** | – |
+| 64 MiB | 32 MiB | classica, 3.0 | **broker morto, OutOfMemoryError** | – |
 | 64 MiB | **1024 MiB** | stream via broker | **consegnata** | 36 |
 
 È la prova del limite di memoria. Una risposta classica deve stare intera nel broker, con
@@ -105,7 +105,7 @@ risposta.
 | Percorso | p50 µs | p95 µs | p99 µs | CPU broker ms |
 |---|---|---|---|---|
 | attraverso il broker | 456 | 622 | 741 | 3672 |
-| servita dal bundle stesso (2.6) | **28** | **34** | **41** | **0** |
+| servita dal bundle stesso (3.0) | **28** | **34** | **41** | **0** |
 
 Circa 16 volte meno latenza per la query che il bundle sa servire da sé, e zero lavoro per il
 broker. La query segue comunque lo stesso percorso lato handler (codec, interceptor, tracing,
@@ -130,7 +130,7 @@ all'handler: su una rete reale, e soprattutto tra regioni, il guadagno arriva an
   compressione guadagnano di più su una rete vera, che qui non è misurata.
 - Il "picco heap" con heap grande misura anche spazzatura: per il live set fa fede lo scenario C.
 - Il confronto con 2.5.2 riproduce la sua cache, non le sue copie nel riassemblaggio dei chunk
-  (rimosse in 2.6): il costo reale di 2.5.2 era più alto di quello in tabella.
+  (rimosse in 3.0): il costo reale di 2.5.2 era più alto di quello in tabella.
 - Il read-your-writes (attesa aggiunta dopo un comando) non è misurato qui: richiede event
   store e proiettori, e il test `ReadYourWritesIT` ne verifica il comportamento, non il costo.
 

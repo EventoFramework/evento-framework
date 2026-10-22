@@ -41,6 +41,9 @@ evento-framework/
 ├── evento-server/                Server runtime: bus lifecycle, event store, REST API, Spring Boot app
 ├── evento-consumer-state-store/
 │   └── evento-consumer-state-store-jdbc/  JDBC impls (Postgres + MySQL) for consumer SPIs
+├── evento-spring-boot-starter/   Auto-configuration: bundle from evento.bundle.* properties, gateway beans
+├── evento-opentelemetry/         OpenTelemetryTracingAgent: span per handler, W3C context in metadata
+├── evento-test/                  Given/when/then fixtures for aggregates and sagas (no broker, no DB)
 ├── evento-gui/                   Web GUI (Angular 22 + Ionic 8), built into the server's static resources
 ├── evento-lab/                   In-process integration tests (single-bundle RTT, failure matrix, etc.)
 ├── evento-lab-microservices/     Multi-bundle integration tests (RECQ microservices scenario)
@@ -57,7 +60,16 @@ evento-framework/
     └── docs/                      cluster-mode guide L0–L5, config reference, chaos results (Italian)
 ```
 
-**Gradle**: version `2.5.2` (wrapper 9.7.1), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
+**Licences and Java baselines.** The client libraries (`clientLibraries` in the root `build.gradle`:
+transport-api, transport-netty, common, bundle, consumer-state-store-jdbc, spring-boot-starter,
+opentelemetry, test) are **Apache-2.0** and compile with **`--release 21`**; the server, the GUI and
+the labs are **Apache-2.0 with the Commons Clause** (no selling Evento itself without written
+authorisation, `LICENSE-COMMERCIAL.txt`; names in `TRADEMARKS.md`) and target 25 (`LICENSE.txt`). New published libraries apply
+`gradle/evento-library.gradle` (publication, POM licence, LICENSE/NOTICE in the jar).
+`-PtestJdk=21` runs the client tests on JDK 21 (CI job `client-libraries-jdk21`). Libraries log through
+SLF4J only and ship no logging configuration.
+
+**Gradle**: version `2.5.2` (wrapper 9.8.1), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
 `4.1.1` (server and lab services), Jackson `2.22.2`, Netty `4.2.17.Final`, Flyway `13.4.0`. Root
 `build.gradle` centralises versions in `allprojects { ext { … } }`; the release script bumps
 `version` / `eventoVersion` there and `evento-server/version.json`. The published libraries also
@@ -96,7 +108,7 @@ MessageInboundHandler   ← dispatches Frame on virtual-thread executor
 
 `ChunkReassembler` buffers chunks per stream UUID and fires downstream only on the last chunk.
 The `maxFrameLength` parameter controls per-chunk memory, not message size — there is no hard limit
-on message size. Since 2.6 nothing on this path copies a message more than once: the reassembler
+on message size. Since 3.0 nothing on this path copies a message more than once: the reassembler
 holds retained slices in a `CompositeByteBuf`, `ChunkingEncoder` composes headers with slices,
 `CborMessageEncoder` wraps the codec's array. A large answer should still be **streamed**
 (§4.9), not chunked: a chunked message is reassembled whole on every hop.
@@ -112,19 +124,31 @@ Message (sealed interface)
   ├── Request    (correlationId, payloadType: String, payload: byte[])
   ├── Response   (correlationId, payload: byte[], failure: ResponseError)
   ├── Notification (payloadType: String, payload: byte[])
-  ├── StreamData     (correlationId, seq, payload, last, failure)   ← 2.6, "SDA"
-  ├── StreamCredit   (correlationId, credits)                       ← 2.6, "SCR"
-  ├── StreamCancel   (correlationId, reason)                        ← 2.6, "SCN"
-  └── StreamRedirect (correlationId, host, port, ticket, expiresAtMs) ← 2.6, "SRD"
+  ├── StreamData     (correlationId, seq, payload, last, failure)   ← 3.0, "SDA"
+  ├── StreamCredit   (correlationId, credits)                       ← 3.0, "SCR"
+  ├── StreamCancel   (correlationId, reason)                        ← 3.0, "SCN"
+  └── StreamRedirect (correlationId, host, port, ticket, expiresAtMs) ← 3.0, "SRD"
 ```
 
-`Request` gained three additive fields (2.6), all off the wire when unset and all carried end to
+`Request` gained three additive fields (3.0), all off the wire when unset and all carried end to
 end by the broker's raw forward: `acceptEncodings` (reply compression the caller decodes),
 `streamWindow` (> 0 = streamed reply, the initial credit), `streamDirect` (the caller can take
 the stream on a direct connection). The four stream messages are sent **only** to a peer that
 negotiated `HandshakeProtocol.CAPABILITY_STREAM` (`stream:1`): an older peer cannot decode
-them and would close the channel. Every 2.6 bundle offers it; `BusLifecycle` always accepts it.
-Same for `CAPABILITY_REVISION` (`revision:1`, 2.6): the broker keeps payload revisions (§4.10).
+them and would close the channel. Every 3.0 bundle offers it; `BusLifecycle` always accepts it.
+Same for `CAPABILITY_REVISION` (`revision:1`, 3.0): the broker keeps payload revisions (§4.10).
+Inbound ordering (`MessageInboundHandler`): requests run concurrently on the business executor,
+responses on their own virtual threads, while a channel's stream frames and its **notifications**
+each go through a `SerialLane` (handled in the order read). A 3.0 bundle registers with
+registration → discovery → enable, then sends `ProtocolPayloadTypes.BARRIER` (`evento:barrier`),
+which the transport queues on the notification lane and the broker answers empty: `start()` and
+`enable()` return only once the broker routes to the bundle and has registered its command
+handling. Old servers answer "no handler"; the bundle treats any answer, or the registration
+timeout, as done.
+And `CAPABILITY_EVENTS` (`events:1`, 3.0): the broker stores several events per aggregate command
+(`DomainCommandResponseMessage.precedingEventMessages`, `EventStore.appendAggregateEvents`: one
+transaction holding `es-lock` to the commit, versions `expected+1..`, key on the last event);
+`RevisionGuard` refuses such a reply on a session without it.
 
 Adding a new wire type: extend `Message` permits + register a byte tag in `MessageTypeRegistry`.
 The compiler enforces exhaustive dispatch everywhere.
@@ -158,7 +182,7 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 | `NettyClientTransport` | netty | Client-side Netty channel + reconnect |
 | `NettyServerTransport` | netty | Server-side accept loop; each accepted channel → `ServerChildTransport` |
 | `MessageInboundHandler` | netty | Terminal pipeline handler: hands every inbound `Frame` to the business executor (virtual threads), never the event loop; `StreamData` frames go through the channel's `SerialLane` instead, so a stream's frames keep their order |
-| `SerialLane` | netty | Runs tasks one at a time in submission order on the shared executor, holding no thread between bursts (2.6) |
+| `SerialLane` | netty | Runs tasks one at a time in submission order on the shared executor, holding no thread between bursts (3.0) |
 | `InboundDeliveries` | netty | Per-channel count of `Response` frames read but not yet delivered; the `DISCONNECTED` transition (channel inactive, server-child and client close listeners) waits for them, bounded by 2 s (`event=disconnect_after_delivery_grace`). See §6 decision 14 |
 | `NettyTransportConfig` | netty | Optional `SslContext` (prepends `SslHandler` when set) |
 
@@ -188,7 +212,7 @@ using the raw bytes retained in `Frame`. No CBOR re-encoding on the broker hop.
 2-minute TTL, bounded by `setReconnectBufferMaxBytes`, 256 MiB: a reply over it is not buffered,
 `event=reconnect_buffer_full`). `onHello` calls `deliverPendingResponses` on re-handshake.
 
-**Straight payload types (2.6).** Reads are routed without any of that: no dedup slot, no
+**Straight payload types (3.0).** Reads are routed without any of that: no dedup slot, no
 cached reply, no reconnect buffering (`event=straight_response_dropped_originator_away`).
 Bundles declare their `@QueryHandler` types in `BundleRegistrationInfo.queryPayloadTypes`;
 server-local reads (`EventFetchRequest`, `EventLastSequenceNumberRequest`) are registered by
@@ -196,7 +220,7 @@ server-local reads (`EventFetchRequest`, `EventLastSequenceNumberRequest`) are r
 (`BundleCorrelationTracker.resendSentBefore`, §4.3). The broker's own replies are DEFLATE-compressed
 for callers that accept it (`setResponseCompressionThreshold`, 32 KiB).
 
-**Stream relay (2.6, `BusLifecycle.onStream`).** `StreamData`/`StreamRedirect` from the
+**Stream relay (3.0, `BusLifecycle.onStream`).** `StreamData`/`StreamRedirect` from the
 destination go to the originator, `StreamCredit`/`StreamCancel` from the originator to the
 destination, each as the raw frame (zero copy), only between sessions that negotiated
 `stream:1` (`BundleSession.supportsStreams`); a frame from any other session is dropped
@@ -225,9 +249,9 @@ reconnected bundle.
 | `EventoServerAdapter` | Implements `EventoServer` (the gateway SPI) over `BundleClient` |
 | `BundleInboundDispatcher` | Bridges `HandlerRegistry.RequestHandler` ↔ v2 CBOR byte-array contract for `@CommandHandler` / `@QueryHandler` annotated classes |
 | `BundleAdminRequestHandler` | Handles `evento:server-admin-request` — decodes `EventoRequest`, dispatches consumer ops, encodes `EventoResponse` |
-| `stream.InboundStream` / `stream.OutboundStream` | The caller's and the handler's end of a streamed reply: ordered frames and credit returned by half-windows / frames sent only against credit, cancel on idle timeout (2.6, §4.9) |
+| `stream.InboundStream` / `stream.OutboundStream` | The caller's and the handler's end of a streamed reply: ordered frames and credit returned by half-windows / frames sent only against credit, cancel on idle timeout (3.0, §4.9) |
 | `stream.FrameQueryStream` | `QueryStream<V>` over an `InboundStream`: decodes batches, whole answers and `ExceptionWrapper` frames |
-| `stream.DirectStreamServer` / `DirectStreamClient` / `DirectStreamConfig` | Bundle-to-bundle streams: ticketed endpoint, redirect follower with broker fallback (2.6, §4.9) |
+| `stream.DirectStreamServer` / `DirectStreamClient` / `DirectStreamConfig` | Bundle-to-bundle streams: ticketed endpoint, redirect follower with broker fallback (3.0, §4.9) |
 
 **Fail-back to the preferred endpoint (N16).** While a session is READY on any endpoint but 0
 and `BundleClientConfig.failbackActive()` (enabled, default true, and 2+ endpoints), a virtual
@@ -361,12 +385,82 @@ and registers `LocalRequestHandler` instances in `BusLifecycle` for each `Aggreg
 and service `CommandHandler` payload type.
 
 **Aggregate command path:**
-1. Acquire optional distributed lock (`lockId ?? aggregateId`)
+1. Optimistic (3.0, default) when the store fences (`fencesAggregates()`), the command locks its own
+   aggregate and the aggregate is not contended: no lock. Otherwise the distributed lock (`lockId`)
 2. `BrokerEventStore.fetchAggregateStory(aggregateId)` → event stream + optional snapshot
 3. Wrap `DomainCommandMessage` → `DecoratedDomainCommandMessage` (state + event stream attached)
 4. `BusLifecycle.forward(...)` to aggregate bundle
-5. `BrokerEventStore.publishEvent(DomainEventMessage)`  ± `saveSnapshot`
+5. `BrokerEventStore.appendAggregateEvent(event, aggregateId, key, type, version)`  ± `saveSnapshot`
 6. Return stored event to caller
+
+**Aggregate fence (C1, closes G6).** `es__events.aggregate_seq` is the aggregate's version after
+the event (1, 2, 3... per `aggregate_id`; null for service events and pre-3.0 rows), under the
+partial unique index `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq) WHERE
+aggregate_seq IS NOT NULL`. The story query has one more `UNION ALL` branch (kind 2: the newest
+fenced row, one backward index step) so the version comes from the same snapshot as the events,
+in the same round trip (`KeyedAggregateStory.aggregateVersion`). The append writes version + 1 in
+the mode's single statement; the index is not an `ON CONFLICT` arbiter, so a taken version fails
+the statement (23505 on that index → `BrokerEventStore.AggregateFenceException`, caches of the
+aggregate dropped, `event=aggregate_fence_conflict`, `evento.server.commands.fence.conflicts`).
+A keyed loser is looked up first and replayed (under APES it may lose on this index rather than
+the key's). Otherwise the run is thrown away (aggregate handlers are pure) and the command runs
+again on the new story, under the aggregate lock, up to 5 runs within the deadline
+(`evento.server.commands.fence.retries`); only then the caller gets `AggregateConflictException`
+(evento-common, definite).
+
+**Optimistic concurrency (3.0).** Correctness rests on the fence, in the database, so the lock is
+only an optimisation for contended aggregates: `executeAggregateCommand` runs a command without it
+when `evento.server.commands.optimistic` (default true), the store fences, `getLockId()` is the
+aggregate id (or null) and `AggregateContention` sees no contention (another command for the
+aggregate running on this server, or a fence conflict on it in the last 2 s, which also catches
+other servers). The lock cost 3 round trips per command (acquire, `verifyHeld`, release) and a
+lock-pool connection for the run: 10 connections / 7.5 ms capped a server at ~1300 cmd/s (B1).
+`verifyHeld` is skipped before any fenced append on the aggregate's own lock (a lost lock only
+means the fence decides). A keyed command that expires while running optimistically is answered
+in progress, never "expired, not executed": a duplicate may be running elsewhere. Nothing needs
+servers to coordinate: contention memory is local and only picks the cheaper path.
+
+**Group commit (3.0, `AppendBatcher`).** `appendAggregateEvent` queues the row; `writers` virtual
+threads (CPES 2, APES 4: `evento.es.append.batch.writers`, 0 = off) each drain up to 256 rows and
+write them in one statement: `unnest` arrays, `ON CONFLICT DO NOTHING` (any unique index), and a
+report of which rows went in. CPES: `es-lock` (materialised CTE) then `nextval` in input order, so
+one batch = one transaction = consecutive numbers committed together; sequence order is still
+commit order (`GroupCommitPostgresIT` checks xmin is sorted by sequence across two servers). A row
+kept out is a key conflict when its key is stored (a separate statement sees the winner) and a
+fence conflict otherwise; any other failure hands every row back to its caller to append alone. No
+timer: under load the rows queued behind a running batch form the next one. CPES went from one
+durable commit per event under the global lock (~430 events/s) to one per batch.
+A story assembled from this server's cache that misses the newest fenced event (an APES id inside
+the cached range) is refetched without caches (`event=aggregate_story_stale`) instead of being
+fenced at a version it does not end at. Schema: added online by `AdvisoryLockedSchemaInitializer`
+(`applyAggregateFence`), `db/upgrade/es-events-aggregate-seq.sql` for external schemas;
+`EventStore.fenceSupported()` probes it like `idempotencySupported()` (re-probed every minute,
+a vanished column → unfenced with a WARN). Mixed 2.5/3.0 servers: 2.5 appends without a version,
+so the fence holds once all servers run 3.0. Tests: `AggregateFencePostgresIT` (store level, CPES
+and APES), `GroupCommitPostgresIT`, `IdempotentCommandPostgresIT.withoutAnAggregateLockOrAKeyTheFenceStoresOneEventAndRunsTheRestAgain`
+(8 lockless commands on two servers: 1 stored, 7 run again and refused by the domain; 8 stored
+without the fence) and `concurrentCommandsOnOneAggregateFromTwoServersAllApplyOneVersionEach`.
+
+**Choosing CPES or APES (benchmarks B1, B2).** One server (B1, i7-6700K, create at 128 in flight):
+CPES 3907, APES 3852 cmd/s; CPES has the better p99 on spread and its consumers read at once, so
+it is the default. Synchronous replication across AZs (B2: standby with `synchronous_commit=on`,
+one server per AZ, 0/2/10 ms between AZs) changes the cost: PostgreSQL releases a transaction's
+locks only after the standby confirms, so under CPES every batch holds `es-lock` for the local
+fsync **plus** the replication round trip, and batches queue on it. APES commits in parallel:
+at 10 ms, create 286 vs 91 cmd/s at 8 in flight, 958 vs 359 at 32, 1986 vs 1181 at 128; at 0 ms
+and 128 in flight they are even and CPES keeps the better p99 on spread (195 vs 1059 ms). APES'
+speed is not free: its consumers read only ids older than `evento.es.fetch.delay` (69 ms) and
+**skip** an event committed later than that after its id was taken, and with more than one
+server the ids come from several clocks and MAC-derived node ids (G20). B2 measured commands,
+not consumers. Where APES is safe (one server) it is no faster, and where it is faster (several
+servers) it is unsafe, so **APES is deprecated since 3.0** (`EventStoreMode.APES`, WARN
+`event=es_mode_deprecated` at boot). An APES store switches to CPES when every server restarts
+in CPES: `EventStore.continueSequenceAboveApesIds` moves the sequence above the newest stored
+number under `es-lock` (`CONTINUE_SEQUENCE_SQL`, a no-op once the sequence is ahead), so new
+events sort after every APES id and consumer checkpoints stay valid; an id from the last minute
+is logged as an APES server possibly still running (`GroupCommitPostgresIT.aStoreApesWroteContinuesAboveItsNewestIdOnceACpesServerStarts`).
+Ways to give CPES the parallel commit without losing its order (sequence taken without the lock,
+consumers reading behind the oldest in-flight transaction) are open design work.
 
 **Service command path:** same flow, no decoration, stores `ServiceEventMessage`.
 
@@ -411,8 +505,16 @@ single-JVM/embedded scenarios like integration tests). With a `DataSource` (prod
 one shared Spring bean (`DistributedLockConfiguration`) over a **dedicated Hikari pool**
 (`evento.lock.pool.maximum-size`, default 10; `evento.lock.pool.connection-timeout-ms`, default
 1000): each *held* lock owns one pooled connection from acquire to release, so holders never pin
-the connections their own work needs, and a waiter polls `pg_try_advisory_lock` with jittered
-backoff holding no connection between attempts. The lock keeps one permit per pool connection
+the connections their own work needs. Within a JVM only one thread per key reaches the
+database (a local semaphore); it **queues in PostgreSQL** (`pg_advisory_lock` under a
+`lock_timeout` set in the same statement, at most 5 s per wait, re-queued until the deadline) on a
+lock connection of its own, as long as at most half the dedicated pool is queued. PostgreSQL grants
+a released lock to the first session in line and refuses a `pg_try_advisory_lock` that would jump
+it, so servers take turns on a hot key: polling alone let the holder's next local command retake
+the key before the other server's next poll (B2: 50 cmd/s through one server, 0-20 through the
+other; now 29/29). Beyond half the pool, and on a shared pool, a waiter polls
+`pg_try_advisory_lock` with jittered backoff holding no connection between attempts
+(`PgDistributedLockIT.aKeyThatAnotherServerKeepsTakingAgainIsStillGrantedHereInTurn`). The lock keeps one permit per pool connection
 and takes it before borrowing, so an exhausted pool never costs the pool's connection timeout:
 `tryAcquire` (telemetry) fails at once, `acquire(key, maxWait)` waits at most `maxWait`. Waits
 are bounded (`evento.lock.acquire.timeout.ms`, a Spring property, 60 s, or `acquire(key, maxWait)`)
@@ -432,7 +534,7 @@ Several servers share one `core__*` catalog, but each server's connection view i
 
 | Piece | Role |
 |---|---|
-| `core__bundle_instance` + `BundlePresence` | **Presence table**: `instance_id → (bundle_id, server_instance_id, updated_at)`. A server claims the row on `NodeJoined`, refreshes its rows every `evento.server.presence.heartbeat-interval-ms` (30 s) and reaps its own unrefreshed ones; rows older than `evento.server.presence.stale-after-ms` (180 s, database clock) no longer count as live. On `NodeLeft` a server cleans up only if it still owns the row (`Release.OWNED`/`UNTRACKED`); `OWNED_ELSEWHERE` means the instance failed over and its fresh registration on another server is left alone (G7). Requires a unique server instance id per server |
+| `core__bundle_instance` + `BundlePresence` | **Presence table**: `instance_id → (bundle_id, server_instance_id, updated_at)`. A server claims the row on `NodeEstablished` (the session's first message after its Hello, published synchronously before that message is handled), not on `NodeJoined`: a session that never got that far (a fail-back attempt given up on, handled by a server resuming from a pause) took live instances from their server, whose stale sessions then wiped their consumer rows (S04). A session closed before its first message leaves with `handshake_aborted` and only releases its presence; a Hello read from an already closed connection touches nothing. The server refreshes its rows every `evento.server.presence.heartbeat-interval-ms` (30 s) and reaps its own unrefreshed ones; rows older than `evento.server.presence.stale-after-ms` (180 s, database clock) no longer count as live. On `NodeLeft` a server cleans up only if it still owns the row (`Release.OWNED`/`UNTRACKED`); `OWNED_ELSEWHERE` means the instance failed over and its fresh registration on another server is left alone (G7). Requires a unique server instance id per server |
 | `ConsumerService.catalogLockKey` | One advisory-lock key per bundle, `DISCOVERY:<bundleId>`, for discovery, consumer registration and leave cleanup (they used to race under different keys, G8) |
 | `CatalogWriter` | Race-free inserts (`INSERT ... ON CONFLICT DO NOTHING`) for bundle, component, payload and consumer rows; shared payload rows are created up front in name order and corrected after the discovery transaction commits, so two discoveries cannot deadlock |
 | `AutoDiscoveryService` / `ConsumerService` | One transaction per discovery / registration pass; a pass that loses a race (40P01, 40001, FK 23503, vanished row) is retried whole |
@@ -447,7 +549,25 @@ id is `bundleId_Component_version_context`, so one bundle id run by several inst
 different contexts lists every lane and a leaving instance removes only its own
 (`clearInstance`). Catalogs created before this are re-keyed in place, once, by
 `AdvisoryLockedSchemaInitializer` (one transaction under the schema lock,
-`event=catalog_component_rekeyed`) when Boot runs `schema.sql` (`spring.sql.init.mode=always`).
+`event=catalog_component_rekeyed`) when the server manages the schema (`spring.sql.init.mode=always`).
+
+**Schema migrations (F4, 3.0).** On PostgreSQL with `spring.sql.init.mode=always` the schema is
+Flyway's: history in `evento_es_schema_history`, `db/migration/evento-server/V1__baseline_schema.sql`
+(the 3.0.0 schema, idempotent; never edited, Flyway checks its checksum), then V2-V5 as Java
+migrations inside `AdvisoryLockedSchemaInitializer` (catalog re-key, `es__events` primary key,
+idempotency key, aggregate fence: the online, conditional steps, outside a transaction). A
+database of an earlier server has no history and is baselined at version 0, so V1-V5 run on it and
+add what is missing. Every later schema change is a new version (V6, ...). Details that matter:
+the run stays under the schema advisory lock (2.5 servers in a rolling upgrade take the same one);
+`flyway.postgresql.transactional.lock=false`, because Flyway's default lock keeps a transaction
+open and `CREATE INDEX CONCURRENTLY` would wait for it (a hang reproduced in the IT before the
+fix); a V2-V5 that failed half way is repaired and run again on the next boot instead of blocking
+it; `applyEventStoreConstraints` also runs after every migrate, so the primary key skipped with
+`evento.es.schema.enforce-primary-key=false` is added once the property is true again.
+`schema.sql` remains only for databases other than PostgreSQL. With `spring.sql.init.mode=never`
+the server changes nothing and only checks (`db/upgrade/*.sql` for DBAs). Tests:
+`SchemaInitializationPostgresIT` (fresh database at version 5, earlier server's database baselined
+and migrated in place, failed step run again, concurrency, duplicates, pre-N1 catalog).
 With the schema managed outside the server the boot fails on a pre-N1 catalog, naming the shipped
 script `classpath:db/upgrade/n1-component-id.sql`; a missing `es__events` primary key is only
 warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses PostgreSQL older than 12. REST/GUI identify a component by `componentId`;
@@ -462,11 +582,18 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 | `evento.cluster.name` (`EVENTO_CLUSTER_NAME`) | `evento-server` (shipped properties; empty = not announced) | Announced in `Welcome.clusterName`; bundles may require it (`withExpectedClusterName`) instead of one server id (G13). Set it per deployment: every stock server announces `evento-server`, so requiring that value protects nothing (`event=cluster_name_shipped_default` WARN at boot) |
 | `evento.server.bus.pick-strategy` | `random` | `random`, `first`, `locality-preferred` (§6 decision 11) |
 | `spring.datasource.hikari.maximum-pool-size` / `minimum-idle` | 20 / 5 | Application pool |
-| `evento.lock.pool.maximum-size` / `evento.lock.pool.connection-timeout-ms` | 10 / 1000 | Dedicated lock pool (§4.6) |
+| `evento.lock.pool.maximum-size` / `evento.lock.pool.connection-timeout-ms` | 10 / 1000 | Dedicated lock pool (§4.6): held locks plus up to half of it queued waiters |
 | `evento.lock.acquire.timeout.ms` (`EVENTO_LOCK_ACQUIRE_TIMEOUT_MS`; `-D` system property as fallback) | 60000 | Bound on any lock wait |
 | `evento.server.presence.heartbeat-interval-ms` / `evento.server.presence.stale-after-ms` | 30000 / 180000 | Presence table (§4.7). Not independent: boot fails when stale-after <= heartbeat and warns below 3 x heartbeat; the heartbeat has its own scheduler thread (`spring.task.scheduling.pool.size=2`) so the hourly telemetry sweep cannot delay it |
 | `evento.es.schema.enforce-primary-key` | true | `es__events` PK added on boot; `false` only to boot over existing duplicates |
-| `evento.es.mode` | `APES` in code, `CPES` shipped | Use CPES with several servers |
+| `spring.sql.init.mode` | `always` (shipped) | `always`: the server migrates the schema with Flyway (`evento_es_schema_history`); `never`: the schema is the DBA's (`db/upgrade/*.sql`), the server only checks |
+| `evento.consumer.lag.expiry` | PT15M | Consumer lag series not fetched for this long are dropped (O2) |
+| `evento.es.idempotency.retention` / `-interval` | unset (keys for ever) / PT1H | F11: clear keys of older events, delete finished or abandoned claims (`IdempotencyRetention`, one server per round under a try-lock) |
+| `evento.es.mode` | `CPES` (code and shipped, since 3.0) | CPES: gapless commit order, group commit, consumers read at once; use it for any cluster. APES: **deprecated** (§4.6 "Choosing CPES or APES"); an APES store switches by restarting every server in CPES |
+| `evento.es.fetch.delay` | 69 | APES only: consumers read ids older than this (ms); must exceed the worst id-to-commit time plus clock skew |
+| `evento.server.commands.optimistic` | true | Aggregate commands run without the lock on a fencing store, under it after a conflict (§4.6) |
+| `evento.es.append.batch.writers` / `evento.es.append.batch.max-size` | -1 (auto: CPES 2, APES 4; 0 = off) / 256 | Group commit (§4.6) |
+| `evento.server.bus.business-executor-max-size` | CPUs x 32 | Request executor; at 8 per CPU it capped a 4-CPU server near 2500 cmd/s (B1) |
 
 Bundle side (`EventoBundle.Builder`): `EventoServerMessageBusConfiguration` with several
 `ClusterNodeAddress`es (ordered failover, G2; fail-back to the first once it has been healthy for
@@ -481,7 +608,7 @@ consumer engine per context** (own consumer id, checkpoint, lock); no contexts =
 `Context.WILDCARD` (`"*"`). A context literally named `"ALL"` is an ordinary context; the
 deprecated `Context.ALL` constant is the wildcard, not `"ALL"`.
 
-### 4.9 Query Path (2.6): straight reads, streams, local answers, read-your-writes
+### 4.9 Query Path (3.0): straight reads, streams, local answers, read-your-writes
 
 | Concern | Where | How |
 |---|---|---|
@@ -494,28 +621,50 @@ deprecated `Context.ALL` constant is the wildcard, not `"ALL"`.
 | Read-your-writes | `EventoResponse.eventSequenceNumber/eventContext` (broker) → `EventoServerAdapter.recordWrite` (`ownWrites`, `EventMessage.storedAt`) → `QueryMessage.consistency` → `ProjectorConsistencyGate` → `ProjectorEngine.awaitPosition` | Per-context positions; the gate waits for the projectors of those contexts (wildcard: the highest), by `ConsumerProcessor.knownCheckpoint` or the store's checkpoint (another instance's lane, read at most every 50 ms), wakes the consume loop, and throws `ConsistencyTimeoutException` at the caller's deadline less a margin (a tenth, ≤ 250 ms) |
 | Compression | `PayloadEncoding` | Per request (`acceptEncodings`), end to end, marker `0xFF 'E' 'Z' 0x01` + zlib; ≥ 32 KiB and ≥ 1/8 saved |
 
-### 4.10 Payload Versioning (2.6): revisions and upcasters (`com.evento.common.versioning`)
+### 4.10 Payload Versioning (3.0): revisions and upcasters (`com.evento.common.versioning`)
 
 A payload is stored as JSON `["binary.ClassName", { fields }]` (default typing) inside a
 `SerializedObject`, and events are routed by simple class name, so a class that changes shape,
-moves or is renamed can no longer read its history. 2.6 versions payloads the way Axon does
+moves or is renamed can no longer read its history. 3.0 versions payloads the way Axon does
 (revision + upcaster chain, read-time, history never rewritten), with the rename ("make a V2
 class") as a first-class step.
 
 | Concern | Where | How |
 |---|---|---|
 | Revision of a class | `@Revision(n)`, `Revisions.of` | Not inherited; none = 0. Raise it only for changes Jackson cannot absorb (rename/split/move/meaning); added or removed fields need none |
-| Revision of a payload | `SerializedObject.revision` | Written from the class at serialization, `NON_DEFAULT` (absent when 0, so pre-2.6 payloads read as 0); stored in `event_message` / `es__snapshot` JSON, no schema change |
+| Revision of a payload | `SerializedObject.revision` | Written from the class at serialization, `NON_DEFAULT` (absent when 0, so pre-3.0 payloads read as 0); stored in `event_message` / `es__snapshot` JSON, no schema change |
 | A step | `Upcaster.from(name\|class, rev).to(rev, json -> ...)` / `.to(NewClass.class, rev[, json -> ...])` | Revision step: same class, revision must rise. Rename: rewrites the type id, `objectClass` and the routed name; the old class may be deleted (named by its simple name) |
 | The chain | `Upcasters` | One step per (name, revision); loops refused at build; applied until no step starts where the last ended; works on a JSON tree with exact decimals (`STRIP_TRAILING_BIGDECIMAL_ZEROES` off, `USE_BIG_DECIMAL_FOR_FLOATS`); `UpcastException` names payload + revision |
 | Where it runs (bundle) | `ConsumerProcessor.fetchEvents` + dead-event retries; `BundleInboundDispatcher.upcast` (command/query on arrival; for an aggregate command also its event stream and snapshot) | Projectors, sagas, observers, aggregates and handlers only ever see current shapes. A failing upcaster stops its consumer at that event (logged `event=upcast_failed`) instead of dead-lettering every old event |
 | Old names still sent | `Upcasters.aliasesOf` → `EventoBundle` adds `RegisteredHandler.forPayload(alias)` + routing type | A renamed command/query keeps its handler under the former name: the broker decorates/straightens it like the current one, the dispatcher upcasts it |
-| Old brokers | `RevisionGuard` (`EventoServerAdapter` outgoing, dispatcher replies) + `CAPABILITY_REVISION` | A pre-2.6 broker re-encodes envelopes without the revision: a revised payload is refused on such a session instead of being stored as revision 0 |
+| Old brokers | `RevisionGuard` (`EventoServerAdapter` outgoing, dispatcher replies) + `CAPABILITY_REVISION` | A pre-3.0 broker re-encodes envelopes without the revision: a revised payload is refused on such a session instead of being stored as revision 0 |
 | Registration | `EventoBundle.Builder.addUpcasters(...)` / `setUpcasters(List)` | Validated at start (before connecting) |
 
 Not covered (by design or yet): downcasting for older readers (tolerant reader instead:
 `FAIL_ON_UNKNOWN_PROPERTIES` off), splitting one event into several, upcasting saga state and
 query answers (views), metadata changes.
+
+### 4.11 Personal Data (3.0): crypto-shredding (`com.evento.common.personaldata`)
+
+`@PersonalData` fields of any payload the payload mapper writes (events, commands, snapshots,
+saga state) are encrypted per data subject, the object's `@DataSubject` field.
+`PersonalDataModule` (registered in `ObjectMapperUtils`) is an annotation introspector giving those
+fields a contextual serializer/deserializer around the type's own: the value is written as it would
+be (type id included) into a `TokenBuffer`, then AES-256-GCM (`PersonalDataCipher`, subject as AAD)
+as the string `evento-pd:1:<subject b64url>:<nonce+ct b64>`. The subject travels in the value, so
+reading needs no sibling field. A key that is gone (or a new key after a forget: GCM tag fails)
+reads as the field's null value; an unencrypted value (written before the annotation) reads as is.
+`SerializedObject` now throws on a serialization failure instead of storing a null payload.
+
+| Piece | Where | Note |
+|---|---|---|
+| Keys | `es__subject_keys` (Flyway V7, `db/upgrade/subject-keys.sql`), `SubjectKeyStore` | `INSERT ... ON CONFLICT DO NOTHING` then read: servers racing on one subject agree. Wrapped with `evento.server.personal-data.master-key` (AES-GCM, subject AAD) when set |
+| Bundle access | `SubjectKeyRequest`/`ForgetSubjectRequest`, local handlers in `SubjectKeyRequestHandlers`, **straight** (no key in the dedup cache) | `ServerSubjectKeyProvider` caches keys for `subjectKeyCacheTtl` (1 min); absent keys not cached |
+| Provider | `SubjectKeys` (one per JVM, like the mapper) | `EventoBundle` installs the server's at start, uninstalls at stop; `evento-test` fixtures `installIfAbsent` an `InMemorySubjectKeyProvider`; the test broker answers from memory |
+| Erasure | `SubjectKeys.forget(subject)` (bus), `DELETE /api/personal-data/subjects/{subject}` (ADMIN, audited `personal_data.forget`) | Other bundles may read for their cache TTL; read models that copied data in clear are the application's |
+
+Not covered: getters/record components (fields only), a subject per nested object other than its
+own `@DataSubject`, key rotation.
 
 ---
 
@@ -616,68 +765,125 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     not delay cleanup. Do not move the state transition back onto the close listener directly;
     `NettyTransportIT.aResponseReadBeforeThePeerClosesIsDeliveredBeforeTheDisconnect` pins it.
 
-15. **Reads are straight; exactly-once is for writes (2.6).** A query is idempotent: caching its
+15. **Reads are straight; exactly-once is for writes (3.0).** A query is idempotent: caching its
     reply for replay or buffering it for an absent caller spends the broker's heap on the
     largest payloads of the bus to avoid a re-execution that costs nothing. Reads bypass both,
     and the caller re-asks what it lost. Do not route a payload type with side effects as
     straight.
 
-16. **Large answers stream with credit, never chunk (2.6).** Chunking bounds frame size, not
+16. **Large answers stream with credit, never chunk (3.0).** Chunking bounds frame size, not
     memory: every hop reassembles the whole message. A stream bounds memory by the caller's
     window on every hop, because the handler produces only against credit the caller returns as
     it consumes. Ordering is per connection (`SerialLane`), not a reorder buffer: frames of one
     stream always arrive on one connection.
 
-17. **Stream messages only to peers that negotiated them (2.6).** Decoding an unknown `@t` closes
+17. **Stream messages only to peers that negotiated them (3.0).** Decoding an unknown `@t` closes
     the channel, so `stream:1` gates every `StreamData`/`StreamCredit`/`StreamCancel`/
     `StreamRedirect`; a side that cannot stream answers whole and the other side iterates it.
-    That keeps 2.5 and 2.6 peers interoperable in any mix.
+    That keeps 2.5 and 3.0 peers interoperable in any mix.
 
-18. **A local answer takes the remote path minus the network (2.6).** The short-circuit runs the
+18. **A local answer takes the remote path minus the network (3.0).** The short-circuit runs the
     request bytes through the same codec and handler path a remote query takes, rather than
     calling the projection with objects: tracing, interceptors and metrics see it as before, a
     view that does not serialize fails here as it would remotely, and the caller cannot share
     mutable state with the projection.
 
-19. **Consistency tokens are per context (2.6).** A projector reads only its contexts; one global
+19. **Consistency tokens are per context (3.0).** A projector reads only its contexts; one global
     sequence number could make it wait for an event it will never see. The token says, per
     context, what must have been processed; the wildcard projector takes the highest.
 
-20. **Direct streams are ticketed by the broker, and optional (2.6).** The broker keeps routing,
+20. **Direct streams are ticketed by the broker, and optional (3.0).** The broker keeps routing,
     locality, deadlines and authentication; it only stops carrying the data. A random,
     single-use, short-lived ticket bound to one correlation id carries its decision to the
     direct connection. A caller that cannot connect falls back to the broker on its own, so the
     feature can be enabled without knowing every caller's network.
 
-21. **Payloads are upcast on read, never migrated (2.6).** The event store is the history: an
+21. **Payloads are upcast on read, never migrated (3.0).** The event store is the history: an
     upcaster that turns out wrong is fixed and applies to every read after, while a rewritten
     store cannot be un-rewritten. Read-time cost is one JSON tree pass, and only for payloads a
     step starts from. Upcasting runs in the bundle, where the classes are; the broker stays
     payload-agnostic.
 
-22. **A revision per class, a rename as a step (2.6).** A new `XxxV2` class for every change
+22. **A revision per class, a rename as a step (3.0).** A new `XxxV2` class for every change
     makes every consumer handle every version forever and leaks versions into routing names.
     The class keeps its name and gains a revision for shape changes; a rename (`OrderPlaced` →
     `OrderPlacedV2`) is still possible, as one more step, for when the meaning changes. Then only
     the new class has handlers, and callers still sending the old name are routed to them.
 
-23. **Refuse rather than corrupt with an older broker (2.6).** A 2.5 broker re-encodes payload
+23. **Refuse rather than corrupt with an older broker (3.0).** A 2.5 broker re-encodes payload
     envelopes with classes that have no revision, so a revised payload would be stored as
     revision 0 and upcast again on every read, silently. The bundle refuses to send a revised
     payload on a session without `revision:1`; the remedy, upgrading brokers first, is the
     normal order.
 
+24. **The client libraries are Apache-2.0 and Java 21; the server is Apache-2.0 with the Commons
+    Clause and Java 25 (2026-10).** Applications link only the libraries, so they carry no
+    obligation and run on the LTS enterprises use; the server ships as an image, so its licence and
+    JVM are Evento's choice. The split is the `clientLibraries` list. Until 2026-10-20 the server was
+    AGPL-3.0 or commercial, with OIDC and audit in a closed module; now every feature is public and
+    the one reserved right is selling Evento itself (hosting it for others, reselling it, consulting
+    or training about it), plus the names (`TRADEMARKS.md`). Contributions go through a CLA
+    (`CLA.md`) so those authorisations stay possible.
+
+25. **Integrations are optional modules, not core dependencies (2026-10).** Spring
+    (`evento-spring-boot-starter`), OpenTelemetry (`evento-opentelemetry`) and the test fixtures
+    (`evento-test`) depend on the core, never the reverse; the core keeps its extension points
+    (`TracingAgent`, the injector, the builder). A bundle without them pays nothing: the no-op
+    `TracingAgent` leaves the gateways unwrapped.
+
 ---
 
 ## 7. Security Model
 
+- **Security profile (server):** `evento.server.security.profile=dev|prod`
+  (`SecurityProfileGuard`, bean created before the transport config). `prod` (the default since
+  3.0) refuses to start, before the bus port opens, unless: bus auth token set, bus TLS on,
+  deserialization allowlist set, GUI and datasource passwords not the shipped `secret`, CORS origins
+  explicit; `dev` logs the failing checks once (`event=security_profile_dev`) and starts. The
+  development compose files, the lab, the benchmarks, `MultiServerCatalogIT` and
+  `EventoServerContainer` set `dev`.
+
 - **Authentication:** `Hello.authToken: String`. `HandshakeHandler` → `TokenValidator.validate(token)`.
   Built-in impls: `acceptAll()` (default) and `sharedSecret(token)` (constant-time compare).
-  Failed auth → `Reject(CODE_AUTH_FAILED)` → `BundleClient.start()` future fails.
+  Failed auth → `Reject(CODE_AUTH_FAILED)` → `BundleClient.start()` future fails. Server:
+  `evento.server.bus.auth-token`; bundle: `EventoBundle.Builder.setAuthToken` (starter:
+  `evento.bundle.auth-token`).
 
 - **TLS:** `NettyTransportConfig.sslContext` (nullable). When set, the pipeline prepends
   `SslHandler`. Same config record for client and server (`SslContextBuilder.forClient()` vs
-  `forServer()`).
+  `forServer()`). Server from properties: `evento.server.bus.tls.*` (`BusTlsProperties`: PEM
+  `cert-chain`, `private-key` PKCS#8, `trust-certs`, `client-auth=none|optional|require` for mTLS).
+  Bundle: `setTransportConfig(NettyTransportConfig.defaults().withSslContext(...))`, or the starter's
+  `evento.bundle.tls.*`.
+
+- **Web console (3.0):** `evento.server.web.auth` (`WebConfig`): `basic` (default, stateless, no
+  CSRF) or the mode of a `ConsoleSignIn` bean (`com.evento.server.web.spi`), which adds its flow,
+  session and CSRF to the chain after the URL rules; Basic kept for machine clients; unknown mode →
+  startup fails. `AuthController`: `GET /api/auth/mode` (public: mode + `loginUrl`), `GET /api/auth/me`.
+  Every write is `ROLE_ADMIN` and runs through `AdminActions`, which notifies the `AdminActionListener`
+  beans (start on the request thread, end with the real outcome; a listener failing at start refuses
+  the action). The GUI signs out only on 401 and reports a 403 (`apiWrite`). Tests: `WebSecurityTest`
+  (Basic, plugged sign-in, unknown mode), `AdminActionsTest`, `ConsoleApiTest` (every console
+  controller, real security chain, services mocked).
+
+- **OIDC sign-in and audit trail (`com.evento.server.web.oidc`, `com.evento.server.web.audit`; a
+  closed "Evento Enterprise" module until 2026-10-20, now part of the server):** `OidcConfiguration`
+  (`evento.server.web.auth=oidc`: `OidcSignIn`, `OidcRoles` mapping the provider's groups or nested
+  claims to `WEB`/`ADMIN`; authorization code with PKCE, HttpOnly session, CSRF from the
+  `XSRF-TOKEN` cookie, 401 on `/api/**`), `AuditConfiguration` (on unless
+  `management.auditevents.enabled=false`: `LoggingAuditEventRepository`, one `key=value` line per
+  event on the `evento.audit` logger plus the latest `evento.server.audit.capacity` in memory for
+  `/actuator/auditevents`, ADMIN only; `AuditedAdminActions` on the `AdminActionListener` SPI;
+  authentication/authorization listeners). Both are component-scanned configurations on the two
+  extension points, which stay for other sign-ins. Tests: `OidcSignInTest`, `OidcRolesTest`,
+  `AuditTrailTest`, `LoggingAuditEventRepositoryTest`.
+
+- **Payload deserialization:** `PayloadTypeAllowlist` builds a *live* validator for the polymorphic
+  payload mappers: open (any `Serializable`, warned once) until restricted by
+  `evento.serialization.allowed-packages` / `EVENTO_SERIALIZATION_ALLOWED_PACKAGES` or
+  `restrictTo(...)` (bundle: `setRestrictPayloadTypes` adds the base package,
+  `setAllowedPayloadPackages`); then only `com.evento.`, `java.util/time/math` and the allowed
+  packages. Restricted names are refused before the class is loaded.
 
 - **CBOR type whitelist:** `MessageTypeRegistry` maps byte tags to explicit classes under the
   sealed `Message` hierarchy. `allowIfSubType(Message.class)` + explicit registration per type.
@@ -693,7 +899,7 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
 | **Bundle handler side** | `ProcessedRequestCache` — `resolveOrClaim` returns `Claimed / InFlight / Replay`. Handler runs at most once per `correlationId` |
 | **Reconnect delivery** | `reconnectBuffer` on `BusLifecycle` buffers responses for disconnected originators (2-minute TTL, 256 MiB). `deliverPendingResponses` replays on reconnect |
 
-None of the three applies to **straight** payload types (queries, event fetches, 2.6): they are
+None of the three applies to **straight** payload types (queries, event fetches, 3.0): they are
 idempotent, so the caller asks them again instead (§4.2, decision 15).
 
 A caller bundle can retry with the same `correlationId` and receive exactly one side-effect plus
@@ -824,15 +1030,15 @@ These are the user-facing APIs — changing signatures requires a major version 
 - **Bundle bootstrap**: `EventoBundle.Builder` (fluent builder returned by `EventoBundle.builder()`)
 - **Modeling types**: `AggregateState`, `Event`, `Command`, `Query`, `DomainCommandMessage`,
   `DomainEventMessage`, `ServiceCommandMessage`, `ServiceEventMessage`, `DecoratedDomainCommandMessage`
-- **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5; `sendTracked` → `Tracked<R>`, 2.6),
+- **Gateway API**: `CommandGateway` (incl. `sendIdempotent`, G5; `sendTracked` → `Tracked<R>`, 3.0),
   `QueryGateway` (injected into components; `queryWith(query, QueryOptions)`, `stream(query[, options])`
-  → `QueryStream<V>`, 2.6)
-- **Query model (2.6)**: `Single`, `Multiple`, `Page` + `PageRequest`, `Streamed`; `ConsistencyToken`,
+  → `QueryStream<V>`, 3.0)
+- **Query model (3.0)**: `Single`, `Multiple`, `Page` + `PageRequest`, `Streamed`; `ConsistencyToken`,
   `QueryOptions`, `ConsistencyTimeoutException`, `QueryStream.QueryStreamException`
-- **Bundle builder options (2.6)**: `setLocalQueryShortCircuit`, `setCompressionThreshold`,
+- **Bundle builder options (3.0)**: `setLocalQueryShortCircuit`, `setCompressionThreshold`,
   `setAcceptCompressedReplies`, `setDirectStreamConfig(DirectStreamConfig)`, `setStreamFrameBytes`,
   `addUpcasters` / `setUpcasters`
-- **Payload versioning (2.6)**: `@Revision`, `Upcaster` (`from(..).to(..)`), `Upcasters`,
+- **Payload versioning (3.0)**: `@Revision`, `Upcaster` (`from(..).to(..)`), `Upcasters`,
   `UpcastException`, `Revisions`
 - **Service outcome SPI** (G5 inbox): `ServiceCommandOutcomeStore`, `ServiceCommandOutcomes`
   (injectable into service handlers), `EventoBundle.Builder.setServiceCommandOutcomeStore`
@@ -846,7 +1052,7 @@ These are the user-facing APIs — changing signatures requires a major version 
 
 **Toolchain:** JDK 25.0.3 or later (`/usr/libexec/java_home -v 25` on macOS;
 `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1` on the Windows dev host). Never 25.0.1/25.0.2
-(JDK-8370887 stalls virtual-thread timed waits ~20 s). Gradle 9.7.1 wrapper at `./gradlew`.
+(JDK-8370887 stalls virtual-thread timed waits ~20 s). Gradle 9.8.1 wrapper at `./gradlew`.
 
 **Standard test run:**
 ```bash
@@ -858,8 +1064,16 @@ JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew \
   :evento-bundle:test \
   :evento-consumer-state-store:evento-consumer-state-store-jdbc:test \
   :evento-lab:test \
-  :evento-lab-microservices:evento-lab-ms-it:test
+  :evento-lab-microservices:evento-lab-ms-it:test \
+  :evento-test:test \
+  :evento-opentelemetry:test \
+  :evento-spring-boot-starter:test \
+  :evento-spring-boot-starter:boot3Test
 ```
+
+`boot3Test` re-runs the starter tests with the Spring Boot 3.5 BOM enforced (Spring 6.2, Netty 4.1,
+Jackson 2.21): the starter compiles against the API Boot 3 and 4 share and exports no Spring
+dependency. The starter's tests run a real broker, so they compile and run on 25.
 
 **JDBC integration tests** (requires Docker, Postgres + MySQL via Testcontainers):
 ```bash
@@ -952,7 +1166,7 @@ lock and does not consume a pool connection per held lock.
 **Request capacity (the other sizing axis).** The consume path is bounded by consumer
 executors; the *request* path is bounded by the bus business executor. Three limits sit in
 series and a request is capped by the smallest: `evento.server.bus.business-executor-max-size`
-(default `cores × 8`), `…-queue-capacity` (default 256), and `evento.es.fetch.concurrency`
+(default `cores × 32`), `…-queue-capacity` (default 256), and `evento.es.fetch.concurrency`
 (default **4**, a fair semaphore in `EventStoreRequestHandlerBridge` — usually the binding
 constraint on a consumer-heavy cluster, since no number of bus threads raises it).
 
@@ -996,6 +1210,7 @@ All controllers are under `com.evento.server.web.*` and depend on `BusFacade`.
 | `ArtifactController` | `/api/artifact` | Bundle artifact upload |
 | `FlowsController` | `/api/flows` | Handler flow visualization |
 | `SystemStateStoreController` | `/api/system-state-store` | Aggregate snapshots |
+| `PersonalDataController` | `/api/personal-data` | `DELETE /subjects/{subject}`: forget a data subject (ADMIN, audited) |
 
 Auth is **HTTP Basic** against the static Spring Boot in-memory user
 (`spring.security.user.name/password/roles=WEB,ADMIN` in `application.properties`,
@@ -1009,6 +1224,23 @@ explorative read-only pivot.)
 ---
 
 ## 14. Observability
+
+- **Tracing (opt-in, `evento-opentelemetry`):** `OpenTelemetryTracingAgent extends TracingAgent`.
+  `doTrack` opens a span per handler (`<component> <payload>`, `SERVER` for commands/queries/
+  invocations, `CONSUMER` for events), parent from the message metadata's W3C `traceparent`
+  (`linkingConsumers()`: consumers start a new trace with a link). `correlate` injects the current
+  span into a copy of the outgoing metadata (fallback: the handled message's context). `traceSend`
+  wraps every command/query sent in a `CLIENT` span (`send <Command>` / `query <Query>`) ended when the
+  reply future completes (the future is returned as is); the metadata carries that span. Streams are
+  only correlated. Handlers' gateways go through `GatewayTelemetryProxy`; the gateways `EventoBundle`
+  exposes to application code are wrapped by `CorrelatingGateways` **only when the agent is not the
+  no-op base class**. The server carries metadata opaquely: no wire change. API-only dependency.
+  Server side, `CommandTracing` (`CommandBrokerHandler`): a span per executed command, parent from the
+  command's metadata, phase times from the `CommandPhaseMetrics` clock as attributes; for aggregate
+  commands the span is injected into the forwarded command's metadata (the bundle span is its child),
+  service commands are forwarded unchanged. `GlobalOpenTelemetry` (Java agent) or an `OpenTelemetry`
+  bean; `evento.server.tracing.enabled=false` off. `TracingEventFlowIT` (lab): request → send →
+  server → aggregate → projector in one trace.
 
 - **Micrometer metrics** — wired via `BusMetricsBinder` (`com.evento.server.bus.spring`),
   exposed on `/actuator/prometheus` + `/actuator/metrics` (`micrometer-registry-prometheus`):
@@ -1060,6 +1292,26 @@ explorative read-only pivot.)
     — tagged `bundle,instance,consumer,component`.
   - Meters are removed on `BusEvent.NodeLeft`, so rolling restarts do not leak a series per
     dead instance. Bundles with no consumer executor push nothing at all.
+- **Request timers (O3)** — `RequestMetrics` (`com.evento.server.bus.spring`) on the
+  `BusLifecycle.RequestObserver` hook: `evento.server.request{kind,payload,outcome}`, frame
+  received → answer sent, for local handlers (aggregate/service commands, fetches) and forwarded
+  requests (`ForwardingTable.Entry.receivedAtNanos`, timed in `onResponse`; streamed replies and
+  requests refused before routing as expired or duplicate are not timed, "no handler" is an
+  error). `kind` from `BundleDiscovered` handler types. SLO buckets (15) instead of a percentile
+  histogram. Test: `BusLifecycleIT.theBrokerTimesEachAnsweredRequestByKindPayloadAndOutcome`.
+- **Consumer lag (O2)** — `ConsumerLagMetrics` (`com.evento.server.es`), fed by the answer to
+  every `EventFetchRequest` (`EventStoreRequestHandlerBridge`), tagged `bundle,component,context`:
+  - `evento.consumer.lag.seconds`: age of the oldest unprocessed event (the first one the last
+    fetch returned; 0 when it returned nothing), computed at scrape time so it grows while a
+    consumer is stuck. `created_at` is read as UTC wall time, whatever the JVM's zone.
+  - `evento.consumer.lag.events` (CPES only): store head (read at most once a second) minus the
+    position; counts every context, an upper bound for a one-context consumer.
+  - `evento.consumer.position`, `evento.consumer.fetch.age.seconds` (a consumer that stopped
+    after an empty fetch keeps `lag.seconds` at 0; this and `lag.events` show it).
+  - A series nobody fetched for `evento.consumer.lag.expiry` (15 min) reads NaN and is removed at
+    the next fetch. Across servers aggregate with `min by (bundle,component,context)`. Tests:
+    `ConsumerLagMetricsTest`; verified in the lab (projector stopped: fetch age and 80 events
+    behind, back to 0 after restart).
 - **Health** — `BusHealthIndicator` reports the bus bound-port + node counts on
   `/actuator/health`; liveness/readiness probes enabled. DataSource health via Actuator's
   built-in indicator.
@@ -1068,7 +1320,7 @@ explorative read-only pivot.)
 - **Structured logging:** SLF4J. Key=value on every bus lifecycle transition. `event=disconnect_superseded_skip` etc.
 - **Zero-copy counters**: `BusLifecycle.forwardedRawCount` / `forwardedReencodedCount` — every
   Netty-to-Netty forward must use the raw path; tests pin this contract.
-- **Query path (2.6)**: broker `evento.server.streams.active`, `evento.server.streams.opened`,
+- **Query path (3.0)**: broker `evento.server.streams.active`, `evento.server.streams.opened`,
   `evento.server.stream.frames`, `evento.server.stream.bytes`,
   `evento.server.reconnect.buffer.bytes`, `evento.server.dedup.retained.bytes` (Micrometer, bound
   by `BusMetricsBinder`); bundle `BundleClient.localQueries()`, `inboundStreams()`,

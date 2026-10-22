@@ -1,0 +1,359 @@
+{
+  "scenario" : "S09",
+  "title" : "App-data (consumer state) primary failover",
+  "gaps" : [ "G11", "G25" ],
+  "label" : "v3e",
+  "startedAt" : "2026-10-22T16:22:05.719488800Z",
+  "finishedAt" : "2026-10-22T16:27:55.578265700Z",
+  "durationSeconds" : 349,
+  "parameters" : {
+    "orderIdPrefix" : "s09-v3e-11b9cd-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok",
+    "promoted" : "app-pg-eu-r",
+    "load" : {
+      "ratePerMinutePerRegion" : 4.0,
+      "completeRatio" : 0.6,
+      "itemsPerOrder" : 1,
+      "durationSeconds" : 120,
+      "regions" : [ "EUROPA", "AFRICA", "AMERICA", "SUD_AMERICA", "CINA", "INDIA", "AUSTRALIA_NZ" ]
+    }
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 3
+  },
+  "observations" : [ {
+    "name" : "checkpoints never go backwards",
+    "expected" : "last_sequence is monotonic for every consumer across the failover",
+    "expectedBeforeFix" : "a stale lane holder or the promoted standby rewinds a checkpoint (G11)",
+    "observed" : "monotonic over 59 samples",
+    "verdict" : "AS_EXPECTED",
+    "note" : "A rewind to a value the async/sync standby had is expected only if the promoted node lagged."
+  }, {
+    "name" : "consumer lanes resume on the promoted primary",
+    "expected" : "every consumer's checkpoint advances after the failover",
+    "expectedBeforeFix" : null,
+    "observed" : "all advanced",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "replays absorbed idempotently (I2)",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "expectedBeforeFix" : null,
+    "observed" : "no duplicates",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I1",
+    "name" : "no lost events",
+    "status" : "PASS",
+    "expected" : "every 2xx-acknowledged command has its event in es__events",
+    "observed" : "0 of 142 acknowledged ops missing; 0 unacknowledged ops were stored anyway",
+    "metrics" : {
+      "orders" : 56,
+      "acknowledgedOps" : 142,
+      "lostOps" : 0,
+      "storedWithUnknownOutcome" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I2",
+    "name" : "no duplicate events or side effects",
+    "status" : "PASS",
+    "expected" : "one OrderCreated per order; no key stored twice; observer deliveries = 1; payment attempts = 1",
+    "observed" : "no duplicates",
+    "metrics" : {
+      "duplicateOrderCreated" : 0,
+      "duplicateItemsBeyondSent" : 0,
+      "duplicateOrderCompleted" : 0,
+      "duplicatePaymentProcessed" : 0,
+      "idempotencyKeysStoredTwice" : 0,
+      "duplicateObserverDeliveries" : 0,
+      "duplicatePaymentExecutions" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I3",
+    "name" : "no aggregate fork",
+    "status" : "PASS",
+    "expected" : "every story is valid under the aggregate's rules; sequence numbers unique",
+    "observed" : "0 of 56 aggregates invalid",
+    "metrics" : {
+      "aggregates" : 56,
+      "forkedAggregates" : 0,
+      "duplicateSequenceNumbersGlobal" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I4",
+    "name" : "regional isolation",
+    "status" : "PASS",
+    "expected" : "order_view of each cell database contains only that cell's contexts",
+    "observed" : "0 foreign row(s) in 56",
+    "metrics" : {
+      "EU.rows" : 16,
+      "EU.byContext" : {
+        "AFRICA" : 8,
+        "EUROPA" : 8
+      },
+      "AM.rows" : 16,
+      "AM.byContext" : {
+        "AMERICA" : 8,
+        "SUD_AMERICA" : 8
+      },
+      "APAC.rows" : 24,
+      "APAC.byContext" : {
+        "AUSTRALIA_NZ" : 8,
+        "CINA" : 8,
+        "INDIA" : 8
+      },
+      "rows" : 56
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I5",
+    "name" : "global completeness",
+    "status" : "PASS",
+    "expected" : "order_view_global = union of the cells' order_view (same ids, status, item count, context)",
+    "observed" : "0 missing in global, 0 missing regionally, 0 mismatched",
+    "metrics" : {
+      "globalRows" : 56,
+      "regionalRows" : 56,
+      "missingInGlobal" : 0,
+      "missingInRegional" : 0,
+      "mismatched" : 0
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I6",
+    "name" : "convergence",
+    "status" : "PASS",
+    "expected" : "read models reach the event store's state within 240 s",
+    "observed" : "converged in 174 ms",
+    "metrics" : {
+      "converged" : true,
+      "secondsToConverge" : 0.174,
+      "timeoutSeconds" : 240,
+      "polls" : 1,
+      "remainingGaps" : 0,
+      "esHead" : 172,
+      "checkpoints" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 164,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 170,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 164,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 170,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 172,
+        "APAC/order-query_OrderProjector_1_CINA" : 165,
+        "APAC/order-query_OrderProjector_1_INDIA" : 171,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 172,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 165,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 171,
+        "EU/order-observer_NotificationObserver_1_*" : 172,
+        "EU/order-query_OrderProjector_1_*" : 172,
+        "EU/order-query_OrderProjector_1_AFRICA" : 153,
+        "EU/order-query_OrderProjector_1_EUROPA" : 162,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 153,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 162
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7",
+    "name" : "catalog matches live bundles",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-global-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I8",
+    "name" : "command latency per region",
+    "status" : "OBSERVED",
+    "expected" : "recorded as a baseline (p50/p95/p99), not a pass/fail",
+    "observed" : "n=142 ack=142 failed=0 p50=452ms p95=1126ms p99=1754ms max=1834ms",
+    "metrics" : {
+      "AFRICA" : {
+        "count" : 20,
+        "acked" : 20,
+        "failed" : 0,
+        "p50" : 104,
+        "p95" : 234,
+        "p99" : 471,
+        "max" : 471,
+        "kinds" : { }
+      },
+      "AMERICA" : {
+        "count" : 19,
+        "acked" : 19,
+        "failed" : 0,
+        "p50" : 454,
+        "p95" : 1255,
+        "p99" : 1255,
+        "max" : 1255,
+        "kinds" : { }
+      },
+      "AUSTRALIA_NZ" : {
+        "count" : 21,
+        "acked" : 21,
+        "failed" : 0,
+        "p50" : 632,
+        "p95" : 1348,
+        "p99" : 1735,
+        "max" : 1735,
+        "kinds" : { }
+      },
+      "CINA" : {
+        "count" : 22,
+        "acked" : 22,
+        "failed" : 0,
+        "p50" : 617,
+        "p95" : 1126,
+        "p99" : 1754,
+        "max" : 1754,
+        "kinds" : { }
+      },
+      "EUROPA" : {
+        "count" : 19,
+        "acked" : 19,
+        "failed" : 0,
+        "p50" : 119,
+        "p95" : 600,
+        "p99" : 600,
+        "max" : 600,
+        "kinds" : { }
+      },
+      "INDIA" : {
+        "count" : 20,
+        "acked" : 20,
+        "failed" : 0,
+        "p50" : 632,
+        "p95" : 1031,
+        "p99" : 1834,
+        "max" : 1834,
+        "kinds" : { }
+      },
+      "SUD_AMERICA" : {
+        "count" : 21,
+        "acked" : 21,
+        "failed" : 0,
+        "p50" : 496,
+        "p95" : 706,
+        "p99" : 1345,
+        "max" : 1345,
+        "kinds" : { }
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "failedRequestsByError" : { },
+    "consumerLagAfterConvergenceWait" : {
+      "lag" : {
+        "AM/order-query_OrderProjector_1_AMERICA" : 8,
+        "AM/order-query_OrderProjector_1_SUD_AMERICA" : 2,
+        "AM/order-saga_PaymentSaga_1_AMERICA" : 8,
+        "AM/order-saga_PaymentSaga_1_SUD_AMERICA" : 2,
+        "APAC/order-query_OrderProjector_1_AUSTRALIA_NZ" : 0,
+        "APAC/order-query_OrderProjector_1_CINA" : 7,
+        "APAC/order-query_OrderProjector_1_INDIA" : 1,
+        "APAC/order-saga_PaymentSaga_1_AUSTRALIA_NZ" : 0,
+        "APAC/order-saga_PaymentSaga_1_CINA" : 7,
+        "APAC/order-saga_PaymentSaga_1_INDIA" : 1,
+        "EU/order-observer_NotificationObserver_1_*" : 0,
+        "EU/order-query_OrderProjector_1_*" : 0,
+        "EU/order-query_OrderProjector_1_AFRICA" : 19,
+        "EU/order-query_OrderProjector_1_EUROPA" : 10,
+        "EU/order-saga_PaymentSaga_1_AFRICA" : 19,
+        "EU/order-saga_PaymentSaga_1_EUROPA" : 10
+      },
+      "esHead" : 172
+    },
+    "checkpointSamples" : 59,
+    "checkpointRegressions" : { },
+    "globalViewReplaysAbsorbed" : 0,
+    "logMarkers" : {
+      "order-command-eu" : { },
+      "order-query-eu" : {
+        "PSQLException" : 3
+      },
+      "order-query-global-eu" : { },
+      "order-query-wildcard" : {
+        "PSQLException" : 2
+      },
+      "order-observer" : {
+        "PSQLException" : 2
+      },
+      "order-saga-eu" : {
+        "PSQLException" : 1
+      },
+      "gateway-europa" : { },
+      "gateway-africa" : { }
+    }
+  },
+  "timeline" : [ {
+    "tMs" : 8095,
+    "at" : "2026-10-22T16:22:13.815016500Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 8103,
+    "at" : "2026-10-22T16:22:13.822607200Z",
+    "event" : "load start [EUROPA, AFRICA, AMERICA, SUD_AMERICA, CINA, INDIA, AUSTRALIA_NZ] @4.0/min for 120 s"
+  }, {
+    "tMs" : 38509,
+    "at" : "2026-10-22T16:22:44.228914500Z",
+    "event" : "killed app-pg-eu (app-data primary)"
+  }, {
+    "tMs" : 46657,
+    "at" : "2026-10-22T16:22:52.377121700Z",
+    "event" : "promoted app-pg-eu-r: t"
+  }, {
+    "tMs" : 128897,
+    "at" : "2026-10-22T16:24:14.616511500Z",
+    "event" : "load done: 142 requests"
+  }, {
+    "tMs" : 128897,
+    "at" : "2026-10-22T16:24:14.616511500Z",
+    "event" : "invariants: converging up to 240 s"
+  }, {
+    "tMs" : 130035,
+    "at" : "2026-10-22T16:24:15.754628100Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 349858,
+    "at" : "2026-10-22T16:27:55.578265700Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: order-query-eu" : [ "org.postgresql.util.PSQLException: This connection has been closed.", "org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.", "org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend." ],
+    "log excerpts: order-query-wildcard" : [ "org.postgresql.util.PSQLException: This connection has been closed.", "org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend." ],
+    "log excerpts: order-observer" : [ "org.postgresql.util.PSQLException: This connection has been closed.", "org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend." ],
+    "log excerpts: order-saga-eu" : [ "org.postgresql.util.PSQLException: This connection has been closed." ],
+    "stack actions" : [ "2026-10-22T16:22:43.854582200Z docker kill app-pg-eu", "2026-10-22T16:22:49.229703600Z psql app-pg-eu-r/app: SELECT pg_promote()", "2026-10-22T16:24:15.754628100Z compose down -v", "2026-10-22T16:24:40.852999900Z compose up -d --wait", "2026-10-22T16:27:34.839637100Z C:\\Program Files\\Git\\bin\\bash.exe scripts/repair-catalog.sh (G8 workaround)", "2026-10-22T16:27:53.741957400Z catalog repair exit 0: [[lab] event=lab_catalog_repair pass=1 status=complete]" ]
+  }
+}

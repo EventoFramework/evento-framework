@@ -36,7 +36,7 @@ import java.util.ArrayList;
  * the v2 broker (it picked the bundle by payloadType), this class just runs
  * the right manager for the wrapper type.
  *
- * <p><b>Streamed queries (2.6).</b> A query asked as a stream runs through the same
+ * <p><b>Streamed queries (3.0).</b> A query asked as a stream runs through the same
  * {@code ProjectionManager} path (tracing agent, interceptors, performance metrics), then
  * its views are sent in batches sized to about {@link #setStreamFrameBytes frame bytes},
  * each batch only against the caller's credit. A {@code Streamed} answer is read from its
@@ -63,14 +63,14 @@ public final class BundleInboundDispatcher implements HandlerRegistry.StreamingR
     private volatile RevisionGuard revisionGuard = RevisionGuard.NONE;
 
     /**
-     * Upcasters applied to every request on arrival (2.6): the command or query, and for an
+     * Upcasters applied to every request on arrival (3.0): the command or query, and for an
      * aggregate command the events and the snapshot it is rebuilt from.
      */
     public void setUpcasters(com.evento.common.versioning.Upcasters upcasters) {
         this.upcasters = upcasters == null ? com.evento.common.versioning.Upcasters.NONE : upcasters;
     }
 
-    /** Refuses replies the broker of the session could not store with their revision (2.6). */
+    /** Refuses replies the broker of the session could not store with their revision (3.0). */
     public void setRevisionGuard(RevisionGuard guard) {
         this.revisionGuard = guard == null ? RevisionGuard.NONE : guard;
     }

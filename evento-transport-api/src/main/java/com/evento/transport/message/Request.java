@@ -22,7 +22,7 @@ import java.util.UUID;
  * errs late by the one-way network delay, never early. {@code timestampMs} is the
  * sender's clock and is not used for this.
  *
- * <p><b>Additive fields (2.6).</b> All three travel end to end: the broker forwards the
+ * <p><b>Additive fields (3.0).</b> All three travel end to end: the broker forwards the
  * bytes it received, so a broker that predates them still delivers them, and a
  * handler that predates them ignores them (and answers the plain way, which every
  * caller accepts).
@@ -78,7 +78,7 @@ public record Request(
         this.streamDirect = streamDirect;
     }
 
-    /** Pre-2.6 shape: identity payloads, a single {@link Response}. */
+    /** Pre-3.0 shape: identity payloads, a single {@link Response}. */
     public Request(UUID correlationId, String sourceBundleId, String sourceInstanceId,
                    String sourceBundleVersion, String payloadType, byte[] payload,
                    long timeoutMillis, long timestampMs) {

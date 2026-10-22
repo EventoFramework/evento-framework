@@ -1,0 +1,157 @@
+{
+  "scenario" : "S04",
+  "title" : "Server returns after failover",
+  "gaps" : [ "G7", "G17" ],
+  "label" : "v3fix2-4",
+  "startedAt" : "2026-10-20T18:00:07.744878700Z",
+  "finishedAt" : "2026-10-20T18:04:44.841496Z",
+  "durationSeconds" : 277,
+  "parameters" : {
+    "orderIdPrefix" : "s04-v3fix2-4-e0e227-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : { },
+    "lbRoutingAtStart" : "ok"
+  },
+  "verdictCounts" : {
+    "AS_EXPECTED" : 4
+  },
+  "observations" : [ {
+    "name" : "A: catalog after the killed server returns",
+    "expected" : "every bundle, handler and consumer still registered (I7)",
+    "expectedBeforeFix" : "the returning/old server's NodeLeft clears the moved bundle's rows (G7)",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "A: APAC commands after the return",
+    "expected" : "acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "3/3 acknowledged {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "B: catalog after a half-closed socket heals",
+    "expected" : "every bundle, handler and consumer still registered (I7)",
+    "expectedBeforeFix" : "the stale session's NodeLeft wipes a bundle that reconnected elsewhere (G7)",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "B: APAC commands after unpause",
+    "expected" : "acknowledged",
+    "expectedBeforeFix" : null,
+    "observed" : "3/3 acknowledged {}",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ {
+    "id" : "I7-A",
+    "name" : "catalog matches live bundles (variant A)",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  }, {
+    "id" : "I7-B",
+    "name" : "catalog matches live bundles (variant B)",
+    "status" : "PASS",
+    "expected" : "core__bundle / core__handler / core__consumer list every live bundle, handler and consumer",
+    "observed" : "0 bundle(s), 0 handler(s), 0 consumer(s) missing; 0 bundle(s) without handler rows",
+    "metrics" : {
+      "bundles" : 4,
+      "consumers" : 17,
+      "missingBundles" : 0,
+      "missingHandlers" : 0,
+      "bundlesWithoutHandlers" : 0,
+      "missingConsumers" : 0,
+      "bundleInstances" : {
+        "order-command" : "order-command-apac",
+        "order-observer" : "order-observer",
+        "order-query" : "order-query-apac",
+        "order-saga" : "order-saga-apac"
+      }
+    },
+    "violationCount" : 0,
+    "violations" : [ ]
+  } ],
+  "metrics" : {
+    "A.probesDuringOutage" : "3/3 acknowledged {}",
+    "B.probesDuringPause" : "3/3 acknowledged {}",
+    "logMarkers" : {
+      "evento-eu" : {
+        "Skipping unregister of bundle" : 7
+      },
+      "evento-am" : { },
+      "evento-apac" : { }
+    },
+    "unregisterCalls" : 0,
+    "skippedUnregisters" : 7
+  },
+  "timeline" : [ {
+    "tMs" : 7648,
+    "at" : "2026-10-20T18:00:15.393400400Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 7653,
+    "at" : "2026-10-20T18:00:15.398401500Z",
+    "event" : "variant A: kill + restart"
+  }, {
+    "tMs" : 54856,
+    "at" : "2026-10-20T18:01:02.601087300Z",
+    "event" : "probe A-outage: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 87795,
+    "at" : "2026-10-20T18:01:35.540099300Z",
+    "event" : "evento-apac back; settling 60 s (> 45 s read-idle)"
+  }, {
+    "tMs" : 150461,
+    "at" : "2026-10-20T18:02:38.206479200Z",
+    "event" : "probe A-after: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 150836,
+    "at" : "2026-10-20T18:02:38.581685Z",
+    "event" : "variant B: pause 60 s"
+  }, {
+    "tMs" : 212184,
+    "at" : "2026-10-20T18:03:39.929612200Z",
+    "event" : "probe B-paused: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 212308,
+    "at" : "2026-10-20T18:03:40.053578100Z",
+    "event" : "unpaused; settling 60 s"
+  }, {
+    "tMs" : 274585,
+    "at" : "2026-10-20T18:04:42.330734500Z",
+    "event" : "probe B-after: 3/3 acknowledged {}"
+  }, {
+    "tMs" : 275184,
+    "at" : "2026-10-20T18:04:42.929770600Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 277096,
+    "at" : "2026-10-20T18:04:44.841496Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ "G17: the GUI/admin views of each server only show locally connected bundles; compare http://localhost:13000..13002 by hand when reading this result." ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "log excerpts: evento-eu" : [ "20261020180205319 INFO  1 --- [nioEventLoopGroup-3-7                   ] AutoDiscoveryService                     : Skipping unregister of bundle order-command: another live instance is connected", "20261020180209481 INFO  1 --- [nioEventLoopGroup-3-9                   ] AutoDiscoveryService                     : Skipping unregister of bundle order-saga: another live instance is connected", "20261020180212461 INFO  1 --- [nioEventLoopGroup-3-10                  ] AutoDiscoveryService                     : Skipping unregister of bundle order-query: another live instance is connected" ],
+    "stack actions" : [ "2026-10-20T18:00:15.398401500Z docker kill evento-apac", "2026-10-20T18:01:02.602081900Z docker start evento-apac", "2026-10-20T18:02:38.581685Z docker pause evento-apac", "2026-10-20T18:03:39.929612200Z docker unpause evento-apac" ]
+  }
+}

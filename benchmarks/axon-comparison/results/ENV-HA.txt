@@ -1,0 +1,6 @@
+date:     2026-10-20T00:22Z
+commit:   95cb2eb7 (lock waiters queue in PostgreSQL; + local changes: the B2 harness)
+cpu:      Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 logical CPUs), Docker Desktop on WSL2
+topology: 2 AZ; PostgreSQL 16 primary (AZ a) + synchronous standby (AZ b, tmpfs); 2 Evento servers or 2 Axon instances, one per AZ
+pinning:  infrastructure on CPUs 0-3 (both PostgreSQL, both servers, toxiproxy), applications on 4-7
+per level: 15 s warm-up, 45 s measured; spread and hot orders shared by the two AZs

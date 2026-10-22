@@ -1,83 +1,101 @@
-Evento Framework — Dual License
+Evento Framework — Licensing
 
-Copyright (c) 2023–2026 Gabor Galazzo. All rights reserved.
+Copyright (c) 2023–2026 Gabor Galazzo.
 
-This software is distributed under a dual-license model. You must choose
-one of the two licenses below based on your intended use.
+All of Evento Framework is public, in this repository, with every feature: the
+server, the web console with single sign-on (OpenID Connect) and the audit
+trail, the client libraries, the labs. There is no closed edition. Two licences
+apply.
 
-────────────────────────────────────────────────────────────────────────────
-LICENSE A — GNU Affero General Public License v3.0 (AGPL-3.0)
-────────────────────────────────────────────────────────────────────────────
-
-Applies to: personal use, academic research, open-source projects whose
-entire source code is published under a license compatible with the AGPL-3.0.
-
-Under this license you may use, modify, and distribute the software at no
-charge, provided that:
-
-  1. Any application or service that incorporates this software — including
-     network-deployed services (SaaS, APIs, internal tools) — must publish
-     its complete corresponding source code under the AGPL-3.0.
-
-  2. This copyright notice and license header must be retained in all copies
-     or substantial portions of the software.
-
-  3. Modified versions must be clearly marked as such.
-
-The full text of the GNU Affero General Public License v3.0 is available at:
-  https://www.gnu.org/licenses/agpl-3.0.txt
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED. SEE THE AGPL-3.0 FOR THE FULL DISCLAIMER OF WARRANTIES AND
-LIMITATIONS OF LIABILITY.
+These terms apply from Evento 3.0.0. Versions up to 2.5.x stay under the
+licences they were published with. Each module directory carries its own LICENSE.txt with the full text
+that applies to it; the full texts are also in the licenses/ directory.
 
 ────────────────────────────────────────────────────────────────────────────
-LICENSE B — Commercial License
+1. Client libraries — Apache License 2.0
 ────────────────────────────────────────────────────────────────────────────
 
-Applies to: any commercial, enterprise, or proprietary deployment where you
-do not wish to publish your application's source code under the AGPL-3.0.
+The libraries an application links against:
 
-A Commercial License is required if any of the following is true:
+  evento-transport-api
+  evento-transport-netty
+  evento-common
+  evento-bundle
+  evento-consumer-state-store/evento-consumer-state-store-jdbc
+  evento-spring-boot-starter
+  evento-opentelemetry
+  evento-test
 
-  • Your organisation deploys this software (or any product built on it) in
-    a production environment for internal or external use, AND your
-    organisation is a for-profit entity or generates revenue from the
-    deployed product.
+are licensed under the Apache License, Version 2.0 (SPDX: Apache-2.0); see
+licenses/Apache-2.0.txt and NOTICE.txt. Using them in an application, open
+or closed source, free or sold, places no obligation on that application
+beyond the terms of the Apache License 2.0.
 
-  • You distribute a product or service that embeds or depends on this
-    software to third parties for a fee or as part of a commercial offering.
+Any module added later that is published as a library for applications to
+depend on is under the Apache License 2.0 as well, and is listed here.
 
-  • You use this software as part of a managed service, SaaS platform, or
-    cloud offering without releasing the complete application source code.
+────────────────────────────────────────────────────────────────────────────
+2. Server and everything else — Apache License 2.0 with the Commons Clause
+────────────────────────────────────────────────────────────────────────────
 
-Under a Commercial License you receive:
+The Evento server (evento-server, single sign-on and audit trail included),
+the web console (evento-gui) and every other file in this repository not
+listed in section 1 (lab and integration test modules, benchmarks, scripts,
+Docker files) are licensed under the Apache License, Version 2.0, with the
+"Commons Clause" License Condition v1.0 (SPDX: LicenseRef-Commons-Clause-1.0
+AND Apache-2.0); see licenses/Apache-2.0.txt and
+licenses/Commons-Clause-1.0.txt.
 
-  • The right to deploy this software in closed-source and proprietary
-    systems without AGPL-3.0 copyleft obligations.
-  • A perpetual, royalty-free license for the licensed version (with optional
-    support and update subscriptions).
-  • Written permission that satisfies enterprise legal and procurement review.
+The source is open to read, change and run; the Commons Clause takes away one
+right: to Sell the software, that is to provide it, or a service whose
+value derives entirely or substantially from it, to third parties for a fee or
+other consideration. In the Licensor's reading:
 
-To obtain a Commercial License or request a quote, visit:
+  Allowed, free of charge, without asking:
+    - running the server, modified or not, for your own applications, in
+      production, in any organisation, commercial or not;
+    - building and selling your own products and services on top of it (an
+      online shop, a bank, a SaaS product of your own), when what you sell is
+      your application and not Evento;
+    - changing it, and sharing your changes for free under the same terms;
+    - teaching, studying, writing and talking about it.
 
-  https://www.eventoframework.com/licensing
+  Not allowed without the Licensor's written authorisation:
+    - offering the Evento server, or the web console, as a hosted or managed
+      service to third parties (Evento as a service);
+    - selling, renting or licensing the software, or a distribution or fork
+      of it, to third parties;
+    - selling consulting, support, training or integration services whose
+      value derives substantially from Evento: services sold as being about
+      Evento.
 
-or contact the copyright holder directly:
+Where you are unsure, ask: authorisations are given case by case, see
+LICENSE-COMMERCIAL.txt. Contact:
 
   Gabor Galazzo
-  Website: https://www.eventoframework.com
+  Website: https://www.eventoframework.com/licensing
   Email  : gabor.galazzo@gmail.com
-  GitHub : https://github.com/ggalazzo
 
-See LICENSE-COMMERCIAL.txt for the full commercial license terms.
+The Commons Clause makes these components source-available rather than open
+source in the sense of the Open Source Definition. The client libraries of
+section 1 are not affected by it.
 
 ────────────────────────────────────────────────────────────────────────────
-CHOOSING YOUR LICENSE
+3. The names Evento and RECQ
 ────────────────────────────────────────────────────────────────────────────
 
-  Open-source project, full source published under AGPL-3.0? → License A
-  Commercial or enterprise deployment, proprietary code?     → License B
+Software licences cover the code, not the names, and not ideas such as the
+RECQ architecture, which anyone may study and apply. The names "Evento",
+"Evento Framework" and "RECQ", and the logos, are covered by TRADEMARKS.md:
+in short, they may be used to refer to the project, but not in the name or
+the marketing of a commercial product or service (hosting, consulting,
+training, certification, architecture services) without written
+authorisation.
 
-If you are unsure which license applies to your use case, contact the
-copyright holder before deploying.
+────────────────────────────────────────────────────────────────────────────
+Contributions
+────────────────────────────────────────────────────────────────────────────
+
+Contributions are accepted under the Contributor License Agreement in CLA.md,
+which keeps the licences above and the authorisations of
+LICENSE-COMMERCIAL.txt possible. See CONTRIBUTING.md.

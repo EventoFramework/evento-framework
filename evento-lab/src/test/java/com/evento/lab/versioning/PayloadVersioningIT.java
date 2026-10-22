@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Payload versioning end to end (2.6): a history written by the previous version of a bundle
+ * Payload versioning end to end (3.0): a history written by the previous version of a bundle
  * (events at revision 0, an event class since replaced by a V2 class, a snapshot of the old
  * state) is read by the current version, whose classes know only the current shapes, through
  * its upcasters, on every read path: a projector, an aggregate rebuilt from events, an aggregate

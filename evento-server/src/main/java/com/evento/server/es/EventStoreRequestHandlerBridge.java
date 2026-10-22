@@ -7,8 +7,8 @@ import com.evento.common.messaging.consumer.EventLastSequenceNumberRequest;
 import com.evento.common.messaging.consumer.EventLastSequenceNumberResponse;
 import com.evento.common.modeling.messaging.message.internal.EventoResponse;
 import com.evento.server.bus.lifecycle.BusLifecycle;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,10 +24,11 @@ import java.util.stream.Collectors;
 @Component
 public class EventStoreRequestHandlerBridge {
 
-    private static final Logger logger = LogManager.getLogger(EventStoreRequestHandlerBridge.class);
+    private static final Logger logger = LoggerFactory.getLogger(EventStoreRequestHandlerBridge.class);
 
     public EventStoreRequestHandlerBridge(BusLifecycle lifecycle,
                                           EventStore eventStore,
+                                          ConsumerLagMetrics lag,
                                           @Value("${evento.es.fetch.concurrency:4}")
                                           int fetchConcurrency,
                                           @Value("${evento.es.fetch.max.age.ms:30000}")
@@ -41,7 +42,8 @@ public class EventStoreRequestHandlerBridge {
         var fetchPermits = new Semaphore(permits, true);
         logger.info("EventFetchRequest concurrency limit: {} max-age: {}ms", permits, fetchMaxAgeMs);
 
-        lifecycle.registerLocalHandler(EventFetchRequest.class.getSimpleName(), payload -> {
+        lifecycle.registerLocalHandler(EventFetchRequest.class.getSimpleName(),
+                (BusLifecycle.TimedRequestHandler) (payload, originator, deadlineMs, timing) -> {
             var eventoRequest = codec.decodeRequest(payload);
             fetchPermits.acquire();
             try {
@@ -51,14 +53,14 @@ public class EventStoreRequestHandlerBridge {
                 // request older than that does the full result-set + encode work for a
                 // reply nobody is waiting on — under memory pressure that retry storm
                 // repeats the heaviest work exactly when the broker can least afford it
-                // (incident 2026-07-27). Timestamps are client clocks; a 0/negative value
-                // (older client) disables the gate for that request, and fetchMaxAgeMs<=0
-                // disables it globally.
-                var now = System.currentTimeMillis();
-                if (isExpired(eventoRequest.getTimestamp(), now, fetchMaxAgeMs)) {
+                // (incident 2026-07-27). The age is measured on this server's monotonic clock
+                // from the moment the frame arrived (S15): it used to be the consumer's own
+                // timestamp, so a consumer whose clock ran more than the max age behind had
+                // every fetch dropped and never received an event. fetchMaxAgeMs <= 0 disables it.
+                long ageMs = (System.nanoTime() - timing.arrivalNanos()) / 1_000_000;
+                if (isStale(ageMs, fetchMaxAgeMs)) {
                     throw new IllegalStateException(
-                            "EventFetchRequest expired: age=" + (now - eventoRequest.getTimestamp())
-                                    + "ms > max=" + fetchMaxAgeMs
+                            "EventFetchRequest expired: waited " + ageMs + "ms on this server > max=" + fetchMaxAgeMs
                                     + "ms; the requesting consumer has already timed out, dropping stale fetch");
                 }
                 var fetchReq = (EventFetchRequest) eventoRequest.getBody();
@@ -66,6 +68,8 @@ public class EventStoreRequestHandlerBridge {
                         fetchReq.getContext(),
                         fetchReq.getLastSequenceNumber(),
                         fetchReq.getLimit());
+                lag.fetched(eventoRequest.getSourceBundleId(), fetchReq.getComponentName(), fetchReq.getContext(),
+                        fetchReq.getLastSequenceNumber(), entries.isEmpty() ? null : entries.getFirst().getCreatedAt());
                 var published = entries.stream()
                         .map(com.evento.server.es.eventstore.EventStoreEntry::toPublishedEvent)
                         .collect(Collectors.toCollection(ArrayList::new));
@@ -96,12 +100,10 @@ public class EventStoreRequestHandlerBridge {
     }
 
     /**
-     * True when a request stamped at {@code requestTimestampMs} is older than {@code maxAgeMs}
-     * at {@code nowMs}. A non-positive timestamp (client that doesn't stamp requests) or a
-     * non-positive max age disables the check.
+     * True when a fetch that has been on this server for {@code ageMs} (since its frame arrived)
+     * is past {@code maxAgeMs}; a non-positive max age disables the check.
      */
-    static boolean isExpired(long requestTimestampMs, long nowMs, long maxAgeMs) {
-        if (maxAgeMs <= 0 || requestTimestampMs <= 0) return false;
-        return nowMs - requestTimestampMs > maxAgeMs;
+    static boolean isStale(long ageMs, long maxAgeMs) {
+        return maxAgeMs > 0 && ageMs > maxAgeMs;
     }
 }
