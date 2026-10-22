@@ -202,6 +202,24 @@ failed: barrier now bounded by defaultRequestTimeout + `event=barrier_timeout` W
 worktree (version edited to 3.0.0-rc2, uncommitted) to `scratchpad/m2-rc`. Possible follow-up: batch the
 catalog writes of a discovery (8.5 s for one bundle on a fresh catalog).
 
+Then iris (`D:\Gabor\SW_DEVELOPMENT\StartUps\iris-evento3`, local branch `chore/evento-3.0-trial`, from 2.2.1;
+only change: `jakarta.validation-api` in iris-common). Its iris-sdk end-to-end suite (153 tests, 11 services
+run on the host against a docker stack `iris3-trial` with server image `evento-lab-cluster/server:v3h`) failed
+56 on the first pass with 2.2.1 and 74 with 3.0 rc3. Causes found and fixed in Evento, in order:
+(1) ab0697c1: lock affinity kept every pool connection (17 consumers, pool 8) -> bound maxHeld;
+(2) consumers at the head polled every ~50 ms (since 2.x; ~730 tx/s at rest) -> `HeadNotifier` (server, reads
+the head every `evento.es.head.poll.ms`) sends `evento:events-appended` with the appended event names,
+`HeadSignal` (bundle) wakes only the engines that handle one, capability `head:1`; at rest ~70 tx/s;
+(3) bundle departures were cleaned up on Netty event loops (handshake timeouts when 11 services restart) ->
+`AutoDiscoveryService` leave executor + one coalesced payload sweep;
+(4) every event cost one checkpoint write per consumer -> unhandled events' position written with the next
+handled one / at batch end (`EventConsumer.handles`, `SagaEventConsumer.handles`), and a lock is released at
+cycle end while the pool has no slot left. iris side (commits b8cf7d411, 275feea21): testcicd fixed for Gradle 9
+(outputLocation + testClassesDirs: it ran nothing), maintenance service added to the CI env, createPlant waits
+for the projection, microsecond timestamps (KPI projector, selection test), postgres `init: true`,
+master-data pool 24. Result: 153/153 on the first pass, empty databases, 4m39s. Published as 3.0.0-rc7 to
+scratchpad/m2-rc from the `.evento-bisect` worktree (uncommitted version edits).
+
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 
 User request (Italian): an enterprise feature to version payloads and use the new versions;
