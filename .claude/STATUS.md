@@ -1,6 +1,14 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-22 (session 9).
+Last updated: 2026-10-26 (session 9).
+
+## rc10 verified on the two real applications (2026-10-26)
+
+- 3.0.0-rc10 = rc9 + the event-time fix (9cd2a1ba), published locally; server image built from
+  4c79c489. The marketplace (with its own business-time-zone fixes on top) passes all its tests;
+  the manufacturing-execution system passes 153/153 on a fresh stack. Nothing pushed in either app.
+- Tip for fresh stacks: wait until both Postgres containers have finished their first init before
+  starting the services; the healthcheck reports healthy during the init server's run.
 
 ## rc9, Java 25 baseline, time-zone fixes (2026-10-26)
 
