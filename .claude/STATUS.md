@@ -2,6 +2,27 @@
 
 Last updated: 2026-10-22 (session 9).
 
+## Dependabot updates taken into 3.0 (2026-10-26)
+
+User request: "fai tutte le pull request, tutte le modifiche dovranno essere nella versione 3".
+On `enterprise/2.6-readiness`, no merge into main: the 24 Dependabot PRs close themselves once
+#281 is merged.
+- Most bumps were already on the branch (Netty 4.2.19, slf4j 2.0.20, pg 42.7.14, HV, Actions,
+  capacitor, cytoscape, angular-eslint, eslint-plugin-jsdoc). mermaid, marked-katex and
+  jasmine-core are no longer GUI dependencies: those PRs are obsolete.
+- b19a55d3: ClassGraph 6.0.0, Jackson 2.22.4, Flyway 13.11.1, ASM 9.11.1, Gradle wrapper 9.8.2.
+  **ClassGraph 6 scans nothing by default** (enableClassLoaders/enableNonSystemModules needed),
+  dropped `ClassInfo.loadClass()` (Class.forName(name, false, loader) now) and its
+  getAllAnnotationInfo includes meta-annotations (use getDirectAnnotationInfo). New
+  `ComponentScanTest`: before it the bundle unit tests stayed green while every IT said "no
+  handler". Fat jar of evento-lab-ms-command checked: all handlers found.
+- d3c24fce: Ionic 9; NgModule API lives in `@ionic/angular/lazy`, imports switched. Build, lint and
+  a headless render of the login page OK. Warning: IonicModule deprecated (provideIonicAngular),
+  to migrate before Ionic 10.
+- Full suite green after the fix (821 run in that invocation, 0 failures).
+- Market and the MES trial worktrees were tested on rc8 (ClassGraph 4.8): rerun them on the next
+  rc before release.
+
 ## Evento 3 presented as a whole, tests referenced (2026-10-26)
 
 User request: reference the tests in the docs, the repo and the website; the site says v3 is
