@@ -40,8 +40,8 @@ public class EventoServerContainer extends GenericContainer<EventoServerContaine
     public static final int BUS_PORT = 3030;
     /** The web console, REST API and actuator port. */
     public static final int HTTP_PORT = 3000;
-    /** The published image, without its tag. */
-    public static final String IMAGE = "ghcr.io/eventoframework/evento-server";
+    /** The published image, without its tag: Docker Hub, which anyone can pull without logging in. */
+    public static final String IMAGE = "eventoframework/evento-server";
 
     /** The server image of this version of {@code evento-test}. */
     public EventoServerContainer() {
