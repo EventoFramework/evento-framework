@@ -2,6 +2,24 @@
 
 Last updated: 2026-10-22 (session 9).
 
+## Evento 3 presented as a whole, tests referenced (2026-10-26)
+
+User request: reference the tests in the docs, the repo and the website; the site says v3 is
+available with a generic feature recap, no changelog against older versions; the docs drop the
+history too. All on branches, nothing deployed, no release (the user releases next week).
+- evento-doc `docs/enterprise-2.6` 2a4a77b: new `evento-3.md` (feature recap) and
+  `testing-and-verification.md` (1,130 tests, 19 chaos scenarios + invariants, rolling upgrades,
+  HA consumers 3x3, a marketplace and an MES named only generically); every page in the present
+  tense (no "(3.0)", "Since 2.5.0", "Changed in v2"); `upgrading-to-2-5.md` removed. Versions kept
+  only in licensing, compatibility, the 3.0 upgrade guide and dependency snippets.
+- evento README 15848735: "Evento 3" recap + "How Evento is tested" replace the per-version
+  sections; the licence line on releases up to 2.5.x stays (legal).
+- evento-www `licensing/apache-client-libraries` 71cbe07: hero "Evento 3 is available", one
+  feature section + "Tested to break" section (links docs `/evento-3`, `/testing-and-verification`),
+  2.x sections and 2.4.6 comparisons removed; get-started says Java 21+ for the bundle, server 25.
+  `npm run build` green. Not deployed.
+- Do not publish Axon numbers; do not name the two production systems publicly.
+
 ## Enterprise readiness vs Axon 5 (branch `enterprise/2.6-readiness`, 2026-10-16)
 
 User request (Italian): verify a competitor analysis against Axon 5.4 / Axoniq on the code, decide
