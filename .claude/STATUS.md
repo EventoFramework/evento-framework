@@ -2,6 +2,23 @@
 
 Last updated: 2026-10-22 (session 9).
 
+## rc9, Java 25 baseline, time-zone fixes (2026-10-26)
+
+- ClassGraph 6 ships Java 25 class files (UnsupportedClassVersionError on JDK 21, checked with
+  -PtestJdk=21). User chose to keep it: client libraries now target Java 25 (93579f3c,
+  `clientJavaRelease = 25`, JDK 21 CI job removed, README/CHANGELOG/COMPATIBILITY, docs, site).
+- 3.0.0-rc9 published locally for the two real applications, and a server image built from the
+  same commit. Both suites pass on rc9; the one test failing in the marketplace is its own
+  (calendar days vs a fixed duration, one hour apart the week after a DST change).
+- Time-zone audit (user): es__events stores UTC wall time in `timestamp` columns but the server read
+  them through the JVM zone -> 9cd2a1ba (LocalDateTime + UTC, deleted_at in UTC, console search
+  bounds were crossed, EventTimeZonePostgresIT on Europe/Rome). Snapshots (JVM zone both ways),
+  performance tables (epoch millis), JDBC consumer store (timestamptz / MySQL TIMESTAMP) are fine.
+- ghcr.io/eventoframework/evento-server is a private package: EventoServerContainer now defaults to
+  Docker Hub (57b97698). EventoServerContainerIT needs EVENTO_TEST_SERVER_IMAGE=<local image> until the
+  dev version has a published image.
+- Full suite with EVENTO_RUN_JDBC_IT=true: green except that IT without the env var.
+
 ## Dependabot updates taken into 3.0 (2026-10-26)
 
 User request: "fai tutte le pull request, tutte le modifiche dovranno essere nella versione 3".
