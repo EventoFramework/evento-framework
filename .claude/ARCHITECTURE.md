@@ -62,11 +62,11 @@ evento-framework/
 
 **Licences and Java baselines.** The client libraries (`clientLibraries` in the root `build.gradle`:
 transport-api, transport-netty, common, bundle, consumer-state-store-jdbc, spring-boot-starter,
-opentelemetry, test) are **Apache-2.0** and compile with **`--release 21`**; the server, the GUI and
+opentelemetry, test) are **Apache-2.0** and target **Java 25** (`clientJavaRelease`); the server, the GUI and
 the labs are **Apache-2.0 with the Commons Clause** (no selling Evento itself without written
 authorisation, `LICENSE-COMMERCIAL.txt`; names in `TRADEMARKS.md`) and target 25 (`LICENSE.txt`). New published libraries apply
 `gradle/evento-library.gradle` (publication, POM licence, LICENSE/NOTICE in the jar).
-`-PtestJdk=21` runs the client tests on JDK 21 (CI job `client-libraries-jdk21`). Libraries log through
+`-PtestJdk=N` runs the client tests on another JDK. Libraries log through
 SLF4J only and ship no logging configuration.
 
 **Gradle**: version `2.5.2` (wrapper 9.8.2), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
@@ -816,7 +816,7 @@ metadata (handler schemas, payloadInfo) is sent post-enable in the discovery not
     payload on a session without `revision:1`; the remedy, upgrading brokers first, is the
     normal order.
 
-24. **The client libraries are Apache-2.0 and Java 21; the server is Apache-2.0 with the Commons
+24. **The client libraries are Apache-2.0 (Java 25 since ClassGraph 6, 2026-10-26; Java 21 before); the server is Apache-2.0 with the Commons
     Clause and Java 25 (2026-10).** Applications link only the libraries, so they carry no
     obligation and run on the LTS enterprises use; the server ships as an image, so its licence and
     JVM are Evento's choice. The split is the `clientLibraries` list. Until 2026-10-20 the server was

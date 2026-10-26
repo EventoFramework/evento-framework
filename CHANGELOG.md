@@ -79,9 +79,9 @@ a revised payload needs a 3.0 broker.
   names Evento and RECQ are covered by `TRADEMARKS.md`. The Commons Clause makes these components
   source-available rather than OSI open source; the client libraries are not affected. See `LICENSE.txt`;
   contributions go through the CLA (`CLA.md`).
-- **The client libraries run on Java 21+** (compiled with `--release 21`; the server stays on 25). On JDK 21–23
-  a virtual thread blocked inside `synchronized` pins its carrier: Evento's own critical sections are short,
-  but a handler that blocks inside `synchronized` belongs on `ConsumerExecutors.pooled(...)`.
+- **Java 25 for the client libraries too.** The component scanner (ClassGraph 6) ships Java 25 class files, so
+  `evento-bundle` and the libraries around it need Java 25 like the server. Applications on an older JDK can
+  still test against the real server image (`EventoServerContainer`) but cannot embed a bundle.
 - **Logging goes through SLF4J only.** `evento-common` and `evento-bundle` no longer depend on `log4j-core`
   and no longer ship `log4j2.properties` / `log4j2.xml`, which overrode the application's logging setup. Spring
   Boot applications log Evento through their own configuration with no change; a plain Java application needs
@@ -205,7 +205,7 @@ a revised payload needs a 3.0 broker.
   `EventoTestBroker`, the server's broker and aggregate command handling in the test's JVM on a free port, with an
   in-memory event store (`events()`, `publish(event, aggregateId)`); commands, events, consumers and queries work
   as against a server, without a database (Java 25, like the server). `EventoServerContainer` in `evento-test`: the
-  real server image on Testcontainers, on a PostgreSQL of the test, for applications on Java 21 or another Spring
+  real server image on Testcontainers, on a PostgreSQL of the test, for applications on another Spring
   Boot version. The server is also published as a library, `com.eventoframework:evento-server` (the plain jar; the
   boot jar of releases is unchanged).
 - **Request timers on the broker (O3)**: `evento.server.request`, tagged `kind` (`query`, `service_command`,

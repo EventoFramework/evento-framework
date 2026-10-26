@@ -66,8 +66,8 @@ def boot3Test = tasks.register('boot3Test', Test) {
 }
 tasks.named('check') { dependsOn boot3Test }
 
-// The published code targets Java 21 (root build.gradle); the tests run a real broker, and the
-// server is built for 25, so the test side is compiled and resolved for 25.
+// The published code targets the client baseline (root build.gradle); the tests run a real broker,
+// and the server is built for 25, so the test side is compiled and resolved for 25.
 tasks.named('compileTestJava') { options.release = 25 }
 [configurations.testCompileClasspath, configurations.testRuntimeClasspath, configurations.boot3TestRuntimeClasspath].each {
     it.attributes { attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 25) }

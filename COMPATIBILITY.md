@@ -70,7 +70,7 @@ additive). Rolling back across a major is not.
 
 | Component | Supported |
 |---|---|
-| Client libraries | Java 21 or later |
+| Client libraries | Java 25 or later |
 | Server | Java 25.0.3 or later (the container image ships its JVM) |
 | Spring Boot starter | Spring Boot 3.5 and 4.x |
 | Database | PostgreSQL 12 or later (the server refuses older ones; tested on 16 and 17) |

@@ -19,8 +19,8 @@ load-bearing docs live in [`.claude/`](.claude/):
   `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1`. Never 25.0.1/25.0.2: JDK-8370887 can stall
   virtual-thread timed waits for ~20 s (bundle handlers, consumer engines, flaky ITs).
 - Java baselines: the client libraries (the `clientLibraries` list in the root `build.gradle`,
-  Apache-2.0) compile with `--release 21`; the server and the labs target 25. `-PtestJdk=21` runs the
-  client tests on a JDK 21 (CI job `client-libraries-jdk21`).
+  Apache-2.0) target Java 25 like the server (`clientJavaRelease`; was 21 until ClassGraph 6, which ships
+  Java 25 class files, 2026-10-26). `-PtestJdk=N` runs the client tests on another JDK.
 - Licences: client libraries Apache-2.0, everything else Apache-2.0 with the Commons Clause (no selling
   Evento itself without written authorisation; names in `TRADEMARKS.md`), see `LICENSE.txt`. No closed
   edition: OIDC sign-in and audit trail live in `evento-server`. A new

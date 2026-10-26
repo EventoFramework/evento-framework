@@ -59,7 +59,7 @@ The Evento Server acts as the central nervous system for your distributed applic
 **Write your domain**
 - Seven RECQ components, each an annotated Java class: `@Aggregate`, `@Service`, `@Projector`, `@Projection`, `@Saga`, `@Observer` and invokers. Bundles announce their components to the server on their own.
 - Payload classes that can change shape or name without losing their history (`@Revision` and upcasters); several events from one command, stored atomically.
-- Plain Java, Spring, Micronaut or Quarkus, and a Spring Boot starter (Boot 4 and 3.5). Client libraries on Java 21; the server on Java 25 with virtual threads.
+- Plain Java, Spring, Micronaut or Quarkus, and a Spring Boot starter (Boot 4 and 3.5). Java 25 with virtual threads, for the server and the client libraries.
 
 **Correct under failure**
 - Exactly-once commands: idempotency keys make a retry safe on whichever server it lands; sagas, projectors and observers derive theirs automatically, and a service can close the last window with an outcome store.
@@ -96,7 +96,7 @@ See the [documentation](https://docs.eventoframework.com/evento-3) for each of t
 
 ## How Evento is tested
 
-- **1,130 automated tests** on every change, over real TCP connections, against PostgreSQL 16 and 17 and MySQL 8.4, with several complete servers on one database, the client libraries on Java 21 and 25.
+- **1,130 automated tests** on every change, over real TCP connections, against PostgreSQL 16 and 17 and MySQL 8.4, with several complete servers on one database.
 - **Nineteen chaos scenarios** on a three-region lab ([`evento-lab-cluster`](evento-lab-cluster)): servers killed, frozen and restarted, a region cut off, database failovers, cold starts, clock skew, retry storms. After each one the lab checks that no acknowledged command is lost, nothing is executed twice, no aggregate forks, the read models converge and the catalog lists every live bundle. Every invariant holds in every scenario ([results](evento-lab-cluster/results/V3-SUMMARY.md)).
 - **Rolling upgrades**: servers and bundles of the previous release line and of Evento 3 together, in every order, and a running cluster upgraded one process at a time.
 - **Highly available consumers** ([`evento-lab-microservices`](evento-lab-microservices)): one consumer per context in three replicas, the replica holding each lane killed twice mid-stream; every event applied exactly once and in order.

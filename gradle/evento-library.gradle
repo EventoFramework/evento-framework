@@ -1,7 +1,7 @@
 // Shared setup of a library published to Maven Central and GitHub Packages. A module sets
 // `ext.libraryName` and `ext.libraryDescription`, then applies this file; the artifactId is the
 // project name. A client library (Apache-2.0) also goes in `clientLibraries` in the root
-// build.gradle (Java 21 baseline) and in section 1 of LICENSE.txt. A module under the server's
+// build.gradle (client Java baseline) and in section 1 of LICENSE.txt. A module under the server's
 // licence (Apache-2.0 with the Commons Clause, section 2) sets `ext.commonsClause = true` first.
 
 def commonsClause = project.ext.has('commonsClause') && project.ext.commonsClause
