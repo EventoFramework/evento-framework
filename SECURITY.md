@@ -9,7 +9,8 @@ release. Which versions work together and how to upgrade: [COMPATIBILITY.md](COM
 
 | Version | Supported |
 |---|---|
-| `2.x` (current: `2.5.2`) | Yes |
+| `3.x` (current: `3.0.0`) | Yes |
+| `2.x` | No |
 | `1.x` | No |
 
 ## Reporting a Vulnerability

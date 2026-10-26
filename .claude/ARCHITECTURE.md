@@ -1366,8 +1366,8 @@ explorative read-only pivot.)
 
 ## 16. Current Status
 
-Version: `2.5.2` (tag `v2.5.2`), published to Maven Central, GitHub Packages, Docker Hub / GHCR
-(`eventoframework/evento-server:2.5.2` = `latest`). Releases are cut from `main` with
+Version: `3.0.0` (tag `v3.0.0`), published to Maven Central, GitHub Packages, Docker Hub / GHCR
+(`eventoframework/evento-server:3.0.0` = `latest`). Releases are cut from `main` with
 `scripts/release.sh patch|minor|major`; the tag triggers every publishing workflow.
 
 | Line | What it brought |
@@ -1377,6 +1377,7 @@ Version: `2.5.2` (tag `v2.5.2`), published to Maven Central, GitHub Packages, Do
 | 2.5.0 | cluster mode: endpoint failover + fail-back, idempotency keys and service outcome store, caller deadlines, locality-preferred routing, presence, per-bundle catalog, bounded distributed locks, per-phase command latency |
 | 2.5.1 | dependency sweep (Spring Boot 4.1.1, Netty 4.2.17, Jackson 2.22.2, Gradle 9.7.1, Angular 22.2) |
 | 2.5.2 | replies no longer lost when their sender closes right after writing them (§6 decision 14) |
+| 3.0.0 | hardened server by default (`prod` profile), Flyway schema, all code public (Apache-2.0 / Commons Clause), streamed and local queries, payload revisions, lock-free aggregate commands with group commit, cluster-wide console, APES deprecated; Java 25 for the client libraries too |
 
 Details per release: `CHANGELOG.md`. Session-level progress and open work: [`STATUS.md`](STATUS.md);
 open cluster limits and roadmap: `evento-lab-cluster/docs/L5-limits-roadmap.md`. User docs:

@@ -9,6 +9,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-10-26
+
 Version 3.0: a major release, because one default changes (the server's security profile is `prod`:
 it does not start unhardened, see the first upgrade note). Everything else is backward compatible, and
 2.5 bundles and servers interoperate with 3.0. Also: the code is all public under a new licence, the
@@ -1528,7 +1530,8 @@ Last stable v1.x release. The v1 source history is preserved in the git log.
 
 ---
 
-[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v2.5.2...HEAD
+[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/EventoFramework/evento-framework/compare/v2.5.2...v3.0.0
 [2.5.2]: https://github.com/EventoFramework/evento-framework/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/EventoFramework/evento-framework/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/EventoFramework/evento-framework/compare/v2.4.6...v2.5.0
