@@ -69,7 +69,7 @@ public class EventStoreRequestHandlerBridge {
                         fetchReq.getLastSequenceNumber(),
                         fetchReq.getLimit());
                 lag.fetched(eventoRequest.getSourceBundleId(), fetchReq.getComponentName(), fetchReq.getContext(),
-                        fetchReq.getLastSequenceNumber(), entries.isEmpty() ? null : entries.getFirst().getCreatedAt());
+                        fetchReq.getLastSequenceNumber(), entries.isEmpty() ? null : entries.getFirst().createdAtInstant());
                 var published = entries.stream()
                         .map(com.evento.server.es.eventstore.EventStoreEntry::toPublishedEvent)
                         .collect(Collectors.toCollection(ArrayList::new));

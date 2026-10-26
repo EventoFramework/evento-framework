@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.sql.Timestamp;
 
 @RestController()
 @RequestMapping("api/system-state-store")
@@ -33,8 +32,9 @@ public class SystemStateStoreController {
             @RequestParam(required = false) String eventName,
             @RequestParam(required = false) String context,
             @RequestParam(required = false) Integer eventSequenceNumber,
-            @RequestParam(required = false) Timestamp createdAtFrom,
-            @RequestParam(required = false) Timestamp createdAtTo,
+            // ISO-8601 instants, e.g. 2026-10-26T08:00:00Z or 2026-10-26T09:00:00+01:00.
+            @RequestParam(required = false) java.time.Instant createdAtFrom,
+            @RequestParam(required = false) java.time.Instant createdAtTo,
             @RequestParam(required = false) String contentQuery,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size,

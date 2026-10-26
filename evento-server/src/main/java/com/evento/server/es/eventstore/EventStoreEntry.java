@@ -12,7 +12,9 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "es__events")
@@ -31,14 +33,26 @@ public class EventStoreEntry {
 	@Convert(converter = JsonConverter.class)
 	private EventMessage<?> eventMessage;
 	private String eventName;
-	private Timestamp createdAt;
-	private Timestamp deletedAt;
+	// es__events keeps UTC wall time in plain `timestamp` columns (now() at time zone 'utc'): read
+	// as LocalDateTime, so neither the JVM's zone nor a daylight-saving change shifts it.
+	private LocalDateTime createdAt;
+	private LocalDateTime deletedAt;
+
+	/** When the event was stored, {@code null} if unknown. */
+	public Instant createdAtInstant() {
+		return createdAt == null ? null : createdAt.toInstant(ZoneOffset.UTC);
+	}
+
+	/** When the event's aggregate was deleted, {@code null} if it was not. */
+	public Instant deletedAtInstant() {
+		return deletedAt == null ? null : deletedAt.toInstant(ZoneOffset.UTC);
+	}
 
 
 	public PublishedEvent toPublishedEvent() {
 		var event = new PublishedEvent();
 		event.setAggregateId(getAggregateId());
-		event.setCreatedAt(getCreatedAt().toInstant().toEpochMilli());
+		event.setCreatedAt(createdAt == null ? null : createdAtInstant().toEpochMilli());
 		event.setEventMessage(getEventMessage());
 		event.setEventSequenceNumber(getEventSequenceNumber());
 		event.setEventName(getEventName());

@@ -7,8 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.sql.Timestamp;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -94,15 +92,13 @@ public class ConsumerLagMetrics {
      * @param after          the sequence number the consumer fetched after
      * @param firstCreatedAt commit time of the first event returned, {@code null} when none
      */
-    public void fetched(String bundle, String component, String context, long after, Timestamp firstCreatedAt) {
+    public void fetched(String bundle, String component, String context, long after, java.time.Instant firstCreatedAt) {
         if (component == null) return;
         long now = clock.getAsLong();
         var key = new Key(bundle == null ? "unknown" : bundle, component, context == null ? "all" : context);
         var s = series.computeIfAbsent(key, this::register);
         s.position = after;
-        // created_at holds UTC wall time (now() at time zone 'utc'), whatever the JVM's zone.
-        s.oldestPendingAt = firstCreatedAt == null ? 0
-                : firstCreatedAt.toLocalDateTime().toInstant(ZoneOffset.UTC).toEpochMilli();
+        s.oldestPendingAt = firstCreatedAt == null ? 0 : firstCreatedAt.toEpochMilli();
         s.lastFetch = now;
         sweep(now);
     }

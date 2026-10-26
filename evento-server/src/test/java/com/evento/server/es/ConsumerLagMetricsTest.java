@@ -3,9 +3,7 @@ package com.evento.server.es;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
-import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,8 +17,8 @@ class ConsumerLagMetricsTest {
     private final ConsumerLagMetrics lag = new ConsumerLagMetrics(registry, head::get, now::get, true, 900_000);
 
     /** created_at holds UTC wall time; the metric must not depend on the JVM's zone. */
-    private static Timestamp utc(String instant) {
-        return Timestamp.valueOf(Instant.parse(instant).atOffset(ZoneOffset.UTC).toLocalDateTime());
+    private static Instant utc(String instant) {
+        return Instant.parse(instant);
     }
 
     private double gauge(String name, String context) {

@@ -28,7 +28,6 @@ import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -434,11 +433,11 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
         e.setEventSequenceNumber(rs.getLong(1));
         e.setContext(rs.getString(2));
         e.setAggregateId(rs.getString(3));
-        e.setCreatedAt(rs.getTimestamp(4));
+        e.setCreatedAt(rs.getObject(4, java.time.LocalDateTime.class));
         e.setEventMessage((com.evento.common.modeling.messaging.message.application.EventMessage<?>)
                 EVENT_JSON.convertToEntityAttribute(rs.getString(5)));
         e.setEventName(rs.getString(6));
-        e.setDeletedAt(rs.getTimestamp(7));
+        e.setDeletedAt(rs.getObject(7, java.time.LocalDateTime.class));
         return e;
     }
 
@@ -486,8 +485,8 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
     public Page<EventStoreEntry> searchEvents(String aggregateIdentifier,
                                               String eventName, String context,
                                               Integer eventSequenceNumber,
-                                              Timestamp createdAtFrom,
-                                              Timestamp createdAtTo,
+                                              java.time.Instant createdAtFrom,
+                                              java.time.Instant createdAtTo,
                                               String contentQuery,
                                               int page,
                                               int size,
@@ -520,15 +519,18 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
             );
         }
 
+        // created_at is UTC wall time: compare it with the bounds in UTC.
         if (createdAtFrom != null) {
+            var from = java.time.LocalDateTime.ofInstant(createdAtFrom, java.time.ZoneOffset.UTC);
             predicates.add(
-                    (r, o, cb) -> cb.greaterThanOrEqualTo(r.get("createdAt"), createdAtTo)
+                    (r, o, cb) -> cb.greaterThanOrEqualTo(r.get("createdAt"), from)
             );
         }
 
         if (createdAtTo != null) {
+            var to = java.time.LocalDateTime.ofInstant(createdAtTo, java.time.ZoneOffset.UTC);
             predicates.add(
-                    (r, o, cb) -> cb.lessThanOrEqualTo(r.get("createdAt"), createdAtFrom)
+                    (r, o, cb) -> cb.lessThanOrEqualTo(r.get("createdAt"), to)
             );
         }
 
@@ -1254,8 +1256,9 @@ public class EventStore implements BrokerEventStore, AutoCloseable {
 
     public void deleteAggregate(String aggregateIdentifier) {
         jdbcTemplate.update(
+                // UTC wall time, like created_at (current_timestamp would store the session's zone).
                 "UPDATE es__events " +
-                        "set deleted_at = current_timestamp where aggregate_id = ?",
+                        "set deleted_at = (now() at time zone 'utc') where aggregate_id = ?",
                 aggregateIdentifier
         );
         jdbcTemplate.update(
