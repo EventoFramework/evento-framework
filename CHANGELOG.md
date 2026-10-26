@@ -9,7 +9,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [3.0.0] — 2026-10-26
+## [3.0.0] — 2026-10-27
 
 Version 3.0: a major release, because one default changes (the server's security profile is `prod`:
 it does not start unhardened, see the first upgrade note). Everything else is backward compatible, and
