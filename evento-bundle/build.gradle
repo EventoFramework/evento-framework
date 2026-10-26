@@ -29,10 +29,10 @@ dependencies {
     testImplementation 'org.awaitility:awaitility:4.3.0'
     testImplementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
 
-    implementation 'io.github.classgraph:classgraph:4.8.199'
+    implementation 'io.github.classgraph:classgraph:6.0.0'
     // Invoker proxies (EventoBundle.getInvoker); it used to come in through reflections.
     implementation 'org.javassist:javassist:3.33.0-GA'
-    implementation 'org.ow2.asm:asm:9.11'
+    implementation 'org.ow2.asm:asm:9.11.1'
 
     api project(':evento-common')
     api project(':evento-transport-api')

@@ -32,7 +32,13 @@ public final class ComponentScan {
 
     /** Scans {@code basePackage} on the context class loader and loads its classes. */
     public static ComponentScan of(String basePackage) {
+        var loader = Thread.currentThread().getContextClassLoader();
+        if (loader == null) loader = ComponentScan.class.getClassLoader();
+        // ClassGraph 6 scans only the sources it is given: the bundle's class loader (and its
+        // parents, as before) and the application modules.
         try (var result = new ClassGraph()
+                .enableClassLoaders(loader)
+                .enableNonSystemModules()
                 .enableClassInfo()
                 .enableAnnotationInfo()
                 .ignoreClassVisibility()
@@ -41,12 +47,21 @@ public final class ComponentScan {
             var map = new LinkedHashMap<String, Scanned>();
             for (var info : result.getAllClasses()) {
                 var annotations = new LinkedHashSet<String>();
-                info.getAnnotationInfo().forEach(a -> annotations.add(a.getName()));
+                info.getDirectAnnotationInfo().forEach(a -> annotations.add(a.getName()));
                 var subclasses = new ArrayList<String>();
-                info.getSubclasses().forEach(s -> subclasses.add(s.getName()));
-                map.put(info.getName(), new Scanned(info.loadClass(), annotations, subclasses));
+                info.getAllSubclasses().forEach(s -> subclasses.add(s.getName()));
+                map.put(info.getName(), new Scanned(load(info.getName(), loader), annotations, subclasses));
             }
             return new ComponentScan(map);
+        }
+    }
+
+    // ClassGraph 6 only reads classfiles; loading them is the caller's job.
+    private static Class<?> load(String name, ClassLoader loader) {
+        try {
+            return Class.forName(name, false, loader);
+        } catch (ClassNotFoundException | LinkageError e) {
+            throw new IllegalStateException("Cannot load scanned class " + name, e);
         }
     }
 
