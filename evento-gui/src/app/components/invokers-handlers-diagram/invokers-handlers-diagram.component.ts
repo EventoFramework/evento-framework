@@ -8,7 +8,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import {componentColor, payloadColor} from '../../services/utils';
-import {NavController} from '@ionic/angular';
+import {NavController} from '@ionic/angular/lazy';
 import {RepositoryService} from '../../services/repository.service';
 import {createEventoGraph, EventoEdge, EventoGraphHandle, EventoNode} from '../graph/evento-graph';
 

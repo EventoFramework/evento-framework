@@ -5,7 +5,7 @@ import {FlowsService} from '../../services/flows.service';
 import {CatalogService} from '../../services/catalog.service';
 import {BundleService} from '../../services/bundle.service';
 import {RepositoryService} from '../../services/repository.service';
-import {AlertController, LoadingController} from '@ionic/angular';
+import {AlertController, LoadingController} from '@ionic/angular/lazy';
 import {
   createEventoGraph,
   cssToken,

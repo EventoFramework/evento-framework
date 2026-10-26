@@ -7,7 +7,7 @@ import {
   OnDestroy,
   ViewChild,
 } from '@angular/core';
-import {NavController} from '@ionic/angular';
+import {NavController} from '@ionic/angular/lazy';
 import {componentColor, payloadColor} from '../../services/utils';
 import {RepositoryService} from '../../services/repository.service';
 import {createEventoGraph, EventoEdge, EventoGraphHandle, EventoNode} from '../graph/evento-graph';

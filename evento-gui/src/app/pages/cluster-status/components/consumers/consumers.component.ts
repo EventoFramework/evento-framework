@@ -2,7 +2,7 @@ import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ClusterStatusService} from "../../../../services/cluster-status.service";
 import {ConsumerService} from "../../../../services/consumer.service";
 import { DatePipe } from "@angular/common";
-import {IonicModule, IonModal, LoadingController, ToastController} from "@ionic/angular";
+import {IonicModule, IonModal, LoadingController, ToastController} from "@ionic/angular/lazy";
 import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 import {ComponentsModule} from "../../../../components/components.module";
 

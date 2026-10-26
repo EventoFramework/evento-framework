@@ -1,5 +1,5 @@
 import {Component, Input, OnInit, ViewChild, ChangeDetectionStrategy} from '@angular/core';
-import {IonModal} from "@ionic/angular";
+import {IonModal} from "@ionic/angular/lazy";
 
 @Component({
     selector: 'app-event-detail-modal',
