@@ -52,28 +52,25 @@ The Evento Server acts as the central nervous system for your distributed applic
 
 **Together, the Evento Framework and its Server form a cohesive ecosystem that simplifies and streamlines the creation of distributed applications. Embrace the Evento philosophy and experience the power of event sourcing and CQRS!**
 
-## v2.0 — What's New
+## Evento 3
 
-Evento Framework v2.0 is a ground-up rewrite of the transport and server bus:
+**Evento 3 is available**: everything below is in it, and all of it is public.
 
-- **CBOR wire protocol** — binary framing (4-byte length prefix + CBOR), replacing the v1 JSON/socket protocol. Wire-format compatibility with v1 is intentionally broken.
-- **Netty transport** — fully async, virtual-thread business executor, transparent chunking (no message-size limit), optional TLS.
-- **Sealed `Message` records** — exhaustive dispatch enforced by the compiler; adding a new wire type is a one-liner.
-- **Exactly-once QoS** — dedup cache on both broker and bundle sides; callers can retry with the same `correlationId`.
-- **v2 consumer engines** — `ProjectorEngine`, `SagaEngine`, `ObserverEngine` composed on focused SPIs (`ConsumerLock`, `ConsumerStateStore`, `SagaStateStore`, `DeadEventQueue`, `DedupeStore`). JDBC impls for Postgres and MySQL included.
-- **Metrics-only, no built-in scaling** — the framework emits performance metrics only; instance lifecycle is an external concern (k8s / Nomad). Running several servers as a cluster is covered below.
-- **Zero-copy forwarding** — broker relays `Request`/`Response` as raw bytes without re-encoding.
+**Write your domain**
+- Seven RECQ components, each an annotated Java class: `@Aggregate`, `@Service`, `@Projector`, `@Projection`, `@Saga`, `@Observer` and invokers. Bundles announce their components to the server on their own.
+- Payload classes that can change shape or name without losing their history (`@Revision` and upcasters); several events from one command, stored atomically.
+- Plain Java, Spring, Micronaut or Quarkus, and a Spring Boot starter (Boot 4 and 3.5). Client libraries on Java 21; the server on Java 25 with virtual threads.
 
-## Cluster Mode (2.5)
+**Correct under failure**
+- Exactly-once commands: idempotency keys make a retry safe on whichever server it lands; sagas, projectors and observers derive theirs automatically, and a service can close the last window with an outcome store.
+- No forked aggregates: every event carries its aggregate's version under a unique index, so two commands that decided from the same state can never both be stored. Commands run without a lock and retry on the new state when they lose.
+- Projector, saga and observer progress on PostgreSQL or MySQL, dead event queues, parallel consumers with per-aggregate ordering.
+- Consumers wait for the server instead of polling it: they fetch as soon as events they handle are appended, and an idle system costs the event store almost nothing.
 
-Several `evento-server` instances can share one PostgreSQL event store and catalog — from a hot standby on one site to one server per continent. Since 2.5.0 the cluster is production-ready:
-
-- **Failover and fail-back.** A bundle uses every server address it is given, most preferred first. It fails over along the list when its server dies, and returns to the first one on its own once that server has been healthy for a stability window. Requests in flight on a server it left fail at once with `BrokerChangedException` instead of hanging until the timeout.
-- **Exactly-once commands.** `CommandGateway.sendIdempotent(command, key)` makes a retry safe on whichever server it lands: a duplicate key is answered with the stored event. Commands sent by sagas, projectors and observers get a derived key automatically, and a service bundle can close the last window with a shared outcome store (`setServiceCommandOutcomeStore`).
-- **Cells and locality.** Each server routes to the bundles connected to it, so the intended topology is a cell: a server with a complete set of handlers next to it. Bundles declare a zone (`setZone("EU")`) and `evento.server.bus.pick-strategy=locality-preferred` keeps requests in the caller's zone, falling back to any zone only when needed.
-- **Safe shared state.** Bounded distributed locks on a pool of their own, per-server presence tracking so that a stale disconnect never wipes a bundle that moved, a catalog keyed per bundle, and commands dropped unexecuted once their caller's deadline has passed.
-
-Measured on a three-continent lab: 492/492 commands confirmed (227/319 on 2.4.6), a cell left without its server back in 10.3 s, and no payment executed twice across server failures.
+**Run it as a cluster**
+- Several servers on one PostgreSQL event store, from a hot standby to a cell per region; bundles fail over when their server dies and fail back when it is healthy again; requests answered close to the caller.
+- Highly available consumers: each consumer, per context, in as many replicas as you like; one holds the lane, another takes over when it goes, without losing or repeating an event.
+- Correctness lives in the database: servers never call one another.
 
 ```java
 var bus = new EventoServerMessageBusConfiguration(
@@ -82,68 +79,30 @@ var bus = new EventoServerMessageBusConfiguration(
     .withExpectedClusterName("orders-prod");
 ```
 
-Upgrade all servers together, then the bundles: the first 2.5 server to boot migrates the schema. See [Evento Server Cluster](https://docs.eventoframework.com/evento-server/evento-server-cluster) for topologies, configuration and the upgrade guide.
+**Query at any size**
+- Streamed and paged answers with flow control, even directly bundle to bundle; a bundle answers its own queries in process; read-your-writes with `sendTracked` and `QueryOptions.after(token)`.
 
-## Parallel Consumers (2.4.0)
+**Secure and compliant**
+- Secure by default: in production the server requires a bus token, TLS, a payload allowlist, real passwords and explicit CORS origins. Single sign-on and audit trail for the console.
+- Personal data encrypted per data subject: deleting the subject's key erases it from the whole history.
 
-Consumers are sequential by default. A handler can opt into parallel consumption by naming a bounded executor registered on the bundle:
+**See and measure**
+- A console generated from your code: catalog, flows, application graph, what-if performance analysis. OpenTelemetry tracing, Prometheus metrics.
 
-```java
-.addConsumerExecutor(ConsumerExecutors.virtual("read-model", 64))
+**Test it**
+- Fixtures, an in-process broker and a containerised server (`evento-test`, `evento-test-broker`).
 
-@EventHandler(executor = "read-model", retry = 3)
-void on(OrderTotalRecomputed event) { … }
-```
+See the [documentation](https://docs.eventoframework.com/evento-3) for each of them.
 
-The checkpoint advances when a task *starts*, so a consumer never runs more than the executor's capacity ahead of completion — that is the backpressure, and it bounds the crash-loss window to the running tasks. Parallel dispatch relaxes ordering and, for in-flight events on a hard kill, delivery; both can be taken back: `ConsumerExecutors.partitioned(...)` keeps same-aggregate events in order, and `CheckpointMode.WATERMARK` restores at-least-once. Counters land on `/actuator/prometheus`.
+## How Evento is tested
 
-See [Parallel Consumers](https://docs.eventoframework.com/evento-framework/eventobundle/parallel-consumers) for the guarantees, the `retry` caveat and the connection-pool sizing rule.
+- **1,130 automated tests** on every change, over real TCP connections, against PostgreSQL 16 and 17 and MySQL 8.4, with several complete servers on one database, the client libraries on Java 21 and 25.
+- **Nineteen chaos scenarios** on a three-region lab ([`evento-lab-cluster`](evento-lab-cluster)): servers killed, frozen and restarted, a region cut off, database failovers, cold starts, clock skew, retry storms. After each one the lab checks that no acknowledged command is lost, nothing is executed twice, no aggregate forks, the read models converge and the catalog lists every live bundle. Every invariant holds in every scenario ([results](evento-lab-cluster/results/V3-SUMMARY.md)).
+- **Rolling upgrades**: servers and bundles of the previous release line and of Evento 3 together, in every order, and a running cluster upgraded one process at a time.
+- **Highly available consumers** ([`evento-lab-microservices`](evento-lab-microservices)): one consumer per context in three replicas, the replica holding each lane killed twice mid-stream; every event applied exactly once and in order.
+- **Real applications**: the full test suites of a marketplace and of a manufacturing-execution system, green on Evento 3.
 
-## Throughput and Capacity (2.4.0)
-
-A server absorbs concurrent requests up to `evento.server.bus.business-executor-max-size` (default `cores × 32`); past that they queue, and past the queue they run on the calling event loop so pressure reaches the client over TCP.
-
-What makes exceeding capacity worse than merely slow is that every request carries a client deadline and **nothing cancels the work when it expires**. Beyond the limit the server keeps producing responses for callers that have already given up, so throughput collapses rather than degrading — CPU and databases look idle throughout, and client retries hold it there. Reducing *client* concurrency is what recovers it, and fewer concurrent clients often complete strictly more work.
-
-Alert on `evento.server.bus.executor.saturated`, watch `…queue.depth` as the earlier signal, and read `WARN` expiry lines as capacity exhaustion rather than unlucky individual requests. A bundle can bound itself with `BundleClientConfig.Builder.maxInFlightRequests(n)`, and an expiry now surfaces as `RequestTimeoutException` — meaning *indeterminate*, not failed, because the work may have been applied.
-
-See [Throughput and Capacity](https://docs.eventoframework.com/evento-server/setup-evento-server/throughput-and-capacity) for the sizing arithmetic and the detection playbook.
-
-## Streamed Queries and Read-Your-Writes (3.0)
-
-A large query answer no longer has to travel, and sit, whole in the Evento Server. Any query can be consumed as a stream, pulled with flow control so that no hop holds more than a window of it; a projection can produce it lazily from a cursor, and the views can even skip the server and flow bundle to bundle:
-
-```java
-@QueryHandler
-Streamed<OrderView> handle(ExportOrders q) {
-    return Streamed.of(() -> repository.streamByCustomer(q.getCustomerId()));
-}
-
-try (var orders = queryGateway.stream(new ExportOrders(customerId), QueryOptions.defaults().direct())) {
-    orders.forEach(writer::write);
-}
-```
-
-The server keeps no query answers any more (on a 64 MiB answer: nothing retained instead of 65 MiB, and 153 ms instead of 634 ms with a direct stream), `Page<View>` answers by offset or cursor, a bundle answers its own queries in process with the same tracing, and `sendTracked` + `QueryOptions.after(token)` make a query wait until the projections reflect a write.
-
-See [Streamed and Paged Queries](https://docs.eventoframework.com/evento-framework/component/projection/streaming-and-paged-queries) and [Read Your Writes](https://docs.eventoframework.com/evento-framework/component/projection/read-your-writes).
-
-## Payload Versioning (3.0)
-
-Payload classes can change shape or name without losing the history written with the old one. A class declares its revision, and upcasters registered on the bundle turn older payloads into the current shape when they are read; the event store is never rewritten:
-
-```java
-@Revision(1)
-public class ItemAdded extends DomainEvent { String itemId; String title; int quantity; }
-
-.addUpcasters(
-    Upcaster.from(ItemAdded.class, 0).to(1, json -> json.set("title", json.remove("name"))),
-    Upcaster.from("ItemRenamed", 0).to(ItemRenamedV2.class, 0))   // the old class can be deleted
-```
-
-Upcasting covers projectors, sagas, observers, aggregates (events and snapshots), commands and queries; a renamed command or query is still routed under its former name. Upgrade the servers to 3.0 before deploying the first `@Revision`.
-
-See [Payload Versioning and Upcasting](https://docs.eventoframework.com/evento-framework/payload-and-messages/payload-versioning) and [Upgrading to 3.0](https://docs.eventoframework.com/evento-server/evento-server-cluster/upgrading-to-3-0).
+Details in [How Evento Is Tested](https://docs.eventoframework.com/testing-and-verification).
 
 ## Getting Started
 
@@ -159,6 +118,7 @@ The documentation of Evento Framework includes:
 - [Evento Framework](https://docs.eventoframework.com/evento-framework/evento-framework-introcution)
 - [Evento Server](https://docs.eventoframework.com/evento-server/evento-server-introduction)
 - [Evento Server Cluster](https://docs.eventoframework.com/evento-server/evento-server-cluster)
+- [How Evento Is Tested](https://docs.eventoframework.com/testing-and-verification)
 - [Evento GUI](https://docs.eventoframework.com/evento-gui/explore-recq-systems-visually)
 
 ## Repository Resources
