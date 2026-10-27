@@ -8,6 +8,12 @@ updates:
     labels:
       - dependencies
       - gradle
+    ignore:
+      # The starter's boot3Test runs on Spring Boot 3.5 on purpose (boot3Version): a
+      # major bump would make it a second 4.x run. Majors of Spring Boot move by hand.
+      - dependency-name: org.springframework.boot:spring-boot-dependencies
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: npm
     directory: /evento-gui
     schedule:
