@@ -479,6 +479,24 @@ a revised payload needs a 3.0 broker.
   `ReentrantLock` now, so a virtual thread waiting there does not pin its carrier on JDK 21–23.
 - A response over the reconnect buffer's byte budget is no longer buffered
   (`event=reconnect_buffer_full`): a burst of disconnects can no longer exhaust the broker's heap.
+- **Event times no longer depend on the server's time zone.** The event store keeps UTC wall time, but the server
+  read it through the JVM's zone: off UTC, published events and the console showed times shifted by the zone
+  offset, an hour more or less across a daylight-saving change, and `deleted_at` was stamped in local time. They
+  are read and written as UTC now. The console's event search by creation time had its two bounds crossed; it
+  takes ISO-8601 instants and works. The system-state-store API returns `createdAt` / `deletedAt` as epoch
+  milliseconds.
+
+### Security
+
+- **Dependencies with known advisories updated.** Spring Boot 4.1.2 (Jackson 2 and 3 with the ReDoS and
+  resource-exhaustion fixes, Tomcat 11 with the fixes for two authentication bypasses); the Netty transport's
+  LZ4 moves from the abandoned `org.lz4:lz4-java` 1.8.0 to its maintained continuation
+  `at.yawk.lz4:lz4-java` 1.12.1 (same `net.jpountz` packages; an application that declares `org.lz4:lz4-java`
+  itself should drop it or exclude it). The runtime classpaths of the server and of every published library
+  have no OSV advisory at release time.
+- **Container images on Temurin 25.0.4.1**, every base image pinned by digest (the server image was on 25.0.3).
+- **Web console toolchain:** the npm advisories in its build tools (Angular CLI, vite, zod, uuid) are fixed;
+  `npm audit` reports none.
 
 ## [2.5.2] — 2026-10-13
 
