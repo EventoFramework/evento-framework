@@ -54,7 +54,7 @@
     "@angular/compiler-cli": "^22.2.3",
     "@angular/language-service": "^22.2.3",
     "@capacitor/cli": "^8.5.0",
-    "@ionic/angular-toolkit": "^12.3.0",
+    "@ionic/angular-toolkit": "^13.0.0",
     "@types/d3-hierarchy": "^3.1.7",
     "@types/dagre": "^0.7.54",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
