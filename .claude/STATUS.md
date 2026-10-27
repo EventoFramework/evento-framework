@@ -9,9 +9,16 @@ green: Maven Central (libraries at 3.0.0 on repo1), Release (signed boot jar on 
 multi-arch signed image `eventoframework/evento-server:3.0.0` = `latest` on Docker Hub and GHCR,
 GitHub Packages). Pre-release check: 0 open PRs, 0 issues, 1 open alert (#40 CII badge). Docs
 (evento-doc PR #1, docs/enterprise-2.6 -> master, GitBook) and site (evento-www PR #1 -> main, image
-build) merged after publication. Still open for the user: the public demo server
-(evento-www docker-compose.prod.yml) stays pinned to 2.5.2 until it is moved to 3.0 (prod profile);
-the marketplace branch with the business time-zone fixes is not pushed; trial branches of the
+build) merged after publication, site deployed (www only). Live demo moved to 3.0 the same day:
+evento-todo (PR #1, #2) on the Spring Boot starter 3.0.0 / Boot 4.1, showing read-your-writes,
+@PersonalData + "Forget me", DomainEvents ("Check all"), Page + streamed CSV export, @Revision with an
+upcaster, evento-test fixtures (14 tests; they found a saga NPE on events without metadata);
+evento-www (PR #2) runs evento-server 3.0.0 in the prod profile (bus token + personal-data master key
+created in the server's .env by deploy.sh, self-signed bus cert by deploy/bus-tls.sh, git-ignored),
+/demo page lists the 3.0 features; evento-doc (PR #2) Security page shows that compose as the complete
+prod example, last three 2.x references removed. Verified live: checks=passed, TLS on, create / check
+all / export / forget me, console guest 403 on writes. An Invoker argument is serialized (telemetry):
+pass no lambdas or writers to @InvocationHandler methods. Still open for the user: the marketplace branch with the business time-zone fixes is not pushed; trial branches of the
 marketplace and the manufacturing-execution system can move from rc13 to 3.0.0.
 
 ## 3.0.0 ready on main, not tagged (2026-10-27)
