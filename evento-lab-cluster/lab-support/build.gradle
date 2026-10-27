@@ -16,7 +16,7 @@ dependencyManagement {
     // jackson-annotations >= 2.20; the Boot BOM would pin an older one.
     // Same override as evento-lab.
     dependencies {
-        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.22'
     }
 }
 
