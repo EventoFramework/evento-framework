@@ -1,7 +1,7 @@
 # One runtime image for every JVM of the benchmark. The context is a staging directory made by
 # scripts/build.sh: app/ holds either one boot jar (app/app.jar) or an installed distribution
 # (app/lib/*.jar with MAIN set), nothing is compiled inside the image.
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25-jre-noble@sha256:af7b616f7f2c23bcff0bf706daf8aaab088c6f1843fdab637dcc6bd70ae573c3
 
 WORKDIR /app
 COPY app/ /app/
