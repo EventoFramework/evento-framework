@@ -14,7 +14,7 @@ repositories { mavenCentral(); mavenLocal() }
 dependencyManagement {
     // Flyway (via the JDBC consumer state store) needs jackson-annotations >= 2.20.
     dependencies {
-        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.21'
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.22'
     }
 }
 
