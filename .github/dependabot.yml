@@ -35,3 +35,9 @@ updates:
     labels:
       - dependencies
       - github-actions
+    # Every step of a workflow must run the same codeql-action version (init and
+    # analyze refuse to mix), so its actions move together in one PR.
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
