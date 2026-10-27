@@ -96,11 +96,12 @@ See the [documentation](https://docs.eventoframework.com/evento-3) for each of t
 
 ## How Evento is tested
 
-- **1,130 automated tests** on every change, over real TCP connections, against PostgreSQL 16 and 17 and MySQL 8.4, with several complete servers on one database.
+- **1,135 automated tests** on every change, over real TCP connections, against PostgreSQL 16 and 17 and MySQL 8.4, with several complete servers on one database.
 - **Nineteen chaos scenarios** on a three-region lab ([`evento-lab-cluster`](evento-lab-cluster)): servers killed, frozen and restarted, a region cut off, database failovers, cold starts, clock skew, retry storms. After each one the lab checks that no acknowledged command is lost, nothing is executed twice, no aggregate forks, the read models converge and the catalog lists every live bundle. Every invariant holds in every scenario ([results](evento-lab-cluster/results/V3-SUMMARY.md)).
-- **Rolling upgrades**: servers and bundles of the previous release line and of Evento 3 together, in every order, and a running cluster upgraded one process at a time.
+- **Rolling upgrades**: servers and bundles of different versions together, in every order, and a running cluster upgraded one process at a time.
 - **Highly available consumers** ([`evento-lab-microservices`](evento-lab-microservices)): one consumer per context in three replicas, the replica holding each lane killed twice mid-stream; every event applied exactly once and in order.
 - **Real applications**: the full test suites of a marketplace and of a manufacturing-execution system, green on Evento 3.
+- **Benchmarks**: about 3,900 commands a second on one 4-core server (p99 about 60 ms); a command round trip of 7 ms (median) on one machine, timed phase by phase, and measured across three regions; what a query answer costs the server, classic or streamed. `QueryPathBenchmarkIT` and `CommandLatencyBenchmarkIT` (`EVENTO_RUN_BENCH=true`) and the harness under [`benchmarks/`](benchmarks) reproduce them.
 
 Details in [How Evento Is Tested](https://docs.eventoframework.com/testing-and-verification).
 
@@ -145,8 +146,7 @@ By joining forces, we can make Evento a valuable tool for building the next gene
 Copyright 2020-2026 © Gabor Galazzo.
 
 From **3.0.0** everything is public, every feature included (single sign-on and audit trail of the
-console too): there is no closed edition. Versions up to 2.5.x keep the licences they were released
-with.
+console too): there is no closed edition.
 
 - **Client libraries — Apache-2.0.** `evento-transport-api`, `evento-transport-netty`, `evento-common`,
   `evento-bundle`, `evento-consumer-state-store-jdbc`, `evento-spring-boot-starter`,
