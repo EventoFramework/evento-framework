@@ -24,6 +24,12 @@ User: everything on main, release only when told ("aspetto tutte le correzioni")
   call in flight at the kill), marketplace 1385/1385, MES 153/153 first run.
 - Lesson: stopping a background lab task left its child scripts running; two lab rounds then
   fought over one stack (fake S16 failure, Gradle NoSuchFileException). Check ps before a new run.
+- Code-scanning alerts: 1 open, #40 CII Best Practices (badge "In Progress": the maintainer must
+  complete the bestpractices.dev questionnaire). Dismissed with a reason: #4/#79 gradle-wrapper.jar
+  (false positive, wrapper-validation in CI), #76 faketime `FROM ${BASE}` (won't fix: lab-only image
+  built from the digest-pinned lab Dockerfile), #2 branch protection and #41 code review (won't fix:
+  single maintainer, stricter rules would block every merge and the release push). Fixed: #74, #43,
+  #75. A dismissed alert's comment cannot be edited: reopen it, then dismiss again.
 - To release: on main, `scripts/release.sh major` (bumps to 3.0.0, tags v3.0.0, triggers the
   publishing workflows), then merge the docs and site branches.
 
