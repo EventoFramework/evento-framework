@@ -10,6 +10,7 @@ import com.evento.lab.ms.api.event.OrderItemAddedEvent;
 import com.evento.lab.ms.api.event.OrderItemRemovedEvent;
 import com.evento.lab.ms.api.view.OrderItemView;
 import com.evento.lab.ms.api.view.OrderView;
+import com.evento.lab.ms.query.store.ConsumptionJournal;
 import com.evento.lab.ms.query.store.OrderViewStore;
 
 @Projector(version = 1)
@@ -20,6 +21,7 @@ public class OrderProjector {
         var view = new OrderView(e.getOrderId(), e.getDescription(), e.getQuantity(), "CREATED", false);
         view.setContext(e.getContext());
         OrderViewStore.put(view);
+        ConsumptionJournal.record(e.getContext(), e.getOrderId());
     }
 
     @EventHandler

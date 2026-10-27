@@ -23,20 +23,20 @@ class BundleClientConfigZoneTest {
     void noZoneAdvertisesNothing() {
         var cfg = base().capabilities(Set.of("lz4")).build();
         assertThat(cfg.zone()).isNull();
-        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "stream:1", "revision:1");
+        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "stream:1", "revision:1", "events:1", "head:1");
     }
 
     @Test
     void theZoneIsAddedToTheHelloCapabilities() {
         var cfg = base().capabilities(Set.of("lz4")).zone("AM").build();
         assertThat(cfg.zone()).isEqualTo("AM");
-        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "zone:AM", "stream:1", "revision:1");
+        assertThat(HelloFactory.build(cfg).capabilities()).containsExactlyInAnyOrder("lz4", "zone:AM", "stream:1", "revision:1", "events:1", "head:1");
     }
 
     @Test
     void anExplicitZoneReplacesOnePassedAsARawCapabilityWhateverTheCallOrder() {
         var zoneFirst = base().zone(" EU ").capabilities(Set.of("zone:AM", "ping-pong")).build();
-        assertThat(zoneFirst.capabilities()).containsExactlyInAnyOrder("zone:EU", "ping-pong", "stream:1", "revision:1");
+        assertThat(zoneFirst.capabilities()).containsExactlyInAnyOrder("zone:EU", "ping-pong", "stream:1", "revision:1", "events:1", "head:1");
 
         var rawOnly = base().capabilities(Set.of("zone:APAC")).build();
         assertThat(rawOnly.zone()).isEqualTo("APAC");
@@ -46,7 +46,7 @@ class BundleClientConfigZoneTest {
     void aBlankZoneIsNone() {
         var cfg = base().zone("  ").build();
         assertThat(cfg.zone()).isNull();
-        // No zone capability; only those every 2.6 bundle offers (a Set: no order).
-        assertThat(cfg.capabilities()).containsExactlyInAnyOrder("stream:1", "revision:1");
+        // No zone capability; only those every 3.0 bundle offers (a Set: no order).
+        assertThat(cfg.capabilities()).containsExactlyInAnyOrder("stream:1", "revision:1", "events:1", "head:1");
     }
 }

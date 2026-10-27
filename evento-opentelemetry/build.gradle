@@ -1,0 +1,17 @@
+ext.libraryName = 'Evento Framework - OpenTelemetry'
+ext.libraryDescription = 'OpenTelemetry tracing for Evento bundles: a span per handler, W3C trace context carried in message metadata'
+apply from: rootProject.file('gradle/evento-library.gradle')
+
+dependencies {
+    api project(':evento-bundle')
+    // The API only: the application brings the SDK or the Java agent, and decides where spans go.
+    api "io.opentelemetry:opentelemetry-api:${openTelemetryVersion}"
+
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${openTelemetryVersion}"
+    testImplementation "io.opentelemetry:opentelemetry-sdk:${openTelemetryVersion}"
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.26.1'
+}

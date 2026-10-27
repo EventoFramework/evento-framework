@@ -14,13 +14,16 @@ import com.evento.common.modeling.messaging.message.application.DomainCommandMes
 import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
 import com.evento.common.modeling.messaging.payload.DomainCommand;
 import com.evento.common.modeling.messaging.payload.DomainEvent;
+import com.evento.common.modeling.messaging.payload.DomainEvents;
 import com.evento.common.modeling.state.AggregateState;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -105,10 +108,27 @@ public class AggregateReference extends Reference {
      * @param commandGateway     The command gateway for issuing commands.
      * @param queryGateway       The query gateway for querying data.
      * @param messageHandlerInterceptor The message interceptor
-     * @return The domain event resulting from the command execution.
+     * @return The domain event resulting from the command execution: the last one, when the
+     *         handler returned {@link DomainEvents}.
      * @throws Exception If there is an error during command handling.
      */
     public DomainEvent invoke(
+            DomainCommandMessage cm,
+            AggregateStateEnvelope envelope,
+            Collection<DomainEventMessage> eventStream,
+            CommandGateway commandGateway,
+            QueryGateway queryGateway, MessageHandlerInterceptor messageHandlerInterceptor)
+            throws Throwable {
+        return invokeAll(cm, envelope, eventStream, commandGateway, queryGateway, messageHandlerInterceptor).getLast();
+    }
+
+    /**
+     * As {@link #invoke}, every event the command produced, in order: one, or those of the
+     * {@link DomainEvents} the handler returned. Each goes through
+     * {@link MessageHandlerInterceptor#afterAggregateCommandHandling} and is applied to the state
+     * before the next one; none may follow the event that deletes the aggregate.
+     */
+    public List<DomainEvent> invokeAll(
             DomainCommandMessage cm,
             AggregateStateEnvelope envelope,
             Collection<DomainEventMessage> eventStream,
@@ -144,7 +164,7 @@ public class AggregateReference extends Reference {
                 queryGateway
         );
         try {
-            var resp = (DomainEvent) ReflectionUtils.invoke(getRef(), commandHandler,
+            var returned = ReflectionUtils.invoke(getRef(), commandHandler,
                     cm.getPayload(),
                     envelope.getAggregateState(),
                     commandGateway,
@@ -153,26 +173,37 @@ public class AggregateReference extends Reference {
                     cm.getMetadata(),
                     Instant.ofEpochMilli(cm.getTimestamp())
             );
-            resp = messageHandlerInterceptor.afterAggregateCommandHandling(
-                    getRef(),
-                    envelope.getAggregateState(),
-                    cm,
-                    commandGateway,
-                    queryGateway,
-                    resp
-            );
+            List<DomainEvent> produced = returned instanceof DomainEvents many ? many.events()
+                    : java.util.Collections.singletonList((DomainEvent) returned);
+            var events = new ArrayList<DomainEvent>(produced.size());
+            for (var event : produced) {
+                if (!events.isEmpty() && envelope.getAggregateState() != null
+                        && envelope.getAggregateState().isDeleted()) {
+                    throw new IllegalStateException("Command handler returned events after "
+                            + events.getLast().getClass().getSimpleName() + ", which deleted the aggregate");
+                }
+                var resp = messageHandlerInterceptor.afterAggregateCommandHandling(
+                        getRef(),
+                        envelope.getAggregateState(),
+                        cm,
+                        commandGateway,
+                        queryGateway,
+                        event
+                );
 
-            if (resp == null) {
-                throw new IllegalArgumentException("Command handler returned null");
+                if (resp == null) {
+                    throw new IllegalArgumentException("Command handler returned null");
+                }
+                var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
+                var state = eh == null ? null : (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata(),
+                        Instant.ofEpochMilli(cm.getTimestamp()));
+                if (state == null) {
+                    state = envelope.getAggregateState();
+                }
+                envelope.setAggregateState(state);
+                events.add(resp);
             }
-            var eh = getEventSourcingHandler(resp.getClass().getSimpleName());
-            var state = eh == null ? null : (AggregateState) ReflectionUtils.invoke(getRef(), eh, resp, envelope.getAggregateState(), cm.getMetadata(),
-                    Instant.ofEpochMilli(cm.getTimestamp()));
-            if (state == null) {
-                state = envelope.getAggregateState();
-            }
-            envelope.setAggregateState(state);
-            return resp;
+            return events;
 
         }catch (Throwable t){
             throw messageHandlerInterceptor.onExceptionAggregateCommandHandling(

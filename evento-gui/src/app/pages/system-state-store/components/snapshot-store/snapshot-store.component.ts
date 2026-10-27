@@ -2,7 +2,7 @@ import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import {SystemStateStoreService} from "../../../../services/system-state-store.service";
 import {ActivatedRoute} from "@angular/router";
 import { DatePipe, JsonPipe } from "@angular/common";
-import {IonicModule} from "@ionic/angular";
+import {IonicModule} from "@ionic/angular/lazy";
 import {TranslatePipe} from "@ngx-translate/core";
 import {FormsModule} from "@angular/forms";
 

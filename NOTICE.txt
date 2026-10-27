@@ -1,0 +1,5 @@
+Evento Framework
+Copyright 2023-2026 Gabor Galazzo
+
+This product includes software developed by Gabor Galazzo
+(https://www.eventoframework.com/).

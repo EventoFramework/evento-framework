@@ -2,12 +2,11 @@ package com.evento.application.manager;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ObserverReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Observer;
 import com.evento.common.modeling.messaging.message.application.Message;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
@@ -15,7 +14,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class ObserverManager extends ConsumerComponentManager<ObserverReference> {
-    private static final Logger logger = LogManager.getLogger(ObserverManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(ObserverManager.class);
 
     public ObserverManager(String bundleId, BiFunction<String, Message<?>, GatewayTelemetryProxy> gatewayTelemetryProxy,
                            TracingAgent tracingAgent,
@@ -24,8 +23,8 @@ public class ObserverManager extends ConsumerComponentManager<ObserverReference>
     }
 
     @Override
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Observer.class)) {
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        for (Class<?> aClass : scan.annotatedWith(Observer.class)) {
             var observerReference = new ObserverReference(createComponentInstance(aClass, findInjectableObject));
             getReferences().add(observerReference);
             for (String event : observerReference.getRegisteredEvents()) {

@@ -155,7 +155,6 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
         var type = commandType(command);
         int ordinal = commandOrdinals.computeIfAbsent(type, t -> new AtomicInteger()).getAndIncrement();
         var key = CommandMessage.normalizeIdempotencyKey(idempotencyKey);
-        var correlated = tracingAgent.correlate(metadata, this.handledMessage);
         if (key != null) {
             try {
                 CommandMessage.checkCallerIdempotencyKey(key);
@@ -163,14 +162,17 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
                 return CompletableFuture.failedFuture(e);
             }
             // Explicit: the target carries it or fails loudly (never dropped silently).
-            return commandGateway.send(command, correlated, this.handledMessage, timeout, unit, key);
+            return tracingAgent.traceSend(command, metadata, this.handledMessage, correlated ->
+                    commandGateway.send(command, correlated, this.handledMessage, timeout, unit, key));
         }
         var scope = idempotencyScope;
         if (scope != null && commandGateway.supportsIdempotencyKeys()) {
-            return commandGateway.send(command, correlated, this.handledMessage, timeout, unit,
-                    deriveIdempotencyKey(scope, type, ordinal));
+            var derived = deriveIdempotencyKey(scope, type, ordinal);
+            return tracingAgent.traceSend(command, metadata, this.handledMessage, correlated ->
+                    commandGateway.send(command, correlated, this.handledMessage, timeout, unit, derived));
         }
-        return commandGateway.send(command, correlated, this.handledMessage, timeout, unit);
+        return tracingAgent.traceSend(command, metadata, this.handledMessage, correlated ->
+                commandGateway.send(command, correlated, this.handledMessage, timeout, unit));
     }
 
     /**
@@ -185,7 +187,6 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
         var type = commandType(command);
         int ordinal = commandOrdinals.computeIfAbsent(type, t -> new AtomicInteger()).getAndIncrement();
         var key = CommandMessage.normalizeIdempotencyKey(idempotencyKey);
-        var correlated = tracingAgent.correlate(metadata, this.handledMessage);
         if (key != null) {
             try {
                 CommandMessage.checkCallerIdempotencyKey(key);
@@ -195,7 +196,9 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
         } else if (idempotencyScope != null && commandGateway.supportsIdempotencyKeys()) {
             key = deriveIdempotencyKey(idempotencyScope, type, ordinal);
         }
-        return commandGateway.sendTracked(command, correlated, this.handledMessage, timeout, unit, key);
+        var sentKey = key;
+        return tracingAgent.traceSend(command, metadata, this.handledMessage, correlated ->
+                commandGateway.sendTracked(command, correlated, this.handledMessage, timeout, unit, sentKey));
     }
 
     /** Whether the target gateway carries keys (see {@link CommandGateway#supportsIdempotencyKeys()}). */
@@ -285,14 +288,17 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> query(Query<T> query, Metadata metadata, Message<?> handledMessage, long timeout, TimeUnit unit) {
         updateInvocationCounter(query);
-        return queryGateway.query(query, tracingAgent.correlate(metadata, this.handledMessage), this.handledMessage, timeout, unit);
+        return tracingAgent.traceSend(query, metadata, this.handledMessage, correlated ->
+                queryGateway.query(query, correlated, this.handledMessage, timeout, unit));
     }
 
     @Override
     public <T extends QueryResponse<?>> CompletableFuture<T> queryWith(Query<T> query,
                                                                       com.evento.common.messaging.gateway.QueryOptions options) {
         updateInvocationCounter(query);
-        return queryGateway.queryWith(query, correlated(options));
+        var opts = options == null ? com.evento.common.messaging.gateway.QueryOptions.defaults() : options;
+        return tracingAgent.traceSend(query, opts.getMetadata(), this.handledMessage, correlated ->
+                queryGateway.queryWith(query, opts.metadata(correlated)));
     }
 
     @Override

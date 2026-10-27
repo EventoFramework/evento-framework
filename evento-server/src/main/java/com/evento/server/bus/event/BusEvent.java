@@ -17,6 +17,7 @@ import java.time.Instant;
  */
 public sealed interface BusEvent
         permits BusEvent.NodeJoined,
+                BusEvent.NodeEstablished,
                 BusEvent.BundleRegistered,
                 BusEvent.BundleDiscovered,
                 BusEvent.NodeLeft,
@@ -36,6 +37,16 @@ public sealed interface BusEvent
      * {@link BundleRegistered}).
      */
     record NodeJoined(NodeAddress node, Instant timestamp) implements BusEvent {}
+
+    /**
+     * Fired, synchronously, when a session sends its first message after the Hello, before that
+     * message is handled: the bundle read the Welcome, so the session is live. A session that
+     * closes before it (a fail-back attempt the bundle gave up on, read by a server that resumed
+     * from a pause) never fires it. The catalog claims the instance on this event, not on
+     * {@link NodeJoined}: a claim by such a session took the instance away from the server where
+     * it was live, and a stale session's departure there then wiped its rows (S04 on the lab).
+     */
+    record NodeEstablished(NodeAddress node, Instant timestamp) implements BusEvent {}
 
     /**
      * Fired when a bundle sends its {@code evento:bundle-registration}

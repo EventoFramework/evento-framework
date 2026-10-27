@@ -27,6 +27,17 @@ import java.util.Optional;
  *       once the event is stored (in the append statement) or the handler produced no event,
  *       and kept; it is deleted when the execution failed.</li>
  * </ul>
+ *
+ * <h2>The aggregate fence (C1)</h2>
+ * Each event of an aggregate command carries the aggregate's version ({@code es__events.aggregate_seq}:
+ * 1, 2, 3...) under a unique index on {@code (aggregate_id, aggregate_seq)}. The story is read
+ * with the version it ends at ({@link KeyedAggregateStory#aggregateVersion()}) and the event is
+ * appended as the next one ({@link #appendAggregateEvent}): a second append from the same story
+ * (a server that lost the aggregate lock, a command with no lock at all) takes a version that is
+ * already taken, and the database refuses it ({@link AggregateFenceException}). The lock stays
+ * the way commands wait for each other; the fence is what makes a lost or missing lock unable to
+ * fork the aggregate. A store written before the fence keeps compiling: the defaults report no
+ * version and append unfenced.
  */
 public interface BrokerEventStore {
 
@@ -173,8 +184,62 @@ public interface BrokerEventStore {
         return seq;
     }
 
-    /** A story with the record of the command's key, read together. */
-    record KeyedAggregateStory(AggregateStory story, IdempotencyRecord record) {
+    /**
+     * Appends the event of an aggregate command as version {@code expectedVersion + 1} of the
+     * aggregate, atomically with the check that the version is free (see the class comment),
+     * together with the key as in {@link #publishEvent(EventMessage, String, String, String)}.
+     *
+     * @param expectedVersion the version the story ended at
+     *                        ({@link KeyedAggregateStory#aggregateVersion()}), {@code null} to
+     *                        append unfenced
+     * @return the event's sequence number
+     * @throws AggregateFenceException         when the aggregate moved past {@code expectedVersion};
+     *                                         nothing was appended
+     * @throws IdempotencyKeyConflictException when an event with that key is already stored
+     */
+    default long appendAggregateEvent(EventMessage<?> eventMessage, String aggregateId, String idempotencyKey,
+                                      String commandType, Long expectedVersion) {
+        return publishEvent(eventMessage, aggregateId, idempotencyKey, commandType);
+    }
+
+    /**
+     * Appends the events of one aggregate command (F9) as {@link #appendAggregateEvent} appends
+     * one, all of them or none: versions {@code expectedVersion + 1} onwards, consecutive in the
+     * store, the key on the last one.
+     *
+     * @return the sequence number of the last event
+     * @throws UnsupportedOperationException when this store cannot append several events atomically
+     */
+    default long appendAggregateEvents(java.util.List<? extends EventMessage<?>> events, String aggregateId,
+                                       String idempotencyKey, String commandType, Long expectedVersion) {
+        if (events.size() == 1) {
+            return appendAggregateEvent(events.getFirst(), aggregateId, idempotencyKey, commandType, expectedVersion);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName()
+                + " cannot append several events of one command atomically");
+    }
+
+    /**
+     * Whether aggregate appends are fenced now, so that an aggregate command may run without its
+     * lock (optimistic concurrency): two commands from one story cannot both append, the loser
+     * is told so ({@link AggregateFenceException}) and the broker runs it again on the new story.
+     * A store that cannot fence answers {@code false}, and every aggregate command takes its lock.
+     */
+    default boolean fencesAggregates() {
+        return false;
+    }
+
+    /**
+     * A story with the record of the command's key, read together.
+     *
+     * @param aggregateVersion the aggregate's version the story ends at (0 for an aggregate with
+     *                         no fenced event yet), read in the same snapshot as the events;
+     *                         {@code null} when the store cannot fence appends
+     */
+    record KeyedAggregateStory(AggregateStory story, IdempotencyRecord record, Long aggregateVersion) {
+        public KeyedAggregateStory(AggregateStory story, IdempotencyRecord record) {
+            this(story, record, null);
+        }
     }
 
     /** The outcome of {@link #claimOrFindIdempotencyKey}. */
@@ -214,6 +279,18 @@ public interface BrokerEventStore {
         public boolean belongsTo(String otherCommandType, String otherAggregateId) {
             return (commandType == null || commandType.equals(otherCommandType))
                     && Objects.equals(aggregateId, otherAggregateId);
+        }
+    }
+
+    /**
+     * The aggregate moved past the version its story ended at: another append from an older
+     * or concurrent story got there first. Nothing was appended; the command can be sent again
+     * and will run on the new story.
+     */
+    class AggregateFenceException extends RuntimeException {
+        public AggregateFenceException(String aggregateId, long expectedVersion) {
+            super("aggregate '" + aggregateId + "' changed while the command ran: it is no longer at version "
+                    + expectedVersion + "; nothing was stored, send the command again");
         }
     }
 

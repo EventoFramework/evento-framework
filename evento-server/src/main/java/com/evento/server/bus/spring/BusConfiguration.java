@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>v2 bus is the production bus as of v2.0.
  */
 @Configuration
-@EnableConfigurationProperties(BusProperties.class)
+@EnableConfigurationProperties({BusProperties.class, BusTlsProperties.class})
 public class BusConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(BusConfiguration.class);
@@ -119,10 +119,22 @@ public class BusConfiguration {
         return pool;
     }
 
+    /**
+     * {@code evento.server.security.profile}: in {@code prod} the context fails here, before the
+     * transport config (and so the bus port) exists, when a hardening check does not pass.
+     */
+    @Bean
+    public SecurityProfileGuard securityProfileGuard(org.springframework.core.env.Environment env,
+                                                     BusTlsProperties tls) {
+        return SecurityProfileGuard.enforce(env, tls);
+    }
+
     @Bean
     public NettyTransportConfig nettyTransportConfig(BusProperties props,
+                                                     BusTlsProperties tls,
+                                                     SecurityProfileGuard securityProfile,
                                                      ThreadPoolExecutor busBusinessExecutor) {
-        return new NettyTransportConfig(
+        var config = new NettyTransportConfig(
                 props.heartbeatWriteIdle(),
                 props.heartbeatReadIdle(),
                 props.connectTimeout(),
@@ -133,6 +145,10 @@ public class BusConfiguration {
                 new com.evento.transport.codec.JacksonCborCodec(),
                 busBusinessExecutor
         );
+        var ssl = tls.serverContext();
+        if (ssl == null) return config;
+        log.info("event=bus_tls_enabled client_auth={} protocols={}", tls.clientAuth(), tls.protocols());
+        return config.withSslContext(ssl);
     }
 
     @Bean(destroyMethod = "")
@@ -177,11 +193,16 @@ public class BusConfiguration {
                                      // The broker's own replies (event fetches) from this size are
                                      // compressed for callers that accept it; 0 never.
                                      @Value("${evento.server.bus.compression.threshold-bytes:32768}") int compressionThreshold,
+                                     // The head notifier (HeadNotifier) runs: the bundles may wait for it.
+                                     @Value("${evento.es.head.poll.ms:50}") long headPollMs,
                                      org.springframework.beans.factory.ObjectProvider<
                                              org.springframework.boot.availability.ApplicationAvailability> availability) {
         var lifecycle = new BusLifecycle(transportServer, connections, cluster, correlations,
                 forwarding, eventBus, props.serverInstanceId(),
-                Set.of(HandshakeProtocol.CAPABILITY_PING_PONG), payloadCodec, tokenValidator,
+                com.evento.server.es.HeadNotifier.enabled(headPollMs)
+                        ? Set.of(HandshakeProtocol.CAPABILITY_PING_PONG, HandshakeProtocol.CAPABILITY_HEAD)
+                        : Set.of(HandshakeProtocol.CAPABILITY_PING_PONG),
+                payloadCodec, tokenValidator,
                 new com.evento.server.bus.correlation.ForwardingDedupCache(50_000, java.time.Duration.ofMinutes(5),
                         dedupMaxRetainedBytes, dedupMaxResponseBytes));
         lifecycle.setReconnectBufferMaxBytes(reconnectBufferMaxBytes);

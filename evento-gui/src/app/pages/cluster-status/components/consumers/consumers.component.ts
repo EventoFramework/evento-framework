@@ -2,7 +2,7 @@ import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {ClusterStatusService} from "../../../../services/cluster-status.service";
 import {ConsumerService} from "../../../../services/consumer.service";
 import { DatePipe } from "@angular/common";
-import {IonicModule, IonModal, LoadingController} from "@ionic/angular";
+import {IonicModule, IonModal, LoadingController, ToastController} from "@ionic/angular/lazy";
 import {TranslatePipe, TranslateDirective} from "@ngx-translate/core";
 import {ComponentsModule} from "../../../../components/components.module";
 
@@ -27,7 +27,16 @@ export class ConsumersComponent implements OnInit {
   protected selectedDead: any;
 
   constructor(private service: ConsumerService,
-              private loadingCtrl: LoadingController) {
+              private loadingCtrl: LoadingController,
+              private toastCtrl: ToastController) {
+  }
+
+  /** Reports a refused or failed admin action (for instance a user without the ADMIN role). */
+  private async reportFailure(e: any) {
+    const toast = await this.toastCtrl.create({
+      message: e?.message ?? String(e), color: 'danger', duration: 5000, position: 'top'
+    });
+    await toast.present();
   }
 
   ngOnInit() {
@@ -56,8 +65,15 @@ export class ConsumersComponent implements OnInit {
     })
   }
 
-  setEventRetry($event: any, de: any) {
-    this.service.setRetryToDeadEvent(de.consumerId, de.eventSequenceNumber, $event.detail.checked);
+  async setEventRetry($event: any, de: any) {
+    const checked = $event.detail.checked;
+    try {
+      await this.service.setRetryToDeadEvent(de.consumerId, de.eventSequenceNumber, checked);
+      de.retry = checked;
+    } catch (e) {
+      $event.target.checked = !checked;
+      await this.reportFailure(e);
+    }
   }
 
   async reprocessDeadEventQueue(consumer: any) {
@@ -80,7 +96,9 @@ export class ConsumersComponent implements OnInit {
         return e;
       });
       this.consumerState = cs;
-    }finally{
+    } catch (e) {
+      await this.reportFailure(e);
+    } finally {
       await l.dismiss();
     }
   }
@@ -105,7 +123,9 @@ export class ConsumersComponent implements OnInit {
         return e;
       });
       this.consumerState = cs;
-    }finally{
+    } catch (e) {
+      await this.reportFailure(e);
+    } finally {
       await l.dismiss();
     }
   }

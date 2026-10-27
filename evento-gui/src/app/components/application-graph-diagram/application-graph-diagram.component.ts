@@ -1,6 +1,6 @@
 import {AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
-import {LoadingController, NavController} from '@ionic/angular';
+import {LoadingController, NavController} from '@ionic/angular/lazy';
 import {componentColor, getColorForBundle, payloadColor} from '../../services/utils';
 import cytoscape from 'cytoscape';
 import {hierarchy, pack} from 'd3-hierarchy';

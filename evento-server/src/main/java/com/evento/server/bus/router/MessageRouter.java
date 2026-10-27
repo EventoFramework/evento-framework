@@ -32,7 +32,7 @@ public final class MessageRouter {
     @FunctionalInterface public interface RequestHandler { void handle(Request request, Frame frame, BundleSession session); }
     @FunctionalInterface public interface ResponseHandler { void handle(Response response, Frame frame, BundleSession session); }
     @FunctionalInterface public interface NotificationHandler { void handle(Notification notification, Frame frame, BundleSession session); }
-    /** The frames of streamed replies (2.6): {@code StreamData}, {@code StreamCredit}, {@code StreamCancel}, {@code StreamRedirect}. */
+    /** The frames of streamed replies (3.0): {@code StreamData}, {@code StreamCredit}, {@code StreamCancel}, {@code StreamRedirect}. */
     @FunctionalInterface public interface StreamHandler { void handle(Message message, Frame frame, BundleSession session); }
 
     private final HelloHandler helloHandler;

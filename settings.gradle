@@ -14,6 +14,10 @@ include 'evento-bundle'
 include 'evento-transport-api'
 include 'evento-transport-netty'
 include 'evento-consumer-state-store:evento-consumer-state-store-jdbc'
+include 'evento-test'
+include 'evento-test-broker'
+include 'evento-spring-boot-starter'
+include 'evento-opentelemetry'
 
 
 include 'evento-lab'

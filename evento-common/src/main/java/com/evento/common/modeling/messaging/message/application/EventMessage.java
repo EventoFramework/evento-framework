@@ -13,7 +13,7 @@ public abstract class EventMessage<T extends Event> extends Message<T> {
 	private String context;
 
 	/**
-	 * Where the broker stored this event, when it came back as a command's result (2.6).
+	 * Where the broker stored this event, when it came back as a command's result (3.0).
 	 * Process-local: never serialized, never stored with the event.
 	 */
 	@com.fasterxml.jackson.annotation.JsonIgnore

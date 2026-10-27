@@ -17,41 +17,34 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EventStoreRequestHandlerBridgeTest {
 
     @Test
-    void freshRequestIsNotExpired() {
-        long now = 1_000_000L;
-        assertThat(EventStoreRequestHandlerBridge.isExpired(now - 1_000, now, 30_000)).isFalse();
+    void aFetchThatJustArrivedIsNotStale() {
+        assertThat(EventStoreRequestHandlerBridge.isStale(1_000, 30_000)).isFalse();
     }
 
     @Test
-    void requestOlderThanMaxAgeIsExpired() {
-        long now = 1_000_000L;
-        assertThat(EventStoreRequestHandlerBridge.isExpired(now - 30_001, now, 30_000)).isTrue();
+    void aFetchThatWaitedLongerThanTheMaxAgeIsStale() {
+        assertThat(EventStoreRequestHandlerBridge.isStale(30_001, 30_000)).isTrue();
     }
 
     @Test
-    void requestExactlyAtMaxAgeIsNotExpired() {
-        long now = 1_000_000L;
-        assertThat(EventStoreRequestHandlerBridge.isExpired(now - 30_000, now, 30_000)).isFalse();
+    void exactlyAtTheMaxAgeIsNotStale() {
+        assertThat(EventStoreRequestHandlerBridge.isStale(30_000, 30_000)).isFalse();
     }
 
     @Test
-    void unstampedRequestDisablesTheGate() {
-        // Older clients may not stamp the envelope; never drop their requests.
-        assertThat(EventStoreRequestHandlerBridge.isExpired(0, 1_000_000L, 30_000)).isFalse();
-        assertThat(EventStoreRequestHandlerBridge.isExpired(-1, 1_000_000L, 30_000)).isFalse();
+    void aNonPositiveMaxAgeDisablesTheGate() {
+        assertThat(EventStoreRequestHandlerBridge.isStale(999_999, 0)).isFalse();
+        assertThat(EventStoreRequestHandlerBridge.isStale(999_999, -1)).isFalse();
     }
 
+    /**
+     * S15: the gate used to compare the consumer's own timestamp with the server's clock, so a
+     * consumer whose clock ran 40 s behind had every fetch dropped. The age is now what the fetch
+     * spent on this server, which no client clock enters.
+     */
     @Test
-    void nonPositiveMaxAgeDisablesTheGate() {
-        long now = 1_000_000L;
-        assertThat(EventStoreRequestHandlerBridge.isExpired(now - 999_999, now, 0)).isFalse();
-        assertThat(EventStoreRequestHandlerBridge.isExpired(now - 999_999, now, -1)).isFalse();
-    }
-
-    @Test
-    void clockSkewAheadOfServerIsNotExpired() {
-        // A client clock slightly ahead of the server produces a negative age.
-        long now = 1_000_000L;
-        assertThat(EventStoreRequestHandlerBridge.isExpired(now + 5_000, now, 30_000)).isFalse();
+    void theConsumersClockPlaysNoPart() {
+        // Whatever the consumer stamped, a fetch served 5 ms after its arrival is fresh.
+        assertThat(EventStoreRequestHandlerBridge.isStale(5, 30_000)).isFalse();
     }
 }

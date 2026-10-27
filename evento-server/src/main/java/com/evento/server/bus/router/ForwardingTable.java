@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * table records the originator address keyed by the same {@code correlationId}
  * that travels end-to-end with the request.
  *
- * <p><b>Streams (2.6).</b> A request that asked for a streamed reply keeps its entry
+ * <p><b>Streams (3.0).</b> A request that asked for a streamed reply keeps its entry
  * for the whole stream: every frame is relayed by looking the entry up, not resolving
  * it, and refreshes its activity; the entry goes with the last frame, a cancel, or a
  * reply that ended it. A stream lives as long as it moves, so it is pruned by
@@ -40,17 +40,22 @@ public final class ForwardingTable {
      * @param submittedAtMs  when the request was forwarded
      * @param streamed       whether the caller asked for a streamed reply
      * @param lastActivityMs the last frame relayed for it (= {@code submittedAtMs} until then)
+     * @param receivedAtNanos {@link System#nanoTime()} when the request reached this broker, for
+     *                        the request timer
      */
     public record Entry(UUID correlationId, NodeAddress originator, NodeAddress destination,
-                        String payloadType, long submittedAtMs, boolean streamed, long lastActivityMs) {
+                        String payloadType, long submittedAtMs, boolean streamed, long lastActivityMs,
+                        long receivedAtNanos) {
 
         public Entry(UUID correlationId, NodeAddress originator, NodeAddress destination,
                      String payloadType, long submittedAtMs) {
-            this(correlationId, originator, destination, payloadType, submittedAtMs, false, submittedAtMs);
+            this(correlationId, originator, destination, payloadType, submittedAtMs, false, submittedAtMs,
+                    System.nanoTime());
         }
 
         Entry touched(long nowMs) {
-            return new Entry(correlationId, originator, destination, payloadType, submittedAtMs, streamed, nowMs);
+            return new Entry(correlationId, originator, destination, payloadType, submittedAtMs, streamed, nowMs,
+                    receivedAtNanos);
         }
     }
 
@@ -69,8 +74,15 @@ public final class ForwardingTable {
     /** {@link #track(UUID, NodeAddress, NodeAddress, String)} for a request that asked for a streamed reply. */
     public boolean track(UUID correlationId, NodeAddress originator,
                          NodeAddress destination, String payloadType, boolean streamed) {
+        return track(correlationId, originator, destination, payloadType, streamed, System.nanoTime());
+    }
+
+    /** {@link #track(UUID, NodeAddress, NodeAddress, String, boolean)} with when the request arrived. */
+    public boolean track(UUID correlationId, NodeAddress originator, NodeAddress destination,
+                         String payloadType, boolean streamed, long receivedAtNanos) {
         long now = System.currentTimeMillis();
-        var entry = new Entry(correlationId, originator, destination, payloadType, now, streamed, now);
+        var entry = new Entry(correlationId, originator, destination, payloadType, now, streamed, now,
+                receivedAtNanos);
         return table.putIfAbsent(correlationId, entry) == null;
     }
 

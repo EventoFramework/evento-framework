@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import {apiFetch} from './api';
+import {apiFetch, apiWrite} from './api';
 
 @Injectable({
   providedIn: 'root'
@@ -18,24 +18,24 @@ export class ConsumerService {
   }
 
   setRetryToDeadEvent(consumerId: any, eventSequenceNumber: any, checked) {
-    return apiFetch('/api/consumer/' + consumerId + '/event/' + eventSequenceNumber +'?retry=' + checked,
+    return apiWrite('/api/consumer/' + consumerId + '/event/' + eventSequenceNumber +'?retry=' + checked,
       {
       method: 'PUT'
-    }).then(r => r.json());
+    });
   }
 
   deleteDeadEvent(consumerId: any, eventSequenceNumber: any) {
-    return apiFetch('/api/consumer/' + consumerId + '/event/' + eventSequenceNumber,
+    return apiWrite('/api/consumer/' + consumerId + '/event/' + eventSequenceNumber,
       {
       method: 'DELETE'
-    }).then(r => r.json());
+    });
   }
 
   async consumeDeadQueue(consumerId: any) {
-    return apiFetch('/api/consumer/' + consumerId + '/consume-dead-queue',
+    return apiWrite('/api/consumer/' + consumerId + '/consume-dead-queue',
       {
         method: 'POST'
-      }).then(r => r.json());
+      });
 
   }
 }

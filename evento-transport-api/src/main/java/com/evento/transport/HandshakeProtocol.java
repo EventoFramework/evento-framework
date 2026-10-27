@@ -22,7 +22,7 @@ public final class HandshakeProtocol {
 
     /**
      * The peer exchanges streamed replies ({@code StreamData}, {@code StreamCredit},
-     * {@code StreamCancel}, {@code StreamRedirect}, 2.6). Stream messages are only sent to
+     * {@code StreamCancel}, {@code StreamRedirect}, 3.0). Stream messages are only sent to
      * a peer that negotiated it: one that did not cannot decode them. A broker accepts it
      * from every bundle that offers it; a bundle streams only on a session where it was
      * accepted.
@@ -30,13 +30,32 @@ public final class HandshakeProtocol {
     public static final String CAPABILITY_STREAM = "stream:1";
 
     /**
-     * The broker keeps the revision of every payload it stores or forwards (2.6). An older
+     * The broker keeps the revision of every payload it stores or forwards (3.0). An older
      * broker decodes a payload envelope with classes that have no revision and re-encodes it
      * without one: a payload written at a later revision would then be stored as revision 0
      * and upcast again on every read. A bundle sends payloads of a revised class only on a
      * session where this was accepted. A broker accepts it from every bundle that offers it.
      */
     public static final String CAPABILITY_REVISION = "revision:1";
+
+    /**
+     * The broker stores several events from one aggregate command, atomically (3.0,
+     * {@code DomainEvents}). An older broker would ignore the events before the last one and
+     * store that one alone: a bundle answers with several events only on a session where this
+     * was accepted. A broker accepts it from every bundle that offers it.
+     */
+    public static final String CAPABILITY_EVENTS = "events:1";
+
+    /**
+     * The broker tells the bundle when its event store has grown
+     * ({@link com.evento.transport.protocol.ProtocolNotifications#EVENTS_APPENDED}, 3.0). A
+     * bundle's consumers at the head then wait for that notice, with their fetch delay as a
+     * safety net, instead of fetching again every few milliseconds: with a hundred consumers the
+     * empty fetches were thousands of event-store queries a second, and the fetches that had
+     * events queued behind them. Without it (an older broker, or one that does not watch its
+     * store) the consumers poll as before.
+     */
+    public static final String CAPABILITY_HEAD = "head:1";
 
     /**
      * Prefix of the capability a bundle uses to say where it runs:

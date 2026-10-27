@@ -169,8 +169,9 @@ contract — "for any input, return an allow-listed `Message` or throw
 - **Vulnerabilities (0):** GUI npm majors upgraded — see above. Down to 5
   unfixable moderates (4 build-only + abandoned `mxgraph`). Dependabot will keep
   surfacing `mxgraph` until it's replaced.
-- **License (9):** custom dual-license kept by choice. To reach 10: add canonical
-  AGPL-3.0 text as `COPYING` alongside the existing files.
+- **License (9):** since 2026-10-20 Apache-2.0 (client libraries) and Apache-2.0 +
+  Commons Clause (the rest); Scorecard only checks that a licence file exists and
+  whether it is a recognised one, so the Commons Clause may keep it below 10.
 - **Binary-Artifacts (8 → improving):** `src/assets/wasm/graphvizlib.wasm` was
   dead weight — nothing in the GUI imported `graphviz-wasm` / `graphviz-builder`
   / `vizjs`, and the wasm was only copied by the `src/assets` glob, never loaded.

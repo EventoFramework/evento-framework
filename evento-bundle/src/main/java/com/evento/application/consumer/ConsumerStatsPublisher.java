@@ -3,8 +3,8 @@ package com.evento.application.consumer;
 import com.evento.common.messaging.bus.EventoServer;
 import com.evento.common.messaging.consumer.ConsumerProcessor;
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerStatsMessage;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ConsumerStatsPublisher implements AutoCloseable {
 
-    private static final Logger logger = LogManager.getLogger(ConsumerStatsPublisher.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConsumerStatsPublisher.class);
 
     private final EventoServer eventoServer;
     private final EngineSupervisor supervisor;

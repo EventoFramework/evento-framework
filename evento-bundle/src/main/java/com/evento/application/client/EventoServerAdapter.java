@@ -71,7 +71,7 @@ public final class EventoServerAdapter implements EventoServer {
         this.bundleId = bundleId;
         this.instanceId = instanceId;
         this.bundleVersion = bundleVersion;
-        this.revisionGuard = new RevisionGuard(client::revisionsAccepted);
+        this.revisionGuard = new RevisionGuard(client::revisionsAccepted, client::eventListsAccepted);
     }
 
     @Override
@@ -174,7 +174,7 @@ public final class EventoServerAdapter implements EventoServer {
     }
 
     /**
-     * A command's reply says where its event was stored (a 2.6 broker): remember it for
+     * A command's reply says where its event was stored (a 3.0 broker): remember it for
      * {@link #ownWrites()} and tag the returned event with it ({@code sendTracked}).
      */
     private void recordWrite(com.evento.common.modeling.messaging.message.internal.EventoResponse decoded,
@@ -189,7 +189,7 @@ public final class EventoServerAdapter implements EventoServer {
     }
 
     /**
-     * Streams the answer of {@code query} (2.6): views pulled as they are consumed, the
+     * Streams the answer of {@code query} (3.0): views pulled as they are consumed, the
      * frames carried by the broker with flow control, or answered in process when this
      * bundle handles the query itself. Returns a stream in every case: when the session or
      * the answering bundle cannot stream, the whole answer arrives in one reply and is

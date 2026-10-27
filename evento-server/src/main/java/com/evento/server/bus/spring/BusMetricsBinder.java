@@ -25,7 +25,7 @@ import io.micrometer.core.instrument.binder.MeterBinder;
  *   <li>{@code evento.server.bus.executor.{pool.size,active,queue.depth,max}} — request-handling capacity</li>
  *   <li>{@code evento.server.bus.executor.saturated} — times demand exceeded pool + queue</li>
  *   <li>{@code evento.server.streams.active} / {@code evento.server.streams.opened} — streamed
- *       query answers being relayed now / since start (2.6)</li>
+ *       query answers being relayed now / since start (3.0)</li>
  *   <li>{@code evento.server.stream.frames} / {@code evento.server.stream.bytes} — stream frames
  *       and their bytes relayed</li>
  *   <li>{@code evento.server.reconnect.buffer.bytes}, {@code evento.server.dedup.retained.bytes}

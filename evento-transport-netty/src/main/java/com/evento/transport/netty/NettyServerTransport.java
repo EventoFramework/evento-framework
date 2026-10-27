@@ -141,31 +141,48 @@ public final class NettyServerTransport implements TransportServer {
         return boundPort;
     }
 
+    /** Quiet period of the event loops' shutdown: Netty's default is 2 s per group, on every stop. */
+    static final long SHUTDOWN_QUIET_MS = 100;
+    /** The most one event loop group's shutdown may take before stop() moves on. */
+    static final long SHUTDOWN_TIMEOUT_MS = 10_000;
+
+    /**
+     * Stops listening and closes every connection, within a bound (Q2): each wait is limited,
+     * and a group that has not terminated in time is logged and left to finish in the
+     * background instead of holding the caller (a server shutdown, a test teardown) for ever.
+     */
     @Override
     public void stop() {
         if (serverChannel == null) return;
         try {
             childChannels.close().awaitUninterruptibly(config.connectTimeout().toMillis());
-            serverChannel.close().syncUninterruptibly();
+            if (!serverChannel.close().awaitUninterruptibly(config.connectTimeout().toMillis())) {
+                log.warn("event=server_channel_close_timeout timeout_ms={}", config.connectTimeout().toMillis());
+            }
         } finally {
             // Await graceful shutdown so that NioEventLoop.closeAll() — and the
             // CloseFuture listeners it triggers (→ onTransportDisconnected) — run
             // and complete before stop() returns. Without sync() those callbacks
             // fire on the IO thread after the caller has moved on and may already
             // have torn down downstream resources (e.g. HikariPool).
-            try {
-                if (workerGroup != null) workerGroup.shutdownGracefully().sync();
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
-            try {
-                if (bossGroup != null) bossGroup.shutdownGracefully().sync();
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
+            awaitShutdown(workerGroup, "worker");
+            awaitShutdown(bossGroup, "boss");
             serverChannel = null;
             boundPort = -1;
             log.info("event=server_stopped");
+        }
+    }
+
+    private static void awaitShutdown(io.netty.channel.EventLoopGroup group, String name) {
+        if (group == null) return;
+        var terminated = group.shutdownGracefully(SHUTDOWN_QUIET_MS, SHUTDOWN_TIMEOUT_MS,
+                java.util.concurrent.TimeUnit.MILLISECONDS);
+        try {
+            if (!terminated.await(SHUTDOWN_TIMEOUT_MS + 1_000)) {
+                log.warn("event=event_loop_shutdown_timeout group={} timeout_ms={}", name, SHUTDOWN_TIMEOUT_MS);
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 

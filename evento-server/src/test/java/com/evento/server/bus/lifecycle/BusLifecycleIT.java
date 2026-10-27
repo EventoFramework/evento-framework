@@ -317,6 +317,43 @@ class BusLifecycleIT {
         assertThat(decoded.value()).isEqualTo(42L);
     }
 
+    /** O3: every request the broker answers is timed by kind, payload and outcome. */
+    @Test
+    void theBrokerTimesEachAnsweredRequestByKindPayloadAndOutcome() throws Exception {
+        var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        new com.evento.server.bus.spring.RequestMetrics(lifecycle, registry);
+        var caller = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
+        var handler = new MockBundle("bundle-B", "inst-B1", lifecycle, transportServer);
+        completeHandshake(caller);
+        completeHandshake(handler);
+        handler.registerHandlers(payloadCodec, List.of("com.FindDemo"));
+        handler.clientSide.send(new Notification(UUID.randomUUID(), BundleDiscoveryInfo.PAYLOAD_TYPE,
+                payloadCodec.encode(new BundleDiscoveryInfo(100L, "", "", "", "L",
+                        List.of(new com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler(
+                                com.evento.common.modeling.bundle.types.ComponentType.Projection, "DemoProjection",
+                                com.evento.common.modeling.bundle.types.HandlerType.QueryHandler,
+                                com.evento.common.modeling.bundle.types.PayloadType.Query,
+                                "com.FindDemo", "DemoView", false, null)),
+                        Map.of())),
+                System.currentTimeMillis()));
+        handler.enable();
+        caller.enable();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.availableView().size() == 2
+                && seenEvents.stream().anyMatch(e -> e instanceof BusEvent.BundleDiscovered));
+        handler.requestHandler = req -> handler.replyToRequest(req, new byte[0], "DemoView");
+
+        assertThat(caller.sendRequest("com.FindDemo", new byte[0]).get(3, TimeUnit.SECONDS).isError()).isFalse();
+        assertThat(caller.sendRequest("com.NobodyHandlesThis", new byte[0]).get(3, TimeUnit.SECONDS).isError()).isTrue();
+
+        var query = registry.get("evento.server.request")
+                .tags("kind", "query", "payload", "com.FindDemo", "outcome", "ok").timer();
+        assertThat(query.count()).isEqualTo(1);
+        assertThat(query.totalTime(TimeUnit.NANOSECONDS)).isPositive();
+        assertThat(registry.get("evento.server.request")
+                .tags("kind", "other", "payload", "com.NobodyHandlesThis", "outcome", "error").timer().count())
+                .isEqualTo(1);
+    }
+
     @Test
     void requestForUnknownPayloadTypeRepliesWithError() throws Exception {
         var bundleA = new MockBundle("bundle-A", "inst-A1", lifecycle, transportServer);
@@ -329,6 +366,129 @@ class BusLifecycleIT {
 
         assertThat(response.isError()).isTrue();
         assertThat(response.error().message()).contains("no handler for com.NobodyHandlesThis");
+    }
+
+    /**
+     * S15: a consumer whose clock runs 40 s behind the server still gets its events. The fetch's
+     * staleness gate used to compare the consumer's timestamp with the server's clock and drop
+     * every fetch of such a consumer; it now measures the time the fetch spent on this server.
+     */
+    @Test
+    void aFetchFromAConsumerWhoseClockIsBehindIsServed() throws Exception {
+        var store = org.mockito.Mockito.mock(com.evento.server.es.EventStore.class);
+        org.mockito.Mockito.when(store.fetchEvents(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of());
+        var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        new com.evento.server.es.EventStoreRequestHandlerBridge(lifecycle, store,
+                new com.evento.server.es.ConsumerLagMetrics(registry, store,
+                        com.evento.server.es.EventStoreMode.CPES, Duration.ofMinutes(15)),
+                4, 30_000);
+        var consumer = new MockBundle("projector-bundle", "proj-1", lifecycle, transportServer);
+        completeHandshake(consumer);
+        consumer.enable();
+        await().atMost(2, TimeUnit.SECONDS).until(() -> lifecycle.isBundleAvailable("projector-bundle"));
+
+        var codec = new com.evento.common.admin.AdminPayloadCodec();
+        var request = new com.evento.common.modeling.messaging.message.internal.EventoRequest();
+        request.setCorrelationId(UUID.randomUUID().toString());
+        request.setSourceBundleId("projector-bundle");
+        request.setBody(new com.evento.common.messaging.consumer.EventFetchRequest("default", 0, 10, "OrderProjector"));
+        request.setTimestamp(System.currentTimeMillis() - 40_000);  // the consumer's clock, 40 s behind
+
+        Response response = consumer.sendRequest("EventFetchRequest", codec.encodeRequest(request))
+                .get(5, TimeUnit.SECONDS);
+        assertThat(response.isError()).as("%s", response.error()).isFalse();
+        assertThat(codec.decodeResponse(response.payload()).getBody())
+                .isInstanceOf(com.evento.common.messaging.consumer.EventFetchResponse.class);
+    }
+
+    /**
+     * Q4: a connection that closes while its Hello is still being handled. Its disconnect found
+     * no address and cleaned up nothing; the Hello then registered the node on a dead channel,
+     * which stayed in the broker's view for good (a bundle stopped mid-failback stayed
+     * "registered" on the broker it was switching to).
+     */
+    @Test
+    void aHelloHandledAfterItsConnectionClosedLeavesNoNodeBehind() {
+        var transport = new ScriptedTransport();
+        lifecycle.acceptConnection(transport);
+        transport.closeNow();
+        transport.deliver(new Hello(UUID.randomUUID(), HandshakeProtocol.PROTOCOL_VERSION,
+                "late-bundle", "late-1", "100", Set.of(), null, System.currentTimeMillis()));
+
+        // The Hello may be handled on a dispatch thread: give it time, then the node must not be there.
+        await().pollDelay(Duration.ofMillis(300)).atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                assertThat(lifecycle.view()).as("no phantom node").noneMatch(a -> a.instanceId().equals("late-1")));
+        // Not even a join and a leave: their presence claim and release wiped the catalog rows
+        // of the same instance, live on another server (S04 on the lab, 3 runs out of 4).
+        assertThat(seenEvents).as("a Hello from a closed connection publishes no membership event")
+                .noneMatch(e -> (e instanceof BusEvent.NodeJoined j && j.node().instanceId().equals("late-1"))
+                        || (e instanceof BusEvent.NodeLeft l && l.node().instanceId().equals("late-1")));
+    }
+
+    /**
+     * A session that closes before the bundle sent anything after its Hello (a fail-back attempt
+     * given up on) registered nothing: its departure says so, and the catalog leaves the rows of
+     * the instance alone. One that sent something leaves as before.
+     */
+    @Test
+    void aSessionClosedBeforeItsFirstMessageLeavesAsAnAbortedHandshake() {
+        var aborted = new ScriptedTransport();
+        lifecycle.acceptConnection(aborted);
+        aborted.deliver(new Hello(UUID.randomUUID(), HandshakeProtocol.PROTOCOL_VERSION,
+                "probe-bundle", "probe-1", "100", Set.of(), null, System.currentTimeMillis()));
+        await().atMost(Duration.ofSeconds(3)).until(() ->
+                lifecycle.view().stream().anyMatch(a -> a.instanceId().equals("probe-1")));
+        aborted.closeNow();
+
+        var established = new ScriptedTransport();
+        lifecycle.acceptConnection(established);
+        established.deliver(new Hello(UUID.randomUUID(), HandshakeProtocol.PROTOCOL_VERSION,
+                "probe-bundle", "probe-2", "100", Set.of(), null, System.currentTimeMillis()));
+        await().atMost(Duration.ofSeconds(3)).until(() ->
+                lifecycle.view().stream().anyMatch(a -> a.instanceId().equals("probe-2")));
+        established.deliver(new Notification(UUID.randomUUID(), BusLifecycle.NOTIFY_ENABLE, new byte[0],
+                System.currentTimeMillis()));
+        await().atMost(Duration.ofSeconds(3)).until(() ->
+                lifecycle.availableView().stream().anyMatch(a -> a.instanceId().equals("probe-2")));
+        established.closeNow();
+
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> assertThat(seenEvents)
+                .filteredOn(e -> e instanceof BusEvent.NodeLeft)
+                .extracting(e -> ((BusEvent.NodeLeft) e).node().instanceId() + ":" + ((BusEvent.NodeLeft) e).reason())
+                .contains("probe-1:" + BusLifecycle.LEFT_HANDSHAKE_ABORTED, "probe-2:transport_disconnected"));
+        // Only the session that spoke after its Hello is established (and claims its instance).
+        assertThat(seenEvents).filteredOn(e -> e instanceof BusEvent.NodeEstablished)
+                .extracting(e -> ((BusEvent.NodeEstablished) e).node().instanceId())
+                .containsExactly("probe-2");
+    }
+
+    /** A transport whose close and inbound messages the test orders by hand. */
+    static final class ScriptedTransport implements Transport {
+        private Consumer<Message> inbound = m -> { };
+        private java.util.function.BiConsumer<com.evento.transport.state.ConnectionState,
+                com.evento.transport.state.ConnectionState> stateListener = (a, b) -> { };
+        private volatile com.evento.transport.state.ConnectionState state =
+                com.evento.transport.state.ConnectionState.CONNECTED;
+
+        void closeNow() { close(); }
+
+        void deliver(Message message) { inbound.accept(message); }
+
+        @Override public String remoteId() { return "scripted"; }
+        @Override public com.evento.transport.state.ConnectionState state() { return state; }
+        @Override public CompletableFuture<Void> connect() { return CompletableFuture.completedFuture(null); }
+        @Override public CompletableFuture<Void> send(Message message) { return CompletableFuture.completedFuture(null); }
+        @Override public void onMessage(Consumer<Message> handler) { inbound = handler; }
+        @Override public void onStateChange(java.util.function.BiConsumer<com.evento.transport.state.ConnectionState,
+                com.evento.transport.state.ConnectionState> listener) { stateListener = listener; }
+        @Override public long lastInboundMs() { return System.currentTimeMillis(); }
+        @Override public void close() {
+            var before = state;
+            state = com.evento.transport.state.ConnectionState.CLOSED;
+            stateListener.accept(before, state);
+        }
     }
 
     @Test

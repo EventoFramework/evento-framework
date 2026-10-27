@@ -132,5 +132,6 @@
   "login.password": "Password",
   "login.submit": "Sign in",
   "login.error": "Invalid username or password",
-  "login.logout": "Sign out"
+  "login.logout": "Sign out",
+  "login.sso": "Sign in with your organisation"
 }

@@ -33,7 +33,7 @@ Documenti trasversali:
 - [chaos-scenarios.md](chaos-scenarios.md): S00…S17, con obiettivo, guasto, invarianti e numeri
   `:before` contro `:after`.
 - [command-latency.md](command-latency.md): quanto costa un comando di dominio, fase per fase
-- [query-path.md](query-path.md): quanto costa una risposta di query al broker, per dimensione e modalità (2.6)
+- [query-path.md](query-path.md): quanto costa una risposta di query al broker, per dimensione e modalità (3.0)
   (lock, story, forward, append, …), misurato in locale e per cella in WAN, e cosa ottimizzare.
 
 ## Come si relazionano i livelli

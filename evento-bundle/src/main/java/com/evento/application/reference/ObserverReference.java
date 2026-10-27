@@ -10,8 +10,8 @@ import com.evento.common.modeling.annotations.handler.EventHandler;
 import com.evento.common.modeling.messaging.dto.PublishedEvent;
 import com.evento.common.modeling.messaging.payload.Event;
 import com.evento.common.utils.Sleep;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -24,7 +24,7 @@ import java.util.function.Consumer;
  * It allows registering event handlers and invoking them for specific events.
  */
 public class ObserverReference extends Reference {
-    private static final Logger logger = LogManager.getLogger(ObserverReference.class);
+    private static final Logger logger = LoggerFactory.getLogger(ObserverReference.class);
 
     private final HashMap<String, Method> eventHandlerReferences = new HashMap<>();
 

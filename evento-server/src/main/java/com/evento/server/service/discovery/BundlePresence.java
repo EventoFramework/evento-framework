@@ -3,8 +3,8 @@ package com.evento.server.service.discovery;
 import com.evento.server.bus.NodeAddress;
 import com.evento.server.bus.spring.BusProperties;
 import jakarta.annotation.PostConstruct;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,7 +42,7 @@ import java.util.Optional;
 @Component
 public class BundlePresence {
 
-    private static final Logger logger = LogManager.getLogger(BundlePresence.class);
+    private static final Logger logger = LoggerFactory.getLogger(BundlePresence.class);
 
     /** The id every server gets from the shipped application.properties (G13). */
     static final String SHIPPED_DEFAULT_SERVER_ID = "iris-evento-server";
@@ -108,6 +108,16 @@ public class BundlePresence {
 
     public String serverInstanceId() {
         return serverInstanceId;
+    }
+
+    /**
+     * Instances connected to any server of the cluster (a fresh presence row), and their distinct
+     * bundles: {@code [instances, bundles]} (G17: the dashboard shows the cluster, not this server).
+     */
+    public long[] clusterCounts() {
+        return jdbc.queryForObject("select count(*), count(distinct bundle_id) from core__bundle_instance "
+                        + "where updated_at > now() - make_interval(secs => ?)",
+                (rs, i) -> new long[]{rs.getLong(1), rs.getLong(2)}, staleAfterSeconds);
     }
 
     /**

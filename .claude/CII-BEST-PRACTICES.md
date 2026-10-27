@@ -27,8 +27,8 @@ Base URLs used below:
 | `interact` | **Met** | GitHub Issues + structured issue templates (`.github/ISSUE_TEMPLATE/`). |
 | `contribution` | **Met** | `CONTRIBUTING.md` — setup, branching, commit conventions, PR process. `…/blob/main/CONTRIBUTING.md` |
 | `contribution_requirements` | **Met** | CONTRIBUTING "Coding Standards" + "Pull Request Process" + Conventional Commits. |
-| `floss_license` | **Met** | Dual-licensed; the open option is **AGPL-3.0** (OSI-approved). `…/blob/main/LICENSE.txt` |
-| `floss_license_osi` | **Met** | AGPL-3.0 is OSI-approved. |
+| `floss_license` | **Unmet since 2026-10-20** | Client libraries Apache-2.0 (OSI), but the server and GUI are Apache-2.0 + Commons Clause, which is source-available, not FLOSS. The badge needs the project's output to be FLOSS; ask the badge maintainers whether a client-libraries-only project entry qualifies. |
+| `floss_license_osi` | **Unmet for the server** | Commons Clause is not OSI-approved; Apache-2.0 alone (client libraries) is. |
 | `license_location` | **Met** | `LICENSE.txt` (+ `LICENSE-COMMERCIAL.txt`) at repo root. |
 | `documentation_basics` | **Met** | `https://docs.eventoframework.com` + README + `.claude/ARCHITECTURE.md`. |
 | `documentation_interface` | **Met** | Docs site documents the public API (annotations, gateways, bundle bootstrap). |

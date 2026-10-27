@@ -6,7 +6,7 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * Where a bundle offers its streamed answers on direct connections (2.6), bypassing the
+ * Where a bundle offers its streamed answers on direct connections (3.0), bypassing the
  * broker for the data: the broker still routes the query (load balancing, locality,
  * deadlines, authentication of both bundles), then hands the caller a one-time ticket to
  * this endpoint.

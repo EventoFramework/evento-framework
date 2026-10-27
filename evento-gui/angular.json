@@ -108,37 +108,6 @@
             "buildTarget": "app:build"
           }
         },
-        "test": {
-          "builder": "@angular/build:karma",
-          "options": {
-            "main": "src/test.ts",
-            "polyfills": [
-              "src/polyfills.ts"
-            ],
-            "tsConfig": "tsconfig.spec.json",
-            "karmaConfig": "karma.conf.js",
-            "styles": [],
-            "scripts": [],
-            "assets": [
-              {
-                "glob": "favicon.ico",
-                "input": "src/",
-                "output": "/"
-              },
-              {
-                "glob": "**/*",
-                "input": "src/assets",
-                "output": "/assets"
-              }
-            ]
-          },
-          "configurations": {
-            "ci": {
-              "progress": false,
-              "watch": false
-            }
-          }
-        },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
           "options": {

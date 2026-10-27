@@ -7,7 +7,7 @@ import java.util.UUID;
 
 /**
  * The caller of a streamed reply lets the handler send {@code credits} more frames
- * (2.6), caller → handler, relayed by the broker as is. The caller grants credit as it
+ * (3.0), caller → handler, relayed by the broker as is. The caller grants credit as it
  * consumes, so no hop ever holds more than the window of frames in flight for a stream:
  * a slow consumer slows the handler down instead of filling the broker's memory.
  */

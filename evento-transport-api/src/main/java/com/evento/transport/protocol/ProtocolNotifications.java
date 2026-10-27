@@ -19,5 +19,13 @@ public final class ProtocolNotifications {
     /** Sent by a bundle to take itself out of routing. No payload. */
     public static final String DISABLE = "evento:disable";
 
+    /**
+     * Sent by a broker to the bundles that negotiated
+     * {@link com.evento.transport.HandshakeProtocol#CAPABILITY_HEAD} when the event store has
+     * grown (3.0). Body: the new head, an 8-byte big-endian sequence number. Their consumers at
+     * the head fetch again at once instead of polling for it.
+     */
+    public static final String EVENTS_APPENDED = "evento:events-appended";
+
     private ProtocolNotifications() {}
 }

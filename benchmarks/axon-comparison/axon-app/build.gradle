@@ -1,0 +1,25 @@
+// Axon Framework 5.4 open source (Apache-2.0) with its JPA event storage engine on PostgreSQL:
+// the configuration whose results may be published.
+plugins {
+    id 'org.springframework.boot' version '3.5.16'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+// Axon Framework 5.4 uses Jackson 3.2, which needs jackson-annotations 2.22; Spring Boot 3.5's
+// dependency management would pin 2.21 (NoClassDefFoundError: JsonApplyView).
+dependencyManagement {
+    dependencies {
+        dependency 'com.fasterxml.jackson.core:jackson-annotations:2.22'
+    }
+}
+
+dependencies {
+    implementation project(':bench-core')
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.axonframework.extensions.spring:axon-spring-boot-starter:5.4.0'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+}
+
+jar { enabled = false }
+bootJar { archiveFileName = 'axon-app.jar' }

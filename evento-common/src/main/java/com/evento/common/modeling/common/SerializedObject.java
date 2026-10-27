@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.common.serialization.ObjectMapperUtils;
 
 import java.io.Serializable;
@@ -18,12 +18,12 @@ import java.io.Serializable;
 
 public class SerializedObject<T extends Serializable> implements Serializable {
 
-	private static final Logger logger = LogManager.getLogger(SerializedObject.class);
+	private static final Logger logger = LoggerFactory.getLogger(SerializedObject.class);
 	private String serializedObject;
 	private String objectClass;
 	/**
 	 * The {@link com.evento.common.versioning.Revision} of the class when the object was
-	 * serialized (2.6); 0, and absent from the JSON, for an unrevised class and for everything
+	 * serialized (3.0); 0, and absent from the JSON, for an unrevised class and for everything
 	 * written before revisions existed.
 	 */
 	@JsonInclude(JsonInclude.Include.NON_DEFAULT)
@@ -44,8 +44,11 @@ public class SerializedObject<T extends Serializable> implements Serializable {
 			}
 		} catch (JsonProcessingException e)
 		{
-			logger.error("Serialization failed", e);
-			this.serializedObject = null;
+			// Failing here, not storing a null payload: an event or a command that cannot be
+			// written (a @PersonalData field without its subject or key, a broken serializer)
+			// must not reach the broker as an empty message.
+			throw new IllegalArgumentException("cannot serialize " + object.getClass().getName() + ": "
+					+ e.getOriginalMessage(), e);
 		}
 	}
 

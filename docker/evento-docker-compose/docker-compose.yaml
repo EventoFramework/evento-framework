@@ -14,6 +14,9 @@ services:
     depends_on:
       - database
     environment:
+      # A local try-out: dev lists the missing hardening at startup instead of refusing to
+      # start (the 3.0 default is prod: token, TLS, allowlist, passwords, CORS required).
+      - EVENTO_SERVER_SECURITY_PROFILE=dev
       - evento_cluster_name=evento-server
       - evento_performance_capture_rate=0.1
       - evento_telemetry_ttl=365

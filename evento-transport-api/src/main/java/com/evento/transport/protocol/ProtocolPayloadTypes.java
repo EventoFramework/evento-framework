@@ -24,6 +24,15 @@ public final class ProtocolPayloadTypes {
     public static final String SERVER_ADMIN_REQUEST = "evento:server-admin-request";
 
     /**
+     * A bundle's barrier (3.0): the server answers it, with an empty success, only after it has
+     * handled every notification the bundle sent before it on the same connection (the transport
+     * queues it behind them). A bundle sends it after its registration, discovery and enable, and
+     * after a later enable, so that it reports itself ready only when the server routes to it and
+     * handles its commands. A 2.5 server answers it with "no handler", which the bundle accepts.
+     */
+    public static final String BARRIER = "evento:barrier";
+
+    /**
      * Fire-and-forget admin notification from a bundle to the server, payload
      * is a CBOR-encoded v1
      * {@code com.evento.common.modeling.messaging.message.internal.EventoMessage}.

@@ -29,7 +29,7 @@ public final class HandlerRegistry {
     }
 
     /**
-     * A request handler that can also answer with a stream of frames (2.6), when the caller
+     * A request handler that can also answer with a stream of frames (3.0), when the caller
      * asked for one and the session can carry it; otherwise its plain
      * {@link #handle(byte[], RequestContext)} answers.
      */

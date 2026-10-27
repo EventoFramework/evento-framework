@@ -1,0 +1,123 @@
+{
+  "scenario" : "S14",
+  "title" : "Retry storm with idempotency keys",
+  "gaps" : [ "G5", "G4" ],
+  "label" : "v3",
+  "startedAt" : "2026-10-20T15:53:46.023397Z",
+  "finishedAt" : "2026-10-20T15:55:33.013057200Z",
+  "durationSeconds" : 106,
+  "parameters" : {
+    "orderIdPrefix" : "s14-v3-0045a0-",
+    "composeFile" : "D:\\Gabor\\DIDATTICA\\UNI\\TESI_MAGISTRALE\\evento\\evento-lab-cluster\\docker\\compose.yaml",
+    "servicesNotReadyAtStart" : [ ],
+    "placementRestoredAtStart" : {
+      "gateway-africa" : "evento-am",
+      "order-command-eu" : "evento-am",
+      "order-observer" : "evento-am",
+      "order-query-eu" : "evento-am",
+      "order-query-global-eu" : "evento-am",
+      "order-query-wildcard" : "evento-am",
+      "order-saga-eu" : "evento-am"
+    },
+    "lbRoutingAtStart" : "ok",
+    "probesPerKind" : 8,
+    "killDelayMs" : 150,
+    "retryVia" : "EUROPA"
+  },
+  "verdictCounts" : {
+    "INCONCLUSIVE" : 2,
+    "AS_EXPECTED" : 2
+  },
+  "observations" : [ {
+    "name" : "a retried command is stored once",
+    "expected" : "exactly one stored event per idempotency key (key persisted with the event, G5 fix)",
+    "expectedBeforeFix" : "a command stored before its reply was lost is stored again by the retry (G5)",
+    "observed" : "0 key(s) stored twice; 0 of 24 failed first attempts were stored before the retry; per kind {create-auto-id={stored1=8}, create-client-id={stored1=8}, add-item={stored1=8}}",
+    "verdict" : "INCONCLUSIVE",
+    "note" : "No command was caught in the ambiguous window; tune S14_KILL_DELAY_MS."
+  }, {
+    "name" : "the retry of a stored command is acknowledged with the stored event",
+    "expected" : "every retry of a command stored before the retry answers 2xx and stores nothing (G5 replay)",
+    "expectedBeforeFix" : "the retry is stored again, or refused with 409 by the aggregate (create with a client id)",
+    "observed" : "0 of 0 stored-then-retried commands acknowledged",
+    "verdict" : "INCONCLUSIVE",
+    "note" : null
+  }, {
+    "name" : "acknowledged commands are stored",
+    "expected" : "every 2xx has its event",
+    "expectedBeforeFix" : null,
+    "observed" : "0 missing",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  }, {
+    "name" : "in-flight commands fail fast when their server dies",
+    "expected" : "typed failure right away (G4 fix)",
+    "expectedBeforeFix" : "fail only after the 30 s request timeout (G4)",
+    "observed" : "0 of 24 failures took >= 25 s",
+    "verdict" : "AS_EXPECTED",
+    "note" : null
+  } ],
+  "invariants" : [ ],
+  "metrics" : {
+    "firstAttempt" : {
+      "failed" : 24,
+      "kinds" : {
+        "broker_changed" : 24
+      },
+      "sent" : 24,
+      "failedAfter25s" : 0
+    },
+    "failedButStoredBeforeRetry" : 0,
+    "storedCopiesPerKind" : {
+      "create-auto-id" : {
+        "stored1" : 8
+      },
+      "create-client-id" : {
+        "stored1" : 8
+      },
+      "add-item" : {
+        "stored1" : 8
+      }
+    },
+    "acknowledgedButNotStored" : 0,
+    "storedThenRetriedAcked" : 0
+  },
+  "timeline" : [ {
+    "tMs" : 7586,
+    "at" : "2026-10-20T15:53:53.609697700Z",
+    "event" : "placement: 7 JVM(s) on a remote server, restarting them: {gateway-africa=evento-am, order-command-eu=evento-am, order-observer=evento-am, order-query-eu=evento-am, order-query-global-eu=evento-am, order-query-wildcard=evento-am, order-saga-eu=evento-am}"
+  }, {
+    "tMs" : 56701,
+    "at" : "2026-10-20T15:54:42.724599400Z",
+    "event" : "placement restored, ready={gateway-africa=true, order-command-eu=true, order-observer=true, order-query-eu=true, order-query-global-eu=true, order-query-wildcard=true, order-saga-eu=true}"
+  }, {
+    "tMs" : 56763,
+    "at" : "2026-10-20T15:54:42.787338100Z",
+    "event" : "scenario start"
+  }, {
+    "tMs" : 63038,
+    "at" : "2026-10-20T15:54:49.061551900Z",
+    "event" : "pre-created 8 CINA orders for the add-item probes"
+  }, {
+    "tMs" : 63620,
+    "at" : "2026-10-20T15:54:49.643918800Z",
+    "event" : "killed evento-apac 150 ms after firing 24 commands at CINA"
+  }, {
+    "tMs" : 73254,
+    "at" : "2026-10-20T15:54:59.278317Z",
+    "event" : "retried 24 failed commands via EUROPA: {}"
+  }, {
+    "tMs" : 78674,
+    "at" : "2026-10-20T15:55:04.697866500Z",
+    "event" : "cleanup start"
+  }, {
+    "tMs" : 106989,
+    "at" : "2026-10-20T15:55:33.013057200Z",
+    "event" : "cleanup done"
+  } ],
+  "notes" : [ ],
+  "harnessErrors" : [ ],
+  "attachments" : {
+    "stack actions" : [ "2026-10-20T15:53:53.614053800Z docker restart gateway-africa order-command-eu order-observer order-query-eu order-query-global-eu order-query-wildcard order-saga-eu", "2026-10-20T15:54:49.215175800Z docker kill evento-apac", "2026-10-20T15:55:04.771139800Z docker start evento-apac (restore)" ]
+  }
+}

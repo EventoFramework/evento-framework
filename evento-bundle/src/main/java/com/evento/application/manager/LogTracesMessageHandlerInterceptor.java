@@ -11,12 +11,12 @@ import com.evento.common.modeling.messaging.query.QueryResponse;
 import com.evento.common.modeling.state.AggregateState;
 import com.evento.common.modeling.state.SagaState;
 import com.evento.common.utils.ProjectorStatus;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 public class LogTracesMessageHandlerInterceptor implements MessageHandlerInterceptor {
 
-    private final Logger logger = LogManager.getLogger(LogTracesMessageHandlerInterceptor.class);
+    private final Logger logger = LoggerFactory.getLogger(LogTracesMessageHandlerInterceptor.class);
 
     @Override
     public void beforeAggregateCommandHandling(

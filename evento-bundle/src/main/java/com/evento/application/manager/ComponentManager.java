@@ -4,7 +4,6 @@ import com.evento.application.performance.TracingAgent;
 import lombok.Getter;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.messaging.message.application.Message;
-import org.reflections.Reflections;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -99,12 +98,12 @@ public abstract class ComponentManager {
     /**
      * Abstract method to parse and process components.
      *
-     * @param reflections           The `Reflections` instance to discover and process components.
+     * @param scan                  The classes of the bundle's package.
      * @param findInjectableObject   A function to find injectable objects.
      * @throws InvocationTargetException If there is an issue with invoking a method.
      * @throws InstantiationException    If there is an issue with instantiating a class.
      * @throws IllegalAccessException    If there is an issue with accessing a class or its members.
      */
-    abstract public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException;
+    abstract public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject) throws InvocationTargetException, InstantiationException, IllegalAccessException;
 
 }

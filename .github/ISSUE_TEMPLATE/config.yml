@@ -6,6 +6,6 @@ contact_links:
   - name: Documentation and website
     url: https://www.eventoframework.com/
     about: Visit eventoframework.com for guides, tutorials, and the RECQ architecture reference.
-  - name: Commercial licensing
-    url: https://www.eventoframework.com/
-    about: Contact us at eventoframework.com for commercial licensing and enterprise support.
+  - name: Commercial authorisations
+    url: https://www.eventoframework.com/licensing
+    about: To host, resell, or sell consulting or training about Evento, ask for an authorisation.

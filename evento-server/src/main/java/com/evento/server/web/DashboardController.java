@@ -26,6 +26,9 @@ public class DashboardController {
 	private String clusterName;
 	@Value("${application.version}")
 	private String version;
+	/** The cluster-wide counts (G17); null in tests without presence, then this server's view. */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private com.evento.server.service.discovery.BundlePresence presence;
 
 	public DashboardController(PayloadRepository payloadRepository, ComponentRepository componentRepository, BundleRepository bundleRepository, BusFacade busFacade, EventStore eventStore) {
 		this.payloadRepository = payloadRepository;
@@ -51,10 +54,23 @@ public class DashboardController {
 
 		db.setBundleCount(bundleRepository.count());
 		db.setBundleWithHandlersCount(bundleRepository.countWithHandlers());
-		var view = busFacade.currentAvailableView();
-		db.setBundleInViewCount(view.stream()
-				.map(NodeAddress::bundleId).distinct().count());
-		db.setNodeInViewCount(view.size());
+		long[] cluster = null;
+		if (presence != null) {
+			try {
+				cluster = presence.clusterCounts();
+			} catch (RuntimeException e) {
+				// Presence unreadable: fall back to this server's view.
+			}
+		}
+		if (cluster != null) {
+			db.setNodeInViewCount((int) cluster[0]);
+			db.setBundleInViewCount(cluster[1]);
+		} else {
+			var view = busFacade.currentAvailableView();
+			db.setBundleInViewCount(view.stream()
+					.map(NodeAddress::bundleId).distinct().count());
+			db.setNodeInViewCount(view.size());
+		}
 
 		db.setEventCount(eventStore.getSize());
 		db.setAggregateCount(eventStore.getAggregateCount());

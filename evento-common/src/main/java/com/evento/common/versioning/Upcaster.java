@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * One step of a payload's history (2.6): turns the JSON of payload {@code fromName} at revision
+ * One step of a payload's history (3.0): turns the JSON of payload {@code fromName} at revision
  * {@code fromRevision} into the JSON of the next shape. Steps are chained by {@link Upcasters}
  * until no step starts where the previous one ended.
  *

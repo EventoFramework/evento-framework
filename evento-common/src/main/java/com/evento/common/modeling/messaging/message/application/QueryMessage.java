@@ -28,7 +28,7 @@ public class QueryMessage<T extends Query<?>> extends Message<T> {
 
 
 	/**
-	 * The writes the answer must reflect (2.6, additive): the answering bundle waits until
+	 * The writes the answer must reflect (3.0, additive): the answering bundle waits until
 	 * its projectors have processed them. Null or empty: answered from the read model as it
 	 * is. A bundle that predates the field ignores it.
 	 */

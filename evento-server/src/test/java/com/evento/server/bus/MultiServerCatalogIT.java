@@ -138,7 +138,11 @@ class MultiServerCatalogIT {
                         "--evento.server.bus.port=0",
                         "--evento.cluster.node.server.id=" + serverId,
                         "--evento.server.instance.id=" + serverId,
-                        "--spring.main.banner-mode=off");
+                        "--spring.main.banner-mode=off",
+                        // A test server: no bus token, TLS or allowlist (3.0 defaults to prod).
+                        "--evento.server.security.profile=dev",
+                        // These tests check what a departure's cleanup does, not when: run it at once.
+                        "--evento.server.leave.grace-ms=0");
     }
 
     @AfterAll

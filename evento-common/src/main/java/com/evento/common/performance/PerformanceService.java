@@ -1,7 +1,7 @@
 package com.evento.common.performance;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.common.modeling.messaging.message.application.Message;
 
 import java.time.Instant;
@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class PerformanceService {
 
-    protected static final Logger logger = LogManager.getLogger(PerformanceService.class);
+    protected static final Logger logger = LoggerFactory.getLogger(PerformanceService.class);
 
     /**
      * The EVENT_STORE constant is a string that represents the name of the event store.

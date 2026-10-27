@@ -124,16 +124,21 @@ Fonte: [`application.properties`](../../evento-server/src/main/resources/applica
 | `spring.datasource.username` / `password` | `SPRING_DATASOURCE_USERNAME` / `_PASSWORD` | `postgres` / `secret` | |
 | `spring.datasource.hikari.maximum-pool-size` | `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | 20 (min idle 5) | pool dati del server |
 | `spring.datasource.hikari.data-source-properties.{tcpKeepAlive,loginTimeout,connectTimeout,socketTimeout}` | – | `true`, 30, 30, 30 | timeout del driver |
-| `evento.lock.pool.maximum-size` | `EVENTO_LOCK_POOL_MAXIMUM_SIZE` | 10 | connessioni del lock pool (G3): lock tenuti contemporaneamente |
+| `evento.lock.pool.maximum-size` | `EVENTO_LOCK_POOL_MAXIMUM_SIZE` | 10 | connessioni del lock pool (G3): lock tenuti contemporaneamente, più fino a metà pool di attese in coda in PostgreSQL (dalla 3.0: i server si alternano su un aggregato conteso) |
 | `evento.lock.pool.connection-timeout-ms` | `EVENTO_LOCK_POOL_CONNECTION_TIMEOUT_MS` | 1000 | attesa di una connessione del lock pool |
 | `evento.lock.acquire.timeout.ms` | `EVENTO_LOCK_ACQUIRE_TIMEOUT_MS` | 60000 | limite di ogni attesa di lock distribuito (o la deadline del comando) |
-| `evento.es.mode` | `EVENTO_ES_MODE` | `CPES` in `application.properties` (`APES` nel codice) | **CPES** obbligatorio con più server |
+| `evento.es.mode` | `EVENTO_ES_MODE` | `CPES` (codice e `application.properties`, dalla 3.0) | **CPES**. APES è **deprecato** dalla 3.0: su un server non è più veloce (B1), con più server i consumer possono saltare eventi (finestra `evento.es.fetch.delay`, più orologi, G20). Un database APES passa a CPES fermando tutti i server e riavviandoli in CPES: la sequenza riparte sopra l'ultimo id |
+| `evento.server.commands.optimistic` | `EVENTO_SERVER_COMMANDS_OPTIMISTIC` | `true` | comandi aggregato senza lock, protetti dalla fence; dopo un conflitto rieseguiti sotto lock |
+| `evento.es.append.batch.writers` | `EVENTO_ES_APPEND_BATCH_WRITERS` | -1 (auto: CPES 2, APES 4) | group commit: thread che scrivono i batch; 0 lo disattiva |
+| `evento.es.append.batch.max-size` | `EVENTO_ES_APPEND_BATCH_MAX_SIZE` | 256 | righe massime per batch |
 | `evento.es.fetch.max.age.ms` | `EVENTO_ES_FETCH_MAX_AGE_MS` | 30000 | gate di staleness dei fetch; ≤ 0 lo disattiva (S15) |
 | `evento.es.fetch.concurrency` | `EVENTO_ES_FETCH_CONCURRENCY` | 4 | fetch concorrenti per server |
-| `evento.es.fetch.delay` | `EVENTO_ES_FETCH_DELAY` | 69 | finestra di lettura APES (ms) |
+| `evento.es.fetch.delay` | `EVENTO_ES_FETCH_DELAY` | 69 | finestra di lettura APES, deprecato (ms): deve superare il tempo peggiore tra id e commit (attesa della replica sincrona inclusa) più lo skew degli orologi |
 | `evento.es.aggregate.{state,events}.cache.size` / `.expiry` | – | 1024 / 150000 | cache per server, non invalidate tra server (G19) |
 | `evento.es.schema.enforce-primary-key` | `EVENTO_ES_SCHEMA_ENFORCE_PRIMARY_KEY` | `true` | PK su `es__events` aggiunta all'avvio (G6) |
-| `spring.sql.init.mode` | – | `always` | `schema.sql` a ogni avvio, sotto advisory lock dopo G14 |
+| `spring.sql.init.mode` | – | `always` | `always`: migrazioni Flyway a ogni avvio (`evento_es_schema_history`, F4), sotto advisory lock (G14); `never`: schema del DBA (`db/upgrade/`) |
+| `evento.es.idempotency.retention` | `EVENTO_ES_IDEMPOTENCY_RETENTION` | non impostata | F11: dopo quanto si tolgono le chiavi di idempotenza dagli eventi e si cancellano le claim (es. `P30D`); non impostata = per sempre |
+| `evento.consumer.lag.expiry` | `EVENTO_CONSUMER_LAG_EXPIRY` | `PT15M` | dopo quanto sparisce la serie di lag di un consumer che non fa più fetch su questo server (O2) |
 | `evento.cluster.name` | `EVENTO_CLUSTER_NAME` | `evento-server` | annunciato in `Welcome.clusterName` (G13); cambialo |
 | `evento.cluster.node.server.id` | `EVENTO_CLUSTER_NODE_SERVER_ID` | `iris-evento-server` | diventa `evento.server.bus.server-instance-id`; **univoco** per server (G4, G7) |
 | `evento.server.instance.id` | `EVENTO_SERVER_INSTANCE_ID` | `server-0` | id usato da `ConsumerService`; univoco |
@@ -141,7 +146,7 @@ Fonte: [`application.properties`](../../evento-server/src/main/resources/applica
 | `evento.server.bus.pick-strategy` | `EVENTO_SERVER_BUS_PICK_STRATEGY` | `random` | `random`, `first`, `locality-preferred` (G12) |
 | `evento.server.bus.heartbeat-write-idle` / `heartbeat-read-idle` | `EVENTO_SERVER_BUS_HEARTBEAT_WRITE_IDLE` / `_READ_IDLE` | 15 s / 45 s | heartbeat lato server |
 | `evento.server.bus.connect-timeout` | – | 5 s | |
-| `evento.server.bus.business-executor-{core-size,max-size,queue-capacity}` | – | max(8, 2×CPU), 8×CPU, 256 | esecutore delle richieste (la discovery ci gira, G18) |
+| `evento.server.bus.business-executor-{core-size,max-size,queue-capacity}` | – | max(8, 2×CPU), 32×CPU, 256 | esecutore delle richieste (la discovery ci gira, G18); a 8×CPU limitava un server a 4 CPU a ~2500 cmd/s (B1) |
 | `evento.server.bus.auth-token` | `EVENTO_SERVER_BUS_AUTH_TOKEN` | vuoto | segreto condiviso dei bundle |
 | `evento.server.presence.heartbeat-interval-ms` | `EVENTO_SERVER_PRESENCE_HEARTBEAT_INTERVAL_MS` | 30000 | aggiornamento di `core__bundle_instance` (G7) |
 | `evento.server.presence.stale-after-ms` | `EVENTO_SERVER_PRESENCE_STALE_AFTER_MS` | 180000 | dopo quanto una riga di presenza non conta più |

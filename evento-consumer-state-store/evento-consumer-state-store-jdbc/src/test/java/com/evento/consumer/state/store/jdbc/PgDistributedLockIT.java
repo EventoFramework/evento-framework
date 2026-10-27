@@ -300,6 +300,48 @@ class PgDistributedLockIT {
     }
 
     @Test
+    @Timeout(60)
+    void aKeyThatAnotherServerKeepsTakingAgainIsStillGrantedHereInTurn() throws Exception {
+        // The other server holds the key back to back: it releases and takes it again within a
+        // round trip, as a server does with a queue of local commands on one hot aggregate. A
+        // waiter that only polled found it free only by luck (B2: 0-20 cmd/s through the second
+        // server against 50 through the first); queued in PostgreSQL it is next at each release.
+        try (var lockPool = pool("it-fair", 4, 1_000);
+             var other = otherServer()) {
+            var lock = new PgDistributedLock(lockPool, Duration.ofSeconds(30), 4);
+            var stop = new java.util.concurrent.atomic.AtomicBoolean();
+            var hammer = CompletableFuture.runAsync(() -> {
+                try (var take = other.prepareStatement("SELECT pg_advisory_lock(hashtext(?))");
+                     var give = other.prepareStatement("SELECT pg_advisory_unlock(hashtext(?))")) {
+                    take.setString(1, "hot");
+                    give.setString(1, "hot");
+                    while (!stop.get()) {
+                        take.execute();
+                        Thread.sleep(20);
+                        give.execute();
+                    }
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            try {
+                for (int turn = 0; turn < 10; turn++) {
+                    long started = System.nanoTime();
+                    lock.acquire("hot", Duration.ofSeconds(2));
+                    lock.release("hot");
+                    assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+                            .as("turn %d waits about one holding of the other server", turn)
+                            .isLessThan(500L);
+                }
+            } finally {
+                stop.set(true);
+                hammer.get(10, TimeUnit.SECONDS);
+            }
+            assertThat(lockPool.getHikariPoolMXBean().getActiveConnections()).isZero();
+        }
+    }
+
+    @Test
     void theEventStoreKeyItselfStillMapsToTheAppendLock() throws Exception {
         // Servers older than the single-statement append took the event store lock through this
         // class under the key "es-lock"; the collision remap must leave that key alone.

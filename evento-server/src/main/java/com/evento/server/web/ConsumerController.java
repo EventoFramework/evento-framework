@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController()
@@ -19,10 +20,12 @@ public class ConsumerController {
 
     private final ConsumerService consumerService;
     private final BusFacade busFacade;
+    private final AdminActions actions;
 
-    public ConsumerController(ConsumerService consumerService, BusFacade busFacade) {
+    public ConsumerController(ConsumerService consumerService, BusFacade busFacade, AdminActions actions) {
         this.consumerService = consumerService;
         this.busFacade = busFacade;
+        this.actions = actions;
     }
 
     @GetMapping("/")
@@ -77,7 +80,9 @@ public class ConsumerController {
     setRetryForConsumerEvent(@PathVariable String consumerId,
                              @PathVariable long eventSequenceNumber,
                              @RequestParam boolean retry) throws Exception {
-      return consumerService.setRetryForConsumerEvent(consumerId, eventSequenceNumber, retry, busFacade);
+      return actions.call("consumer.dead_event.retry",
+              Map.of("consumerId", consumerId, "eventSequenceNumber", eventSequenceNumber, "retry", retry),
+              () -> consumerService.setRetryForConsumerEvent(consumerId, eventSequenceNumber, retry, busFacade));
     }
 
     @DeleteMapping("/{consumerId}/event/{eventSequenceNumber}")
@@ -85,13 +90,16 @@ public class ConsumerController {
     public CompletableFuture<ConsumerResponseMessage>
     deleteDeadEventFromConsumer(@PathVariable String consumerId,
                              @PathVariable long eventSequenceNumber) throws Exception {
-      return consumerService.deleteDeadEventFromEventConsumer(consumerId, eventSequenceNumber, busFacade);
+      return actions.call("consumer.dead_event.delete",
+              Map.of("consumerId", consumerId, "eventSequenceNumber", eventSequenceNumber),
+              () -> consumerService.deleteDeadEventFromEventConsumer(consumerId, eventSequenceNumber, busFacade));
     }
 
     @PostMapping("/{consumerId}/consume-dead-queue")
     @Secured("ROLE_ADMIN")
     public CompletableFuture<ConsumerResponseMessage>
     consumeDeadQueue(@PathVariable String consumerId) throws Exception {
-      return consumerService.consumeDeadQueue(consumerId, busFacade);
+      return actions.call("consumer.dead_queue.consume", Map.of("consumerId", consumerId),
+              () -> consumerService.consumeDeadQueue(consumerId, busFacade));
     }
 }

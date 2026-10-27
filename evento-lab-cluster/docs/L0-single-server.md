@@ -86,7 +86,7 @@ stesse variabili; cambiano solo nomi host e valori.
       SPRING_DATASOURCE_URL: jdbc:postgresql://pg:5432/evento?tcpKeepAlive=true&connectTimeout=10
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: secret
-      EVENTO_ES_MODE: CPES                      # il default del codice è APES; application.properties spedisce CPES
+      EVENTO_ES_MODE: CPES                      # il default (dalla 3.0 anche nel codice)
       EVENTO_CLUSTER_NAME: evento-l0            # annunciato nel Welcome; il default "evento-server" va cambiato
       EVENTO_CLUSTER_NODE_SERVER_ID: evento-1   # diventa evento.server.bus.server-instance-id (Welcome.serverInstanceId)
       EVENTO_SERVER_INSTANCE_ID: evento-1       # evento.server.instance.id (default "server-0")
@@ -176,8 +176,10 @@ Opzioni JVM usate ovunque nel laboratorio: `-XX:MaxRAMPercentage=70 -XX:+UseSeri
 
 ## Checklist
 
-- [ ] `EVENTO_ES_MODE=CPES` (APES con più server è insicuro, G10/G20; in L0 funziona, ma CPES
-      rende banale il passaggio a L1).
+- [ ] `EVENTO_ES_MODE=CPES`. APES è deprecato dalla 3.0: su un server CPES è altrettanto veloce,
+      con più server i consumer di APES possono saltare eventi. Un database APES passa a CPES
+      fermando tutti i server e riavviandoli con `EVENTO_ES_MODE=CPES` (la sequenza riparte sopra
+      l'ultimo id, `event=es_mode_switched`).
 - [ ] `EVENTO_CLUSTER_NAME` diverso da `evento-server` e uguale su server e bundle.
 - [ ] `EVENTO_CLUSTER_NODE_SERVER_ID` ed `EVENTO_SERVER_INSTANCE_ID` impostati (i default sono
       `iris-evento-server` e `server-0`).

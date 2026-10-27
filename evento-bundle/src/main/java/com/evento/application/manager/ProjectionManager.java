@@ -2,15 +2,14 @@ package com.evento.application.manager;
 
 import com.evento.application.performance.TracingAgent;
 import com.evento.application.reference.ProjectionReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.common.modeling.annotations.component.Projection;
 import com.evento.common.modeling.exceptions.HandlerNotFoundException;
 import com.evento.common.modeling.messaging.message.application.Message;
 import com.evento.common.modeling.messaging.message.application.QueryMessage;
 import com.evento.common.modeling.messaging.query.QueryResponse;
-import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.BiFunction;
@@ -21,7 +20,7 @@ import java.util.function.Function;
  * Projections are components capable of handling query messages.
  */
 public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>, ProjectionReference> {
-    private static final Logger logger = LogManager.getLogger(ProjectionManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(ProjectionManager.class);
 
     /**
      * Constructs a new ProjectionManager instance.
@@ -41,16 +40,16 @@ public class ProjectionManager extends ReceiverComponentManager<QueryMessage<?>,
     /**
      * Parses the classes annotated with @Projection and registers the query handlers.
      *
-     * @param reflections          The reflections instance used for scanning classes.
+     * @param scan          the classes of the bundle's package
      * @param findInjectableObject The function used to find injectable objects.
      * @throws InvocationTargetException If the class instantiation fails.
      * @throws InstantiationException    If the class instantiation fails.
      * @throws IllegalAccessException    If the class instantiation fails.
      */
     @Override
-    public void parse(Reflections reflections, Function<Class<?>, Object> findInjectableObject)
+    public void parse(ComponentScan scan, Function<Class<?>, Object> findInjectableObject)
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        for (Class<?> aClass : reflections.getTypesAnnotatedWith(Projection.class)) {
+        for (Class<?> aClass : scan.annotatedWith(Projection.class)) {
             var projectionReference = new ProjectionReference(createComponentInstance(aClass, findInjectableObject));
             for (String query : projectionReference.getRegisteredQueries()) {
                 getHandlers().put(query, projectionReference);

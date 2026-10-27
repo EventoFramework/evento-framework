@@ -1,6 +1,319 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-27 (session 9).
+
+## 3.0.0 release (2026-10-27)
+
+User: release 3.0.0 once every test passes, with the Dependabot PRs closed and the fewest open
+vulnerabilities. Security work before the merge:
+- GUI: npm audit 7 -> 0 (Angular 22.2.3/22.2.4, vite override ^8.3.5, uuid ^11.1.1 under xcode).
+- Java: Spring Boot 4.1.2, `at.yawk.lz4:lz4-java` 1.12.1 (org.lz4 1.8.0 abandoned). OSV on the runtime
+  classpaths of the server and the published libraries: 0 of 153 (only test classpaths keep some, e.g.
+  Boot 3.5 in boot3Test, Testcontainers' commons-compress).
+- Images: Temurin 25.0.4.1, every base pinned by digest (the lab and benchmark ones were floating).
+- Scorecard alerts left open are process/settings ones (code review, branch protection, CII badge,
+  wrapper jar), not code.
+Verified on rc11 (= the release code): full suite with JDBC ITs and EventoServerContainerIT 1135/0
+failures (21 skipped = lab scenarios + benchmarks, run separately); lab chaos S00-S18 all OK; mixed
+2.5.2/3.0 runs all as expected (S03 all-3.0 one INCONCLUSIVE: no call in flight at the kill, as in
+the previous round); the marketplace and the manufacturing-execution system pass all their tests.
+- Fresh-stack tip: the Postgres healthcheck turns healthy while the init server still runs; wait for
+  "init process complete" before starting services.
+
+## rc10 verified on the two real applications (2026-10-26)
+
+- 3.0.0-rc10 = rc9 + the event-time fix (9cd2a1ba), published locally; server image built from
+  4c79c489. The marketplace (with its own business-time-zone fixes on top) passes all its tests;
+  the manufacturing-execution system passes 153/153 on a fresh stack. Nothing pushed in either app.
+- Tip for fresh stacks: wait until both Postgres containers have finished their first init before
+  starting the services; the healthcheck reports healthy during the init server's run.
+
+## rc9, Java 25 baseline, time-zone fixes (2026-10-26)
+
+- ClassGraph 6 ships Java 25 class files (UnsupportedClassVersionError on JDK 21, checked with
+  -PtestJdk=21). User chose to keep it: client libraries now target Java 25 (93579f3c,
+  `clientJavaRelease = 25`, JDK 21 CI job removed, README/CHANGELOG/COMPATIBILITY, docs, site).
+- 3.0.0-rc9 published locally for the two real applications, and a server image built from the
+  same commit. Both suites pass on rc9; the one test failing in the marketplace is its own
+  (calendar days vs a fixed duration, one hour apart the week after a DST change).
+- Time-zone audit (user): es__events stores UTC wall time in `timestamp` columns but the server read
+  them through the JVM zone -> 9cd2a1ba (LocalDateTime + UTC, deleted_at in UTC, console search
+  bounds were crossed, EventTimeZonePostgresIT on Europe/Rome). Snapshots (JVM zone both ways),
+  performance tables (epoch millis), JDBC consumer store (timestamptz / MySQL TIMESTAMP) are fine.
+- ghcr.io/eventoframework/evento-server is a private package: EventoServerContainer now defaults to
+  Docker Hub (57b97698). EventoServerContainerIT needs EVENTO_TEST_SERVER_IMAGE=<local image> until the
+  dev version has a published image.
+- Full suite with EVENTO_RUN_JDBC_IT=true: green except that IT without the env var.
+
+## Dependabot updates taken into 3.0 (2026-10-26)
+
+User request: "fai tutte le pull request, tutte le modifiche dovranno essere nella versione 3".
+On `enterprise/2.6-readiness`, no merge into main: the 24 Dependabot PRs close themselves once
+#281 is merged.
+- Most bumps were already on the branch (Netty 4.2.19, slf4j 2.0.20, pg 42.7.14, HV, Actions,
+  capacitor, cytoscape, angular-eslint, eslint-plugin-jsdoc). mermaid, marked-katex and
+  jasmine-core are no longer GUI dependencies: those PRs are obsolete.
+- b19a55d3: ClassGraph 6.0.0, Jackson 2.22.4, Flyway 13.11.1, ASM 9.11.1, Gradle wrapper 9.8.2.
+  **ClassGraph 6 scans nothing by default** (enableClassLoaders/enableNonSystemModules needed),
+  dropped `ClassInfo.loadClass()` (Class.forName(name, false, loader) now) and its
+  getAllAnnotationInfo includes meta-annotations (use getDirectAnnotationInfo). New
+  `ComponentScanTest`: before it the bundle unit tests stayed green while every IT said "no
+  handler". Fat jar of evento-lab-ms-command checked: all handlers found.
+- d3c24fce: Ionic 9; NgModule API lives in `@ionic/angular/lazy`, imports switched. Build, lint and
+  a headless render of the login page OK. Warning: IonicModule deprecated (provideIonicAngular),
+  to migrate before Ionic 10.
+- Full suite green after the fix (821 run in that invocation, 0 failures).
+- Market and the MES trial worktrees were tested on rc8 (ClassGraph 4.8): rerun them on the next
+  rc before release.
+
+## Evento 3 presented as a whole, tests referenced (2026-10-26)
+
+User request: reference the tests in the docs, the repo and the website; the site says v3 is
+available with a generic feature recap, no changelog against older versions; the docs drop the
+history too. All on branches, nothing deployed, no release (the user releases next week).
+- evento-doc `docs/enterprise-2.6` 2a4a77b: new `evento-3.md` (feature recap) and
+  `testing-and-verification.md` (1,130 tests, 19 chaos scenarios + invariants, rolling upgrades,
+  HA consumers 3x3, a marketplace and an MES named only generically); every page in the present
+  tense (no "(3.0)", "Since 2.5.0", "Changed in v2"); `upgrading-to-2-5.md` removed. Versions kept
+  only in licensing, compatibility, the 3.0 upgrade guide and dependency snippets.
+- evento README 15848735: "Evento 3" recap + "How Evento is tested" replace the per-version
+  sections; the licence line on releases up to 2.5.x stays (legal).
+- evento-www `licensing/apache-client-libraries` 71cbe07: hero "Evento 3 is available", one
+  feature section + "Tested to break" section (links docs `/evento-3`, `/testing-and-verification`),
+  2.x sections and 2.4.6 comparisons removed; get-started says Java 21+ for the bundle, server 25.
+  `npm run build` green. Not deployed.
+- Do not publish Axon numbers; do not name the two production systems publicly.
+
+## Enterprise readiness vs Axon 5 (branch `enterprise/2.6-readiness`, 2026-10-16)
+
+User request (Italian): verify a competitor analysis against Axon 5.4 / Axoniq on the code, decide
+the strategic points, roadmap. Analysis only, no code changed. Written to
+[`ENTERPRISE-2.6.md`](ENTERPRISE-2.6.md): gap table with ids (L/S/C/J/O/A/F/R), decision records
+D1..D10 (all "da decidere"), 3-phase roadmap with checkboxes. Key findings: `LICENSE.txt` adds
+restrictions the AGPL forbids; G6 also bites without failover (`getLockId()` → `null` = no lock,
+no verify); client libs compile with `--release 21` except one `Entry` name clash (bundle 1, server
+3); deadline drops already exist at the broker (N3); `evento-bundle` pulls `log4j-core`.
+Next: user decides D1, D9, D2 first; then work item by item on this branch.
+
+**Session 2 (same day): implemented the decided items** (user: licence b, Java b, security ok, Spring
+starter ok, OTel ok but opt-in with no overhead, test fixtures ok). Not committed. Plan updated
+(`ENTERPRISE-2.6.md`, "Stato al 2026-10-16"), CHANGELOG `[Unreleased]`, ARCHITECTURE §2/§6(24-25)/§7/§10/§14,
+CLAUDE.md.
+- Licence: per-module `LICENSE.txt`, `licenses/`, `NOTICE.txt`, `CLA.md` (draft, needs a lawyer), POM SPDX.
+- Java 21: `clientLibraries` + `clientJavaRelease` in root `build.gradle`, `-PtestJdk=21`, CI job.
+- Logging: client libs on SLF4J only; log4j configs moved to test resources; okhttp removed.
+- Server: `SecurityProfileGuard` (`evento.server.security.profile`), `BusTlsProperties` (`evento.server.bus.tls.*`).
+- Bundle: `setAuthToken` (was missing!), `setRestrictPayloadTypes`/`setAllowedPayloadPackages`,
+  `setBasePackageName`, `stop(Duration)`, `CorrelatingGateways`; `PayloadTypeAllowlist` live validator.
+- New modules (Apache-2.0, release 21, `gradle/evento-library.gradle`): `evento-test`, `evento-opentelemetry`
+  (OTel API 1.66.0), `evento-spring-boot-starter` (tests on Boot 4.1.1 and 3.5.16 via `boot3Test`).
+- Open: projector/service fixtures, starter health/metrics, server-side spans, event e2e trace test,
+  reflections removal, website/evento-doc licence pages, OIDC (S4).
+
+**Session 3 (same day): committed in 10 pieces, then the "open" list.** Every intermediate commit compiled
+(`testClasses` in a worktree each). Then: `ProjectorFixture`/`ServiceFixture`; server command spans
+(`CommandTracing`) + `TracingEventFlowIT`; starter Micrometer meters, opt-in connection readiness,
+`EventoBundleStartedEvent` (published on enable, not on `start()`); ClassGraph `ComponentScan` replaces
+Reflections; console OIDC (`evento.server.web.auth=oidc`, `OidcRoles`, `AuthController`, GUI SSO button).
+Sibling repos, local branches only, nothing pushed or deployed: `evento-www` `licensing/apache-client-libraries`
+(licensing page + footer), `evento-doc` `docs/enterprise-2.6` (Licensing, Spring Boot starter, OpenTelemetry,
+Testing with Fixtures, Security, GUI Auth OIDC; Quick Start Java 21). OIDC not tried against a real provider.
+
+**Session 4 (same day): the rest of the open list, committed piece by piece.**
+- Audit trail (`com.evento.server.web.audit`): Spring Boot audit with `LoggingAuditEventRepository` (one
+  `key=value` line per event on logger `evento.audit` + in-memory ring for `/actuator/auditevents`, ADMIN only),
+  `AdminAudit` around each console write (outcome recorded when the bundle answers), own authentication /
+  authorization listeners (Basic successes and anonymous refusals left out). `DELETE /api/bundle/{id}` now ADMIN.
+  GUI: only 401 signs out; admin actions use `apiWrite` and show a toast on 403.
+- `ConsoleApiTest`: every console controller under the real security chain, services mocked. Found the
+  page-size check answering 500 (Tomcat `BadRequestException`); now `ResponseStatusException(400)`.
+- `TracingAgent.traceSend` hook; `OpenTelemetryTracingAgent` opens a CLIENT span per command/query sent,
+  ended on the reply; `TracingEventFlowIT` checks request → send → server → aggregate → projector.
+- `hibernate-validator` dropped from `evento-bundle` (unused).
+Still open: CLA legal review; `evento-test-broker` (needs A2); push/deploy of this branch and the sibling
+branches (user's call); decisions D2, D8, D9, D10; roadmap items F4, C1, O2, O3, B1, R1/R2…
+
+**Session 5 (2026-10-19): decisions closed, enterprise features split out.** All of D1-D10 decided (D2 a,
+D8 a, D9 a = everything ships as 2.6.0, D10 b). The user wants the console's enterprise features under the
+commercial licence, so OIDC and the audit trail moved to the private repo `EventoFramework/evento-server-enterprise`
+(auto-configuration on the new SPI `com.evento.server.web.spi`: `ConsoleSignIn`, `AdminActionListener`;
+`AdminActions` runs console writes). The branch history was rewritten before its first push so that code never
+appears in the public repo (old history: local branch `backup/2.6-before-enterprise-split`, never push it).
+Session-3/4 notes above describe classes that now live in the enterprise repo. Next: C1 (aggregate_seq fence,
+also validating the lock), then B1 against Axon Server.
+
+**Session 6 (2026-10-19): C1, the aggregate fence (closes G6).** `es__events.aggregate_seq` + partial unique
+index `es__events_aggregate_seq_uidx (aggregate_id, aggregate_seq)`, added online by
+`AdvisoryLockedSchemaInitializer.applyAggregateFence` (script `db/upgrade/es-events-aggregate-seq.sql`). The
+story query reads the version in the same round trip (`KeyedAggregateStory.aggregateVersion`); the broker
+appends with `BrokerEventStore.appendAggregateEvent(..., version)`; a taken version →
+`AggregateFenceException`, answered to the caller as `AggregateConflictException` (evento-common; no automatic retry; keyed losers replay). Stale cached story (APES) → refetch.
+Tests: `AggregateFencePostgresIT` (12), new case in `IdempotentCommandPostgresIT` (runs on CPES and APES;
+fails with 8 stored events when the fence is disabled). Docker Desktop is available on the dev host now, so
+the JDBC ITs run locally (`EVENTO_RUN_JDBC_IT=true`). Docs: CHANGELOG (upgrade note: schema change; lockless
+concurrent commands now fail instead of forking), ARCHITECTURE §4.6, CLUSTER-READINESS G6, evento-doc
+"Upgrading to 2.6". Next: B1 (benchmark against Axon Server); a server-side retry on fence conflict would let
+the per-aggregate lock go (WAN round trips), to weigh with B1.
+
+**Session 6, continued: B1, the benchmark against Axon (`benchmarks/axon-comparison`).** Standalone Gradle
+build (composite on this repo): Evento CPES/APES (caller bundle → server → aggregate bundle), Axon Framework
+5.4 on JPA (pool 10 and 64), Axon 5.4 + Axon Server 2026.1.7. Scenarios create/spread/hot, closed loop at
+1/8/32/128 in flight, CPU pinning (infra 0-3, apps 4-7), fresh stack per scenario. Public report
+`results/REPORT.md` (Italian, with units); Axon Server results only in `results-private/` (git-ignored,
+Axoniq ToS forbid disclosure: never commit or publish them). The benchmark found three bugs, all fixed:
+the version read as text (`ORDER BY aggregate_seq` sorted "9" after "10"), responses starved behind requests
+on the bus business executor (everything timed out at 128 in flight), Snowflake ids throwing when the clock
+steps back (APES refused a few commands a minute on WSL2). Results vs Axon JPA: Evento never collapses and
+never refuses; Axon JPA leads slightly at 8 in flight on create, collapses from 32 (pool exhausted), is
+5-15× slower on spread/hot. Next: the user weighs D2 (b) / a server-side retry against the private Axon
+Server numbers; CI on PR #281.
+
+**Session 7 (2026-10-19/20): optimistic concurrency, group commit, B2.** User: "implementa percorso
+ottimistico e group commit, poi rifai B1; CPES e APES sceglibili, performance al massimo; sempre facilmente
+clusterizzabile; se CPES è migliore usalo come default". Profiling (phase timers from /actuator/prometheus,
+container CPU, pg_stat) showed concurrency limits, not hardware: lock pool 10 / 7.5 ms (~1300 cmd/s), CPES one
+fsync per event under es-lock (~430), then the 32-thread bus executor (~2500). Done: optimistic aggregate
+commands on the fence with retries under the lock and local contention detection (`AggregateContention`),
+group commit (`AppendBatcher`, one statement per batch, CPES consecutive numbers under one es-lock), bus executor
+32/CPU, CPES code default. B1 create @128: CPES 3907, APES 3852 cmd/s (Axon Server private numbers: below).
+Keyed duplicate expiring optimistically -> in progress (G5 contract), found by the IT. Next: B2, the HA multi-AZ
+benchmark (`docker/compose.ha.yaml`, `scripts/run-ha.sh`, `report-ha.py`): primary + synchronous standby, two
+servers in two AZs, toxiproxy RTT, shared aggregates across servers; decides whether APES is still worth it.
+B2 done (2f499bd0, `results/REPORT-HA.md`). Run 1 showed AZ b starved on the hot aggregate (polling waiters
+never caught the key between the other server's back-to-back holds): fixed in 95cb2eb7, waiters queue in
+PostgreSQL (`pg_advisory_lock` under `lock_timeout`, at most half the lock pool), now 29/29 cmd/s. Run 2: under
+synchronous replication CPES pays the RTT under es-lock, APES 2-3x faster at low concurrency or 10 ms RTT,
+equal at 0 ms/128 in flight; CPES better p99 on spread@128. Verdict (corrected after checking
+CLUSTER-READINESS): APES stays selectable and is faster under synchronous multi-AZ, but with more than one
+server it is still unsafe for consumers (69 ms read window vs id-to-commit time, several clocks, G20), and B2
+measured commands only; CPES stays the default and the cluster mode. User: "depreca APES se non porta più
+vantaggi" -> done: `EventStoreMode.APES` @Deprecated(since 2.6), boot WARN `es_mode_deprecated`, and a way out:
+a CPES boot moves the sequence above the newest APES id under es-lock (`continueSequenceAboveApesIds`, ERROR if
+an id is from the last minute: APES server maybe still running), tested in `GroupCommitPostgresIT` (commit
+39f72560, subject amended without the "!" at the user's request, force-pushed with lease). evento-doc
+(`docs/enterprise-2.6`, 7789266): event store modes page rewritten (APES deprecated, how to switch), upgrading
+to 2.6 sections 6-8 (lockless aggregate commands, capacity defaults, APES), advanced options, cluster pages,
+getLockId.
+
+**Licence change (2026-10-20).** User: "fanculo la enterprise mode, fai tutto open source, l'unico vincolo è che
+nessuno può rivendere Evento senza autorizzazione (niente SaaS del server, niente consulenze che citano Evento),
+anche le architetture RECQ; rendi open anche le feature di evento-server-enterprise". Choices (asked): Apache-2.0
++ Commons Clause for server/GUI/rest, client libraries stay Apache-2.0, RECQ via a trademark policy (ideas are not
+protectable by a code licence), OIDC/audit inside evento-server. Done: `com.evento.server.web.oidc` / `.audit`
+with their tests (oauth2-client dependency; boot verified on Postgres in basic and oidc mode, audit line and
+`/actuator/auditevents` checked), `LICENSE.txt` rewritten (what is allowed / needs authorisation),
+`licenses/Commons-Clause-1.0.txt`, AGPL text removed, module LICENSE files, `LICENSE-COMMERCIAL.txt` now an
+authorisation agreement, `TRADEMARKS.md` (draft), CLA, README/CONTRIBUTING/SUPPORT/MAINTAINERS/CLAUDE.md,
+CHANGELOG, ARCHITECTURE, ENTERPRISE-2.6 L5, CII sheet (`floss_license` now unmet for the server). evento-doc
+15860a3 (licensing page, GUI auth, upgrade §9), evento-www 1d8cf79 on `licensing/apache-client-libraries` (not
+deployed), evento-server-enterprise README marked retired (6a11437; archiving the GitHub repo is the user's
+call). The new terms apply from 2.6.0; 2.5.x and earlier keep their licences (LICENSE.txt, README, CHANGELOG,
+evento-doc, site). Open: lawyer review (licence reading, TRADEMARKS, CLA), trademark registration.
+
+**History rewrite (2026-10-20, asked by the user).** The 11 commits (2022, 2025) authored and committed under the
+user's former employer address now carry `Gabor Galazzo <gabor.galazzo@gmail.com>` (git filter-repo mailmap on a
+mirror; trees identical on all 60 branches/tags). Force-pushed every branch and tag; `main` through a temporary
+`allow_force_pushes=true` on its classic protection, restored at once (protection compared equal before/after).
+Every commit hash and tag changed: hashes quoted in older notes above and in commit messages before the rewrite
+point to the old objects (filter-repo translated those in commit messages). Old objects stay reachable on GitHub
+through `refs/pull/*` (read-only) and in the local `refs/remotes/pr/*`, local-only branches (`backup/*`,
+`cluster/*`, worktrees); the mirror backup was deleted at the user's request, and
+`EventoFramework/evento-server-enterprise` archived on GitHub (private, read-only). Renaming does not change
+ownership of that code.
+
+**Readiness items (2026-10-20).** User: "fai F4 e O2, poi R2", then the list O3, F11, F1, A2, L3. Done, each
+verified: F4 Flyway (`evento_es_schema_history`, V1 = 2.6.0 schema, V2-V5 the online steps as Java migrations,
+baseline 0 for older databases, session lock because Flyway's transactional lock hung CREATE INDEX CONCURRENTLY,
+failed steps repaired on the next boot, V3-V5 re-checked every boot; lab: an after-versioning database migrated
+in place); O2 `ConsumerLagMetrics` (lab: stopped projector 80 events behind, back to 0); R2 `COMPATIBILITY.md`;
+O3 `evento.server.request{kind,payload,outcome}`; F1 bundle-side expiry and optional `maxInboundRequests`, not
+cached by either exactly-once cache; F11 `evento.es.idempotency.retention` (off by default) + bundle outcome
+retention; A2 server published as library (`evento-server-library-*.jar`, release lookup made exact),
+`evento-test-broker` (`EventoTestBroker`, in-process broker + in-memory store) and `EventoServerContainer` in
+`evento-test` (real image, IT passed against a local build). L3: only `ADOPTERS.md` (empty); adopters cannot be
+written, they must be found. Commits 3b674a16, 670ad6de and the A2 one; evento-doc 99e9ea5, f92eea7, 1f88c1d,
+e1f934b. Left for the minimum: R1 (merge PR #281, tag 2.6.0). Docs updated (ARCHITECTURE §4.6 "Choosing
+CPES or APES", §4.8 table with the new settings, CLUSTER-READINESS, lab config-reference/L0/L4/command-latency). Full suite + Postgres ITs green (891 tests). Open: APES spread@128 p99 ~1 s
+(unexplained, consistent across RTTs); Axon harness still shows "Entity was missing" at 128 on spread.
+
+**Session 8 (2026-10-20): the release becomes 3.0.0; the "Cosa manca" list.** User: points 7 (Q4), 10 (Q2),
+11 (Q3) yes; 8 (nested payloads) won't be fixed, say so; 12 (APES p99) not needed, APES deprecated; release is
+3.0; deadlines/scheduling delegated to Quartz in the domain (no scheduled events or deadline manager); F10 yes;
+F6 multi-tenancy to analyse. Done: Q2 761dd0c1, Q4 d9df035c (server race: Hello after disconnect), S15 b7c822ce,
+N15 f857228e, N4 821300de, G21 d7c1cbae, G17 40fd63fb (V6 admin relay), 3.0 + D4 prod default 0b837814 (feat!),
+F9 several events per command 44814c10 (`DomainEvents`, `produces`, capability `events:1`, atomic append in one
+transaction holding es-lock), F10 crypto-shredding (`com.evento.common.personaldata`, `es__subject_keys` V7,
+`SubjectKeyRequestHandlers`, `PersonalDataController`; `SerializedObject` now throws on a serialization failure
+instead of a null payload). evento-doc: nested payloads limit, `scheduling-with-quartz.md`, upgrade guide
+renamed `upgrading-to-3-0.md`, aggregate command handler (several events), `personal-data.md`. F6: not in the
+framework (analysis in ENTERPRISE-2.6.md: tenant as domain concept or silo; server-enforced isolation is costly
+and is the use the licence reserves). Multi-tenancy doc page written (evento-doc `multi-tenancy.md`). Next: R1 (merge PR #281, tag v3.0.0) when the
+user asks; spike D2 (b). End of session: CI of PR #281 green on 7f194a2e (all jobs), PR mergeable, review required;
+ENTERPRISE-2.6.md checklists brought up to date (R1 as 3.0.0, F9, nested payloads, gap tables).
+Then, asked for "every possible test": whole Gradle build with every IT (PG 16/17, MySQL 8.4, server image
+built from the branch) 1088 green; GUI build + lint green (no specs); the 19 chaos scenarios on the lab with
+`LAB_TAG=v3`. S04 regressed (consumer rows wiped after a server resumed from a pause, 3/4 runs), caused by
+the Q4 fix: fixed in 2d688350 by claiming presence on the new `BusEvent.NodeEstablished` (first message after
+the Hello) instead of NodeJoined, and making a closed connection's Hello touch nothing; S04 4/4 clean, S00,
+S02, S03, S07, S13 unchanged; suite 1091 green. Summary `evento-lab-cluster/results/V3-SUMMARY.md` (5cd40ad4).
+S14 inconclusive at kills 150/500/1000/3000 ms (window too short in 3.0; S18 covers it).
+Pre-release review ("anything that would force a patch right away"): mixed versions on the lab with images
+built against v2.5.2 (servers first, bundles first, rolling upgrade on a 2.5.2 database) all as expected
+(5ae42a6b); GUI: unused mermaid/KaTeX/Karma removed, npm audit fix, 0 known vulnerabilities in production deps
+(the 43 Scorecard advisories were all npm, GUI tooling); Dependabot patch bumps taken (PG JDBC, SLF4J, Flyway,
+ASM); V1 migration header said 2.6.0 (fixed while no released server has applied it); upgrade guide completed
+(client dependencies, features needing 3.0 servers, events:1, ADMIN, `latest` images); doc/site snippets set
+the dev profile and name 3.0.0; the public demo (evento-www docker-compose.prod.yml) pinned to server 2.5.2,
+since `latest` 3.0 would not start there; PR #281 title/body rewritten for 3.0.0; publication dry run of the
+10 libraries OK. Suite 1091 green. Open for the user: SECURITY.md support window for 2.5.x, moving the demo to
+3.0, Dependabot majors (classgraph 6, ionic 9) and GitHub Actions bumps on main, dismissing the CodeQL CSRF
+alert (false positive: Basic is stateless, OIDC has CSRF). Full suite (whole evento-server included) + Postgres ITs: 997 tests green.
+
+**Session 9 (2026-10-21/22): Dependabot + CSRF, then 3.0 tried on market.** Dependabot: Actions, Gradle 9.8.1,
+Netty 4.2.19 taken; ClassGraph 6 (needs JDK 25, client libs stay on 21, kept 4.8.199) and Ionic 9 (drops
+`IonicModule`, needs a standalone migration of the console) declined with a comment on the PRs. CSRF now on in
+Basic mode except for requests carrying `Authorization` (11b994f0). The re-test found a startup race (a command
+right after start() could get "no handler"): per-connection notification lane, discovery before enable,
+`evento:barrier` request (b9b5a90c). Whole Gradle build with every IT 1098 green, client libs on JDK 21 green; the
+chaos/compat re-run was killed by Claude Code's memory reaper and NOT re-run yet (do it only when asked, alone).
+Market (`D:\Gabor\SW_DEVELOPMENT\StartUps\market-evento3`, local branch `chore/evento-3.0-trial`, bc428ffb, not
+pushed): compiles on 3.0 with no code change, 1382 tests green; startup against a 3.0 server on an empty DB showed
+the barrier gave up at registrationTimeout (5 s) while the discovery of 670 handlers took 8.5 s, so the seeders
+failed: barrier now bounded by defaultRequestTimeout + `event=barrier_timeout` WARN + `SlowDiscoveryIT`
+(dde7f58f); re-checked with rc2: seeders and projections OK. Artifacts published from the `.evento-bisect`
+worktree (version edited to 3.0.0-rc2, uncommitted) to `scratchpad/m2-rc`. Possible follow-up: batch the
+catalog writes of a discovery (8.5 s for one bundle on a fresh catalog).
+
+Then iris (`D:\Gabor\SW_DEVELOPMENT\StartUps\iris-evento3`, local branch `chore/evento-3.0-trial`, from 2.2.1;
+only change: `jakarta.validation-api` in iris-common). Its iris-sdk end-to-end suite (153 tests, 11 services
+run on the host against a docker stack `iris3-trial` with server image `evento-lab-cluster/server:v3h`) failed
+56 on the first pass with 2.2.1 and 74 with 3.0 rc3. Causes found and fixed in Evento, in order:
+(1) ab0697c1: lock affinity kept every pool connection (17 consumers, pool 8) -> bound maxHeld;
+(2) consumers at the head polled every ~50 ms (since 2.x; ~730 tx/s at rest) -> `HeadNotifier` (server, reads
+the head every `evento.es.head.poll.ms`) sends `evento:events-appended` with the appended event names,
+`HeadSignal` (bundle) wakes only the engines that handle one, capability `head:1`; at rest ~70 tx/s;
+(3) bundle departures were cleaned up on Netty event loops (handshake timeouts when 11 services restart) ->
+`AutoDiscoveryService` leave executor + one coalesced payload sweep;
+(4) every event cost one checkpoint write per consumer -> unhandled events' position written with the next
+handled one / at batch end (`EventConsumer.handles`, `SagaEventConsumer.handles`), and a lock is released at
+cycle end while the pool has no slot left. iris side (commits b8cf7d411, 275feea21): testcicd fixed for Gradle 9
+(outputLocation + testClassesDirs: it ran nothing), maintenance service added to the CI env, createPlant waits
+for the projection, microsecond timestamps (KPI projector, selection test), postgres `init: true`,
+master-data pool 24. Result: 153/153 on the first pass, empty databases, 4m39s. Published as 3.0.0-rc7 to
+scratchpad/m2-rc from the `.evento-bisect` worktree (uncommitted version edits).
+Replicated consumers checked afterwards (user): targeted notices left the lane holder's position behind on
+events it does not handle, so a read-your-writes query on another replica waited the fetch delay -> such
+notices now wake the other engines 500 ms late, coalesced; replicas sharing a pool ran it dry with kept locks
+-> a kept lock also yields when HikariCP has no idle connection (9767e275, replica IT in AbstractJdbcConsumerIT
+on PG and MySQL). New scenario `MsHighAvailabilityConsumersIT` (evento-lab-ms-it, PG, EVENTO_RUN_JDBC_IT):
+3 contexts x 3 replicas, the lane holder (from pg_locks) killed twice per context mid-stream, every event once
+and in order per context (4b9378b6).
+Then (user: "testa e correggi") the whole lab again. v3c found S04 (and S03 in the rolling upgrade) missing
+consumer rows after a fail-back and S07 EU/AM slow during the APAC partition, both from the startup barrier
+inside every session's registration: fixed by waiting for it in start()/enable() only (13d0911c), plus a
+grace before a departure's cleanup, evento.server.leave.grace-ms 30 s (644d4ae1); OutboundStream.cancel made
+idempotent (semaphore overflow seen in DirectStreamIT). v3e on the final code: every scenario as in v3, S04
+4/4, S07 100 %, all mixed-version runs as expected (results/V3-SUMMARY.md). Gradle with every IT: 1130 green.
 
 ## Payload versioning / upcasting (branch `feat/payload-versioning`, stacked on `feat/query-streaming`, 2026-10-16)
 

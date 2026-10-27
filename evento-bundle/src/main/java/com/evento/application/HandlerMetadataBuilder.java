@@ -9,14 +9,15 @@ import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.modeling.bundle.types.PayloadType;
 import com.evento.common.modeling.messaging.message.internal.discovery.RegisteredHandler;
 import com.evento.common.modeling.messaging.payload.DomainEvent;
+import com.evento.common.modeling.messaging.payload.DomainEvents;
 import com.evento.common.modeling.messaging.query.Multiple;
 import com.evento.common.modeling.messaging.query.Page;
 import com.evento.common.modeling.messaging.query.Streamed;
 import com.evento.transport.protocol.PayloadDiscoveryInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.JsonSchemaGenerator;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -24,7 +25,7 @@ import java.util.*;
 
 final class HandlerMetadataBuilder {
 
-    private static final Logger logger = LogManager.getLogger(HandlerMetadataBuilder.class);
+    private static final Logger logger = LoggerFactory.getLogger(HandlerMetadataBuilder.class);
 
     record Result(
             List<RegisteredHandler> handlers,
@@ -105,7 +106,8 @@ final class HandlerMetadataBuilder {
 
         aggregateManager.getHandlers().forEach((k, v) -> {
             var m = v.getAggregateCommandHandler(k);
-            var r = m.getReturnType().getSimpleName();
+            var produced = producedEvents(m);
+            var r = produced.getFirst().getSimpleName();
             var h = new RegisteredHandler(
                     ComponentType.Aggregate,
                     v.getRef().getClass().getSimpleName(),
@@ -116,21 +118,23 @@ final class HandlerMetadataBuilder {
             applyComponentMetadata(h, v.getRef().getClass());
             unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
-            var esh = v.getEventSourcingHandler(r);
-            if (esh != null) {
-                var esHandler = new RegisteredHandler(
-                        ComponentType.Aggregate,
-                        v.getRef().getClass().getSimpleName(),
-                        HandlerType.EventSourcingHandler,
-                        PayloadType.DomainEvent,
-                        r, null, false, null
-                );
-                applyComponentMetadata(esHandler, v.getRef().getClass());
-                unresolvedSends.addAndGet(applyInvocations(esHandler, esh));
-                handlers.add(esHandler);
+            for (var event : produced) {
+                var esh = v.getEventSourcingHandler(event.getSimpleName());
+                if (esh != null) {
+                    var esHandler = new RegisteredHandler(
+                            ComponentType.Aggregate,
+                            v.getRef().getClass().getSimpleName(),
+                            HandlerType.EventSourcingHandler,
+                            PayloadType.DomainEvent,
+                            event.getSimpleName(), null, false, null
+                    );
+                    applyComponentMetadata(esHandler, v.getRef().getClass());
+                    unresolvedSends.addAndGet(applyInvocations(esHandler, esh));
+                    handlers.add(esHandler);
+                }
+                payloads.add(event);
             }
             payloads.add(m.getParameterTypes()[0]);
-            payloads.add(m.getReturnType());
         });
 
         serviceManager.getHandlers().forEach((k, v) -> {
@@ -269,6 +273,24 @@ final class HandlerMetadataBuilder {
      * Whether a query handler answers with several views: a {@link Multiple}, a
      * {@link Page} or a {@link Streamed} (or a supertype that may be one of them).
      */
+    /**
+     * The events an aggregate command handler may produce: its return type, or for one that
+     * returns {@link DomainEvents} (F9) the classes it declares in {@code produces}. The catalog
+     * records one return type per handler: the first of them (an aggregate's event-sourcing
+     * handlers list the others).
+     */
+    static java.util.List<Class<?>> producedEvents(java.lang.reflect.Method m) {
+        if (!DomainEvents.class.isAssignableFrom(m.getReturnType())) return java.util.List.of(m.getReturnType());
+        var declared = m.getAnnotation(com.evento.common.modeling.annotations.handler.AggregateCommandHandler.class)
+                .produces();
+        if (declared.length == 0) {
+            throw new IllegalStateException(m.getDeclaringClass().getSimpleName() + "." + m.getName()
+                    + " returns DomainEvents but declares no events: list them in "
+                    + "@AggregateCommandHandler(produces = {...})");
+        }
+        return java.util.List.of(declared);
+    }
+
     static boolean returnsMany(Class<?> returnType) {
         return Multiple.class.isAssignableFrom(returnType)
                 || Page.class.isAssignableFrom(returnType)

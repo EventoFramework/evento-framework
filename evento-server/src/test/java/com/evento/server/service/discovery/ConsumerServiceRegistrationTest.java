@@ -127,4 +127,50 @@ class ConsumerServiceRegistrationTest {
         assertThat(saved).extracting(Consumer::getIdentifier)
                 .containsExactlyInAnyOrder("instance-1_c1", "instance-1_c2");
     }
+
+    /**
+     * G17: a console action on a consumer whose instance is not connected to this server goes to
+     * the server that holds it (AdminRelay) instead of failing with "No value present".
+     */
+    @Test
+    void anActionOnAConsumerOfAnotherServerIsRelayedToIt() throws Exception {
+        var component = new com.evento.server.domain.model.core.Component();
+        component.setComponentType(com.evento.common.modeling.bundle.types.ComponentType.Projector);
+        var consumer = new com.evento.server.domain.model.core.Consumer();
+        consumer.setConsumerId("orders_P_1_EU");
+        consumer.setInstanceId("orders-1");
+        consumer.setComponent(component);
+        when(consumerRepository.findAllByConsumerId("orders_P_1_EU")).thenReturn(java.util.List.of(consumer));
+        var bus = mock(com.evento.server.bus.BusFacade.class);
+        when(bus.currentView()).thenReturn(java.util.Set.of());  // not connected here
+
+        var relay = mock(AdminRelay.class);
+        when(relay.ownerOf(java.util.Set.of("orders-1"))).thenReturn(java.util.Optional.of("server-b"));
+        var ok = new com.evento.common.modeling.messaging.message.internal.consumer.ConsumerResponseMessage();
+        ok.setSuccess(true);
+        when(relay.send(org.mockito.ArgumentMatchers.eq("server-b"), org.mockito.ArgumentMatchers.eq("orders_P_1_EU"), any()))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(ok));
+        service.setAdminRelay(relay);
+
+        var answer = service.consumeDeadQueue("orders_P_1_EU", bus).get(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertThat(answer.isSuccess()).isTrue();
+        verify(relay).send(org.mockito.ArgumentMatchers.eq("server-b"), org.mockito.ArgumentMatchers.eq("orders_P_1_EU"),
+                any(com.evento.common.modeling.messaging.message.internal.consumer.ConsumerProcessDeadQueueRequestMessage.class));
+    }
+
+    @Test
+    void anActionOnAConsumerConnectedNowhereFailsWithAClearMessage() {
+        var consumer = new com.evento.server.domain.model.core.Consumer();
+        consumer.setConsumerId("gone");
+        consumer.setInstanceId("gone-1");
+        var component = new com.evento.server.domain.model.core.Component();
+        component.setComponentType(com.evento.common.modeling.bundle.types.ComponentType.Projector);
+        consumer.setComponent(component);
+        when(consumerRepository.findAllByConsumerId("gone")).thenReturn(java.util.List.of(consumer));
+        var bus = mock(com.evento.server.bus.BusFacade.class);
+        when(bus.currentView()).thenReturn(java.util.Set.of());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.consumeDeadQueue("gone", bus).join())
+                .hasMessageContaining("no instance of consumer gone is connected to any server");
+    }
 }

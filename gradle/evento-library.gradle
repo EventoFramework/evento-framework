@@ -1,0 +1,108 @@
+// Shared setup of a library published to Maven Central and GitHub Packages. A module sets
+// `ext.libraryName` and `ext.libraryDescription`, then applies this file; the artifactId is the
+// project name. A client library (Apache-2.0) also goes in `clientLibraries` in the root
+// build.gradle (client Java baseline) and in section 1 of LICENSE.txt. A module under the server's
+// licence (Apache-2.0 with the Commons Clause, section 2) sets `ext.commonsClause = true` first.
+
+def commonsClause = project.ext.has('commonsClause') && project.ext.commonsClause
+
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+group = 'com.eventoframework'
+version = "${eventoVersion}"
+
+java {
+    toolchain {
+        languageVersion = javaLanguageVersion
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+test {
+    useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = project.group
+            artifactId = project.name
+            version = project.version
+            from components.java
+            pom {
+                name = project.ext.libraryName
+                description = project.ext.libraryDescription
+                url = "https://www.eventoframework.com/"
+                licenses {
+                    license {
+                        name = commonsClause
+                                ? "Apache-2.0 with the Commons Clause 1.0 (no selling Evento without written authorisation)"
+                                : "Apache-2.0"
+                        url = commonsClause
+                                ? "https://github.com/EventoFramework/evento-framework/blob/main/LICENSE.txt"
+                                : "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        distribution = "repo"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "gaborgalazzo"
+                        name = "Gabor Galazzo"
+                        email = "gabor.galazzo@gmail.com"
+                    }
+                }
+                scm {
+                    connection = "scm:git:git://github.com/EventoFramework/evento-framework.git"
+                    developerConnection = "scm:git:ssh://github.com/EventoFramework/evento-framework.git"
+                    url = "https://github.com/EventoFramework/evento-framework/tree/main/${project.name}"
+                }
+            }
+            repositories {
+                maven {
+                    name = 'ossrh-staging-api'
+                    url = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
+                    credentials {
+                        username = project.findProperty("mavenCentralUsername") ?: System.getenv("MAVEN_CENTRAL_USERNAME")
+                        password = project.findProperty("mavenCentralPassword") ?: System.getenv("MAVEN_CENTRAL_PASSWORD")
+                    }
+                }
+                maven {
+                    name = 'GitHubPackages'
+                    url = "https://maven.pkg.github.com/EventoFramework/evento-framework"
+                    credentials {
+                        username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+                        password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+                    }
+                }
+            }
+        }
+    }
+}
+
+signing {
+    required = false
+    def signingKey = System.getenv("SIGNING_KEY")
+    if (signingKey) {
+        useInMemoryPgpKeys(signingKey, System.getenv("SIGNING_PASSWORD"))
+    }
+    sign publishing.publications.mavenJava
+}
+
+javadoc {
+    options.addBooleanOption("html5", true)
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+// Apache-2.0 §4: ship the licence and the NOTICE inside the jar.
+tasks.named('jar') {
+    from(rootProject.file('licenses/Apache-2.0.txt')) { into 'META-INF'; rename { 'LICENSE.txt' } }
+    if (commonsClause) from(rootProject.file('licenses/Commons-Clause-1.0.txt')) { into 'META-INF' }
+    from(rootProject.file('NOTICE.txt')) { into 'META-INF' }
+}

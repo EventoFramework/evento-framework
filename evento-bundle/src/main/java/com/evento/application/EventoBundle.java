@@ -28,8 +28,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import com.evento.application.bus.EventoServerMessageBusConfiguration;
 import com.evento.application.proxy.GatewayTelemetryProxy;
 import com.evento.application.proxy.InvokerWrapper;
@@ -44,10 +44,6 @@ import com.evento.common.modeling.messaging.message.application.*;
 import com.evento.common.performance.PerformanceService;
 import com.evento.common.performance.RemotePerformanceService;
 import com.evento.common.serialization.ObjectMapperUtils;
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-import org.reflections.util.ConfigurationBuilder;
-import org.reflections.util.FilterBuilder;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -67,7 +63,7 @@ import java.util.function.Function;
 @Getter
 public class EventoBundle {
 
-    private static final Logger logger = LogManager.getLogger(EventoBundle.class);
+    private static final Logger logger = LoggerFactory.getLogger(EventoBundle.class);
     private final String basePackage;
     private final String bundleId;
     private final String instanceId;
@@ -98,6 +94,34 @@ public class EventoBundle {
     public com.evento.application.client.metrics.BundleLatencies getLatencies() {
         return eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter
                 ? adapter.client().latencies() : null;
+    }
+
+    /**
+     * Inbound requests this bundle answered without running them: {@code [expired, refused]}
+     * (their caller's deadline had passed when the handler would have started; the bundle was
+     * handling its {@code maxInboundRequests}). {@code null} when the bundle does not run over the
+     * v2 {@code BundleClient}.
+     */
+    public long[] getInboundNotExecuted() {
+        return eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter
+                ? new long[]{adapter.client().inboundExpiredCount(), adapter.client().inboundRefusedCount()} : null;
+    }
+
+    /**
+     * The state of the connection to the server ({@code READY} when requests can flow), or
+     * {@code null} when the bundle does not run over the v2 {@code BundleClient}.
+     */
+    public com.evento.application.client.BundleClientState getConnectionState() {
+        return eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter
+                ? adapter.client().state() : null;
+    }
+
+    /** Calls {@code listener(previous, next)} on every change of {@link #getConnectionState()}. */
+    public void onConnectionStateChange(java.util.function.BiConsumer<com.evento.application.client.BundleClientState,
+            com.evento.application.client.BundleClientState> listener) {
+        if (eventoServer instanceof com.evento.application.client.EventoServerAdapter adapter) {
+            adapter.client().onStateChange(listener);
+        }
     }
 
     private EventoBundle(
@@ -305,6 +329,12 @@ public class EventoBundle {
     @Accessors(chain = true)
     public static class Builder {
         private Package basePackage;
+
+        /**
+         * The base package by name, for when no {@link Package} object is at hand (a Spring Boot
+         * starter reading it from configuration). {@link #basePackage} wins when both are set.
+         */
+        private String basePackageName;
         private String bundleId;
         private String instanceId;
         private long bundleVersion = 1;
@@ -368,10 +398,48 @@ public class EventoBundle {
          */
         private com.evento.common.messaging.outcome.ServiceCommandOutcomeStore serviceCommandOutcomeStore;
 
+        /**
+         * How long the outcomes of keyed service commands are kept (F11): every hour the bundle
+         * deletes from {@link #serviceCommandOutcomeStore} those recorded longer ago. Null (the
+         * default) keeps them for ever. Keep it at least as long as the server's
+         * {@code evento.es.idempotency.retention}, and longer than any caller can retry: after
+         * it, a command sent again with the same key runs again. Every instance sweeping the same
+         * store is harmless.
+         */
+        private Duration serviceOutcomeRetention;
+
+        /**
+         * How long this bundle keeps the key of a data subject it got from the server (3.0,
+         * {@code @PersonalData}): reading a stream of events asks once per subject and period,
+         * not once per event. A subject forgotten through another bundle or the console stays
+         * readable here until its cached key expires. Default one minute; zero asks every time.
+         */
+        private Duration subjectKeyCacheTtl = Duration.ofMinutes(1);
+
         private TracingAgent tracingAgent;
         private MessageHandlerInterceptor messageHandlerInterceptor;
 
+        /**
+         * Restrict polymorphic payload deserialization to the framework, JDK value types, the
+         * {@link #basePackage} and {@link #allowedPayloadPackages} (see
+         * {@link com.evento.common.serialization.PayloadTypeAllowlist}). Off by default in 2.x;
+         * turn it on in production. Setting {@link #allowedPayloadPackages} turns it on too.
+         */
+        private boolean restrictPayloadTypes;
+
+        /**
+         * Packages, besides {@link #basePackage}, whose classes travel as payloads (commands,
+         * events, queries, results, aggregate state), e.g. a shared API module.
+         */
+        private java.util.List<String> allowedPayloadPackages = java.util.List.of();
+
         private EventoServerMessageBusConfiguration eventoServerMessageBusConfiguration;
+
+        /**
+         * The shared secret the server requires when {@code evento.server.bus.auth-token} is set,
+         * sent in the handshake. Null sends none (accepted only by a server without a token).
+         */
+        private String authToken;
 
         /**
          * Transport settings for the link to the broker (event loops, codec,
@@ -401,6 +469,14 @@ public class EventoBundle {
 
         /** Cap on outstanding requests from this bundle; 0 disables the bound. */
         private int maxInFlightRequests = 2048;
+
+        /**
+         * Cap on the requests this bundle handles at once (admission control, F1): one more is
+         * refused at once, not executed, instead of queueing behind work that may outlast its
+         * caller. 0 (the default) disables the bound. A request whose caller's deadline passed
+         * while it waited here is never run, whatever this is.
+         */
+        private int maxInboundRequests = 0;
 
         /**
          * Fail-back to the first address of {@link #eventoServerMessageBusConfiguration}
@@ -449,7 +525,7 @@ public class EventoBundle {
         private boolean acceptCompressedReplies = true;
 
         /**
-         * Offer this bundle's streamed query answers on direct connections (2.6), for
+         * Offer this bundle's streamed query answers on direct connections (3.0), for
          * callers that ask for it ({@code QueryOptions.direct()}): the broker routes the
          * query and the data flows bundle to bundle. Null (default): streams go through
          * the broker, which relays them with flow control.
@@ -481,7 +557,7 @@ public class EventoBundle {
         private Map<String, com.evento.common.messaging.consumer.ConsumerExecutor> consumerExecutors = new HashMap<>();
 
         /**
-         * The history of this bundle's payload classes (2.6): each {@link com.evento.common.versioning.Upcaster}
+         * The history of this bundle's payload classes (3.0): each {@link com.evento.common.versioning.Upcaster}
          * turns a payload stored or sent with an older shape into the next one, before it is
          * deserialized. They apply to the events projectors, sagas and observers read (dead-event
          * retries included), to the events and snapshot an aggregate is rebuilt from, and to the
@@ -530,7 +606,7 @@ public class EventoBundle {
          * emit events in the caller's context has to copy it from a command field
          * into the event itself.
          */
-        /** Adds steps to {@link #upcasters} (2.6). */
+        /** Adds steps to {@link #upcasters} (3.0). */
         public Builder addUpcasters(com.evento.common.versioning.Upcaster... steps) {
             var all = new ArrayList<>(upcasters);
             all.addAll(Arrays.asList(steps));
@@ -651,9 +727,10 @@ public class EventoBundle {
          * @throws Exception if there is an error during initialization
          */
         public EventoBundle start() throws Exception {
-            if (basePackage == null) {
+            if (basePackage == null && (basePackageName == null || basePackageName.isBlank())) {
                 throw new IllegalArgumentException("Invalid basePackage");
             }
+            final String base = basePackage != null ? basePackage.getName() : basePackageName.trim();
             if (bundleId == null || bundleId.isBlank()) {
                 throw new IllegalArgumentException("Invalid bundleId");
             }
@@ -661,6 +738,12 @@ public class EventoBundle {
                 throw new IllegalArgumentException("Invalid messageBusConfiguration");
             }
             com.evento.common.utils.JdkRuntimeCheck.warning().ifPresent(logger::warn);
+            if (restrictPayloadTypes || !allowedPayloadPackages.isEmpty()) {
+                var packages = new java.util.ArrayList<String>();
+                packages.add(base);
+                packages.addAll(allowedPayloadPackages);
+                com.evento.common.serialization.PayloadTypeAllowlist.restrictTo(packages);
+            }
 
             if (injector == null) {
                 injector = clz -> null;
@@ -736,26 +819,18 @@ public class EventoBundle {
             );
             var invokerManager = new InvokerManager();
 
-            logger.info("Discovery handlers in %s".formatted(basePackage));
-            // SubTypes is configured to keep every scanned type (not only types
-            // with a scanned supertype) so the confinement check below can sweep
-            // the whole package, component or not.
-            // forPackages only selects classpath roots that CONTAIN the package;
-            // without the input filter every class sharing those roots would be
-            // scanned too, so two bundles in one jar could never be isolated.
-            Reflections reflections = new Reflections(new ConfigurationBuilder()
-                    .forPackages(basePackage.getName())
-                    .filterInputsBy(new FilterBuilder().includePackage(basePackage.getName()))
-                    .setScanners(Scanners.TypesAnnotated,
-                            Scanners.SubTypes.filterResultsBy(c -> true)));
+            logger.info("Discovery handlers in %s".formatted(base));
+            // Only the base package (and its sub-packages) is scanned, so two bundles in one jar
+            // stay isolated; every class is kept for the confinement check below.
+            var scan = com.evento.application.manager.ComponentScan.of(base);
 
-            aggregateManager.parse(reflections, injector);
-            serviceManager.parse(reflections, injector);
-            projectionManager.parse(reflections, injector);
-            projectorManager.parse(reflections, injector);
-            sagaManager.parse(reflections, injector);
-            observerManager.parse(reflections, injector);
-            invokerManager.parse(reflections);
+            aggregateManager.parse(scan, injector);
+            serviceManager.parse(scan, injector);
+            projectionManager.parse(scan, injector);
+            projectorManager.parse(scan, injector);
+            sagaManager.parse(scan, injector);
+            observerManager.parse(scan, injector);
+            invokerManager.parse(scan);
 
             logger.info("Discovery Complete");
 
@@ -772,10 +847,10 @@ public class EventoBundle {
                     com.evento.common.modeling.annotations.component.Saga.class,
                     com.evento.common.modeling.annotations.component.Observer.class,
                     com.evento.common.modeling.annotations.component.Invoker.class)) {
-                componentClasses.addAll(reflections.getTypesAnnotatedWith(annotation));
+                componentClasses.addAll(scan.annotatedWith(annotation));
             }
             var confinementViolations = ConfinementScanner.check(
-                    reflections.getSubTypesOf(Object.class), componentClasses);
+                    scan.allClasses(), componentClasses);
             for (var v : confinementViolations) {
                 logger.warn("Confinement check: {}.{} (line {}) invokes the {} gateway "
                                 + "outside any component class - this call site is invisible to "
@@ -853,6 +928,7 @@ public class EventoBundle {
             var bundleClient = bundleClientBuilder
                     .expectedServerInstanceId(eventoServerMessageBusConfiguration.getExpectedServerInstanceId())
                     .expectedClusterName(eventoServerMessageBusConfiguration.getExpectedClusterName())
+                    .authToken(authToken)
                     .transportConfig(effectiveTransportConfig())
                     .defaultRequestTimeout(defaultRequestTimeout)
                     .maxInFlightRequests(maxInFlightRequests)
@@ -874,6 +950,7 @@ public class EventoBundle {
                     // @Projector(waitForHeadReached = true) has caught up to the head.
                     .autoEnable(false)
                     .build();
+            bundleClient.setMaxInboundRequests(maxInboundRequests);
 
             var dispatcher = new BundleInboundDispatcher(adminCodec,
                     aggregateManager, serviceManager, projectionManager,
@@ -882,10 +959,16 @@ public class EventoBundle {
             // bundle's projectors (bound to the engines once they exist, below).
             dispatcher.setStreamFrameBytes(streamFrameBytes);
             dispatcher.setUpcasters(upcasterChain);
-            dispatcher.setRevisionGuard(new com.evento.application.client.RevisionGuard(bundleClient::revisionsAccepted));
+            dispatcher.setRevisionGuard(new com.evento.application.client.RevisionGuard(bundleClient::revisionsAccepted,
+                    bundleClient::eventListsAccepted));
             final var enginesForGate = new AtomicReference<EngineSupervisor>();
             dispatcher.setConsistencyGate(new com.evento.application.consumer.ProjectorConsistencyGate(enginesForGate::get));
             bundleClient.registerRequestHandler(ProtocolPayloadTypes.SERVER_ADMIN_REQUEST, adminHandler);
+            // The consumers at the head wait for the broker's notice that its store has grown.
+            var headSignal = new com.evento.application.consumer.HeadSignal(bundleClient::headNoticesAccepted);
+            bundleClient.registerNotificationHandler(
+                    com.evento.transport.protocol.ProtocolNotifications.EVENTS_APPENDED,
+                    (payload, ctx) -> headSignal.announce(com.evento.application.consumer.HeadSignal.namesOf(payload)));
             for (String payloadType : handlerPayloadTypes) {
                 bundleClient.registerRequestHandler(payloadType, dispatcher);
             }
@@ -893,6 +976,10 @@ public class EventoBundle {
 
             var eventoServer = new EventoServerAdapter(
                     bundleClient, bundleId, instanceId, bundleVersion, adminCodec);
+            // @PersonalData: the payload mapper encrypts with the keys the servers keep.
+            var subjectKeys = new com.evento.application.client.ServerSubjectKeyProvider(eventoServer,
+                    subjectKeyCacheTtl);
+            com.evento.common.personaldata.SubjectKeys.install(subjectKeys);
 
             if (commandGateway == null) {
                 commandGateway = commandGatewayBuilder.apply(eventoServer);
@@ -912,14 +999,23 @@ public class EventoBundle {
             enginesForGate.set(supervisor);
 
             eventoBundle.set(new EventoBundle(
-                    basePackage.getName(),
+                    base,
                     bundleId, instanceId,
-                    aggregateManager, projectionManager, sagaManager, commandGateway,
-                    queryGateway,
+                    aggregateManager, projectionManager, sagaManager,
+                    // What application code gets: correlated like the handlers' gateways when
+                    // a tracing agent is set (the handlers keep the raw ones behind their proxy).
+                    com.evento.application.proxy.CorrelatingGateways.commands(commandGateway, tracingAgent),
+                    com.evento.application.proxy.CorrelatingGateways.queries(queryGateway, tracingAgent),
                     performanceService,
                     serviceManager, projectorManager, observerManager, tracingAgent,
                     eventoServer,
                     supervisor));
+
+            eventoBundle.get().subjectKeys = subjectKeys;
+            if (serviceCommandOutcomeStore != null && serviceOutcomeRetention != null
+                    && !serviceOutcomeRetention.isZero() && !serviceOutcomeRetention.isNegative()) {
+                eventoBundle.get().startOutcomeSweeper(serviceCommandOutcomeStore, serviceOutcomeRetention);
+            }
 
             // Wire shutdown hook to stop v2 engines gracefully
             Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().unstarted(() -> {
@@ -930,7 +1026,8 @@ public class EventoBundle {
                     tracingAgent,
                     (c, p) -> createGatewayTelemetryProxy(commandGateway, queryGateway, bundleId, instanceId,
                             performanceService, tracingAgent, c, p),
-                    messageHandlerInterceptor
+                    messageHandlerInterceptor,
+                    headSignal
             );
 
             logger.info("Starting projector consumers...");
@@ -948,6 +1045,7 @@ public class EventoBundle {
                     dispatchContext, consumerExecutors,
                     componentName -> componentCheckpointModes.getOrDefault(componentName, checkpointMode));
             final ConsumerEngineConfig engineConfigForLater = engineConfig;
+            eventoBundle.get().consumerProcessor = engineConfig.processor();
             final var consumerExecutorsForLater = consumerExecutors;
             var startThread = new Thread(() -> {
                 try {
@@ -1189,18 +1287,72 @@ public class EventoBundle {
      * elapses.
      */
     private volatile ConsumerStatsPublisher consumerStatsPublisher;
+    /** The consumer engines' processor, whose locks are released on stop. */
+    private volatile com.evento.common.messaging.consumer.ConsumerProcessor consumerProcessor;
 
     void startConsumerStatsPublisher(ConsumerStatsPublisher publisher) {
         this.consumerStatsPublisher = publisher;
         publisher.start();
     }
 
+    /** Deletes service command outcomes older than the retention, hourly (F11). */
+    private volatile java.util.concurrent.ScheduledExecutorService outcomeSweeper;
+    private volatile com.evento.common.personaldata.SubjectKeyProvider subjectKeys;
+
+    void startOutcomeSweeper(com.evento.common.messaging.outcome.ServiceCommandOutcomeStore store, Duration retention) {
+        var sweeper = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            var t = new Thread(r, "evento-outcome-retention");
+            t.setDaemon(true);
+            return t;
+        });
+        sweeper.scheduleWithFixedDelay(() -> {
+            try {
+                int n = store.sweepBefore(Instant.now().minus(retention));
+                if (n > 0) logger.info("event=service_outcome_retention_swept deleted={} retention={}", n, retention);
+            } catch (RuntimeException e) {
+                logger.warn("event=service_outcome_retention_failed error=\"{}\"", e.getMessage());
+            }
+        }, 1, 60, java.util.concurrent.TimeUnit.MINUTES);
+        this.outcomeSweeper = sweeper;
+        logger.info("event=service_outcome_retention_enabled retention={}", retention);
+    }
+
+    /**
+     * Graceful stop: leave the server's routing (no new requests reach this bundle), stop the
+     * consumer engines within {@code deadline}, close the connection. For containers that own the
+     * lifecycle (the Spring Boot starter); the JVM shutdown hook stops only the engines.
+     * Idempotent.
+     */
+    public void stop(Duration deadline) {
+        if (eventoServer instanceof EventoServerAdapter adapter) {
+            try {
+                adapter.disable();
+            } catch (RuntimeException e) {
+                logger.debug("event=bundle_stop_disable_failed cause={}", e.toString());
+            }
+        }
+        stopV2Engines(deadline);
+        if (subjectKeys != null) {
+            com.evento.common.personaldata.SubjectKeys.uninstall(subjectKeys);
+        }
+        if (eventoServer instanceof EventoServerAdapter adapter) {
+            adapter.close();
+        }
+    }
+
     public void stopV2Engines(Duration deadline) {
         if (consumerStatsPublisher != null) {
             consumerStatsPublisher.close();
         }
+        if (outcomeSweeper != null) {
+            outcomeSweeper.shutdownNow();
+        }
         if (engineSupervisor != null) {
             engineSupervisor.stop(deadline);
+        }
+        // The engines are stopped: give the lanes they kept between cycles to another replica now.
+        if (consumerProcessor != null) {
+            consumerProcessor.releaseLocks();
         }
     }
 }

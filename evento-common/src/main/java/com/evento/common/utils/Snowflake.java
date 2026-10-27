@@ -4,6 +4,7 @@ import java.net.NetworkInterface;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Enumeration;
+import java.util.function.LongSupplier;
 
 /**
  * Distributed Sequence Generator. Inspired by Twitter snowflake:
@@ -24,6 +25,7 @@ public class Snowflake {
 
 	private final long nodeId;
 	private final long customEpoch;
+	private final LongSupplier clock;
 
 	private volatile long lastTimestamp = -1L;
 	private volatile long sequence = 0L;
@@ -41,6 +43,14 @@ public class Snowflake {
 		}
 		this.nodeId = nodeId;
 		this.customEpoch = customEpoch;
+		this.clock = System::currentTimeMillis;
+	}
+
+	// For tests: a clock that can step back
+	Snowflake(long nodeId, LongSupplier clock) {
+		this.nodeId = nodeId;
+		this.customEpoch = DEFAULT_CUSTOM_EPOCH;
+		this.clock = clock;
 	}
 
 	/**
@@ -60,29 +70,30 @@ public class Snowflake {
 	public Snowflake() {
 		this.nodeId = createNodeId();
 		this.customEpoch = DEFAULT_CUSTOM_EPOCH;
+		this.clock = System::currentTimeMillis;
 	}
 
 	/**
 	 * Generates a unique identifier based on Twitter's snowflake algorithm.
 	 * The identifier consists of a timestamp, a node ID, and a sequence number,
 	 * which are combined to form a 64-bit long value.
+	 * <p>
+	 * Ids always grow, even when the system clock steps back (NTP, a virtual machine's time sync):
+	 * the ids then go on from the last timestamp issued, and run ahead of the clock by a few
+	 * milliseconds until it catches up. A step back used to throw, which refused the command whose
+	 * event was being stored.
      * @return the next Snowflake ID
      */
 	public synchronized long nextId() {
-		long currentTimestamp = timestamp();
-
-		if (currentTimestamp < lastTimestamp)
-		{
-			throw new IllegalStateException("Invalid System Clock!");
-		}
+		long currentTimestamp = Math.max(timestamp(), lastTimestamp);
 
 		if (currentTimestamp == lastTimestamp)
 		{
 			sequence = (sequence + 1) & maxSequence;
 			if (sequence == 0)
 			{
-				// Sequence Exhausted, wait till next millisecond.
-				currentTimestamp = waitNextMillis(currentTimestamp);
+				// Sequence exhausted: the next millisecond, without waiting for the clock to reach it.
+				currentTimestamp++;
 			}
 		} else
 		{
@@ -100,16 +111,7 @@ public class Snowflake {
 
 	// Get current timestamp in milliseconds, adjust for the custom epoch.
 	private long timestamp() {
-		return Instant.now().toEpochMilli() - customEpoch;
-	}
-
-	// Block and wait till next millisecond
-	private long waitNextMillis(long currentTimestamp) {
-		while (currentTimestamp == lastTimestamp)
-		{
-			currentTimestamp = timestamp();
-		}
-		return currentTimestamp;
+		return clock.getAsLong() - customEpoch;
 	}
 
 	private long createNodeId() {

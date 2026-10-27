@@ -118,6 +118,9 @@ sapesse. Ora:
 - ogni lock tenuto possiede una connessione presa da un pool dedicato
   (`evento.lock.pool.maximum-size`, default 10; `evento.lock.pool.connection-timeout-ms`, 1000);
 - l'attesa è limitata da `evento.lock.acquire.timeout.ms` (60000) o dalla deadline del comando;
+  dalla 3.0 chi aspetta si mette in coda in PostgreSQL (`pg_advisory_lock` con `lock_timeout`, al
+  massimo metà del lock pool), che assegna il lock al primo in fila: i server si alternano su un
+  aggregato conteso invece di lasciarlo a chi lo tiene già (B2);
 - prima dell'append `verifyHeld` controlla che il lock sia ancora tenuto; se la connessione è
   morta il comando fallisce con `LockLostException` invece di scrivere senza mutua esclusione;
 - il lock globale `es-lock` è ora `pg_advisory_xact_lock` dentro la stessa istruzione dell'INSERT

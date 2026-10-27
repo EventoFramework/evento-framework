@@ -5,7 +5,7 @@
 # .claude/CLUSTER-READINESS.md) and healthcheck.sh. Nothing is compiled inside the image.
 #
 #   docker build -f docker/Dockerfile --build-arg JAR=evento-server-2.4.6.jar -t ... <context>
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25-jre-noble@sha256:af7b616f7f2c23bcff0bf706daf8aaab088c6f1843fdab637dcc6bd70ae573c3
 
 ARG JAR
 RUN test -n "${JAR}" || (echo "build-arg JAR is required" >&2; exit 1)

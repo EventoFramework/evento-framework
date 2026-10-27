@@ -2,8 +2,8 @@ package com.evento.common.messaging.consumer.impl;
 
 import com.evento.common.messaging.consumer.ConsumerExecutor;
 import com.evento.common.messaging.consumer.ConsumerExecutorStats;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class BoundedConsumerExecutor implements ConsumerExecutor {
 
-    private static final Logger logger = LogManager.getLogger(BoundedConsumerExecutor.class);
+    private static final Logger logger = LoggerFactory.getLogger(BoundedConsumerExecutor.class);
 
     private final String name;
     private final int capacity;

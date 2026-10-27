@@ -33,7 +33,7 @@ public final class MessageTypeRegistry {
             Map.entry("REQ", Request.class),
             Map.entry("RSP", Response.class),
             Map.entry("NTF", Notification.class),
-            // 2.6, only exchanged with peers that negotiated the stream capability
+            // 3.0, only exchanged with peers that negotiated the stream capability
             Map.entry("SDA", StreamData.class),
             Map.entry("SCR", StreamCredit.class),
             Map.entry("SCN", StreamCancel.class),
