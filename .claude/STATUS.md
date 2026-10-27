@@ -4,6 +4,17 @@ Last updated: 2026-10-27 (session 9).
 
 ## 3.0.0 released (2026-10-27)
 
+Apps on 3.0.0 (same day): the marketplace (PR #117 of its repo, CI green, not merged yet: the merge
+and the prod rollout wait for the user) moves to 3.0.0 with a hardened bus (token, TLS, payload
+allowlist + a guard test over its 800+ payload classes), crypto-shredding of deleted accounts
+(iam events @PersonalData, key deleted by an observer after UserDeletedEvent) and a two-phase prod
+script (broker in dev profile first, bundle, then harden). Verified end to end on a prod-profile
+3.0 broker. The MES trial branch is on 3.0.0 (local). **Follow-up for Evento:** read-your-writes
+waits for every projector of the bundle (ProjectorConsistencyGate), so one slow projector (the
+marketplace's search indexer) delays every consistent query; scope the gate to the projectors
+that feed the answering projection (or let a query name them) before recommending it to large
+bundles.
+
 `scripts/release.sh major` on main 06bb4a67 (CI green): commit 6f1039bb, tag v3.0.0. All workflows
 green: Maven Central (libraries at 3.0.0 on repo1), Release (signed boot jar on the GitHub Release,
 multi-arch signed image `eventoframework/evento-server:3.0.0` = `latest` on Docker Hub and GHCR,
