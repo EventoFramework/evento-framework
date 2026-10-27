@@ -2,6 +2,18 @@
 
 Last updated: 2026-10-27 (session 9).
 
+## 3.0.0 released (2026-10-27)
+
+`scripts/release.sh major` on main 06bb4a67 (CI green): commit 6f1039bb, tag v3.0.0. All workflows
+green: Maven Central (libraries at 3.0.0 on repo1), Release (signed boot jar on the GitHub Release,
+multi-arch signed image `eventoframework/evento-server:3.0.0` = `latest` on Docker Hub and GHCR,
+GitHub Packages). Pre-release check: 0 open PRs, 0 issues, 1 open alert (#40 CII badge). Docs
+(evento-doc PR #1, docs/enterprise-2.6 -> master, GitBook) and site (evento-www PR #1 -> main, image
+build) merged after publication. Still open for the user: the public demo server
+(evento-www docker-compose.prod.yml) stays pinned to 2.5.2 until it is moved to 3.0 (prod profile);
+the marketplace branch with the business time-zone fixes is not pushed; trial branches of the
+marketplace and the manufacturing-execution system can move from rc13 to 3.0.0.
+
 ## 3.0.0 ready on main, not tagged (2026-10-27)
 
 User: everything on main, release only when told ("aspetto tutte le correzioni"). State:
