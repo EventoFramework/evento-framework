@@ -69,7 +69,7 @@ authorisation, `LICENSE-COMMERCIAL.txt`; names in `TRADEMARKS.md`) and target 25
 `-PtestJdk=N` runs the client tests on another JDK. Libraries log through
 SLF4J only and ship no logging configuration.
 
-**Gradle**: version `2.5.2` (wrapper 9.8.2), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
+**Gradle**: version `3.0.0` (wrapper 9.8.2), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
 `4.1.1` (server and lab services), Jackson `2.22.2`, Netty `4.2.17.Final`, Flyway `13.4.0`. Root
 `build.gradle` centralises versions in `allprojects { ext { … } }`; the release script bumps
 `version` / `eventoVersion` there and `evento-server/version.json`. The published libraries also
