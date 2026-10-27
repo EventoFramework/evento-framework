@@ -1,4 +1,6 @@
 version: 2
+# Minor and patch updates of an ecosystem arrive together in one PR a week; a major
+# update keeps a PR of its own, since each needs its own review.
 updates:
   - package-ecosystem: gradle
     directory: /
@@ -8,6 +10,11 @@ updates:
     labels:
       - dependencies
       - gradle
+    groups:
+      gradle-minor-and-patch:
+        update-types:
+          - minor
+          - patch
     ignore:
       # The starter's boot3Test runs on Spring Boot 3.5 on purpose (boot3Version): a
       # major bump would make it a second 4.x run. Majors of Spring Boot move by hand.
@@ -22,16 +29,20 @@ updates:
     labels:
       - dependencies
       - npm
-    # Majors held back by peer ranges we do not control. Each was raised, failed
-    # `npm ci` with ERESOLVE, and cannot be unblocked from this repo. Drop the
-    # entry once the blocking package ships support.
-    ignore:
-      # ng-apexcharts@2.4.0 (latest) peers apexcharts@^5.10.3.
-      - dependency-name: apexcharts
+    groups:
+      npm-minor-and-patch:
         update-types:
-          - version-update:semver-major
+          - minor
+          - patch
+    # Majors held back by peer ranges we do not control. Drop the entry once the
+    # blocking package ships support.
+    ignore:
       # eslint-plugin-import@2.32.0 (latest) peers eslint@"...||^9".
       - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
+      # Angular 22 (@angular/compiler-cli, @angular/build) peers typescript@">=6.0 <6.1".
+      - dependency-name: typescript
         update-types:
           - version-update:semver-major
   - package-ecosystem: github-actions
@@ -41,9 +52,13 @@ updates:
     labels:
       - dependencies
       - github-actions
-    # Every step of a workflow must run the same codeql-action version (init and
-    # analyze refuse to mix), so its actions move together in one PR.
     groups:
+      # Every step of a workflow must run the same codeql-action version (init and
+      # analyze refuse to mix), so its actions move together, majors included.
       codeql-action:
         patterns:
           - "github/codeql-action*"
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
