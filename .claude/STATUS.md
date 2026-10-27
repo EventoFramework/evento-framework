@@ -1,6 +1,24 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-26 (session 9).
+Last updated: 2026-10-27 (session 9).
+
+## 3.0.0 release (2026-10-27)
+
+User: release 3.0.0 once every test passes, with the Dependabot PRs closed and the fewest open
+vulnerabilities. Security work before the merge:
+- GUI: npm audit 7 -> 0 (Angular 22.2.3/22.2.4, vite override ^8.3.5, uuid ^11.1.1 under xcode).
+- Java: Spring Boot 4.1.2, `at.yawk.lz4:lz4-java` 1.12.1 (org.lz4 1.8.0 abandoned). OSV on the runtime
+  classpaths of the server and the published libraries: 0 of 153 (only test classpaths keep some, e.g.
+  Boot 3.5 in boot3Test, Testcontainers' commons-compress).
+- Images: Temurin 25.0.4.1, every base pinned by digest (the lab and benchmark ones were floating).
+- Scorecard alerts left open are process/settings ones (code review, branch protection, CII badge,
+  wrapper jar), not code.
+Verified on rc11 (= the release code): full suite with JDBC ITs and EventoServerContainerIT 1135/0
+failures (21 skipped = lab scenarios + benchmarks, run separately); lab chaos S00-S18 all OK; mixed
+2.5.2/3.0 runs all as expected (S03 all-3.0 one INCONCLUSIVE: no call in flight at the kill, as in
+the previous round); the marketplace and the manufacturing-execution system pass all their tests.
+- Fresh-stack tip: the Postgres healthcheck turns healthy while the init server still runs; wait for
+  "init process complete" before starting services.
 
 ## rc10 verified on the two real applications (2026-10-26)
 
