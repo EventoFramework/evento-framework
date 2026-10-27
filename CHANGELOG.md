@@ -479,6 +479,14 @@ a revised payload needs a 3.0 broker.
   `ReentrantLock` now, so a virtual thread waiting there does not pin its carrier on JDK 21–23.
 - A response over the reconnect buffer's byte budget is no longer buffered
   (`event=reconnect_buffer_full`): a burst of disconnects can no longer exhaust the broker's heap.
+- **A bundle stopped right after its Hello no longer leaves a phantom node on the broker.** The broker
+  registers a Hello on a virtual thread and cleans up a closed connection on the event loop; when the close
+  came between the two steps of the registration (address bound, connection not yet registered), the cleanup
+  found nothing to remove, used up the session's one cleanup, and the registration that followed stayed for a
+  dead channel, listed in the view and picked for routing. Seen as an intermittent CI failure of
+  `BundleClientFailbackIT` (a bundle stopped during a fail-back, about one run in ten). The registration and
+  the cleanup now run under the session's lock: a Hello is registered wholly before a close, which removes it,
+  or not at all.
 - **Event times no longer depend on the server's time zone.** The event store keeps UTC wall time, but the server
   read it through the JVM's zone: off UTC, published events and the console showed times shifted by the zone
   offset, an hour more or less across a daylight-saving change, and `deleted_at` was stamped in local time. They

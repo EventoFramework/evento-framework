@@ -696,41 +696,40 @@ public final class BusLifecycle {
                     .whenComplete((outcome, ex) -> session.transport().close());
             return;
         }
-        if (session.disconnected()) {
-            // The connection is already closed (a fail-back attempt the bundle gave up on, a
-            // Hello read from a socket that was paused): touch no shared state. Registering
-            // it published NodeJoined then NodeLeft, whose presence claim and release wiped
-            // the catalog rows of the same instance, live on another server (G7 again).
-            log.info("event=hello_after_disconnect node={} token={} registered=false",
-                    hello.instanceId(), session.connectionToken());
-            return;
-        }
         // Bind + register synchronously, BEFORE sending Welcome. Otherwise the client
         // can receive Welcome and immediately fire follow-up notifications (enable,
         // register-handlers, even a Request) that arrive on the server before
         // session.address() is set, and get dropped as "before-handshake".
+        //
+        // Under the session's lock, which the disconnect cleanup takes too: the binding and
+        // the registration happen either wholly before a disconnect, which then finds the
+        // registration and removes it, or not at all. Without it a disconnect could see the
+        // address bound but nothing registered yet, skip as superseded and use up the
+        // session's cleanup, and the registration that followed stayed for a dead channel
+        // (a bundle stopped just after its Hello, during a fail-back, left a phantom node).
         long version = parseBundleVersion(hello.bundleVersion());
         var address = new NodeAddress(hello.bundleId(), version, hello.instanceId());
-        session.bindAddress(address);
-        session.setCapabilities(handshakeHandler.negotiated(hello));
-        session.transitionTo(BundleSession.Phase.REGISTERED);
-        connectionRegistry.register(new Connection(
-                address, session.transport(), session.connectionToken(), Instant.now()));
-        // The zone rides in the Hello capabilities (no wire field of its own). It is
-        // recorded on every Hello, so a reconnect that moved zones is picked up; recorded
-        // after the registration and tagged with this session's token, so the teardown of
-        // the session this one replaces can no longer erase it (see onTransportDisconnected).
-        clusterRegistry.setZone(address, session.connectionToken(), HandshakeProtocol.zoneOf(hello.capabilities()));
-        if (session.disconnected()) {
-            // The connection closed while this Hello was being handled: its disconnect found no
-            // address yet and cleaned up nothing, so the registration above would stay behind for
-            // a dead channel (a bundle stopped mid-handshake left a phantom node, Q4).
-            // Its NodeLeft says so: the session never completed, so the catalog releases the
-            // presence it claimed and keeps every row (see AutoDiscoveryService.onNodeLeave).
-            log.info("event=hello_after_disconnect node={} token={} registered=true",
-                    address.instanceId(), session.connectionToken());
-            onTransportDisconnected(session, LEFT_HANDSHAKE_ABORTED);
-            return;
+        synchronized (session) {
+            if (session.disconnected()) {
+                // The connection is already closed (a fail-back attempt the bundle gave up on,
+                // a Hello read from a socket that was paused, a bundle stopped mid-handshake):
+                // touch no shared state. Registering it published NodeJoined then NodeLeft,
+                // whose presence claim and release then wiped the catalog rows of the same
+                // instance, live on another server (G7 again), or left a phantom node (Q4).
+                log.info("event=hello_after_disconnect node={} token={} registered=false",
+                        hello.instanceId(), session.connectionToken());
+                return;
+            }
+            session.bindAddress(address);
+            session.setCapabilities(handshakeHandler.negotiated(hello));
+            session.transitionTo(BundleSession.Phase.REGISTERED);
+            connectionRegistry.register(new Connection(
+                    address, session.transport(), session.connectionToken(), Instant.now()));
+            // The zone rides in the Hello capabilities (no wire field of its own). It is
+            // recorded on every Hello, so a reconnect that moved zones is picked up; recorded
+            // after the registration and tagged with this session's token, so the teardown of
+            // the session this one replaces can no longer erase it (see onTransportDisconnected).
+            clusterRegistry.setZone(address, session.connectionToken(), HandshakeProtocol.zoneOf(hello.capabilities()));
         }
         handshakeHandler.reply(hello, session.transport(), verdict).whenComplete((outcome, ex) -> {
             if (ex != null) {
@@ -1094,22 +1093,27 @@ public final class BusLifecycle {
     }
 
     private void onTransportDisconnected(BundleSession session, String reason) {
-        // First, so a Hello being handled right now sees it after registering (see onHello).
-        session.markDisconnected();
-        sessionsByTransport.remove(session.transport());
-        var address = session.address();
-        if (address == null) {
-            if (session.framesReceived()) {
-                log.info("event=preregistered_disconnect token={}", session.connectionToken());
-            } else {
-                // Nothing but heartbeats (swallowed below the router): a health probe.
-                log.debug("event=preregistered_disconnect token={} frames=none", session.connectionToken());
+        NodeAddress address;
+        java.util.Optional<Connection> removedConn;
+        // Under the lock onHello registers with: a Hello is either wholly registered before
+        // this runs, and removed here, or sees the session disconnected and registers nothing.
+        synchronized (session) {
+            session.markDisconnected();
+            sessionsByTransport.remove(session.transport());
+            address = session.address();
+            if (address == null) {
+                if (session.framesReceived()) {
+                    log.info("event=preregistered_disconnect token={}", session.connectionToken());
+                } else {
+                    // Nothing but heartbeats (swallowed below the router): a health probe.
+                    log.debug("event=preregistered_disconnect token={} frames=none", session.connectionToken());
+                }
+                return;
             }
-            return;
+            if (!session.claimCleanup()) return;  // both transport callbacks (DISCONNECTED, CLOSED) got here
+            session.transitionTo(BundleSession.Phase.CLOSED);
+            removedConn = connectionRegistry.unregister(address, session.connectionToken(), reason);
         }
-        if (!session.claimCleanup()) return;  // the disconnect and a late Hello both got here
-        session.transitionTo(BundleSession.Phase.CLOSED);
-        var removedConn = connectionRegistry.unregister(address, session.connectionToken(), reason);
         if (removedConn.isEmpty()) {
             // Token mismatch: this session was already superseded by a newer connection
             // for the same NodeAddress. The new session owns the cluster-registry and
