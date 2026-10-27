@@ -143,8 +143,18 @@ public final class ClusterRegistry {
         return Map.copyOf(snapshot);
     }
 
+    /**
+     * Bind {@code node} to {@code payloadType}. Inside {@code compute}, atomic with
+     * {@link #removeNode}: the set is created and the node added in one step, so the
+     * compaction of another node's removal can no longer drop a set between its creation
+     * and the add (two bundles registering at once lost one registration).
+     */
     public void registerHandler(NodeAddress node, String payloadType) {
-        handlers.computeIfAbsent(payloadType, k -> ConcurrentHashMap.newKeySet()).add(node);
+        handlers.compute(payloadType, (k, nodes) -> {
+            var set = nodes == null ? ConcurrentHashMap.<NodeAddress>newKeySet() : nodes;
+            set.add(node);
+            return set;
+        });
     }
 
     public void registerHandlers(NodeAddress node, Collection<String> payloadTypes) {
@@ -163,13 +173,16 @@ public final class ClusterRegistry {
      */
     public Set<String> removeNode(NodeAddress node) {
         Set<String> nowEmpty = ConcurrentHashMap.newKeySet();
-        handlers.forEach((pt, nodes) -> {
-            if (nodes.remove(node) && nodes.isEmpty()) {
-                nowEmpty.add(pt);
-            }
-        });
-        // Compact entries that became empty.
-        handlers.entrySet().removeIf(e -> e.getValue().isEmpty());
+        // Per payload type and inside computeIfPresent, so a registration of the same type
+        // runs wholly before or after: an entry is dropped only when this removal empties it.
+        for (String pt : handlers.keySet()) {
+            handlers.computeIfPresent(pt, (k, nodes) -> {
+                if (!nodes.remove(node)) return nodes;
+                if (!nodes.isEmpty()) return nodes;
+                nowEmpty.add(k);
+                return null;
+            });
+        }
         log.info("event=node_removed node={} emptyTypes={}", node.instanceId(), nowEmpty.size());
         return Collections.unmodifiableSet(nowEmpty);
     }

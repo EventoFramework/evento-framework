@@ -479,6 +479,11 @@ a revised payload needs a 3.0 broker.
   `ReentrantLock` now, so a virtual thread waiting there does not pin its carrier on JDK 21–23.
 - A response over the reconnect buffer's byte budget is no longer buffered
   (`event=reconnect_buffer_full`): a burst of disconnects can no longer exhaust the broker's heap.
+- **Two bundles registering at once no longer lose a registration.** The broker binds a handler to its payload
+  type by creating the type's set and then adding to it; another bundle's registration, which first removes its
+  old bindings and compacts the empty sets, could drop the new set between the two steps, and the first bundle's
+  handler was gone: its requests answered "no handler". Binding and removal are now atomic per payload type.
+  Seen as an intermittent CI failure of `BusLifecycleDisconnectIT`; `ClusterRegistryTest` now reproduces it.
 - **A bundle stopped right after its Hello no longer leaves a phantom node on the broker.** The broker
   registers a Hello on a virtual thread and cleans up a closed connection on the event loop; when the close
   came between the two steps of the registration (address bound, connection not yet registered), the cleanup
