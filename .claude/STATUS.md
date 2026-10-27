@@ -2,7 +2,32 @@
 
 Last updated: 2026-10-27 (session 9).
 
-## 3.0.0 release (2026-10-27)
+## 3.0.0 ready on main, not tagged (2026-10-27)
+
+User: everything on main, release only when told ("aspetto tutte le correzioni"). State:
+- main = a9145f62 + #321 (README count). 0 open PRs. Docs (docs/enterprise-2.6) and site
+  (licensing/apache-client-libraries) ready on their branches, not merged: they announce 3.0 as
+  available, so they go with the tag.
+- Two broker races found through flaky CI and fixed: #287 a bundle stopped right after its Hello
+  left a phantom connection (Hello bind/register vs disconnect cleanup, now under the session
+  monitor; BundleClientFailbackIT failed ~1/10 CI runs); #319 two bundles registering at once lost
+  a registration (ClusterRegistry computeIfAbsent+add vs removeIf compaction, now compute /
+  computeIfPresent; ClusterRegistryTest reproduces it at round 1 on the old code).
+- Dependabot backlog drained (#286, #304, #317, #320): it opens 10 PRs per ecosystem and refills;
+  dependabot.yml now groups minor+patch per ecosystem, ignores majors of spring-boot-dependencies
+  (boot3Test stays on 3.5), typescript (Angular 22 peers <6.1) and eslint (eslint-plugin-import).
+- Docs/site/README: benchmarks added to How Evento Is Tested (Evento-only numbers, never Axon
+  Server), no references to earlier versions except the upgrade guide, compatibility and CHANGELOG;
+  test count "over 1,000" (the suite has 1,046; 1,135 had counted lab result files).
+- Final verification on main a9145f62 = 3.0.0-rc13: full suite with JDBC ITs green (1,046 tests,
+  2 skipped), lab chaos S00-S18 20/20 OK, mixed-version runs as expected (S03 INCONCLUSIVE = no
+  call in flight at the kill), marketplace 1385/1385, MES 153/153 first run.
+- Lesson: stopping a background lab task left its child scripts running; two lab rounds then
+  fought over one stack (fake S16 failure, Gradle NoSuchFileException). Check ps before a new run.
+- To release: on main, `scripts/release.sh major` (bumps to 3.0.0, tags v3.0.0, triggers the
+  publishing workflows), then merge the docs and site branches.
+
+## 3.0.0 release preparation (2026-10-27)
 
 User: release 3.0.0 once every test passes, with the Dependabot PRs closed and the fewest open
 vulnerabilities. Security work before the merge:
