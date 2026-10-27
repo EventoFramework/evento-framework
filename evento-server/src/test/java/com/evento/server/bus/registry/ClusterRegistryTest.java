@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -197,5 +198,42 @@ class ClusterRegistryTest {
         assertThat(cluster.zoneOf(node)).contains("AM");
         assertThat(cluster.forgetZone(node, "new-token")).isTrue();
         assertThat(cluster.zoneOf(node)).isEmpty();
+    }
+
+    /**
+     * Two bundles registering at once on the broker: one binds a payload type nobody had,
+     * the other's registration first removes its old bindings. The removal's compaction of
+     * empty entries used to drop the new type's set between its creation and the add, and
+     * the registration was lost (seen as a request that found no handler).
+     */
+    @Test
+    void aRegistrationIsNotLostToAConcurrentRemoval() throws Exception {
+        var newcomer = addr("b1");
+        var other = addr("a1");
+        for (int round = 0; round < 20_000; round++) {
+            var registry = new ClusterRegistry(connections);
+            registry.registerHandler(other, "com.Other");
+            var barrier = new CyclicBarrier(2);
+            var register = Thread.ofPlatform().start(() -> {
+                await(barrier);
+                registry.registerHandler(newcomer, "com.X");
+            });
+            var remove = Thread.ofPlatform().start(() -> {
+                await(barrier);
+                registry.removeNode(other);
+            });
+            register.join();
+            remove.join();
+            assertThat(registry.handlerCount("com.X")).as("round %d", round).isEqualTo(1);
+            assertThat(registry.handlerCount("com.Other")).as("round %d", round).isZero();
+        }
+    }
+
+    private static void await(CyclicBarrier barrier) {
+        try {
+            barrier.await();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }
