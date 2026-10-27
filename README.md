@@ -96,7 +96,7 @@ See the [documentation](https://docs.eventoframework.com/evento-3) for each of t
 
 ## How Evento is tested
 
-- **1,135 automated tests** on every change, over real TCP connections, against PostgreSQL 16 and 17 and MySQL 8.4, with several complete servers on one database.
+- **Over 1,000 automated tests** on every change, over real TCP connections, against PostgreSQL 16 and 17 and MySQL 8.4, with several complete servers on one database.
 - **Nineteen chaos scenarios** on a three-region lab ([`evento-lab-cluster`](evento-lab-cluster)): servers killed, frozen and restarted, a region cut off, database failovers, cold starts, clock skew, retry storms. After each one the lab checks that no acknowledged command is lost, nothing is executed twice, no aggregate forks, the read models converge and the catalog lists every live bundle. Every invariant holds in every scenario ([results](evento-lab-cluster/results/V3-SUMMARY.md)).
 - **Rolling upgrades**: servers and bundles of different versions together, in every order, and a running cluster upgraded one process at a time.
 - **Highly available consumers** ([`evento-lab-microservices`](evento-lab-microservices)): one consumer per context in three replicas, the replica holding each lane killed twice mid-stream; every event applied exactly once and in order.
