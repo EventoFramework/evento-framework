@@ -19,7 +19,7 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			" left join core__handler h on p.name = h.handled_payload_name " +
 			" left join core__component hc on h.component_id = hc.id " +
 			"left join core__handler__invocation i on i.invocations_name = p.name " +
-			"left join core__handler h2 on h2.return_type_name = p.name " +
+			"left join core__handler h2 on (h2.return_type_name = p.name or h2.uuid in (select pe.handler_uuid from core__handler__produced_event pe where pe.produced_event_name = p.name)) " +
 			"group by p.name order by p.updated_at desc", nativeQuery = true)
     List<PayloadListProjection> findAllProjection();
 
@@ -49,7 +49,7 @@ public interface PayloadRepository extends JpaRepository<Payload, String> {
 			"         left join core__handler__invocation i on i.invocations_name = p.name " +
 			"         left join core__handler hi on hi.uuid = i.handler_uuid " +
 			"         left join core__component hic on hi.component_id = hic.id " +
-			"         left join core__handler h2 on h2.return_type_name = p.name " +
+			"         left join core__handler h2 on (h2.return_type_name = p.name or h2.uuid in (select pe.handler_uuid from core__handler__produced_event pe where pe.produced_event_name = p.name)) " +
 			"         left join core__component h2c on h2.component_id = h2c.id " +
 			"         left join core__handler__invocation ri on ri.invocations_name = h2.handled_payload_name " +
 			"         left join core__handler h3 on h3.uuid = ri.handler_uuid " +

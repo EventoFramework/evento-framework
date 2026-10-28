@@ -48,4 +48,7 @@ public interface HandlerRepository extends JpaRepository<Handler, String> {
 
 	@Query(value = "select exists(select 1 from core__handler__invocation where invocations_name = ?1)", nativeQuery = true)
 	boolean existsByInvocationPayloadName(String payloadName);
+
+	@Query(value = "select exists(select 1 from core__handler__produced_event where produced_event_name = ?1)", nativeQuery = true)
+	boolean existsByProducedEventName(String payloadName);
 }

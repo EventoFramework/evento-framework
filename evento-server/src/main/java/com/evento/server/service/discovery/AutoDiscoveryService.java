@@ -258,6 +258,7 @@ public class AutoDiscoveryService {
         for (RegisteredHandler rh : registration.handlers()) {
             if (rh.getHandledPayload() != null) declared.put(rh.getHandledPayload(), rh.getHandledPayloadType());
             if (rh.getReturnType() != null) declared.putIfAbsent(rh.getReturnType(), returnPayloadType(rh));
+            for (var produced : rh.getProducedEvents()) declared.putIfAbsent(produced, returnPayloadType(rh));
             if (rh.getInvokedCommands() != null)
                 rh.getInvokedCommands().values().forEach(n -> invoked.putIfAbsent(n, PayloadType.Command));
             if (rh.getInvokedQueries() != null)
@@ -377,6 +378,7 @@ public class AutoDiscoveryService {
                                     ? registeredHandler.getHandlerLine() : null);
                             handler.setExecutor(registeredHandler.getExecutor());
                             handler.setInvocations(buildInvocations(registeredHandler, bundle.getId()));
+                            handler.setProducedEvents(buildProducedEvents(registeredHandler, bundle.getId(), typeAlignments));
                             handler.generateId();
                             handlerService.save(handler);
                         } else {
@@ -411,6 +413,15 @@ public class AutoDiscoveryService {
                                             existing.setExecutor(executor);
                                             changed = true;
                                         }
+                                        // Tracks the live declaration, like the executor: a redeploy can
+                                        // add or drop an event in produces
+                                        var produced = new java.util.TreeSet<>(registeredHandler.getProducedEvents());
+                                        var stored = new java.util.TreeSet<String>();
+                                        existing.getProducedEvents().forEach(p -> stored.add(p.getName()));
+                                        if (!produced.isEmpty() && !produced.equals(stored)) {
+                                            existing.setProducedEvents(buildProducedEvents(registeredHandler, bundle.getId(), typeAlignments));
+                                            changed = true;
+                                        }
                                         if (changed) handlerService.save(existing);
                                         // Backfill component path/line if missing
                                         var comp = existing.getComponent();
@@ -431,6 +442,15 @@ public class AutoDiscoveryService {
                     handlerService.deleteAll(handlers);
                 }
                 // Payload metadata (payloadInfo) is backfilled after the commit: see onNodeJoin.
+    }
+
+    private java.util.Set<Payload> buildProducedEvents(RegisteredHandler rh, String bundleId,
+                                                      Map<String, PayloadType> typeAlignments) {
+        var produced = new java.util.HashSet<Payload>();
+        for (var name : rh.getProducedEvents()) {
+            produced.add(ensurePayload(name, returnPayloadType(rh), bundleId, typeAlignments));
+        }
+        return produced;
     }
 
     private Map<Integer, Payload> buildInvocations(RegisteredHandler rh, String bundleId) {

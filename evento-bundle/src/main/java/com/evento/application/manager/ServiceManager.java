@@ -187,6 +187,15 @@ public class ServiceManager extends ReceiverComponentManager<ServiceCommandMessa
                     );
                     var em = new ServiceEventMessage(event);
                     getTracingAgent().correlate(c, em);
+                    // A service may answer without an event: 0 counts, so the model's edge to its
+                    // event carries the probability that it produces one
+                    var declared = handler.getAggregateCommandHandler(c.getCommandName()).getReturnType();
+                    if (declared != void.class) {
+                        proxy.recordProducedEvents(java.util.List.of(declared.getSimpleName()),
+                                event == null ? java.util.List.of()
+                                        : java.util.List.of(declared.isInstance(event)
+                                        ? declared.getSimpleName() : event.getClass().getSimpleName()));
+                    }
                     proxy.sendInvocationsMetric();
                     return em;
                 });

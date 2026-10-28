@@ -65,6 +65,9 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
 
     private final HashMap<String, AtomicInteger> invocationCounter = new HashMap<>();
 
+    /** For a command handler: events of each declared type the handled command produced (3.0.1). */
+    private final java.util.LinkedHashMap<String, Integer> producedEvents = new java.util.LinkedHashMap<>();
+
     private final Message<?> handledMessage;
     private final TracingAgent tracingAgent;
 
@@ -329,6 +332,19 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
     }
 
     /**
+     * Records what the handled command produced, for a command handler (3.0.1): every type it
+     * declares, with 0 for those it did not produce this time. The broker averages them into the
+     * probability (or mean count) the performance model gives each event's edge.
+     *
+     * @param declared the simple names of the event types the handler declares
+     * @param produced the simple names of the events it produced, one per event
+     */
+    public void recordProducedEvents(java.util.Collection<String> declared, java.util.Collection<String> produced) {
+        for (var name : declared) producedEvents.putIfAbsent(name, 0);
+        for (var name : produced) producedEvents.merge(name, 1, Integer::sum);
+    }
+
+    /**
      * Sends the invocations metric to the performance service.
      */
     public void sendInvocationsMetric() {
@@ -337,6 +353,7 @@ public class GatewayTelemetryProxy implements CommandGateway, QueryGateway {
                 componentName,
                 handledMessage,
                 invocationCounter,
+                producedEvents,
                 instanceId,
                 forceTelemetry
         );

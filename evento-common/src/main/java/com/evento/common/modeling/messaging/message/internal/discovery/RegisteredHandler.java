@@ -4,7 +4,10 @@ import com.evento.common.modeling.bundle.types.ComponentType;
 import com.evento.common.modeling.bundle.types.HandlerType;
 import com.evento.common.modeling.bundle.types.PayloadType;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,6 +35,16 @@ public class RegisteredHandler implements Serializable {
     private String returnType;
     private boolean returnIsMultiple;
     private String associationProperty;
+
+    /**
+     * The events a command handler may produce (3.0.1): for an aggregate handler returning
+     * {@code DomainEvents} the classes in {@code produces}, otherwise its return type. The
+     * catalog draws an edge for each, and the performance model weighs each by how often the
+     * handler produces it. Left out of the wire when empty; a broker before 3.0.1 ignores it
+     * (unknown properties are skipped since 2.4.0) and keeps drawing the return type alone.
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<String> producedEvents = List.of();
 
     // ── component source metadata ───────────────────────────────────────────────
 
@@ -109,6 +122,7 @@ public class RegisteredHandler implements Serializable {
         copy.returnType = returnType;
         copy.returnIsMultiple = returnIsMultiple;
         copy.associationProperty = associationProperty;
+        copy.producedEvents = producedEvents;
         copy.componentDescription = componentDescription;
         copy.componentDetail = componentDetail;
         copy.componentPath = componentPath;
@@ -146,6 +160,13 @@ public class RegisteredHandler implements Serializable {
     public String getAssociationProperty() { return associationProperty; }
     public void setAssociationProperty(String associationProperty) { this.associationProperty = associationProperty; }
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getProducedEvents() { return producedEvents; }
+    public void setProducedEvents(List<String> producedEvents) {
+        this.producedEvents = producedEvents == null ? List.of() : List.copyOf(producedEvents);
+    }
+
+
     // ── component metadata getters/setters ──────────────────────────────────────
 
     public String getComponentDescription() { return componentDescription; }
@@ -176,12 +197,12 @@ public class RegisteredHandler implements Serializable {
         this.executor = executor == null ? "" : executor;
     }
 
-    // NOTE: do not add derived getters (e.g. an `isAsync()`) to this class. It is a wire
-    // DTO, and the transport codec deserializes it with FAIL_ON_UNKNOWN_PROPERTIES *enabled*
-    // (unlike AdminPayloadCodec). Jackson would serialize the derived property, the peer
-    // would reject the whole BundleDiscoveryInfo, and the failure is near-invisible: the
-    // bundle keeps running and only its handler metadata silently disappears from the
-    // dashboard. Compute such predicates at the call site instead.
+    // NOTE: do not add derived getters (e.g. an `isAsync()`) to this class. It is a wire DTO:
+    // Jackson would put the derived property on the wire. Peers since 2.4.0 skip unknown
+    // properties (JacksonCborPayloadCodec), but an older broker refused the whole
+    // BundleDiscoveryInfo, and the failure was near-invisible: the bundle kept running and
+    // only its handler metadata disappeared from the dashboard. Compute such predicates at
+    // the call site instead.
 
     // ── invocation getters/setters ──────────────────────────────────────────────
 
@@ -206,6 +227,7 @@ public class RegisteredHandler implements Serializable {
                 ", returnType='" + returnType + '\'' +
                 ", returnIsMultiple=" + returnIsMultiple +
                 ", associationProperty='" + associationProperty + '\'' +
+                ", producedEvents=" + producedEvents +
                 ", componentPath='" + componentPath + '\'' +
                 ", componentLine=" + componentLine +
                 ", handlerLine=" + handlerLine +

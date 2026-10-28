@@ -87,6 +87,7 @@ public class HandlerService {
     public boolean isPayloadReferenced(String payloadName) {
         return handlerRepository.existsByHandledPayload_Name(payloadName)
                 || handlerRepository.existsByReturnType_Name(payloadName)
-                || handlerRepository.existsByInvocationPayloadName(payloadName);
+                || handlerRepository.existsByInvocationPayloadName(payloadName)
+                || handlerRepository.existsByProducedEventName(payloadName);
     }
 }

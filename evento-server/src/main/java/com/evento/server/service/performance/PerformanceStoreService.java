@@ -245,6 +245,54 @@ public class PerformanceStoreService extends PerformanceService {
         ).orElse(1.0);
     }
 
+    /** Key of a produced-event mean: apart from the invocation ones, which the same table holds. */
+    static String producedEventId(String bundle, String component, String action, String event) {
+        return "pe__" + bundle + "_" + component + "_" + action + "_" + event;
+    }
+
+    /**
+     * Folds into each produced-event mean how many events of that type one execution of the
+     * command handler produced (3.0.1). The bundle reports every type the handler declares, 0
+     * included, so the mean is the probability that the command produces it (below 1 for a
+     * service that may answer without an event, or an event a DomainEvents handler returns only
+     * sometimes) or, for a type it returns several of, the mean count. Same aging as the
+     * invocation means.
+     */
+    public void saveProducedEventsPerformance(String bundle, String instanceId, String component, String action,
+                                              Map<String, Integer> producedEvents) {
+        if (producedEvents == null || producedEvents.isEmpty() || isPersistenceUnavailable()) return;
+        var pId = "pe__" + bundle + "_" + component + "_" + action;
+        distributedLock.tryLockedArea(pId, () -> {
+            for (var e : producedEvents.entrySet()) {
+                var id = producedEventId(bundle, component, action, e.getKey());
+                var count = e.getValue() == null ? 0 : e.getValue();
+                var hip = handlerInvocationCountPerformanceRepository.findById(id).orElseGet(() -> {
+                    // The first sample is the mean: starting from 0 would show a declared event
+                    // as rare until a dozen executions had aged the start value away
+                    var hi = new HandlerInvocationCountPerformance();
+                    hi.setId(id);
+                    hi.setLastCount(count);
+                    hi.setMeanProbability(count);
+                    return hi;
+                });
+                hip.setMeanProbability(((1 - ALPHA) * hip.getMeanProbability()) + (ALPHA * count));
+                hip.setLastCount(count);
+                handlerInvocationCountPerformanceRepository.save(hip);
+            }
+        });
+    }
+
+    /**
+     * The mean number of {@code event}s one execution of the command handler produces: the
+     * probability that it produces one, or the mean count for a type it returns several of.
+     * Without measurements 1, the declaration itself: a handler that names an event may produce it.
+     */
+    public double getProducedEventProbability(String bundle, String component, String action, String event) {
+        return handlerInvocationCountPerformanceRepository.findById(producedEventId(bundle, component, action, event))
+                .map(HandlerInvocationCountPerformance::getMeanProbability)
+                .orElse(1.0);
+    }
+
     @Override
     public void sendServiceTimeMetricMessage(PerformanceServiceTimeMessage message) {
         saveServiceTimePerformance(
@@ -264,6 +312,11 @@ public class PerformanceStoreService extends PerformanceService {
                 message.getComponent(),
                 message.getAction(),
                 message.getInvocations());
+        saveProducedEventsPerformance(message.getBundle(),
+                message.getInstanceId(),
+                message.getComponent(),
+                message.getAction(),
+                message.getProducedEvents());
     }
 
     public Map<String, Collection<PerformancePoint>> getComponentPerformance(String bundleId,

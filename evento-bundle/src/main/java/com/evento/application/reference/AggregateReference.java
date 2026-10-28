@@ -95,6 +95,26 @@ public class AggregateReference extends Reference {
      *
      * @return A set of registered command names.
      */
+    /**
+     * The event types the handler of {@code commandName} declares (3.0.1): the classes in
+     * {@code produces} when it returns {@link DomainEvents}, else its return type.
+     */
+    public List<Class<?>> declaredEvents(String commandName) {
+        var m = aggregateCommandHandlerReferences.get(commandName);
+        if (m == null) return List.of();
+        if (!DomainEvents.class.isAssignableFrom(m.getReturnType())) return List.of(m.getReturnType());
+        return List.of(m.getAnnotation(AggregateCommandHandler.class).produces());
+    }
+
+    /**
+     * The declared type each event counts as: the first declared class it is an instance of (a
+     * subclass of a declared type counts as that type), or its own class.
+     */
+    public static String declaredName(List<Class<?>> declared, Object event) {
+        for (var c : declared) if (c.isInstance(event)) return c.getSimpleName();
+        return event.getClass().getSimpleName();
+    }
+
     public Set<String> getRegisteredCommands() {
         return aggregateCommandHandlerReferences.keySet();
     }

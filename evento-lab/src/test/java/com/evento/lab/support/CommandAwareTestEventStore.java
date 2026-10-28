@@ -96,7 +96,7 @@ public final class CommandAwareTestEventStore implements BrokerEventStore, AutoC
     }
 
     @Override
-    public long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
+    public synchronized long publishEvent(EventMessage<?> eventMessage, String aggregateId) {
         long seq = seqGen.incrementAndGet();
         var pe = new PublishedEvent();
         pe.setEventSequenceNumber(seq);
@@ -106,6 +106,15 @@ public final class CommandAwareTestEventStore implements BrokerEventStore, AutoC
         pe.setCreatedAt(System.currentTimeMillis());
         store.add(pe);
         return seq;
+    }
+
+    /** Several events of one command, consecutive: no other append between them. */
+    @Override
+    public synchronized long appendAggregateEvents(List<? extends EventMessage<?>> events, String aggregateId,
+                                                   String idempotencyKey, String commandType, Long expectedVersion) {
+        long last = -1;
+        for (var e : events) last = publishEvent(e, aggregateId);
+        return last;
     }
 
     @Override

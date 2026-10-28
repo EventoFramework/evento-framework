@@ -55,6 +55,14 @@ public class ServiceStation extends ActionNode implements HasTarget {
     }
 
 
+    /**
+     * An edge with a known weight: the mean number of visits to {@code a} per visit here (a
+     * probability, or a mean count above 1 when one visit here produces several there).
+     */
+    public void addTarget(ActionNode a, double weight) {
+        target.put(a, weight);
+    }
+
     public void addTarget(ActionNode a, PerformanceStoreService performanceStoreService) {
         if (a instanceof ServiceStation ss) {
             var frequency = performanceStoreService.getInvocationProbability(bundle, component, getAction(), ss.getAction());

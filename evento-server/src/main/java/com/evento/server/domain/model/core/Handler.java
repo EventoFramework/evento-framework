@@ -12,7 +12,10 @@ import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -43,6 +46,19 @@ public class Handler implements Serializable {
 	@ToString.Exclude
 	@JoinTable(name = "core__handler__invocation")
 	private Map<Integer, Payload> invocations;
+
+	/**
+	 * The events a command handler declares it may produce (3.0.1): for an aggregate handler
+	 * returning {@code DomainEvents} its {@code produces}, otherwise its return type. Empty for a
+	 * handler registered by an older bundle; {@link #emittedEvents()} then falls back on the
+	 * return type.
+	 */
+	@ManyToMany(fetch = FetchType.EAGER)
+	@ToString.Exclude
+	@JoinTable(name = "core__handler__produced_event",
+			joinColumns = @JoinColumn(name = "handler_uuid"),
+			inverseJoinColumns = @JoinColumn(name = "produced_event_name"))
+	private Set<Payload> producedEvents = new HashSet<>();
 
 	private String associationProperty;
 
@@ -94,6 +110,23 @@ public class Handler implements Serializable {
 		setUuid(generateId(
 				this.getComponent().getBundle().getId(), this.getComponent().getComponentName(), this.getHandledPayload().getName()
 		));
+	}
+
+	/**
+	 * The events this handler may produce, as the graph and the performance model draw them: its
+	 * declared produced events, or for a command handler registered without them (an older
+	 * bundle) its return type. Empty for any other handler: a query handler's return type is
+	 * the view it answers with, not an event.
+	 */
+	public List<Payload> emittedEvents() {
+		if (producedEvents != null && !producedEvents.isEmpty()) {
+			return producedEvents.stream().sorted(java.util.Comparator.comparing(Payload::getName)).toList();
+		}
+		if (returnType != null && (handlerType == HandlerType.AggregateCommandHandler
+				|| handlerType == HandlerType.CommandHandler)) {
+			return List.of(returnType);
+		}
+		return List.of();
 	}
 
 

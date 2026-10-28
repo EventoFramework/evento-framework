@@ -104,6 +104,10 @@ public class AggregateManager extends ReceiverComponentManager<DecoratedDomainCo
                                     && envelope.getAggregateState().isDeleted()
                     );
                     resp.setPrecedingEventMessages(messages);
+                    var declared = handler.declaredEvents(c.getCommandMessage().getCommandName());
+                    proxy.recordProducedEvents(
+                            declared.stream().map(Class::getSimpleName).toList(),
+                            events.stream().map(e -> AggregateReference.declaredName(declared, e)).toList());
                     proxy.sendInvocationsMetric();
                     return resp;
                 });

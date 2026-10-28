@@ -517,6 +517,68 @@ class MultiServerCatalogIT {
         return client;
     }
 
+    /**
+     * Produced events end to end on a real server and PostgreSQL (3.0.1): discovery stores every
+     * event a command handler declares, the payload page finds the handler as the producer of an
+     * event that is not its return type, the telemetry's per-command counts become the edge weights
+     * of the performance model, and the produced events keep their payload rows out of the
+     * orphan sweep.
+     */
+    @Test
+    void producedEventsReachTheCatalogAndWeighTheModel() {
+        var bundle = "pe-shop";
+        var instance = bundle + "-1";
+        var checkOut = commandHandler("PeBasket", "PeCheckOut", "PeItemReserved");
+        checkOut.setProducedEvents(List.of("PeItemReserved", "PeCouponUsed"));
+        var client = startClient(bundle, instance, busPortA,
+                List.of(checkOut, eventHandler("PeLoyalty", "PeCouponUsed"), eventHandler("PeStock", "PeItemReserved")));
+
+        await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> assertThat(jdbc.queryForList("""
+                select pe.produced_event_name from core__handler__produced_event pe
+                join core__handler h on h.uuid = pe.handler_uuid where h.handled_payload_name = 'PeCheckOut'
+                order by 1""", String.class)).containsExactly("PeCouponUsed", "PeItemReserved"));
+
+        var payloads = serverA.getBean(com.evento.server.domain.repository.core.PayloadRepository.class);
+        assertThat(payloads.findByIdProjection("PeCouponUsed").orElseThrow().getReturnedBy()).contains("PeBasket");
+
+        var telemetry = new com.evento.common.performance.PerformanceInvocationsMessage(
+                bundle, "PeBasket", "PeCheckOut", new HashMap<>(), instance);
+        telemetry.setProducedEvents(new HashMap<>(Map.of("PeItemReserved", 3, "PeCouponUsed", 0)));
+        var envelope = new EventoMessage();
+        envelope.setSourceBundleId(bundle);
+        envelope.setSourceInstanceId(instance);
+        envelope.setSourceBundleVersion(1);
+        envelope.setBody(telemetry);
+        client.notify(ProtocolPayloadTypes.BUNDLE_ADMIN_NOTIFICATION, adminCodec.encodeMessage(envelope))
+                .orTimeout(10, TimeUnit.SECONDS).join();
+
+        var store = serverA.getBean(com.evento.server.service.performance.PerformanceStoreService.class);
+        await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(store.getProducedEventProbability(bundle, "PeBasket", "PeCheckOut", "PeItemReserved")).isEqualTo(3.0);
+            assertThat(store.getProducedEventProbability(bundle, "PeBasket", "PeCheckOut", "PeCouponUsed")).isEqualTo(0.0);
+        });
+
+        var model = serverA.getBean(com.evento.server.service.performance.ApplicationPerformanceModelService.class)
+                .toPerformanceModelFromComponent("PeBasket");
+        var weights = new HashMap<String, Double>();
+        var consumers = new HashSet<String>();
+        for (var node : model.getNodes()) {
+            if (node instanceof com.evento.server.performance.model.ServiceStation s && "PeBasket".equals(s.getComponent())) {
+                s.getTarget().forEach((t, w) -> weights.put(((com.evento.server.performance.model.ServiceStation) t).getAction(), w));
+            }
+            if (node instanceof com.evento.server.performance.model.ServiceStation s && "EventStore".equals(s.getComponent())) {
+                s.getTarget().keySet().forEach(t -> consumers.add(((com.evento.server.performance.model.ServiceStation) t).getComponent()));
+            }
+        }
+        assertThat(weights).containsOnly(Map.entry("PeItemReserved", 3.0), Map.entry("PeCouponUsed", 0.0));
+        assertThat(consumers).containsExactlyInAnyOrder("PeStock", "PeLoyalty");
+
+        serverA.getBean(com.evento.server.service.BundleService.class).sweepOrphanPayloads();
+        assertThat(jdbc.queryForObject("select count(*) from core__payload where name = 'PeCouponUsed'", Integer.class))
+                .isEqualTo(1);
+        assertNoDiscoveryErrors();
+    }
+
     private void registerConsumers(BundleClient client, String bundleId, String instanceId,
                                    String componentName, String... consumerIds) {
         var cr = new BundleConsumerRegistrationMessage();
