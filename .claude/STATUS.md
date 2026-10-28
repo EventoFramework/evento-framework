@@ -2,6 +2,15 @@
 
 Last updated: 2026-10-28 (session 9).
 
+## 3.0.1 released (2026-10-28)
+
+PR #328 and #327 merged (admin, on the user's say-so), CHANGELOG dated, `scripts/release.sh patch`: tag
+v3.0.1. Maven Central (all libraries at 3.0.1), Release workflow (signed jar on the GitHub Release, image
+`eventoframework/evento-server:3.0.1` on Docker Hub/GHCR), CI and CodeQL on main green. Still open, merges
+the classifier refused without the user: evento-research #1 (papers), evento-www #3 (licence wording +
+paper A PDF on 3.0.1), evento-doc #3 (produces as a contract, flow weights). The live demo, the
+marketplace and the MES trial are still on 3.0.0. The V5 socketTimeout follow-up is not in 3.0.1.
+
 ## Declared events end to end, 3.0.1 (2026-10-28, PR #328)
 
 The user asked whether multi-event commands are parsed and checked, and how flows/graph react. They were
