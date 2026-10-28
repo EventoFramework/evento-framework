@@ -69,7 +69,7 @@ Each server and each of the 22 bundle containers was replaced in the running sta
 
 ## Second campaign after the consumer changes (`v3c`, `v3e`), 2026-10-22
 
-The consumer work that iris and the replica checks led to (head notices, coalesced checkpoints, lock bound,
+The consumer work that the MES and the replica checks led to (head notices, coalesced checkpoints, lock bound,
 departure cleanup off the event loop) was run through the whole lab again.
 
 `v3c` found two regressions, both caused by the startup barrier added in b9b5a90c, not by the consumer work:

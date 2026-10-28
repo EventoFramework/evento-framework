@@ -20,7 +20,7 @@ import static org.awaitility.Awaitility.await;
  * Regression tests for the {@code ServiceEventMessage} null-objectClass NPE fix
  * (see {@code Message.getPayloadName()}).
  *
- * <p>Background: the Iris platform {@code testImpersonate} test exercised a PUT
+ * <p>Background: a manufacturing-execution system's {@code testImpersonate} test exercised a PUT
  * endpoint ({@code /auth/security-scope/{identifier}}) on an Evento-based server.
  * That endpoint internally processed commands and events, then Spring tried to serialize
  * the REST response body — which included a {@link ServiceEventMessage} whose
@@ -58,7 +58,7 @@ class MsNullPayloadRegressionIT {
      * null payload (and thus {@code objectClass = null}) must return {@code null} from
      * {@code getEventName()} / {@code getPayloadName()} rather than throwing NPE.
      *
-     * <p>This is the message-level analog of the Iris server 500 error — the serialization
+     * <p>This is the message-level analog of that server's 500 error — the serialization
      * path called {@code getEventName()} on such a message and crashed.
      */
     @Test
@@ -76,9 +76,9 @@ class MsNullPayloadRegressionIT {
      * Integration regression: publish a corrupted event (null objectClass) followed by a
      * normal event. The consumer pipeline must not crash; the normal event must be delivered.
      *
-     * <p>Emulates the Iris {@code testImpersonate} scenario where a PUT request triggers
+     * <p>Emulates that {@code testImpersonate} scenario where a PUT request triggers
      * internal event processing that includes a corrupted {@link ServiceEventMessage}.
-     * The observer bundle plays the role of the Iris service handler that reads those events.
+     * The observer bundle plays the role of the service handler that reads those events.
      */
     @Test
     void corruptedEventInStore_pipelineContinuesDelivery() throws Exception {
@@ -105,7 +105,7 @@ class MsNullPayloadRegressionIT {
      * Integration: mix of corrupted events, domain events, and service events — all consumer
      * types (observer + notification service) must keep working across the corruption boundary.
      *
-     * <p>Models the Iris flow more faithfully: a sequence like
+     * <p>Models that flow more faithfully: a sequence like
      * "save security scope → create user → assign role → enable impersonation" generates a
      * mix of service events, some of which may carry null objectClass from legacy DB rows.
      */

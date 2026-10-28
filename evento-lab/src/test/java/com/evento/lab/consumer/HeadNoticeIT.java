@@ -25,7 +25,7 @@ import static org.awaitility.Awaitility.await;
 /**
  * Head notices ({@link HandshakeProtocol#CAPABILITY_HEAD}): a consumer at the head waits for the
  * broker to say its store has grown, up to its fetch delay, instead of fetching again every few
- * milliseconds. iris, ~100 consumers: the empty fetches were ~730 event-store queries a second at
+ * milliseconds. A manufacturing-execution system, ~100 consumers: the empty fetches were ~730 event-store queries a second at
  * rest, and the fetches that had events queued behind them on the broker.
  */
 @Timeout(value = 90, unit = TimeUnit.SECONDS)

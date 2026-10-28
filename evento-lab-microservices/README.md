@@ -185,7 +185,7 @@ Round-trip time and stress scenarios.
 ### `MsNullPayloadRegressionIT` (3 tests)
 
 Regression tests for the `Message.getPayloadName()` null-objectClass NPE fix, triggered by
-the Iris platform `testImpersonate` test hitting a PUT endpoint whose response included a
+a manufacturing-execution system's `testImpersonate` test hitting a PUT endpoint whose response included a
 `ServiceEventMessage` with a null `objectClass` (old or null-payload DB record).
 
 | Test | Objective |

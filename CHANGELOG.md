@@ -9,6 +9,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The shipped server id is `evento-server`.** `evento.cluster.node.server.id` (`EVENTO_CLUSTER_NODE_SERVER_ID`)
+  defaulted to a name taken from an early adopter; it is now neutral. The server still warns at start-up when it
+  runs with the shipped id: set a unique one per server. Upgrade note: a server that relied on the default
+  announces the new id after the upgrade, so a bundle that pins it with `evento.cluster.expected-instance` must
+  pin `evento-server` (or, better, the id you set); its presence rows under the old id age out after
+  `evento.server.presence.stale-after-ms`.
+
 ## [3.0.1] — 2026-10-28
 
 Patch release: a `DomainEvents` handler's `produces` is enforced, and the catalog, the interaction graph and
@@ -383,22 +392,22 @@ a revised payload needs a 3.0 broker.
 - **Consumers at the head wait for the broker instead of polling it** (capability `head:1`). A consumer that
   found no new event fetched again after a few milliseconds (the room left in its batch, in ms; the fetch delay
   applied only after an error), so every idle consumer queried the event store about twenty times a second: on
-  iris, about 100 consumers, ~730 event-store transactions a second at rest, and the fetches that did bring
+  A manufacturing-execution system, about 100 consumers, ~730 event-store transactions a second at rest, and the fetches that did bring
   events waited behind them on the broker (`evento.es.fetch.concurrency`), so projections fell behind under
   load. Now each server reads its store's head every `evento.es.head.poll.ms` (50 ms; 0 turns it off) and
   sends `evento:events-appended` to its bundles when it moved, with the names of the events appended since
   (one range scan of the primary key); a bundle wakes only the consumers that handle one of them, and they wait
   for it at the head up to their fetch delay as a safety net. Waking every consumer on every append made each
-  of them fetch, and those waves kept iris's projections minutes behind under its end-to-end suite.
+  of them fetch, and those waves kept the MES's projections minutes behind under its end-to-end suite.
   Consumers that handle none of the named events are woken too, late (500 ms) and once for any number of
   notices, so that their stored position keeps moving: a read-your-writes query on another replica of the
   consumer reads it and cannot wake the replica that holds the lane. Reading the database keeps it right in a cluster: an event
-  appended through another server wakes these bundles too, and no server calls another. iris at rest: ~70
+  appended through another server wakes these bundles too, and no server calls another. The MES at rest: ~70
   transactions a second. With a 2.x broker, or a bundle older than 3.0, the consumers poll as before.
 - **One checkpoint write for the events a projector does not handle.** Every event still reaches the projector;
   the position of one it has no handler for is written with the next event it handles, or at the end of the
   batch, instead of on its own: a projector sees every event of its context, so seventeen projectors in one
-  bundle (iris master-data) made every event of the stream seventeen state-store writes. Replaying such events
+  bundle (a master-data bundle of a manufacturing-execution system) made every event of the stream seventeen state-store writes. Replaying such events
   after a crash is a no-op. `EventConsumer.handles(event)` (default true) and `EventConsumer.of(consumer,
   eventNames)` say which events a consumer handles.
 - **A replica keeps its consumer lanes between cycles.** `JdbcConsumerLock` keeps a lock for 5 s
@@ -406,7 +415,7 @@ a revised payload needs a 3.0 broker.
   the others find it held: a lane no longer hops between replicas (lab S16, a global lane written from two
   regions: fan-out 10 s, now 2). A replica that stops consuming releases its locks when the affinity runs
   out; one that dies loses them with its sessions. The locks never take more connections than the pool can
-  spare (see the upgrade note): found on iris, 17 consumers on a pool of 8, where the first 8 kept every
+  spare (see the upgrade note): found on a manufacturing-execution system, 17 consumers on a pool of 8, where the first 8 kept every
   connection (they poll more often than the affinity lasts) and the other 9 never got one.
 - **Idempotent reads are asked again after a lost session.** Queries and the consumers' event
   fetches still pending when a bundle's session ends are re-sent on the next session (same
@@ -449,7 +458,7 @@ a revised payload needs a 3.0 broker.
   the semaphore and the handler got `Error: Maximum permit count exceeded` instead of
   `StreamCancelledException` (seen once in `DirectStreamIT` under load).
 - **A bundle leaving no longer stalls the broker's network threads.** Its cleanup (consumer rows, the catalog,
-  a sweep of every payload) ran on the event loop of the channel that closed: eleven iris services stopped
+  a sweep of every payload) ran on the event loop of the channel that closed: eleven services of the MES stopped
   together held ten event loops for seconds, each sweeping the same payloads, and services starting meanwhile
   timed out on their handshake. Departures are now cleaned up one at a time on a thread of their own, and one
   payload sweep follows a burst of them.
@@ -1111,7 +1120,7 @@ Read these before rolling 2.5.0 out. Details are in the entries below.
   of an old session can be published after the new session of the same instance has
   already claimed, and it must not delete that live row. Ownership needs a unique
   `evento.server.bus.server-instance-id` per server. The server logs a WARN at startup
-  when it runs with the shipped `iris-evento-server` id.
+  when it runs with the shipped `evento-server` id.
 - **Concurrent discovery on several servers failed on `duplicate key` (G8).** Discovery
   and consumer registration created bundle, component and payload rows find-then-insert,
   under different lock keys. Payload and component names are shared across bundles, so no

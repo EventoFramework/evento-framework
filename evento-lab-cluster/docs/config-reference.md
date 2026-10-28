@@ -140,7 +140,7 @@ Fonte: [`application.properties`](../../evento-server/src/main/resources/applica
 | `evento.es.idempotency.retention` | `EVENTO_ES_IDEMPOTENCY_RETENTION` | non impostata | F11: dopo quanto si tolgono le chiavi di idempotenza dagli eventi e si cancellano le claim (es. `P30D`); non impostata = per sempre |
 | `evento.consumer.lag.expiry` | `EVENTO_CONSUMER_LAG_EXPIRY` | `PT15M` | dopo quanto sparisce la serie di lag di un consumer che non fa più fetch su questo server (O2) |
 | `evento.cluster.name` | `EVENTO_CLUSTER_NAME` | `evento-server` | annunciato in `Welcome.clusterName` (G13); cambialo |
-| `evento.cluster.node.server.id` | `EVENTO_CLUSTER_NODE_SERVER_ID` | `iris-evento-server` | diventa `evento.server.bus.server-instance-id`; **univoco** per server (G4, G7) |
+| `evento.cluster.node.server.id` | `EVENTO_CLUSTER_NODE_SERVER_ID` | `evento-server` | diventa `evento.server.bus.server-instance-id`; **univoco** per server (G4, G7) |
 | `evento.server.instance.id` | `EVENTO_SERVER_INSTANCE_ID` | `server-0` | id usato da `ConsumerService`; univoco |
 | `evento.server.bus.port` | `EVENTO_SERVER_BUS_PORT` | 3030 | porta del bus |
 | `evento.server.bus.pick-strategy` | `EVENTO_SERVER_BUS_PICK_STRATEGY` | `random` | `random`, `first`, `locality-preferred` (G12) |

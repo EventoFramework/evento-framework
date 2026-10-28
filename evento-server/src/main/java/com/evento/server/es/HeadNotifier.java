@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * and sends {@link ProtocolNotifications#EVENTS_APPENDED} to its sessions when the head moved,
  * with the names of the events appended since the last notice (one range scan of the primary key):
  * a bundle wakes only the consumers that handle one of them. Without the names every notice woke
- * every consumer, each of them fetched, and on iris (~45 consumers, two fetches served at a time)
+ * every consumer, each of them fetched, and on a manufacturing-execution system (~45 consumers, two fetches served at a time)
  * those waves kept the projections behind under load. Over {@link #MAX_NAMED_RANGE} events the
  * notice carries no names and wakes every consumer.
  * Reading the database rather than hooking its own appends is what keeps it right in a cluster:
