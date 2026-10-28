@@ -53,4 +53,9 @@ public class OrderAggregate {
     DomainEvents handle(DeleteThenAdd c, OrderState state) {
         return DomainEvents.of(new OrderDeleted(c.orderId), new ItemAdded(c.orderId, "late", 1));
     }
+
+    @AggregateCommandHandler(produces = ItemAdded.class)
+    DomainEvents handle(AddThenDelete c, OrderState state) {
+        return DomainEvents.of(new ItemAdded(c.orderId, "last", 1), new OrderDeleted(c.orderId));
+    }
 }

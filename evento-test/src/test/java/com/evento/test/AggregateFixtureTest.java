@@ -4,6 +4,7 @@ import com.evento.common.modeling.exceptions.AggregateInitializedError;
 import com.evento.common.modeling.exceptions.AggregateNotInitializedError;
 import com.evento.test.shop.AddItem;
 import com.evento.test.shop.AddPair;
+import com.evento.test.shop.AddThenDelete;
 import com.evento.test.shop.DeleteThenAdd;
 import com.evento.test.shop.CreateOrder;
 import com.evento.test.shop.DeleteOrder;
@@ -83,6 +84,15 @@ class AggregateFixtureTest {
                 .when(new DeleteThenAdd("o1"))
                 .expectException(IllegalStateException.class,
                         e -> assertThat(e).hasMessageContaining("OrderDeleted, which deleted the aggregate"));
+    }
+
+    @Test
+    void anEventTheHandlerDoesNotDeclareInProducesIsRefused() {
+        AggregateFixture.of(new OrderAggregate())
+                .given(new OrderCreated("o1", 100))
+                .when(new AddThenDelete("o1"))
+                .expectException(IllegalStateException.class,
+                        e -> assertThat(e).hasMessageContaining("OrderDeleted").hasMessageContaining("produces"));
     }
 
     @Test

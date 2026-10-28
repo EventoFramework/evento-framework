@@ -21,7 +21,8 @@ import java.util.Objects;
  * one. Consumers see them as any other events, one by one.
  *
  * <p>The handler declares the events it may produce in {@code produces}, so the catalog knows
- * them without running it. It needs brokers that store several events per command (3.0): a bundle
+ * them without running it; an event outside {@code produces} fails the command (3.0.1), so the
+ * catalog's interaction graph stays exact. It needs brokers that store several events per command (3.0): a bundle
  * connected to an older broker refuses to answer with more than one, rather than have the broker
  * store only one.
  */

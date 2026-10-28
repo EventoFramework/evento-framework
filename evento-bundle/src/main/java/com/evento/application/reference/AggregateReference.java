@@ -175,8 +175,18 @@ public class AggregateReference extends Reference {
             );
             List<DomainEvent> produced = returned instanceof DomainEvents many ? many.events()
                     : java.util.Collections.singletonList((DomainEvent) returned);
+            var declared = returned instanceof DomainEvents
+                    ? commandHandler.getAnnotation(AggregateCommandHandler.class).produces() : null;
             var events = new ArrayList<DomainEvent>(produced.size());
             for (var event : produced) {
+                // The catalog reads a DomainEvents handler's events from produces: an event outside
+                // it would be stored but missing from the interaction graph, so it is refused
+                if (declared != null && Arrays.stream(declared).noneMatch(c -> c.isInstance(event))) {
+                    throw new IllegalStateException("Command handler returned "
+                            + event.getClass().getSimpleName() + ", which "
+                            + commandHandler.getDeclaringClass().getSimpleName() + "." + commandHandler.getName()
+                            + " does not declare in @AggregateCommandHandler(produces = {...})");
+                }
                 if (!events.isEmpty() && envelope.getAggregateState() != null
                         && envelope.getAggregateState().isDeleted()) {
                     throw new IllegalStateException("Command handler returned events after "
