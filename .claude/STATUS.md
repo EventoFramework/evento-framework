@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-28 (session 10).
 
+## 3.0.2 released (2026-10-28)
+
+Tag v3.0.2 (`scripts/release.sh patch`): the neutral shipped server id only, no wire/schema/API change.
+Maven Central, the signed jar on the GitHub Release and `eventoframework/evento-server:3.0.2` published;
+CI and CodeQL on main green. evento-www #6 (demo image + get-started) and evento-todo #4 (tests green)
+on 3.0.2, demo redeployed: checks=passed, todo READY. The marketplace runs 3.0.1 (broker and bundle);
+3.0.2 changes nothing for it, since it sets its own server id.
+
 ## No adopter names in public material (2026-10-28)
 
 PR #330 merged: the shipped `evento.cluster.node.server.id` is `evento-server`, with an upgrade note
