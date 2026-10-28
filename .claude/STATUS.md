@@ -1,14 +1,30 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-27 (session 9).
+Last updated: 2026-10-28 (session 9).
+
+## Marketplace in production on 3.0.0 (2026-10-28)
+
+One window, no compatibility mode: the marketplace's PR #117 (3.0 code) and #118 (rollout fixes found
+by a read-only check of the host: its deploy verb ignored COMPOSE_FILE, so the 3.0 override was
+layered in; the prod profile refused the event-store password and the unset console password, so the
+script rotates the former and creates the latter in the host's .env) merged; pre (dumps, secrets,
+bus cert, market stopped, broker 2.5.2 -> 3.0.0 prod profile), deploy of the 3.0 image, post (45
+stored iam events encrypted, 1 deleted account forgotten, 0 addresses in clear, 24 wrapped subject
+keys, 21 consumers healthy, projectors at head). Market down ~4 minutes. Pre-window dumps (personal
+data in clear) still on the host: delete once the user has signed off.
+
+**Follow-up for Evento (3.0.1):** on the 4.3 GB store the first broker boot crashed in V5 (aggregate
+fence): CREATE INDEX CONCURRENTLY waited for other snapshots longer than the JDBC socketTimeout (30 s,
+application.properties), the client gave up, the container restarted and the idempotent step found the
+index built and valid. Harmless, but the schema initializer should lift the network timeout
+(Connection.setNetworkTimeout(0)) for the online steps instead of relying on a restart.
 
 ## 3.0.0 released (2026-10-27)
 
-Apps on 3.0.0 (same day): the marketplace (PR #117 of its repo, CI green, not merged yet: the merge
-and the prod rollout wait for the user) moves to 3.0.0 with a hardened bus (token, TLS, payload
+Apps on 3.0.0 (same day): the marketplace (PR #117 of its repo; in production on 2026-10-28, see above) moves to 3.0.0 with a hardened bus (token, TLS, payload
 allowlist + a guard test over its 800+ payload classes), crypto-shredding of deleted accounts
-(iam events @PersonalData, key deleted by an observer after UserDeletedEvent) and a two-phase prod
-script (broker in dev profile first, bundle, then harden). Verified end to end on a prod-profile
+(iam events @PersonalData, key deleted by an observer after UserDeletedEvent) and a one-window prod
+script (pre / deploy / post). Verified end to end on a prod-profile
 3.0 broker. The MES trial branch is on 3.0.0 (local). **Follow-up for Evento:** read-your-writes
 waits for every projector of the bundle (ProjectorConsistencyGate), so one slow projector (the
 marketplace's search indexer) delays every consistent query; scope the gate to the projectors
