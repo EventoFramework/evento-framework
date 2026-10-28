@@ -126,10 +126,10 @@
                     </div>
                     @for (h of component.handlers; track h) {
                       <div>
-                        @if (h.returnType) {
-                          <ion-chip outline="true" routerLink="/payload-info/{{h.returnType.name}}">
-                            <ion-text class="dot payload-type-{{h.returnType.type}}" style="font-size: 25px">•
-                            </ion-text>&nbsp;{{h.returnType.name}}
+                        @for (out of (h.producedEvents?.length ? h.producedEvents : (h.returnType ? [h.returnType] : [])); track out.name) {
+                          <ion-chip outline="true" routerLink="/payload-info/{{out.name}}">
+                            <ion-text class="dot payload-type-{{out.type}}" style="font-size: 25px">•
+                            </ion-text>&nbsp;{{out.name}}
                           </ion-chip>
                         }
                       </div>

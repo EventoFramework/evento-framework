@@ -36,12 +36,13 @@ import java.util.concurrent.TimeUnit;
 public final class CommandAwareEmbeddedBroker implements AutoCloseable {
 
     private final BusLifecycle lifecycle;
+    private final BusEventBus eventBus;
     private final int port;
     private final CommandAwareTestEventStore eventStore;
     private final CommandBrokerHandler commandBroker;
 
     public CommandAwareEmbeddedBroker() throws Exception {
-        var eventBus = new BusEventBus();
+        eventBus = new BusEventBus();
         var connections = new ConnectionRegistry(eventBus);
         var cluster = new ClusterRegistry(connections);
         var correlations = new CorrelationStore(Duration.ofSeconds(30));
@@ -62,6 +63,7 @@ public final class CommandAwareEmbeddedBroker implements AutoCloseable {
 
     public int port() { return port; }
     public BusLifecycle lifecycle() { return lifecycle; }
+    public BusEventBus eventBus() { return eventBus; }
     public CommandAwareTestEventStore eventStore() { return eventStore; }
     public CommandBrokerHandler commandBroker() { return commandBroker; }
 

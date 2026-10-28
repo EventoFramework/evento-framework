@@ -22,9 +22,13 @@ public class HandlerGraphUtils {
             for (Handler target : handlers) {
                 if (source == target) continue;
 
-                // Case 1: returnType -> handledPayload
+                // Case 1: returnType -> handledPayload, and for a command handler every event it
+                // may produce (3.0.1: a DomainEvents handler declares several)
                 if (source.getReturnType() != null &&
                         source.getReturnType().equals(target.getHandledPayload())) {
+                    graph.get(source.getUuid()).add(target.getUuid());
+                } else if (source.emittedEvents().stream()
+                        .anyMatch(e -> e.getName().equals(target.getHandledPayload().getName()))) {
                     graph.get(source.getUuid()).add(target.getUuid());
                 }
 

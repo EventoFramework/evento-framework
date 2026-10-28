@@ -87,6 +87,16 @@ create table if not exists core__handler__invocation
     foreign key (invocations_name) references core__payload (name)
 );
 
+-- 3.0.1 (V8 on PostgreSQL): the events a command handler declares it may produce.
+create table if not exists core__handler__produced_event
+(
+    handler_uuid        varchar(255) not null,
+    produced_event_name varchar(255) not null,
+    primary key (handler_uuid, produced_event_name),
+    foreign key (handler_uuid) references core__handler (uuid),
+    foreign key (produced_event_name) references core__payload (name)
+);
+
 -- Which evento-server holds the live session of each bundle instance. Several
 -- servers share this catalog: when an instance fails over from server A to server B,
 -- A notices the dead socket only later (heartbeat read-idle), and A's NodeLeft must

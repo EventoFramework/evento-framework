@@ -115,6 +115,7 @@ final class HandlerMetadataBuilder {
                     PayloadType.DomainCommand,
                     k, r, false, null
             );
+            h.setProducedEvents(produced.stream().map(Class::getSimpleName).toList());
             applyComponentMetadata(h, v.getRef().getClass());
             unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
@@ -147,6 +148,7 @@ final class HandlerMetadataBuilder {
                     PayloadType.ServiceCommand,
                     k, r.equals("void") ? null : r, false, null
             );
+            if (!r.equals("void")) h.setProducedEvents(List.of(r));
             applyComponentMetadata(h, v.getRef().getClass());
             unresolvedSends.addAndGet(applyInvocations(h, m));
             handlers.add(h);
@@ -276,8 +278,8 @@ final class HandlerMetadataBuilder {
     /**
      * The events an aggregate command handler may produce: its return type, or for one that
      * returns {@link DomainEvents} (F9) the classes it declares in {@code produces}. The catalog
-     * records one return type per handler: the first of them (an aggregate's event-sourcing
-     * handlers list the others).
+     * keeps the first as the handler's return type (what an older broker reads) and all of them
+     * as its produced events (3.0.1), one edge each in the graph and the performance model.
      */
     static java.util.List<Class<?>> producedEvents(java.lang.reflect.Method m) {
         if (!DomainEvents.class.isAssignableFrom(m.getReturnType())) return java.util.List.of(m.getReturnType());

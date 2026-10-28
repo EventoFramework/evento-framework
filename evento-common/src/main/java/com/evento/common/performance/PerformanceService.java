@@ -144,8 +144,22 @@ public abstract class PerformanceService {
     public final void sendInvocationsMetric(String bundle, String component, Message<?> action,
                                             HashMap<String, AtomicInteger> invocationCounter, String instanceId,
                                             boolean force) {
+        sendInvocationsMetric(bundle, component, action, invocationCounter, Map.of(), instanceId, force);
+    }
+
+    /**
+     * {@link #sendInvocationsMetric(String, String, Message, HashMap, String, boolean)} with, for a
+     * command handler, how many events of each type it declares the command produced (0 included).
+     *
+     * @param producedEvents event simple name → events of that type the handled command produced
+     */
+    public final void sendInvocationsMetric(String bundle, String component, Message<?> action,
+                                            HashMap<String, AtomicInteger> invocationCounter,
+                                            Map<String, Integer> producedEvents, String instanceId,
+                                            boolean force) {
         if(!force)
             if (random.nextDouble(0.0, 1.0) > performanceRate) return;
+        var produced = new HashMap<>(producedEvents);
         executor.execute(() -> {
             try {
 
@@ -154,6 +168,7 @@ public abstract class PerformanceService {
                     invocations.put(e.getKey(), e.getValue().get());
                 }
                 var pi = new PerformanceInvocationsMessage(bundle, component, action.getPayloadName(), invocations, instanceId);
+                pi.setProducedEvents(produced);
                 sendInvocationMetricMessage(pi);
 
             } catch (Exception ignored) {

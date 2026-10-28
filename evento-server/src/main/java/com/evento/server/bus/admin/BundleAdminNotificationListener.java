@@ -99,9 +99,14 @@ public class BundleAdminNotificationListener {
         }
         var body = envelope.getBody();
         switch (body) {
-            case PerformanceInvocationsMessage im -> performanceStoreService.saveInvocationsPerformance(
-                    im.getBundle(), im.getInstanceId(), im.getComponent(),
-                    im.getAction(), im.getInvocations());
+            case PerformanceInvocationsMessage im -> {
+                performanceStoreService.saveInvocationsPerformance(
+                        im.getBundle(), im.getInstanceId(), im.getComponent(),
+                        im.getAction(), im.getInvocations());
+                performanceStoreService.saveProducedEventsPerformance(
+                        im.getBundle(), im.getInstanceId(), im.getComponent(),
+                        im.getAction(), im.getProducedEvents());
+            }
             case PerformanceServiceTimeMessage tm -> performanceStoreService.saveServiceTimePerformance(
                     tm.getBundle(), tm.getInstanceId(), tm.getComponent(),
                     tm.getAction(), tm.getStart(), tm.getEnd());

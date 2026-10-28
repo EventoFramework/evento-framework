@@ -27,6 +27,11 @@ public class HandlerDto implements Serializable {
 	private String componentId;
 	private String componentName;
 	private PayloadDto returnType;
+	/**
+	 * The events a command handler may produce (3.0.1): its declared ones, or its return type for
+	 * a handler registered by an older bundle. The console draws an edge for each.
+	 */
+	private java.util.List<PayloadDto> producedEvents;
 	private ComponentType componentType;
 	private HandlerType handlerType;
 	private boolean returnIsMultiple;
@@ -47,6 +52,7 @@ public class HandlerDto implements Serializable {
 		this.returnIsMultiple = handler.isReturnIsMultiple();
 		this.handledPayload = handler.getHandledPayload() == null ? null : new PayloadDto(handler.getHandledPayload());
 		this.returnType = handler.getReturnType() == null ? null : new PayloadDto(handler.getReturnType());
+		this.producedEvents = handler.emittedEvents().stream().map(PayloadDto::new).toList();
 		this.invocations = new HashMap<>();
 		for (Map.Entry<Integer, Payload> i : handler.getInvocations().entrySet())
 		{

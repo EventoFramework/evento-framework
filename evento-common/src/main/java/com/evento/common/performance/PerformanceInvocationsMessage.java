@@ -1,5 +1,7 @@
 package com.evento.common.performance;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.io.Serializable;
 import java.util.HashMap;
 
@@ -13,6 +15,14 @@ public class PerformanceInvocationsMessage implements Serializable {
 	private String action;
 	private HashMap<String, Integer> invocations;
 	private String instanceId;
+	/**
+	 * How many events of each declared type the handled command produced (3.0.1): for a command
+	 * handler, every type it may produce, 0 included, so the broker's mean is the probability (or,
+	 * for a type a DomainEvents handler returns several of, the mean count) the performance model
+	 * weighs that event's edge with. Empty for other handlers; an older broker ignores it.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_EMPTY)
+	private HashMap<String, Integer> producedEvents = new HashMap<>();
 
 
 	/**
@@ -136,6 +146,14 @@ public class PerformanceInvocationsMessage implements Serializable {
 	 */
 	public void setInstanceId(String instanceId) {
 		this.instanceId = instanceId;
+	}
+
+	public HashMap<String, Integer> getProducedEvents() {
+		return producedEvents;
+	}
+
+	public void setProducedEvents(HashMap<String, Integer> producedEvents) {
+		this.producedEvents = producedEvents == null ? new HashMap<>() : producedEvents;
 	}
 
 	@Override

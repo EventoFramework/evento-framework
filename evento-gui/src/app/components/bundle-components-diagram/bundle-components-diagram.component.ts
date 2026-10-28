@@ -8,7 +8,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import {NavController} from '@ionic/angular/lazy';
-import {componentColor, payloadColor} from '../../services/utils';
+import {componentColor, handlerOutputs, payloadColor} from '../../services/utils';
 import {RepositoryService} from '../../services/repository.service';
 import {createEventoGraph, EventoEdge, EventoGraphHandle, EventoNode} from '../graph/evento-graph';
 
@@ -59,16 +59,16 @@ export class BundleComponentsDiagramComponent implements AfterViewInit, OnDestro
       });
       edges.push({source: pay, target: comp});
 
-      if (h.returnType) {
-        const ret = `ret-${idx}`;
+      handlerOutputs(h).forEach((out, k) => {
+        const ret = `ret-${idx}-${k}`;
         nodes.push({
           id: ret,
-          label: h.returnType.name + (h.returnIsMultiple ? '[]' : ''),
-          color: payloadColor[h.returnType.type],
-          route: '/payload-info/' + h.returnType.name,
+          label: out.name + (h.returnIsMultiple ? '[]' : ''),
+          color: payloadColor[out.type],
+          route: '/payload-info/' + out.name,
         });
         edges.push({source: comp, target: ret});
-      }
+      });
 
       (Object.values(h.invocations) as any[]).forEach((i, j) => {
         const inv = `inv-${idx}-${j}`;

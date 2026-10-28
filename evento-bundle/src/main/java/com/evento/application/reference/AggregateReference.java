@@ -95,6 +95,26 @@ public class AggregateReference extends Reference {
      *
      * @return A set of registered command names.
      */
+    /**
+     * The event types the handler of {@code commandName} declares (3.0.1): the classes in
+     * {@code produces} when it returns {@link DomainEvents}, else its return type.
+     */
+    public List<Class<?>> declaredEvents(String commandName) {
+        var m = aggregateCommandHandlerReferences.get(commandName);
+        if (m == null) return List.of();
+        if (!DomainEvents.class.isAssignableFrom(m.getReturnType())) return List.of(m.getReturnType());
+        return List.of(m.getAnnotation(AggregateCommandHandler.class).produces());
+    }
+
+    /**
+     * The declared type each event counts as: the first declared class it is an instance of (a
+     * subclass of a declared type counts as that type), or its own class.
+     */
+    public static String declaredName(List<Class<?>> declared, Object event) {
+        for (var c : declared) if (c.isInstance(event)) return c.getSimpleName();
+        return event.getClass().getSimpleName();
+    }
+
     public Set<String> getRegisteredCommands() {
         return aggregateCommandHandlerReferences.keySet();
     }
@@ -175,8 +195,18 @@ public class AggregateReference extends Reference {
             );
             List<DomainEvent> produced = returned instanceof DomainEvents many ? many.events()
                     : java.util.Collections.singletonList((DomainEvent) returned);
+            var declared = returned instanceof DomainEvents
+                    ? commandHandler.getAnnotation(AggregateCommandHandler.class).produces() : null;
             var events = new ArrayList<DomainEvent>(produced.size());
             for (var event : produced) {
+                // The catalog reads a DomainEvents handler's events from produces: an event outside
+                // it would be stored but missing from the interaction graph, so it is refused
+                if (declared != null && Arrays.stream(declared).noneMatch(c -> c.isInstance(event))) {
+                    throw new IllegalStateException("Command handler returned "
+                            + event.getClass().getSimpleName() + ", which "
+                            + commandHandler.getDeclaringClass().getSimpleName() + "." + commandHandler.getName()
+                            + " does not declare in @AggregateCommandHandler(produces = {...})");
+                }
                 if (!events.isEmpty() && envelope.getAggregateState() != null
                         && envelope.getAggregateState().isDeleted()) {
                     throw new IllegalStateException("Command handler returned events after "

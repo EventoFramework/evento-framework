@@ -2,6 +2,7 @@ import {ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewC
 import {ActivatedRoute} from '@angular/router';
 import {payloadColor, stringToColour} from '../../services/utils';
 import {FlowsService} from '../../services/flows.service';
+import {analyzeFlows, edgeWeight, edgeWeightLabel} from './flow-analysis';
 import {CatalogService} from '../../services/catalog.service';
 import {BundleService} from '../../services/bundle.service';
 import {RepositoryService} from '../../services/repository.service';
@@ -225,11 +226,11 @@ export class ApplicationFlowsPage implements OnInit, OnDestroy {
             const ql = source.throughtput - target.throughtput;
             const ratio = source.throughtput === 0 ? 0 : source.throughtput / source.workload;
             const active = !!ratio && !!node.target[target.id];
-            let txt = (node.throughtput * node.target[target.id]).toFixed(4) + ' [r/ms]';
+            let txt = (node.throughtput * edgeWeight(node.target[target.id])).toFixed(4) + ' [r/ms]';
             if (target.fcr) {
               txt += '\n' + ql.toFixed(4) + ' [ql/ms]';
             }
-            txt += '\n' + (node.target[target.id] * 100)?.toFixed(1) + ' %';
+            txt += '\n' + edgeWeightLabel(node.target[target.id]);
             gEdges.push({
               source: String(node.id),
               target: String(target.id),
@@ -381,99 +382,12 @@ export class ApplicationFlowsPage implements OnInit, OnDestroy {
 
 
   private doPerformanceAnalysis(nodesRef) {
-
-    let i = 0;
-
-    for (const node of this.model.nodes) {
-      nodesRef[node.id] = node;
-      if (node.type !== 'Source') {
-        node.throughtput = 0;
-      }
-      node.workload = node.throughtput;
-      node.mf = 1;
-      node.isBottleneck = false;
-      node.mainBottleneck = null;
-    }
-
-    while (true) {
-
-      this.bundleActiveThreads = {};
-      this.maxFlowThroughput = {};
-
-      const q = [];
-      for (const s of this.sources) {
-        s.meanServiceTime = 1 / s.throughtput;
-        this.maxFlowThroughput[s.id] = s;
-        s.flow = s.id;
-        q.push(s);
-      }
-      while (q.length > 0) {
-        const n = q.shift();
-        for (const t of Object.keys(n.target)) {
-          const target = nodesRef[t];
-          target.workload = (n.throughtput * n.target[t]);
-          target.throughtput = target.workload;
-          if (target.fcr) {
-            const tt = target.numServers / target.meanServiceTime;
-            if (tt < target.workload) {
-              target.throughtput = tt;
-              target.isBottleneck = true;
-            } else {
-              target.isBottleneck = false;
-            }
-          }
-          target.flow = n.flow;
-          target.mf = n.mf * n.target[t];
-          target.mainBottleneck = n.mainBottleneck;
-          if (n.isBottleneck && !target.mainBottleneck) {
-            target.mainBottleneck = n.id;
-          }
-          q.push(target);
-        }
-      }
-
-
-      i++;
-      const nsSum = {};
-      for (const node of this.model.nodes) {
-        if (node.fcr) {
-          if (!nsSum[node.component]) {
-            nsSum[node.component] = 0;
-          }
-          nsSum[node.component] += node.workload * node.meanServiceTime;
-        }
-      }
-      let diff = 0;
-      for (const node of this.model.nodes) {
-        if (node.fcr) {
-          const o = node.numServers;
-          node.numServers = (node.workload * node.meanServiceTime) / Math.max(1, nsSum[node.component]);
-          diff += Math.abs(o - node.numServers);
-        }
-      }
-      if (i > 10 || diff < 0.0001) {
-        for (const node of this.model.nodes) {
-          const nc = node.workload * node.meanServiceTime;
-          node.customers = (node.fcr ? Math.min(node.numServers, nc) : nc);
-          if (node.bundle) {
-            if (!this.bundleActiveThreads[node.bundle]) {
-              this.bundleActiveThreads[node.bundle] = 0;
-            }
-            this.bundleActiveThreads[node.bundle] += node.customers;
-            if (!this.bundles.includes(node.bundle)) {
-              this.bundles.push(node.bundle);
-            }
-          }
-          if (node.isBottleneck && !node.mainBottleneck) {
-            const source = nodesRef[node.flow];
-            if (this.maxFlowThroughput[node.flow].id === source.id ||
-              this.maxFlowThroughput[node.flow].numServers < node.numServers
-            ) {
-              this.maxFlowThroughput[node.flow] = node;
-            }
-          }
-        }
-        return;
+    const result = analyzeFlows(this.model.nodes, this.sources);
+    this.bundleActiveThreads = result.bundleActiveThreads;
+    this.maxFlowThroughput = result.maxFlowThroughput;
+    for (const b of result.bundles) {
+      if (!this.bundles.includes(b)) {
+        this.bundles.push(b);
       }
     }
   }

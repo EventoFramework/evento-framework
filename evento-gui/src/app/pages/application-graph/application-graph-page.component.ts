@@ -1,5 +1,6 @@
 import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
+import {handlerOutputs} from '../../services/utils';
 
 @Component({
     selector: 'app-application-graph',
@@ -46,9 +47,9 @@ export class ApplicationGraphPage implements OnInit {
       const h = bundles[handler.bundleId].components[handler.componentName].handlers[handler.handledPayload.name];
       h.responseHandeledBy = [];
       h.invoke = [];
-      if (handler.returnType) {
+      for (const out of handlerOutputs(handler)) {
         for (const target of Object.values<any>(handlers)
-          .filter(hh => hh.handledPayload.name === handler.returnType.name
+          .filter(hh => hh.handledPayload.name === out.name
             && hh.handlerType !== 'EventSourcingHandler')) {
           h.responseHandeledBy.push(target.uuid);
         }

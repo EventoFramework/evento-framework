@@ -42,3 +42,14 @@ export const payloadColor = {
   Query: 'gold',
 };
 
+/**
+ * What a handler outputs, as the catalog draws it: for a command handler every event it may
+ * produce (3.0.1: a DomainEvents handler declares several), otherwise its return type (a query
+ * handler's view). A server before 3.0.1 sends no producedEvents: the return type then.
+ */
+export function handlerOutputs(h: any): Array<{ name: string; type: string }> {
+  if (h?.producedEvents?.length) {
+    return h.producedEvents;
+  }
+  return h?.returnType ? [h.returnType] : [];
+}
