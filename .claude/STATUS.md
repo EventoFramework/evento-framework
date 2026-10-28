@@ -2,6 +2,24 @@
 
 Last updated: 2026-10-28 (session 9).
 
+## Declared events end to end, 3.0.1 (2026-10-28, PR #328)
+
+The user asked whether multi-event commands are parsed and checked, and how flows/graph react. They were
+not modelled: catalog, graph and performance model knew one event per command handler (its return type,
+the first in `produces`), each with probability 1. Fixed in PR #328 (not merged): `produces` enforced at
+dispatch; `RegisteredHandler.producedEvents` (additive, no capability: brokers since 2.4.0 skip unknown
+properties); `core__handler__produced_event` (V8); per-command produced counts in the invocation telemetry,
+0 included, aggregates and services, aged mean = edge weight to each event's event-store station
+(probability, count > 1, or 1 unmeasured); one branch per declared event in all five model views; cycle
+guard (`/api/flows` recursed for ever on a flow back to its own command); payloads compared by name
+(lazy loads across sessions, no value equality). Console: graphs draw every produced event; throughput
+propagation extracted to `flow-analysis.ts` with node:test cases. Docs: ARCHITECTURE, CHANGELOG;
+evento-doc branch `docs/produced-events-3.0.1` (commit only, publish with 3.0.1). Paper A: the model
+paragraph says how a declared decision is weighted. Tests: full suite 1093/0; PG ITs Schema (V8) 10,
+AggregateFence 20, MultiServerCatalog 7 (new produced-events test), all green.
+**Next:** merge #328 (user), tag 3.0.1 (with the V5 socketTimeout fix if done), publish docs, replace the
+site's paper A PDF.
+
 ## Papers and research repos on 3.0 (2026-10-28)
 
 - Paper A (evento-research PR #1, branch `paper-a/evento-3.0`): RECQ's "one event per command"
