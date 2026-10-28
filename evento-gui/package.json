@@ -8,6 +8,7 @@
     "start": "ng serve",
     "build": "ng build",
     "lint": "ng lint",
+    "test:flows": "node --test src/app/pages/application-flows/flow-analysis.spec.ts",
     "e2e": "ng e2e"
   },
   "private": true,

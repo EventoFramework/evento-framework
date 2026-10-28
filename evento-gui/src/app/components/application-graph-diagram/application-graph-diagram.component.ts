@@ -1,7 +1,7 @@
 import {AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 import {LoadingController, NavController} from '@ionic/angular/lazy';
-import {componentColor, getColorForBundle, payloadColor} from '../../services/utils';
+import {componentColor, getColorForBundle, handlerOutputs, payloadColor} from '../../services/utils';
 import cytoscape from 'cytoscape';
 import {hierarchy, pack} from 'd3-hierarchy';
 
@@ -79,8 +79,8 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
       const h = bundles[handler.bundleId].components[handler.componentName].handlers[handler.handledPayload.name];
       h.responseHandeledBy = [];
       h.invoke = [];
-      if (handler.returnType) {
-        for (const target of handlers.filter(hh => hh.handledPayload.name === handler.returnType.name
+      for (const out of handlerOutputs(handler)) {
+        for (const target of handlers.filter(hh => hh.handledPayload.name === out.name
           && hh.handlerType !== 'EventSourcingHandler')) {
           h.responseHandeledBy.push(target.uuid);
         }
