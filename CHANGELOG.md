@@ -9,6 +9,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.2] — 2026-10-28
+
+Patch release: the shipped server id is neutral. No wire, schema or API change; 3.0.x and 2.5 bundles and
+servers interoperate with it.
+
 ### Changed
 
 - **The shipped server id is `evento-server`.** `evento.cluster.node.server.id` (`EVENTO_CLUSTER_NODE_SERVER_ID`)
@@ -1596,7 +1601,9 @@ Last stable v1.x release. The v1 source history is preserved in the git log.
 
 ---
 
-[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v3.0.2...HEAD
+[3.0.2]: https://github.com/EventoFramework/evento-framework/compare/v3.0.1...v3.0.2
+[3.0.1]: https://github.com/EventoFramework/evento-framework/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/EventoFramework/evento-framework/compare/v2.5.2...v3.0.0
 [2.5.2]: https://github.com/EventoFramework/evento-framework/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/EventoFramework/evento-framework/compare/v2.5.0...v2.5.1

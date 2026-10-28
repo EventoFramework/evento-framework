@@ -13,7 +13,7 @@ load-bearing docs live in [`.claude/`](.claude/):
 
 ## Quick orientation
 
-- Active branch: **`main`** (latest release tagged: `v3.0.0`).
+- Active branch: **`main`** (latest release tagged: `v3.0.2`).
 - Toolchain: **JDK 25.0.3 or later**, Gradle 9.8.2, Spring Boot 4.1.2. Use
   `/usr/libexec/java_home -v 25` on macOS; on the Windows dev host
   `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1`. Never 25.0.1/25.0.2: JDK-8370887 can stall
