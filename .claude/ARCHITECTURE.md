@@ -1317,6 +1317,22 @@ explorative read-only pivot.)
   built-in indicator.
 - **Performance store**: `HandlerInvocationCountPerformance` + `HandlerServiceTimePerformance`
   persisted by `PerformanceStoreService`, consumed via `PerformanceController`.
+- **Performance model (`ApplicationPerformanceModelService`, `/api/flows`)**: an open queueing network,
+  unrolled as a tree from each source; an edge weight is the mean number of visits to the target per
+  visit to the source. Produced events (3.0.1): a command handler's catalog row lists every event it
+  declares (`core__handler__produced_event`, V8; `RegisteredHandler.producedEvents`, additive on the wire,
+  skipped by older brokers; empty for a 3.0.0 bundle, so `Handler.emittedEvents()` falls back on the
+  return type). The bundle reports, per command, how many events of each declared type it produced, 0
+  included (`PerformanceInvocationsMessage.producedEvents`, aggregates and services); the server keeps
+  their aged mean (`pe__<bundle>_<component>_<command>_<event>`, same table, same ALPHA), the edge to
+  that event's event-store station: below 1 for an event produced only sometimes (a service answering
+  without one, a coupon on some check-outs), above 1 for several of one type (one reservation per item);
+  1 until measured. The graph, `HandlerDto.producedEvents` and the payload page's producers use the same
+  list. A handler already on the path being unrolled is not expanded again (cycles through events).
+  The console's throughput propagation (`evento-gui/.../application-flows/flow-analysis.ts`, tested with
+  `node --test ...flow-analysis.spec.ts`) multiplies by the weight whatever it is and labels a weight
+  above 1 as a multiplier. Tests: `ApplicationPerformanceModelServiceTest`, `MultiEventCommandIT` (lab:
+  answer, order, consumers, catalog, telemetry), `RegisteredHandlerWireTest`.
 - **Structured logging:** SLF4J. Key=value on every bus lifecycle transition. `event=disconnect_superseded_skip` etc.
 - **Zero-copy counters**: `BusLifecycle.forwardedRawCount` / `forwardedReencodedCount` — every
   Netty-to-Netty forward must use the raw path; tests pin this contract.

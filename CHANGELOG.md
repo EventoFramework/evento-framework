@@ -9,6 +9,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A `DomainEvents` handler's events are checked against its declaration.** An event outside
+  `@AggregateCommandHandler(produces = ...)` fails the command before anything is stored: the catalog
+  reads a handler's events from that declaration, and an undeclared one was stored but missing from the
+  interaction graph.
+- **The interaction graph and the performance model draw every event a command handler may produce.**
+  They used the return type alone, so a `DomainEvents` handler showed only the first event in `produces`,
+  and the consumers of the others looked unconnected to it. The catalog now keeps each command handler's
+  declared events (schema V8), and the console's graphs, flows and payload pages show all of them.
+- **The performance model weighs each event by how often a command produces it.** The bundle reports,
+  per command, how many events of each declared type it produced, 0 included, for aggregates and
+  services; the event's edge carries their mean: a probability for an event produced only sometimes (a
+  service that may answer without one), a mean count for several of one type. Until 3.0.1 every command
+  handler was modelled as producing exactly one event, so a consumer fed several events per command
+  could be a bottleneck the model did not show. Older bundles and brokers interoperate: the new fields
+  are additive and skipped by peers that do not know them.
+- **The flows endpoint no longer recurses for ever on a flow that leads back to its own command.**
+
 ## [3.0.0] — 2026-10-27
 
 Version 3.0: a major release, because one default changes (the server's security profile is `prod`:
