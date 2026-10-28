@@ -2,6 +2,24 @@
 
 Last updated: 2026-10-28 (session 9).
 
+## Papers and research repos on 3.0 (2026-10-28)
+
+- Paper A (evento-research PR #1, branch `paper-a/evento-3.0`): RECQ's "one event per command"
+  restated as "one declared decision per command" (DomainEvents + `produces`, atomic, emit set
+  read from the declaration); event store presented as CPES only (group commit, aggregate fence,
+  optimistic concurrency; APES gone from the paper); licence (client libraries Apache-2.0, server
+  Apache-2.0 + Commons Clause); archived release **v3.0.1**, not tagged yet. Builds 37 pp, clean
+  (needs the CTAN `llncs` package on TEXINPUTS/BSTINPUTS: TeX Live 2020 on the Windows host lacks it).
+- Evento PR #328: a DomainEvents handler's events are now checked against `produces` at dispatch
+  (undeclared event = command fails). The paper's exactness claim relies on it: merge, then tag
+  3.0.1 (with the V5 network-timeout fix if done by then), then replace the site's paper A draft PDF.
+- Paper B: the Axon arm's runtime numbers (p95, rps, memory) withheld, Axon Server ToS.
+- **Open, user decision:** the public `recq-rigor-study` repo holds Axon Server k6 results
+  (`runs/*arm_c_axon*/metrics/perf.json`, `reports/k6-summary.json`, `logs/k6.log`) since June:
+  removing them needs a history rewrite + force push, or making the repo private.
+- evento-server-enterprise: description and README now say DEPRECATED, archived again.
+- evento-www PR #3: research page licence wording.
+
 ## Marketplace in production on 3.0.0 (2026-10-28)
 
 One window, no compatibility mode: the marketplace's PR #117 (3.0 code) and #118 (rollout fixes found
