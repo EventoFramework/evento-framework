@@ -1,6 +1,15 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-28 (session 9).
+Last updated: 2026-10-28 (session 10).
+
+## No adopter names in public material (2026-10-28)
+
+PR #330 merged: the shipped `evento.cluster.node.server.id` is `evento-server`, with an upgrade note
+in CHANGELOG [Unreleased] for anyone who pinned the old id; adopter names replaced by "a
+manufacturing-execution system" / "a marketplace". evento-doc #4, evento-www #5 (the demo sets
+`evento-demo-server`) and evento-research #2 merged; the public repos and release notes scan clean
+(git history and old tags not rewritten). Demo redeployed: checks=passed, todo READY. The new default
+ships in 3.0.2 (not cut yet). The marketplace's code is on 3.0.1; its broker upgrade is pending.
 
 ## 3.0.1 released (2026-10-28)
 
