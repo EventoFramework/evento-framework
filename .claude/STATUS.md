@@ -1,14 +1,66 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-27 (session 9).
+Last updated: 2026-10-28 (session 9).
+
+## Declared events end to end, 3.0.1 (2026-10-28, PR #328)
+
+The user asked whether multi-event commands are parsed and checked, and how flows/graph react. They were
+not modelled: catalog, graph and performance model knew one event per command handler (its return type,
+the first in `produces`), each with probability 1. Fixed in PR #328 (not merged): `produces` enforced at
+dispatch; `RegisteredHandler.producedEvents` (additive, no capability: brokers since 2.4.0 skip unknown
+properties); `core__handler__produced_event` (V8); per-command produced counts in the invocation telemetry,
+0 included, aggregates and services, aged mean = edge weight to each event's event-store station
+(probability, count > 1, or 1 unmeasured); one branch per declared event in all five model views; cycle
+guard (`/api/flows` recursed for ever on a flow back to its own command); payloads compared by name
+(lazy loads across sessions, no value equality). Console: graphs draw every produced event; throughput
+propagation extracted to `flow-analysis.ts` with node:test cases. Docs: ARCHITECTURE, CHANGELOG;
+evento-doc branch `docs/produced-events-3.0.1` (commit only, publish with 3.0.1). Paper A: the model
+paragraph says how a declared decision is weighted. Tests: full suite 1093/0; PG ITs Schema (V8) 10,
+AggregateFence 20, MultiServerCatalog 7 (new produced-events test), all green.
+**Next:** merge #328 (user), tag 3.0.1 (with the V5 socketTimeout fix if done), publish docs, replace the
+site's paper A PDF.
+
+## Papers and research repos on 3.0 (2026-10-28)
+
+- Paper A (evento-research PR #1, branch `paper-a/evento-3.0`): RECQ's "one event per command"
+  restated as "one declared decision per command" (DomainEvents + `produces`, atomic, emit set
+  read from the declaration); event store presented as CPES only (group commit, aggregate fence,
+  optimistic concurrency; APES gone from the paper); licence (client libraries Apache-2.0, server
+  Apache-2.0 + Commons Clause); archived release **v3.0.1**, not tagged yet. Builds 37 pp, clean
+  (needs the CTAN `llncs` package on TEXINPUTS/BSTINPUTS: TeX Live 2020 on the Windows host lacks it).
+- Evento PR #328: a DomainEvents handler's events are now checked against `produces` at dispatch
+  (undeclared event = command fails). The paper's exactness claim relies on it: merge, then tag
+  3.0.1 (with the V5 network-timeout fix if done by then), then replace the site's paper A draft PDF.
+- Paper B: the Axon arm's runtime numbers (p95, rps, memory) withheld, Axon Server ToS.
+- **Open, user decision:** the public `recq-rigor-study` repo holds Axon Server k6 results
+  (`runs/*arm_c_axon*/metrics/perf.json`, `reports/k6-summary.json`, `logs/k6.log`) since June:
+  removing them needs a history rewrite + force push, or making the repo private.
+- evento-server-enterprise: description and README now say DEPRECATED, archived again.
+- evento-www PR #3: research page licence wording.
+
+## Marketplace in production on 3.0.0 (2026-10-28)
+
+One window, no compatibility mode: the marketplace's PR #117 (3.0 code) and #118 (rollout fixes found
+by a read-only check of the host: its deploy verb ignored COMPOSE_FILE, so the 3.0 override was
+layered in; the prod profile refused the event-store password and the unset console password, so the
+script rotates the former and creates the latter in the host's .env) merged; pre (dumps, secrets,
+bus cert, market stopped, broker 2.5.2 -> 3.0.0 prod profile), deploy of the 3.0 image, post (45
+stored iam events encrypted, 1 deleted account forgotten, 0 addresses in clear, 24 wrapped subject
+keys, 21 consumers healthy, projectors at head). Market down ~4 minutes. Pre-window dumps (personal
+data in clear) still on the host: delete once the user has signed off.
+
+**Follow-up for Evento (3.0.1):** on the 4.3 GB store the first broker boot crashed in V5 (aggregate
+fence): CREATE INDEX CONCURRENTLY waited for other snapshots longer than the JDBC socketTimeout (30 s,
+application.properties), the client gave up, the container restarted and the idempotent step found the
+index built and valid. Harmless, but the schema initializer should lift the network timeout
+(Connection.setNetworkTimeout(0)) for the online steps instead of relying on a restart.
 
 ## 3.0.0 released (2026-10-27)
 
-Apps on 3.0.0 (same day): the marketplace (PR #117 of its repo, CI green, not merged yet: the merge
-and the prod rollout wait for the user) moves to 3.0.0 with a hardened bus (token, TLS, payload
+Apps on 3.0.0 (same day): the marketplace (PR #117 of its repo; in production on 2026-10-28, see above) moves to 3.0.0 with a hardened bus (token, TLS, payload
 allowlist + a guard test over its 800+ payload classes), crypto-shredding of deleted accounts
-(iam events @PersonalData, key deleted by an observer after UserDeletedEvent) and a two-phase prod
-script (broker in dev profile first, bundle, then harden). Verified end to end on a prod-profile
+(iam events @PersonalData, key deleted by an observer after UserDeletedEvent) and a one-window prod
+script (pre / deploy / post). Verified end to end on a prod-profile
 3.0 broker. The MES trial branch is on 3.0.0 (local). **Follow-up for Evento:** read-your-writes
 waits for every projector of the bundle (ProjectorConsistencyGate), so one slow projector (the
 marketplace's search indexer) delays every consistent query; scope the gate to the projectors
