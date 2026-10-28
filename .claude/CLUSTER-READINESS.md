@@ -40,7 +40,7 @@ What the servers do share correctly through Postgres:
 | Server datasource on a hot standby or behind pgbouncer (transaction mode) | **No** | Writes and advisory locks fail on a standby. Session advisory locks are meaningless behind a transaction pooler. Use a multi-host URL with `targetServerType=primary`. |
 | APES mode with 3 servers | **Unsafe** | Snowflake ids come from 3 clocks and MAC-derived node ids. The 69 ms read window (`evento.es.fetch.delay`) is smaller than WAN commit latency, so events are skipped. (`recordAbsent` was G10, fixed.) **Use CPES.** B2 (2026-10-20) measured what this costs: with a synchronous standby across AZs APES appends 2-3x faster than CPES at low concurrency or 10 ms between AZs, because CPES holds `es-lock` through the replication wait; it does not make APES safe for consumers (B2 measured commands only). APES is deprecated since 3.0. |
 | Cold start of 3 servers at once | **Flaky** | Every server runs `schema.sql` concurrently (`spring.sql.init.mode=always`, `application.properties:32`), which risks `pg_type_typname_nsp_index` or `tuple concurrently updated` errors. Stagger startup with `depends_on: service_healthy` chains. |
-| Three servers with default identity | **Misleading** | All announce `iris-evento-server` (`application.properties:7,44`), and all use `evento.server.instance.id=server-0` (`:37`). Set unique `EVENTO_CLUSTER_NODE_SERVER_ID` and `EVENTO_SERVER_INSTANCE_ID` per server. |
+| Three servers with default identity | **Misleading** | All announce `evento-server` (`application.properties:7,44`), and all use `evento.server.instance.id=server-0` (`:37`). Set unique `EVENTO_CLUSTER_NODE_SERVER_ID` and `EVENTO_SERVER_INSTANCE_ID` per server. |
 
 The honest target for the lab is **3 active cells (EU, AM, APAC)**. Each cell has a full handler set, region JVMs attach to their cell's server, all share the event-store PG cluster, and cross-cell consistency rests on Postgres. The lab should demonstrate where this breaks.
 
@@ -212,7 +212,7 @@ choice (it was listed as a blocker in the original assessment). Kept here for th
 ### Medium
 
 **G13: Server identity.** IMPL.
-- Evidence: `application.properties:7,44` (`iris-evento-server` everywhere) and `:37` (`server-0`). The UUID fallback in `BusProperties.java:37-39` never fires. `expectedServerInstanceId` is a single string (`ConnectionSupervisor.java:269-277`), so a bundle behind an LB or with an address list cannot keep the 2.4.6 wrong-broker guard.
+- Evidence: `application.properties:7,44` (`evento-server` everywhere) and `:37` (`server-0`). The UUID fallback in `BusProperties.java:37-39` never fires. `expectedServerInstanceId` is a single string (`ConnectionSupervisor.java:269-277`), so a bundle behind an LB or with an address list cannot keep the 2.4.6 wrong-broker guard.
 - Fix: add `clusterName` to the handling (either `Welcome` or a capability) and an `expectedClusterName` option on the bundle, or accept a set of ids / a per-endpoint expected id. Document that unique per-server ids are required.
 
 **G14: Concurrent `schema.sql` on every server start.** IMPL.

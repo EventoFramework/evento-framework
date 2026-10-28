@@ -45,7 +45,7 @@ public class BundlePresence {
     private static final Logger logger = LoggerFactory.getLogger(BundlePresence.class);
 
     /** The id every server gets from the shipped application.properties (G13). */
-    static final String SHIPPED_DEFAULT_SERVER_ID = "iris-evento-server";
+    static final String SHIPPED_DEFAULT_SERVER_ID = "evento-server";
 
     /** Outcome of {@link #release}: whether the leaving server may clean up after the instance. */
     public enum Release {

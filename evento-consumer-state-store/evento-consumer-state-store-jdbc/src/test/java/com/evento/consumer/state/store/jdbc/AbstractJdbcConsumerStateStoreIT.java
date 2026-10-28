@@ -404,7 +404,7 @@ abstract class AbstractJdbcConsumerStateStoreIT {
     }
 
     /**
-     * More consumers than the pool can hold locks for (iris: 17 consumers, a pool of 8). The ones
+     * More consumers than the pool can hold locks for (the MES: 17 consumers, a pool of 8). The ones
      * that came first kept every connection, since they poll more often than the affinity lasts,
      * and the others never got one. Now the locks hold at most maxHeld connections: a consumer that
      * needs one ends the affinity of the lock kept idle the longest, or finds its lock busy.

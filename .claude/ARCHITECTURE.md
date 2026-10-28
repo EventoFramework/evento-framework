@@ -578,7 +578,7 @@ warned about (`db/upgrade/es-events-primary-key.sql`). The server refuses Postgr
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `evento.server.instance.id` / `evento.cluster.node.server.id` (`EVENTO_SERVER_INSTANCE_ID`, `EVENTO_CLUSTER_NODE_SERVER_ID`) | `server-0` / `iris-evento-server` | Must be unique per server: presence ownership and the `Welcome.serverInstanceId` depend on it |
+| `evento.server.instance.id` / `evento.cluster.node.server.id` (`EVENTO_SERVER_INSTANCE_ID`, `EVENTO_CLUSTER_NODE_SERVER_ID`) | `server-0` / `evento-server` | Must be unique per server: presence ownership and the `Welcome.serverInstanceId` depend on it |
 | `evento.cluster.name` (`EVENTO_CLUSTER_NAME`) | `evento-server` (shipped properties; empty = not announced) | Announced in `Welcome.clusterName`; bundles may require it (`withExpectedClusterName`) instead of one server id (G13). Set it per deployment: every stock server announces `evento-server`, so requiring that value protects nothing (`event=cluster_name_shipped_default` WARN at boot) |
 | `evento.server.bus.pick-strategy` | `random` | `random`, `first`, `locality-preferred` (§6 decision 11) |
 | `spring.datasource.hikari.maximum-pool-size` / `minimum-idle` | 20 / 5 | Application pool |

@@ -79,7 +79,7 @@ class ConsumerProcessorTest {
     /**
      * Events the projector has no handler for are still handed to it, but their position is
      * written with the next handled event or at the end of the batch: one write, not one each
-     * (iris master-data: seventeen projectors, every event of the stream a write for each).
+     * (a master-data bundle of a manufacturing-execution system: seventeen projectors, every event of the stream a write for each).
      */
     @Test
     void theCheckpointOfUnhandledEventsIsWrittenWithTheNextOneOrAtTheEnd() throws Throwable {

@@ -182,7 +182,7 @@ Opzioni JVM usate ovunque nel laboratorio: `-XX:MaxRAMPercentage=70 -XX:+UseSeri
       l'ultimo id, `event=es_mode_switched`).
 - [ ] `EVENTO_CLUSTER_NAME` diverso da `evento-server` e uguale su server e bundle.
 - [ ] `EVENTO_CLUSTER_NODE_SERVER_ID` ed `EVENTO_SERVER_INSTANCE_ID` impostati (i default sono
-      `iris-evento-server` e `server-0`).
+      `evento-server` e `server-0`).
 - [ ] Ogni bundle con consumer ha `EVENTO_CONTEXTS` esplicito (`BundleDeployment.requireContexts`
       rifiuta di partire senza).
 - [ ] `order-query` elenca `ALL` se deve proiettare il listino.
