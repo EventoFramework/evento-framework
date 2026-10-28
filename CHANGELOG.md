@@ -9,6 +9,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.1] — 2026-10-28
+
+Patch release: a `DomainEvents` handler's `produces` is enforced, and the catalog, the interaction graph and
+the performance model see every event a command handler declares, each weighted by how often it is produced.
+Wire changes are additive; 3.0.0 and 2.5 bundles and servers interoperate with it. The server's schema moves
+to V8 (one table, created on the first boot).
+
 ### Fixed
 
 - **A `DomainEvents` handler's events are checked against its declaration.** An event outside
