@@ -2,6 +2,12 @@
 
 Last updated: 2026-11-03 (session 11).
 
+## 3.0.3 prepared (2026-11-03)
+
+#336, #337 and #338 merged (admin, on the user's say-so), CI and CodeQL on main green. Changelog dated for 3.0.3. The tag
+is cut by `scripts/release.sh patch` after this merges. Afterwards: evento-www and evento-todo move to 3.0.3 (demo image,
+get-started), and the demo is redeployed. evento-www #9, evento-todo #5 and evento-doc #5 are merged, not deployed.
+
 ## Signal rebrand: console, site, docs (2026-11-03)
 
 Direction "Signal" chosen by the user. Console
