@@ -21,6 +21,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Ionic parents were still hydrating, and the graph was never created.
 - **The console's header no longer hides its first tab**, and graph nodes and the event store follow a theme switch
   without a reload.
+- **The console shows event, snapshot and dead-event payloads and their dates.** Since Spring Boot 4 the web layer writes
+  with Jackson 3, which saw the payload's Jackson 2 tree as a bean (`array`, `bigDecimal`, `nodeType`...) and sends dates
+  as ISO strings, which the console multiplied by 1000. `/api/system-state-store/event` and `/snapshot` now return the
+  stored JSON.
 
 ## [3.0.2] — 2026-10-28
 

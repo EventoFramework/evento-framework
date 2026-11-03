@@ -57,7 +57,7 @@ export class ConsumersComponent implements OnInit {
           eventName: e.eventName,
           eventSequenceNumber: e.eventSequenceNumber,
           metadata: e.event.eventMessage.metadata,
-          event: e.event.eventMessage.serializedPayload.tree
+          event: JSON.parse(e.event.eventMessage.serializedPayload.serializedObject)
         }
         return e;
       });
@@ -91,7 +91,7 @@ export class ConsumersComponent implements OnInit {
           eventName: e.eventName,
           eventSequenceNumber: e.eventSequenceNumber,
           metadata: e.event.eventMessage.metadata,
-          event: e.event.eventMessage.serializedPayload.tree
+          event: JSON.parse(e.event.eventMessage.serializedPayload.serializedObject)
         }
         return e;
       });
@@ -118,7 +118,7 @@ export class ConsumersComponent implements OnInit {
           eventName: e.eventName,
           eventSequenceNumber: e.eventSequenceNumber,
           metadata: e.event.eventMessage.metadata,
-          event: e.event.eventMessage.serializedPayload.tree
+          event: JSON.parse(e.event.eventMessage.serializedPayload.serializedObject)
         }
         return e;
       });
