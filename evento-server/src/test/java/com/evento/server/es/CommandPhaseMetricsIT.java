@@ -151,6 +151,36 @@ class CommandPhaseMetricsIT {
         assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isGreaterThanOrEqualTo(unkeyed * HANDLER_MS);
     }
 
+    @Test
+    void aStoredCommandReportsItsStages() throws Exception {
+        var timings = new CopyOnWriteArrayList<AggregateCommandTiming>();
+        broker.setAggregateTelemetry(timings::add);
+        var id = "reported-" + UUID.randomUUID();
+
+        new CommandGatewayImpl(caller()).send(new PhaseCmd(id, false)).get(10, TimeUnit.SECONDS);
+
+        assertThat(timings).hasSize(1);
+        var t = timings.getFirst();
+        assertThat(t.bundleId()).isEqualTo("phase-aggregate");
+        assertThat(t.component()).isEqualTo("PhaseAggregate");
+        assertThat(t.commandName()).isEqualTo(COMMAND);
+        assertThat(t.sourceBundleId()).isEqualTo("phase-caller");
+        assertThat(t.aggregateId()).isEqualTo(id);
+        assertThat(t.lockAcquired()).isAfterOrEqualTo(t.start());
+        assertThat(Duration.between(t.lockAcquired(), t.retrieveDone())).as("the story").isGreaterThanOrEqualTo(Duration.ofMillis(STORY_MS));
+        assertThat(Duration.between(t.retrieveDone(), t.computationDone())).as("the handler").isGreaterThanOrEqualTo(Duration.ofMillis(HANDLER_MS));
+        assertThat(Duration.between(t.computationDone(), t.published())).as("the append").isGreaterThanOrEqualTo(Duration.ofMillis(APPEND_MS));
+    }
+
+    @Test
+    void aFailingTelemetryDoesNotFailTheCommand() throws Exception {
+        broker.setAggregateTelemetry(t -> {
+            throw new IllegalStateException("telemetry down");
+        });
+        var id = "unreported-" + UUID.randomUUID();
+        new CommandGatewayImpl(caller()).send(new PhaseCmd(id, false)).get(10, TimeUnit.SECONDS);
+    }
+
     private long count(Phase phase, boolean keyed) {
         var timer = registry.find(CommandPhaseMetrics.METRIC)
                 .tag("phase", phase.tag()).tag("keyed", String.valueOf(keyed)).timer();
