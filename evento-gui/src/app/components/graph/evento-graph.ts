@@ -173,6 +173,9 @@ export function createEventoGraph(
   const cy = cytoscape({
     container,
     elements,
+    // The default grid layout throws when the container has no computed style yet, as inside an
+    // Ionic element still hydrating. runLayouts() places the nodes, the ResizeObserver fits them.
+    layout: {name: 'preset'},
     minZoom: 0.1,
     maxZoom: 4,
     wheelSensitivity: 0.3,
