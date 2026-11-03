@@ -362,8 +362,8 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
         },
         {selector: '.response', style: {'line-style': 'dashed'} as any},
         // Hover highlight, color-coded by direction: downstream (what this
-        // handler triggers) in accent orange, upstream (what leads into it)
-        // in teal-green. Edge-scoped selectors only — a bare class selector
+        // handler triggers) in the danger red, upstream (what leads into it)
+        // in the success green. Edge-scoped selectors only — a bare class selector
         // would also match nodes and its `width` would collapse them.
         {
           selector: 'edge.hl-down',
