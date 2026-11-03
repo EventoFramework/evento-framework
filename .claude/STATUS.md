@@ -1,6 +1,17 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-10-28 (session 10).
+Last updated: 2026-11-03 (session 11).
+
+## Signal rebrand: console, site, docs (2026-11-03)
+
+Direction "Signal" chosen by the user. Console
+on `feat/gui-signal-brand`, site on evento-www `redesign/signal`, images of this README in `docs/assets`; user docs and
+wiki follow. One color table in `evento-gui/.../services/utils.ts`, which also generates the chip, card and shape CSS.
+The site shows the console through animated panels, no videos, by the user's choice.
+
+Open: after a live theme switch in Flows some edges vanish until a reload (also on the published console, not
+introduced here; `cy.forceRender()` does not help). The telemetry charts still use two y-axes, and the charts' new
+colors were seen only on all-zero data. `demo-live.png` on the site still shows the old logo of the demo app.
 
 ## 3.0.2 released (2026-10-28)
 

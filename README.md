@@ -1,4 +1,4 @@
-[![headline](docs/assets/headline.png)](https://www.eventoframework.com/)
+[![Evento: the Java framework to build RECQ architectures](docs/assets/headline.png)](https://www.eventoframework.com/)
 
 # [Evento Framework](https://www.eventoframework.com/)
 
@@ -22,7 +22,7 @@ The Evento Framework equips developers with a robust toolkit for building and ma
 -   **Comprehend Component Behavior:** Delve into the behavior of individual components within your application. Explore event handling, command processing, and query execution at a granular level to identify bottlenecks or unexpected interactions.
 -   **Enriched Telemetry:** Evento gathers and exposes detailed telemetry data about your application's performance. This data includes metrics on event delivery, command execution times, and query response latencies. By analyzing this telemetry, you can optimize your application and ensure it delivers exceptional performance.
 
-[![headline](docs/assets/cta.png)](https://www.eventoframework.com/)
+[![See everything Evento does](docs/assets/cta.png)](https://www.eventoframework.com/)
 
 **Evento Framework: The Foundation Based on [RECQ Architecture](https://www.eventoframework.com/recq-patterns/)**
 
