@@ -24,6 +24,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
 import com.evento.server.bus.lifecycle.BusLifecycle;
 import com.evento.server.bus.registry.ClusterRegistry;
+import com.evento.server.service.performance.PerformanceStoreService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -164,6 +165,12 @@ public class CommandBrokerHandler implements MeterBinder {
     private final PgDistributedLock distributedLock;
     private final CommandPhaseMetrics phaseMetrics = new CommandPhaseMetrics();
     private volatile CommandTracing tracing = CommandTracing.global();
+    /** Who handles each aggregate command, as its bundle announced it: names the telemetry's series. */
+    private final java.util.Map<String, AggregateHandler> aggregateHandlers = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile java.util.function.Consumer<AggregateCommandTiming> aggregateTelemetry = timing -> { };
+
+    private record AggregateHandler(String bundleId, String component) {
+    }
 
     public CommandBrokerHandler(BusLifecycle lifecycle,
                                 ClusterRegistry clusterRegistry,
@@ -181,6 +188,7 @@ public class CommandBrokerHandler implements MeterBinder {
             for (var handler : discovered.discovery().handlers()) {
                 if (handler.getHandlerType() == HandlerType.AggregateCommandHandler) {
                     var pt = handler.getHandledPayload();
+                    aggregateHandlers.put(pt, new AggregateHandler(discovered.node().bundleId(), handler.getComponentName()));
                     lifecycle.registerLocalHandler(pt, (payload, originator, deadlineMs, timing) ->
                             handleAggregateCommand(pt, payload, originator, deadlineMs, timing));
                     log.info("event=aggregate_command_handler_registered payloadType={}", pt);
@@ -205,6 +213,19 @@ public class CommandBrokerHandler implements MeterBinder {
                           org.springframework.beans.factory.ObjectProvider<io.opentelemetry.api.OpenTelemetry> openTelemetry) {
         tracing = enabled ? CommandTracing.of(openTelemetry.getIfAvailable(io.opentelemetry.api.GlobalOpenTelemetry::get))
                 : CommandTracing.OFF;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureAggregateTelemetry(org.springframework.beans.factory.ObjectProvider<PerformanceStoreService> store) {
+        store.ifAvailable(s -> setAggregateTelemetry(t -> s.sendAggregateServiceTimeMetric(t.bundleId(), null,
+                t.sourceBundleId(), t.sourceInstanceId(), t.eventSequenceNumber(), t.component(), t.commandName(),
+                t.start(), t.lockAcquired(), t.retrieveDone(), t.computationDone(), t.published(), t.aggregateId(),
+                t.forceTelemetry())));
+    }
+
+    /** Hears each stored aggregate command. For servers built without Spring and for tests. */
+    public void setAggregateTelemetry(java.util.function.Consumer<AggregateCommandTiming> telemetry) {
+        this.aggregateTelemetry = telemetry;
     }
 
     /**
@@ -575,6 +596,7 @@ public class CommandBrokerHandler implements MeterBinder {
                 clock.lap(CommandPhaseMetrics.Phase.LOCK);
             }
 
+            var readyAt = java.time.Instant.now();
             // The key is checked with the story, in the same round trip, under the lock.
             var keyed = eventStore.fetchAggregateStory(
                     cmd.getAggregateId(),
@@ -582,6 +604,7 @@ public class CommandBrokerHandler implements MeterBinder {
                     cmd.isInvalidateAggregateSnapshot(),
                     key);
             clock.lap(CommandPhaseMetrics.Phase.STORY);
+            var retrievedAt = java.time.Instant.now();
             if (key != null) {
                 var recorded = answerRecorded(keyed.record(), key, commandPayloadType, cmd.getAggregateId(),
                         eventoRequest, REPLAY_WITH_STORY);
@@ -626,6 +649,7 @@ public class CommandBrokerHandler implements MeterBinder {
 
             var eventoResponse = codec.decodeResponse(response.payload());
             clock.lap(CommandPhaseMetrics.Phase.CODEC);
+            var computedAt = java.time.Instant.now();
             if (eventoResponse.getBody() instanceof ExceptionWrapper) {
                 // Without the aggregate lock a duplicate can see the original's event in its
                 // story and be refused by the domain ("already created"): that refusal is the
@@ -712,6 +736,8 @@ public class CommandBrokerHandler implements MeterBinder {
                 clock.lap(CommandPhaseMetrics.Phase.APPEND);
                 log.debug("event=aggregate_deleted aggregateId={}", cmd.getAggregateId());
             }
+            reportTiming(commandPayloadType, eventoRequest, cmd, seqNum, clock.arrivedAt(), readyAt, retrievedAt,
+                    computedAt);
 
             var reply = new EventoResponse();
             reply.setCorrelationId(eventoRequest.getCorrelationId());
@@ -730,6 +756,22 @@ public class CommandBrokerHandler implements MeterBinder {
                 releaseQuietly(lockKey);
                 clock.lap(CommandPhaseMetrics.Phase.UNLOCK);
             }
+        }
+    }
+
+    /** The event is stored by now: telemetry must not change what the caller hears. */
+    private void reportTiming(String commandPayloadType, EventoRequest request, DomainCommandMessage cmd, long seqNum,
+                              java.time.Instant start, java.time.Instant readyAt, java.time.Instant retrievedAt,
+                              java.time.Instant computedAt) {
+        var handler = aggregateHandlers.get(commandPayloadType);
+        if (handler == null || cmd.getAggregateId() == null) return;
+        try {
+            aggregateTelemetry.accept(new AggregateCommandTiming(handler.bundleId(), handler.component(),
+                    commandPayloadType, request.getSourceBundleId(), request.getSourceInstanceId(),
+                    cmd.getAggregateId(), seqNum, start, readyAt, retrievedAt, computedAt, java.time.Instant.now(),
+                    cmd.isForceTelemetry()));
+        } catch (RuntimeException e) {
+            log.warn("event=aggregate_telemetry_failed payloadType={} error=\"{}\"", commandPayloadType, e.getMessage());
         }
     }
 

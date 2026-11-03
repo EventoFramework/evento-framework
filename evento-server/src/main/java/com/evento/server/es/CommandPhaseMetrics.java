@@ -164,6 +164,11 @@ public final class CommandPhaseMetrics {
             this.last = dispatch;
         }
 
+        /** When the command reached the server, on the wall clock. */
+        java.time.Instant arrivedAt() {
+            return java.time.Instant.now().minusNanos(System.nanoTime() - arrival);
+        }
+
         void lap(Phase phase) {
             long now = System.nanoTime();
             int i = phase.ordinal();
