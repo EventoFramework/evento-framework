@@ -20,6 +20,8 @@ interoperate with it. In the console's REST API, `event` and `aggregateState` no
 - **The console takes the Evento brand** (logo, palette, Bricolage Grotesque and JetBrains Mono, square shapes). Graph
   nodes carry the shape of their component type, and the flows view colors them by that type. Both themes keep the
   strong color code, now from one table.
+- **Dependencies:** ClassGraph 6.0.1 in `evento-bundle`; in the console Angular 22.2.4, Ionic 9.0.10, ApexCharts 8.7.0 and
+  ngx-translate 18.1.0, with the rest of the npm group; `gradle/actions/wrapper-validation` 6.4.1 in CI.
 
 ### Fixed
 
