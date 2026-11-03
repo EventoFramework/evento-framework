@@ -9,6 +9,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Aggregate telemetry is recorded again.** Nothing wrote `performance__aggregate_handler_invocation_count_ts` since the
+  v1 message bus was removed in 2.0, so the console's Aggregate charts read zero. Each stored aggregate command now
+  reports its stages from the broker, under `evento.performance.capture.rate` like the other telemetry. The table's
+  `instance_id` stays null for these rows: the console doesn't read it.
+
 ## [3.0.2] — 2026-10-28
 
 Patch release: the shipped server id is neutral. No wire, schema or API change; 3.0.x and 2.5 bundles and
