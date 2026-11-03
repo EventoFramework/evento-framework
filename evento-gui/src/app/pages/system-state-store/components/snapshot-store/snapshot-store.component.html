@@ -38,9 +38,9 @@
           <td class="cell-mono">{{ e.aggregateId }}</td>
           <td class="cell-num">{{ e.eventSequenceNumber }}</td>
           <td class="cell-end cell-num">
-            {{ e.updatedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+            {{ e.updatedAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
             @if (e.deletedAt) {
-              <span class="cell-sub">{{ e.deletedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}</span>
+              <span class="cell-sub">{{ e.deletedAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}</span>
             }
           </td>
         </tr>
@@ -79,10 +79,10 @@
           <ion-grid class="ion-no-padding ion-margin-top line-under">
             <ion-row>
               <ion-col>
-                {{'common.updated.at' | translate}}: {{ selected.updatedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+                {{'common.updated.at' | translate}}: {{ selected.updatedAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
                 @if (selected.deletedAt) {
                   <br/>
-                  <small>{{ selected.deletedAt * 1000 | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
+                  <small>{{ selected.deletedAt | date:'yyyy-MM-dd HH:mm:ss.SSS' }}
                   </small>
                 }
               </ion-col>

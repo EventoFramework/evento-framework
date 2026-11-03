@@ -63,10 +63,10 @@
                       </ion-col>
                       <ion-col size="12" sizeMd="6" class="ion-text-right">
                         @if (consumerState.errorStartAt) {
-                          <div>{{ 'consumer.error.start' | translate }}: {{consumerState.errorStartAt * 1000 | date:'short'}}</div>
+                          <div>{{ 'consumer.error.start' | translate }}: {{consumerState.errorStartAt | date:'short'}}</div>
                         }
                         @if (consumerState.lastErrorAt) {
-                          <div>{{ 'consumer.error.last' | translate }}: {{consumerState.lastErrorAt * 1000 | date:'short'}}</div>
+                          <div>{{ 'consumer.error.last' | translate }}: {{consumerState.lastErrorAt | date:'short'}}</div>
                         }
                       </ion-col>
                     </ion-row>
@@ -109,7 +109,7 @@
                                     <ion-label>{{ 'consumer.last.error' | translate }}</ion-label>
                                     @if (consumerState.lastErrorAt) {
                                       <ion-chip slot="end" color="medium">
-                                        <ion-label>{{consumerState.lastErrorAt * 1000 | date:'short'}}</ion-label>
+                                        <ion-label>{{consumerState.lastErrorAt | date:'short'}}</ion-label>
                                       </ion-chip>
                                     }
                                   </ion-item>
@@ -154,7 +154,7 @@
                       <td>{{de.eventName}}</td>
                       <td class="cell-mono">{{de.aggregateId}}</td>
                       <td><ion-toggle (ionChange)="setEventRetry($event, de)" [checked]="de.retry"></ion-toggle></td>
-                      <td class="cell-num">{{de.deadAt * 1000 | date:'short'}}</td>
+                      <td class="cell-num">{{de.deadAt | date:'short'}}</td>
                       <td class="cell-end">
                         <ion-button shape="round" size="small"
                           (click)="selectedDead = de; deadDetail.present()">{{ 'consumer.show.event' | translate }}</ion-button>
