@@ -101,6 +101,13 @@ ion-chip.ion-color {
   background: transparent !important;
 }
 
+// In dark, primary and secondary are foreground colors: as a fill they'd be pale slabs on ink.
+.ion-palette-dark ion-card.ion-color-primary,
+.ion-palette-dark ion-toolbar.ion-color-secondary {
+  --ion-color-base: var(--evento-surface-2) !important;
+  --ion-color-contrast: var(--evento-text) !important;
+}
+
 // The brand is square: Ionic's own radii too.
 ion-card,
 ion-chip,

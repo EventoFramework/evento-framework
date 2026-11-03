@@ -10,8 +10,14 @@ wiki follow. One color table in `evento-gui/.../services/utils.ts`, which also g
 The site shows the console through animated panels, no videos, by the user's choice.
 
 Open: after a live theme switch in Flows some edges vanish until a reload (also on the published console, not
-introduced here; `cy.forceRender()` does not help). The telemetry charts still use two y-axes, and the charts' new
-colors were seen only on all-zero data. `demo-live.png` on the site still shows the old logo of the demo app.
+introduced here; `cy.forceRender()` does not help). The telemetry charts still use two y-axes. `demo-live.png` on the
+site still shows the old logo of the demo app.
+
+Two server bugs found while capturing the docs on a local 3.0.2 stack, not fixed here: (1) nothing calls
+`sendAggregateServiceTimeMetric` since the v1 code was removed (f6f9155d), so
+`performance__aggregate_handler_invocation_count_ts` stays empty and the Aggregate telemetry charts read zero; (2)
+`/api/system-state-store/event` and `/snapshot` serialize the payload as a Jackson node's bean properties
+(`array`, `bigDecimal`, `nodeType`...), so the console's event and snapshot details don't show the content.
 
 ## 3.0.2 released (2026-10-28)
 
