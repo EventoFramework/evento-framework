@@ -1,6 +1,14 @@
 package com.evento.server.web;
 
 import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerResponseMessage;
+import com.evento.common.messaging.consumer.DeadPublishedEvent;
+import com.evento.common.modeling.messaging.dto.PublishedEvent;
+import com.evento.common.modeling.messaging.message.application.DomainEventMessage;
+import com.evento.common.modeling.messaging.message.internal.consumer.ConsumerFetchStatusResponseMessage;
+import com.evento.common.modeling.messaging.message.application.EventMessage;
+import com.evento.common.modeling.messaging.payload.DomainEvent;
+import com.evento.common.modeling.state.AggregateState;
+import com.evento.common.modeling.state.SerializedAggregateState;
 import com.evento.server.bus.BusFacade;
 import com.evento.server.domain.model.core.Bundle;
 import com.evento.server.domain.model.core.Component;
@@ -9,6 +17,8 @@ import com.evento.server.domain.repository.core.ComponentRepository;
 import com.evento.server.domain.repository.core.HandlerRepository;
 import com.evento.server.domain.repository.core.PayloadRepository;
 import com.evento.server.es.EventStore;
+import com.evento.server.es.eventstore.EventStoreEntry;
+import com.evento.server.es.snapshot.Snapshot;
 import com.evento.server.service.BundleService;
 import com.evento.server.web.config.WebConfig;
 import com.evento.server.service.HandlerService;
@@ -36,6 +46,8 @@ import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -154,6 +166,58 @@ class ConsoleApiTest {
     }
 
     @Test
+    void anEventShowsItsPayload() throws Exception {
+        var entry = mock(EventStoreEntry.class);
+        when(entry.getEventSequenceNumber()).thenReturn(7L);
+        when(entry.getEventMessage()).thenReturn((EventMessage) new DomainEventMessage(new SampleEvent("first todo")));
+        when(eventStore.searchEvents(any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(entry), PageRequest.of(0, 30), 1));
+
+        mvc.perform(get("/api/system-state-store/event").with(httpBasic("viewer", "pw")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].event..content").value("first todo"))
+                .andExpect(jsonPath("$..nodeType").doesNotExist());
+    }
+
+    @Test
+    void aSnapshotShowsItsStateAndWhenItWasTaken() throws Exception {
+        var snapshot = mock(Snapshot.class);
+        when(snapshot.getEventSequenceNumber()).thenReturn(7L);
+        when(snapshot.getUpdatedAt()).thenReturn(Instant.parse("2026-01-02T03:04:05Z"));
+        when(snapshot.getAggregateState()).thenReturn((SerializedAggregateState) new SerializedAggregateState<>(new SampleState("a state")));
+        when(eventStore.searchSnapshots(any(), anyInt(), anyInt(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(snapshot), PageRequest.of(0, 30), 1));
+
+        mvc.perform(get("/api/system-state-store/snapshot").with(httpBasic("viewer", "pw")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].aggregateState..content").value("a state"))
+                .andExpect(jsonPath("$..nodeType").doesNotExist())
+                // The console reads this as a date string, not as seconds to multiply.
+                .andExpect(jsonPath("$.content[0].updatedAt").value("2026-01-02T03:04:05Z"));
+    }
+
+    @Test
+    void aDeadEventCarriesTheJsonAndTheDateTheConsoleReads() throws Exception {
+        var published = new PublishedEvent();
+        published.setEventMessage(new DomainEventMessage(new SampleEvent("first todo")));
+        var dead = new DeadPublishedEvent();
+        dead.setEvent(published);
+        dead.setDeadAt(ZonedDateTime.parse("2026-01-02T03:04:05Z"));
+        var status = new ConsumerFetchStatusResponseMessage();
+        status.setDeadEvents(List.of(dead));
+        when(consumerService.getConsumerStatusFromNodes(eq("c1"), any()))
+                .thenReturn(CompletableFuture.completedFuture(status));
+
+        var result = mvc.perform(get("/api/consumer/c1").with(httpBasic("viewer", "pw")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(result))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deadEvents[0].event.eventMessage.serializedPayload.serializedObject")
+                        .value(org.hamcrest.Matchers.containsString("first todo")))
+                .andExpect(jsonPath("$.deadEvents[0].deadAt").value("2026-01-02T03:04:05Z"));
+    }
+
+    @Test
     void aComponentNameInSeveralBundlesAsksForTheId() throws Exception {
         var a = new Component();
         a.setId("orders-eu:OrderProjector");
@@ -251,6 +315,28 @@ class ConsoleApiTest {
     private void perform(RequestBuilder builder) throws Exception {
         var result = mvc.perform(builder).andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+    }
+
+    public static class SampleEvent extends DomainEvent {
+        public String content;
+
+        public SampleEvent() {
+        }
+
+        SampleEvent(String content) {
+            this.content = content;
+        }
+    }
+
+    public static class SampleState extends AggregateState {
+        public String content;
+
+        public SampleState() {
+        }
+
+        SampleState(String content) {
+            this.content = content;
+        }
     }
 
     /** Hears the admin actions: name, target (sorted by key) and outcome. */
