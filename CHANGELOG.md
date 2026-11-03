@@ -9,11 +9,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.3] — 2026-11-03
+
+The console in the Evento brand, and three things it had lost: the diagrams of its detail pages, the content and dates
+of events and snapshots, and the Aggregate telemetry. No wire or schema change; 3.0.x and 2.5 bundles and servers
+interoperate with it. In the console's REST API, `event` and `aggregateState` now hold the stored payload.
+
 ### Changed
 
 - **The console takes the Evento brand** (logo, palette, Bricolage Grotesque and JetBrains Mono, square shapes). Graph
   nodes carry the shape of their component type, and the flows view colors them by that type. Both themes keep the
-  strong color code, now from one table. No change to the server or its API.
+  strong color code, now from one table.
+- **Dependencies:** ClassGraph 6.0.1 in `evento-bundle`; in the console Angular 22.2.4, Ionic 9.0.10, ApexCharts 8.7.0 and
+  ngx-translate 18.1.0, with the rest of the npm group; `gradle/actions/wrapper-validation` 6.4.1 in CI.
 
 ### Fixed
 
@@ -1622,7 +1630,8 @@ Last stable v1.x release. The v1 source history is preserved in the git log.
 
 ---
 
-[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v3.0.2...HEAD
+[Unreleased]: https://github.com/EventoFramework/evento-framework/compare/v3.0.3...HEAD
+[3.0.3]: https://github.com/EventoFramework/evento-framework/compare/v3.0.2...v3.0.3
 [3.0.2]: https://github.com/EventoFramework/evento-framework/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/EventoFramework/evento-framework/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/EventoFramework/evento-framework/compare/v2.5.2...v3.0.0
