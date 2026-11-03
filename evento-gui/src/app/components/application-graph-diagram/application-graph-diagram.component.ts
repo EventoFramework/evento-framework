@@ -1,7 +1,7 @@
 import {AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
 import {HandlerService} from '../../services/handler.service';
 import {LoadingController, NavController} from '@ionic/angular/lazy';
-import {componentColor, getColorForBundle, handlerOutputs, payloadColor} from '../../services/utils';
+import {colorForCurrentTheme, componentColor, getColorForBundle, handlerOutputs, payloadColor} from '../../services/utils';
 import cytoscape from 'cytoscape';
 import {hierarchy, pack} from 'd3-hierarchy';
 
@@ -216,6 +216,9 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
       let fs: number;
       if (data.kind === 'handler') {
         fs = Math.max(6, Math.min(16, (1.3 * d.r) / Math.sqrt(Math.max(rawLabel.length, 1))));
+        // Small enough for the longest word to fit on one line.
+        const longestWord = Math.max(...rawLabel.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[ :]+/).map((w: string) => w.length));
+        fs = Math.min(fs, tmw / (longestWord * 0.62));
       } else if (data.kind === 'component') {
         fs = Math.max(12, Math.min(28, d.r * 0.16));
       } else {
@@ -235,14 +238,16 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
         elements.push({
           ...common,
           classes: 'bundle',
-          data: {...common.data, id: `b:${data.id}`, color: getColorForBundle(data.id), nav: `/application-flows?bundle=${data.id}`},
+          data: {...common.data, label: '', id: `b:${data.id}`, color: getColorForBundle(data.id), nav: `/application-flows?bundle=${data.id}`},
         });
+        elements.push(this.nameTag(d, `b:${data.id}`, label, fs, getColorForBundle(data.id), 'bundle-name'));
       } else if (data.kind === 'component') {
         elements.push({
           ...common,
           classes: 'component',
-          data: {...common.data, id: `c:${data.id}`, color: componentColor[data.componentType] || 'grey', nav: `/application-flows?component=${data.id}`},
+          data: {...common.data, label: '', id: `c:${data.id}`, color: componentColor[data.componentType] || 'grey', nav: `/application-flows?component=${data.id}`},
         });
+        elements.push(this.nameTag(d, `c:${data.id}`, label, fs, componentColor[data.componentType] || 'grey', 'component-name'));
       } else {
         elements.push({
           ...common,
@@ -320,16 +325,21 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
         // above everything. Handler-only: bumping a hovered component/bundle
         // would lift its solid fill above the handler bubbles and hide them.
         {selector: '.handler.hl, .handler.hl-down, .handler.hl-up', style: {'z-index': 10} as any},
+        // A circle's name sits over every circle, or the next circle hides it.
+        {selector: '.name-tag', style: {'z-index': 5} as any},
         {selector: 'edge.hl-down, edge.hl-up', style: {'z-index': 9} as any},
         {
-          selector: '.bundle, .component',
+          selector: '.name-tag',
           style: {
-            'text-valign': 'top',
+            events: 'no',
+            'background-opacity': 0,
+            'border-width': 0,
+            'text-valign': 'center',
             'text-wrap': 'none',
             'text-background-color': p.surface,
             'text-background-opacity': 1,
             'text-background-padding': '3px',
-            'text-background-shape': 'round-rectangle',
+            'text-background-shape': 'rectangle',
             'text-border-width': 1,
             'text-border-color': 'data(color)',
             'text-border-opacity': 1,
@@ -337,7 +347,7 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
         },
         // Bundle names are the map's landmarks: keep them visible further out
         // than everything else (their font already scales with bundle size).
-        {selector: '.bundle', style: {'min-zoomed-font-size': 5} as any},
+        {selector: '.bundle-name', style: {'min-zoomed-font-size': 5} as any},
         // A hovered node always shows its label, even when zoomed out past
         // the LOD cutoff — hover is the "what is this bubble?" gesture.
         {selector: 'node.hl', style: {'min-zoomed-font-size': 0} as any},
@@ -352,8 +362,8 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
         },
         {selector: '.response', style: {'line-style': 'dashed'} as any},
         // Hover highlight, color-coded by direction: downstream (what this
-        // handler triggers) in accent orange, upstream (what leads into it)
-        // in teal-green. Edge-scoped selectors only — a bare class selector
+        // handler triggers) in the danger red, upstream (what leads into it)
+        // in the success green. Edge-scoped selectors only — a bare class selector
         // would also match nodes and its `width` would collapse them.
         {
           selector: 'edge.hl-down',
@@ -378,6 +388,7 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
     cy.on('mouseover', 'node', (evt) => {
       const n = evt.target;
       n.addClass('hl');
+      cy.getElementById(`name:${n.id()}`).addClass('hl');
       if (n.hasClass('handler')) {
         this.reveal(n);
         n.successors().addClass('hl-down');
@@ -390,6 +401,7 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
         return;
       }
       n.removeClass('hl');
+      cy.getElementById(`name:${n.id()}`).removeClass('hl');
       if (n.hasClass('handler')) {
         this.unreveal(n);
         n.successors().removeClass('hl-down');
@@ -438,9 +450,10 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
     // Recolor labels/edges when the light/dark theme flips.
     this.themeObserver = new MutationObserver(() => {
       const np = this.palette();
+      cy.nodes().forEach((n: any) => { n.data('color', colorForCurrentTheme(n.data('color'))); });
       cy.style()
         .selector('node').style({color: np.text, 'background-color': np.surface} as any)
-        .selector('.bundle, .component').style({'text-background-color': np.surface} as any)
+        .selector('.name-tag').style({'text-background-color': np.surface, 'background-opacity': 0} as any)
         .selector('edge').style({'line-color': np.text} as any)
         .selector('edge.hl-down').style({'line-color': np.down} as any)
         .selector('edge.hl-up').style({'line-color': np.up} as any)
@@ -535,12 +548,21 @@ export class ApplicationGraphDiagramComponent implements AfterViewInit, OnDestro
     n.removeStyle('width').removeStyle('height').removeStyle('font-size').removeStyle('text-max-width');
   }
 
+  /** The name of a bundle or component, in its own node on the circle's top edge. */
+  private nameTag(d: any, owner: string, label: string, fs: number, color: string, kind: string): cytoscape.ElementDefinition {
+    return {
+      position: {x: d.x, y: d.y - d.r},
+      classes: `name-tag ${kind}`,
+      data: {id: `name:${owner}`, d: 1, label, fs, tmw: d.r * 2, color},
+    };
+  }
+
   private palette() {
     return {
       surface: cssToken('--evento-surface', '#ffffff'),
       text: cssToken('--evento-text', '#14201f'),
-      accent: cssToken('--ion-color-tertiary', '#DE7340'),
-      down: cssToken('--ion-color-tertiary', '#DE7340'),
+      accent: cssToken('--ion-color-tertiary', '#ff5c28'),
+      down: cssToken('--ion-color-danger', '#eb445a'),
       up: cssToken('--ion-color-success', '#00C597'),
     };
   }

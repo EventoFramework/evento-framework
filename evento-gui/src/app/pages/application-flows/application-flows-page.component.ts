@@ -1,6 +1,6 @@
 import {ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
-import {payloadColor, stringToColour} from '../../services/utils';
+import {componentColor, payloadColor, stringToColour} from '../../services/utils';
 import {FlowsService} from '../../services/flows.service';
 import {analyzeFlows, edgeWeight, edgeWeightLabel} from './flow-analysis';
 import {CatalogService} from '../../services/catalog.service';
@@ -208,11 +208,12 @@ export class ApplicationFlowsPage implements OnInit, OnDestroy {
           n = {
             id,
             label: `${node.bundle}\n${node.component}` + this.perfSuffix(node),
-            color: stringToColour(node.bundle),
+            color: componentColor[node.componentType] || stringToColour(node.bundle),
+            component: node.componentType,
           };
         }
         if (this.performanceAnalysis && node.isBottleneck && node.type !== 'Source') {
-          n.color = '#ff0000';
+          n.color = cssToken('--ion-color-danger', '#c8102e');
           n.primary = true;
         }
         gNodes.push(n);

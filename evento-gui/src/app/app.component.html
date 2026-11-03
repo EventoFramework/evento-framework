@@ -2,9 +2,8 @@
   <ion-tabs #tabs (ionTabsWillChange)="selectedTab = $event.tab">
 
     <ion-tab-bar id="main-header" slot="top">
-      <app-wrapped-content>
        <div class="app-header">
-        <img id="main-logo" src="assets/img/logo.png" routerLink="/" alt="Evento">
+        <img id="main-logo" src="assets/img/evento-logo.svg" routerLink="/" alt="Evento">
 
         @if (auth.authenticated()) {
         <nav class="app-nav" aria-label="Primary">
@@ -53,7 +52,6 @@
           </button>
         }
        </div>
-      </app-wrapped-content>
     </ion-tab-bar>
 
   </ion-tabs>

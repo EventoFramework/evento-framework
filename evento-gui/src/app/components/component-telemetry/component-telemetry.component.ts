@@ -1,4 +1,5 @@
-import {Component, Input, OnInit, ChangeDetectionStrategy} from '@angular/core';
+import {Component, Input, OnDestroy, OnInit, ChangeDetectionStrategy} from '@angular/core';
+import {chartTheme, onThemeChange} from '../../services/utils';
 import {PerformanceService} from "../../services/performance.service";
 import {retry} from "rxjs";
 
@@ -9,7 +10,7 @@ import {retry} from "rxjs";
     changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
-export class ComponentTelemetryComponent implements OnInit {
+export class ComponentTelemetryComponent implements OnInit, OnDestroy {
   @Input() component!: any;
 
   chartOptions: any = {
@@ -38,7 +39,13 @@ export class ComponentTelemetryComponent implements OnInit {
   charts = []
 
 
+  private stopThemeWatch = onThemeChange(() => this.fetchTs());
+
   constructor(private service: PerformanceService) {
+  }
+
+  ngOnDestroy() {
+    this.stopThemeWatch();
   }
 
 
@@ -73,6 +80,7 @@ export class ComponentTelemetryComponent implements OnInit {
       this.interval,
       this.serviceTimeAggregation
     )
+    const theme = chartTheme();
     const charts = [];
     for (let handler of Object.keys(data)) {
       charts.push({
@@ -81,17 +89,20 @@ export class ComponentTelemetryComponent implements OnInit {
           {
           name: "Count",
           type: "column",
+          color: theme.series.count,
           data: data[handler].map((e: any) => ({x:new Date(e.timestamp).getTime(), y:parseInt(e.count)}))
         },
           {
             name: "Service Time",
             type: "column",
-            color: "#FEB019",
+            color: theme.series.service,
             data: data[handler].map((e: any) => ({x:new Date(e.timestamp).getTime(), y:e.serviceTime?.toFixed(2) || null}))
           }
         ],
         chart: {
           height: 350,
+          foreColor: theme.text,
+          fontFamily: theme.font,
           type: "line",
           stacked: false,
           id: handler,
@@ -99,6 +110,12 @@ export class ComponentTelemetryComponent implements OnInit {
         },
         dataLabels: {
           enabled: false
+        },
+        tooltip: {
+          theme: theme.tooltip
+        },
+        grid: {
+          borderColor: theme.grid
         },
         stroke: {
           width: [1, 1, 4]
@@ -122,18 +139,10 @@ export class ComponentTelemetryComponent implements OnInit {
             },
             axisBorder: {
               show: true,
-              color: "#008FFB"
-            },
-            labels: {
-              style: {
-                color: "#008FFB"
-              }
+              color: theme.grid
             },
             title: {
-              text: "Handled Count",
-              style: {
-                color: "#008FFB"
-              }
+              text: "Handled Count"
             },
             tooltip: {
               enabled: true
@@ -147,18 +156,10 @@ export class ComponentTelemetryComponent implements OnInit {
             },
             axisBorder: {
               show: true,
-              color: "#FEB019"
-            },
-            labels: {
-              style: {
-                color: "#FEB019"
-              }
+              color: theme.grid
             },
             title: {
-              text: "Service Time",
-              style: {
-                color: "#FEB019"
-              }
+              text: "Service Time"
             }
           },
         ]

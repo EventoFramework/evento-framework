@@ -3,10 +3,13 @@ import {platformBrowser} from '@angular/platform-browser';
 
 import {AppModule} from './app/app.module';
 import {environment} from './environments/environment';
+import {installColorCode} from './app/services/utils';
 
 if (environment.production) {
   enableProdMode();
 }
+
+installColorCode();
 
 // API authentication lives in services/api.ts (Basic auth via apiFetch) — the old
 // global window.fetch proxy + prompt() token flow is gone.

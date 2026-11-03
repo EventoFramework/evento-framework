@@ -4,7 +4,7 @@
       <ion-col style="overflow-y: scroll; max-height: calc(100vh - 64px); max-width: 324px">
         <ion-searchbar [(ngModel)]="search" (ionChange)="checkFilter()" mode="ios"
         [placeholder]="'flows.search' | translate"></ion-searchbar>
-        <ion-card class="bundle" style="background: #3b82f6" routerLink="/application-flows">
+        <ion-card class="bundle" style="background: var(--evento-text)" routerLink="/application-flows">
           <ion-card-content>
             <ion-text class="title">{{ 'flows.all' | translate }}</ion-text>
             <p>{{ 'flows.all.desc' | translate }}</p>
