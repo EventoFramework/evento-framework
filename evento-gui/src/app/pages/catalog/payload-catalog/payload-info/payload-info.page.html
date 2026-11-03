@@ -76,7 +76,7 @@
                   @for (r of payload.subscribers; track r) {
                     <div>
                       <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
-                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                        <span class="shape component-type-{{r.type}}"></span>{{r.name}}
                       </ion-chip>
                       @if (r.repoLink) {
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">
@@ -105,7 +105,7 @@
                   @for (r of payload.invokers; track r) {
                     <div>
                       <ion-chip [id]="r.name" outline="true" routerLink="/component-info/{{r.name}}">
-                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                        <span class="shape component-type-{{r.type}}"></span>{{r.name}}
                       </ion-chip>
                       @if (r.repoLink) {
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">
@@ -134,7 +134,7 @@
                   @for (r of payload.returnedBy; track r) {
                     <div>
                       <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
-                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                        <span class="shape component-type-{{r.type}}"></span>{{r.name}}
                       </ion-chip>
                       @if (r.repoLink) {
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">
@@ -163,7 +163,7 @@
                   @for (r of payload.usedBy; track r) {
                     <div>
                       <ion-chip [id]="r.name" outline="true"  routerLink="/component-info/{{r.name}}">
-                        <ion-text class="dot component-type-{{r.type}}" style="font-size: 25px">•</ion-text>&nbsp;{{r.name}}
+                        <span class="shape component-type-{{r.type}}"></span>{{r.name}}
                       </ion-chip>
                       @if (r.repoLink) {
                         <ion-popover [trigger]="r.name" triggerAction="context-menu">

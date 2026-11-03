@@ -9,6 +9,7 @@ import cytoscape from 'cytoscape';
 import dagreDefault from 'cytoscape-dagre';
 // @ts-ignore
 import * as dagreNamespace from 'cytoscape-dagre';
+import {colorForCurrentTheme, componentShape} from '../../services/utils';
 
 let dagreRegistered = false;
 let dagreAvailable = false;
@@ -52,7 +53,12 @@ export interface EventoNode {
    * Cytoscape's built-in `barrel` bulges sideways and reads wrong.
    */
   shape?: string;
+  /** Component type: draws its brand shape beside the label, in the node's color. */
+  component?: string;
 }
+
+/** Room a component's shape takes beside the label. */
+const SHAPE_GUTTER = 26;
 
 /** Inline-SVG database cylinder used for event-store nodes. The explicit
  *  width/height set the raster resolution: without them the browser rasterizes
@@ -86,6 +92,8 @@ export interface EventoGraphOptions {
   onNavigate?: (route: string) => void;
   /** Build a repository URL from a node's `repo`, or null if unavailable. */
   repoLink?: (repo: EventoNode['repo']) => string | null;
+  /** Arrange unrelated clusters in columns that fill the container, not in one tall stack. */
+  wrap?: boolean;
   /**
    * Full control over the right-click menu: return the items for a node (or
    * empty/none to show nothing). Takes precedence over `repoLink`.
@@ -118,6 +126,8 @@ export function createEventoGraph(
     edge: cssToken('--evento-text-faint', '#8a9997'),
   });
   let p = palette();
+  // Identifiers, so the mono face of the brand: 7.8px a character at 13px, the width the boxes allow.
+  const labelFont = cssToken('--evento-font-mono', 'monospace');
 
   const nodeById: Record<string, EventoNode> = {};
   const elements: cytoscape.ElementDefinition[] = [
@@ -129,8 +139,9 @@ export function createEventoGraph(
       const lines = (n.label || '').split('\n');
       const longest = lines.reduce((m, l) => Math.max(m, l.length), 3);
       const isCylinder = n.shape === 'cylinder';
+      const hasShape = !isCylinder && !!componentShape(n.component);
       return {
-        classes: isCylinder ? 'cylinder' : '',
+        classes: isCylinder ? 'cylinder' : (hasShape ? 'component-shape' : ''),
         data: {
           id: n.id,
           label: n.label,
@@ -138,12 +149,14 @@ export function createEventoGraph(
           route: n.route,
           repo: n.repo,
           bg: p.surface,
-          fg: n.primary ? n.color : p.text,
-          bw: n.primary ? 4 : 2,
+          fg: p.text,
+          component: n.component,
+          bw: n.primary ? 3 : 1.5,
           fw: n.primary ? 700 : 500,
-          shape: isCylinder ? 'rectangle' : (n.shape || 'round-rectangle'),
-          bgImg: isCylinder ? cylinderSvg(n.color, p.surface) : '',
-          w: Math.max(80, longest * 8 + 20),
+          shape: isCylinder ? 'rectangle' : (n.shape || 'rectangle'),
+          bgImg: isCylinder ? cylinderSvg(n.color, p.surface) : (hasShape ? componentShape(n.component, n.color) : ''),
+          w: Math.max(80, longest * 8 + 20) + (hasShape ? SHAPE_GUTTER : 0),
+          tw: Math.max(80, longest * 8 + 20),
           h: 30 + lines.length * 16 + (isCylinder ? 26 : 0),
         },
       };
@@ -189,12 +202,12 @@ export function createEventoGraph(
         selector: 'node',
         style: {
           shape: 'data(shape)' as any,
-          'corner-radius': '10' as any,
           'background-color': 'data(bg)',
           'border-color': 'data(color)',
           'border-width': 'data(bw)',
           label: 'data(label)',
           color: 'data(fg)',
+          'font-family': labelFont,
           'font-size': 13,
           'font-weight': 'data(fw)' as any,
           'text-valign': 'center',
@@ -203,6 +216,20 @@ export function createEventoGraph(
           'text-max-width': 'data(w)',
           width: 'data(w)',
           height: 'data(h)',
+        },
+      },
+      {
+        selector: 'node.component-shape',
+        style: {
+          'background-image': 'data(bgImg)' as any,
+          'background-fit': 'none',
+          'background-clip': 'none',
+          'background-width': '20px' as any,
+          'background-height': '14px' as any,
+          'background-position-x': '8px' as any,
+          'background-position-y': '50%' as any,
+          'text-margin-x': (SHAPE_GUTTER / 2) as any,
+          'text-max-width': `data(tw)` as any,
         },
       },
       {
@@ -228,6 +255,7 @@ export function createEventoGraph(
           'target-arrow-shape': 'triangle',
           'arrow-scale': 0.9,
           label: 'data(lbl)' as any,
+          'font-family': labelFont,
           'font-size': 9,
           color: p.text,
           'text-wrap': 'wrap',
@@ -268,6 +296,13 @@ export function createEventoGraph(
         },
       },
     ],
+  });
+
+  // Canvas text does not repaint when a web font arrives.
+  Promise.all([500, 700].map((weight) => document.fonts.load(`${weight} 13px ${labelFont}`))).then(() => {
+    if (!cy.destroyed()) {
+      cy.style().update();
+    }
   });
 
   // Run the ELK layered layout explicitly and fit once it settles. Running it
@@ -376,9 +411,37 @@ export function createEventoGraph(
   const runLayouts = (options: any) => {
     const comps = cy.elements().components();
     const GAP = 60;
-    let offset = 0;
+    const laidOut: Array<{comp: any; along: number; across: number}> = [];
+    // `along` is the stacking axis. A wrapped stack breaks at the length that gives the whole
+    // arrangement the container's proportions.
+    const placeAll = () => {
+      const area = laidOut.reduce((sum, c) => sum + (c.along + GAP) * (c.across + GAP), 0);
+      const w = container.clientWidth || 4;
+      const h = container.clientHeight || 3;
+      const longest = laidOut.reduce((max, c) => Math.max(max, c.along), 0);
+      const limit = opts.wrap ? Math.max(longest, Math.sqrt(area * (horizontal ? h / w : w / h))) : Infinity;
+      let along = 0;
+      let across = 0;
+      let band = 0;
+      for (const c of laidOut) {
+        if (along > 0 && along + c.along > limit) {
+          across += band + GAP;
+          along = 0;
+          band = 0;
+        }
+        const a = along;
+        const b = across;
+        c.comp.nodes().positions((n: any) => {
+          const q = n.position();
+          return horizontal ? {x: q.x + b, y: q.y + a} : {x: q.x + a, y: q.y + b};
+        });
+        along += c.along + GAP;
+        band = Math.max(band, c.across);
+      }
+    };
     const runNext = (idx: number) => {
       if (idx >= comps.length) {
+        placeAll();
         computeElbows();
         applyFit();
         return;
@@ -388,12 +451,10 @@ export function createEventoGraph(
       layout.one('layoutstop', () => {
         const bb = comp.boundingBox({});
         comp.nodes().positions((n: any) => {
-          const p = n.position();
-          return horizontal
-            ? {x: p.x - bb.x1, y: p.y - bb.y1 + offset}
-            : {x: p.x - bb.x1 + offset, y: p.y - bb.y1};
+          const q = n.position();
+          return {x: q.x - bb.x1, y: q.y - bb.y1};
         });
-        offset += (horizontal ? bb.h : bb.w) + GAP;
+        laidOut.push({comp, along: horizontal ? bb.h : bb.w, across: horizontal ? bb.w : bb.h});
         runNext(idx + 1);
       });
       layout.run();
@@ -472,12 +533,13 @@ export function createEventoGraph(
     cy.batch(() => {
       cy.nodes().forEach((n) => {
         n.data('bg', p.surface);
+        n.data('color', colorForCurrentTheme(n.data('color')));
         if (n.hasClass('cylinder')) {
           n.data('bgImg', cylinderSvg(n.data('color'), p.surface));
+        } else if (n.hasClass('component-shape')) {
+          n.data('bgImg', componentShape(n.data('component'), n.data('color')));
         }
-        if (!n.data('route') || n.data('fw') !== 700) {
-          n.data('fg', n.data('fw') === 700 ? n.data('color') : p.text);
-        }
+        n.data('fg', p.text);
       });
       // Edge colors are data-driven; only re-theme edges without a custom
       // (perf-overlay) color.

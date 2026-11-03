@@ -1,5 +1,7 @@
 # Evento GUI — UX/UI Redesign Plan
 
+> Historical. The "brand invariants" below are superseded by the Evento Brand Kit (2026-11): new palette, logo and fonts. The color code stays, in `services/utils.ts`.
+
 Premium redesign of `evento-gui` (Angular 22 + Ionic 8) while **preserving the
 existing brand**: color scheme, logo, and font. Plus three functional changes:
 a real login (username/password → server token), a graph engine swap

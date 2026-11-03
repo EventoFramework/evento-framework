@@ -48,6 +48,7 @@ export class InvokersHandlersDiagramComponent implements AfterViewInit, OnDestro
         id,
         label: r.name,
         color: componentColor[r.type],
+        component: r.type,
         route: '/component-info/' + r.name,
         repo: {bundleId: r.bundleId, path: r.path, line: r.line},
       });
@@ -60,6 +61,7 @@ export class InvokersHandlersDiagramComponent implements AfterViewInit, OnDestro
         id,
         label: i.name,
         color: componentColor[i.type],
+        component: i.type,
         route: '/component-info/' + i.name,
       });
       edges.push({source: id, target: pay});
@@ -71,6 +73,7 @@ export class InvokersHandlersDiagramComponent implements AfterViewInit, OnDestro
         id,
         label: s.name,
         color: componentColor[s.type],
+        component: s.type,
         route: '/component-info/' + s.name,
         repo: {bundleId: s.bundleId, path: s.path, line: s.line},
       });

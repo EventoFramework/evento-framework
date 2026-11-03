@@ -9,6 +9,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The console takes the Evento brand** (logo, palette, Bricolage Grotesque and JetBrains Mono, square shapes). Graph
+  nodes carry the shape of their component type, and the flows view colors them by that type. Both themes keep the
+  strong color code, now from one table. No change to the server or its API.
+
+### Fixed
+
+- **Component, payload and bundle pages draw their diagrams.** Cytoscape's default layout threw while the container's
+  Ionic parents were still hydrating, and the graph was never created.
+- **The console's header no longer hides its first tab**, and graph nodes and the event store follow a theme switch
+  without a reload.
+
 ## [3.0.2] — 2026-10-28
 
 Patch release: the shipped server id is neutral. No wire, schema or API change; 3.0.x and 2.5 bundles and

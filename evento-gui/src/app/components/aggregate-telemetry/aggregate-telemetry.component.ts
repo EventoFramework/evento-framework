@@ -1,4 +1,5 @@
-import {Component, Input, OnInit, ChangeDetectionStrategy} from '@angular/core';
+import {Component, Input, OnDestroy, OnInit, ChangeDetectionStrategy} from '@angular/core';
+import {chartTheme, onThemeChange} from '../../services/utils';
 import {PerformanceService} from "../../services/performance.service";
 import {retry} from "rxjs";
 
@@ -9,7 +10,7 @@ import {retry} from "rxjs";
     changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
-export class AggregateTelemetryComponent implements OnInit {
+export class AggregateTelemetryComponent implements OnInit, OnDestroy {
   @Input() component!: any;
 
   chartOptions: any = {
@@ -38,7 +39,13 @@ export class AggregateTelemetryComponent implements OnInit {
   charts = []
 
 
+  private stopThemeWatch = onThemeChange(() => this.fetchTs());
+
   constructor(private service: PerformanceService) {
+  }
+
+  ngOnDestroy() {
+    this.stopThemeWatch();
   }
 
 
@@ -73,6 +80,7 @@ export class AggregateTelemetryComponent implements OnInit {
       this.interval,
       this.serviceTimeAggregation
     )
+    const theme = chartTheme();
     const charts = [];
     for (let handler of Object.keys(data)) {
       charts.push({
@@ -81,30 +89,31 @@ export class AggregateTelemetryComponent implements OnInit {
           {
             name: "Count",
             type: "column",
+            color: theme.series.count,
             data: data[handler].map((e: any) => ({x:new Date(e.timestamp).getTime(), y:parseInt(e.count)}))
           },
           {
             name: "Lock Time",
             type: "column",
-            color: "#C70039",
+            color: theme.series.lock,
             data: data[handler].map((e: any) => ({x:new Date(e.timestamp).getTime(), y:e.lock?.toFixed(2) || null}))
           },
           {
             name: "Retrieve Time",
             type: "column",
-            color: "blue",
+            color: theme.series.retrieve,
             data: data[handler].map((e: any) => ({x:new Date(e.timestamp).getTime(), y:e.retrieve?.toFixed(2) || null}))
           },
           {
             name: "Service Time",
             type: "column",
-            color: "#23F622",
+            color: theme.series.service,
             data: data[handler].map((e: any) => ({x:new Date(e.timestamp).getTime(), y:e.serviceTime?.toFixed(2) || null}))
           },
           {
             name: "Store Time",
             type: "column",
-            color: "#FC9F29",
+            color: theme.series.store,
             data: data[handler].map((e: any) => ({x:new Date(e.timestamp).getTime(), y:e.store?.toFixed(2) || null}))
           }
 
@@ -115,6 +124,8 @@ export class AggregateTelemetryComponent implements OnInit {
         ],
         chart: {
           height: 350,
+          foreColor: theme.text,
+          fontFamily: theme.font,
           type: "line",
           stacked: true,
           id: handler,
@@ -122,6 +133,12 @@ export class AggregateTelemetryComponent implements OnInit {
         },
         dataLabels: {
           enabled: false
+        },
+        tooltip: {
+          theme: theme.tooltip
+        },
+        grid: {
+          borderColor: theme.grid
         },
         title: {
           text: handler,
@@ -145,18 +162,10 @@ export class AggregateTelemetryComponent implements OnInit {
             },
             axisBorder: {
               show: true,
-              color: "#008FFB"
-            },
-            labels: {
-              style: {
-                color: "#008FFB"
-              }
+              color: theme.grid
             },
             title: {
-              text: "Handled Count",
-              style: {
-                color: "#008FFB"
-              }
+              text: "Handled Count"
             },
             tooltip: {
               enabled: true
@@ -169,18 +178,10 @@ export class AggregateTelemetryComponent implements OnInit {
             },
             axisBorder: {
               show: true,
-              color: "#FEB019"
-            },
-            labels: {
-              style: {
-                color: "#FEB019"
-              }
+              color: theme.grid
             },
             title: {
-              text: "Service Time",
-              style: {
-                color: "#FEB019"
-              }
+              text: "Service Time"
             }
           },
         ]

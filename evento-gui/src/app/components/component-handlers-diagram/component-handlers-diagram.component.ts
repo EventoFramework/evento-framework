@@ -42,6 +42,7 @@ export class ComponentHandlersDiagramComponent implements AfterViewInit, OnDestr
         id: comp,
         label: this.component.componentName,
         color: componentColor[this.component.componentType],
+        component: this.component.componentType,
         primary: true,
         route: '/component-info/' + encodeURIComponent(this.component.componentId || this.component.componentName),
         repo: {bundleId: h.bundleId, path: h.path, line: h.line},

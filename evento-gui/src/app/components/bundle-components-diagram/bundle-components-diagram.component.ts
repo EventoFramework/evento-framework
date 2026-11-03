@@ -45,6 +45,7 @@ export class BundleComponentsDiagramComponent implements AfterViewInit, OnDestro
           id: comp,
           label: h.componentName,
           color: componentColor[h.componentType],
+          component: h.componentType,
           route: '/component-info/' + encodeURIComponent(h.componentId || h.componentName),
         });
       }
@@ -84,6 +85,7 @@ export class BundleComponentsDiagramComponent implements AfterViewInit, OnDestro
 
     this.graph = createEventoGraph(this.container.nativeElement, nodes, edges, {
       direction: 'RIGHT',
+      wrap: true,
       onNavigate: (route) => this.navController.navigateForward(route),
       repoLink: (repo) => this.repository.link(repo.bundleId, repo.path, repo.line),
     });

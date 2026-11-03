@@ -16,135 +16,10 @@
  * a Sass @import of theme/variables was previously duplicating the tokens and is
  * deprecated by Dart Sass 3. */
 
-// Fonts (Inter + Roboto) are self-hosted via @fontsource and loaded in
+// Fonts (Bricolage Grotesque + JetBrains Mono) are self-hosted via @fontsource and loaded in
 // angular.json's `styles` array — no external Google Fonts request.
 
-.payload-type-DomainCommand {
-  --background: #3399fe;
-  --color: white;
-}
-
-.payload-type-ServiceCommand {
-  --background: #ff68b9;
-  --color: black;
-}
-
-
-.payload-type-DomainEvent {
-  --background: #ff992a;
-  --color: black;
-}
-
-.payload-type-ServiceEvent {
-  --background: #cb3234;
-  --color: black;
-}
-
-.payload-type-View {
-  --background: #00CC00;
-  --color: white;
-}
-
-.payload-type-Invocation {
-  --background: grey;
-  --color: white;
-}
-
-.payload-type-Query {
-  --background: #FFD700;
-  --color: black;
-}
-
-
-.dot.payload-type-DomainCommand {
-  color: #3399fe;
-}
-
-.dot.payload-type-ServiceCommand {
-  color: #ff68b9;
-}
-
-
-.dot.payload-type-DomainEvent {
-  color: #ff992a;
-}
-
-.dot.payload-type-ServiceEvent {
-  color: #cb3234;
-}
-
-.dot.payload-type-View {
-  color: #00CC00;
-}
-
-.dot.payload-type-Invocation {
-  color: grey;
-}
-
-.dot.payload-type-Query {
-  color: gold;
-}
-
-.component-type-Aggregate {
-  --background: blue;
-  --color: white;
-}
-
-.component-type-Service {
-  --background: red;
-  --color: white;
-}
-
-.component-type-Projection {
-  --background: lightgreen;
-  --color: #0a2a12; // dark text — white was unreadable on lightgreen
-}
-
-.component-type-Projector {
-  --background: #008000FF;
-}
-
-.component-type-Saga {
-  --background: purple;
-  --color: white;
-}
-
-.component-type-Observer {
-  --background: black;
-  --color: white;
-}
-
-.component-type-Invoker {
-  --background: gray;
-}
-
-.dot.component-type-Aggregate {
-  color: blue;
-}
-
-.dot.component-type-Service {
-  color: red;
-}
-
-.dot.component-type-Projection {
-  color: lightgreen;
-}
-
-.dot.component-type-Projector {
-  color: green;
-}
-
-.dot.component-type-Saga {
-  color: purple;
-}
-
-.dot.component-type-Observer {
-  color: black;
-}
-
-.dot.component-type-Invoker {
-  color: gray;
-}
+// The payload and component color code is generated from services/utils.ts (installColorCode).
 
 ion-card.component-type {
   ion-card-content {
@@ -177,11 +52,10 @@ ion-card.dashboard-card {
   border: 1px solid var(--evento-border);
   box-shadow: var(--evento-shadow-sm);
   overflow: hidden;
-  transition: transform var(--evento-duration-base) var(--evento-ease-out),
-              box-shadow var(--evento-duration-base) var(--evento-ease-out);
+  transition: border-color var(--evento-duration-base) var(--evento-ease-out);
 }
 
-// Clickable cards lift on hover.
+// Clickable cards.
 ion-card.component-type,
 ion-card.payload-type,
 ion-card.bundle,
@@ -190,13 +64,56 @@ ion-card.dashboard-card[routerLink] {
   cursor: pointer;
 
   &:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--evento-shadow-md);
+    border-color: var(--evento-border-strong);
   }
+}
 
-  &:active {
-    transform: translateY(-1px);
-  }
+// The seven shapes of the brand, set per type by installColorCode().
+.shape,
+ion-chip[class*='component-type-']::before,
+ion-card[class*='component-type-'] .title::before {
+  content: '';
+  display: inline-block;
+  flex: none;
+  width: 1.3em;
+  height: 0.9em;
+  margin-right: 0.4em;
+  vertical-align: -0.05em;
+  background: currentColor;
+  mask: var(--shape) center / contain no-repeat;
+}
+
+ion-chip[class*='component-type-']::before {
+  background: var(--color);
+}
+
+ion-card[class*='component-type-'] .title::before {
+  background: var(--background);
+}
+
+// Colored chips: the tint carries the color, the text stays readable.
+ion-chip.ion-color {
+  color: var(--evento-text);
+}
+
+// ApexCharts paints its toolbar for a light page.
+.apexcharts-toolbar {
+  background: transparent !important;
+}
+
+// The brand is square: Ionic's own radii too.
+ion-card,
+ion-chip,
+ion-button,
+ion-searchbar,
+ion-item {
+  --border-radius: 0;
+  border-radius: 0;
+}
+
+// Ionic's mode classes set the searchbar's radius with higher specificity.
+ion-searchbar {
+  --border-radius: 0 !important;
 }
 
 ion-card-title {

@@ -2,12 +2,12 @@
   <div class="login-bg">
     <div class="login-card">
       <div class="login-brand">
-        <img src="assets/img/logo.png" alt="Evento"/>
+        <img src="assets/img/evento-logo.svg" alt="Evento"/>
         <p>{{ 'evento.description' | translate }}</p>
       </div>
       @if (auth.mode() === 'oidc') {
         <div class="login-form">
-          <ion-button expand="block" (click)="signInWithProvider()">
+          <ion-button expand="block" color="tertiary" (click)="signInWithProvider()">
             {{ 'login.sso' | translate }}
           </ion-button>
         </div>
@@ -26,7 +26,7 @@
             {{ 'login.error' | translate }}
           </ion-text>
         }
-        <ion-button expand="block" type="submit" [disabled]="loading || !username || !password">
+        <ion-button expand="block" color="tertiary" type="submit" [disabled]="loading || !username || !password">
           @if (loading) {
             <ion-spinner name="crescent"></ion-spinner>
           } @else {
