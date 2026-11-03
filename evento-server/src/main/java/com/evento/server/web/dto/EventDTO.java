@@ -1,7 +1,7 @@
 package com.evento.server.web.dto;
 
 import com.evento.server.es.eventstore.EventStoreEntry;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import lombok.Data;
 
 import java.util.Map;
@@ -17,7 +17,9 @@ public class EventDTO {
     /** Epoch millis, {@code null} unless the aggregate was deleted. */
     private Long deletedAt;
     private Map<String, String> metadata;
-    private JsonNode event;
+    /** The payload's JSON as stored. Not a JsonNode: that is Jackson 2, which the web layer's Jackson 3 sees as a bean. */
+    @JsonRawValue
+    private String event;
 
     public EventDTO() {
     }
@@ -29,7 +31,7 @@ public class EventDTO {
         createdAt = entry.createdAtInstant() == null ? null : entry.createdAtInstant().toEpochMilli();
         deletedAt = entry.deletedAtInstant() == null ? null : entry.deletedAtInstant().toEpochMilli();
         metadata = entry.getEventMessage().getMetadata();
-        event = entry.getEventMessage().getSerializedPayload().getTree();
+        event = entry.getEventMessage().getSerializedPayload().getSerializedObject();
     }
 
 }
