@@ -1,12 +1,18 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-11-03 (session 11).
+Last updated: 2026-11-04 (session 11).
 
-## 3.0.3 prepared (2026-11-03)
+## 3.0.3 released and deployed (2026-11-04)
 
-#336, #337 and #338 merged (admin, on the user's say-so), CI and CodeQL on main green. Changelog dated for 3.0.3. The tag
-is cut by `scripts/release.sh patch` after this merges. Afterwards: evento-www and evento-todo move to 3.0.3 (demo image,
-get-started), and the demo is redeployed. evento-www #9, evento-todo #5 and evento-doc #5 are merged, not deployed.
+Tag v3.0.3: the console in the Signal brand, #337 (payloads and dates), #338 (Aggregate telemetry) and the pending
+Dependabot PRs (#339, #335, #333), merged with admin on the user's say-so. Maven Central, the signed jar on the GitHub
+Release and `eventoframework/evento-server:3.0.3` published. evento-www #9 and #10, evento-todo #5 and #6 merged and
+deployed by the user with `deploy/deploy.sh`; evento-doc #5 live on GitBook through its sync. Wiki, organization avatar,
+the repository's social preview and the GitBook theme updated by hand.
+
+Open: GitBook refused the custom font upload, so its text stays in Inter, and the site is on the Basic plan after a
+downgrade. The public console now shows real event payloads, including what visitors type in todos; that names are
+encrypted on the public demo was not checked, because its store was empty after the deploy.
 
 ## Signal rebrand: console, site, docs (2026-11-03)
 
@@ -16,8 +22,7 @@ wiki follow. One color table in `evento-gui/.../services/utils.ts`, which also g
 The site shows the console through animated panels, no videos, by the user's choice.
 
 Open: after a live theme switch in Flows some edges vanish until a reload (also on the published console, not
-introduced here; `cy.forceRender()` does not help). The telemetry charts still use two y-axes. `demo-live.png` on the
-site still shows the old logo of the demo app.
+introduced here; `cy.forceRender()` does not help). The telemetry charts still use two y-axes.
 
 Two server bugs found while capturing the docs on a local 3.0.2 stack, fixed in their own PRs: #337 (the console's
 event and snapshot payloads, written as a Jackson 2 node's bean properties since Spring Boot 4, and its dates, ISO
