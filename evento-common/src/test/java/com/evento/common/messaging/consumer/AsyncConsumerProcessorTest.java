@@ -200,6 +200,22 @@ class AsyncConsumerProcessorTest {
     }
 
     @Test
+    void aSaturatedObserverKeepsThePositionOfTheUnhandledEventsBeforeTheOneItCouldNotStart() throws Throwable {
+        executor = ConsumerExecutors.virtual("async", 1);
+        server.nextHead(0);
+        server.nextFetch(TestEvents.event(1, "Mine"), TestEvents.event(2, "Other"), TestEvents.event(3, "Mine"));
+        var release = new CountDownLatch(1);
+        var consumer = EventConsumer.of(e -> release.await(), java.util.Set.of("Mine"));
+
+        int consumed = processor.consumeEventsForObserver("o1", "ObsA", "ctx", consumer, 10, always(executor));
+
+        assertThat(consumed).as("event 1 running, event 2 skipped, event 3 refused").isEqualTo(2);
+        assertThat(stateStore.read("o1").orElseThrow().checkpoint()).isEqualTo(new EventCheckpoint(2L));
+        release.countDown();
+        assertThat(processor.awaitConsumerQuiescence("o1", Duration.ofSeconds(5))).isTrue();
+    }
+
+    @Test
     void quiescenceOfOneConsumerIgnoresAnotherConsumersWork() throws Throwable {
         // Two consumers share one executor. Draining "c1" must not wait on "c2".
         executor = ConsumerExecutors.virtual("shared", 4);

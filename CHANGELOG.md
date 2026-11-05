@@ -9,6 +9,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **An observer no longer pays for events it does not handle.** Every event of the stream cost each observer a claim in
+  `evento_v2_dedupe` and a checkpoint, two commits, whether or not it had a handler. Now such an event takes no claim and
+  no task, and its position is written with the next handled event or at the end of the batch, as projectors and sagas
+  already do. Replaying one after a crash is a no-op. No wire or schema change.
+
 ## [3.0.3] — 2026-11-03
 
 The console in the Evento brand, and three things it had lost: the diagrams of its detail pages, the content and dates

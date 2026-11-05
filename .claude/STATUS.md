@@ -1,6 +1,12 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-11-04 (session 11).
+Last updated: 2026-11-05 (session 12).
+
+## Observers skip events they do not handle (2026-11-05)
+
+Branch `fix/observer-skip-unhandled-events`: `consumeEventsForObserver` follows projectors and sagas, no claim, no task and
+no checkpoint of its own for an event without a handler. On a real bundle with eight observers and 21 consumers, WAL fsyncs
+per unhandled event went from 24.6 to 2.2. Not released. Events an observer does handle still cost a claim and a checkpoint.
 
 ## 3.0.3 released and deployed (2026-11-04)
 
