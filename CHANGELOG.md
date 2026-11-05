@@ -9,12 +9,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.4] — 2026-11-05
+
+A bundle no longer slows down with every observer it has. No wire or schema change; 3.0.x and 2.5 bundles and servers
+interoperate with it. Only the bundle has to move to get the gain.
+
 ### Fixed
 
 - **An observer no longer pays for events it does not handle.** Every event of the stream cost each observer a claim in
   `evento_v2_dedupe` and a checkpoint, two commits, whether or not it had a handler. Now such an event takes no claim and
   no task, and its position is written with the next handled event or at the end of the batch, as projectors and sagas
-  already do. Replaying one after a crash is a no-op. No wire or schema change.
+  already do. Replaying one after a crash is a no-op. On a bundle with eight observers and a spinning disk, events no
+  observer handles went from 3.4 to 34 per second, end to end. Events an observer does handle cost the same as before.
+  The stored position of an idle observer can trail the head until the next event it handles or its next wake-up.
 
 ## [3.0.3] — 2026-11-03
 

@@ -2,11 +2,14 @@
 
 Last updated: 2026-11-05 (session 12).
 
-## Observers skip events they do not handle (2026-11-05)
+## 3.0.4: observers skip events they do not handle (2026-11-05)
 
-Branch `fix/observer-skip-unhandled-events`: `consumeEventsForObserver` follows projectors and sagas, no claim, no task and
+#342, merged with admin on the user's say-so: `consumeEventsForObserver` follows projectors and sagas, no claim, no task and
 no checkpoint of its own for an event without a handler. On a real bundle with eight observers and 21 consumers, WAL fsyncs
-per unhandled event went from 24.6 to 2.2. Not released. Events an observer does handle still cost a claim and a checkpoint.
+per unhandled event went from 24.6 to 2.2, and on a spinning disk end-to-end speed from 3.4 to 34 events/s (then limited by
+ingest). Events an observer does handle still cost a claim and a checkpoint; not measured: full order flows, large databases.
+
+Open: evento-www, evento-todo and evento-doc still on 3.0.3.
 
 ## 3.0.3 released and deployed (2026-11-04)
 
