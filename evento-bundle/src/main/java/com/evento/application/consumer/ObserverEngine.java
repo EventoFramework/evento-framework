@@ -109,7 +109,10 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
 
     @Override
     public void run() {
-        dispatchContext.headSignal().register(wakeup, HeadSignal.handledBy(observerMessageHandlers, observerName));
+        var handled = HeadSignal.handledBy(observerMessageHandlers, observerName);
+        dispatchContext.headSignal().register(wakeup, handled);
+        // Knows its events: one it does not handle takes no claim, no task and no checkpoint of its own.
+        var consumer = com.evento.common.messaging.consumer.EventConsumer.of(this::dispatch, handled);
         var backoff = new ExponentialBackoffWithJitter(
                 Duration.ofMillis(sssFetchDelay), Duration.ofSeconds(30), 0.2,
                 ExponentialBackoffWithJitter.UNBOUNDED);
@@ -125,7 +128,7 @@ public final class ObserverEngine implements Runnable, ConsumerHandle {
                             consumerId,
                             observerName,
                             context,
-                            this::dispatch,
+                            consumer,
                             sssFetchSize,
                             routing.resolver());
                 }

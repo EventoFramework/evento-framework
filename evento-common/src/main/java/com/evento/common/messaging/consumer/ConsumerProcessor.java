@@ -380,7 +380,17 @@ public final class ConsumerProcessor {
             var resp = fetchEvents(context, lastSeq, fetchSize, observerName);
 
             int consumed = 0;
+            // An event no handler here wants needs no claim and no task, and its position is
+            // written with the next handled event or at the end of the batch. Replaying it after
+            // a crash is a no-op, so nothing durable is given up.
+            long unwritten = -1;
+            try {
             for (PublishedEvent event : resp.getEvents()) {
+                if (!observerEventConsumer.handles(event)) {
+                    unwritten = event.getEventSequenceNumber();
+                    consumed++;
+                    continue;
+                }
                 var start = Instant.now();
                 final String eventId = String.valueOf(event.getEventSequenceNumber());
                 final boolean shouldRun = dedupeStore == null || dedupeStore.tryClaim(consumerId, eventId);
@@ -415,8 +425,19 @@ public final class ConsumerProcessor {
                     }
                 }
                 currentVersion = advanceCheckpoint(consumerId, new EventCheckpoint(event.getEventSequenceNumber()), currentVersion);
+                unwritten = -1;
                 consumed++;
                 recordMetric(observerName, event, start);
+            }
+            } finally {
+                if (unwritten >= 0) {
+                    try {
+                        advanceCheckpoint(consumerId, new EventCheckpoint(unwritten), currentVersion);
+                    } catch (RuntimeException e) {
+                        // Only unhandled events behind it: the next cycle fetches them again.
+                        logger.warn("Checkpoint of observer {} at {} not written: {}", observerName, unwritten, e.toString());
+                    }
+                }
             }
             return consumed;
         }

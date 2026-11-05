@@ -189,6 +189,47 @@ class ConsumerProcessorTest {
                 .isEqualTo(new EventCheckpoint(2L));
     }
 
+    /**
+     * An event the observer has no handler for costs nothing: no claim in the dedupe store, no
+     * task, and its position goes with the next handled event or the end of the batch. Paid per
+     * event, these two writes capped a bundle with eight observers at about 6 events/s on a
+     * spinning disk during a catalog import none of them handled.
+     */
+    @Test
+    void anObserverSkipsUnhandledEventsAndWritesTheirCheckpointWithTheNextOneOrAtTheEnd() throws Throwable {
+        server.nextHead(0L);
+        server.nextFetch(TestEvents.event(1, "Other"), TestEvents.event(2, "Other"), TestEvents.event(3, "Mine"),
+                TestEvents.event(4, "Other"), TestEvents.event(5, "Other"));
+        List<Long> seen = new ArrayList<>();
+        var consumer = EventConsumer.of(e -> seen.add(e.getEventSequenceNumber()), java.util.Set.of("Mine"));
+
+        int consumed = processor.consumeEventsForObserver("c1", "ObsA", "ctx", consumer, 10);
+
+        assertThat(consumed).isEqualTo(5);
+        assertThat(seen).as("only the handled event reaches the observer").containsExactly(3L);
+        var stored = stateStore.read("c1").orElseThrow();
+        assertThat(stored.checkpoint()).isEqualTo(new EventCheckpoint(5L));
+        assertThat(stored.version()).as("three writes: the seed, event 3, the end of the batch").isEqualTo(3L);
+        assertThat(dedupe.tryClaim("c1", "1")).as("an unhandled event takes no claim").isTrue();
+        assertThat(dedupe.tryClaim("c1", "3")).as("a handled event keeps its claim").isFalse();
+    }
+
+    @Test
+    void anObserverWithNothingToHandleInABatchWritesOneCheckpoint() throws Throwable {
+        server.nextHead(0L);
+        server.nextFetch(TestEvents.event(1, "Other"), TestEvents.event(2, "Other"), TestEvents.event(3, "Other"));
+        var consumer = EventConsumer.of(e -> {
+            throw new AssertionError("no handler for " + e.getEventName());
+        }, java.util.Set.of("Mine"));
+
+        assertThat(processor.consumeEventsForObserver("c1", "ObsA", "ctx", consumer, 10)).isEqualTo(3);
+
+        var stored = stateStore.read("c1").orElseThrow();
+        assertThat(stored.checkpoint()).isEqualTo(new EventCheckpoint(3L));
+        assertThat(stored.version()).as("two writes: the seed, the end of the batch").isEqualTo(2L);
+        assertThat(dlq.getAll("c1")).isEmpty();
+    }
+
     // --- Saga --------------------------------------------------------------
 
     @Test
