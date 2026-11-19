@@ -9,7 +9,7 @@ allprojects {
         nettyVersion = '4.2.19.Final'
         lz4Version = '1.12.1'
         micrometerVersion = '1.13.6'
-        junitVersion = '5.11.4'
+        junitVersion = '6.1.3'
         assertjVersion = '3.27.7'
         lombokVersion = '1.18.48'
         flywayVersion = '13.11.1'
