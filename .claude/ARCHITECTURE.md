@@ -69,7 +69,7 @@ authorisation, `LICENSE-COMMERCIAL.txt`; names in `TRADEMARKS.md`) and target 25
 `-PtestJdk=N` runs the client tests on another JDK. Libraries log through
 SLF4J only and ship no logging configuration.
 
-**Gradle**: version `3.0.0` (wrapper 9.8.2), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
+**Gradle**: version `3.0.0` (wrapper 9.9.1), Java toolchain `25` (run on JDK 25.0.3+), Spring Boot
 `4.1.1` (server and lab services), Jackson `2.22.2`, Netty `4.2.17.Final`, Flyway `13.4.0`. Root
 `build.gradle` centralises versions in `allprojects { ext { … } }`; the release script bumps
 `version` / `eventoVersion` there and `evento-server/version.json`. The published libraries also
@@ -1052,7 +1052,7 @@ These are the user-facing APIs — changing signatures requires a major version 
 
 **Toolchain:** JDK 25.0.3 or later (`/usr/libexec/java_home -v 25` on macOS;
 `C:/Users/Gaborando/.jdks/jdk-25.0.4.1+1` on the Windows dev host). Never 25.0.1/25.0.2
-(JDK-8370887 stalls virtual-thread timed waits ~20 s). Gradle 9.8.2 wrapper at `./gradlew`.
+(JDK-8370887 stalls virtual-thread timed waits ~20 s). Gradle 9.9.1 wrapper at `./gradlew`.
 
 **Standard test run:**
 ```bash

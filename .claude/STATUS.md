@@ -2,6 +2,15 @@
 
 Last updated: 2026-11-19 (session 13).
 
+## 3.0.6: Dependabot updates, libraries published again (2026-11-19)
+
+One release branch with the four green Dependabot PRs (#350 npm, #349 Gradle group, #348 actions, #347 JUnit 6), and
+`eventoVersion` aligned to 3.0.5: 3.0.5 was bumped by hand instead of with `scripts/release.sh`, `eventoVersion` stayed at
+3.0.4, and Maven Central and GitHub Packages refused the libraries as a second 3.0.4 (nothing overwritten). The release
+itself is cut with `scripts/release.sh patch`, which bumps the three version sources together and checks them. #345 (cosign-installer 3 -> 4, cosign 3) is left out: cosign 3
+writes the new bundle format by default, and the release's `sign-blob --output-signature/--output-certificate` may stop
+producing the .sig/.pem assets; to be tried on its own, with the release steps adapted.
+
 ## 3.0.5: the server image on a patched Java runtime (2026-11-19)
 
 CVE-2026-114938 (Java SE compiler, CVSS 8.1, Oracle 2026-11-17) is fixed in Temurin 25.0.5.1+2 (Adoptium, 2026-11-18),
