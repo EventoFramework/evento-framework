@@ -9,6 +9,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.6] — 2026-11-19
+
+Dependency updates, and the libraries again at the same version as the server. No wire or schema change; 3.0.x and
+2.5 bundles and servers interoperate with it.
+
+### Changed
+
+- **Dependencies.** Netty 4.2.20, Jackson 2.23, OpenTelemetry 1.68, ClassGraph 6.0.2, lz4-java 1.14 and the rest of
+  the Gradle group; JUnit 6.1 for the tests; Gradle 9.9.1; the console's npm packages; the workflow actions.
+- **The server image keeps the patched Java runtime of 3.0.5** (CVE-2026-114938): Temurin 25.0.5.1+2 on amd64, the base
+  runtime on arm64 until Adoptium publishes that build.
+
+### Fixed
+
+- **The libraries are published again.** 3.0.5 raised the server's version and not the libraries' (`eventoVersion`), so
+  Maven Central and GitHub Packages refused them as a second 3.0.4: 3.0.5 exists only as the server image and boot jar,
+  and the libraries go from 3.0.4 to 3.0.6.
+
 ## [3.0.5] — 2026-11-19
 
 The server image runs on a patched Java runtime. No code, wire or schema change: a 3.0.4 deployment only swaps the
