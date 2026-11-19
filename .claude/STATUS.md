@@ -1,6 +1,15 @@
 # Evento Framework — status snapshot
 
-Last updated: 2026-11-05 (session 12).
+Last updated: 2026-11-19 (session 13).
+
+## 3.0.5: the server image on a patched Java runtime (2026-11-19)
+
+CVE-2026-114938 (Java SE compiler, CVSS 8.1, Oracle 2026-11-17) is fixed in Temurin 25.0.5.1+2 (Adoptium, 2026-11-18),
+which no `eclipse-temurin` image carries yet. The server Dockerfile replaces the runtime with Adoptium's x64 JRE, checked
+by SHA-256 (`ADD --checksum`); a `uname -m` test keeps the base runtime on arm64, for which Adoptium has no 25.0.5.1 build
+yet (both paths built locally: amd64 reports 25.0.5.1, arm64 25.0.4.1). No code change; version bumped to 3.0.5.
+
+Open: arm64 image still on the affected runtime; drop the stage once the base image carries 25.0.5.1 or later.
 
 ## 3.0.4: observers skip events they do not handle (2026-11-05)
 

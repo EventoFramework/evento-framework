@@ -9,6 +9,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.5] — 2026-11-19
+
+The server image runs on a patched Java runtime. No code, wire or schema change: a 3.0.4 deployment only swaps the
+image.
+
+### Security
+
+- **CVE-2026-114938 (Java SE compiler, CVSS 8.1).** The `linux/amd64` image (and its `-cf` variant) runs on Temurin
+  25.0.5.1+2, which fixes it. The `eclipse-temurin` images do not carry that runtime yet, so the image takes Adoptium's
+  JRE, checked by SHA-256. Adoptium has not yet published 25.0.5.1 for arm64: the `linux/arm64` image keeps the runtime
+  of its base, still affected, until a later release takes the arm64 build. Running the boot jar yourself, use a Java
+  runtime of 25.0.5.1 or later.
+
 ## [3.0.4] — 2026-11-05
 
 A bundle no longer slows down with every observer it has. No wire or schema change; 3.0.x and 2.5 bundles and servers
