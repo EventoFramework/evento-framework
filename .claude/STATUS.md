@@ -4,9 +4,10 @@ Last updated: 2026-11-19 (session 13).
 
 ## 3.0.6: Dependabot updates, libraries published again (2026-11-19)
 
-One release branch with the four green Dependabot PRs (#350 npm, #349 Gradle group, #348 actions, #347 JUnit 6) and the
-version at 3.0.6 everywhere, `eventoVersion` included: forgetting it in 3.0.5 made Maven Central and GitHub Packages refuse
-the libraries as a second 3.0.4 (nothing overwritten). #345 (cosign-installer 3 -> 4, cosign 3) is left out: cosign 3
+One release branch with the four green Dependabot PRs (#350 npm, #349 Gradle group, #348 actions, #347 JUnit 6), and
+`eventoVersion` aligned to 3.0.5: 3.0.5 was bumped by hand instead of with `scripts/release.sh`, `eventoVersion` stayed at
+3.0.4, and Maven Central and GitHub Packages refused the libraries as a second 3.0.4 (nothing overwritten). The release
+itself is cut with `scripts/release.sh patch`, which bumps the three version sources together and checks them. #345 (cosign-installer 3 -> 4, cosign 3) is left out: cosign 3
 writes the new bundle format by default, and the release's `sign-blob --output-signature/--output-certificate` may stop
 producing the .sig/.pem assets; to be tried on its own, with the release steps adapted.
 
