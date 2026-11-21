@@ -6,8 +6,8 @@ allprojects {
         javaLanguageVersion = JavaLanguageVersion.of(25)
         eventoVersion = '3.0.6'
         jacksonVersion = '2.23.0'
-        nettyVersion = '4.2.20.Final'
-        lz4Version = '1.14.0'
+        nettyVersion = '4.2.21.Final'
+        lz4Version = '1.14.1'
         micrometerVersion = '1.13.6'
         junitVersion = '6.1.3'
         assertjVersion = '3.27.7'
